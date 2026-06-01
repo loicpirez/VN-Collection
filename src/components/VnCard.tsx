@@ -15,6 +15,7 @@ import type { EditionType, Status } from '@/lib/types';
 import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
+import { readApiError } from '@/lib/api-error-read';
 
 export interface CardData {
   id: string;
@@ -104,6 +105,9 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   // pointerdown as the touch equivalent of a context-menu event.
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
+  const identityRef = useRef<string | null>(data.id);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
   function openMenuAt(x: number, y: number) {
     if (selectable) return;
@@ -135,6 +139,22 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   }
 
   useEffect(() => () => clearLongPress(), []);
+  useEffect(() => {
+    identityRef.current = data.id;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    inFlightRef.current = false;
+    setAdding(false);
+    setAddedLocal(false);
+    setMenuAnchor(null);
+    clearLongPress();
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [data.id]);
 
   // Swallow the click that follows a fired long-press — otherwise the
   // outer <Link> navigates away the moment the menu opens.
@@ -151,26 +171,34 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (adding) return;
+    if (inFlightRef.current) return;
+    const ownerVnId = data.id;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
     setAdding(true);
     try {
-      const r = await fetch(`/api/collection/${data.id}`, {
+      const r = await fetch(`/api/collection/${ownerVnId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
+        signal: controller.signal,
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
-      }
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.added);
       setAddedLocal(true);
-      onAdded?.(data.id);
+      onAdded?.(ownerVnId);
       startTransition(() => router.refresh());
     } catch (err) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || (err instanceof Error && err.name === 'AbortError')) return;
       toast.error((err as Error).message);
     } finally {
-      setAdding(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setAdding(false);
+      }
     }
   }
   const ratingNum = data.user_rating ?? data.rating;

@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitCompare, Heart, Loader2, MapPin, Package, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -8,6 +8,7 @@ import { StatusIcon } from './StatusIcon';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CollapsibleSummary } from './CollapsibleSummary';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   selectedIds: string[];
@@ -43,10 +44,7 @@ async function patchOne(
     body: JSON.stringify(body),
     signal,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `${vnId}: ${httpStatusError(httpStatus, res.status)}`);
-  }
+  if (!res.ok) throw new Error(await readApiError(res, `${vnId}: ${httpStatusError(httpStatus, res.status)}`));
 }
 
 async function deleteOne(
@@ -55,7 +53,7 @@ async function deleteOne(
   httpStatus: string,
 ): Promise<void> {
   const res = await fetch(`/api/collection/${vnId}`, { method: 'DELETE', signal });
-  if (!res.ok) throw new Error(`${vnId}: ${httpStatusError(httpStatus, res.status)}`);
+  if (!res.ok) throw new Error(await readApiError(res, `${vnId}: ${httpStatusError(httpStatus, res.status)}`));
 }
 
 export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
@@ -69,8 +67,31 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   const [errors, setErrors] = useState<string[]>([]);
   const cancelRef = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
+  const selectionKey = selectedIds.join('|');
+  const selectionIdentityRef = useRef<string | null>(selectionKey);
+  const operationInFlightRef = useRef(false);
   const [, startTransition] = useTransition();
   const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
+
+  useEffect(() => {
+    selectionIdentityRef.current = selectionKey;
+    cancelRef.current = true;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    operationInFlightRef.current = false;
+    setBusy(false);
+    return () => {
+      selectionIdentityRef.current = null;
+      cancelRef.current = true;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      operationInFlightRef.current = false;
+    };
+  }, [selectionKey]);
+
+  function ownsSelection(ownerKey: string): boolean {
+    return selectionIdentityRef.current === ownerKey;
+  }
 
   function labelForField(field: BulkField): string {
     switch (field.kind) {
@@ -90,106 +111,140 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   function requestStop() {
     cancelRef.current = true;
     controllerRef.current?.abort();
-    setOperation((prev) => ({ ...prev, aborted: true }));
+    if (selectionIdentityRef.current != null) setOperation((prev) => ({ ...prev, aborted: true }));
   }
 
   async function applyField(field: BulkField) {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
+    const ownerKey = selectionKey;
+    const ids = [...selectedIds];
     cancelRef.current = false;
     setBusy(true);
     setErrors([]);
-    setProgress({ done: 0, total: selectedIds.length });
+    setProgress({ done: 0, total: ids.length });
     setOperation({ label: labelForField(field), currentId: '', aborted: false });
     const localErrors: string[] = [];
     let done = 0;
-    for (const id of selectedIds) {
-      if (cancelRef.current) break;
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      setOperation((prev) => ({ ...prev, currentId: id }));
-      try {
-        await patchOne(id, { [field.kind]: field.value }, controller.signal, t.common.httpStatus);
-      } catch (e) {
-        if (!cancelRef.current) localErrors.push((e as Error).message);
+    try {
+      for (const id of ids) {
+        if (cancelRef.current || !ownsSelection(ownerKey)) break;
+        const controller = new AbortController();
+        controllerRef.current = controller;
+        setOperation((prev) => ({ ...prev, currentId: id }));
+        try {
+          await patchOne(id, { [field.kind]: field.value }, controller.signal, t.common.httpStatus);
+        } catch (e) {
+          if (!cancelRef.current && ownsSelection(ownerKey)) localErrors.push((e as Error).message);
+        }
+        if (controllerRef.current === controller) controllerRef.current = null;
+        if (cancelRef.current || !ownsSelection(ownerKey)) break;
+        done++;
+        setProgress({ done, total: ids.length });
       }
-      if (controllerRef.current === controller) controllerRef.current = null;
-      if (cancelRef.current) break;
-      done++;
-      setProgress({ done, total: selectedIds.length });
-    }
-    const aborted = cancelRef.current;
-    cancelRef.current = false;
-    controllerRef.current = null;
-    setBusy(false);
-    setOperation((prev) => ({ ...prev, currentId: '', aborted }));
-    setErrors(localErrors);
-    if (aborted) {
-      toast.warning(t.bulk.abortedTitle);
-      onApplied();
-      return;
-    }
-    if (localErrors.length === 0) {
-      toast.success(t.toast.bulkApplied.replace('{n}', String(selectedIds.length)));
-      startTransition(() => {
+      if (!ownsSelection(ownerKey)) return;
+      const aborted = cancelRef.current;
+      setOperation((prev) => ({ ...prev, currentId: '', aborted }));
+      setErrors(localErrors);
+      if (aborted) {
+        toast.warning(t.bulk.abortedTitle);
         onApplied();
-        onClear();
-      });
-    } else {
-      toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
-      onApplied();
+        return;
+      }
+      if (localErrors.length === 0) {
+        toast.success(t.toast.bulkApplied.replace('{n}', String(ids.length)));
+        startTransition(() => {
+          onApplied();
+          onClear();
+        });
+      } else {
+        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
+        onApplied();
+      }
+    } catch (e) {
+      if (ownsSelection(ownerKey) && !cancelRef.current) {
+        localErrors.push((e as Error).message);
+        setErrors(localErrors);
+        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
+        onApplied();
+      }
+    } finally {
+      if (ownsSelection(ownerKey)) {
+        cancelRef.current = false;
+        controllerRef.current = null;
+        operationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
   async function applyDelete() {
-    if (selectedIds.length === 0) return;
-    const ok = await confirm({
-      message: t.bulkEdit.confirmDelete.replace('{n}', String(selectedIds.length)),
-      tone: 'danger',
-      requireTyping: selectedIds.length >= 5 ? 'DELETE' : undefined,
-    });
-    if (!ok) return;
-    cancelRef.current = false;
-    setBusy(true);
-    setErrors([]);
-    setProgress({ done: 0, total: selectedIds.length });
-    setOperation({ label: t.bulkEdit.deleteAll, currentId: '', aborted: false });
-    const localErrors: string[] = [];
-    let done = 0;
-    for (const id of selectedIds) {
-      if (cancelRef.current) break;
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      setOperation((prev) => ({ ...prev, currentId: id }));
-      try {
-        await deleteOne(id, controller.signal, t.common.httpStatus);
-      } catch (e) {
-        if (!cancelRef.current) localErrors.push((e as Error).message);
+    if (selectedIds.length === 0 || operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
+    const ownerKey = selectionKey;
+    const ids = [...selectedIds];
+    try {
+      const ok = await confirm({
+        message: t.bulkEdit.confirmDelete.replace('{n}', String(ids.length)),
+        tone: 'danger',
+        requireTyping: ids.length >= 5 ? 'DELETE' : undefined,
+      });
+      if (!ok || !ownsSelection(ownerKey)) return;
+      cancelRef.current = false;
+      setBusy(true);
+      setErrors([]);
+      setProgress({ done: 0, total: ids.length });
+      setOperation({ label: t.bulkEdit.deleteAll, currentId: '', aborted: false });
+      const localErrors: string[] = [];
+      let done = 0;
+      for (const id of ids) {
+        if (cancelRef.current || !ownsSelection(ownerKey)) break;
+        const controller = new AbortController();
+        controllerRef.current = controller;
+        setOperation((prev) => ({ ...prev, currentId: id }));
+        try {
+          await deleteOne(id, controller.signal, t.common.httpStatus);
+        } catch (e) {
+          if (!cancelRef.current && ownsSelection(ownerKey)) localErrors.push((e as Error).message);
+        }
+        if (controllerRef.current === controller) controllerRef.current = null;
+        if (cancelRef.current || !ownsSelection(ownerKey)) break;
+        done++;
+        setProgress({ done, total: ids.length });
       }
-      if (controllerRef.current === controller) controllerRef.current = null;
-      if (cancelRef.current) break;
-      done++;
-      setProgress({ done, total: selectedIds.length });
+      if (!ownsSelection(ownerKey)) return;
+      const aborted = cancelRef.current;
+      setOperation((prev) => ({ ...prev, currentId: '', aborted }));
+      setErrors(localErrors);
+      if (aborted) {
+        toast.warning(t.bulk.abortedTitle);
+        onApplied();
+        return;
+      }
+      if (localErrors.length === 0) {
+        toast.success(t.toast.bulkDeleted.replace('{n}', String(ids.length)));
+      } else {
+        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
+      }
+      startTransition(() => {
+        onApplied();
+        onClear();
+      });
+    } catch (e) {
+      if (ownsSelection(ownerKey) && !cancelRef.current) {
+        const localErrors = [(e as Error).message];
+        setErrors(localErrors);
+        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
+        onApplied();
+      }
+    } finally {
+      if (ownsSelection(ownerKey)) {
+        cancelRef.current = false;
+        controllerRef.current = null;
+        operationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
-    const aborted = cancelRef.current;
-    cancelRef.current = false;
-    controllerRef.current = null;
-    setBusy(false);
-    setOperation((prev) => ({ ...prev, currentId: '', aborted }));
-    setErrors(localErrors);
-    if (aborted) {
-      toast.warning(t.bulk.abortedTitle);
-      onApplied();
-      return;
-    }
-    if (localErrors.length === 0) {
-      toast.success(t.toast.bulkDeleted.replace('{n}', String(selectedIds.length)));
-    } else {
-      toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
-    }
-    startTransition(() => {
-      onApplied();
-      onClear();
-    });
   }
 
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;

@@ -25,12 +25,13 @@ const SOURCE = readFileSync(
 );
 
 describe('CardDensitySlider responsive shrink', () => {
-  it('uses `flex max-w-full` on both slider containers (not the old inline-flex)', () => {
+  it('uses wrapping `flex max-w-full` containers so labels remain visible', () => {
     // Both `CardDensitySlider` and `GlobalCardDensitySlider` share the
     // same container shape. We count two distinct `flex max-w-full`
     // openings, one per export.
-    const matches = SOURCE.match(/flex max-w-full items-center/g) ?? [];
+    const matches = SOURCE.match(/flex max-w-full flex-wrap items-center/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(SOURCE.match(/sm:flex-nowrap/g) ?? []).toHaveLength(2);
   });
 
   it('range input is `min-w-0 flex-1` so it absorbs shrink', () => {
@@ -63,11 +64,10 @@ describe('CardDensitySlider responsive shrink', () => {
     expect(buttonClassMatches.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('label text is hidden below sm so the row fits on tiny phones', () => {
-    // The "Densité / Density / 密度" label collapses on mobile (icon
-    // alone is still informative + `aria-label` is preserved).
-    const labelMatches = SOURCE.match(/<span className="hidden sm:inline">\{t\.cardDensity\.label\}<\/span>/g) ?? [];
+  it('keeps label text visible below sm for functional parity', () => {
+    const labelMatches = SOURCE.match(/<span>\{t\.cardDensity\.label\}<\/span>/g) ?? [];
     expect(labelMatches.length).toBeGreaterThanOrEqual(2);
+    expect(SOURCE).not.toContain('<span className="hidden sm:inline">{t.cardDensity.label}</span>');
   });
 
   it('px value badge is hidden below sm', () => {

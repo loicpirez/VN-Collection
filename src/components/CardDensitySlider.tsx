@@ -74,12 +74,12 @@ export function CardDensitySlider({
   const customTitle = t.cardDensity.customOverride;
   return (
     <div
-      className={`flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
+      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:flex-nowrap sm:gap-2 ${className}`}
       title={canReset ? customTitle : followsDefaultTitle}
     >
       <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
-        <span className="hidden sm:inline">{t.cardDensity.label}</span>
+        <span>{t.cardDensity.label}</span>
         {canReset && (
           <span
             className="ml-1 inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1 py-0 text-[10px] font-semibold text-accent"
@@ -175,11 +175,11 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
     // slider above — keeps the row inside the Settings panel column on
     // narrow viewports.
     <div
-      className={`flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
+      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:flex-nowrap sm:gap-2 ${className}`}
     >
       <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
-        <span className="hidden sm:inline">{t.cardDensity.label}</span>
+        <span>{t.cardDensity.label}</span>
       </label>
       <button
         type="button"

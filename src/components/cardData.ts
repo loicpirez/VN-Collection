@@ -1,8 +1,8 @@
 import type { CardData } from './VnCard';
-import type { CollectionItem, Status } from '@/lib/types';
+import type { CollectionCardItem, Status } from '@/lib/types';
 
 /**
- * Project a heavy `CollectionItem` (everything the DB row carries) down
+ * Project a card-listing row down
  * to the lean `CardData` props that `<VnCard>` actually reads.
  *
  * The projection is WeakMap-cached on the input row so a re-render that
@@ -15,9 +15,9 @@ import type { CollectionItem, Status } from '@/lib/types';
  * change can wrap the call in `useMemo(() => items.map(toCardData),
  * [items])`.
  */
-const cardDataCache = new WeakMap<CollectionItem, CardData>();
+const cardDataCache = new WeakMap<CollectionCardItem, CardData>();
 
-export function toCardData(it: CollectionItem): CardData {
+export function toCardData(it: CollectionCardItem): CardData {
   const cached = cardDataCache.get(it);
   if (cached) return cached;
   const data: CardData = {

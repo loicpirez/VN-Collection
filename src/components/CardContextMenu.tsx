@@ -44,6 +44,24 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
   const [favLocal, setFavLocal] = useState(favorite);
   const [viewW, setViewW] = useState(1024);
   const [viewH, setViewH] = useState(768);
+  const identityRef = useRef<string | null>(vnId);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    identityRef.current = vnId;
+    inFlightRef.current = false;
+    setBusy(null);
+    setFavLocal(favorite);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      identityRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [vnId, favorite]);
 
   useEffect(() => {
     setViewW(window.innerWidth);
@@ -92,23 +110,36 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
     };
   }, [onClose]);
 
-  async function patch(body: Record<string, unknown>, label: string) {
+  async function patch(body: Record<string, unknown>, label: string, rollback?: () => void) {
+    if (inFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    inFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(label);
     try {
-      const r = await fetch(`/api/collection/${vnId}`, {
+      const r = await fetch(`/api/collection/${ownerVnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       onChange?.();
       startTransition(() => router.refresh());
       onClose();
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      rollback?.();
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -149,7 +180,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
             type="button"
             disabled={!!busy}
             onClick={() => patch({ status: active ? null : s }, `status-${s}`)}
-            className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors sm:py-1 ${
+            className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors sm:min-h-0 sm:py-1 ${
               active ? 'bg-accent/15 text-accent' : 'hover:bg-bg-elev'
             }`}
           >
@@ -157,7 +188,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               <StatusIcon status={s} className="h-3.5 w-3.5" />
               {t.status[s]}
             </span>
-            {busy === `status-${s}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : active ? <Check className="h-3 w-3" /> : null}
+            {busy === `status-${s}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : active ? <Check className="h-3 w-3" aria-hidden /> : null}
           </button>
         );
       })}
@@ -174,14 +205,15 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           // inside setFavLocal then again in patch(), which works by
           // coincidence today but desyncs under React 19 concurrent
           // batching.
-          const next = !favLocal;
+          const previous = favLocal;
+          const next = !previous;
           setFavLocal(next);
-          patch({ favorite: next }, 'favorite');
+          patch({ favorite: next }, 'favorite', () => setFavLocal(previous));
         }}
-        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
       >
         <span className="inline-flex items-center gap-2">
-          <Heart className={`h-3.5 w-3.5 ${favLocal ? 'fill-accent text-accent' : ''}`} />
+          <Heart className={`h-3.5 w-3.5 ${favLocal ? 'fill-accent text-accent' : ''}`} aria-hidden />
           {favLocal ? t.quickActions.unfavorite : t.quickActions.favorite}
         </span>
         {busy === 'favorite' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
@@ -191,7 +223,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         href={`/vn/${vnId}`}
         role="menuitem"
         onClick={onClose}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+        className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
       >
         <Star className="h-3.5 w-3.5" aria-hidden /> {t.quickActions.open}
       </Link>
@@ -217,7 +249,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               href={`/producer/${developer.id}`}
               role="menuitem"
               onClick={onClose}
-              className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
             >
               <Building2 className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openDeveloper}</span>
@@ -246,7 +278,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               href={`/producer/${publisher.id}`}
               role="menuitem"
               onClick={onClose}
-              className="flex flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:py-1"
+              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
             >
               <Package className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openPublisher}</span>

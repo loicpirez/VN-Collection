@@ -14,6 +14,7 @@ import {
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 import { clampQuery } from '@/lib/api-query';
+import type { CollectionCardApiItem } from '@/lib/types';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 
@@ -267,7 +268,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // paint without needing a popover open per card.
     const listCounts = countListMembershipsByVn();
     const queueIds = getReadingQueueVnIds();
-    const items = pageItems.map((it) => {
+    const items: CollectionCardApiItem[] = pageItems.map((it) => {
       const {
         notes,
         started_date,

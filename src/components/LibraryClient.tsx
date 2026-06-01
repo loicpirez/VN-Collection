@@ -20,12 +20,25 @@ import { formatMinutes } from '@/lib/format';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47, fmtNum } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
+import { decodeKnownPlacesResponse } from '@/lib/place-client-shape';
+import {
+  decodeLibraryCollectionResponse,
+  decodeLibraryDefaults,
+  decodeLibraryProducerFacets,
+  decodeLibrarySeriesFacets,
+  decodeLibraryTagFacets,
+  type LibraryProducerFacet,
+  type LibrarySeriesFacet,
+  type LibraryTagFacet,
+} from '@/lib/collection-client-shape';
+import { decodeTagPickerResults } from '@/lib/picker-client-shape';
 import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
+import { FacetCombobox } from './library/FacetCombobox';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
-import type { CollectionItem, ProducerStat, SeriesRow, Stats } from '@/lib/types';
+import type { CollectionCardApiItem, Stats } from '@/lib/types';
 import { ASPECT_KEYS, isAspectKey, type AspectKey } from '@/lib/aspect-ratio';
 import {
   calculateVirtualGridWindow,
@@ -89,7 +102,7 @@ const GROUP_SORT_KEYS: GroupSortKey[] = ['count', 'name', 'released'];
 const Q_DEBOUNCE_MS = 300;
 
 interface CollectionResponse {
-  items: CollectionItem[];
+  items: CollectionCardApiItem[];
   stats: Stats;
   pagination: CollectionPage;
 }
@@ -112,7 +125,9 @@ function requestCollection(url: string, fallbackError: string): {
     const promise = fetch(url, { signal: controller.signal, cache: 'no-store' }).then(
       async (response) => {
         if (!response.ok) throw new Error(await readApiError(response, fallbackError));
-        return response.json() as Promise<CollectionResponse>;
+        const data = decodeLibraryCollectionResponse(await response.json());
+        if (!data) throw new Error(fallbackError);
+        return data;
       },
     );
     request = { controller, consumers: 0, promise };
@@ -151,7 +166,7 @@ function requestCollection(url: string, fallbackError: string): {
   };
 }
 
-function filterScore(it: CollectionItem): number | null {
+function filterScore(it: CollectionCardApiItem): number | null {
   const values = [it.user_rating, it.rating, it.egs?.median].filter(
     (value): value is number => typeof value === 'number' && Number.isFinite(value),
   );
@@ -159,7 +174,7 @@ function filterScore(it: CollectionItem): number | null {
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
-function filterPlaytimeHours(it: CollectionItem): number | null {
+function filterPlaytimeHours(it: CollectionCardApiItem): number | null {
   const minutes =
     it.playtime_minutes && it.playtime_minutes > 0 ? it.playtime_minutes
     : it.egs?.playtime_median_minutes && it.egs.playtime_median_minutes > 0 ? it.egs.playtime_median_minutes
@@ -170,13 +185,13 @@ function filterPlaytimeHours(it: CollectionItem): number | null {
 
 /**
  * Render mode for the Library client.
- *  - 'full' (default): standalone /library page — render both the
+ *  - 'full' (default): standalone /library page - render both the
  *    toolbar (chips/search/filters/sort/group/density/actions)
  *    and the VN grid.
- *  - 'controls-only': the home-page "Library · filters & sort"
+ *  - 'controls-only': the home-page "Library / filters & sort"
  *    section. Renders the toolbar only; the grid is hidden so the
  *    sibling section can host it independently.
- *  - 'grid-only': the home-page "Library · grid" section. Renders
+ *  - 'grid-only': the home-page "Library / grid" section. Renders
  *    the grid only; the toolbar is hidden.
  *
  * URL state (status / search / sort / group / filters / density) is
@@ -189,7 +204,7 @@ export type LibraryClientMode = 'full' | 'controls-only' | 'grid-only';
 /**
  * P-153: extracted search input so only the input re-renders on each
  * keystroke. The parent `LibraryClient` is a 2000-line tree with the
- * card grid + filter chips + sort/group selects — re-rendering all of
+ * card grid + filter chips + sort/group selects - re-rendering all of
  * that per keystroke was the dominant frame-budget cost while typing.
  *
  * The component owns its own `value` state locally; on debounced
@@ -216,7 +231,7 @@ const SearchInput = memo(function SearchInput({
   useEffect(() => {
     setDraft(urlValue);
   }, [urlValue]);
-  // Debounced commit — keep the timer outside React state to avoid
+  // Debounced commit - keep the timer outside React state to avoid
   // re-rendering on every tick.
   useEffect(() => {
     if (draft === urlValue) return;
@@ -303,7 +318,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     : 1;
   // Default sort, order, and grouping are configurable in Settings; we
   // load them once and use them as fallbacks when the URL has no
-  // matching param. URL params ALWAYS win — these defaults only apply
+  // matching param. URL params ALWAYS win - these defaults only apply
   // when the user lands on `/` with no query string.
   const [defaultSort, setDefaultSort] = useState<SortKey>('updated_at');
   const [defaultOrder, setDefaultOrder] = useState<'asc' | 'desc'>('desc');
@@ -311,8 +326,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   useEffect(() => {
     const ctrl = new AbortController();
     fetch('/api/settings', { cache: 'no-store', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { default_sort?: string; default_order?: string; default_group?: string } | null) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        return decodeLibraryDefaults(await r.json());
+      })
+      .then((d) => {
         if (ctrl.signal.aborted || !d) return;
         if ((SORT_KEYS as readonly string[]).includes(d.default_sort ?? '')) {
           setDefaultSort(d.default_sort as SortKey);
@@ -329,7 +347,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         console.error('[LibraryClient] settings fetch failed:', e);
       });
     return () => ctrl.abort();
-  }, []);
+  }, [t.common.error]);
   const urlSort = searchParams.get('sort');
   const sort: SortKey = urlSort && (SORT_KEYS as readonly string[]).includes(urlSort)
     ? (urlSort as SortKey)
@@ -375,7 +393,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   );
 
   const { settings, set } = useDisplaySettings();
-  const [items, setItems] = useState<CollectionItem[]>([]);
+  const [items, setItems] = useState<CollectionCardApiItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
   const [pagination, setPagination] = useState<CollectionPage>({
     page: urlPage,
@@ -383,14 +401,14 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     returned: 0,
     has_more: false,
   });
-  const [producers, setProducers] = useState<ProducerStat[]>([]);
-  const [publishers, setPublishers] = useState<ProducerStat[]>([]);
-  const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [producers, setProducers] = useState<LibraryProducerFacet[]>([]);
+  const [publishers, setPublishers] = useState<LibraryProducerFacet[]>([]);
+  const [series, setSeries] = useState<LibrarySeriesFacet[]>([]);
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
-  const [collectionTags, setCollectionTags] = useState<{ id: string; name: string; vn_count: number }[]>([]);
+  const [collectionTags, setCollectionTags] = useState<LibraryTagFacet[]>([]);
   const [loading, setLoading] = useState(true);
   // Gates the empty-state copy so we never flash "no results" before
-  // at least one fetch has resolved. setLoading alone is not enough —
+  // at least one fetch has resolved. setLoading alone is not enough -
   // a fast 0-result response would still show the empty state before
   // the user sees the skeleton.
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -398,7 +416,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const onBulkItemDone = useCallback(() => setRefreshKey((k) => k + 1), []);
-  const [resettingOrder, setResettingOrder] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [yearMinInput, setYearMinInput] = useState(urlYearMin);
@@ -407,6 +425,44 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const [ratingMaxInput, setRatingMaxInput] = useState(urlRatingMax);
   const [playtimeMinInput, setPlaytimeMinInput] = useState(urlPlaytimeMin);
   const [playtimeMaxInput, setPlaytimeMaxInput] = useState(urlPlaytimeMax);
+  const mountedRef = useRef(true);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const orderMutationAbortRef = useRef<AbortController | null>(null);
+  const orderMutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      orderMutationAbortRef.current?.abort();
+      orderMutationAbortRef.current = null;
+      orderMutationInFlightRef.current = false;
+    };
+  }, []);
+
+  const startOrderMutation = useCallback((): AbortController | null => {
+    if (orderMutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    orderMutationAbortRef.current?.abort();
+    orderMutationAbortRef.current = controller;
+    orderMutationInFlightRef.current = true;
+    setSavingOrder(true);
+    return controller;
+  }, []);
+
+  const ownsOrderMutation = useCallback((controller: AbortController): boolean => (
+    mountedRef.current
+    && orderMutationAbortRef.current === controller
+    && !controller.signal.aborted
+  ), []);
+
+  const finishOrderMutation = useCallback((controller: AbortController) => {
+    if (orderMutationAbortRef.current !== controller) return;
+    orderMutationAbortRef.current = null;
+    orderMutationInFlightRef.current = false;
+    if (mountedRef.current) setSavingOrder(false);
+  }, []);
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -422,6 +478,65 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     setSelectMode(false);
   }
 
+  const resetCustomOrder = useCallback(async () => {
+    const controller = startOrderMutation();
+    if (!controller) return;
+    const ok = await confirm({
+      message: t.library.customSortReset,
+      tone: 'danger',
+    });
+    if (!ok || !ownsOrderMutation(controller) || sort !== 'custom' || group !== 'none') {
+      finishOrderMutation(controller);
+      return;
+    }
+    try {
+      const response = await fetch('/api/collection/order', { method: 'DELETE', signal: controller.signal });
+      if (!response.ok) throw new Error(await readApiError(response, t.common.error));
+      if (!ownsOrderMutation(controller)) return;
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      if (!ownsOrderMutation(controller)) return;
+      toast.error(`${t.common.error}: ${(e as Error).message}`);
+    } finally {
+      finishOrderMutation(controller);
+    }
+  }, [confirm, finishOrderMutation, group, ownsOrderMutation, sort, startOrderMutation, t.common.error, t.library.customSortReset, toast]);
+
+  const persistCustomOrder = useCallback(async (orderedIds: string[]) => {
+    const controller = startOrderMutation();
+    if (!controller) return;
+    const previous = itemsRef.current;
+    const orderedIdSet = new Set(orderedIds);
+    const byId = new Map(previous.map((it) => [it.id, it]));
+    const orderedRows = orderedIds
+      .map((id) => byId.get(id))
+      .filter((row): row is CollectionCardApiItem => row !== undefined);
+    let cursor = 0;
+    const next = previous.map((row) => (
+      orderedIdSet.has(row.id) ? orderedRows[cursor++] ?? row : row
+    ));
+    itemsRef.current = next;
+    setItems(next);
+    try {
+      const response = await fetch('/api/collection/order', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: orderedIds }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(await readApiError(response, t.common.error));
+      if (!ownsOrderMutation(controller)) return;
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      if (!ownsOrderMutation(controller)) return;
+      itemsRef.current = previous;
+      setItems(previous);
+      toast.error(`${t.common.error}: ${(e as Error).message}`);
+    } finally {
+      finishOrderMutation(controller);
+    }
+  }, [finishOrderMutation, ownsOrderMutation, startOrderMutation, t.common.error, toast]);
+
   const facetsFetchedRef = useRef(false);
   const facetsAbortRef = useRef<AbortController | null>(null);
   const requestFacets = useCallback(() => {
@@ -429,26 +544,28 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     const ctrl = new AbortController();
     facetsAbortRef.current = ctrl;
     const opts: RequestInit = { signal: ctrl.signal, cache: 'no-store' };
-    const readFacet = async <T,>(url: string): Promise<T> => {
+    const readFacet = async <T,>(url: string, decode: (value: unknown) => T | null): Promise<T> => {
       const response = await fetch(url, opts);
       if (!response.ok) {
-        throw new Error(t.common.httpStatus.replace('{status}', String(response.status)));
+        throw new Error(await readApiError(response, t.common.httpStatus.replace('{status}', String(response.status))));
       }
-      return response.json() as Promise<T>;
+      const data = decode(await response.json());
+      if (!data) throw new Error(t.common.error);
+      return data;
     };
     void Promise.all([
-      readFacet<{ producers?: ProducerStat[]; publishers?: ProducerStat[] }>('/api/producers'),
-      readFacet<{ series?: SeriesRow[] }>('/api/series'),
-      readFacet<{ known_places?: string[] }>('/api/places'),
-      readFacet<{ tags?: { id: string; name: string; vn_count: number }[] }>('/api/collection/tags'),
+      readFacet('/api/producers', decodeLibraryProducerFacets),
+      readFacet('/api/series', decodeLibrarySeriesFacets),
+      readFacet('/api/places', decodeKnownPlacesResponse),
+      readFacet('/api/collection/tags', decodeLibraryTagFacets),
     ])
-      .then(([producerData, seriesData, placeData, tagData]) => {
+      .then(([producerData, seriesData, knownPlaces, tagData]) => {
         if (ctrl.signal.aborted) return;
-        setProducers(producerData.producers ?? []);
-        setPublishers(producerData.publishers ?? []);
-        setSeries(seriesData.series ?? []);
-        setKnownPlaces(placeData.known_places ?? []);
-        setCollectionTags((tagData.tags ?? []).slice(0, 200));
+        setProducers(producerData.producers);
+        setPublishers(producerData.publishers);
+        setSeries(seriesData);
+        setKnownPlaces(knownPlaces);
+        setCollectionTags(tagData);
         facetsFetchedRef.current = true;
       })
       .catch((error: Error) => {
@@ -476,10 +593,15 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       signal: ctrl.signal,
       cache: 'no-store',
     })
-      .then((r) => r.json())
-      .then((d: { tags?: { id: string; name: string }[] }) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const tags = decodeTagPickerResults(await r.json());
+        if (!tags) throw new Error(t.common.error);
+        return tags;
+      })
+      .then((tags) => {
         if (ctrl.signal.aborted) return;
-        const found = d.tags?.find((tag) => tag.id === urlTag);
+        const found = tags.find((tag) => tag.id === urlTag);
         if (found) setTagName(found.name);
       })
       .catch((e: unknown) => {
@@ -552,7 +674,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       request.release();
     };
     // join the multi-select aspect set for a stable string identity
-    // so changing 4:3 ↔ 16:9 re-fetches.
+    // so changing 4:3 <-> 16:9 re-fetches.
   }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, urlRatingMin, urlRatingMax, urlPlaytimeMin, urlPlaytimeMax, urlOnlyEgsOnly, urlMatchVndb, urlMatchEgs, urlFanDisc, urlHasNotes, urlHasCustomCover, urlHasBanner, urlIsFavorite, urlHasReleased, urlIsNsfw, urlIsNukige, urlInReadingQueue, urlInList, settings.hideSexual, settings.nsfwThreshold, urlPage, sort, order, refreshKey, t.common.error]);
 
   function clearAll() {
@@ -571,11 +693,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const yearLabel = urlYearMin && urlYearMax
     ? urlYearMin === urlYearMax
       ? urlYearMin
-      : `${urlYearMin}–${urlYearMax}`
+      : `${urlYearMin}-${urlYearMax}`
     : urlYearMin
-      ? `≥ ${urlYearMin}`
+      ? `>= ${urlYearMin}`
       : urlYearMax
-        ? `≤ ${urlYearMax}`
+        ? `<= ${urlYearMax}`
         : '';
 
   function clearYear() {
@@ -642,6 +764,26 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (urlInReadingQueue ? 1 : 0) +
     (urlInList ? 1 : 0);
   const hasFilters = baseHasFilters || advancedFilterCount > 0;
+  const developerFacetOptions = useMemo(
+    () => producers.map((entry) => ({ value: entry.id, label: entry.name, count: entry.vn_count })),
+    [producers],
+  );
+  const publisherFacetOptions = useMemo(
+    () => publishers.map((entry) => ({ value: entry.id, label: entry.name, count: entry.vn_count })),
+    [publishers],
+  );
+  const seriesFacetOptions = useMemo(
+    () => series.map((entry) => ({ value: String(entry.id), label: entry.name })),
+    [series],
+  );
+  const tagFacetOptions = useMemo(
+    () => collectionTags.map((entry) => ({ value: entry.id, label: entry.name, count: entry.vn_count })),
+    [collectionTags],
+  );
+  const placeFacetOptions = useMemo(
+    () => knownPlaces.map((entry) => ({ value: entry, label: entry })),
+    [knownPlaces],
+  );
 
   function ternaryMatches(want: string | null, actual: boolean): boolean {
     if (want === '1') return actual === true;
@@ -651,19 +793,19 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
 
   // Hard-filter R18 entries when the user opts in. Done client-side so toggling
   // takes effect instantly without re-querying. Four independent signals
-  // OR'd — covers SFW eroge like Comic Party where the cover and Nukige tag
+  // OR'd - covers SFW eroge like Comic Party where the cover and Nukige tag
   // are both clean but the game ships 18+ releases:
   //   1. cover `image_sexual` >= NSFW threshold (numeric, no false positive).
-  //   2. EGS `erogame` strict boolean — flags ANY game with erotic content
+  //   2. EGS `erogame` strict boolean - flags ANY game with erotic content
   //      including story-heavy ones with SFW covers. Strongest single signal.
-  //   3. EGS `okazu` — pure-ero / nukige. Narrower than erogame; kept for
+  //   3. EGS `okazu` - pure-ero / nukige. Narrower than erogame; kept for
   //      backwards compat with old rows that have okazu but not erogame.
   //   4. any VNDB tag whose `category` field equals `"ero"`. `category` is a
   //      strict enum on VNDB (only `cont` / `ero` / `tech`), NOT a free-form
-  //      name — so tag names like "Sexual Content", "no ero", etc. don't
+  //      name - so tag names like "Sexual Content", "no ero", etc. don't
   //      get string-matched. We don't gate on `spoiler` here: a VN whose
   //      only ero tags are spoiler-flagged is still adult content.
-  function isAdult(it: CollectionItem): boolean {
+  function isAdult(it: CollectionCardApiItem): boolean {
     if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return true;
     if (it.egs?.erogame === true) return true;
     if (it.egs?.okazu === true) return true;
@@ -689,7 +831,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         if (!ternaryMatches(urlMatchVndb, !it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchEgs, !!it.egs?.egs_id)) return false;
         if (!ternaryMatches(urlFanDisc, (it.relations ?? []).some((r) => r.relation === 'orig'))) return false;
-        if (!ternaryMatches(urlHasNotes, it.has_notes ?? !!(it.notes && it.notes.trim().length > 0))) return false;
+        if (!ternaryMatches(urlHasNotes, it.has_notes)) return false;
         if (!ternaryMatches(urlHasCustomCover, !!it.custom_cover)) return false;
         if (!ternaryMatches(urlHasBanner, !!it.banner_image)) return false;
         if (!ternaryMatches(urlIsFavorite, !!it.favorite)) return false;
@@ -699,7 +841,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         // case-insensitive because VNDB capitalises it but locales
         // vary. (The previous attempt also tried to match against
         // an EGS `axis` field, but that field is never returned by
-        // the collection API — the branch was dead.)
+        // the collection API - the branch was dead.)
         if (!ternaryMatches(
           urlIsNukige,
           (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige'),
@@ -750,89 +892,111 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
    */
   const renderToolbarControls = (orientation: 'row' | 'column') => (
     <>
-      <label className="flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.sortLabel}</span>
-        <select
-          className="input w-auto"
-          value={sort}
-          onChange={(e) => setParam('sort', e.target.value)}
-          aria-label={t.library.sortLabel}
-        >
-          {SORT_KEYS.map((k) => (
-            <option key={k} value={k}>{t.library.sort[k]}</option>
-          ))}
-        </select>
-      </label>
-      {group !== 'none' && (
+      <div
+        role="group"
+        aria-label={t.library.sortAndViewOptionsLabel}
+        className={`flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-bg-elev/20 p-2 ${
+          orientation === 'column' ? 'w-full' : ''
+        }`}
+      >
         <label className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupSortLabel}</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.sortLabel}</span>
           <select
             className="input w-auto"
-            value={groupSort}
-            onChange={(e) => setParam('groupSort', e.target.value)}
-            aria-label={t.library.groupSortLabel}
+            value={sort}
+            onChange={(e) => setParam('sort', e.target.value)}
+            aria-label={t.library.sortLabel}
           >
-            <option value="count">{t.library.groupSortCount}</option>
-            <option value="name">{t.library.groupSortName}</option>
-            <option value="released">{t.library.groupSortReleased}</option>
+            {SORT_KEYS.map((k) => (
+              <option key={k} value={k}>{t.library.sort[k]}</option>
+            ))}
           </select>
         </label>
-      )}
-      <button
-        type="button"
-        className="btn"
-        onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
-        aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
-      >
-        {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-      </button>
-      <button
-        type="button"
-        className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
-        onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
-        aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
-        title={t.library.customSortHint}
-      >
-        <GripVertical className="h-4 w-4" />
-        <span>
-          {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
-        </span>
-      </button>
-      <label className="flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
-        <select
-          className="input w-auto"
-          value={group}
-          onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
-          aria-label={t.library.groupBy}
+        {group !== 'none' && (
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupSortLabel}</span>
+            <select
+              className="input w-auto"
+              value={groupSort}
+              onChange={(e) => setParam('groupSort', e.target.value)}
+              aria-label={t.library.groupSortLabel}
+            >
+              <option value="count">{t.library.groupSortCount}</option>
+              <option value="name">{t.library.groupSortName}</option>
+              <option value="released">{t.library.groupSortReleased}</option>
+            </select>
+          </label>
+        )}
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
+          aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
         >
-          {GROUP_KEYS.map((g) => (
-            <option key={g} value={g}>
-              {g === 'none'
-                ? t.library.groupNone
-                : g === 'tag'
-                ? t.library.groupTag
-                : g === 'producer'
-                ? t.library.groupDeveloper
-                : g === 'publisher'
-                ? t.library.groupPublisher
-                : g === 'series'
-                ? t.library.groupSeries
-                : g === 'aspect'
-                ? t.library.groupAspect
-                : g === 'year'
-                ? t.library.groupYear
-                : g === 'place'
-                ? t.library.groupPlace
-                : g === 'edition'
-                ? t.library.groupEdition
-                : t.library.groupStatus}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className={`flex flex-wrap items-center gap-3 ${orientation === 'row' ? 'ml-auto' : ''}`}>
+          {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          className={`btn inline-flex items-center gap-1 ${sort === 'custom' ? 'btn-primary' : ''}`}
+          onClick={() => setParam('sort', sort === 'custom' ? null : 'custom')}
+          aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+          title={t.library.customSortHint}
+        >
+          <GripVertical className="h-4 w-4" />
+          <span>
+            {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
+          </span>
+        </button>
+        <label className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t.library.groupBy}</span>
+          <select
+            className="input w-auto"
+            value={group}
+            onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
+            aria-label={t.library.groupBy}
+          >
+            {GROUP_KEYS.map((g) => (
+              <option key={g} value={g}>
+                {g === 'none'
+                  ? t.library.groupNone
+                  : g === 'tag'
+                  ? t.library.groupTag
+                  : g === 'producer'
+                  ? t.library.groupDeveloper
+                  : g === 'publisher'
+                  ? t.library.groupPublisher
+                  : g === 'series'
+                  ? t.library.groupSeries
+                  : g === 'aspect'
+                  ? t.library.groupAspect
+                  : g === 'year'
+                  ? t.library.groupYear
+                  : g === 'place'
+                  ? t.library.groupPlace
+                  : g === 'edition'
+                  ? t.library.groupEdition
+                  : t.library.groupStatus}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div
+        role="group"
+        aria-label={t.library.displayOptionsLabel}
+        className={`flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-bg-elev/20 p-2 ${
+          orientation === 'row' ? 'ml-auto' : 'w-full'
+        }`}
+      >
         <CardDensitySlider scope="library" />
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(HOME_LAYOUT_OPEN_EVENT))}
+          className="btn"
+        >
+          <LayoutTemplate className="h-4 w-4" aria-hidden />
+          <span>{t.homeLayout.openEditor}</span>
+        </button>
         <button
           type="button"
           onClick={() => set('denseLibrary', !settings.denseLibrary)}
@@ -845,6 +1009,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
           </span>
         </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
         <div
           aria-live="polite"
           aria-atomic="true"
@@ -884,7 +1050,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         <>
       {/*
         Status chips row. Wraps cleanly on narrow viewports + French
-        labels — no horizontal scroll. The previous horizontal-scroll
+        labels - no horizontal scroll. The previous horizontal-scroll
         treatment caused chips like "Pour plus tard" / "Terminés" to
         run off the right edge under "Ma bibliothèque" and required
         the user to scroll the row, which they reported as overflow.
@@ -919,8 +1085,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
 
       {/*
         Compact toolbar (single row at md+): search + Advanced
-        filters button. Active filter chips render below — only
-        when there are filters worth showing — so the toolbar
+        filters button. Active filter chips render below - only
+        when there are filters worth showing - so the toolbar
         doesn't waste vertical space when no filters are active.
       */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -937,67 +1103,56 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           t={t}
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <select
-              className="input w-full"
+            <FacetCombobox
               value={producer}
-              onChange={(e) => setParam('producer', e.target.value || null)}
-              aria-label={t.library.filterByDeveloper}
-            >
-              <option value="">{t.library.filterByDeveloper}</option>
-              {producers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} · {p.vn_count}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input w-full"
+              options={developerFacetOptions}
+              label={t.library.filterByDeveloper}
+              searchPlaceholder={t.library.facetSearchPlaceholder}
+              clearLabel={t.library.facetAll}
+              resultLabel={t.library.facetResults}
+              noResultsLabel={t.library.facetNoResults}
+              onChange={(value) => setParam('producer', value || null)}
+            />
+            <FacetCombobox
               value={publisher}
-              onChange={(e) => setParam('publisher', e.target.value || null)}
-              aria-label={t.library.filterByPublisher}
-            >
-              <option value="">{t.library.filterByPublisher}</option>
-              {publishers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} · {p.vn_count}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input w-full"
+              options={publisherFacetOptions}
+              label={t.library.filterByPublisher}
+              searchPlaceholder={t.library.facetSearchPlaceholder}
+              clearLabel={t.library.facetAll}
+              resultLabel={t.library.facetResults}
+              noResultsLabel={t.library.facetNoResults}
+              onChange={(value) => setParam('publisher', value || null)}
+            />
+            <FacetCombobox
               value={seriesId}
-              onChange={(e) => setParam('series', e.target.value || null)}
-              aria-label={t.library.filterBySeries}
-            >
-              <option value="">{t.library.filterBySeries}</option>
-              {series.map((s) => (
-                <option key={s.id} value={String(s.id)}>{s.name}</option>
-              ))}
-            </select>
-            <select
-              className="input w-full"
+              options={seriesFacetOptions}
+              label={t.library.filterBySeries}
+              searchPlaceholder={t.library.facetSearchPlaceholder}
+              clearLabel={t.library.facetAll}
+              resultLabel={t.library.facetResults}
+              noResultsLabel={t.library.facetNoResults}
+              onChange={(value) => setParam('series', value || null)}
+            />
+            <FacetCombobox
               value={urlTag}
-              onChange={(e) => setParam('tag', e.target.value || null)}
-              aria-label={t.library.filterByTag}
-            >
-              <option value="">{t.library.filterByTag}</option>
-              {collectionTags.map((tg) => (
-                <option key={tg.id} value={tg.id}>
-                  {tg.name} · {tg.vn_count}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input w-full"
+              options={tagFacetOptions}
+              label={t.library.filterByTag}
+              searchPlaceholder={t.library.facetSearchPlaceholder}
+              clearLabel={t.library.facetAll}
+              resultLabel={t.library.facetResults}
+              noResultsLabel={t.library.facetNoResults}
+              onChange={(value) => setParam('tag', value || null)}
+            />
+            <FacetCombobox
               value={urlPlace}
-              onChange={(e) => setParam('place', e.target.value || null)}
-              aria-label={t.library.filterByPlace}
-            >
-              <option value="">{t.library.filterByPlace}</option>
-              {knownPlaces.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+              options={placeFacetOptions}
+              label={t.library.filterByPlace}
+              searchPlaceholder={t.library.facetSearchPlaceholder}
+              clearLabel={t.library.facetAll}
+              resultLabel={t.library.facetResults}
+              noResultsLabel={t.library.facetNoResults}
+              onChange={(value) => setParam('place', value || null)}
+            />
             <select
               className="input w-full"
               value={urlEdition}
@@ -1067,7 +1222,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   }}
                   aria-label={t.search.yearMin}
                 />
-                <span className="text-muted">–</span>
+                <span className="text-muted">-</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -1106,7 +1261,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   }}
                   aria-label={t.library.scoreMin}
                 />
-                <span className="text-muted">–</span>
+                <span className="text-muted">-</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -1144,7 +1299,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   }}
                   aria-label={t.library.playtimeMin}
                 />
-                <span className="text-muted">–</span>
+                <span className="text-muted">-</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -1237,7 +1392,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           Compact Options/Actions menu. Per the user's two-level
           toolbar spec, the status/search row must collapse
           Préréglages + Mise en page de l'accueil + Save preset +
-          Reset filters into a single ⋯ surface — no standalone
+          Reset filters into a single ... surface - no standalone
           Préréglages chip and no floating "Mise en page de
           l'accueil" icon at the top of the home page. The
           SavedFilters sibling below mounts with `triggerHidden`
@@ -1253,7 +1408,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         <SavedFilters triggerHidden />
       </div>
 
-      {/* Active-filter chip strip — only renders when something is
+      {/* Active-filter chip strip - only renders when something is
           active, so it doesn't waste vertical space in the default
           state. Each chip removes one filter; Clear all wipes them
           in one shot. */}
@@ -1419,23 +1574,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               <span>{t.library.customSortHint}</span>
               <button
                 type="button"
-                disabled={resettingOrder}
-                onClick={async () => {
-                  const ok = await confirm({
-                    message: t.library.customSortReset,
-                    tone: 'danger',
-                  });
-                  if (!ok) return;
-                  setResettingOrder(true);
-                  try {
-                    await fetch('/api/collection/order', { method: 'DELETE' });
-                    setRefreshKey((k) => k + 1);
-                  } catch (e) {
-                    toast.error(`${t.common.error}: ${(e as Error).message}`);
-                  } finally {
-                    setResettingOrder(false);
-                  }
-                }}
+                disabled={savingOrder}
+                onClick={resetCustomOrder}
                 className="rounded border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] hover:border-accent hover:text-accent disabled:opacity-50"
               >
                 {t.library.customSortReset}
@@ -1447,22 +1587,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               <SortableGrid
                 items={visibleItems}
                 dense={settings.denseLibrary}
-                onReorder={(orderedIds) => {
-                  // Optimistic local reorder so the grid doesn't snap back while
-                  // the server roundtrip is in flight.
-                  const byId = new Map(items.map((it) => [it.id, it]));
-                  const next = orderedIds
-                    .map((id) => byId.get(id))
-                    .filter((x): x is CollectionItem => !!x);
-                  setItems(next);
-                  fetch('/api/collection/order', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: orderedIds }),
-                  }).catch((e: Error) => {
-                    toast.error(`${t.common.error}: ${e.message}`);
-                  });
-                }}
+                disabled={savingOrder}
+                onReorder={(orderedIds) => void persistCustomOrder(orderedIds)}
               />
             ) : (
               <>
@@ -1580,7 +1706,7 @@ function Grid({
   onToggle,
   dense = false,
 }: {
-  items: CollectionItem[];
+  items: CollectionCardApiItem[];
   selectMode?: boolean;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
@@ -1675,7 +1801,7 @@ function Grid({
   // an `onSelect` reference that's stable across renders. Without this
   // the `() => onToggle?.(it.id)` arrow was freshly allocated every
   // render, defeating `React.memo(VnCard)` whenever a sibling state
-  // ticked (search query, sort change, …).
+  // ticked (search query, sort change, ...).
   const onToggleRef = useRef(onToggle);
   onToggleRef.current = onToggle;
   const onSelectFor = useCallback((id: string) => {
@@ -1740,11 +1866,11 @@ const MemoCard = memo(function MemoCard({
 interface Group {
   key: string;
   label: string;
-  items: CollectionItem[];
+  items: CollectionCardApiItem[];
 }
 
 function groupItems(
-  items: CollectionItem[],
+  items: CollectionCardApiItem[],
   group: GroupKey,
   t: ReturnType<typeof useT>,
   sort: SortKey,
@@ -1754,7 +1880,7 @@ function groupItems(
 ): Group[] {
   if (group === 'none') return [{ key: 'all', label: '', items }];
   const map = new Map<string, Group>();
-  const fallback = (label: string) => ({ key: '__none__', label, items: [] as CollectionItem[] });
+  const fallback = (label: string) => ({ key: '__none__', label, items: [] as CollectionCardApiItem[] });
 
   for (const it of items) {
     if (group === 'status') {
@@ -1773,7 +1899,7 @@ function groupItems(
       map.get(devKey)!.items.push(it);
     } else if (group === 'publisher') {
       // Same shape as the developer group, but indexed on `vn.publishers`
-      // — VNDB models publisher as a release-level role, so this bucket
+      // - VNDB models publisher as a release-level role, so this bucket
       // is intentionally distinct from the developer bucket and a VN
       // with multiple publishers shows up under each.
       const pubs = (it.publishers ?? []).filter((p) => p && (p.id || p.name));
@@ -1891,7 +2017,7 @@ function groupItems(
   return groups;
 }
 
-function latestReleased(items: CollectionItem[]): string {
+function latestReleased(items: CollectionCardApiItem[]): string {
   let latest = '';
   for (const item of items) {
     if (item.released && item.released > latest) latest = item.released;
@@ -1920,7 +2046,7 @@ function AdvancedFiltersDrawer({
   const [open, setOpen] = useState(false);
   const drawerId = useId();
   // Open the drawer when something elsewhere on the toolbar asks
-  // for it — currently the SavedFilters empty popover dispatches
+  // for it - currently the SavedFilters empty popover dispatches
   // `vn:open-advanced-filters` so its empty state remains
   // actionable instead of looking like a no-op click.
   useEffect(() => {
@@ -2001,28 +2127,23 @@ function FilterChip({
 }
 
 /**
- * Compact ⋯ Options/Actions menu on the Library search row.
+ * Compact ... Options/Actions menu on the Library search row.
  *
  * Per the user's two-level toolbar spec, the search row carries
- * status chips + search + Filtres + Options — and nothing else.
+ * status chips + search + Filtres + Options - and nothing else.
  * The Options menu is the single canonical surface for:
  *   - Préréglages (opens the SavedFilters popover via the
  *     SAVED_FILTERS_OPEN_EVENT bus)
  *   - Enregistrer le préréglage actuel (same bus, with
  *     `detail.action = 'save'` so SavedFilters flips into name-
  *     input mode)
- *   - Mise en page de l'accueil (opens the HomeLayoutEditor
- *     dialog via HOME_LAYOUT_OPEN_EVENT — replaces the rejected
- *     floating icon at the top of `/`)
  *   - Réinitialiser les filtres (calls clearAll, disabled when
  *     no filters are active so the menu item never looks like
  *     a live affordance against empty state)
  *
- * All four items dispatch CustomEvents instead of accepting
- * inline callbacks where the upstream surface (SavedFilters
- * popover, HomeLayoutEditor dialog) already owns its own state —
- * the bus is the documented "Versioned JSON config pattern"
- * convention in CLAUDE.md.
+ * The preset items dispatch CustomEvents instead of accepting
+ * inline callbacks because the SavedFilters popover already owns
+ * its own state. Filter reset remains a direct callback.
  */
 function LibraryActionsMenu({
   hasFilters,
@@ -2120,14 +2241,6 @@ function LibraryActionsMenu({
               dispatch(SAVED_FILTERS_OPEN_EVENT, { action: 'save' });
             }}
           />
-          <LibraryActionsMenuItem
-            icon={<LayoutTemplate className="h-3.5 w-3.5" aria-hidden />}
-            label={t.homeLayout.openEditor}
-            onClick={() => {
-              setOpen(false);
-              dispatch(HOME_LAYOUT_OPEN_EVENT);
-            }}
-          />
           <div className="my-1 border-t border-border/60" aria-hidden />
           <LibraryActionsMenuItem
             icon={<FilterX className="h-3.5 w-3.5" aria-hidden />}
@@ -2175,7 +2288,7 @@ function LibraryActionsMenuItem({
  * Rendered below `sm`; the desktop toolbar row owns the same
  * controls at `sm:` and up. Closed by default so the cramped phone
  * layout collapses behind one trigger. Follows the same
- * toggle-panel idiom as `AdvancedFiltersDrawer` — the trigger is
+ * toggle-panel idiom as `AdvancedFiltersDrawer` - the trigger is
  * focusable, Escape closes the panel and returns focus to the
  * trigger, and the controls stack full-width so none is hidden or
  * shrunk away on a phone.

@@ -22,20 +22,22 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
-import type { CollectionItem } from '@/lib/types';
+import type { CollectionCardApiItem } from '@/lib/types';
 import { useT } from '@/lib/i18n/client';
 
 interface Props {
-  items: CollectionItem[];
+  items: CollectionCardApiItem[];
   /** Called with the new id ordering after a successful drop. */
   onReorder: (orderedIds: string[]) => void;
   /** Dense grid (matches the comfortable/dense toggle on the library). */
   dense?: boolean;
+  /** Prevent drag interactions while the current order is being persisted. */
+  disabled?: boolean;
 }
 
 /**
  * Polished sortable grid using @dnd-kit. The **entire card** is the drag
- * surface — no separate grip handle. A short pointer movement (< 6 px)
+ * surface - no separate grip handle. A short pointer movement (< 6 px)
  * passes through as a click so the underlying <Link> still navigates to
  * the VN page; anything beyond that starts the drag. dnd-kit's
  * PointerSensor doesn't pre-empt the click chain, so the favorite heart
@@ -48,15 +50,15 @@ interface Props {
  * arrow keys to move, Space/Enter to drop) supported for free via
  * @dnd-kit's keyboard sensor.
  */
-export function SortableGrid({ items, onReorder, dense = false }: Props) {
+export function SortableGrid({ items, onReorder, dense = false, disabled = false }: Props) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
-  // 6 px activation distance — small enough to feel responsive, large
+  // 6 px activation distance - small enough to feel responsive, large
   // enough that a click on the favorite / lists / context-menu overlays
   // never accidentally engages the drag.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    // Long-press to engage on touch — without this, mobile users
+    // Long-press to engage on touch - without this, mobile users
     // couldn't drag at all on iOS (where Pointer events behave more
     // like clicks unless the finger moves significantly first).
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
@@ -64,11 +66,13 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
   );
 
   function onDragStart(e: DragStartEvent) {
+    if (disabled) return;
     setActiveId(String(e.active.id));
   }
 
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
+    if (disabled) return;
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIdx = items.findIndex((it) => it.id === active.id);
@@ -101,7 +105,7 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
           }}
         >
           {items.map((it) => (
-            <SortableCard key={it.id} item={it} isDragGhost={false} />
+            <SortableCard key={it.id} item={it} isDragGhost={false} disabled={disabled} />
           ))}
         </div>
       </SortableContext>
@@ -118,9 +122,10 @@ export function SortableGrid({ items, onReorder, dense = false }: Props) {
   );
 }
 
-function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost: boolean }) {
+function SortableCard({ item, isDragGhost, disabled }: { item: CollectionCardApiItem; isDragGhost: boolean; disabled: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
+    disabled,
     transition: { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   });
   // `block w-full min-w-0` keeps the wrapper bound to its grid column on
@@ -141,7 +146,9 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
       {...attributes}
       {...listeners}
       aria-roledescription="sortable item"
-      className={`group/sortable relative block w-full min-w-0 cursor-grab touch-none select-none active:cursor-grabbing ${
+      className={`group/sortable relative block w-full min-w-0 touch-none select-none ${
+        disabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'
+      } ${
         isDragging ? 'opacity-30 saturate-50' : ''
       }`}
       onDragStart={(e) => e.preventDefault()}
@@ -151,7 +158,7 @@ function SortableCard({ item, isDragGhost }: { item: CollectionItem; isDragGhost
   );
 }
 
-const CardInner = memo(function CardInner({ item }: { item: CollectionItem }) {
+const CardInner = memo(function CardInner({ item }: { item: CollectionCardApiItem }) {
   const data = useMemo(() => toCardData(item), [item]);
   return <VnCard data={data} />;
 });
