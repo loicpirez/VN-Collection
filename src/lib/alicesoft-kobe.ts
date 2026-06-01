@@ -5,7 +5,7 @@ import { providerFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
 import { countKobeNoVndbResult, countKobeNoVndbNoEgs, countKobeNoVndbWithEgs, countKobeUnmatchedQueue, listKobeNoVndbWithEgs, listKobeNoVndbNoEgs, listKobeNoVndbResult, listKobeUnmatched, resetKobeAutoMatches as dbResetKobeAutoMatches, setKobeEgsLink, setKobeVnLink, upsertKobeStock, type KobeStockRow } from './db'
 
-const ALICE_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
+const ALICENET_KOBE_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
 const TAG_RE = /<[^>]+>/g;
@@ -367,7 +367,7 @@ export function normalizeTitleAggressive(rawTitle: string): string {
 }
 
 /**
- * VNDB's search is good, but not magic: Alice Kobe titles often append shop
+ * VNDB's search is good, but not magic: AliceNet Kobe titles often append shop
  * descriptors, media labels, roman subtitles, or fandisc packaging text that
  * makes the exact query miss. Try a small, ordered set of increasingly plain
  * queries, keeping the original first for precise titles.
@@ -642,7 +642,7 @@ async function searchKobeVndbCandidates(item: KobeStockRow): Promise<{
 }
 
 /**
- * Parse the Alice Kobe HTML page into structured stock rows.
+ * Parse the AliceNet Kobe HTML page into structured stock rows.
  * Skips the header row and any rows without the expected code format.
  */
 export function parseAliceKobeHtml(
@@ -679,17 +679,17 @@ export function parseAliceKobeHtml(
 }
 
 /**
- * Fetch the Alice Kobe stock page, decoding EUC-JP to UTF-8.
+ * Fetch the AliceNet Kobe stock page, decoding EUC-JP to UTF-8.
  * Only called on explicit user action — never auto-fetched on page load.
  */
 export async function fetchAliceKobeHtml(): Promise<string> {
   const res = await providerFetch(
-    ALICE_KOBE_URL,
+    ALICENET_KOBE_URL,
     { headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' } },
     'alicesoft_kobe',
   );
-  if (!res.ok) throw new Error(`Alice Kobe fetch failed: HTTP ${res.status}`);
-  // Cap buffered response. The Alice Kobe stock page is ~500 KB; even a
+  if (!res.ok) throw new Error(`AliceNet Kobe fetch failed: HTTP ${res.status}`);
+  // Cap buffered response. The AliceNet Kobe stock page is ~500 KB; even a
   // catastrophic-growth scenario shouldn't approach 8 MiB. A lying or
   // missing Content-Length would otherwise let a hostile mirror OOM the
   // process via `res.arrayBuffer()` (it buffers everything before any
@@ -697,10 +697,10 @@ export async function fetchAliceKobeHtml(): Promise<string> {
   const MAX_KOBE_BYTES = 8 * 1024 * 1024;
   const cl = res.headers.get('content-length');
   if (cl && parseInt(cl, 10) > MAX_KOBE_BYTES) {
-    throw new Error(`Alice Kobe response too large (${cl} bytes)`);
+    throw new Error(`AliceNet Kobe response too large (${cl} bytes)`);
   }
   const reader = res.body?.getReader();
-  if (!reader) throw new Error('Alice Kobe empty body');
+  if (!reader) throw new Error('AliceNet Kobe empty body');
   const chunks: Uint8Array[] = [];
   let total = 0;
   while (true) {
@@ -710,7 +710,7 @@ export async function fetchAliceKobeHtml(): Promise<string> {
     total += value.byteLength;
     if (total > MAX_KOBE_BYTES) {
       await reader.cancel('cap exceeded').catch(() => undefined);
-      throw new Error(`Alice Kobe response exceeded ${MAX_KOBE_BYTES} bytes`);
+      throw new Error(`AliceNet Kobe response exceeded ${MAX_KOBE_BYTES} bytes`);
     }
     chunks.push(value);
   }
@@ -720,7 +720,7 @@ export async function fetchAliceKobeHtml(): Promise<string> {
 }
 
 /**
- * Download the latest stock from Alice Kobe and persist it to the DB.
+ * Download the latest stock from AliceNet Kobe and persist it to the DB.
  * Triggered only by the Download button — never called automatically.
  */
 export async function refreshKobeStock(): Promise<{

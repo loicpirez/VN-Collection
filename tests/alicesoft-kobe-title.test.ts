@@ -5,7 +5,7 @@ import {
   normalizeTitleAggressive,
 } from '@/lib/alicesoft-kobe';
 
-describe('Alice Kobe title cleanup', () => {
+describe('AliceNet Kobe title cleanup', () => {
   it('keeps a short Japanese query for romanized subtitle titles', () => {
     expect(normalizeTitle('(中古品) ぎゃるふろ　－Ｇｉｒｌ’ｓＦｒｏｎｔｉｅｒ－'))
       .toBe("ぎゃるふろ -Girl'sFrontier-");

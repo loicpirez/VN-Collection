@@ -15,7 +15,7 @@ interface LinkDialogProps {
 }
 
 /**
- * Match/remap modal for a single Alice Kobe stock row. Debounces a VNDB
+ * Match/remap modal for a single AliceNet Kobe stock row. Debounces a VNDB
  * title search, lists hits, and links the chosen VN (or "no match") via
  * the kobe link API. Rendered only while a target item is selected, so it
  * is lazy-loaded by `AliceNetKobeClient` and kept out of the initial chunk.

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Canonical Alice Kobe stock code shape: three digits, dash, six digits,
+ * Canonical AliceNet Kobe stock code shape: three digits, dash, six digits,
  * dash, three digits (`000-000000-000`). Mirrors the row filter in
  * `parseAliceKobeHtml` (`lib/alicesoft-kobe.ts`), the source of every code.
  */

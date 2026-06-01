@@ -1196,7 +1196,7 @@ function open(): Database.Database {
   // Timestamp of the last VNDB/EGS match attempt (regardless of result).
   ensureColumn(db, 'alicesoft_kobe_stock', 'last_matched_at', 'INTEGER');
   // EGS product snapshot for rows that are real shop/game products but do not
-  // have a VNDB id. This lets Alice Kobe count and display EGS-only matches
+  // have a VNDB id. This lets AliceNet Kobe count and display EGS-only matches
   // instead of leaving them in the generic "no VNDB result" bucket.
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_title', 'TEXT');
   ensureColumn(db, 'alicesoft_kobe_stock', 'egs_brand', 'TEXT');

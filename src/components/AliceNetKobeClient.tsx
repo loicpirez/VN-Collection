@@ -227,7 +227,7 @@ const KobeSearchInput = memo(function KobeSearchInput({
 });
 
 /**
- * Client-side page for the Alice Kobe second-hand stock browser.
+ * Client-side page for the AliceNet Kobe second-hand stock browser.
  *
  * Download sequence (manual or via "Download all"):
  *   1. Download stock from AliceNET (uses configured proxy if set)
