@@ -37,7 +37,7 @@
     @apply px-2 py-1 text-xs gap-1;
   }
   .input {
-    @apply w-full px-3 py-2 rounded-lg bg-bg-card border border-border text-white outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg transition-colors;
+    @apply min-h-[44px] w-full px-3 py-2 rounded-lg bg-bg-card border border-border text-white outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg transition-colors;
   }
   /*
    * `.no-spinner` on a `<input type="number">` removes the native
@@ -134,7 +134,6 @@
     max-width: var(--page-space-max-width, 80rem);
     margin-inline: auto;
     min-width: 0;
-    overflow-x: clip;
     padding-left: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-left));
     padding-right: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-right));
   }
