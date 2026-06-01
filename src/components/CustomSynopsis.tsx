@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
@@ -34,47 +34,100 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
   const [saving, setSaving] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const current = (initial ?? '').trim();
   const hasCustom = current.length > 0;
 
-  async function save() {
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setText(initial ?? '');
+    setEditing(false);
+    setSaving(false);
+    setShowSources(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initial]);
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setSaving(true);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setSaving(false);
+  }
+
+  async function save() {
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/custom-description`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.trim() || null }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.saved);
       setEditing(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function clear() {
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     const ok = await confirm({ message: t.customSynopsis.clearConfirm, tone: 'danger' });
-    if (!ok) return;
-    setSaving(true);
+    if (!ok || !ownsMutation(ownerVnId, controller)) {
+      finishMutation(ownerVnId, controller);
+      return;
+    }
     try {
-      const r = await fetch(`/api/collection/${vnId}/custom-description`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: null }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setText('');
       setEditing(false);
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -83,7 +136,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-bold uppercase tracking-widest text-muted">
-            {label} · {t.customSynopsis.editing}
+            {label} / {t.customSynopsis.editing}
           </span>
           <div className="flex gap-1">
             <button
@@ -117,7 +170,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           className="w-full rounded-md border border-border bg-bg-elev/40 p-3 text-sm leading-relaxed text-white focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
         />
         <p className="mt-1 text-[10px] text-muted">
-          {text.length} / 8000 · {t.customSynopsis.hint}
+          {text.length} / 8000 / {t.customSynopsis.hint}
         </p>
       </div>
     );
@@ -131,6 +184,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           <button
             type="button"
             onClick={() => setEditing(true)}
+            disabled={saving}
             className="btn btn-xs"
           >
             <Pencil className="h-3 w-3" aria-hidden />
@@ -161,6 +215,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
           <button
             type="button"
             onClick={() => setEditing(true)}
+            disabled={saving}
             className="btn btn-xs"
           >
             <Pencil className="h-3 w-3" aria-hidden />

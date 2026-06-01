@@ -10,6 +10,7 @@ import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import type { VndbQuote } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeQuotesResponse } from '@/lib/quote-client-shape';
 export function QuotesSection({ vnId }: { vnId: string }) {
   const t = useT();
   const [quotes, setQuotes] = useState<VndbQuote[] | null>(null);
@@ -17,17 +18,19 @@ export function QuotesSection({ vnId }: { vnId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (quotes !== null) return;
     const ac = new AbortController();
+    setQuotes(null);
     setLoading(true);
     setError(null);
     fetch(`/api/vn/${vnId}/quotes`, { cache: 'no-store', signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        return r.json();
+        const quotes = decodeQuotesResponse(await r.json());
+        if (!quotes) throw new Error(t.common.error);
+        return quotes;
       })
-      .then((d: { quotes: VndbQuote[] }) => {
-        if (!ac.signal.aborted) setQuotes(d.quotes);
+      .then((quotes) => {
+        if (!ac.signal.aborted) setQuotes(quotes);
       })
       .catch((e: Error) => {
         if (e.name === 'AbortError' || ac.signal.aborted) return;
@@ -37,7 +40,7 @@ export function QuotesSection({ vnId }: { vnId: string }) {
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [vnId, quotes, t.common.error]);
+  }, [vnId, t.common.error]);
 
   useSectionCount(quotes ? quotes.length : null);
 
@@ -73,7 +76,7 @@ export function QuotesSection({ vnId }: { vnId: string }) {
                   markup nodes, not the raw string.
                 */}
                 <span className="block whitespace-pre-wrap text-sm">
-                  “<VndbMarkup text={q.quote} spoilerLabel={t.spoiler.markupSummary} />”
+                  &quot;<VndbMarkup text={q.quote} spoilerLabel={t.spoiler.markupSummary} />&quot;
                 </span>
                 {q.character && (
                   // Right-aligned citation row: avatar + character
@@ -88,13 +91,13 @@ export function QuotesSection({ vnId }: { vnId: string }) {
                         href={`/character/${q.character.id}`}
                         className="hover:text-accent"
                       >
-                        — {q.character.name}
-                        {q.character.original && ` · ${q.character.original}`}
+                        - {q.character.name}
+                        {q.character.original && ` / ${q.character.original}`}
                       </Link>
                     ) : (
                       <span>
-                        — {q.character.name}
-                        {q.character.original && ` · ${q.character.original}`}
+                        - {q.character.name}
+                        {q.character.original && ` / ${q.character.original}`}
                       </span>
                     )}
                   </span>

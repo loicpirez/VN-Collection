@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -21,15 +21,11 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { BCP47, fmtDate as fmtDateShared } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
-type Kind = 'status' | 'rating' | 'playtime' | 'favorite' | 'started' | 'finished' | 'note' | 'manual';
-
-interface Entry {
-  id: number;
-  vn_id: string;
-  kind: Kind;
-  payload: Record<string, unknown> | null;
-  occurred_at: number;
-}
+import {
+  decodeActivityEntryResponse,
+  type TrackingActivityEntry as Entry,
+  type TrackingActivityKind as Kind,
+} from '@/lib/tracking-client-shape';
 
 const ICONS: Record<Kind, typeof History> = {
   status: History,
@@ -59,7 +55,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
     case 'status':
       return (
         <>
-          {t.activity.kind.status}: {String(p.from ?? '—')} <Arrow /> {String(p.to ?? '—')}
+          {t.activity.kind.status}: {String(p.from ?? '-')} <Arrow /> {String(p.to ?? '-')}
         </>
       );
     case 'rating':
@@ -80,9 +76,9 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
     case 'favorite':
       return p.to ? t.activity.kind.favoriteOn : t.activity.kind.favoriteOff;
     case 'started':
-      return `${t.activity.kind.started}: ${String(p.to ?? '—')}`;
+      return `${t.activity.kind.started}: ${String(p.to ?? '-')}`;
     case 'finished':
-      return `${t.activity.kind.finished}: ${String(p.to ?? '—')}`;
+      return `${t.activity.kind.finished}: ${String(p.to ?? '-')}`;
     case 'note':
       return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} ${t.userActivity.noteChars})`;
     case 'manual':
@@ -95,7 +91,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
 }
 
 function formatRating(v: unknown, locale: Locale): string {
-  if (typeof v !== 'number') return '—';
+  if (typeof v !== 'number') return '-';
   return (v / 10).toLocaleString(BCP47[locale] ?? 'en-US', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -123,52 +119,106 @@ export function ActivityTimeline({ vnId, initial }: Props) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   // Sync from server props when the underlying VN changes — keeps detail-page
   // navigation between VNs in the same session honest.
   useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
     setEntries(initial);
-  }, [initial]);
+    setText('');
+    setBusy(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initial]);
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setBusy(true);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(false);
+  }
 
   async function add() {
     const trimmed = text.trim();
     if (!trimmed) return;
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/activity`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/activity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const data = (await r.json()) as { entry: Entry };
-      setEntries((cur) => [data.entry, ...cur]);
+      const entry = decodeActivityEntryResponse(await r.json());
+      if (!entry) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setEntries((cur) => [entry, ...cur]);
       setText('');
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function remove(id: number) {
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     const ok = await confirm({ message: t.activity.deleteConfirm, tone: 'danger' });
-    if (!ok) return;
+    if (!ok || !ownsMutation(ownerVnId, controller)) {
+      finishMutation(ownerVnId, controller);
+      return;
+    }
     try {
-      const r = await fetch(`/api/collection/${vnId}/activity?entry=${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/collection/${ownerVnId}/activity?entry=${id}`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setEntries((cur) => cur.filter((e) => e.id !== id));
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
+    } finally {
+      finishMutation(ownerVnId, controller);
     }
   }
 
   return (
     <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <History className="h-4 w-4 text-accent" /> {t.activity.title}
+        <History className="h-4 w-4 text-accent" aria-hidden /> {t.activity.title}
       </h3>
 
       <div className="mb-4 flex flex-wrap items-stretch gap-2">
@@ -188,7 +238,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
           disabled={busy || text.trim().length === 0}
           className="btn"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
           {t.activity.add}
         </button>
       </div>
@@ -212,10 +262,11 @@ export function ActivityTimeline({ vnId, initial }: Props) {
                       <button
                         type="button"
                         onClick={() => remove(e.id)}
-                        className="rounded text-muted hover:text-status-dropped"
+                        disabled={busy}
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped sm:min-h-0 sm:min-w-0"
                         aria-label={t.common.delete}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3 w-3" aria-hidden />
                       </button>
                     )}
                   </span>

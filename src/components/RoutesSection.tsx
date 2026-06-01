@@ -13,6 +13,7 @@ import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters } from '@/lib/vn-characters-cache';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeRoutesResponse } from '@/lib/tracking-client-shape';
 interface Props {
   vnId: string;
   inCollection: boolean;
@@ -95,7 +96,7 @@ const RouteRowItem = memo(function RouteRowItem({
         type="button"
         onClick={() => onToggleComplete(r)}
         disabled={busy}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+        className={`tap-target flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
           r.completed
             ? 'border-status-completed bg-status-completed text-bg'
             : 'border-border hover:border-accent'
@@ -122,7 +123,7 @@ const RouteRowItem = memo(function RouteRowItem({
         <button
           type="button"
           onClick={() => onStartEdit(r)}
-          className={`flex-1 truncate text-left text-sm transition-colors ${
+          className={`min-h-[44px] flex-1 truncate text-left text-sm transition-colors sm:min-h-0 ${
             r.completed ? 'line-through decoration-status-completed/60 text-muted' : 'text-white hover:text-accent'
           }`}
           title={r.name}
@@ -214,7 +215,7 @@ const RouteRowItem = memo(function RouteRowItem({
               <button
                 type="button"
                 onClick={onCancelNotes}
-                className="rounded-md border border-border px-2 py-0.5 text-muted hover:text-white"
+                className="min-h-[44px] rounded-md border border-border px-2 py-0.5 text-muted hover:text-white sm:min-h-0"
               >
                 {t.common.cancel}
               </button>
@@ -222,7 +223,7 @@ const RouteRowItem = memo(function RouteRowItem({
                 type="button"
                 onClick={() => onSaveNotes(r)}
                 disabled={busy}
-                className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50 sm:min-h-0"
               >
                 {notesPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
                 {t.common.save}
@@ -271,6 +272,9 @@ const RouteAddForm = memo(function RouteAddForm({
   onClearError,
 }: RouteAddFormProps) {
   const [draft, setDraft] = useState('');
+  useEffect(() => {
+    setDraft('');
+  }, [vnId]);
   useEffect(() => {
     if (prefill) setDraft(prefill);
   }, [prefill, prefillNonce]);
@@ -339,18 +343,54 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   notesDraftRef.current = notesDraft;
   const notesOpenRef = useRef(notesOpen);
   notesOpenRef.current = notesOpen;
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    routesRef.current = [];
+    editingIdRef.current = null;
+    editingNameRef.current = '';
+    notesOpenRef.current = null;
+    notesDraftRef.current = '';
+    setRoutes([]);
+    setLoading(true);
+    setLoadError(false);
+    setPrefill('');
+    setPrefillNonce(0);
+    setEditingId(null);
+    setEditingName('');
+    setNotesOpen(null);
+    setNotesDraft('');
+    setBusy(false);
+    setPendingAction(null);
+    setError(null);
+    setCharacters([]);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, inCollection]);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
+    const ownerVnId = vnId;
     try {
       const r = await fetch(`/api/collection/${vnId}/routes`, { signal, cache: 'no-store' });
       if (!r.ok) throw new Error(await readApiError(r, t.routes.loadError));
-      const d = (await r.json()) as { routes: RouteRow[] };
-      if (signal?.aborted) return;
-      setRoutes(d.routes);
+      const routes = decodeRoutesResponse(await r.json());
+      if (!routes) throw new Error(t.routes.loadError);
+      if (signal?.aborted || identityRef.current !== ownerVnId) return;
+      setRoutes(routes);
       setLoadError(false);
     } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+      if ((e as Error).name === 'AbortError' || signal?.aborted || identityRef.current !== ownerVnId) return;
       setLoadError(true);
     }
   }, [vnId, inCollection, t.routes.loadError]);
@@ -369,10 +409,10 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     const ctrl = new AbortController();
     fetchVnCharacters(vnId, ctrl.signal)
       .then((data) => {
-        if (!ctrl.signal.aborted) setCharacters(data);
+        if (!ctrl.signal.aborted && identityRef.current === vnId) setCharacters(data);
       })
       .catch((e) => {
-        if ((e as Error).name === 'AbortError') return;
+        if ((e as Error).name === 'AbortError' || ctrl.signal.aborted || identityRef.current !== vnId) return;
         console.error('[RoutesSection] characters fetch failed:', e);
       });
     return () => ctrl.abort();
@@ -401,7 +441,35 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       });
   }, [characters, usedNames, vnId]);
 
+  const startMutation = useCallback((): AbortController | null => {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    mutationInFlightRef.current = true;
+    return controller;
+  }, []);
+
+  const ownsMutation = useCallback((ownerVnId: string, controller: AbortController): boolean => (
+    identityRef.current === ownerVnId
+    && mutationAbortRef.current === controller
+    && !controller.signal.aborted
+  ), []);
+
+  const finishMutation = useCallback((ownerVnId: string, controller: AbortController) => {
+    if (mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (identityRef.current === ownerVnId) {
+      setBusy(false);
+      setPendingAction(null);
+    }
+  }, []);
+
   const add = useCallback(async (name: string): Promise<boolean> => {
+    const controller = startMutation();
+    if (!controller) return false;
+    const ownerVnId = vnId;
     setBusy(true);
     setError(null);
     try {
@@ -409,21 +477,25 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { routes: RouteRow[] };
-      setRoutes(d.routes);
+      const routes = decodeRoutesResponse(await r.json());
+      if (!routes) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return false;
+      setRoutes(routes);
       startTransition(() => router.refresh());
       toast.success(t.routes.added);
       return true;
     } catch (err) {
+      if (!ownsMutation(ownerVnId, controller)) return false;
       setError((err as Error).message);
       toast.error((err as Error).message);
       return false;
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
-  }, [vnId, router, toast, t.common.error, t.routes.added]);
+  }, [finishMutation, ownsMutation, router, startMutation, toast, t.common.error, t.routes.added, vnId]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -432,54 +504,78 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     setPrefillNonce((n) => n + 1);
   }, []);
 
-  const patch = useCallback(async (id: number, fields: Partial<RouteRow>) => {
+  const patch = useCallback(async (
+    id: number,
+    fields: Partial<RouteRow>,
+    action?: { id: number; kind: 'toggle' | 'notes' },
+  ): Promise<boolean> => {
+    const controller = startMutation();
+    if (!controller) return false;
+    const ownerVnId = vnId;
     setBusy(true);
+    if (action) setPendingAction(action);
     setError(null);
     try {
       const r = await fetch(`/api/route/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await reload();
+      if (!ownsMutation(ownerVnId, controller)) return false;
+      await reload(controller.signal);
+      if (!ownsMutation(ownerVnId, controller)) return false;
       startTransition(() => router.refresh());
       toast.success(t.routes.updated);
+      return true;
     } catch (err) {
+      if (!ownsMutation(ownerVnId, controller)) return false;
       setError((err as Error).message);
       toast.error((err as Error).message);
+      return false;
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
-  }, [reload, router, toast, t.common.error, t.routes.updated]);
+  }, [finishMutation, ownsMutation, reload, router, startMutation, toast, t.common.error, t.routes.updated, vnId]);
 
   const remove = useCallback(async (id: number) => {
-    const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
-    if (!ok) return;
+    const ownerVnId = vnId;
+    const controller = startMutation();
+    if (!controller) return;
     setBusy(true);
     setPendingAction({ id, kind: 'remove' });
     setError(null);
+    const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
+    if (!ok || !ownsMutation(ownerVnId, controller)) {
+      finishMutation(ownerVnId, controller);
+      return;
+    }
     try {
-      const r = await fetch(`/api/route/${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/route/${id}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await reload();
+      if (!ownsMutation(ownerVnId, controller)) return;
+      await reload(controller.signal);
+      if (!ownsMutation(ownerVnId, controller)) return;
       startTransition(() => router.refresh());
       toast.success(t.routes.removed);
     } catch (err) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       setError((err as Error).message);
       toast.error((err as Error).message);
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
-  }, [confirm, reload, router, toast, t.common.error, t.routes.removed, t.routes.removeConfirm]);
+  }, [confirm, finishMutation, ownsMutation, reload, router, startMutation, toast, t.common.error, t.routes.removed, t.routes.removeConfirm, vnId]);
 
   const move = useCallback(async (id: number, direction: -1 | 1) => {
+    const ownerVnId = vnId;
     const current = routesRef.current;
     const idx = current.findIndex((r) => r.id === id);
     const target = idx + direction;
     if (idx === -1 || target < 0 || target >= current.length) return;
+    const controller = startMutation();
+    if (!controller) return;
     const next = [...current];
     [next[idx], next[target]] = [next[target], next[idx]];
     setRoutes(next);
@@ -491,38 +587,51 @@ export function RoutesSection({ vnId, inCollection }: Props) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: next.map((x) => x.id) }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await reload();
+      if (!ownsMutation(ownerVnId, controller)) return;
+      await reload(controller.signal);
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.routes.reordered);
     } catch (err) {
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setRoutes(current);
       setError((err as Error).message);
       toast.error((err as Error).message);
-      await reload();
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
-  }, [reload, vnId, toast, t.common.error, t.routes.reordered]);
+  }, [finishMutation, ownsMutation, reload, startMutation, t.common.error, t.routes.reordered, toast, vnId]);
 
   const startEdit = useCallback((r: RouteRow) => {
+    editingIdRef.current = r.id;
     setEditingId(r.id);
     setEditingName(r.name);
   }, []);
 
   const saveEdit = useCallback(async () => {
+    const ownerVnId = vnId;
     const id = editingIdRef.current;
     if (id == null) return;
     const next = editingNameRef.current.trim();
     if (!next) {
+      editingIdRef.current = null;
       setEditingId(null);
       return;
     }
-    await patch(id, { name: next });
-    setEditingId(null);
-  }, [patch]);
+    if (await patch(id, { name: next })) {
+      if (identityRef.current === ownerVnId) {
+        editingIdRef.current = null;
+        setEditingId(null);
+      }
+    }
+  }, [patch, vnId]);
 
-  const cancelEdit = useCallback(() => setEditingId(null), []);
+  const cancelEdit = useCallback(() => {
+    editingIdRef.current = null;
+    setEditingId(null);
+  }, []);
 
   const editNameChange = useCallback((value: string) => {
     setError(null);
@@ -531,28 +640,36 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
   const toggleComplete = useCallback(
     (r: RouteRow) => {
-      setPendingAction({ id: r.id, kind: 'toggle' });
-      return patch(r.id, { completed: !r.completed });
+      return patch(r.id, { completed: !r.completed }, { id: r.id, kind: 'toggle' });
     },
     [patch],
   );
 
   const toggleNotes = useCallback((r: RouteRow) => {
     if (notesOpenRef.current === r.id) {
+      notesOpenRef.current = null;
       setNotesOpen(null);
       return;
     }
+    notesOpenRef.current = r.id;
     setNotesOpen(r.id);
     setNotesDraft(r.notes ?? '');
   }, []);
 
-  const cancelNotes = useCallback(() => setNotesOpen(null), []);
+  const cancelNotes = useCallback(() => {
+    notesOpenRef.current = null;
+    setNotesOpen(null);
+  }, []);
 
   const saveNotes = useCallback(async (r: RouteRow) => {
-    setPendingAction({ id: r.id, kind: 'notes' });
-    await patch(r.id, { notes: notesDraftRef.current.trim() || null });
-    setNotesOpen(null);
-  }, [patch]);
+    const ownerVnId = vnId;
+    if (await patch(r.id, { notes: notesDraftRef.current.trim() || null }, { id: r.id, kind: 'notes' })) {
+      if (identityRef.current === ownerVnId) {
+        notesOpenRef.current = null;
+        setNotesOpen(null);
+      }
+    }
+  }, [patch, vnId]);
 
   const moveUp = useCallback((id: number) => move(id, -1), [move]);
   const moveDown = useCallback((id: number) => move(id, 1), [move]);
@@ -663,8 +780,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               key={c.id}
               type="button"
               onClick={() => prefillDraft(c.name)}
-              className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent"
-              title={c.original && c.original !== c.name ? `${c.name} · ${c.original}` : c.name}
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-0"
+              title={c.original && c.original !== c.name ? `${c.name} / ${c.original}` : c.name}
             >
               {c.name}
             </button>

@@ -10,15 +10,9 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
-export interface GameLogEntry {
-  id: number;
-  vn_id: string;
-  note: string;
-  logged_at: number;
-  session_minutes: number | null;
-  created_at: number;
-  updated_at: number;
-}
+import { decodeGameLogEntryResponse, type TrackingGameLogEntry } from '@/lib/tracking-client-shape';
+
+type GameLogEntry = TrackingGameLogEntry;
 
 const NOTE_MAX = 8000;
 
@@ -49,17 +43,36 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   const [entries, setEntries] = useState<GameLogEntry[]>(initial);
   const [text, setText] = useState('');
   const [attachSession, setAttachSession] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'add' | 'edit' | 'remove' | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [now, setNow] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
     setEntries(initial);
-  }, [initial]);
+    setText('');
+    setAttachSession(false);
+    setBusy(null);
+    setEditingId(null);
+    setEditingText('');
+    setSavingEdit(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initial]);
 
   useEffect(() => {
     if (liveSessionMinutes <= 0) setAttachSession(false);
@@ -76,34 +89,63 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     .replace('{n}', String(text.length))
     .replace('{max}', String(NOTE_MAX));
 
+  function beginMutation(kind: 'add' | 'edit' | 'remove'): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setBusy(kind);
+    if (kind === 'edit') setSavingEdit(true);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController, kind: 'add' | 'edit' | 'remove') {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(null);
+    if (kind === 'edit') setSavingEdit(false);
+  }
+
   async function add() {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
+    if (!trimmed) return;
+    const ownerVnId = vnId;
+    const controller = beginMutation('add');
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/game-log`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/game-log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           note: trimmed,
           session_minutes: attachSession && liveSessionMinutes > 0 ? liveSessionMinutes : null,
         }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const data = (await r.json()) as { entry: GameLogEntry };
-      setEntries((cur) => [data.entry, ...cur]);
+      const entry = decodeGameLogEntryResponse(await r.json());
+      if (!entry) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setEntries((cur) => [entry, ...cur]);
       setText('');
       setAttachSession(false);
       textareaRef.current?.focus();
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller, 'add');
     }
   }
 
   function startEdit(entry: GameLogEntry) {
+    if (mutationInFlightRef.current) return;
     setEditingId(entry.id);
     setEditingText(entry.note);
   }
@@ -117,35 +159,55 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     if (editingId == null) return;
     const trimmed = editingText.trim();
     if (!trimmed) return;
-    setSavingEdit(true);
+    const ownerVnId = vnId;
+    const ownerEditingId = editingId;
+    const controller = beginMutation('edit');
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/game-log`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/game-log`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, note: trimmed }),
+        body: JSON.stringify({ id: ownerEditingId, note: trimmed }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const data = (await r.json()) as { entry: GameLogEntry };
-      setEntries((cur) => cur.map((e) => (e.id === editingId ? data.entry : e)));
+      const entry = decodeGameLogEntryResponse(await r.json());
+      if (!entry) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setEntries((cur) => cur.map((e) => (e.id === ownerEditingId ? entry : e)));
       cancelEdit();
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setSavingEdit(false);
+      finishMutation(ownerVnId, controller, 'edit');
     }
   }
 
   async function remove(id: number) {
+    const ownerVnId = vnId;
+    const controller = beginMutation('remove');
+    if (!controller) return;
     const ok = await confirm({ message: t.gameLog.deleteConfirm, tone: 'danger' });
-    if (!ok) return;
+    if (!ok || !ownsMutation(ownerVnId, controller)) {
+      finishMutation(ownerVnId, controller, 'remove');
+      return;
+    }
     try {
-      const r = await fetch(`/api/collection/${vnId}/game-log?entry=${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/collection/${ownerVnId}/game-log?entry=${id}`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setEntries((cur) => cur.filter((e) => e.id !== id));
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
+    } finally {
+      finishMutation(ownerVnId, controller, 'remove');
     }
   }
 
@@ -155,7 +217,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <header className="mb-3 flex flex-wrap items-baseline gap-2">
         <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <BookOpenText className="h-4 w-4 text-accent" /> {t.gameLog.label}
+          <BookOpenText className="h-4 w-4 text-accent" aria-hidden /> {t.gameLog.label}
         </h3>
         <p className="text-[11px] text-muted">{t.gameLog.hint}</p>
         <span className="ml-auto text-[10px] text-muted opacity-70">{t.gameLog.keyboardHint}</span>
@@ -176,6 +238,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
           }}
           placeholder={t.gameLog.placeholder}
           aria-label={t.gameLog.placeholder}
+          disabled={busy !== null}
           className="input w-full resize-y bg-transparent text-sm"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -184,10 +247,11 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
               type="button"
               onClick={() => setAttachSession((v) => !v)}
               aria-pressed={attachSession}
+              disabled={busy !== null}
               className={`chip min-h-[44px] px-3 py-1 text-xs uppercase tracking-wider ${attachSession ? 'chip-active' : ''}`}
               title={attachSession ? t.gameLog.attachedSessionNo : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
             >
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-3 w-3" aria-hidden />
               {attachSession
                 ? t.gameLog.attachedSessionNo
                 : t.gameLog.attachedSession.replace('{n}', String(liveSessionMinutes))}
@@ -199,11 +263,11 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
           <button
             type="button"
             onClick={add}
-            disabled={busy || text.trim().length === 0}
+            disabled={busy !== null || text.trim().length === 0}
             className="btn btn-primary"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" />}
-            {busy ? t.gameLog.saving : t.gameLog.add}
+            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+            {busy === 'add' ? t.gameLog.saving : t.gameLog.add}
           </button>
         </div>
       </div>
@@ -227,14 +291,14 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                     >
                       <div className="mb-1 flex flex-wrap items-baseline gap-2 text-[10px] text-muted">
                         <span className="inline-flex items-center gap-1 rounded bg-bg-card px-1.5 py-0.5 uppercase tracking-wider text-accent">
-                          <Clock className="h-3 w-3" />
+                          <Clock className="h-3 w-3" aria-hidden />
                           {fmtTime(entry.logged_at, locale)}
                         </span>
-                        <span className="opacity-70">·</span>
+                        <span className="opacity-70">/</span>
                         <span>{relative(entry.logged_at, now, t)}</span>
                         {entry.session_minutes != null && (
                           <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">
-                            <Sparkles className="h-3 w-3" />
+                            <Sparkles className="h-3 w-3" aria-hidden />
                             {t.gameLog.atSession.replace('{n}', String(entry.session_minutes))}
                           </span>
                         )}
@@ -243,20 +307,22 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             <button
                               type="button"
                               onClick={() => startEdit(entry)}
+                              disabled={busy !== null}
                             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white"
                               aria-label={t.gameLog.edit}
                               title={t.gameLog.edit}
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Pencil className="h-3 w-3" aria-hidden />
                             </button>
                             <button
                               type="button"
                               onClick={() => remove(entry.id)}
+                              disabled={busy !== null}
                             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-status-dropped"
                               aria-label={t.gameLog.delete}
                               title={t.gameLog.delete}
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3 w-3" aria-hidden />
                             </button>
                           </span>
                         )}
@@ -269,6 +335,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             rows={3}
                             autoFocus
                             aria-label={t.gameLog.placeholder}
+                            disabled={busy !== null}
                             onChange={(e) => setEditingText(e.target.value)}
                             onKeyDown={(e) => {
                               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -284,17 +351,17 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                               type="button"
                               onClick={cancelEdit}
                               className="btn text-xs"
-                              disabled={savingEdit}
+                              disabled={busy !== null}
                             >
-                              <X className="h-3 w-3" /> {t.gameLog.cancel}
+                              <X className="h-3 w-3" aria-hidden /> {t.gameLog.cancel}
                             </button>
                             <button
                               type="button"
                               onClick={saveEdit}
-                              disabled={savingEdit || editingText.trim().length === 0}
+                              disabled={busy !== null || editingText.trim().length === 0}
                               className="btn btn-primary text-xs"
                             >
-                              {savingEdit ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" />}
+                              {savingEdit ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" aria-hidden />}
                               {t.gameLog.save}
                             </button>
                           </div>

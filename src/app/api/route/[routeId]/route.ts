@@ -4,12 +4,13 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateText } from '@/lib/input-validators';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 function parseId(s: string): number | null {
   const n = Number(s);
-  return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ routeId: string }> }): Promise<NextResponse> {
@@ -31,12 +32,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const fields: RoutePatch = {};
   if ('name' in body) {
-    if (typeof body.name !== 'string') return NextResponse.json({ error: 'name must be string' }, { status: 400 });
-    const trimmed = body.name.trim().slice(0, 200);
-    if (!trimmed) return NextResponse.json({ error: 'name required' }, { status: 400 });
-    fields.name = trimmed;
+    const nameResult = validateText(body.name, { field: 'name', max: 200 });
+    if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+    fields.name = nameResult.value;
   }
-  if ('completed' in body) fields.completed = !!body.completed;
+  if ('completed' in body) {
+    if (typeof body.completed !== 'boolean') return NextResponse.json({ error: 'completed must be boolean' }, { status: 400 });
+    fields.completed = body.completed;
+  }
   if ('completed_date' in body) {
     const v = body.completed_date;
     if (v == null || v === '') {
@@ -48,7 +51,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
     }
   }
   if ('order_index' in body) {
-    if (typeof body.order_index !== 'number') return NextResponse.json({ error: 'order_index must be number' }, { status: 400 });
+    if (typeof body.order_index !== 'number' || !Number.isSafeInteger(body.order_index) || body.order_index < 0) {
+      return NextResponse.json({ error: 'order_index must be a non-negative integer' }, { status: 400 });
+    }
     fields.order_index = body.order_index;
   }
   if ('notes' in body) {

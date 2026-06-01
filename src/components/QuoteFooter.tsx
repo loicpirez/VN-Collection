@@ -9,6 +9,7 @@ import { useT } from '@/lib/i18n/client';
 import type { VndbQuote } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeRandomQuoteResponse } from '@/lib/quote-client-shape';
 export function QuoteFooter() {
   const t = useT();
   const [quote, setQuote] = useState<VndbQuote | null>(null);
@@ -17,24 +18,32 @@ export function QuoteFooter() {
   const [hovered, setHovered] = useState(false);
   const fetchedRef = useRef(false);
   const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current;
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch('/api/vndb/quote/random', { cache: 'no-store' });
+      const r = await fetch('/api/vndb/quote/random', { cache: 'no-store', signal: ac.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = await r.json();
-      if (requestId !== requestIdRef.current) return;
-      setQuote(d.quote);
+      const quote = decodeRandomQuoteResponse(await r.json());
+      if (quote === undefined) throw new Error(t.common.error);
+      if (requestId !== requestIdRef.current || ac.signal.aborted) return;
+      setQuote(quote);
     } catch (e) {
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current || ac.signal.aborted) return;
       setError((e as Error).message);
     } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
+      if (abortRef.current === ac) abortRef.current = null;
+      if (requestId === requestIdRef.current && !ac.signal.aborted) setLoading(false);
     }
   }, [t.common.error]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Load only when the user actually hovers — never on page load.
   useEffect(() => {
