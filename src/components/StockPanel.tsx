@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
+import { decodeStoredExtras, type ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -132,6 +132,7 @@ interface StockSource {
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const STOCK_UI_KEY = 'stock:ui:v1';
 const STOCK_OFFERS_KEY = 'stock:ui:offers:v1';
+const STOCK_OFFER_PAGE_SIZE = 12;
 
 const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
@@ -530,14 +531,7 @@ export function StockPanel({
   );
   const erogePriceExtras = useMemo<ErogePriceExtrasV1 | null>(() => {
     const row = statusByProvider.get('eroge_price');
-    if (!row || !row.extras_json) return null;
-    try {
-      const decoded = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
-      if (decoded.schemaVersion !== 1 || !Array.isArray(decoded.candidates)) return null;
-      return decoded;
-    } catch {
-      return null;
-    }
+    return decodeStoredExtras(row?.extras_json);
   }, [statusByProvider]);
   const offerCountByProvider = useMemo(() => {
     const out = new Map<string, number>();
@@ -844,7 +838,7 @@ export function StockPanel({
         onToggle={(e) => setSearchSetupOpen((e.currentTarget as HTMLDetailsElement).open)}
         className="mt-4 group rounded-lg border border-border bg-bg-elev/25"
       >
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-white [&::-webkit-details-marker]:hidden">
           <Tag className="h-3 w-3" aria-hidden />
           <span className="flex-1">{t.stock.searchSetup as string}</span>
           {(aliases.length > 0 || (snapshot?.sources ?? []).length > 0) && (
@@ -911,7 +905,7 @@ export function StockPanel({
                       setAliasPendingTerm(null);
                     }
                   }}
-                  className="inline-flex items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
                 >
                   {aliasPendingTerm === s ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
                   <span className="inline-block max-w-[12rem] truncate align-bottom">{s}</span>
@@ -960,7 +954,7 @@ export function StockPanel({
                   onClick={() => removeSource(source.id)}
                   disabled={sourceLoading}
                   aria-label={`${t.stock.manualSourceDelete} — ${providerDisplayName(providers, source.provider)}`}
-                  className="rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50"
+                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
                 >
                   {sourcePendingId === source.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
@@ -1075,7 +1069,7 @@ function AliasAddForm({
           if (!term || loading) return;
           if (await onSubmit(term)) setValue('');
         }}
-        className="mt-2 flex gap-2"
+        className="mt-2 flex flex-col gap-2 sm:flex-row"
       >
         <input
           type="text"
@@ -1086,12 +1080,12 @@ function AliasAddForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'stock-alias-error' : undefined}
           maxLength={100}
-          className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg sm:min-h-[36px]"
         />
         <button
           type="submit"
           disabled={!value.trim() || loading}
-          className="btn btn-primary text-xs"
+          className="btn btn-primary min-h-[44px] text-xs sm:min-h-0"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
           {t.stock.aliasAdd}
@@ -1143,7 +1137,7 @@ function SourceAddForm({
           if (!url || loading) return;
           if (await onSubmit(url)) setValue('');
         }}
-        className="mt-2 flex gap-2"
+        className="mt-2 flex flex-col gap-2 sm:flex-row"
       >
         <input
           type="url"
@@ -1155,12 +1149,12 @@ function SourceAddForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'stock-source-error' : undefined}
           maxLength={1024}
-          className="min-h-[36px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg sm:min-h-[36px]"
         />
         <button
           type="submit"
           disabled={!value.trim() || loading}
-          className="btn btn-primary text-xs"
+          className="btn btn-primary min-h-[44px] text-xs sm:min-h-0"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
           {t.stock.manualSourceAdd}
@@ -1373,7 +1367,7 @@ const ProviderTile = memo(function ProviderTile({
   if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
   return (
     <div
-      className={`group relative min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors ${
+      className={`group relative min-h-[44px] rounded-lg border py-2 pl-3 pr-14 text-left transition-colors sm:pr-11 ${
         provider.disabled
           ? 'border-border bg-bg/30 text-muted/40 opacity-60'
           : selected
@@ -1390,7 +1384,7 @@ const ProviderTile = memo(function ProviderTile({
         disabled={refreshing || !selectable}
         aria-pressed={selected}
         aria-label={ariaLabel}
-        className="block w-full min-w-0 text-left"
+        className="block min-h-[44px] w-full min-w-0 text-left"
       >
         <span className="flex items-start justify-between gap-2">
           <span className="min-w-0">
@@ -1435,9 +1429,10 @@ const ProviderTile = memo(function ProviderTile({
             onRefreshOnly(provider.id);
           }}
           disabled={refreshing}
+          aria-busy={isRefreshingThis}
           aria-label={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
           title={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
-          className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent focus:flex group-hover:flex group-focus-within:flex disabled:opacity-40"
+          className="absolute right-1.5 top-1.5 inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent disabled:opacity-40 sm:h-7 sm:w-7"
         >
           {isRefreshingThis ? (
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
@@ -1794,7 +1789,7 @@ const OfferCard = memo(function OfferCard({
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`${t.stock.openShop} — ${offer.provider_label}`}
-          className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-[36px]"
         >
           {t.stock.openShop}
           <ExternalLink className="h-3 w-3" aria-hidden />
@@ -1841,35 +1836,92 @@ function OfferGroup({
       localStorage.setItem(STOCK_OFFERS_KEY, JSON.stringify({ ...prev, [groupKey]: collapsed }));
     } catch {}
   }, [collapsed, groupKey]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [offers]);
   const panelId = useId();
+  const totalPages = Math.max(1, Math.ceil(offers.length / STOCK_OFFER_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * STOCK_OFFER_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + STOCK_OFFER_PAGE_SIZE, offers.length);
+  const visibleOffers = offers.slice(pageStart, pageEnd);
   if (offers.length === 0) return null;
   return (
     <div className="mt-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted" id={`${panelId}-label`}>{label}</h3>
-        <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted" aria-label={`${offers.length}`}>{offers.length}</span>
+        <span
+          className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted"
+          aria-label={(t.stock.groupOfferCount as string)
+            .replace('{group}', label)
+            .replace('{count}', String(offers.length))}
+        >
+          {offers.length}
+        </span>
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-h-[44px] rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-0"
           aria-expanded={!collapsed}
           aria-controls={panelId}
+          aria-label={(collapsed ? t.stock.groupExpandLabel : t.stock.groupCollapseLabel)
+            .replace('{group}', label)
+            .replace('{count}', String(offers.length))}
         >
           {collapsed
             ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
             : (t.stock.groupCollapse as string)}
         </button>
+        {!collapsed && (
+          <span className="ml-auto text-[10px] text-muted" role="status" aria-live="polite">
+            {(t.stock.groupRange as string)
+              .replace('{start}', String(pageStart + 1))
+              .replace('{end}', String(pageEnd))
+              .replace('{total}', String(offers.length))}
+          </span>
+        )}
       </div>
       {!collapsed && (
-        <ul
-          id={panelId}
-          aria-labelledby={`${panelId}-label`}
-          className="grid gap-3 lg:grid-cols-2"
-        >
-          {offers.map((offer) => (
-            <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
-          ))}
-        </ul>
+        <>
+          <ul
+            id={panelId}
+            aria-labelledby={`${panelId}-label`}
+            className="grid gap-3 lg:grid-cols-2"
+          >
+            {visibleOffers.map((offer) => (
+              <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
+            ))}
+          </ul>
+          {totalPages > 1 && (
+            <nav
+              className="mt-3 flex items-center justify-between gap-2"
+              aria-label={(t.stock.groupPaginationLabel as string).replace('{group}', label)}
+            >
+              <button
+                type="button"
+                className="btn min-h-[44px] text-xs"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                {t.stock.previousPage as string}
+              </button>
+              <span className="text-[10px] text-muted">
+                {(t.stock.groupPage as string)
+                  .replace('{current}', String(currentPage))
+                  .replace('{total}', String(totalPages))}
+              </span>
+              <button
+                type="button"
+                className="btn min-h-[44px] text-xs"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              >
+                {t.stock.nextPage as string}
+              </button>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
