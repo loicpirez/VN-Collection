@@ -8,7 +8,10 @@ import { useConfirm } from './ConfirmDialog';
 import type { PlaceWithLinks } from '@/lib/db';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 import { geocodingAcceptLanguage } from '@/lib/map-privacy';
+import { decodeNominatimResults, type NominatimResult } from '@/lib/nominatim-shape';
 import { MapPrivacyControl } from './MapPrivacyControl';
+import { decodeCreatePlaceResponse } from '@/lib/place-client-shape';
+import { readApiError } from '@/lib/api-error-read';
 
 type PlaceKind = 'shop' | 'chain' | 'storage';
 
@@ -19,17 +22,16 @@ interface Props {
   onSaved: (newId?: number) => void;
 }
 
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-}
-
 export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Props) {
   const t = useT();
   const locale = useLocale();
   const { confirm } = useConfirm();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const geocodeControllerRef = useRef<AbortController | null>(null);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const saveInFlightRef = useRef(false);
+  const identity = `${place?.id ?? 'new'}|${initialBranch ?? ''}`;
+  const identityRef = useRef<string | null>(identity);
 
   const initial = {
     name: place?.name ?? initialBranch ?? '',
@@ -68,49 +70,96 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
     url !== initial.url ||
     notes !== initial.notes;
 
-  /**
-   * Close guard for the backdrop / Esc / Cancel affordances. When the
-   * form holds unsaved edits, confirm before discarding so a stray
-   * click or keypress can't lose the operator's input. While saving,
-   * the dialog is locked shut.
-   */
   const requestClose = useCallback(async () => {
-    if (saving) return;
+    if (saveInFlightRef.current) return;
+    const ownerIdentity = identity;
     if (dirty) {
       const ok = await confirm({ message: t.places.discardConfirm as string, tone: 'danger' });
-      if (!ok) return;
+      if (!ok || identityRef.current !== ownerIdentity) return;
     }
+    if (identityRef.current !== ownerIdentity) return;
     onClose();
-  }, [saving, dirty, confirm, t, onClose]);
+  }, [identity, dirty, confirm, t, onClose]);
 
   useDialogA11y({ open: true, onClose: requestClose, panelRef });
 
   useEffect(() => {
-    if (!name && initialBranch) setName(initialBranch);
-  }, [initialBranch]);
+    identityRef.current = identity;
+    saveInFlightRef.current = false;
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = null;
+    geocodeControllerRef.current?.abort();
+    geocodeControllerRef.current = null;
+    setName(initial.name);
+    setNameJa(initial.nameJa);
+    setKind(initial.kind);
+    setAddress(initial.address);
+    setLat(initial.lat);
+    setLng(initial.lng);
+    setUrl(initial.url);
+    setNotes(initial.notes);
+    setSaving(false);
+    setError(null);
+    setGeocodeQ('');
+    setGeocodeResults([]);
+    setGeocoding(false);
+    setGeocodeError(null);
+    return () => {
+      identityRef.current = null;
+      saveInFlightRef.current = false;
+      saveAbortRef.current?.abort();
+      saveAbortRef.current = null;
+      geocodeControllerRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity]);
+
+  const handleExternalNetworkChange = useCallback((enabled: boolean) => {
+    setExternalNetworkAllowed(enabled);
+    if (!enabled) {
+      geocodeControllerRef.current?.abort();
+      geocodeControllerRef.current = null;
+      setGeocoding(false);
+      setGeocodeResults([]);
+      setGeocodeError(null);
+    }
+  }, []);
 
   async function geocode() {
-    if (!geocodeQ.trim()) return;
+    const query = geocodeQ.trim();
+    if (!query) return;
     if (!externalNetworkAllowed) {
       setGeocodeError(t.map.externalPrivacyRequired as string);
       return;
     }
+    geocodeControllerRef.current?.abort();
+    const controller = new AbortController();
+    geocodeControllerRef.current = controller;
+    const ownerIdentity = identity;
     setGeocoding(true);
     setGeocodeResults([]);
     setGeocodeError(null);
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQ)}&format=jsonv2&limit=5`,
-        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) } },
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=5`,
+        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) }, signal: controller.signal },
       );
       if (!res.ok) throw new Error(`${res.status}`);
-      const data = (await res.json()) as NominatimResult[];
+      const data = decodeNominatimResults(await res.json());
+      if (!data) throw new Error('invalid Nominatim payload');
+      if (controller.signal.aborted || geocodeControllerRef.current !== controller || identityRef.current !== ownerIdentity) return;
       if (data.length === 0) setGeocodeError(t.places.geocodeEmpty as string);
       else setGeocodeResults(data);
     } catch {
-      setGeocodeError(t.places.geocodeError as string);
+      if (!controller.signal.aborted && geocodeControllerRef.current === controller && identityRef.current === ownerIdentity) {
+        setGeocodeError(t.places.geocodeError as string);
+      }
+    } finally {
+      if (geocodeControllerRef.current === controller && identityRef.current === ownerIdentity) {
+        geocodeControllerRef.current = null;
+        setGeocoding(false);
+      }
     }
-    setGeocoding(false);
   }
 
   function pickResult(r: NominatimResult) {
@@ -128,6 +177,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   }
 
   async function handleSave() {
+    if (saveInFlightRef.current) return;
     if (!name.trim()) return;
     setError(null);
     const coordinates = {
@@ -139,6 +189,11 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
       setError(t.places.invalidCoordinates as string);
       return;
     }
+    saveInFlightRef.current = true;
+    saveAbortRef.current?.abort();
+    const controller = new AbortController();
+    saveAbortRef.current = controller;
+    const ownerIdentity = identity;
     setSaving(true);
     const body = {
       name: name.trim(),
@@ -156,23 +211,34 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`${res.status}`);
+        if (!res.ok) throw new Error(await readApiError(res, t.common.error as string));
+        if (controller.signal.aborted || saveAbortRef.current !== controller || identityRef.current !== ownerIdentity) return;
         onSaved();
       } else {
         const res = await fetch('/api/places', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = (await res.json()) as { id?: number };
-        onSaved(data.id);
+        if (!res.ok) throw new Error(await readApiError(res, t.common.error as string));
+        const id = decodeCreatePlaceResponse(await res.json());
+        if (!id) throw new Error(t.common.error as string);
+        if (controller.signal.aborted || saveAbortRef.current !== controller || identityRef.current !== ownerIdentity) return;
+        onSaved(id);
       }
-    } catch {
-      setError(t.common.error as string);
+    } catch (e) {
+      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+      if (saveAbortRef.current === controller && identityRef.current === ownerIdentity) setError(t.common.error as string);
+    } finally {
+      if (saveAbortRef.current === controller && identityRef.current === ownerIdentity) {
+        saveAbortRef.current = null;
+        saveInFlightRef.current = false;
+        setSaving(false);
+      }
     }
-    setSaving(false);
   }
 
   const KINDS: PlaceKind[] = ['shop', 'chain', 'storage'];
@@ -209,7 +275,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           <div>
             <label className="label text-xs">{t.places.namePlaceholder as string}</label>
             <input
-              className="input w-full mt-1"
+              className="input mt-1 min-h-[44px] w-full"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t.places.namePlaceholder as string}
@@ -219,7 +285,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           <div>
             <label className="label text-xs">{t.places.nameJaPlaceholder as string}</label>
             <input
-              className="input w-full mt-1"
+              className="input mt-1 min-h-[44px] w-full"
               value={nameJa}
               onChange={(e) => setNameJa(e.target.value)}
               placeholder={t.places.nameJaPlaceholder as string}
@@ -245,7 +311,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           <div>
             <label className="label text-xs">{t.places.addressPlaceholder as string}</label>
             <input
-              className="input w-full mt-1"
+              className="input mt-1 min-h-[44px] w-full"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder={t.places.addressPlaceholder as string}
@@ -254,10 +320,10 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
 
           <div className="rounded-lg border border-border bg-bg-elev/40 p-3 space-y-2">
             <p className="text-[11px] font-semibold text-muted uppercase tracking-widest">{t.places.geocodeSearch as string}</p>
-            <MapPrivacyControl compact onChange={setExternalNetworkAllowed} />
+            <MapPrivacyControl compact onChange={handleExternalNetworkChange} />
             <div className="flex gap-2">
               <input
-                className="input flex-1 text-sm"
+                className="input min-h-[44px] flex-1 text-sm"
                 value={geocodeQ}
                 onChange={(e) => setGeocodeQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && geocode()}
@@ -284,7 +350,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
                     <button
                       type="button"
                       onClick={() => pickResult(r)}
-                      className="w-full rounded border border-border bg-bg px-2 py-1.5 text-left text-[11px] text-muted hover:border-accent/40 hover:text-white"
+                      className="min-h-[44px] w-full rounded border border-border bg-bg px-2 py-1.5 text-left text-[11px] text-muted hover:border-accent/40 hover:text-white"
                     >
                       {r.display_name}
                     </button>
@@ -298,7 +364,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
             <div>
               <label className="label text-xs">{t.places.latPlaceholder as string}</label>
               <input
-                className="input w-full mt-1"
+                className="input mt-1 min-h-[44px] w-full"
                 type="number"
                 inputMode="decimal"
                 step="any"
@@ -310,7 +376,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
             <div>
               <label className="label text-xs">{t.places.lngPlaceholder as string}</label>
               <input
-                className="input w-full mt-1"
+                className="input mt-1 min-h-[44px] w-full"
                 type="number"
                 inputMode="decimal"
                 step="any"
@@ -324,7 +390,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
             <button
               type="button"
               onClick={clearCoords}
-              className="text-[11px] text-muted hover:text-status-dropped"
+              className="inline-flex min-h-[44px] items-center text-[11px] text-muted hover:text-status-dropped"
             >
               {t.places.clearCoords as string}
             </button>
@@ -333,7 +399,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
           <div>
             <label className="label text-xs">{t.places.urlPlaceholder as string}</label>
             <input
-              className="input w-full mt-1"
+              className="input mt-1 min-h-[44px] w-full"
               type="url"
               inputMode="url"
               value={url}

@@ -28,13 +28,17 @@ describe('place coordinate helpers', () => {
     expect(hasFiniteCoordinates({ lat: Number.POSITIVE_INFINITY, lng: 139.7 })).toBe(false);
     expect(hasFiniteCoordinates({ lat: 35.6, lng: Number.NaN })).toBe(false);
     expect(hasFiniteCoordinates({ lat: 35.6, lng: null })).toBe(false);
+    expect(hasFiniteCoordinates({ lat: 91, lng: 139.7 })).toBe(false);
+    expect(hasFiniteCoordinates({ lat: 35.6, lng: -181 })).toBe(false);
   });
 
-  it('normalizes non-finite internal coordinate values to null', () => {
-    expect(normalizeOptionalCoordinate(35.6)).toBe(35.6);
-    expect(normalizeOptionalCoordinate(Number.POSITIVE_INFINITY)).toBeNull();
-    expect(normalizeOptionalCoordinate(Number.NaN)).toBeNull();
-    expect(normalizeOptionalCoordinate(undefined)).toBeNull();
+  it('normalizes invalid internal coordinate values to null', () => {
+    expect(normalizeOptionalCoordinate(35.6, 'lat')).toBe(35.6);
+    expect(normalizeOptionalCoordinate(Number.POSITIVE_INFINITY, 'lat')).toBeNull();
+    expect(normalizeOptionalCoordinate(Number.NaN, 'lng')).toBeNull();
+    expect(normalizeOptionalCoordinate(undefined, 'lng')).toBeNull();
+    expect(normalizeOptionalCoordinate(91, 'lat')).toBeNull();
+    expect(normalizeOptionalCoordinate(-181, 'lng')).toBeNull();
   });
 });
 
@@ -80,6 +84,24 @@ describe('place coordinate API validation', () => {
       }),
     );
     expect(infinite.status).toBe(400);
+
+    const outOfRange = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', {
+        name: `${PLACE_NAME_PREFIX}range`,
+        lat: 91,
+        lng: 139.7,
+      }),
+    );
+    expect(outOfRange.status).toBe(400);
+
+    const wrongType = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', {
+        name: `${PLACE_NAME_PREFIX}type`,
+        lat: '35.6',
+        lng: 139.7,
+      }),
+    );
+    expect(wrongType.status).toBe(400);
   });
 
   it('rejects a partial coordinate patch that leaves an invalid pair', async () => {
@@ -89,5 +111,26 @@ describe('place coordinate API validation', () => {
       { params: Promise.resolve({ id: String(id) }) },
     );
     expect(response.status).toBe(400);
+  });
+
+  it('rejects malformed optional metadata and non-HTTP URLs on create', async () => {
+    const malformed = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}metadata`, notes: { text: 'invalid' } }),
+    );
+    expect(malformed.status).toBe(400);
+    const unsafeUrl = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}url`, url: 'javascript:alert(1)' }),
+    );
+    expect(unsafeUrl.status).toBe(400);
+  });
+
+  it('rejects malformed optional patches without erasing persisted values', async () => {
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}patch-metadata`, notes: 'before' });
+    const response = await patchPlace(
+      jsonRequest(`/api/places/${id}`, 'PATCH', { notes: { text: 'invalid' } }),
+      { params: Promise.resolve({ id: String(id) }) },
+    );
+    expect(response.status).toBe(400);
+    expect(getPlace(id)?.notes).toBe('before');
   });
 });

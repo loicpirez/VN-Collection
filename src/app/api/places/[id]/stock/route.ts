@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 function parseId(raw: string): number | null {
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 async function loadWishlistIds(): Promise<Set<string> | null> {

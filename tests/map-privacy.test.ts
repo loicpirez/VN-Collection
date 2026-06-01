@@ -34,13 +34,26 @@ describe('map third-party privacy boundary', () => {
     expect(mapPage).toContain('!externalNetworkAllowed ? (');
     expect(mapPage).toContain('externalNetworkAllowed={externalNetworkAllowed}');
     expect(mapPage).toContain("'Accept-Language': geocodingAcceptLanguage(locale)");
-    expect(modal).toContain('<MapPrivacyControl compact onChange={setExternalNetworkAllowed} />');
+    expect(modal).toContain('<MapPrivacyControl compact onChange={handleExternalNetworkChange} />');
     expect(modal).toContain('disabled={!externalNetworkAllowed}');
     expect(modal).toContain("'Accept-Language': geocodingAcceptLanguage(locale)");
     expect(canvas).toContain('if (!externalNetworkAllowed || !containerRef.current || mapRef.current) return;');
     expect(control).toContain("event instanceof CustomEvent && typeof event.detail === 'boolean'");
     expect(mapPage).not.toContain("'Accept-Language': 'ja,en'");
     expect(modal).not.toContain("'Accept-Language': 'ja,en'");
+  });
+
+  it('aborts stale geocoding work and active requests after consent revocation', () => {
+    for (const path of [
+      'src/components/MapPageClient.tsx',
+      'src/components/AddEditPlaceModal.tsx',
+    ]) {
+      const body = source(path);
+      expect(body).toContain('new AbortController()');
+      expect(body).toContain('.current?.abort()');
+      expect(body).toContain('signal: controller.signal');
+      expect(body).toContain('if (!controller.signal.aborted');
+    }
   });
 
   it('documents CARTO and Nominatim as the opt-in third-party boundary', () => {

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Clock, Globe, Edit2, Link2, Loader2, MapPin, PackageCheck, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -7,6 +7,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
+import { safeHref } from '@/lib/safe-href';
 
 const STALE_DAYS = 7;
 const MS_PER_DAY = 86_400_000;
@@ -35,21 +36,51 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const { confirm } = useConfirm();
   const toast = useToast();
   const [deleting, setDeleting] = useState(false);
+  const placeIdentityRef = useRef<number | null>(place.id);
+  const deleteInFlightRef = useRef(false);
+  const deleteAbortRef = useRef<AbortController | null>(null);
   const { stale, label: staleDays } = freshnessInfo(place.updated_at);
   const hasGps = place.lat != null && place.lng != null;
+  const placeHref = safeHref(place.url);
+
+  useEffect(() => {
+    deleteAbortRef.current?.abort();
+    deleteAbortRef.current = null;
+    placeIdentityRef.current = place.id;
+    deleteInFlightRef.current = false;
+    setDeleting(false);
+    return () => {
+      placeIdentityRef.current = null;
+      deleteInFlightRef.current = false;
+      deleteAbortRef.current?.abort();
+      deleteAbortRef.current = null;
+    };
+  }, [place.id]);
 
   async function handleDelete() {
-    const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
-    if (!ok) return;
+    if (deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    const ownerId = place.id;
+    const controller = new AbortController();
+    deleteAbortRef.current?.abort();
+    deleteAbortRef.current = controller;
     setDeleting(true);
     try {
-      const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE' });
+      const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
+      if (!ok || placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
+      const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      if (placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.places.deleteSuccess as string);
       onDelete(place);
     } catch (e) {
-      toast.error((e as Error).message);
-      setDeleting(false);
+      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
+    } finally {
+      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller) {
+        deleteAbortRef.current = null;
+        deleteInFlightRef.current = false;
+        setDeleting(false);
+      }
     }
   }
 
@@ -69,6 +100,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
             <button
               type="button"
               onClick={() => onAssign(place)}
+              disabled={deleting}
               className="icon-btn tap-target text-muted hover:text-accent"
               aria-label={t.places.assignDialog as string}
               title={t.places.assignDialog as string}
@@ -78,6 +110,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
             <button
               type="button"
               onClick={() => onEdit(place)}
+              disabled={deleting}
               className="icon-btn tap-target text-muted hover:text-white"
               aria-label={t.places.editPlace as string}
               title={t.places.editPlace as string}
@@ -150,14 +183,14 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
           >
             {t.places.openPlace as string}
           </Link>
-          {place.url && (
+          {placeHref && (
             <a
-              href={place.url}
+              href={placeHref}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={t.places.urlPlaceholder as string}
-              className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
-              title={place.url}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
+              title={placeHref}
             >
               <Globe className="h-3 w-3" aria-hidden />
             </a>
@@ -166,7 +199,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
             <Link
               href={`/map?place=${place.id}`}
               aria-label={t.places.viewOnMap as string}
-              className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
             >
               <MapPin className="h-3 w-3" aria-hidden />
             </Link>

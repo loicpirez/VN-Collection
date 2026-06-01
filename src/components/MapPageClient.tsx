@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import { clearSavedMapView } from '@/lib/map-view-storage';
 import { geocodingAcceptLanguage } from '@/lib/map-privacy';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
+import { decodeNominatimResults, type NominatimResult } from '@/lib/nominatim-shape';
 import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 import { MapPrivacyControl } from './MapPrivacyControl';
 
@@ -30,12 +31,6 @@ function loadMapSize(): MapSize {
     if (v === 'compact' || v === 'normal' || v === 'large' || v === 'tall') return v;
   } catch { /* ignore */ }
   return 'normal';
-}
-
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
 }
 
 const MapCanvas = dynamic(() => import('./MapCanvas').then((m) => m.MapCanvas), {
@@ -77,14 +72,25 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [mapSize, setMapSize] = useState<MapSize>(loadMapSize);
   const [externalNetworkAllowed, setExternalNetworkAllowed] = useState(false);
+  const searchControllerRef = useRef<AbortController | null>(null);
 
   const handleExternalNetworkChange = useCallback((enabled: boolean) => {
     setExternalNetworkAllowed(enabled);
     if (!enabled) {
+      searchControllerRef.current?.abort();
+      searchControllerRef.current = null;
+      setSearching(false);
       setSearchResults([]);
       setSearchError(null);
     }
   }, []);
+
+  useEffect(() => () => searchControllerRef.current?.abort(), []);
+
+  useEffect(() => {
+    setActivePlaceId(focusId ?? null);
+    setSearchTarget(null);
+  }, [focusId, focusLat, focusLng]);
 
   function changeSize(s: MapSize) {
     setMapSize(s);
@@ -104,22 +110,31 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
       setSearchError(t.map.externalPrivacyRequired as string);
       return;
     }
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
     setSearching(true);
     setSearchResults([]);
     setSearchError(null);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=5`,
-        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) } },
+        { headers: { 'Accept-Language': geocodingAcceptLanguage(locale) }, signal: controller.signal },
       );
       if (!res.ok) throw new Error(`${res.status}`);
-      const data = (await res.json()) as NominatimResult[];
+      const data = decodeNominatimResults(await res.json());
+      if (!data) throw new Error('invalid Nominatim payload');
+      if (controller.signal.aborted || searchControllerRef.current !== controller) return;
       if (data.length === 0) setSearchError(t.map.searchEmpty as string);
       else setSearchResults(data);
     } catch {
-      setSearchError(t.map.searchError as string);
+      if (!controller.signal.aborted && searchControllerRef.current === controller) setSearchError(t.map.searchError as string);
+    } finally {
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null;
+        setSearching(false);
+      }
     }
-    setSearching(false);
   }
 
   function pickSearchResult(r: NominatimResult) {
@@ -135,6 +150,9 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   }
 
   function clearSearch() {
+    searchControllerRef.current?.abort();
+    searchControllerRef.current = null;
+    setSearching(false);
     setSearchQ('');
     setSearchResults([]);
     setSearchError(null);
@@ -194,7 +212,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               aria-hidden
             />
             <input
-              className="input w-full pl-9 text-sm"
+              className="input min-h-[44px] w-full pl-9 text-sm"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doSearch()}
@@ -206,7 +224,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               <button
                 type="button"
                 onClick={clearSearch}
-                className="absolute inset-y-0 right-2 my-auto flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+                className="tap-target absolute inset-y-0 right-2 my-auto flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
                 aria-label={t.common.close as string}
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
@@ -235,7 +253,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
                 <button
                   type="button"
                   onClick={() => pickSearchResult(r)}
-                  className="w-full px-3 py-2 text-left text-[12px] text-muted hover:bg-bg-elev hover:text-white"
+                  className="min-h-[44px] w-full px-3 py-2 text-left text-[12px] text-muted hover:bg-bg-elev hover:text-white"
                 >
                   {r.display_name}
                 </button>
@@ -252,7 +270,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
             type="button"
             onClick={() => changeSize(s)}
             aria-pressed={mapSize === s}
-            className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+            className={`min-h-[44px] rounded border px-2 py-0.5 text-[11px] transition-colors ${
               mapSize === s
                 ? 'border-accent bg-accent/10 text-accent'
                 : 'border-border bg-bg-elev/30 text-muted hover:border-accent/50 hover:text-white'
@@ -368,7 +386,7 @@ function PlaceSidebarItem({
       <button
         type="button"
         onClick={() => onClick(place)}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-left"
         title={hasCoords ? (t.map.focusPlace as string) : undefined}
         disabled={!hasCoords}
       >
@@ -393,7 +411,7 @@ function PlaceSidebarItem({
         )}
         <Link
           href={`/places/${place.id}`}
-          className="text-[10px] text-muted/60 hover:text-accent/80"
+          className="inline-flex min-h-[44px] items-center text-[10px] text-muted/60 hover:text-accent/80"
           onClick={(e) => e.stopPropagation()}
         >
           {t.places.openPlace as string}

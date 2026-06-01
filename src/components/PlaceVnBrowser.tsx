@@ -18,31 +18,25 @@ import {
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { formatVndbDateString } from '@/lib/locale-number';
+import { currencyFormatter, formatVndbDateString } from '@/lib/locale-number';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import type { PlaceOfferRow, PlaceVnRow } from '@/lib/db';
+import { parseClientPreferenceRecord, parseNamedIdRows } from '@/lib/client-persisted-shape';
+import { decodePlaceStockResponse, type PlaceStockStats, type PlaceStockVn } from '@/lib/place-client-shape';
+import { readApiError } from '@/lib/api-error-read';
+import { ErrorAlert } from './ErrorAlert';
 
-type PlaceVn = PlaceVnRow & { offers: PlaceOfferRow[]; in_wishlist: number };
+type PlaceVn = PlaceStockVn;
 type FilterTab = 'all' | 'in_stock' | 'out_of_stock' | 'in_collection' | 'in_wishlist';
 type SortKey = 'name' | 'price_asc' | 'price_desc' | 'fresh';
 type GroupKey = 'none' | 'provider' | 'year';
 type ViewMode = 'cards' | 'list';
 
-interface StatsShape {
-  total: number;
-  in_stock: number;
-  out_of_stock: number;
-  offer_count: number;
-  in_collection: number;
-  branch_count: number;
-  in_wishlist: number;
-}
-
 const SORTS = ['name', 'price_asc', 'price_desc', 'fresh'] as const satisfies readonly SortKey[];
 const GROUPS = ['none', 'provider', 'year'] as const satisfies readonly GroupKey[];
 const PREFS_KEY = 'vncoll.place-vn-browser.prefs.v1';
-const EMPTY_STATS: StatsShape = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 };
+const EMPTY_STATS: PlaceStockStats = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 };
 
 function isSort(v: unknown): v is SortKey { return (SORTS as readonly unknown[]).includes(v); }
 function isGroup(v: unknown): v is GroupKey { return (GROUPS as readonly unknown[]).includes(v); }
@@ -53,7 +47,7 @@ function loadPrefs(): { sort?: SortKey; group?: GroupKey; view?: ViewMode } {
   try {
     const raw = window.localStorage.getItem(PREFS_KEY);
     if (!raw) return {};
-    const obj = JSON.parse(raw) as { sort?: unknown; group?: unknown; view?: unknown };
+    const obj = parseClientPreferenceRecord(raw);
     return {
       sort: isSort(obj.sort) ? obj.sort : undefined,
       group: isGroup(obj.group) ? obj.group : undefined,
@@ -63,8 +57,7 @@ function loadPrefs(): { sort?: SortKey; group?: GroupKey; view?: ViewMode } {
 }
 
 function parseDevs(json: string | null): { id: string; name: string }[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as { id: string; name: string }[]; } catch { return []; }
+  return parseNamedIdRows(json);
 }
 
 /** AliceKobe-identical VN browser for a single place's stock. */
@@ -72,8 +65,9 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   const t = useT();
   const locale = useLocale();
   const [items, setItems] = useState<PlaceVn[]>([]);
-  const [apiStats, setApiStats] = useState<StatsShape>(EMPTY_STATS);
+  const [apiStats, setApiStats] = useState<PlaceStockStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [sort, setSort] = useState<SortKey>(() => loadPrefs().sort ?? 'name');
   const [group, setGroup] = useState<GroupKey>(() => loadPrefs().group ?? 'none');
@@ -86,24 +80,34 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   const [search, setSearch] = useState('');
 
   const currency = useMemo(
-    () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
+    () => currencyFormatter(locale),
     [locale],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const r = await fetch(`/api/places/${placeId}/stock`, { cache: 'no-store' });
-      if (!r.ok) return;
-      const d = (await r.json()) as { vns: PlaceVn[]; stats: StatsShape };
-      setItems(d.vns ?? []);
-      setApiStats(d.stats ?? EMPTY_STATS);
+      const r = await fetch(`/api/places/${placeId}/stock`, { cache: 'no-store', signal });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      const d = decodePlaceStockResponse(await r.json());
+      if (!d) throw new Error(t.common.error as string);
+      if (signal?.aborted) return;
+      setItems(d.vns);
+      setApiStats(d.stats);
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+      setLoadError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [placeId]);
+  }, [placeId, t.common.error]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   useEffect(() => {
     try { window.localStorage.setItem(PREFS_KEY, JSON.stringify({ sort, group, view })); } catch {}
@@ -292,7 +296,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
             <button
               type="button"
               onClick={() => setProviderFilter(producer.id)}
-              className="inline-flex w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
             >
               <Building2 className="h-3 w-3" aria-hidden />
               {producer.name}
@@ -301,7 +305,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
             <Link
               href={`/vn/${vn.vn_id}`}
-              className="inline-flex min-h-[32px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
             >
               <Link2 className="h-3 w-3" aria-hidden />
               {vn.vn_id}
@@ -310,7 +314,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               href={`https://vndb.org/${vn.vn_id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
               title={`vndb.org/${vn.vn_id}`}
             >
               <ExternalLink className="h-3 w-3" aria-hidden />
@@ -362,7 +366,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 )}
                 <Link
                   href={`/vn/${vn.vn_id}`}
-                  className="inline-flex min-h-[32px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
                 >
                   <Link2 className="h-3 w-3" aria-hidden />
                   {vn.vn_id}
@@ -436,6 +440,12 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
         )}
       </div>
 
+      {loadError && (
+        <ErrorAlert title={t.common.error as string} className="mb-4">
+          {loadError}
+        </ErrorAlert>
+      )}
+
       {/* Browsing controls */}
       <div className="mb-4 rounded-xl border border-border bg-bg-card p-3">
         <div className="space-y-3">
@@ -446,7 +456,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 aria-pressed={filter === tab.id}
-                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
                   filter === tab.id
                     ? 'border-accent bg-accent/10 font-semibold text-accent'
                     : 'border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -606,7 +616,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
             <SkeletonBlock key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} rounded-xl`} />
           ))}
         </div>
-      ) : sorted.length === 0 ? (
+      ) : loadError && items.length === 0 ? null : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {items.length === 0 ? (
             <p>{t.places.vnBrowserEmpty as string}</p>

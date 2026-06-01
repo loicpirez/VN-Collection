@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -21,6 +21,7 @@ import type { PlaceWithLinks } from '@/lib/db';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { AssignProviderDialog } from './AssignProviderDialog';
 import { PlaceVnBrowser } from './PlaceVnBrowser';
+import { safeHref } from '@/lib/safe-href';
 
 interface Props {
   place: PlaceWithLinks;
@@ -39,25 +40,58 @@ export function PlaceDetailClient({ place }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const placeIdentityRef = useRef<number | null>(place.id);
+  const deleteInFlightRef = useRef(false);
+  const deleteAbortRef = useRef<AbortController | null>(null);
 
   const hasGps = place.lat != null && place.lng != null;
+  const placeHref = safeHref(place.url);
+
+  useEffect(() => {
+    deleteAbortRef.current?.abort();
+    deleteAbortRef.current = null;
+    placeIdentityRef.current = place.id;
+    deleteInFlightRef.current = false;
+    setShowEdit(false);
+    setShowAssign(false);
+    setDeleting(false);
+    return () => {
+      placeIdentityRef.current = null;
+      deleteInFlightRef.current = false;
+      deleteAbortRef.current?.abort();
+      deleteAbortRef.current = null;
+    };
+  }, [place.id]);
 
   async function handleDelete() {
-    const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
-    if (!ok) return;
+    if (deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    const ownerId = place.id;
+    const controller = new AbortController();
+    deleteAbortRef.current?.abort();
+    deleteAbortRef.current = controller;
     setDeleting(true);
     try {
-      const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE' });
+      const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
+      if (!ok || placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
+      const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      if (placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.places.deleteSuccess as string);
       router.push('/places');
     } catch (e) {
-      toast.error((e as Error).message);
-      setDeleting(false);
+      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
+    } finally {
+      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller) {
+        deleteAbortRef.current = null;
+        deleteInFlightRef.current = false;
+        setDeleting(false);
+      }
     }
   }
 
   function handleSaved() {
+    if (placeIdentityRef.current !== place.id) return;
     setShowEdit(false);
     setShowAssign(false);
     router.refresh();
@@ -102,14 +136,14 @@ export function PlaceDetailClient({ place }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {place.url && (
+          {placeHref && (
             <a
-              href={place.url}
+              href={placeHref}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={t.places.urlPlaceholder as string}
               className="btn btn-sm bg-bg-elev text-muted hover:text-white"
-              title={place.url}
+              title={placeHref}
             >
               <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
               <span className="ml-1">{t.places.urlPlaceholder as string}</span>
@@ -127,6 +161,7 @@ export function PlaceDetailClient({ place }: Props) {
           <button
             type="button"
             onClick={() => setShowAssign(true)}
+            disabled={deleting}
             className="btn btn-sm bg-bg-elev text-muted hover:text-accent"
           >
             <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -135,6 +170,7 @@ export function PlaceDetailClient({ place }: Props) {
           <button
             type="button"
             onClick={() => setShowEdit(true)}
+            disabled={deleting}
             className="btn btn-sm bg-accent text-bg hover:bg-accent/80"
           >
             <Edit2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -178,7 +214,9 @@ export function PlaceDetailClient({ place }: Props) {
         <AssignProviderDialog
           place={place}
           onClose={() => setShowAssign(false)}
-          onSaved={() => router.refresh()}
+          onSaved={() => {
+            if (placeIdentityRef.current === place.id) router.refresh();
+          }}
         />
       )}
     </div>

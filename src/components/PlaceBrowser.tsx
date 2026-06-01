@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, Clock, Edit2, Filter, Globe, Grid3X3, Link2, Link2Off, List, MapPin, PackageCheck, Plus, RotateCcw, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -13,6 +13,9 @@ import { ErrorAlert } from './ErrorAlert';
 import { SkeletonBlock } from './Skeleton';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
+import { safeHref } from '@/lib/safe-href';
+import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
+import { decodePlacesResponse, decodeUnassignedBranchesResponse } from '@/lib/place-client-shape';
 
 const STALE_MS = 86_400_000 * 7;
 const PREFS_KEY = 'vncoll.places.prefs.v1';
@@ -27,7 +30,7 @@ function loadPrefs(): { sort?: SortKey; view?: ViewMode } {
   try {
     const raw = window.localStorage.getItem(PREFS_KEY);
     if (!raw) return {};
-    const obj = JSON.parse(raw) as { sort?: unknown; view?: unknown };
+    const obj = parseClientPreferenceRecord(raw);
     const s = obj.sort;
     const v = obj.view;
     return {
@@ -66,27 +69,61 @@ export function PlaceBrowser() {
   const [editTarget, setEditTarget] = useState<PlaceWithLinks | null | 'new'>(null);
   const [assignTarget, setAssignTarget] = useState<PlaceWithLinks | null>(null);
   const [assignBranchTarget, setAssignBranchTarget] = useState<string | null>(null);
+  const reloadAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const assignBranchTargetRef = useRef<string | null>(null);
+  const assignBranchLinkRef = useRef(false);
+  const assignBranchLinkAbortRef = useRef<AbortController | null>(null);
 
   const reload = useCallback(async () => {
+    if (!mountedRef.current) return;
+    reloadAbortRef.current?.abort();
+    const controller = new AbortController();
+    reloadAbortRef.current = controller;
+    const { signal } = controller;
     setLoadError(null);
     try {
       const [pRes, uRes] = await Promise.all([
-        fetch('/api/places', { cache: 'no-store' }),
-        fetch('/api/places/unassigned', { cache: 'no-store' }),
+        fetch('/api/places', { cache: 'no-store', signal }),
+        fetch('/api/places/unassigned', { cache: 'no-store', signal }),
       ]);
       if (!pRes.ok) throw new Error(await readApiError(pRes, t.common.error as string));
       if (!uRes.ok) throw new Error(await readApiError(uRes, t.common.error as string));
-      const [pd, ud] = await Promise.all([pRes.json(), uRes.json()]);
-      setPlaces(pd.places ?? []);
-      setUnassigned(ud.branches ?? []);
-    } catch (e) {
-      setLoadError((e as Error).message);
+      const [pd, ud] = await Promise.all([
+        pRes.json().then(decodePlacesResponse),
+        uRes.json().then(decodeUnassignedBranchesResponse),
+      ]);
+      if (!pd || !ud) throw new Error(t.common.error as string);
+      if (signal.aborted || !mountedRef.current || reloadAbortRef.current !== controller) return;
+      setPlaces(pd.places);
+      setUnassigned(ud);
+    } catch (error) {
+      if (signal.aborted || error instanceof Error && error.name === 'AbortError') return;
+      if (!mountedRef.current || reloadAbortRef.current !== controller) return;
+      setLoadError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
-      setLoading(false);
+      if (!signal.aborted && mountedRef.current && reloadAbortRef.current === controller) setLoading(false);
     }
   }, [t]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    mountedRef.current = true;
+    void reload();
+    return () => {
+      mountedRef.current = false;
+      assignBranchLinkRef.current = false;
+      assignBranchLinkAbortRef.current?.abort();
+      assignBranchLinkAbortRef.current = null;
+      reloadAbortRef.current?.abort();
+    };
+  }, [reload]);
+
+  useEffect(() => {
+    assignBranchTargetRef.current = assignBranchTarget;
+    assignBranchLinkRef.current = false;
+    assignBranchLinkAbortRef.current?.abort();
+    assignBranchLinkAbortRef.current = null;
+  }, [assignBranchTarget]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -174,6 +211,7 @@ export function PlaceBrowser() {
 
   function renderPlaceRow(place: PlaceWithLinks) {
     const hasGps = place.lat != null && place.lng != null;
+    const placeHref = safeHref(place.url);
     const stale = place.provider_labels.length > 0 && freshnessStale(place.updated_at);
     const staleDays = Math.floor((Date.now() - place.updated_at) / 86_400_000);
     return (
@@ -229,14 +267,14 @@ export function PlaceBrowser() {
                 <Link href={`/places/${place.id}`} className="btn btn-xs btn-primary">
                   {t.places.openPlace as string}
                 </Link>
-                {place.url && (
+                {placeHref && (
                   <a
-                    href={place.url}
+                    href={placeHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={t.places.urlPlaceholder as string}
                     className="icon-btn tap-target text-muted hover:text-accent"
-                    title={place.url}
+                    title={placeHref}
                   >
                     <Globe className="h-3.5 w-3.5" aria-hidden />
                   </a>
@@ -353,7 +391,7 @@ export function PlaceBrowser() {
                 type="button"
                 onClick={() => setTab(tab_.id)}
                 aria-pressed={tab === tab_.id}
-                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
                   tab === tab_.id
                     ? 'border-accent bg-accent/10 font-semibold text-accent'
                     : 'border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -513,7 +551,7 @@ export function PlaceBrowser() {
         <ErrorAlert title={loadError}>
           <button
             type="button"
-            onClick={() => { setLoading(true); reload(); }}
+            onClick={() => { setLoading(true); void reload(); }}
             className="btn btn-sm mt-2"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
@@ -575,14 +613,14 @@ export function PlaceBrowser() {
           place={editTarget === 'new' ? null : editTarget}
           initialBranch={null}
           onClose={() => setEditTarget(null)}
-          onSaved={() => { setEditTarget(null); reload(); }}
+          onSaved={() => { setEditTarget(null); void reload(); }}
         />
       )}
       {assignTarget !== null && (
         <AssignProviderDialog
           place={assignTarget}
           onClose={() => setAssignTarget(null)}
-          onSaved={reload}
+          onSaved={() => { void reload(); }}
         />
       )}
       {assignBranchTarget !== null && (
@@ -591,20 +629,32 @@ export function PlaceBrowser() {
           initialBranch={assignBranchTarget}
           onClose={() => setAssignBranchTarget(null)}
           onSaved={async (newId) => {
-            if (newId != null) {
-              try {
+            const ownerBranch = assignBranchTarget;
+            if (assignBranchLinkRef.current || assignBranchTargetRef.current !== ownerBranch) return;
+            assignBranchLinkAbortRef.current?.abort();
+            const controller = new AbortController();
+            assignBranchLinkAbortRef.current = controller;
+            assignBranchLinkRef.current = true;
+            try {
+              if (newId != null) {
                 const r = await fetch(`/api/places/${newId}/link`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ provider_label: assignBranchTarget }),
+                  body: JSON.stringify({ provider_label: ownerBranch }),
+                  signal: controller.signal,
                 });
                 if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
-              } catch (e) {
-                toast.error((e as Error).message);
               }
+            } catch (e) {
+              if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+              if (mountedRef.current && assignBranchTargetRef.current === ownerBranch && assignBranchLinkAbortRef.current === controller) toast.error((e as Error).message);
+            } finally {
+              if (!mountedRef.current || assignBranchTargetRef.current !== ownerBranch || assignBranchLinkAbortRef.current !== controller) return;
+              assignBranchLinkAbortRef.current = null;
+              assignBranchLinkRef.current = false;
+              setAssignBranchTarget(null);
+              void reload();
             }
-            setAssignBranchTarget(null);
-            reload();
           }}
         />
       )}

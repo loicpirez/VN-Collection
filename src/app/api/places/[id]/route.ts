@@ -4,6 +4,8 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
+import { validateText } from '@/lib/input-validators';
+import { parseOptionalPlaceKind, parseOptionalPlaceText, parseOptionalPlaceUrl } from '@/lib/place-input';
 
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
@@ -13,7 +15,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 function parseId(raw: string): number | null {
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
@@ -38,16 +40,35 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as Record<string, unknown>;
-    const VALID_KINDS = ['shop', 'chain', 'storage'];
+    if (
+      ('lat' in body && body.lat !== null && typeof body.lat !== 'number')
+      || ('lng' in body && body.lng !== null && typeof body.lng !== 'number')
+    ) {
+      return NextResponse.json({ error: 'lat and lng must be numbers or null' }, { status: 400 });
+    }
     const patch: Record<string, unknown> = {};
-    if ('name' in body && typeof body.name === 'string') patch.name = body.name.trim();
-    if ('name_ja' in body) patch.name_ja = typeof body.name_ja === 'string' ? body.name_ja.trim() || null : null;
-    if ('kind' in body && typeof body.kind === 'string' && VALID_KINDS.includes(body.kind)) patch.kind = body.kind;
-    if ('address' in body) patch.address = typeof body.address === 'string' ? body.address.trim() || null : null;
+    if ('name' in body) {
+      const name = validateText(body.name, { field: 'name', max: 200 });
+      if (!name.ok) return NextResponse.json({ error: name.error }, { status: 400 });
+      patch.name = name.value;
+    }
+    const nameJa = parseOptionalPlaceText(body.name_ja, 'name_ja', 200);
+    if (!nameJa.ok) return NextResponse.json({ error: nameJa.error }, { status: 400 });
+    if ('name_ja' in body) patch.name_ja = nameJa.value;
+    const kind = parseOptionalPlaceKind(body.kind);
+    if (!kind.ok) return NextResponse.json({ error: kind.error }, { status: 400 });
+    if ('kind' in body) patch.kind = kind.value;
+    const address = parseOptionalPlaceText(body.address, 'address', 1000);
+    if (!address.ok) return NextResponse.json({ error: address.error }, { status: 400 });
+    if ('address' in body) patch.address = address.value;
     if ('lat' in body) patch.lat = typeof body.lat === 'number' ? body.lat : null;
     if ('lng' in body) patch.lng = typeof body.lng === 'number' ? body.lng : null;
-    if ('url' in body) patch.url = typeof body.url === 'string' ? body.url.trim() || null : null;
-    if ('notes' in body) patch.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null;
+    const url = parseOptionalPlaceUrl(body.url);
+    if (!url.ok) return NextResponse.json({ error: url.error }, { status: 400 });
+    if ('url' in body) patch.url = url.value;
+    const notes = parseOptionalPlaceText(body.notes, 'notes', 10_000);
+    if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
+    if ('notes' in body) patch.notes = notes.value;
     if ('lat' in patch || 'lng' in patch) {
       const current = getPlace(id);
       const coordinates = {
