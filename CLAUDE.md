@@ -6,6 +6,91 @@
 
 ---
 
+## Permanent agent operating contract
+
+This section is mandatory for every task in this repository. Repository-specific
+rules below remain mandatory too. When rules differ, use the stricter
+interpretation and gather evidence before acting.
+
+### Evidence and execution
+
+- Evidence beats inference. Read the relevant implementation, tests, and docs
+  before claiming a behavior exists or is fixed.
+- Unknown and unverified items stay open. Do not mark a task complete from
+  naming, comments, or assumptions.
+- Continue until the stated objective is complete or a concrete blocker is
+  documented. Do not silently drop lower-severity findings.
+- Answer opinion and product-judgement questions directly before implementing
+  the chosen direction.
+- Do not limit audits to an arbitrary number of findings. Inspect multiple
+  representative pages, states, records, and viewport sizes.
+
+### File inspection and task tracking
+
+- Read this file before changing source.
+- Inspect complete functions and their call sites before editing them.
+- To verify a tracker row, read the tracker row and directly open each
+  referenced source file. Search locates candidates; direct inspection verifies
+  them.
+- Never read, edit, or print `.env*` files unless the current prompt explicitly
+  requests it.
+- Never read, edit, or stage anything under `data.old/`.
+
+### Command integrity
+
+- Run verification, test, typecheck, build, smoke, debug, deployment, and Git
+  commands transparently. Do not filter, truncate, redirect, or mask their
+  output to determine whether they passed.
+- Do not pipe verification output through `grep`, `tail`, `head`, `sed`, `awk`,
+  `cut`, `sort`, or `uniq`.
+- Run fresh verification in the foreground. Do not reuse cached temporary
+  output as completion evidence.
+- Use `yarn`, never `npm`.
+
+### Git discipline
+
+- Do not run Git commands unless the current prompt explicitly requests Git
+  operations.
+- Each push, pull-request creation, or other remote write needs fresh explicit
+  approval.
+- Commit subjects use only `<type>(<scope>): <description>`. Do not add a body,
+  AI co-author trailer, generated marker, personal phrasing, or real VN, studio,
+  staff, or character names.
+- Do not run destructive Git commands unless the current prompt explicitly
+  requests them.
+- Never revert operator changes. Work with existing edits.
+
+### Implementation quality
+
+- Follow existing repository patterns and use structured parsers and validators.
+- Keep edits scoped. Do not refactor unrelated code solely to make testing
+  easier.
+- Do not add fabricated defaults, silent deletions, or assumption-based
+  migrations.
+- Default to zero inline comments. Use ESDoc only where a durable exported
+  contract needs explanation.
+- Never suppress coverage or type errors.
+- Use deterministic timers and explicit teardown in tests.
+- Route tests assert one exact status and the expected response body.
+- Multi-source metadata behavior must remain coherent across the full
+  application, not only on one page.
+
+### Frontend and responsive behavior
+
+- Every asynchronous surface uses a loading skeleton. Empty-state text appears
+  only after a resolved empty result.
+- Phone and tablet views retain functional parity. Do not hide required
+  controls at narrower breakpoints.
+- Interactive targets are at least 44 px on touch surfaces and support keyboard
+  focus.
+- Use `lucide-react` icons where available. Do not add emojis, Unicode
+  pictographs, or custom SVGs where the icon library already provides a match.
+- Keep task-oriented interfaces compact and scannable.
+- Do not add em dash or en dash punctuation in new UI text, docs, comments, or
+  commit messages.
+
+---
+
 ## Project at a glance
 
 **What it is**: a single-user, self-hosted Visual Novel collection manager.
@@ -17,8 +102,12 @@ into a local SQLite, lets the owner annotate every VN (status, playtime, notes,
 edition inventory, banner …), groups them in series / routes, and surfaces stats.
 VNDB and EGS coexist per-field via a source-resolve helper (auto / VNDB / EGS).
 
-**Non-goals**: multi-user, public sharing, mobile-first, accessibility-first.
-We optimise for the desktop power-user use case (large screens, mouse, French/English/Japanese).
+**Primary use case**: a desktop power-user workflow with large screens, mouse,
+and French / English / Japanese content.
+
+**Compatibility requirements**: phone and tablet functional parity, keyboard
+access, and accessible interaction semantics. Multi-user hosting and public
+sharing remain out of scope.
 
 ---
 
