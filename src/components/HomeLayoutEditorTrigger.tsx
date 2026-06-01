@@ -22,7 +22,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Eye, EyeOff, GripVertical, RotateCcw, X } from 'lucide-react';
 import {
   HOME_LAYOUT_EVENT,
-  HOME_SECTION_IDS,
   type HomeSectionId,
   type HomeSectionLayoutV1,
 } from '@/lib/home-section-layout';
@@ -34,7 +33,7 @@ import { readApiError } from '@/lib/api-error-read';
 /**
  * Custom event name dispatched by sibling components to open the
  * home-layout editor dialog. Multiple call sites can request the
- * dialog (LibraryClient's Options menu, Settings → Home tab CTA,
+ * dialog (LibraryClient's Options menu, Settings -> Home tab CTA,
  * keyboard shortcut, etc.) without rendering a redundant trigger
  * button each.
  */
@@ -50,8 +49,21 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
   const [busy, setBusy] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const mountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
-  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
+  useDialogA11y({ open, onClose: () => { if (!inFlightRef.current) setOpen(false); }, panelRef });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      inFlightRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, []);
 
   // Listen for cross-component open requests. Any sibling can fire
   // `window.dispatchEvent(new CustomEvent('vn:open-home-layout'))`
@@ -75,33 +87,48 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
   }, [open, layout.order, layout.sections]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const persist = useCallback(
     async (patch: { order?: HomeSectionId[]; sections?: Partial<typeof sections> }) => {
+      if (inFlightRef.current) return;
+      const controller = new AbortController();
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = controller;
+      inFlightRef.current = true;
       setBusy(true);
       try {
         const r = await fetch('/api/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ home_section_layout_v1: patch }),
+          signal: controller.signal,
         });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: patch }));
         router.refresh();
       } catch (e) {
+        if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+        setOrder(layout.order);
+        setSections(layout.sections);
         toast.error((e as Error).message);
       } finally {
-        setBusy(false);
+        if (mutationAbortRef.current === controller) {
+          mutationAbortRef.current = null;
+          inFlightRef.current = false;
+          if (mountedRef.current) setBusy(false);
+        }
       }
     },
-    [t.common.error, router, toast],
+    [t.common.error, router, toast, layout.order, layout.sections],
   );
 
   function onDragEnd(event: DragEndEvent) {
+    if (inFlightRef.current) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = order.indexOf(active.id as HomeSectionId);
@@ -113,43 +140,58 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
   }
 
   function toggleVisible(id: HomeSectionId) {
+    if (inFlightRef.current) return;
     const cur = sections[id];
     const next = { ...sections, [id]: { ...cur, visible: !cur.visible } };
     setSections(next);
     void persist({ sections: { [id]: next[id] } });
   }
 
-  function resetAll() {
+  async function resetAll() {
+    if (inFlightRef.current) return;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    inFlightRef.current = true;
     setBusy(true);
-    fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ home_section_layout_v1: null }),
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
-        router.refresh();
-        setOpen(false);
-      })
-      .catch((e) => toast.error((e as Error).message))
-      .finally(() => setBusy(false));
+    try {
+      const r = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ home_section_layout_v1: null }),
+        signal: controller.signal,
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
+      router.refresh();
+      setOpen(false);
+    } catch (e) {
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      toast.error((e as Error).message);
+    } finally {
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    }
   }
 
   return (
     <>
       {/*
-        No standalone page-level trigger anymore — the user explicitly
+        No standalone page-level trigger anymore - the user explicitly
         rejected the floating icon. The dialog opens via:
           - window.dispatchEvent(new CustomEvent('vn:open-home-layout'))
           - dispatched from LibraryClient's "Options" menu, the
-            Settings → Home tab, and any future call site.
+            Settings -> Home tab, and any future call site.
         Keep the dialog markup mounted so it can flip open instantly.
       */}
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur"
-          onClick={() => setOpen(false)}
+          onClick={() => { if (!inFlightRef.current) setOpen(false); }}
         >
           <div
             ref={panelRef}
@@ -166,11 +208,12 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => { if (!inFlightRef.current) setOpen(false); }}
+                disabled={busy}
                 aria-label={t.common.close}
                 className="tap-target rounded text-muted hover:text-white"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
 
@@ -227,6 +270,7 @@ function SortableHomeRow({
   const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled: busy,
   });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -244,6 +288,7 @@ function SortableHomeRow({
         {...attributes}
         {...listeners}
         aria-label={t.homeLayout.dragHandle}
+        disabled={busy}
         className="tap-target-tight cursor-grab text-muted hover:text-white"
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
@@ -265,9 +310,3 @@ function SortableHomeRow({
     </li>
   );
 }
-
-// HOME_SECTION_IDS is imported so this file's bundle tree includes the
-// canonical id list — useful if the editor is ever opened on a layout
-// whose `order` is stale; the parser would have already filled it in,
-// so this is purely a "the type checker stays happy with the import".
-void HOME_SECTION_IDS;

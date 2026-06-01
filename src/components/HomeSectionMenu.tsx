@@ -30,15 +30,45 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
     initialState ?? DEFAULT_HOME_LAYOUT.sections[id],
   );
   const [busy, setBusy] = useState(false);
+  const stateRef = useRef(state);
+  const identityRef = useRef<HomeSectionId | null>(id);
+  const inFlightRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const next = initialState ?? DEFAULT_HOME_LAYOUT.sections[id];
+    identityRef.current = id;
+    inFlightRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    stateRef.current = next;
+    setState(next);
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      inFlightRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [id, initialState]);
 
   // Pick up changes from elsewhere in the app (settings modal restoring
   // a hidden section, another strip's menu, ...).
   useEffect(() => {
     function onChange(e: Event) {
-      const detail = (e as CustomEvent<{ sections?: Partial<Record<HomeSectionId, HomeSectionState>> }>).detail;
+      const detail = (e as CustomEvent<{ reset?: boolean; sections?: Partial<Record<HomeSectionId, HomeSectionState>> }>).detail;
       if (!detail) return;
+      if (detail.reset) {
+        const next = DEFAULT_HOME_LAYOUT.sections[id];
+        stateRef.current = next;
+        setState(next);
+        return;
+      }
       const next = detail.sections?.[id];
-      if (next) setState(next);
+      if (next) {
+        stateRef.current = next;
+        setState(next);
+      }
     }
     window.addEventListener(HOME_LAYOUT_EVENT, onChange);
     return () => window.removeEventListener(HOME_LAYOUT_EVENT, onChange);
@@ -46,9 +76,16 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
 
   const persist = useCallback(
     async (next: HomeSectionState) => {
-      const prev = state;
+      if (inFlightRef.current) return;
+      const ownerId = id;
+      const prev = stateRef.current;
+      mutationAbortRef.current?.abort();
+      const controller = new AbortController();
+      mutationAbortRef.current = controller;
+      inFlightRef.current = true;
       setBusy(true);
-      setState(next); // optimistic
+      stateRef.current = next;
+      setState(next);
       try {
         // Patch only this section's state; the server validator merges
         // the partial layout against the persisted layout so other
@@ -59,33 +96,38 @@ export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionStat
           body: JSON.stringify({
             home_section_layout_v1: { sections: { [id]: next } },
           }),
+          signal: controller.signal,
         });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (identityRef.current !== ownerId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         window.dispatchEvent(
           new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }),
         );
         startTransition(() => router.refresh());
       } catch (e) {
+        if (identityRef.current !== ownerId || mutationAbortRef.current !== controller || controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+        stateRef.current = prev;
         setState(prev);
         toast.error((e as Error).message);
       } finally {
-        setBusy(false);
+        if (identityRef.current === ownerId && mutationAbortRef.current === controller) {
+          mutationAbortRef.current = null;
+          inFlightRef.current = false;
+          setBusy(false);
+        }
       }
     },
-    // `state` is intentionally not in deps — we capture the snapshot via
-    // closure when called, and re-binding on every state change would
-    // churn the controls' memoized handlers downstream.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [id, t.common.error, toast, router],
   );
 
   const toggleCollapsed = useCallback(() => {
-    void persist({ ...state, collapsed: !state.collapsed });
-  }, [persist, state]);
+    const current = stateRef.current;
+    void persist({ ...current, collapsed: !current.collapsed });
+  }, [persist]);
 
   const hide = useCallback(() => {
-    void persist({ ...state, visible: false });
-  }, [persist, state]);
+    void persist({ ...stateRef.current, visible: false });
+  }, [persist]);
 
   return {
     state,

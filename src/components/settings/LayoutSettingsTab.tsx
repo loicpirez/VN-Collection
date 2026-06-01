@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Check, Eye, EyeOff, GripVertical, Maximize2, Minimize2, RotateCcw, Settings2 } from 'lucide-react';
 import {
   DndContext,
@@ -59,7 +59,8 @@ import { STAFF_DETAIL_LAYOUT_EVENT, STAFF_SECTION_IDS, defaultStaffDetailLayoutV
 import { PRODUCER_DETAIL_LAYOUT_EVENT, PRODUCER_SECTION_IDS, defaultProducerDetailLayoutV1 } from '@/lib/producer-detail-layout';
 import { SERIES_DETAIL_LAYOUT_EVENT, SERIES_DETAIL_SECTION_IDS, defaultSeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
 import { useConfirm } from '../ConfirmDialog';
-import type { SaveServer, ServerSettings } from '../SettingsButton';
+import type { SaveServer } from '../SettingsButton';
+import type { ServerSettings } from '@/lib/settings-server-client-shape';
 
 const PAGE_LAYOUT_TABS = ['home', 'vn', 'character', 'staff', 'producer', 'series'] as const;
 type PageLayoutTab = typeof PAGE_LAYOUT_TABS[number];
@@ -185,7 +186,7 @@ export function LayoutSettingsTab({
                 aria-controls={`page-layout-panel-${key}`}
                 tabIndex={activePageLayoutTab === key ? 0 : -1}
                 onClick={() => setActivePageLayoutTab(key)}
-                className={`rounded px-2.5 py-1 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+                className={`min-h-[44px] rounded px-2.5 py-1 sm:min-h-0 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
               >
                 {label}
               </button>
@@ -289,20 +290,36 @@ function HomeLayoutPanel({
   onChange,
 }: {
   layout: HomeSectionLayoutV1;
-  onChange: (next: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] }) => void;
+  onChange: (next: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] }) => Promise<boolean>;
 }) {
   const t = useT();
   const [draft, setDraft] = useState(layout);
+  const revisionRef = useRef(0);
 
   useEffect(() => {
     setDraft(layout);
   }, [layout]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  async function persist(
+    nextDraft: HomeSectionLayoutV1,
+    patch: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] },
+    detail: { reset?: boolean; sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] },
+  ) {
+    const revision = ++revisionRef.current;
+    setDraft(nextDraft);
+    const saved = await onChange(patch);
+    if (saved) {
+      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail }));
+    } else if (revisionRef.current === revision) {
+      setDraft(layout);
+    }
+  }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -311,21 +328,17 @@ function HomeLayoutPanel({
     const newIndex = draft.order.indexOf(over.id as HomeSectionId);
     if (oldIndex < 0 || newIndex < 0) return;
     const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
-    setDraft((cur) => ({ ...cur, order: nextOrder }));
-    onChange({ order: nextOrder });
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { order: nextOrder } }));
-    }
+    void persist({ ...draft, order: nextOrder }, { order: nextOrder }, { order: nextOrder });
   }
 
   function toggleVisible(id: HomeSectionId) {
     const cur = draft.sections[id];
     const next: HomeSectionState = { ...cur, visible: !cur.visible };
-    setDraft((d) => ({ ...d, sections: { ...d.sections, [id]: next } }));
-    onChange({ sections: { [id]: next } });
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { sections: { [id]: next } } }));
-    }
+    void persist(
+      { ...draft, sections: { ...draft.sections, [id]: next } },
+      { sections: { [id]: next } },
+      { sections: { [id]: next } },
+    );
   }
 
   const hiddenCount = draft.order.filter((id) => !draft.sections[id].visible).length;
@@ -356,13 +369,13 @@ function HomeLayoutPanel({
         <button
           type="button"
           onClick={() => {
-            setDraft(DEFAULT_HOME_LAYOUT);
-            onChange({ sections: DEFAULT_HOME_LAYOUT.sections, order: DEFAULT_HOME_LAYOUT.order });
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
-            }
+            void persist(
+              DEFAULT_HOME_LAYOUT,
+              { sections: DEFAULT_HOME_LAYOUT.sections, order: DEFAULT_HOME_LAYOUT.order },
+              { reset: true },
+            );
           }}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
           title={t.homeSections.resetHint}
         >
           <Settings2 className="h-3 w-3" aria-hidden />
@@ -398,7 +411,7 @@ function SortableHomeLayoutRow({
         {...attributes}
         {...listeners}
         aria-label={t.homeLayout.dragHandle}
-        className="cursor-grab text-muted hover:text-white"
+        className="tap-target-tight cursor-grab text-muted hover:text-white"
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -407,7 +420,7 @@ function SortableHomeLayoutRow({
         type="button"
         onClick={onToggleVisible}
         aria-pressed={!visible}
-        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:min-h-0 ${
           visible
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border text-muted hover:border-accent hover:text-accent'
@@ -435,21 +448,45 @@ function VnLayoutPanel({
   onReset,
 }: {
   layout: VnDetailLayoutV1;
-  onSave: (next: VnDetailLayoutV1) => void;
-  onReset: () => void;
+  onSave: (next: VnDetailLayoutV1) => Promise<boolean>;
+  onReset: () => Promise<boolean>;
 }) {
   const t = useT();
   const [draft, setDraft] = useState(layout);
+  const revisionRef = useRef(0);
 
   useEffect(() => {
     setDraft(layout);
   }, [layout]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  async function persist(next: VnDetailLayoutV1) {
+    const revision = ++revisionRef.current;
+    setDraft(next);
+    const saved = await onSave(next);
+    if (saved) {
+      window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
+    } else if (revisionRef.current === revision) {
+      setDraft(layout);
+    }
+  }
+
+  async function reset() {
+    const revision = ++revisionRef.current;
+    const saved = await onReset();
+    if (saved) {
+      const next = defaultVnDetailLayoutV1();
+      setDraft(next);
+      window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
+    } else if (revisionRef.current === revision) {
+      setDraft(layout);
+    }
+  }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -458,27 +495,13 @@ function VnLayoutPanel({
     const newIndex = draft.order.indexOf(over.id as VnSectionId);
     if (oldIndex < 0 || newIndex < 0) return;
     const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
-    setDraft((cur) => {
-      const next: VnDetailLayoutV1 = { ...cur, order: nextOrder };
-      onSave(next);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
-      }
-      return next;
-    });
+    void persist({ ...draft, order: nextOrder });
   }
 
   function patch(id: VnSectionId, partial: Partial<VnSectionState>) {
-    setDraft((cur) => {
-      const next: VnDetailLayoutV1 = {
-        order: cur.order,
-        sections: { ...cur.sections, [id]: { ...cur.sections[id], ...partial } },
-      };
-      onSave(next);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(VN_LAYOUT_EVENT, { detail: { layout: next } }));
-      }
-      return next;
+    void persist({
+      order: draft.order,
+      sections: { ...draft.sections, [id]: { ...draft.sections[id], ...partial } },
     });
   }
 
@@ -493,8 +516,8 @@ function VnLayoutPanel({
         </div>
         <button
           type="button"
-          onClick={onReset}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+          onClick={() => void reset()}
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
         >
           {t.vnLayout.reset}
         </button>
@@ -550,21 +573,39 @@ function PageLayoutPanel<Id extends string>({
   sectionIds: readonly Id[];
   sectionLabels: Record<string, string>;
   eventName: string;
-  onSave: (next: typeof layout) => void;
-  onReset: () => void;
+  onSave: (next: typeof layout) => Promise<boolean>;
+  onReset: () => Promise<boolean>;
 }) {
   const t = useT();
   const panelId = useId();
   const [draft, setDraft] = useState(layout);
   const [open, setOpen] = useState(true);
+  const revisionRef = useRef(0);
 
   useEffect(() => { setDraft(layout); }, [layout]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  async function persist(next: typeof layout) {
+    const revision = ++revisionRef.current;
+    setDraft(next);
+    const saved = await onSave(next);
+    if (saved) {
+      window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: next } }));
+    } else if (revisionRef.current === revision) {
+      setDraft(layout);
+    }
+  }
+
+  async function reset() {
+    const revision = ++revisionRef.current;
+    const saved = await onReset();
+    if (!saved && revisionRef.current === revision) setDraft(layout);
+  }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -573,27 +614,13 @@ function PageLayoutPanel<Id extends string>({
     const newIndex = draft.order.indexOf(over.id as Id);
     if (oldIndex < 0 || newIndex < 0) return;
     const nextOrder = arrayMove(draft.order, oldIndex, newIndex);
-    setDraft((cur) => {
-      const next = { ...cur, order: nextOrder };
-      onSave(next);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: next } }));
-      }
-      return next;
-    });
+    void persist({ ...draft, order: nextOrder });
   }
 
   function patch(id: Id, partial: Partial<{ visible: boolean; collapsedByDefault: boolean }>) {
-    setDraft((cur) => {
-      const next = {
-        order: cur.order,
-        sections: { ...cur.sections, [id]: { ...cur.sections[id], ...partial } },
-      };
-      onSave(next);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: next } }));
-      }
-      return next;
+    void persist({
+      order: draft.order,
+      sections: { ...draft.sections, [id]: { ...draft.sections[id], ...partial } },
     });
   }
 
@@ -606,7 +633,7 @@ function PageLayoutPanel<Id extends string>({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex w-full items-center justify-between gap-2 text-left"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left sm:min-h-0"
       >
         <div>
           <h3 className="text-sm font-bold">{title}</h3>
@@ -627,8 +654,8 @@ function PageLayoutPanel<Id extends string>({
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={onReset}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+              onClick={() => void reset()}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
             >
               {resetLabel}
             </button>
@@ -699,12 +726,12 @@ function SortableDetailRow({
         {...attributes}
         {...listeners}
         aria-label={dragHandleLabel}
-        className="cursor-grab text-muted hover:text-white"
+        className="tap-target-tight cursor-grab text-muted hover:text-white"
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
       <span className={`flex-1 ${visible ? 'text-white' : 'text-muted line-through'}`}>{label}</span>
-      <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
+      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted sm:min-h-0">
         <input
           type="checkbox"
           checked={collapsedByDefault}
@@ -717,7 +744,7 @@ function SortableDetailRow({
         type="button"
         onClick={onToggleVisible}
         aria-pressed={!visible}
-        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:min-h-0 ${
           visible
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border text-muted hover:border-accent hover:text-accent'

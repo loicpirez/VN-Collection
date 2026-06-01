@@ -1,12 +1,15 @@
 'use client';
-import { useId, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import {
   STOCK_PROVIDER_IDS,
   STOCK_PROVIDER_LABELS,
 } from '@/lib/stock-provider-constants';
-import type { ProxyDisplayConfig, SaveServer, ServerSettings } from '../SettingsButton';
+import type { SaveServer } from '../SettingsButton';
+import type { ProxyDisplayConfig, ServerSettings, StockProviderProxyKey } from '@/lib/settings-server-client-shape';
+import { readApiError } from '@/lib/api-error-read';
+import { decodeProxyTestResult } from '@/lib/proxy-test-shape';
 
 interface ProxySettingsSectionProps {
   t: ReturnType<typeof useT>;
@@ -29,13 +32,15 @@ interface ProxySettingsSectionProps {
   compact?: boolean;
 }
 
-function ProxySettingsSection({ t, providerId, label, config, onSave, compact = false }: ProxySettingsSectionProps) {
+function ProxySettingsSection({ t, providerKey, providerId, label, config, onSave, compact = false }: ProxySettingsSectionProps) {
   const [showPw, setShowPw] = useState(false);
   const [pwDraft, setPwDraft] = useState('');
   const [pwFocused, setPwFocused] = useState(false);
   const pwInputRef = useRef<HTMLInputElement | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
-  const [testing, startTesting] = useTransition();
+  const [testing, setTesting] = useState(false);
+  const testAbortRef = useRef<AbortController | null>(null);
+  const testInFlightRef = useRef(false);
   const protocolId = useId();
   const hostId = useId();
   const portId = useId();
@@ -43,23 +48,52 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
   const passwordId = useId();
   const testDisabledHintId = useId();
 
+  useEffect(() => {
+    testAbortRef.current?.abort();
+    testAbortRef.current = null;
+    testInFlightRef.current = false;
+    setTesting(false);
+    setTestResult(null);
+    return () => {
+      testAbortRef.current?.abort();
+      testAbortRef.current = null;
+      testInFlightRef.current = false;
+    };
+  }, [providerKey]);
+
   function handleTest() {
-    startTesting(async () => {
-      setTestResult(null);
+    if (testInFlightRef.current) return;
+    testAbortRef.current?.abort();
+    const controller = new AbortController();
+    testAbortRef.current = controller;
+    testInFlightRef.current = true;
+    setTesting(true);
+    setTestResult(null);
+    void (async () => {
       try {
         const res = await fetch('/api/proxy/test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ provider: providerId }),
+          signal: controller.signal,
         });
-        const data = (await res.json()) as { ok: boolean; latencyMs?: number; error?: string };
+        if (!res.ok) throw new Error(await readApiError(res, t.common.unknownError));
+        const data = decodeProxyTestResult(await res.json());
+        if (!data) throw new Error(t.common.unknownError);
+        if (controller.signal.aborted || testAbortRef.current !== controller) return;
         setTestResult(data.ok
           ? { ok: true, ms: data.latencyMs }
-          : { ok: false, error: data.error ?? t.common.unknownError });
+          : { ok: false, error: data.error });
       } catch (e) {
+        if (controller.signal.aborted || testAbortRef.current !== controller || (e instanceof Error && e.name === 'AbortError')) return;
         setTestResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        if (testAbortRef.current !== controller) return;
+        testAbortRef.current = null;
+        testInFlightRef.current = false;
+        setTesting(false);
       }
-    });
+    })();
   }
 
   return (
@@ -69,7 +103,7 @@ function ProxySettingsSection({ t, providerId, label, config, onSave, compact = 
       ) : (
         <>
           <h3 className="mb-1 text-sm font-bold">
-            {t.settings.proxyTitle} · {label}
+            {t.settings.proxyTitle} / {label}
           </h3>
           <p className="mb-3 text-[11px] text-muted">{t.settings.proxyDesc}</p>
         </>
@@ -512,10 +546,8 @@ export function IntegrationsSettingsTab({
           <p className="mb-3 mt-2 text-[11px] text-muted">{t.settings.proxyShopOverridesDesc}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {STOCK_PROVIDER_IDS.map((id) => {
-              const dbKey = `${id}_proxy_config`;
-              const cfg = (server as Record<string, unknown> | null)?.[dbKey] as
-                | ProxyDisplayConfig
-                | undefined;
+              const dbKey: StockProviderProxyKey = `${id}_proxy_config`;
+              const cfg = server?.[dbKey];
               return (
                 <ProxySettingsSection
                   key={id}

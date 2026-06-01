@@ -28,6 +28,14 @@ import type { SeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
 import { startTour } from './TutorialTour';
 
 import { readApiError } from '@/lib/api-error-read';
+import {
+  decodeServerSettingsResponse,
+  decodeVndbPullStatusResult,
+  type ServerSettings,
+  type ServerSettingsGroupKey as GroupKey,
+  type ServerSettingsSortKey as SortKey,
+  type VndbPullStatusDiff as PullDiff,
+} from '@/lib/settings-server-client-shape';
 
 const LayoutSettingsTab = dynamic(
   () => import('./settings/LayoutSettingsTab').then((m) => m.LayoutSettingsTab),
@@ -38,23 +46,6 @@ const IntegrationsSettingsTab = dynamic(
   () => import('./settings/IntegrationsSettingsTab').then((m) => m.IntegrationsSettingsTab),
   { ssr: false, loading: () => <SkeletonRows count={6} withThumb={false} /> },
 );
-
-type SortKey =
-  | 'updated_at'
-  | 'added_at'
-  | 'title'
-  | 'rating'
-  | 'user_rating'
-  | 'playtime'
-  | 'length_minutes'
-  | 'egs_playtime'
-  | 'combined_playtime'
-  | 'released'
-  | 'producer'
-  | 'publisher'
-  | 'egs_rating'
-  | 'combined_rating'
-  | 'custom';
 
 const SORT_KEYS: SortKey[] = [
   'updated_at',
@@ -74,45 +65,6 @@ const SORT_KEYS: SortKey[] = [
   'custom',
 ];
 
-type GroupKey = 'none' | 'status' | 'producer' | 'publisher' | 'tag' | 'series' | 'aspect';
-
-export interface ProxyDisplayConfig {
-  enabled: boolean;
-  protocol: string;
-  host: string;
-  port: number | null;
-  username: string;
-  hasPassword: boolean;
-}
-
-export interface ServerSettings {
-  vndb_token: { hasToken: boolean; preview: string | null; envFallback: boolean };
-  random_quote_source: 'all' | 'mine';
-  default_sort: SortKey;
-  default_order?: 'asc' | 'desc';
-  default_group?: GroupKey;
-  home_section_layout_v1?: HomeSectionLayoutV1;
-  vn_detail_section_layout_v1?: VnDetailLayoutV1;
-  series_detail_section_layout_v1?: SeriesDetailLayoutV1;
-  character_detail_section_layout_v1?: CharacterDetailLayoutV1;
-  staff_detail_section_layout_v1?: StaffDetailLayoutV1;
-  producer_detail_section_layout_v1?: ProducerDetailLayoutV1;
-  vndb_writeback?: boolean;
-  vndb_backup_enabled?: boolean;
-  vndb_backup_url?: { hasUrl: boolean; host: string | null; isDefault: boolean };
-  vndb_fanout?: boolean;
-  steam_api_key?: { hasKey: boolean; preview: string | null };
-  steam_id?: string;
-  egs_username?: string;
-  vndb_proxy_config?: ProxyDisplayConfig;
-  vndbmirror_proxy_config?: ProxyDisplayConfig;
-  egs_proxy_config?: ProxyDisplayConfig;
-  alicesoft_kobe_proxy_config?: ProxyDisplayConfig;
-  stock_proxy_config?: ProxyDisplayConfig;
-  stock_disabled_providers?: string[];
-  stock_retry_without_proxy?: boolean;
-}
-
 const SETTINGS_TABS = [
   'display',
   'content',
@@ -130,8 +82,7 @@ type SettingsTab = (typeof SETTINGS_TABS)[number];
  * tab bodies (`LayoutSettingsTab`, `IntegrationsSettingsTab`) so they
  * can call the same PATCH handler without re-declaring the surface.
  */
-export type SaveServer = (
-  patch: Partial<{
+export type ServerSettingsPatch = Partial<{
     vndb_token: string | null;
     random_quote_source: 'all' | 'mine';
     default_sort: SortKey;
@@ -157,8 +108,9 @@ export type SaveServer = (
     stock_proxy_config: Record<string, unknown>;
     stock_disabled_providers: string[] | null;
     stock_retry_without_proxy: boolean;
-  }>,
-) => void;
+}>;
+
+export type SaveServer = (patch: ServerSettingsPatch) => Promise<boolean>;
 
 export function SettingsButton() {
   const t = useT();
@@ -177,8 +129,8 @@ export function SettingsButton() {
   const [tokenInput, setTokenInput] = useState('');
   const [savingToken, setSavingToken] = useState(false);
   // Active tab inside the modal. We deliberately don't persist this to
-  // URL or storage — the user almost always re-enters the modal via
-  // the gear icon (or "All settings…" from the spoiler popover) on a
+  // URL or storage - the user almost always re-enters the modal via
+  // the gear icon (or "All settings..." from the spoiler popover) on a
   // specific concern and the freshest landing is Display.
   const [activeTab, setActiveTab] = useState<SettingsTab>('display');
   const shortcutYear = new Date().getFullYear();
@@ -187,17 +139,24 @@ export function SettingsButton() {
   const shortcutPageSections = pageShortcutSections(t);
 
   const loadAbortRef = useRef<AbortController | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const pullAbortRef = useRef<AbortController | null>(null);
+  const pullInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const loadServer = useCallback(async () => {
+    if (!mountedRef.current) return;
     loadAbortRef.current?.abort();
     const ac = new AbortController();
     loadAbortRef.current = ac;
     try {
       const r = await fetch('/api/settings', { cache: 'no-store', signal: ac.signal });
       if (!r.ok) return;
-      setServer((await r.json()) as ServerSettings);
+      const settings = decodeServerSettingsResponse(await r.json());
+      if (settings && loadAbortRef.current === ac && !ac.signal.aborted) setServer(settings);
     } catch {
-      // ignore — modal still works for client-side prefs
+      // ignore - modal still works for client-side prefs
     }
   }, []);
 
@@ -206,120 +165,122 @@ export function SettingsButton() {
       loadServer();
       setTokenInput('');
     }
-    return () => { loadAbortRef.current?.abort(); };
+    return () => {
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+      pullAbortRef.current?.abort();
+      pullAbortRef.current = null;
+      pullInFlightRef.current = false;
+      if (mountedRef.current) setPulling(false);
+    };
   }, [open, loadServer]);
 
-  async function saveServer(
-    patch: Partial<{
-      vndb_token: string | null;
-      random_quote_source: 'all' | 'mine';
-      default_sort: SortKey;
-      default_order: 'asc' | 'desc';
-      default_group: GroupKey;
-      home_section_layout_v1: { sections?: Partial<HomeSectionLayoutV1['sections']>; order?: HomeSectionLayoutV1['order'] } | null;
-      vn_detail_section_layout_v1: VnDetailLayoutV1 | null;
-      series_detail_section_layout_v1: SeriesDetailLayoutV1 | null;
-      character_detail_section_layout_v1: CharacterDetailLayoutV1 | null;
-      staff_detail_section_layout_v1: StaffDetailLayoutV1 | null;
-      producer_detail_section_layout_v1: ProducerDetailLayoutV1 | null;
-      vndb_writeback: boolean;
-      vndb_backup_enabled: boolean;
-      vndb_backup_url: string | null;
-      vndb_fanout: boolean;
-      steam_api_key: string | null;
-      steam_id: string | null;
-      // /api/settings accepts this too; aligning the client type with
-      // the route's surface so future EGS-username UI can call save
-      // without a fresh widen.
-      egs_username: string | null;
-      vndb_proxy_config: Record<string, unknown>;
-      vndbmirror_proxy_config: Record<string, unknown>;
-      egs_proxy_config: Record<string, unknown>;
-      alicesoft_kobe_proxy_config: Record<string, unknown>;
-      stock_proxy_config: Record<string, unknown>;
-      stock_disabled_providers: string[] | null;
-      stock_retry_without_proxy: boolean;
-    }>,
-  ) {
-    try {
-      const r = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      toast.success(t.toast.saved);
-      await loadServer();
-      if (
-        'home_section_layout_v1' in patch ||
-        'vn_detail_section_layout_v1' in patch ||
-        'character_detail_section_layout_v1' in patch ||
-        'staff_detail_section_layout_v1' in patch ||
-        'producer_detail_section_layout_v1' in patch ||
-        'series_detail_section_layout_v1' in patch
-      ) {
-        startTransition(() => router.refresh());
+  function saveServer(patch: ServerSettingsPatch): Promise<boolean> {
+    const task = saveQueueRef.current.then(async () => {
+      if (!mountedRef.current) return false;
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
+      try {
+        const r = await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+          signal: controller.signal,
+        });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!mountedRef.current || saveAbortRef.current !== controller || controller.signal.aborted) return false;
+        toast.success(t.toast.saved);
+        await loadServer();
+        if (!mountedRef.current || saveAbortRef.current !== controller || controller.signal.aborted) return false;
+        if (
+          'home_section_layout_v1' in patch ||
+          'vn_detail_section_layout_v1' in patch ||
+          'character_detail_section_layout_v1' in patch ||
+          'staff_detail_section_layout_v1' in patch ||
+          'producer_detail_section_layout_v1' in patch ||
+          'series_detail_section_layout_v1' in patch
+        ) {
+          startTransition(() => router.refresh());
+        }
+        return true;
+      } catch (e) {
+        if (!mountedRef.current || saveAbortRef.current !== controller || controller.signal.aborted) return false;
+        toast.error((e as Error).message);
+        return false;
+      } finally {
+        if (saveAbortRef.current === controller) saveAbortRef.current = null;
       }
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+    });
+    saveQueueRef.current = task.then(() => undefined, () => undefined);
+    return task;
   }
 
   async function onSaveToken() {
     setSavingToken(true);
-    await saveServer({ vndb_token: tokenInput.trim() || null });
+    const saved = await saveServer({ vndb_token: tokenInput.trim() || null });
+    if (!mountedRef.current) return;
     setSavingToken(false);
-    setTokenInput('');
+    if (saved) setTokenInput('');
   }
 
   const [pulling, setPulling] = useState(false);
-  interface PullDiff {
-    scanned: number;
-    updated: number;
-    unchanged: number;
-    skippedNotInCollection: number;
-    changes: { vn_id: string; title: string; from: string | null; to: string }[];
-    unmatched: { vn_id: string; status: string }[];
-  }
   const [pullDiff, setPullDiff] = useState<PullDiff | null>(null);
   async function onPullStatuses() {
+    if (pullInFlightRef.current) return;
+    const controller = new AbortController();
+    pullAbortRef.current?.abort();
+    pullAbortRef.current = controller;
+    pullInFlightRef.current = true;
     setPulling(true);
     try {
-      const r = await fetch('/api/vndb/pull-statuses', { method: 'POST' });
-      const data = (await r.json().catch(() => ({}))) as PullDiff & {
-        ok?: boolean;
-        needsAuth?: boolean;
-        message?: string;
-      };
-      if (!r.ok || !data.ok) {
-        throw new Error(data.message ?? t.common.error);
+      const r = await fetch('/api/vndb/pull-statuses', { method: 'POST', signal: controller.signal });
+      const data = decodeVndbPullStatusResult(await r.json().catch(() => null));
+      if (!r.ok || !data?.ok) {
+        throw new Error(data?.message ?? t.common.error);
       }
+      if (!mountedRef.current || pullAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(`${t.settings.vndbPullDone} (${data.updated ?? 0}/${data.scanned ?? 0})`);
       setPullDiff({
         scanned: data.scanned,
         updated: data.updated,
         unchanged: data.unchanged,
         skippedNotInCollection: data.skippedNotInCollection,
-        changes: data.changes ?? [],
-        unmatched: data.unmatched ?? [],
+        changes: data.changes,
+        unmatched: data.unmatched,
       });
-      // Updated statuses changed local DB state — reload the surrounding
+      // Updated statuses changed local DB state - reload the surrounding
       // server component so card status badges reflect the new values.
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!mountedRef.current || pullAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setPulling(false);
+      if (pullAbortRef.current === controller) {
+        pullAbortRef.current = null;
+        pullInFlightRef.current = false;
+        if (mountedRef.current) setPulling(false);
+      }
     }
   }
 
   useEffect(() => {
+    mountedRef.current = true;
     setMounted(true);
+    return () => {
+      mountedRef.current = false;
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+      saveAbortRef.current?.abort();
+      saveAbortRef.current = null;
+      pullAbortRef.current?.abort();
+      pullAbortRef.current = null;
+      pullInFlightRef.current = false;
+    };
   }, []);
 
   // External "open me" trigger (dispatched by SpoilerToggle's
   // "Open full settings" button and by /data's "Manage in
-  // Settings → Integrations" callout buttons).
+  // Settings -> Integrations" callout buttons).
   // Optional `event.detail.tab` selects a specific tab on open
   // so the callout from /data lands directly on `integrations`.
   useEffect(() => {
@@ -381,7 +342,7 @@ export function SettingsButton() {
                 <p className="mb-4 text-xs text-muted">{t.settings.subtitle}</p>
 
                 {/*
-                  Tab strip — replaces the previous long scroll of
+                  Tab strip - replaces the previous long scroll of
                   "section / divider / section". Tabs group settings
                   by concern (Display / Content / Library / Home /
                   VN page / Account / Integrations / Automation). The
@@ -650,7 +611,7 @@ export function SettingsButton() {
                                     {c.title}
                                   </Link>
                                   <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted">
-                                    {c.from ?? '—'}
+                                    {c.from ?? '-'}
                                     <ArrowRight className="h-3 w-3" aria-hidden />
                                     <span className="text-accent">{c.to}</span>
                                   </span>
@@ -671,7 +632,7 @@ export function SettingsButton() {
                                     <Link href={`/vn/${u.vn_id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
                                       {u.vn_id}
                                     </Link>
-                                    <span className="ml-1">· {u.status}</span>
+                                    <span className="ml-1">/ {u.status}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -695,7 +656,7 @@ export function SettingsButton() {
                       {/*
                         Mask-aware editor. The GET response now
                         returns `{ hasUrl, host, isDefault }`
-                        instead of echoing the raw URL — so the
+                        instead of echoing the raw URL - so the
                         editor starts empty (with a hostname-only
                         placeholder) and the user types a fresh
                         URL to replace. Clearing the field PATCHes
@@ -709,7 +670,7 @@ export function SettingsButton() {
                         placeholder={
                           server?.vndb_backup_url?.host
                             ? `${server.vndb_backup_url.host}${
-                                server.vndb_backup_url.isDefault ? ' · default' : ''
+                                server.vndb_backup_url.isDefault ? ` / ${t.settings.vndbBackupDefaultSuffix}` : ''
                               }`
                             : 'https://api.yorhel.org/kana'
                         }
@@ -790,7 +751,7 @@ export function SettingsButton() {
                   </div>
                   <p className="text-[11px] text-muted">
                     <kbd className="rounded bg-bg-elev px-1.5 py-0.5 font-mono text-[10px]">?</kbd>
-                    {' '}— {t.shortcuts.help}
+                    {' '} - {t.shortcuts.help}
                   </p>
 	                  <div className="space-y-3">
 	                    <section>

@@ -34,6 +34,7 @@ const SETTINGS_TABS = [
   'account',
   'integrations',
   'automation',
+  'shortcuts',
 ] as const;
 
 describe('SettingsButton — R5-102 tablist / tab a11y attributes', () => {
