@@ -1,9 +1,13 @@
 'use client';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, MapPin } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { currencyFormatter } from '@/lib/locale-number';
 import type { VnStockAvailability } from '@/lib/db';
+import { safeHref } from '@/lib/safe-href';
+
+const PHYSICAL_BRANCH_PAGE_SIZE = 8;
 
 /**
  * Mirror of LEGACY_CONDITION_MAP in StockPanel.tsx so legacy server-emitted
@@ -15,6 +19,7 @@ const LEGACY_CONDITION_MAP: Record<string, string> = {
   'New': 'new',
   'Used': 'used',
   'Sealed': 'sealed',
+  'Used (Rank B)': 'used_rank_b',
 };
 
 function conditionLabel(
@@ -59,9 +64,10 @@ export function StockPhysicalLocations({
 }) {
   const t = useT();
   const locale = useLocale();
+  const [page, setPage] = useState(1);
 
   const currency = useMemo(
-    () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
+    () => currencyFormatter(locale),
     [locale],
   );
 
@@ -82,6 +88,14 @@ export function StockPhysicalLocations({
         return aMin - bMin;
       });
   }, [offers]);
+  useEffect(() => {
+    setPage(1);
+  }, [offers]);
+  const totalPages = Math.max(1, Math.ceil(grouped.length / PHYSICAL_BRANCH_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PHYSICAL_BRANCH_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + PHYSICAL_BRANCH_PAGE_SIZE, grouped.length);
+  const visibleGroups = grouped.slice(pageStart, pageEnd);
 
   return (
     <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
@@ -99,7 +113,7 @@ export function StockPhysicalLocations({
         <p className="mt-2 text-[11px] text-muted">{t.stock.physicalLocationsEmpty as string}</p>
       ) : (
         <div className="mt-2 space-y-2">
-          {grouped.map(({ branch, offers: branchOffers }) => (
+          {visibleGroups.map(({ branch, offers: branchOffers }) => (
             <div key={branch} className="rounded-lg border border-border bg-bg-elev/50 p-2">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                 {placeMap[branch] != null ? (
@@ -123,7 +137,9 @@ export function StockPhysicalLocations({
                 )}
               </div>
               <ul className="space-y-1">
-                {branchOffers.map((offer, i) => (
+                {branchOffers.map((offer, i) => {
+                  const offerHref = safeHref(offer.url);
+                  return (
                   <li
                     key={`${offer.provider}:${offer.url}:${i}`}
                     className="flex items-start justify-between gap-2 rounded border border-border/60 bg-bg/60 px-2 py-1.5"
@@ -141,22 +157,58 @@ export function StockPhysicalLocations({
                       <span className="block text-xs font-black text-accent">
                         {offer.price != null ? currency.format(offer.price) : '—'}
                       </span>
-                      <a
-                        href={offer.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`${t.stock.openShop} — ${offer.provider_label}`}
-                        className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                      >
-                        {t.stock.openShop}
-                        <ExternalLink className="h-2.5 w-2.5" aria-hidden />
-                      </a>
+                      {offerHref && (
+                        <a
+                          href={offerHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`${t.stock.openShop}: ${offer.provider_label}`}
+                          className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                        >
+                          {t.stock.openShop}
+                          <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                        </a>
+                      )}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           ))}
+          {totalPages > 1 && (
+            <nav
+              className="flex items-center justify-between gap-2"
+              aria-label={t.stock.physicalPaginationLabel as string}
+            >
+              <button
+                type="button"
+                className="btn min-h-[44px] px-2 text-xs"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                aria-label={t.stock.previousPage as string}
+                title={t.stock.previousPage as string}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <span className="text-[10px] text-muted" role="status" aria-live="polite">
+                {(t.stock.groupRange as string)
+                  .replace('{start}', String(pageStart + 1))
+                  .replace('{end}', String(pageEnd))
+                  .replace('{total}', String(grouped.length))}
+              </span>
+              <button
+                type="button"
+                className="btn min-h-[44px] px-2 text-xs"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                aria-label={t.stock.nextPage as string}
+                title={t.stock.nextPage as string}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </nav>
+          )}
         </div>
       )}
     </div>

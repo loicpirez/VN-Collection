@@ -1,7 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { decodeStoredExtras, type ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 import {
@@ -24,11 +24,20 @@ import {
   X,
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
+import { currencyFormatter, fmtDate } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
+import { safeHref } from '@/lib/safe-href';
 import { timeAgo } from '@/lib/time-ago';
 import { normalizeProviderDiagnostic, type NormalizedProviderDiagnostic, type ProviderDiagnosticGroup } from '@/lib/stock-diagnostics';
 import { classifyOfferGroup, isEligibleGameStockOffer, type OfferGroup } from '@/lib/stock-classify';
 import { ONLINE_STOCK_SENTINEL } from '@/lib/stock-provider-constants';
+import type {
+  StockOfferDto as StockOffer,
+  StockProviderDto as StockProvider,
+  StockSnapshotDto as StockSnapshot,
+  StockStatusDto as StockStatus,
+} from '@/lib/stock-api-types';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
 const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m) => m.ClearCacheModal), {
@@ -39,101 +48,60 @@ import { SkeletonRows } from './Skeleton';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
+import {
+  parseClientBooleanMap,
+  parseClientPreferenceRecord,
+  parseClientStringList,
+} from '@/lib/client-persisted-shape';
+import {
+  decodeClearedStockSnapshot,
+  decodeStockAliasesResult,
+  decodeStockSnapshot,
+} from '@/lib/stock-api-shape';
 
-interface StockOffer {
-  vn_id: string;
-  provider: string;
-  provider_label: string;
-  provider_offer_id: string;
-  source: string;
-  title: string;
-  url: string;
-  price: number | null;
-  currency: string;
-  availability: 'in_stock' | 'limited' | 'out_of_stock' | 'unknown' | 'error';
-  availability_label: string | null;
-  condition: string | null;
-  edition_label: string | null;
-  location_label: string | null;
-  location_branch: string | null;
-  source_release_id: string | null;
-  jan: string | null;
-  fetched_at: number;
-  error: string | null;
-  // Classification fields (null for legacy offers pre-schema-migration)
-  content_kind: string | null;
-  platform: string | null;
-  edition_kind: string | null;
-  series_relation: string | null;
-  match_confidence: string | null;
-  match_score: number | null;
-  match_warnings_json: string | null;
-  marketplace_price: number | null;
-  marketplace_count: number | null;
-  list_price: number | null;
-  category: string | null;
-  store_code: string | null;
-  product_id: string | null;
-  page_kind: string | null;
+const STOCK_UI_KEY = 'stock:ui:v1';
+
+interface StockUiPreferences {
+  providerSetupOpen?: boolean;
+  searchSetupOpen?: boolean;
+  providerDiagOpen?: boolean;
 }
 
-interface StockStatus {
-  provider: string;
-  status: 'ok' | 'no_results' | 'partial' | 'protected' | 'error' | 'skipped' | 'not_checked';
-  message: string | null;
-  fetched_at: number;
-  offer_count: number;
-  blocked_kind: string | null;
-  fresh_offers_found: number;
-  cached_offers_available: number;
-  /** Provider-specific JSON blob (eroge_price game bundles, etc.). */
-  extras_json?: string | null;
+function readStockUiPreferences(): StockUiPreferences {
+  try {
+    const raw = localStorage.getItem(STOCK_UI_KEY);
+    if (!raw) return {};
+    const record = parseClientPreferenceRecord(raw);
+    return {
+      providerSetupOpen: typeof record.providerSetupOpen === 'boolean' ? record.providerSetupOpen : undefined,
+      searchSetupOpen: typeof record.searchSetupOpen === 'boolean' ? record.searchSetupOpen : undefined,
+      providerDiagOpen: typeof record.providerDiagOpen === 'boolean' ? record.providerDiagOpen : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
-interface StockProvider {
-  id: string;
-  label: string;
-  kind: 'direct' | 'aggregate' | 'cached';
-  lookupCapabilities: ReadonlyArray<'aggregate_price' | 'direct_link' | 'jan_lookup' | 'title_search' | 'cached_inventory'>;
-  resultCapability: 'structured_prices' | 'structured_offers' | 'search_leads' | 'cached_offers';
-  supportLevel: 'supported' | 'limited' | 'manual_only';
-  physical: boolean;
-  physicalStockMode: string;
-  cloudflare: boolean;
-  branchParserImplemented: boolean;
-  confirmedPhysicalUsable: boolean;
-  disabled?: boolean;
-}
+function useStockUiPreference(key: keyof StockUiPreferences, defaultValue = false): [boolean, Dispatch<SetStateAction<boolean>>] {
+  const [value, setValue] = useState(false);
+  const [ready, setReady] = useState(false);
 
-interface StockSnapshot {
-  offers: StockOffer[];
-  statuses: StockStatus[];
-  providers: StockProvider[];
-  sources: StockSource[];
-  summary: {
-    total: number;
-    available: number;
-    best_price: number | null;
-    related_available: number;
-    needs_review: number;
-    rejected: number;
-    last_refresh: number | null;
-  };
-}
+  useEffect(() => {
+    setValue(readStockUiPreferences()[key] ?? defaultValue);
+    setReady(true);
+  }, [defaultValue, key]);
 
-interface StockSource {
-  id: number;
-  vn_id: string;
-  release_id: string | null;
-  provider: string;
-  url: string;
-  product_id: string | null;
-  created_at: number;
-  updated_at: number;
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...readStockUiPreferences(), [key]: value }));
+    } catch {}
+  }, [key, ready, value]);
+
+  return [value, setValue];
 }
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
-const STOCK_UI_KEY = 'stock:ui:v1';
 const STOCK_OFFERS_KEY = 'stock:ui:offers:v1';
 const STOCK_OFFER_PAGE_SIZE = 12;
 
@@ -206,71 +174,174 @@ export function StockPanel({
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
-  const [providerSetupOpen, setProviderSetupOpen] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STOCK_UI_KEY);
-      if (raw) return (JSON.parse(raw) as Record<string, boolean>).providerSetupOpen ?? false;
-    } catch {}
-    return false;
-  });
-  useEffect(() => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
-      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, providerSetupOpen }));
-    } catch {}
-  }, [providerSetupOpen]);
-  const [searchSetupOpen, setSearchSetupOpen] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STOCK_UI_KEY);
-      if (raw) return (JSON.parse(raw) as Record<string, boolean>).searchSetupOpen ?? false;
-    } catch {}
-    return false;
-  });
-  useEffect(() => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
-      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, searchSetupOpen }));
-    } catch {}
-  }, [searchSetupOpen]);
+  const [providerSetupOpen, setProviderSetupOpen] = useStockUiPreference('providerSetupOpen');
+  const [searchSetupOpen, setSearchSetupOpen] = useStockUiPreference('searchSetupOpen');
   const abortRef = useRef<AbortController | null>(null);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const aliasAbortRef = useRef<AbortController | null>(null);
+  const sourceAbortRef = useRef<AbortController | null>(null);
+  const clearCacheAbortRef = useRef<AbortController | null>(null);
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
+  const aliasMutationInFlightRef = useRef(false);
+  const snapshotMutationInFlightRef = useRef(false);
   const physicalDefaultRef = useRef(false);
 
   const currency = useMemo(
-    () => new Intl.NumberFormat(locale, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }),
+    () => currencyFormatter(locale),
     [locale],
   );
 
+  function ownsPanel(ownerVnId: string): boolean {
+    return mountedRef.current && identityRef.current === ownerVnId;
+  }
+
+  function beginAliasMutation(): AbortController | null {
+    if (aliasMutationInFlightRef.current) return null;
+    aliasMutationInFlightRef.current = true;
+    const controller = new AbortController();
+    aliasAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsAliasMutation(ownerVnId: string, controller: AbortController): boolean {
+    return ownsPanel(ownerVnId) && aliasAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishAliasMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || aliasAbortRef.current !== controller) return;
+    aliasAbortRef.current = null;
+    aliasMutationInFlightRef.current = false;
+    if (mountedRef.current) {
+      setAliasLoading(false);
+      setAliasPendingTerm(null);
+    }
+  }
+
+  function beginSnapshotMutation(channelRef: MutableRefObject<AbortController | null>): AbortController | null {
+    if (snapshotMutationInFlightRef.current) return null;
+    snapshotMutationInFlightRef.current = true;
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
+    const controller = new AbortController();
+    channelRef.current = controller;
+    return controller;
+  }
+
+  function ownsSnapshotMutation(
+    ownerVnId: string,
+    channelRef: MutableRefObject<AbortController | null>,
+    controller: AbortController,
+  ): boolean {
+    return ownsPanel(ownerVnId) && channelRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishSnapshotMutation(
+    ownerVnId: string,
+    channelRef: MutableRefObject<AbortController | null>,
+    controller: AbortController,
+  ) {
+    if (identityRef.current !== ownerVnId || channelRef.current !== controller) return;
+    channelRef.current = null;
+    snapshotMutationInFlightRef.current = false;
+  }
+
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (): Promise<boolean> => {
+      loadAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
       setLoading(true);
       setError(null);
       try {
-        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { cache: 'no-store', signal });
+        const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        const data = (await r.json()) as StockSnapshot;
-        if (!signal?.aborted) setSnapshot(data);
+        const data = decodeStockSnapshot(await r.json());
+        if (!data) throw new Error(t.common.error);
+        if (controller.signal.aborted || loadAbortRef.current !== controller) return false;
+        setSnapshot(data);
+        return true;
       } catch (e) {
-        if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+        if ((e as Error).name === 'AbortError' || controller.signal.aborted || loadAbortRef.current !== controller) {
+          return false;
+        }
         setError(e instanceof Error && e.message ? e.message : t.common.error);
+        return false;
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (loadAbortRef.current === controller) {
+          loadAbortRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [vnId, t.common.error],
   );
 
   useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
+    aliasAbortRef.current?.abort();
+    aliasAbortRef.current = null;
+    sourceAbortRef.current?.abort();
+    sourceAbortRef.current = null;
+    clearCacheAbortRef.current?.abort();
+    clearCacheAbortRef.current = null;
+    aliasMutationInFlightRef.current = false;
+    snapshotMutationInFlightRef.current = false;
+    physicalDefaultRef.current = false;
+    setSnapshot(initialSnapshot ?? null);
+    setLoading(!initialSnapshot);
+    setRefreshing(false);
+    setError(null);
+    setSelectedProviders(null);
+    setProgress(null);
+    setCurrentProvider(null);
+    setAliases([]);
+    setAliasLoading(false);
+    setAliasPendingTerm(null);
+    setAliasError(null);
+    setSourceLoading(false);
+    setSourcePendingId(null);
+    setSourceError(null);
+    setClearingCache(false);
+    setClearConfirmOpen(false);
+  }, [vnId, initialSnapshot]);
+
+  useEffect(() => {
     if (initialSnapshot) return;
-    const ctrl = new AbortController();
-    load(ctrl.signal);
-    return () => ctrl.abort();
+    void load();
+    return () => {
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+    };
   }, [load, initialSnapshot]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
+    aliasAbortRef.current?.abort();
+    aliasAbortRef.current = null;
+    sourceAbortRef.current?.abort();
+    sourceAbortRef.current = null;
+    clearCacheAbortRef.current?.abort();
+    clearCacheAbortRef.current = null;
+  }, []);
 
   useEffect(() => {
     const ctrl = new AbortController();
     fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, { cache: 'no-store', signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : { aliases: [] }))
-      .then((data: { aliases: string[] }) => { if (!ctrl.signal.aborted) setAliases(data.aliases ?? []); })
+      .then((data) => { if (!ctrl.signal.aborted) setAliases(decodeStockAliasesResult(data)?.aliases ?? []); })
       .catch((e: unknown) => {
         if ((e as Error).name === 'AbortError') return;
         console.error('[StockPanel] alias fetch failed:', e);
@@ -288,9 +359,9 @@ export function StockPanel({
   }, [initialSnapshot, providers.length]);
 
   async function refresh() {
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
+    const ctrl = beginSnapshotMutation(abortRef);
+    if (!ctrl) return;
+    const ownerVnId = vnId;
     setRefreshing(true);
     setError(null);
 
@@ -299,7 +370,7 @@ export function StockPanel({
     setCurrentProvider(null);
 
     for (let i = 0; i < toCheck.length; i++) {
-      if (ctrl.signal.aborted) break;
+      if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) break;
       const provider = toCheck[i];
       setCurrentProvider(provider);
       try {
@@ -310,19 +381,20 @@ export function StockPanel({
           signal: ctrl.signal,
         });
         if (r.ok) {
-          const data = (await r.json()) as StockSnapshot;
-          if (ctrl.signal.aborted) break;
-          setSnapshot(data);
+          const data = decodeStockSnapshot(await r.json());
+          if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) break;
+          if (data) setSnapshot(data);
         }
       } catch (e) {
         if ((e as Error).name === 'AbortError') break;
       }
-      if (ctrl.signal.aborted) break;
+      if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) break;
       setProgress({ done: i + 1, total: toCheck.length });
     }
 
+    if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) return;
     setCurrentProvider(null);
-    if (abortRef.current === ctrl) abortRef.current = null;
+    finishSnapshotMutation(ownerVnId, abortRef, ctrl);
     setRefreshing(false);
     setLoading(false);
     router.refresh();
@@ -336,9 +408,9 @@ export function StockPanel({
    */
   const refreshOnlyProvider = useCallback(
     async (provider: string) => {
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
+      const ctrl = beginSnapshotMutation(abortRef);
+      if (!ctrl) return;
+      const ownerVnId = vnId;
       setRefreshing(true);
       setError(null);
       setProgress({ done: 0, total: 1 });
@@ -350,13 +422,22 @@ export function StockPanel({
           body: JSON.stringify({ providers: [provider] }),
           signal: ctrl.signal,
         });
-        if (r.ok) setSnapshot((await r.json()) as StockSnapshot);
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (r.ok) {
+          const snapshot = decodeStockSnapshot(await r.json());
+          if (!snapshot) throw new Error(t.common.error);
+          if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) return;
+          setSnapshot(snapshot);
+        }
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') setError(e instanceof Error && e.message ? e.message : t.common.error);
+        if ((e as Error).name !== 'AbortError' && ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) {
+          setError(e instanceof Error && e.message ? e.message : t.common.error);
+        }
       }
+      if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) return;
       setProgress({ done: 1, total: 1 });
       setCurrentProvider(null);
-      if (abortRef.current === ctrl) abortRef.current = null;
+      finishSnapshotMutation(ownerVnId, abortRef, ctrl);
       setRefreshing(false);
       setLoading(false);
       router.refresh();
@@ -367,47 +448,64 @@ export function StockPanel({
   function stop() {
     abortRef.current?.abort();
     abortRef.current = null;
+    snapshotMutationInFlightRef.current = false;
     setRefreshing(false);
+    setCurrentProvider(null);
+    setLoading(false);
   }
 
   const handleAddAlias = useCallback(
     async (term: string): Promise<boolean> => {
+      const controller = beginAliasMutation();
+      if (!controller) return false;
+      const ownerVnId = vnId;
       setAliasLoading(true);
+      setAliasPendingTerm(term);
       setAliasError(null);
       try {
         const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ term, action: 'add' }),
+          signal: controller.signal,
         });
-        const data = (await r.json()) as { aliases?: string[]; error?: string };
+        const data = decodeStockAliasesResult(await r.json());
+        if (!ownsAliasMutation(ownerVnId, controller)) return false;
         if (r.ok) {
-          setAliases(data.aliases ?? []);
+          if (!data?.aliases) throw new Error(t.common.error);
+          setAliases(data.aliases);
           toast.success(t.stock.aliasAddedToast);
           return true;
         }
-        if (Array.isArray(data.aliases)) setAliases(data.aliases);
-        setAliasError(data.error ?? t.common.error);
-        toast.error(data.error ?? t.common.error);
+        if (data?.aliases) setAliases(data.aliases);
+        setAliasError(data?.error ?? t.common.error);
+        toast.error(data?.error ?? t.common.error);
         return false;
       } catch (e) {
+        if (!ownsAliasMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return false;
         const message = e instanceof Error && e.message ? e.message : t.common.error;
         setAliasError(message);
         toast.error(message);
         return false;
       } finally {
-        setAliasLoading(false);
+        finishAliasMutation(ownerVnId, controller);
       }
     },
     [vnId, t.common.error, t.stock.aliasAddedToast, toast],
   );
 
   async function removeAlias(term: string) {
+    const ownerVnId = vnId;
+    const controller = beginAliasMutation();
+    if (!controller) return;
     const ok = await confirm({
       message: t.stock.aliasRemoveConfirm.replace('{term}', term),
       tone: 'danger',
     });
-    if (!ok) return;
+    if (!ok || !ownsAliasMutation(ownerVnId, controller)) {
+      finishAliasMutation(ownerVnId, controller);
+      return;
+    }
     setAliasLoading(true);
     setAliasPendingTerm(term);
     try {
@@ -415,10 +513,13 @@ export function StockPanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ term, action: 'delete' }),
+        signal: controller.signal,
       });
+      if (!ownsAliasMutation(ownerVnId, controller)) return;
       if (r.ok) {
-        const data = (await r.json()) as { aliases: string[] };
-        setAliases(data.aliases ?? []);
+        const data = decodeStockAliasesResult(await r.json());
+        if (!data?.aliases) throw new Error(t.common.error);
+        setAliases(data.aliases);
         toast.success(t.stock.aliasRemovedToast);
       } else {
         const message = await readApiError(r, t.common.error);
@@ -426,17 +527,20 @@ export function StockPanel({
         toast.error(message);
       }
     } catch (e) {
+      if (!ownsAliasMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       const message = e instanceof Error && e.message ? e.message : t.common.error;
       setAliasError(message);
       toast.error(message);
     } finally {
-      setAliasLoading(false);
-      setAliasPendingTerm(null);
+      finishAliasMutation(ownerVnId, controller);
     }
   }
 
   const handleAddSource = useCallback(
     async (url: string): Promise<boolean> => {
+      const controller = beginSnapshotMutation(sourceAbortRef);
+      if (!controller) return false;
+      const ownerVnId = vnId;
       setSourceLoading(true);
       setSourceError(null);
       try {
@@ -444,29 +548,41 @@ export function StockPanel({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
+          signal: controller.signal,
         });
         if (!r.ok) throw new Error(await readApiError(r, t.stock.manualSourceUnsupported));
-        setSnapshot((await r.json()) as StockSnapshot);
+        const snapshot = decodeStockSnapshot(await r.json());
+        if (!snapshot) throw new Error(t.common.error);
+        if (!ownsSnapshotMutation(ownerVnId, sourceAbortRef, controller)) return false;
+        setSnapshot(snapshot);
         toast.success(t.stock.manualSourceAddedToast);
         return true;
       } catch (e) {
+        if (!ownsSnapshotMutation(ownerVnId, sourceAbortRef, controller) || (e instanceof Error && e.name === 'AbortError')) return false;
         const message = e instanceof Error && e.message ? e.message : t.common.error;
         setSourceError(message);
         toast.error(message);
         return false;
       } finally {
-        setSourceLoading(false);
+        finishSnapshotMutation(ownerVnId, sourceAbortRef, controller);
+        if (ownsPanel(ownerVnId)) setSourceLoading(false);
       }
     },
     [vnId, t.common.error, t.stock.manualSourceUnsupported, t.stock.manualSourceAddedToast, toast],
   );
 
   async function removeSource(id: number) {
+    const ownerVnId = vnId;
+    const controller = beginSnapshotMutation(sourceAbortRef);
+    if (!controller) return;
     const ok = await confirm({
       message: t.stock.manualSourceDeleteConfirm,
       tone: 'danger',
     });
-    if (!ok) return;
+    if (!ok || !ownsSnapshotMutation(ownerVnId, sourceAbortRef, controller)) {
+      finishSnapshotMutation(ownerVnId, sourceAbortRef, controller);
+      return;
+    }
     setSourceLoading(true);
     setSourcePendingId(id);
     setSourceError(null);
@@ -475,17 +591,25 @@ export function StockPanel({
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      setSnapshot((await r.json()) as StockSnapshot);
+      const snapshot = decodeStockSnapshot(await r.json());
+      if (!snapshot) throw new Error(t.common.error);
+      if (!ownsSnapshotMutation(ownerVnId, sourceAbortRef, controller)) return;
+      setSnapshot(snapshot);
       toast.success(t.stock.manualSourceDeletedToast);
     } catch (e) {
+      if (!ownsSnapshotMutation(ownerVnId, sourceAbortRef, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       const message = e instanceof Error && e.message ? e.message : t.common.error;
       setSourceError(message);
       toast.error(message);
     } finally {
-      setSourceLoading(false);
-      setSourcePendingId(null);
+      finishSnapshotMutation(ownerVnId, sourceAbortRef, controller);
+      if (ownsPanel(ownerVnId)) {
+        setSourceLoading(false);
+        setSourcePendingId(null);
+      }
     }
   }
 
@@ -496,17 +620,25 @@ export function StockPanel({
   }
 
   async function performClearCache() {
+    const controller = beginSnapshotMutation(clearCacheAbortRef);
+    if (!controller) return;
+    const ownerVnId = vnId;
     setClearConfirmOpen(false);
     setClearingCache(true);
     try {
-      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { method: 'DELETE' });
+      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
+      if (!ownsSnapshotMutation(ownerVnId, clearCacheAbortRef, controller)) return;
       if (r.ok) {
-        const data = (await r.json()) as { snapshot?: StockSnapshot };
-        if (data.snapshot) {
-          setSnapshot(data.snapshot);
+        const snapshot = decodeClearedStockSnapshot(await r.json());
+        if (snapshot) {
+          setSnapshot(snapshot);
         } else {
           setSnapshot(null);
           await load();
+          if (!ownsSnapshotMutation(ownerVnId, clearCacheAbortRef, controller)) return;
         }
         toast.success(t.stock.cacheClearedToast);
       } else {
@@ -515,11 +647,13 @@ export function StockPanel({
         toast.error(message);
       }
     } catch (e) {
+      if (!ownsSnapshotMutation(ownerVnId, clearCacheAbortRef, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       const message = e instanceof Error && e.message ? e.message : t.common.error;
       setError(message);
       toast.error(message);
     } finally {
-      setClearingCache(false);
+      finishSnapshotMutation(ownerVnId, clearCacheAbortRef, controller);
+      if (ownsPanel(ownerVnId)) setClearingCache(false);
     }
   }
 
@@ -909,26 +1043,7 @@ export function StockPanel({
                   key={s}
                   type="button"
                   disabled={aliasLoading}
-                  onClick={async () => {
-                    setAliasLoading(true);
-                    setAliasPendingTerm(s);
-                    setAliasError(null);
-                    try {
-                      const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/aliases`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ term: s, action: 'add' }),
-                      });
-                      const data = (await r.json()) as { aliases?: string[]; error?: string };
-                      if (r.ok) setAliases(data.aliases ?? []);
-                      else setAliasError(data.error ?? t.common.error);
-                    } catch (e) {
-                      setAliasError(e instanceof Error && e.message ? e.message : t.common.error);
-                    } finally {
-                      setAliasLoading(false);
-                      setAliasPendingTerm(null);
-                    }
-                  }}
+                  onClick={() => { void handleAddAlias(s); }}
                   className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
                 >
                   {aliasPendingTerm === s ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
@@ -954,7 +1069,9 @@ export function StockPanel({
         <p className="mt-1 text-[11px] text-muted">{t.stock.manualSourceHint}</p>
         {(snapshot?.sources ?? []).length > 0 && (
           <ul className="mt-2 space-y-1">
-            {(snapshot?.sources ?? []).map((source) => (
+            {(snapshot?.sources ?? []).map((source) => {
+              const sourceHref = safeHref(source.url);
+              return (
               <li
                 key={source.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg px-2 py-1.5 text-[11px]"
@@ -963,27 +1080,34 @@ export function StockPanel({
                   <span className="shrink-0 rounded bg-bg-elev px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                     {providerDisplayName(providers, source.provider)}
                   </span>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-w-0 truncate text-white hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                    title={source.url}
-                  >
-                    {source.product_id ?? source.url}
-                  </a>
+                  {sourceHref ? (
+                    <a
+                      href={sourceHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 truncate text-white hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      title={source.url}
+                    >
+                      {source.product_id ?? source.url}
+                    </a>
+                  ) : (
+                    <span className="min-w-0 truncate text-white" title={source.url}>
+                      {source.product_id ?? source.url}
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeSource(source.id)}
                   disabled={sourceLoading}
-                  aria-label={`${t.stock.manualSourceDelete} — ${providerDisplayName(providers, source.provider)}`}
+                  aria-label={`${t.stock.manualSourceDelete}: ${providerDisplayName(providers, source.provider)}`}
                   className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
                 >
                   {sourcePendingId === source.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
         <SourceAddForm
@@ -1224,8 +1348,8 @@ function GroupBtn({
   );
 }
 
-function availabilityLabel(t: ReturnType<typeof useT>, offer: StockOffer, locale: string): string {
-  if (offer.availability_label) return stockAvailabilityLabel(t, offer.availability_label, locale);
+function availabilityLabel(t: ReturnType<typeof useT>, offer: StockOffer, currency: Intl.NumberFormat): string {
+  if (offer.availability_label) return stockAvailabilityLabel(t, offer.availability_label, currency);
   return t.stock.availability[offer.availability];
 }
 
@@ -1270,12 +1394,14 @@ const LEGACY_EDITION_LABEL_MAP: Record<string, string> = {
   'Deluxe edition': 'deluxe_edition',
   'Bundle': 'bundle',
   'Store bonus': 'store_bonus',
+  'Edition / bonus': 'edition_bonus',
 };
 
 const LEGACY_CONDITION_MAP: Record<string, string> = {
   'New': 'new',
   'Used': 'used',
   'Sealed': 'sealed',
+  'Used (Rank B)': 'used_rank_b',
 };
 
 const LEGACY_AVAILABILITY_LABEL_MAP: Record<string, string> = {
@@ -1299,15 +1425,15 @@ function stockConditionLabel(t: ReturnType<typeof useT>, raw: string): string {
 function stockAvailabilityLabel(
   t: ReturnType<typeof useT>,
   raw: string,
-  locale: string,
+  currency: Intl.NumberFormat,
 ): string {
-  const marketplaceMatch = /^Marketplace:\s*¥(\d[\d,]*)$/.exec(raw);
+  const marketplaceMatch = /^(?:marketplace:|Marketplace:\s*¥)(\d[\d,]*)$/.exec(raw);
   if (marketplaceMatch) {
     const price = Number(marketplaceMatch[1].replace(/,/g, ''));
     const dict = t.stock.availabilityLabels as Record<string, string | undefined>;
     const tpl = dict.marketplace;
     if (tpl) {
-      return tpl.replace('{price}', `¥${price.toLocaleString(locale)}`);
+      return tpl.replace('{price}', currency.format(price));
     }
   }
   const slug = LEGACY_AVAILABILITY_LABEL_MAP[raw] ?? raw;
@@ -1355,10 +1481,18 @@ function providerHostMatches(providerId: string, host: string): boolean {
 }
 
 function providerCapabilityText(t: TDict, provider: StockProvider): string {
-  const labels: string[] = [t.stock.providerCapabilities[provider.resultCapability]];
-  if (provider.lookupCapabilities.includes('jan_lookup')) labels.push(t.stock.providerCapabilities.janLookup);
-  if (provider.supportLevel === 'limited') labels.push(t.stock.providerCapabilities.limited);
-  if (provider.supportLevel === 'manual_only') labels.push(t.stock.providerCapabilities.manualOnly);
+  const fallback =
+    provider.kind === 'cached'
+      ? t.stock.providerCached
+      : provider.kind === 'aggregate'
+        ? t.stock.providersAggregate
+        : t.stock.providersDirect;
+  const labels: string[] = [
+    (provider.resultCapability ? t.stock.providerCapabilities?.[provider.resultCapability] : null) ?? fallback,
+  ];
+  if (provider.lookupCapabilities?.includes('jan_lookup') && t.stock.providerCapabilities?.janLookup) labels.push(t.stock.providerCapabilities.janLookup);
+  if (provider.supportLevel === 'limited' && t.stock.providerCapabilities?.limited) labels.push(t.stock.providerCapabilities.limited);
+  if (provider.supportLevel === 'manual_only' && t.stock.providerCapabilities?.manualOnly) labels.push(t.stock.providerCapabilities.manualOnly);
   return labels.join(' / ');
 }
 
@@ -1384,7 +1518,7 @@ const ProviderTile = memo(function ProviderTile({
   selected: boolean;
   refreshing: boolean;
   isRefreshingThis: boolean;
-  locale: string;
+  locale: Locale;
   t: TDict;
   onToggle: (id: string) => void;
   onRefreshOnly: (id: string) => void;
@@ -1392,7 +1526,7 @@ const ProviderTile = memo(function ProviderTile({
   const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
   const capabilityLabel = providerCapabilityText(t, provider);
   const lastChecked = status?.fetched_at ? timeAgo(status.fetched_at, t) : null;
-  const lastCheckedFull = status?.fetched_at ? new Date(status.fetched_at).toLocaleString(locale) : null;
+  const lastCheckedFull = status?.fetched_at ? fmtDate(new Date(status.fetched_at), locale) : null;
   const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
   const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
   const tooltipParts: string[] = [];
@@ -1528,22 +1662,7 @@ function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: Nor
   const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
   const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
-  const [isOpen, setIsOpen] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STOCK_UI_KEY);
-      if (raw) {
-        const stored = (JSON.parse(raw) as Record<string, boolean>).providerDiagOpen;
-        if (stored !== undefined) return stored;
-      }
-    } catch {}
-    return defaultOpen ?? false;
-  });
-  useEffect(() => {
-    try {
-      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
-      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, providerDiagOpen: isOpen }));
-    } catch {}
-  }, [isOpen]);
+  const [isOpen, setIsOpen] = useStockUiPreference('providerDiagOpen', defaultOpen ?? false);
   return (
     <details
       open={isOpen}
@@ -1687,18 +1806,16 @@ const OfferCard = memo(function OfferCard({
   best: number | null;
   currency: Intl.NumberFormat;
   t: TDict;
-  locale: string;
+  locale: Locale;
   placeMap: Record<string, number>;
 }) {
   const isBest = offer.price != null && offer.price === best && best != null;
-  const warnings: string[] = (() => {
-    try { return offer.match_warnings_json ? (JSON.parse(offer.match_warnings_json) as string[]) : []; }
-    catch { return []; }
-  })();
+  const warnings = parseClientStringList(offer.match_warnings_json);
   const mktPrice = offer.marketplace_price;
   const mktCount = offer.marketplace_count;
   const listPrice = offer.list_price;
   const notCounted = notCountedReason(t, offer);
+  const offerHref = safeHref(offer.url);
 
   return (
     <li
@@ -1710,7 +1827,7 @@ const OfferCard = memo(function OfferCard({
             <span className="max-w-full truncate rounded-md border border-border bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted">
               {offer.provider_label}
             </span>
-            <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer, locale)} />
+            <AvailabilityChip availability={offer.availability} label={availabilityLabel(t, offer, currency)} />
             <ConfidenceChip mc={offer.match_confidence} t={t} />
             {isBest && (
               <span className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
@@ -1757,7 +1874,6 @@ const OfferCard = memo(function OfferCard({
         })()}
         {offer.location_label && offer.location_label !== offer.location_branch && (
           <span className="rounded bg-bg px-1.5 py-0.5">
-            {/* I-027: translate the sentinel at render time. */}
             {offer.location_label === ONLINE_STOCK_SENTINEL
               ? t.stock.onlineStockLabel
               : offer.location_label}
@@ -1772,7 +1888,7 @@ const OfferCard = memo(function OfferCard({
         {offer.jan && <span className="rounded bg-bg px-1.5 py-0.5">{t.stock.jan.replace('{jan}', offer.jan)}</span>}
         {mktPrice != null && mktPrice > 0 && (
           <span className="rounded-md border border-border bg-bg px-1.5 py-0.5">
-            {(t.stock.offerMarketplace as string).replace('{price}', mktPrice.toLocaleString(locale))}
+            {(t.stock.offerMarketplace as string).replace('{price}', currency.format(mktPrice))}
             {mktCount != null && mktCount > 0 && (
               <> {(t.stock.offerMarketplaceCount as string).replace('{count}', String(mktCount))}</>
             )}
@@ -1809,16 +1925,18 @@ const OfferCard = memo(function OfferCard({
             </span>
           )}
         </span>
-        <a
-          href={offer.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${t.stock.openShop} — ${offer.provider_label}`}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-[36px]"
-        >
-          {t.stock.openShop}
-          <ExternalLink className="h-3 w-3" aria-hidden />
-        </a>
+        {offerHref && (
+          <a
+            href={offerHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${t.stock.openShop}: ${offer.provider_label}`}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-[36px]"
+          >
+            {t.stock.openShop}
+            <ExternalLink className="h-3 w-3" aria-hidden />
+          </a>
+        )}
       </div>
     </li>
   );
@@ -1841,7 +1959,7 @@ function OfferGroup({
   best: number | null;
   currency: Intl.NumberFormat;
   t: TDict;
-  locale: string;
+  locale: Locale;
   placeMap: Record<string, number>;
   defaultCollapsed?: boolean;
 }) {
@@ -1849,7 +1967,7 @@ function OfferGroup({
     try {
       const raw = localStorage.getItem(STOCK_OFFERS_KEY);
       if (raw) {
-        const stored = (JSON.parse(raw) as Record<string, boolean>)[groupKey];
+        const stored = parseClientBooleanMap(raw)[groupKey];
         if (stored !== undefined) return stored;
       }
     } catch {}
@@ -1857,7 +1975,7 @@ function OfferGroup({
   });
   useEffect(() => {
     try {
-      const prev = JSON.parse(localStorage.getItem(STOCK_OFFERS_KEY) ?? '{}') as Record<string, boolean>;
+      const prev = parseClientBooleanMap(localStorage.getItem(STOCK_OFFERS_KEY));
       localStorage.setItem(STOCK_OFFERS_KEY, JSON.stringify({ ...prev, [groupKey]: collapsed }));
     } catch {}
   }, [collapsed, groupKey]);
@@ -1964,7 +2082,7 @@ function OffersGrouped({
   best: number | null;
   currency: Intl.NumberFormat;
   t: TDict;
-  locale: string;
+  locale: Locale;
   placeMap: Record<string, number>;
 }) {
   // Single pass instead of 5 separate .filter() calls. classifyGroup is pure;

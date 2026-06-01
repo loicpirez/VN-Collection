@@ -22,8 +22,9 @@
  * state; the data itself is server-rendered into the initial
  * `extras` prop and never re-fetched.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, BadgePercent, Crown, Loader2, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ExternalLink, BadgePercent, Crown, Loader2, Pin, Plus, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
+import { readApiError } from '@/lib/api-error-read';
 import { decodeStoredExtras } from '@/lib/erogeprice-meta';
 import type {
   EpApiPricePoint,
@@ -35,7 +36,10 @@ import type {
   ErogePriceExtrasV1,
 } from '@/lib/erogeprice-meta';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { formatCurrency } from '@/lib/locale-number';
+import { safeHref } from '@/lib/safe-href';
+import { decodeStockSnapshot } from '@/lib/stock-api-shape';
+import { decodeStockTitleResolutionMap } from '@/lib/stock-title-resolution-client-shape';
 import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { DEFAULT_PALETTE, PriceHistoryChart, type SparklineSeries } from './charts/Sparkline';
@@ -53,12 +57,12 @@ interface Props {
 }
 
 function fmtYen(yen: number | null | undefined, locale: 'fr' | 'en' | 'ja'): string {
-  if (yen == null) return '—';
-  return `¥${fmtNum(yen, locale, 0)}`;
+  if (yen == null) return '-';
+  return formatCurrency(yen, locale);
 }
 
 function fmtIsoDate(iso: string | null, locale: 'fr' | 'en' | 'ja'): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : locale === 'ja' ? 'ja-JP' : 'en-US', {
       year: 'numeric',
@@ -99,6 +103,7 @@ function RetailerRow({ r, label }: { r: EpApiRetailer; label: string }) {
   const t = useT();
   const locale = useLocale();
   const sale = r.isOnSale && r.originalPrice && r.currentPrice && r.originalPrice > r.currentPrice;
+  const productHref = safeHref(r.productUrl);
   return (
     <li className="flex flex-wrap items-center gap-2 border-t border-border/60 py-2 text-xs first:border-t-0">
       <span className="min-w-[6rem] font-semibold text-white">{r.retailerName}</span>
@@ -108,20 +113,22 @@ function RetailerRow({ r, label }: { r: EpApiRetailer; label: string }) {
         <span className="inline-flex items-center gap-1 rounded-md border border-status-completed/40 bg-status-completed/10 px-1.5 py-0.5 text-[10px] text-status-completed">
           <BadgePercent className="h-3 w-3" aria-hidden />
           {fmtYen(r.originalPrice, locale)}
-          {r.discountRate != null && ` · -${r.discountRate}%`}
+          {r.discountRate != null && ` / -${r.discountRate}%`}
         </span>
       )}
       {r.condition && <span className="text-[10px] text-muted">{r.condition}</span>}
       {r.conditionNote && <span className="text-[10px] text-muted">{r.conditionNote}</span>}
-      <a
-        href={r.productUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent"
-        aria-label={`${t.erogePrice.openOnRetailer} · ${r.retailerName}`}
-      >
-        <ExternalLink className="h-3 w-3" aria-hidden /> {r.retailerName}
-      </a>
+      {productHref && (
+        <a
+          href={productHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          aria-label={`${t.erogePrice.openOnRetailer}: ${r.retailerName}`}
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden /> {r.retailerName}
+        </a>
+      )}
     </li>
   );
 }
@@ -153,7 +160,7 @@ function RetailerList({ retailers, label, edition }: { retailers: EpApiRetailer[
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             aria-label={expanded ? t.common.close : `${t.erogePrice.retailers} +${hidden}`}
-            className="btn btn-xs text-muted hover:text-accent"
+            className="btn btn-xs min-h-[44px] text-muted hover:text-accent sm:min-h-0"
           >
             {expanded ? t.common.close : `+${hidden}`}
           </button>
@@ -165,6 +172,7 @@ function RetailerList({ retailers, label, edition }: { retailers: EpApiRetailer[
 
 function StaffBlock({ staff }: { staff: EpApiStaff }) {
   const t = useT();
+  const locale = useLocale();
   const rows: { label: string; icon: React.ReactNode; names: string[] }[] = [
     { label: t.erogePrice.staff.scenario, icon: <Pencil className="h-3 w-3" aria-hidden />, names: staff.scenario },
     { label: t.erogePrice.staff.illustration, icon: <Pencil className="h-3 w-3" aria-hidden />, names: staff.illustration },
@@ -182,7 +190,7 @@ function StaffBlock({ staff }: { staff: EpApiStaff }) {
               {r.icon}
               {r.label}
             </dt>
-            <dd className="text-white">{r.names.join('、')}</dd>
+            <dd className="text-white">{r.names.join(locale === 'ja' ? '、' : ', ')}</dd>
           </div>
         ))}
     </dl>
@@ -236,7 +244,7 @@ function RelatedRail({
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={t.erogePrice.openOnErogePrice}
-                    className="mt-1 flex items-center justify-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+                    className="mt-1 flex min-h-[44px] items-center justify-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
                   >
                     <ExternalLink className="h-2.5 w-2.5" aria-hidden />
                     EP
@@ -264,6 +272,15 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
   const t = useT();
   const locale = useLocale();
   const d = bundle.detail;
+  const gameHref = safeHref(bundle.gameUrl);
+  const officialSiteHref = safeHref(d.officialSiteUrl);
+  const brandSiteHref = safeHref(d.brandSiteUrl);
+  const fanzaDownloadHref = d.fanzaDownloadCid
+    ? safeHref(`https://dlsoft.dmm.co.jp/detail/${d.fanzaDownloadCid}/`)
+    : null;
+  const fanzaPackageHref = d.fanzaPackageCid
+    ? safeHref(`https://www.dmm.co.jp/mono/pcgame/-/detail/=/cid=${d.fanzaPackageCid}/`)
+    : null;
   const [range, setRange] = useState<RangeKey>('2Y');
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
 
@@ -355,30 +372,32 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
-            <a
-              href={bundle.gameUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-accent hover:underline"
-            >
-              <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.openOnErogePrice}
-            </a>
-            {d.officialSiteUrl && (
+            {gameHref && (
               <a
-                href={d.officialSiteUrl}
+                href={gameHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 text-accent hover:underline sm:min-h-0"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.openOnErogePrice}
+              </a>
+            )}
+            {officialSiteHref && (
+              <a
+                href={officialSiteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.officialSite}
               </a>
             )}
-            {d.brandSiteUrl && (
+            {brandSiteHref && (
               <a
-                href={d.brandSiteUrl}
+                href={brandSiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.brandSite}
               </a>
@@ -388,24 +407,24 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 without leaving the panel. The id format is
                 `<cid>` and FANZA's canonical URL is
                 /digital/pcgame/-/detail/=/cid=<cid>/ */}
-            {d.fanzaDownloadCid && (
+            {fanzaDownloadHref && (
               <a
-                href={`https://dlsoft.dmm.co.jp/detail/${d.fanzaDownloadCid}/`}
+                href={fanzaDownloadHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted hover:text-accent"
-                title={d.fanzaDownloadCid}
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                title={d.fanzaDownloadCid ?? undefined}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA DL
               </a>
             )}
-            {d.fanzaPackageCid && (
+            {fanzaPackageHref && (
               <a
-                href={`https://www.dmm.co.jp/mono/pcgame/-/detail/=/cid=${d.fanzaPackageCid}/`}
+                href={fanzaPackageHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted hover:text-accent"
-                title={d.fanzaPackageCid}
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                title={d.fanzaPackageCid ?? undefined}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA PKG
               </a>
@@ -465,7 +484,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-            {t.erogePrice.priceHistory} · {bundle.priceHistory.length} {t.erogePrice.dataPoints}
+            {t.erogePrice.priceHistory} / {bundle.priceHistory.length} {t.erogePrice.dataPoints}
           </h4>
           <div className="flex gap-1" role="group" aria-label={t.erogePrice.priceHistory}>
             {RANGE_OPTIONS.map((opt) => {
@@ -477,7 +496,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={opt.key}
                   type="button"
                   onClick={() => setRange(opt.key)}
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                  className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors sm:min-h-0 ${
                     range === opt.key
                       ? 'bg-accent text-white'
                       : 'border border-border text-muted hover:border-accent hover:text-accent'
@@ -500,7 +519,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={edition}
                   type="button"
                   onClick={() => toggleGroup(edition)}
-                  className={`rounded border px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                  className={`min-h-[44px] rounded border px-2 py-0.5 text-[10px] font-bold transition-colors sm:min-h-0 ${
                     allHidden
                       ? 'border-border text-muted opacity-50'
                       : 'border-accent/60 bg-accent/10 text-accent'
@@ -510,7 +529,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 </button>
               );
             })}
-            <span className="mx-0.5 self-center text-[10px] text-border/60">·</span>
+            <span className="mx-0.5 self-center text-[10px] text-border/60">/</span>
             {allSeries.map((s) => {
               const hidden = hiddenSeries.has(s.label);
               return (
@@ -518,7 +537,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={s.label}
                   type="button"
                   onClick={() => toggleOneSeries(s.label)}
-                  className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                  className={`flex min-h-[44px] items-center gap-1 rounded border px-2 py-0.5 text-[10px] transition-colors sm:min-h-0 ${
                     hidden ? 'border-border opacity-40' : 'border-border/60 text-white hover:border-accent/60'
                   }`}
                 >
@@ -533,7 +552,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
           series={series}
           locale={locale}
           guides={guides}
-          ariaLabel={`${t.erogePrice.priceHistory} — ${d.title}`}
+          ariaLabel={`${t.erogePrice.priceHistory}: ${d.title}`}
           formatYen={(y) => fmtYen(y, locale)}
           hideLegend
         />
@@ -623,7 +642,33 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   const [addInput, setAddInput] = useState('');
   const [addState, setAddState] = useState<'idle' | 'saving' | 'error'>('idle');
   const [addError, setAddError] = useState<string | null>(null);
+  const [removingEpId, setRemovingEpId] = useState<number | null>(null);
   const [vnMatches, setVnMatches] = useState<Map<string, string>>(new Map());
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setExtras(initialExtras);
+    setActiveId(initialExtras.selectedEpId ?? initialExtras.candidates[0]?.epId ?? 0);
+    setPinState('idle');
+    setAddOpen(false);
+    setAddInput('');
+    setAddState('idle');
+    setAddError(null);
+    setRemovingEpId(null);
+    setVnMatches(new Map());
+    return () => {
+      mountedRef.current = false;
+      mutationAbortRef.current?.abort();
+    };
+  }, [vnId, initialExtras]);
 
   useEffect(() => {
     const allItems = extras.candidates.flatMap((c) => [
@@ -631,55 +676,103 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
       ...c.related.connections,
     ]);
     const titles = [...new Set(allItems.map((i) => i.title))].filter(Boolean);
-    if (titles.length === 0) return;
+    if (titles.length === 0) {
+      setVnMatches(new Map());
+      return;
+    }
     const params = new URLSearchParams();
     for (const t of titles) params.append('q', t);
-    fetch(`/api/stock/resolve-titles?${params.toString()}`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((data: Record<string, { vnId: string } | null>) => {
+    const ac = new AbortController();
+    fetch(`/api/stock/resolve-titles?${params.toString()}`, {
+      cache: 'no-store',
+      signal: ac.signal,
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const data = decodeStockTitleResolutionMap(await r.json());
+        if (!data) throw new Error(t.common.error);
+        return data;
+      })
+      .then((data) => {
+        if (ac.signal.aborted) return;
         const m = new Map<string, string>();
         for (const [title, match] of Object.entries(data)) {
-          if (match?.vnId) m.set(title, match.vnId);
+          if (match) m.set(title, match.vnId);
         }
         setVnMatches(m);
       })
-      .catch(() => { /* silent — links just won't appear */ });
-  }, [extras.candidates]);
+      .catch(() => {});
+    return () => ac.abort();
+  }, [extras.candidates, t.common.error]);
 
   if (extras.candidates.length === 0) return null;
   const active = extras.candidates.find((c) => c.epId === activeId) ?? extras.candidates[0];
   const primaryId = extras.selectedEpId;
   const isActiveAlreadyPrimary = primaryId === active.epId;
+  const candidateMutationBusy = pinState === 'saving' || addState === 'saving' || removingEpId != null;
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return mountedRef.current &&
+      identityRef.current === ownerVnId &&
+      mutationAbortRef.current === controller &&
+      !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (mountedRef.current) setRemovingEpId(null);
+  }
 
   const handleSetPrimary = async () => {
     if (isActiveAlreadyPrimary) return;
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     const previous = primaryId;
     setPinState('saving');
-    setExtras((s) => ({ ...s, selectedEpId: active.epId })); // optimistic
+    setExtras((s) => ({ ...s, selectedEpId: active.epId }));
     try {
       const r = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock/eroge-price`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ep_id: active.epId }),
+        signal: controller.signal,
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) throw new Error(await readApiError(r, t.erogePrice.manualMatch.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setPinState('idle');
       toast.success(t.erogePrice.manualMatch.saved);
-    } catch {
-      setExtras((s) => ({ ...s, selectedEpId: previous })); // rollback
+    } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
+      setExtras((s) => ({ ...s, selectedEpId: previous }));
       setPinState('error');
-      toast.error(t.erogePrice.manualMatch.error);
+      toast.error((e as Error).message || t.erogePrice.manualMatch.error);
+    } finally {
+      finishMutation(ownerVnId, controller);
     }
   };
 
   const handleAdd = async () => {
     const id = Number(addInput.trim());
-    if (!Number.isFinite(id) || !Number.isInteger(id) || id <= 0) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       setAddError(t.erogePrice.manualMatch.invalidEpId);
       setAddState('error');
       toast.error(t.erogePrice.manualMatch.invalidEpId);
       return;
     }
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setAddState('saving');
     setAddError(null);
     try {
@@ -687,43 +780,51 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ep_id: id }),
+        signal: controller.signal,
       });
-      if (!r.ok) {
-        const body = (await r.json().catch(() => ({ error: 'fetch failed' }))) as {
-          error?: string;
-        };
-        throw new Error(body.error ?? 'fetch failed');
-      }
-      // Server-side persistence succeeded — fetch the canonical bundle
-      // so we mirror the same shape (avoids hand-crafting the bundle
-      // in JS and diverging from the parser).
+      if (!r.ok) throw new Error(await readApiError(r, t.erogePrice.manualMatch.addError));
+      if (!ownsMutation(ownerVnId, controller)) return;
       const snapshotRes = await fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
         cache: 'no-store',
+        signal: controller.signal,
       });
-      if (snapshotRes.ok) {
-        const snap = (await snapshotRes.json()) as {
-          statuses?: { provider: string; extras_json?: string | null }[];
-        };
-        const row = (snap.statuses ?? []).find((s) => s.provider === 'eroge_price');
-        const next = decodeStoredExtras(row?.extras_json);
-        if (next) setExtras(next);
+      if (!snapshotRes.ok) {
+        throw new Error(await readApiError(snapshotRes, t.erogePrice.manualMatch.addError));
       }
+      const snapshot = decodeStockSnapshot(await snapshotRes.json());
+      if (!snapshot) throw new Error(t.erogePrice.manualMatch.addError);
+      const row = snapshot.statuses.find((s) => s.provider === 'eroge_price');
+      const next = decodeStoredExtras(row?.extras_json);
+      if (!next) throw new Error(t.erogePrice.manualMatch.addError);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setExtras(next);
       setAddInput('');
       setAddOpen(false);
       setAddState('idle');
       toast.success(t.erogePrice.manualMatch.addSuccess);
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       const message = (e as Error).message;
       setAddError(message);
       setAddState('error');
       toast.error(message || t.erogePrice.manualMatch.addError);
+    } finally {
+      finishMutation(ownerVnId, controller);
     }
   };
 
   const handleRemove = async (epId: number) => {
     if (extras.candidates.length <= 1) return;
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     const wasPrimary = primaryId === epId;
     const prev = extras;
+    const nextActiveId =
+      activeId === epId
+        ? extras.candidates.find((candidate) => candidate.epId !== epId)?.epId ?? activeId
+        : activeId;
+    setRemovingEpId(epId);
     setExtras((s) => {
       const remaining = s.candidates.filter((c) => c.epId !== epId);
       return {
@@ -732,16 +833,20 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         selectedEpId: wasPrimary ? remaining[0]?.epId ?? null : s.selectedEpId,
       };
     });
-    if (activeId === epId && extras.candidates[0]) setActiveId(extras.candidates[0].epId);
+    setActiveId(nextActiveId);
     try {
       const r = await fetch(
         `/api/vn/${encodeURIComponent(vnId)}/stock/eroge-price?ep_id=${encodeURIComponent(epId)}`,
-        { method: 'DELETE' },
+        { method: 'DELETE', signal: controller.signal },
       );
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    } catch {
+      if (!r.ok) throw new Error(await readApiError(r, t.erogePrice.manualMatch.removeError));
+    } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       setExtras(prev);
-      toast.error(t.erogePrice.manualMatch.removeError);
+      setActiveId(activeId);
+      toast.error((e as Error).message || t.erogePrice.manualMatch.removeError);
+    } finally {
+      finishMutation(ownerVnId, controller);
     }
   };
 
@@ -755,7 +860,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
           {extras.searchQuery && (
             <span>
-              {t.erogePrice.searchedAs}: <span className="font-mono">{extras.searchQuery}</span> ·{' '}
+              {t.erogePrice.searchedAs}: <span className="font-mono">{extras.searchQuery}</span> /{' '}
               {extras.candidates.length} {t.erogePrice.matchCount}
             </span>
           )}
@@ -765,10 +870,11 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               setAddOpen((v) => !v);
               setAddError(null);
             }}
-            className="tap-target rounded-md border border-border bg-bg-elev/40 px-2 py-1 hover:border-accent hover:text-accent"
+            disabled={candidateMutationBusy}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 hover:border-accent hover:text-accent sm:min-h-0"
             aria-expanded={addOpen}
           >
-            + {t.erogePrice.manualMatch.addCandidate}
+            <Plus className="h-3 w-3" aria-hidden /> {t.erogePrice.manualMatch.addCandidate}
           </button>
         </div>
       </header>
@@ -783,15 +889,16 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               inputMode="numeric"
               value={addInput}
               onChange={(e) => setAddInput(e.target.value)}
+              disabled={candidateMutationBusy}
               placeholder={t.erogePrice.manualMatch.addCandidatePlaceholder}
-              className="w-32 rounded-md border border-border bg-bg px-2 py-1 text-white"
+              className="min-h-[44px] w-32 rounded-md border border-border bg-bg px-2 py-1 text-white sm:min-h-0"
             />
           </label>
           <button
             type="button"
             onClick={handleAdd}
-            disabled={addState === 'saving' || !addInput.trim()}
-            className="tap-target inline-flex items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50"
+            disabled={candidateMutationBusy || !addInput.trim()}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50 sm:min-h-0"
           >
             {addState === 'saving' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
             {addState === 'saving'
@@ -806,24 +913,19 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         </div>
       )}
 
-      {/* Multi-candidate selector — operator demand: integrate them all.
-          A single-selection chip group (`role="group"` + `aria-pressed`)
-          rather than a tablist, since selecting a candidate doesn't swap
-          tabpanels; the same panel re-renders for the active candidate.
-          Each chip gets a hover-revealed delete affordance so the
-          operator can prune the panel without leaving it. */}
       {extras.candidates.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={t.erogePrice.candidates}>
           {extras.candidates.map((c) => {
             const isActive = c.epId === activeId;
             const isPrimary = c.epId === primaryId;
             return (
-              <div key={c.epId} className="group relative inline-flex">
+              <div key={c.epId} className="inline-flex items-center gap-1">
                 <button
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => setActiveId(c.epId)}
-                  className={`tap-target rounded-lg border px-3 py-1.5 text-xs ${
+                  disabled={candidateMutationBusy}
+                  className={`min-h-[44px] rounded-lg border px-3 py-1.5 text-xs sm:min-h-0 ${
                     isActive
                       ? 'border-accent bg-accent/15 font-bold text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -846,11 +948,12 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                     e.stopPropagation();
                     handleRemove(c.epId);
                   }}
-                  className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped focus:flex group-hover:flex"
+                  disabled={candidateMutationBusy}
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped disabled:cursor-progress disabled:opacity-50 sm:min-h-0 sm:min-w-[28px]"
                   title={t.erogePrice.manualMatch.removeCandidate}
                   aria-label={`${t.erogePrice.manualMatch.removeCandidate}: ${c.detail.title}`}
                 >
-                  <X className="h-3 w-3" aria-hidden />
+                  {removingEpId === c.epId ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </div>
             );
@@ -858,8 +961,6 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         </div>
       )}
 
-      {/* Set-as-primary action — only shown when the active tab is
-          not already the primary. */}
       {extras.candidates.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
           {isActiveAlreadyPrimary ? (
@@ -870,8 +971,8 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
             <button
               type="button"
               onClick={handleSetPrimary}
-              disabled={pinState === 'saving'}
-              className="tap-target inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50"
+              disabled={candidateMutationBusy}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50 sm:min-h-0"
               title={t.erogePrice.manualMatch.setPrimaryHint}
             >
               {pinState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Pin className="h-3 w-3" aria-hidden />}
@@ -888,7 +989,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
         </div>
       )}
 
-      <CandidateCard bundle={active} vnMatches={vnMatches} />
+      <CandidateCard key={active.epId} bundle={active} vnMatches={vnMatches} />
     </section>
   );
 }

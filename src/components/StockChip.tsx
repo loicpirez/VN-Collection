@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { currencyFormatter, fmtNum } from '@/lib/locale-number';
 import { subscribeStockSummary, type StockSummaryEntry } from '@/lib/stock-summary-client';
 
 /**
@@ -59,11 +59,7 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
   }
 
   const price = entry.best_price;
-  const currencyFmt = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'JPY',
-    maximumFractionDigits: 0,
-  });
+  const currencyFmt = currencyFormatter(locale);
   // hidePrice (library card grid) — show the availability count
   // instead of the yen amount. The full price stays in the title
   // attribute so a desktop hover still surfaces it.

@@ -7,6 +7,9 @@ import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 import { StockPanelBoundary } from './StockPanelBoundary';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
+import { decodePlaceProviderMapResponse } from '@/lib/place-client-shape';
+import { readApiError } from '@/lib/api-error-read';
+import { decodeVnTitleResponse } from '@/lib/vn-summary-client-shape';
 
 export function StockLookupClient({ initialVnId }: { initialVnId: string | null }) {
   const t = useT();
@@ -15,27 +18,37 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
   const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch('/api/places/provider-map', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((d) => setPlaceMap(d.map ?? {}))
+    const ctrl = new AbortController();
+    fetch('/api/places/provider-map', { cache: 'no-store', signal: ctrl.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        return decodePlaceProviderMapResponse(await r.json());
+      })
+      .then((map) => {
+        if (!ctrl.signal.aborted && map) setPlaceMap(map);
+      })
       .catch(() => {});
-  }, []);
+    return () => ctrl.abort();
+  }, [t.common.error]);
 
   useEffect(() => {
     if (!initialVnId) { setResolvedTitle(null); return; }
     setResolvedTitle(null);
     const ctrl = new AbortController();
     fetch(`/api/vn/${encodeURIComponent(initialVnId)}`, { cache: 'no-store', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { vn?: { title?: string } } | null) => {
-        if (data?.vn?.title) setResolvedTitle(data.vn.title);
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        return decodeVnTitleResponse(await r.json());
+      })
+      .then((title) => {
+        if (!ctrl.signal.aborted && title) setResolvedTitle(title);
       })
       .catch((e: unknown) => {
         if ((e as Error).name === 'AbortError') return;
         console.error('[StockLookupClient] resolve title failed:', e);
       });
     return () => ctrl.abort();
-  }, [initialVnId]);
+  }, [initialVnId, t.common.error]);
 
   function handlePick(hit: VnPickerHit) {
     router.push(`/stock?vn=${encodeURIComponent(hit.id)}`);

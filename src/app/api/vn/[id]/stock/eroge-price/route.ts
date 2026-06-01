@@ -39,17 +39,14 @@ import {
   type ErogePriceExtrasV1,
 } from '@/lib/erogeprice-meta';
 import { erogePriceJsonFetcher } from '@/lib/stock';
+import { isValidVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function isValidVnId(id: string): boolean {
-  return /^(v\d+|egs_\d+)$/i.test(id);
-}
-
 function parseEpId(raw: unknown): number | null {
   const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return null;
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
   return n;
 }
 

@@ -54,7 +54,7 @@ export class StockPanelBoundary extends Component<Props, State> {
         <button
           type="button"
           onClick={this.reset}
-          className="mt-3 inline-flex min-h-[36px] items-center gap-1 rounded-md border border-status-dropped/50 bg-bg px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped"
+          className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/50 bg-bg px-3 py-1.5 text-xs font-bold text-status-dropped hover:bg-status-dropped/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped sm:min-h-[36px]"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden />
           {this.props.retryLabel}

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Link2, Unlink, Search, ArrowRightLeft } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
@@ -7,17 +7,17 @@ import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import { SkeletonRows } from './Skeleton';
 import type { PlaceWithLinks } from '@/lib/db';
+import {
+  decodeOtherPlaceBranchesResponse,
+  decodeUnassignedBranchesResponse,
+  type OtherPlaceBranch,
+} from '@/lib/place-client-shape';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   place: PlaceWithLinks;
   onClose: () => void;
   onSaved: () => void;
-}
-
-interface OtherBranch {
-  provider_label: string;
-  place_id: number;
-  place_name: string;
 }
 
 export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
@@ -28,34 +28,97 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
 
   const [unassigned, setUnassigned] = useState<string[]>([]);
   const [linked, setLinked] = useState<string[]>(place.provider_labels);
-  const [others, setOthers] = useState<OtherBranch[]>([]);
+  const [others, setOthers] = useState<OtherPlaceBranch[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const placeIdentityRef = useRef<number | null>(place.id);
+  const refreshAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationRef = useRef(false);
+  const linkedIdentity = JSON.stringify(place.provider_labels);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    refreshAbortRef.current?.abort();
+    const controller = new AbortController();
+    refreshAbortRef.current = controller;
+    const { signal } = controller;
+    const ownerId = place.id;
     setLoading(true);
+    setError(null);
     try {
       const [uRes, oRes] = await Promise.all([
-        fetch('/api/places/unassigned', { cache: 'no-store' }),
-        fetch(`/api/places/${place.id}/other-branches`, { cache: 'no-store' }),
+        fetch('/api/places/unassigned', { cache: 'no-store', signal }),
+        fetch(`/api/places/${place.id}/other-branches`, { cache: 'no-store', signal }),
       ]);
-      const [uData, oData] = await Promise.all([uRes.json(), oRes.json()]);
-      setUnassigned(uData.branches ?? []);
-      setOthers(oData.branches ?? []);
-    } catch {
-      setError(t.common.error as string);
+      if (!uRes.ok) throw new Error(await readApiError(uRes, t.common.error as string));
+      if (!oRes.ok) throw new Error(await readApiError(oRes, t.common.error as string));
+      const [unassignedRows, otherRows] = await Promise.all([
+        uRes.json().then(decodeUnassignedBranchesResponse),
+        oRes.json().then(decodeOtherPlaceBranchesResponse),
+      ]);
+      if (!unassignedRows || !otherRows) throw new Error(t.common.error as string);
+      if (signal.aborted || placeIdentityRef.current !== ownerId || refreshAbortRef.current !== controller) return;
+      setUnassigned(unassignedRows);
+      setOthers(otherRows);
+    } catch (error) {
+      if (signal.aborted || error instanceof Error && error.name === 'AbortError') return;
+      if (placeIdentityRef.current !== ownerId || refreshAbortRef.current !== controller) return;
+      setError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
-      setLoading(false);
+      if (!signal.aborted && placeIdentityRef.current === ownerId && refreshAbortRef.current === controller) setLoading(false);
     }
-  }
+  }, [place.id, t.common.error]);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    placeIdentityRef.current = place.id;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationRef.current = false;
+    setLinked(place.provider_labels);
+    setUnassigned([]);
+    setOthers([]);
+    setLoading(true);
+    setBusy(null);
+    setSearch('');
+    setError(null);
+    void refresh();
+    return () => {
+      placeIdentityRef.current = null;
+      mutationRef.current = false;
+      refreshAbortRef.current?.abort();
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [place.id, linkedIdentity, refresh]);
+
+  function beginMutation(): AbortController | null {
+    if (mutationRef.current) return null;
+    mutationRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(ownerId: number, controller: AbortController): boolean {
+    return placeIdentityRef.current === ownerId
+      && mutationAbortRef.current === controller
+      && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerId: number, controller: AbortController) {
+    if (placeIdentityRef.current !== ownerId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationRef.current = false;
+    setBusy(null);
+  }
 
   async function link(label: string) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerId = place.id;
     setBusy(label);
     setError(null);
     try {
@@ -63,18 +126,24 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider_label: label }),
+        signal: controller.signal,
       });
-      if (!r.ok) throw new Error(`${r.status}`);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      if (!ownsMutation(ownerId, controller)) return;
       setLinked((prev) => (prev.includes(label) ? prev : [...prev, label]));
       setUnassigned((prev) => prev.filter((b) => b !== label));
       onSaved();
-    } catch {
-      setError(t.common.error as string);
+    } catch (error) {
+      if (ownsMutation(ownerId, controller)) setError(error instanceof Error ? error.message : t.common.error as string);
+    } finally {
+      finishMutation(ownerId, controller);
     }
-    setBusy(null);
   }
 
   async function unlink(label: string) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerId = place.id;
     setBusy(label);
     setError(null);
     try {
@@ -82,42 +151,51 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider_label: label }),
+        signal: controller.signal,
       });
-      if (!r.ok) throw new Error(`${r.status}`);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      if (!ownsMutation(ownerId, controller)) return;
       setLinked((prev) => prev.filter((b) => b !== label));
       setUnassigned((prev) => [...prev, label].sort((a, b) => a.localeCompare(b)));
       onSaved();
-    } catch {
-      setError(t.common.error as string);
+    } catch (error) {
+      if (ownsMutation(ownerId, controller)) setError(error instanceof Error ? error.message : t.common.error as string);
+    } finally {
+      finishMutation(ownerId, controller);
     }
-    setBusy(null);
   }
 
-  async function moveFromOther(branch: OtherBranch) {
-    const ok = await confirm({
-      message: (t.places.moveConfirm as string)
-        .replace('{label}', branch.provider_label)
-        .replace('{from}', branch.place_name)
-        .replace('{to}', place.name),
-      tone: 'danger',
-    });
-    if (!ok) return;
+  async function moveFromOther(branch: OtherPlaceBranch) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerId = place.id;
     setBusy(branch.provider_label);
-    setError(null);
     try {
+      const ok = await confirm({
+        message: (t.places.moveConfirm as string)
+          .replace('{label}', branch.provider_label)
+          .replace('{from}', branch.place_name)
+          .replace('{to}', place.name),
+        tone: 'danger',
+      });
+      if (!ok || !ownsMutation(ownerId, controller)) return;
+      setError(null);
       const r = await fetch(`/api/places/${place.id}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider_label: branch.provider_label, from_place_id: branch.place_id }),
+        signal: controller.signal,
       });
-      if (!r.ok) throw new Error(`${r.status}`);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
+      if (!ownsMutation(ownerId, controller)) return;
       setLinked((prev) => (prev.includes(branch.provider_label) ? prev : [...prev, branch.provider_label]));
       setOthers((prev) => prev.filter((b) => !(b.provider_label === branch.provider_label && b.place_id === branch.place_id)));
       onSaved();
-    } catch {
-      setError(t.common.error as string);
+    } catch (error) {
+      if (ownsMutation(ownerId, controller)) setError(error instanceof Error ? error.message : t.common.error as string);
+    } finally {
+      finishMutation(ownerId, controller);
     }
-    setBusy(null);
   }
 
   const q = search.trim().toLowerCase();
@@ -169,7 +247,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
         <div className="relative mb-4">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
           <input
-            className="input w-full pl-8 text-sm"
+            className="input min-h-[44px] w-full pl-8 text-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t.places.assignSearchPlaceholder as string}
@@ -195,8 +273,8 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                   <button
                     type="button"
                     onClick={() => unlink(label)}
-                    disabled={busy === label}
-                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted hover:text-red-400"
+                    disabled={busy !== null}
+                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-red-400 sm:min-h-0"
                   >
                     <Unlink className="h-3 w-3" aria-hidden />
                     {t.places.unassignBranch as string}
@@ -223,8 +301,8 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                   <button
                     type="button"
                     onClick={() => link(label)}
-                    disabled={busy === label}
-                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                    disabled={busy !== null}
+                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
                   >
                     <Link2 className="h-3 w-3" aria-hidden />
                     {t.places.assignBranch as string}
@@ -258,8 +336,8 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                     <button
                       type="button"
                       onClick={() => moveFromOther(o)}
-                      disabled={busy === o.provider_label}
-                      className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                      disabled={busy !== null}
+                      className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
                     >
                       <ArrowRightLeft className="h-3 w-3" aria-hidden />
                       {t.places.moveHere as string}
