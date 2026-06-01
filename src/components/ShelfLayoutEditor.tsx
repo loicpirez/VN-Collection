@@ -47,6 +47,13 @@ import { EditionInfoTrigger, type EditionInfoPopoverData } from '@/components/Ed
 import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
 import { parseDisplayCellId, parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
 import { useDialogA11y } from '@/components/Dialog';
+import {
+  decodeShelfCreateResponse,
+  decodeShelfDetailResponse,
+  decodeShelfListResponse,
+  decodeShelfResizeResponse,
+  decodeShelfSlotsResponse,
+} from '@/lib/shelf-client-shape';
 
 interface Props {
   initialShelves: ShelfUnitWithCount[];
@@ -62,7 +69,7 @@ interface LoadedShelfState {
 const POOL_DROPPABLE_ID = '__pool__';
 const SHELF_MIN = 1;
 // Matches the server-side sanity cap. Effectively unlimited for real
-// shelves — you'd run out of editions long before hitting it.
+// shelves - you'd run out of editions long before hitting it.
 const SHELF_MAX = 200;
 
 function clampDim(n: number): number {
@@ -75,18 +82,18 @@ function clampDim(n: number): number {
  *
  * Top: shelf selector tabs + management toolbar (new / rename / resize
  * / delete). Main area: the active shelf rendered as a CSS grid of
- * (cols × rows) droppable cells. Side / bottom: the "Unplaced" pool of
+ * (cols x rows) droppable cells. Side / bottom: the "Unplaced" pool of
  * owned editions that aren't on any shelf yet.
  *
  * DnD model:
- *   • Pool tile  → empty cell  : place
- *   • Pool tile  → occupied    : occupant evicted to pool
- *   • Slot tile  → empty cell  : move
- *   • Slot tile  → occupied    : atomic swap (server-side via placeShelfItem)
- *   • Slot tile  → pool        : remove placement
+ *   - Pool tile  -> empty cell  : place
+ *   - Pool tile  -> occupied    : occupant evicted to pool
+ *   - Slot tile  -> empty cell  : move
+ *   - Slot tile  -> occupied    : atomic swap (server-side via placeShelfItem)
+ *   - Slot tile  -> pool        : remove placement
  *
  * Every action is optimistic. On failure we restore the prior state
- * and toast — no half-updated rendering.
+ * and toast - no half-updated rendering.
  */
 export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const t = useT();
@@ -111,9 +118,32 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const fullscreenPanelRef = useRef<HTMLDivElement | null>(null);
   const createInputRef = useRef<HTMLInputElement | null>(null);
   const refreshAbortRef = useRef<AbortController | null>(null);
+  const poolRefreshAbortRef = useRef<AbortController | null>(null);
+  const shelfMetaRefreshAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const closeFullscreen = useCallback(() => setFullscreen(false), []);
 
   useDialogA11y({ open: fullscreen, onClose: closeFullscreen, panelRef: fullscreenPanelRef });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      refreshAbortRef.current?.abort();
+      refreshAbortRef.current = null;
+      poolRefreshAbortRef.current?.abort();
+      poolRefreshAbortRef.current = null;
+      shelfMetaRefreshAbortRef.current?.abort();
+      shelfMetaRefreshAbortRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+    };
+  }, []);
 
   // Load the active shelf's slots on first selection. Subsequent
   // selections re-use the cached entry until a mutation invalidates it.
@@ -125,18 +155,15 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       try {
         const res = await fetch(`/api/shelves/${activeId}`, { cache: 'no-store', signal: ac.signal });
         if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as {
-          shelf: ShelfUnitWithCount;
-          slots: ShelfSlotEntry[];
-          displays?: ShelfDisplaySlotEntry[];
-        };
+        const data = decodeShelfDetailResponse(await res.json());
+        if (!data) throw new Error(t.shelfLayout.saveFailed);
         if (ac.signal.aborted) return;
         setLoaded((prev) => ({
           ...prev,
           [activeId]: {
             shelf: data.shelf,
             slots: data.slots,
-            displays: data.displays ?? [],
+            displays: data.displays,
           },
         }));
       } catch (e) {
@@ -157,12 +184,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         if (!data) {
           const res = await fetch(`/api/shelves/${shelf.id}`, { cache: 'no-store', signal: ac.signal }).catch(() => null);
           if (!res?.ok) continue;
-          const json = (await res.json()) as {
-            shelf: ShelfUnitWithCount;
-            slots: ShelfSlotEntry[];
-            displays?: ShelfDisplaySlotEntry[];
-          };
-          data = { shelf: json.shelf, slots: json.slots, displays: json.displays ?? [] };
+          const json = decodeShelfDetailResponse(await res.json());
+          if (!json) continue;
+          data = json;
           if (!ac.signal.aborted) setLoaded((prev) => ({ ...prev, [shelf.id]: data! }));
         }
         const found =
@@ -196,12 +220,36 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const activeState = activeId != null ? loaded[activeId] ?? null : null;
   const activeIndex = activeId != null ? shelves.findIndex((s) => s.id === activeId) : -1;
 
+  function startMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    mutationInFlightRef.current = true;
+    setBusy(true);
+    return controller;
+  }
+
+  function ownsMutation(controller: AbortController, shelfId?: number): boolean {
+    return mountedRef.current
+      && mutationAbortRef.current === controller
+      && !controller.signal.aborted
+      && (shelfId === undefined || activeIdRef.current === shelfId);
+  }
+
+  function finishMutation(controller: AbortController) {
+    if (mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (mountedRef.current) setBusy(false);
+  }
+
   // Pokémon-box style left/right paging across shelves. Wraps around
   // the ends so you can swipe forever. Disabled while a text input or
   // textarea has focus so paging doesn't fight typing.
   const pageShelf = useCallback(
     (delta: -1 | 1) => {
-      if (shelves.length === 0) return;
+      if (shelves.length === 0 || mutationInFlightRef.current) return;
       const idx = activeIndex < 0 ? 0 : activeIndex;
       const next = (idx + delta + shelves.length) % shelves.length;
       setActiveId(shelves[next].id);
@@ -263,33 +311,38 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     refreshAbortRef.current?.abort();
     const ac = new AbortController();
     refreshAbortRef.current = ac;
-    const res = await fetch(`/api/shelves/${id}`, { cache: 'no-store', signal: ac.signal });
-    if (ac.signal.aborted) return;
-    if (!res.ok) throw new Error(await res.text());
-    const data = (await res.json()) as {
-      shelf: ShelfUnitWithCount;
-      slots: ShelfSlotEntry[];
-      displays?: ShelfDisplaySlotEntry[];
-    };
-    setLoaded((prev) => ({
-      ...prev,
-      [id]: {
-        shelf: data.shelf,
-        slots: data.slots,
-        displays: data.displays ?? [],
-      },
-    }));
-    setShelves((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...data.shelf } : s)),
-    );
+    try {
+      const res = await fetch(`/api/shelves/${id}`, { cache: 'no-store', signal: ac.signal });
+      if (ac.signal.aborted || refreshAbortRef.current !== ac) return;
+      if (!res.ok) throw new Error(await res.text());
+      const data = decodeShelfDetailResponse(await res.json());
+      if (!data) throw new Error(t.shelfLayout.saveFailed);
+      if (ac.signal.aborted || refreshAbortRef.current !== ac) return;
+      setLoaded((prev) => ({
+        ...prev,
+        [id]: {
+          shelf: data.shelf,
+          slots: data.slots,
+          displays: data.displays,
+        },
+      }));
+      setShelves((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, ...data.shelf } : s)),
+      );
+    } finally {
+      if (refreshAbortRef.current === ac) refreshAbortRef.current = null;
+    }
   }
 
   async function placeOnSlot(target: { row: number; col: number }, source: DragSource) {
     if (activeId == null) return;
+    const ownerShelfId = activeId;
+    const controller = startMutation();
+    if (!controller) return;
     // Optimistic update:
-    //   • move/insert the dragged item to (row, col)
-    //   • if source was a slot AND target had an occupant → put occupant at source slot (swap)
-    //   • if source was the pool AND target had an occupant → push occupant to the pool
+    //   - move/insert the dragged item to (row, col)
+    //   - if source was a slot AND target had an occupant -> put occupant at source slot (swap)
+    //   - if source was the pool AND target had an occupant -> push occupant to the pool
     const prevSnapshot: {
       slots: ShelfSlotEntry[];
       displays: ShelfDisplaySlotEntry[];
@@ -300,7 +353,6 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       pool: unplaced,
     };
 
-    setBusy(true);
     try {
       // Build a hopeful next state from a fresh fetch result. To keep
       // the UI snappy we still patch locally first, then reconcile
@@ -313,7 +365,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.displays, prevSnapshot.pool);
         if (!ed) return prev;
         next.push({
-          shelf_id: activeId,
+          shelf_id: ownerShelfId,
           row: target.row,
           col: target.col,
           vn_id: source.vn_id,
@@ -330,7 +382,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 	          edition_label: ed.edition_label,
           box_type: ed.box_type as ShelfSlotEntry['box_type'],
           condition: ed.condition,
-          // Optimistic snapshot — server response on next refetch
+          // Optimistic snapshot - server response on next refetch
           // will fill in the joined release_meta_cache fields. We
           // forward what we have from the source pool/slot/display
           // entry so the EditionInfoPopover keeps its data while
@@ -376,7 +428,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         );
       }
 
-      const res = await fetch(`/api/shelves/${activeId}/slots`, {
+      const res = await fetch(`/api/shelves/${ownerShelfId}/slots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -385,25 +437,31 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           vn_id: source.vn_id,
           release_id: source.release_id,
         }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { slots: ShelfSlotEntry[]; swapped: unknown };
+      const data = decodeShelfSlotsResponse(await res.json());
+      if (!data) throw new Error(t.shelfLayout.saveFailed);
+      if (!ownsMutation(controller, ownerShelfId)) return;
       // Reconcile with authoritative server slots; refresh pool too.
       setLoaded((prev) => {
-        const cur = prev[activeId];
+        const cur = prev[ownerShelfId];
         if (!cur) return prev;
-        return { ...prev, [activeId]: { ...cur, slots: data.slots } };
+        return { ...prev, [ownerShelfId]: { ...cur, slots: data.slots } };
       });
-      await refreshActiveShelf();
+      await refreshActiveShelf(ownerShelfId);
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshPool();
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshShelfMeta();
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       patchActiveSlots(() => prevSnapshot.slots);
       patchActiveDisplays(() => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
@@ -412,6 +470,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     source: DragSource,
   ) {
     if (activeId == null) return;
+    const ownerShelfId = activeId;
+    const controller = startMutation();
+    if (!controller) return;
     const prevSnapshot: {
       slots: ShelfSlotEntry[];
       displays: ShelfDisplaySlotEntry[];
@@ -422,7 +483,6 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       pool: unplaced,
     };
 
-    setBusy(true);
     try {
       const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.displays, prevSnapshot.pool);
       if (ed) {
@@ -432,7 +492,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               && !(d.vn_id === source.vn_id && d.release_id === source.release_id),
           );
           next.push({
-            shelf_id: activeId,
+            shelf_id: ownerShelfId,
             after_row: target.after_row,
             position: target.position,
             vn_id: source.vn_id,
@@ -450,7 +510,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 	            edition_label: ed.edition_label,
             box_type: ed.box_type as ShelfDisplaySlotEntry['box_type'],
             condition: ed.condition,
-            // Mirror the slot-placement optimistic forward — see the
+            // Mirror the slot-placement optimistic forward - see the
             // sibling call site above for the rationale.
             owned_platform: ed.owned_platform ?? null,
             physical_location: ed.physical_location ?? [],
@@ -490,7 +550,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         );
       }
 
-      const res = await fetch(`/api/shelves/${activeId}/displays`, {
+      const res = await fetch(`/api/shelves/${ownerShelfId}/displays`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -499,23 +559,31 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           vn_id: source.vn_id,
           release_id: source.release_id,
         }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
-      await refreshActiveShelf();
+      if (!ownsMutation(controller, ownerShelfId)) return;
+      await refreshActiveShelf(ownerShelfId);
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshPool();
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshShelfMeta();
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       patchActiveSlots(() => prevSnapshot.slots);
       patchActiveDisplays(() => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
   async function unplaceItem(source: DragSource) {
     if (activeId == null) return;
+    const ownerShelfId = activeId;
+    const controller = startMutation();
+    if (!controller) return;
     const prevSnapshot: {
       slots: ShelfSlotEntry[];
       displays: ShelfDisplaySlotEntry[];
@@ -525,7 +593,6 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       displays: activeState?.displays ?? [],
       pool: unplaced,
     };
-    setBusy(true);
     try {
       const occupant = prevSnapshot.slots.find(
         (s) => s.vn_id === source.vn_id && s.release_id === source.release_id,
@@ -549,49 +616,69 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         );
         setUnplaced((prev) => [...prev, shelfDisplayToShelfEntry(displayOccupant)]);
       }
-      const res = await fetch(`/api/shelves/${activeId}/slots`, {
+      const res = await fetch(`/api/shelves/${ownerShelfId}/slots`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: source.vn_id, release_id: source.release_id }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
-      await refreshActiveShelf();
+      if (!ownsMutation(controller, ownerShelfId)) return;
+      await refreshActiveShelf(ownerShelfId);
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshPool();
+      if (!ownsMutation(controller, ownerShelfId)) return;
       await refreshShelfMeta();
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       patchActiveSlots(() => prevSnapshot.slots);
       patchActiveDisplays(() => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
   async function refreshPool() {
+    poolRefreshAbortRef.current?.abort();
+    const ac = new AbortController();
+    poolRefreshAbortRef.current = ac;
     try {
-      const res = await fetch('/api/shelves?pool=1', { cache: 'no-store' });
+      const res = await fetch('/api/shelves?pool=1', { cache: 'no-store', signal: ac.signal });
       if (!res.ok) return;
-      const data = (await res.json()) as { unplaced?: ShelfEntry[] };
+      const data = decodeShelfListResponse(await res.json());
+      if (!data) return;
+      if (ac.signal.aborted || poolRefreshAbortRef.current !== ac) return;
       if (data.unplaced) setUnplaced(data.unplaced);
     } catch {
       // Pool refresh is non-essential; soft-fail to keep optimistic state.
+    } finally {
+      if (poolRefreshAbortRef.current === ac) poolRefreshAbortRef.current = null;
     }
   }
 
   async function refreshShelfMeta() {
+    shelfMetaRefreshAbortRef.current?.abort();
+    const ac = new AbortController();
+    shelfMetaRefreshAbortRef.current = ac;
     try {
-      const res = await fetch('/api/shelves', { cache: 'no-store' });
+      const res = await fetch('/api/shelves', { cache: 'no-store', signal: ac.signal });
       if (!res.ok) return;
-      const data = (await res.json()) as { shelves: ShelfUnitWithCount[] };
+      const data = decodeShelfListResponse(await res.json());
+      if (!data) return;
+      if (ac.signal.aborted || shelfMetaRefreshAbortRef.current !== ac) return;
       setShelves(data.shelves);
     } catch {
       // Non-essential.
+    } finally {
+      if (shelfMetaRefreshAbortRef.current === ac) shelfMetaRefreshAbortRef.current = null;
     }
   }
 
   async function onDragEnd(e: DragEndEvent) {
     setDraggingFrom(null);
+    if (mutationInFlightRef.current) return;
     const { active, over } = e;
     if (!over) return;
     const source = parseDragId(String(active.id));
@@ -632,91 +719,106 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   }
 
   function onDragStart(e: DragStartEvent) {
+    if (mutationInFlightRef.current) return;
     setDraggingFrom(parseDragId(String(e.active.id)));
   }
 
   async function handleCreate() {
     const name = newName.trim();
     if (!name) return;
-    setBusy(true);
+    const controller = startMutation();
+    if (!controller) return;
     try {
       const res = await fetch('/api/shelves', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { shelf: ShelfUnitWithCount };
+      const data = decodeShelfCreateResponse(await res.json());
+      if (!data) throw new Error(t.shelfLayout.saveFailed);
+      if (!ownsMutation(controller)) return;
       setShelves((prev) => [...prev, { ...data.shelf, placed_count: 0 }]);
       setActiveId(data.shelf.id);
       setNewName('');
       setShowCreate(false);
     } catch (e) {
+      if (!ownsMutation(controller)) return;
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
   async function handleRename() {
     if (!activeShelf) return;
+    const ownerShelfId = activeShelf.id;
+    const controller = startMutation();
+    if (!controller) return;
     const next = await prompt({
       title: t.shelfLayout.rename,
       initial: activeShelf.name,
       confirmLabel: t.shelfLayout.rename,
       cancelLabel: t.shelfLayout.cancel,
     });
-    if (!next) return;
-    setBusy(true);
+    if (!next || !ownsMutation(controller, ownerShelfId)) {
+      finishMutation(controller);
+      return;
+    }
     try {
-      const res = await fetch(`/api/shelves/${activeShelf.id}`, {
+      const res = await fetch(`/api/shelves/${ownerShelfId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: next }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
+      if (!ownsMutation(controller, ownerShelfId)) return;
       setShelves((prev) =>
-        prev.map((s) => (s.id === activeShelf.id ? { ...s, name: next } : s)),
+        prev.map((s) => (s.id === ownerShelfId ? { ...s, name: next } : s)),
       );
       setLoaded((prev) => {
-        const cur = prev[activeShelf.id];
+        const cur = prev[ownerShelfId];
         if (!cur) return prev;
         return {
           ...prev,
-          [activeShelf.id]: { ...cur, shelf: { ...cur.shelf, name: next } },
+          [ownerShelfId]: { ...cur, shelf: { ...cur.shelf, name: next } },
         };
       });
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
   async function handleResize(deltaCols: number, deltaRows: number) {
     if (!activeShelf) return;
+    const ownerShelfId = activeShelf.id;
     const cols = clampDim(activeShelf.cols + deltaCols);
     const rows = clampDim(activeShelf.rows + deltaRows);
     if (cols === activeShelf.cols && rows === activeShelf.rows) return;
-    setBusy(true);
+    const controller = startMutation();
+    if (!controller) return;
     try {
-      const res = await fetch(`/api/shelves/${activeShelf.id}`, {
+      const res = await fetch(`/api/shelves/${ownerShelfId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cols, rows }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as {
-        shelf: ShelfUnitWithCount;
-        slots: ShelfSlotEntry[];
-        evicted: Array<{ vn_id: string; release_id: string }>;
-      };
+      const data = decodeShelfResizeResponse(await res.json());
+      if (!data) throw new Error(t.shelfLayout.saveFailed);
+      if (!ownsMutation(controller, ownerShelfId)) return;
       setShelves((prev) =>
-        prev.map((s) => (s.id === activeShelf.id ? { ...s, ...data.shelf } : s)),
+        prev.map((s) => (s.id === ownerShelfId ? { ...s, ...data.shelf } : s)),
       );
       setLoaded((prev) => ({
         ...prev,
-        [activeShelf.id]: {
+        [ownerShelfId]: {
           shelf: { ...activeShelf, ...data.shelf },
           slots: data.slots,
           displays: activeState?.displays.filter(
@@ -729,49 +831,50 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           t.shelfLayout.evictedHint.replace('{n}', String(data.evicted.length)),
         );
         // Pool must reload to surface evicted editions.
-        const poolRes = await fetch('/api/shelves?pool=1', { cache: 'no-store' });
-        if (poolRes.ok) {
-          const poolData = (await poolRes.json()) as { unplaced?: ShelfEntry[] };
-          if (poolData.unplaced) setUnplaced(poolData.unplaced);
-        }
+        await refreshPool();
       }
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
   async function handleDelete() {
     if (!activeShelf) return;
+    const ownerShelfId = activeShelf.id;
+    const controller = startMutation();
+    if (!controller) return;
     const ok = await confirm({
       message: t.shelfLayout.deleteConfirm,
       tone: 'danger',
       confirmLabel: t.shelfLayout.delete,
       cancelLabel: t.shelfLayout.cancel,
     });
-    if (!ok) return;
-    setBusy(true);
+    if (!ok || !ownsMutation(controller, ownerShelfId)) {
+      finishMutation(controller);
+      return;
+    }
     try {
-      const res = await fetch(`/api/shelves/${activeShelf.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/shelves/${ownerShelfId}`, { method: 'DELETE', signal: controller.signal });
       if (!res.ok) throw new Error(await res.text());
-      setShelves((prev) => prev.filter((s) => s.id !== activeShelf.id));
+      if (!ownsMutation(controller, ownerShelfId)) return;
+      setShelves((prev) => prev.filter((s) => s.id !== ownerShelfId));
       setLoaded((prev) => {
         const next = { ...prev };
-        delete next[activeShelf.id];
+        delete next[ownerShelfId];
         return next;
       });
-      // Cascade-delete on shelf_slot returned items to the pool — fetch fresh.
-      const poolRes = await fetch('/api/shelves?pool=1', { cache: 'no-store' });
-      if (poolRes.ok) {
-        const poolData = (await poolRes.json()) as { unplaced?: ShelfEntry[] };
-        if (poolData.unplaced) setUnplaced(poolData.unplaced);
-      }
-      setActiveId(shelves.find((s) => s.id !== activeShelf.id)?.id ?? null);
+      // Cascade-delete on shelf_slot returned items to the pool - fetch fresh.
+      await refreshPool();
+      if (!ownsMutation(controller, ownerShelfId)) return;
+      setActiveId(shelves.find((s) => s.id !== ownerShelfId)?.id ?? null);
     } catch (e) {
+      if (!ownsMutation(controller, ownerShelfId)) return;
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
-      setBusy(false);
+      finishMutation(controller);
     }
   }
 
@@ -813,15 +916,15 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         {fullscreen && <h2 id={fullscreenTitleId} className="sr-only">{t.shelfLayout.exitFullscreen}</h2>}
         <div className={fullscreen ? 'mx-auto max-w-[1600px]' : undefined}>
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        {/* Shelf tabs + toolbar — left/right paginators flank the tab
-            strip so the user can swipe between shelves like a Pokémon
-            box. Keyboard ←/→ does the same thing. */}
+        {/* Shelf tabs + toolbar - left/right paginators flank the tab
+            strip so the user can swipe between shelves.
+            Keyboard left/right does the same thing. */}
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-1 flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => pageShelf(-1)}
-              disabled={shelves.length < 2}
+              disabled={busy || shelves.length < 2}
               aria-label={t.shelfLayout.prevShelf}
               title={t.shelfLayout.prevShelf}
               className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
@@ -835,6 +938,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
                 e.preventDefault();
+                if (mutationInFlightRef.current) return;
                 const idx = shelves.findIndex((s) => s.id === activeId);
                 let next: typeof shelves[number] | undefined;
                 if (e.key === 'Home') next = shelves[0];
@@ -854,7 +958,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                   aria-selected={s.id === activeId}
                   tabIndex={s.id === activeId ? 0 : -1}
                   onClick={() => setActiveId(s.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${
+                  disabled={busy}
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors sm:min-h-0 ${
                     s.id === activeId
                       ? 'border-accent bg-accent/15 text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent/60 hover:text-white'
@@ -875,7 +980,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             <button
               type="button"
               onClick={() => pageShelf(1)}
-              disabled={shelves.length < 2}
+              disabled={busy || shelves.length < 2}
               aria-label={t.shelfLayout.nextShelf}
               title={t.shelfLayout.nextShelf}
               className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent disabled:opacity-30"
@@ -885,6 +990,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
+              disabled={busy}
               className="btn btn-xs min-h-[44px] sm:min-h-0"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.newShelf}
@@ -893,7 +999,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           {activeShelf && (
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
               <span className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-muted">
-                <Maximize2 className="h-3 w-3" aria-hidden /> {activeShelf.cols} × {activeShelf.rows}
+                <Maximize2 className="h-3 w-3" aria-hidden /> {activeShelf.cols} x {activeShelf.rows}
               </span>
               <button
                 type="button"
@@ -959,6 +1065,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               placeholder={t.shelfLayout.newShelfName}
               aria-label={t.shelfLayout.newShelfName}
               value={newName}
+              disabled={busy}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreate();
@@ -967,7 +1074,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                   setNewName('');
                 }
               }}
-              className="flex-1 rounded border border-border bg-bg px-2 py-1 text-sm"
+              className="min-h-[44px] flex-1 rounded border border-border bg-bg px-2 py-1 text-sm"
             />
             <button
               type="button"
@@ -983,7 +1090,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 setShowCreate(false);
                 setNewName('');
               }}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:text-white"
+              disabled={busy}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:text-white sm:min-h-0"
             >
               <X className="h-3 w-3" /> {t.shelfLayout.cancel}
             </button>
@@ -1119,7 +1227,7 @@ function ShelfGrid({
                 gridTemplateColumns: `repeat(${shelf.cols}, minmax(${fullscreen ? '88px' : 'calc(var(--shelf-cell-w-px, 96) * 1px)'}, 1fr))`,
               }}
               role="grid"
-              aria-label={`${shelf.name} — ${row + 1}`}
+              aria-label={`${shelf.name} - ${row + 1}`}
             >
               {Array.from({ length: shelf.cols }).map((__, col) => (
                 <DroppableCell
@@ -1208,7 +1316,7 @@ function DroppableCell({
         <DraggableSlotItem slot={slot} highlighted={slot.vn_id === highlightVnId} />
       ) : (
         <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-bold uppercase tracking-wider text-muted/40">
-          {`${row + 1}·${col + 1}`}
+          {`${row + 1}/${col + 1}`}
         </span>
       )}
     </div>
@@ -1340,13 +1448,13 @@ function DraggableDisplayItem({
   return (
     <div
       data-shelf-vn={slot.vn_id}
-      title={`${slot.vn_title} — ${label} · ${slot.position + 1}`}
+      title={`${slot.vn_title} - ${label} / ${slot.position + 1}`}
       className={`group/display relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
       } ${highlighted ? 'rounded-md ring-2 ring-accent ring-offset-2 ring-offset-bg-card' : ''
       }`}
     >
-      {/* Drag surface — covers the cover image only so the overlay
+      {/* Drag surface - covers the cover image only so the overlay
           chips + Info button stay clickable without initiating a
           drag. */}
       <div
@@ -1401,7 +1509,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   // tested implementation. Pool tile leaves the Info button always
   // visible (vs. the cell/display tiles which reveal it on hover)
   // because the unplaced pool grid is the most discoverability-
-  // sensitive surface — the user is scanning for a specific edition,
+  // sensitive surface - the user is scanning for a specific edition,
   // and a hidden affordance defeats that scan.
   // Viewport-collision detection for the popover. The pool is rendered
   // below the shelf grid so a tile near the bottom of the page would
@@ -1421,7 +1529,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      {/* Drag surface — keeps the cover + title as the grab area but
+      {/* Drag surface - keeps the cover + title as the grab area but
           leaves the overlay buttons free of the drag listeners. */}
       <div
         ref={setNodeRef}
@@ -1445,7 +1553,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           VN title. The pool key is `vn_id:release_id` so React
           mounts them as distinct cards, but the FACE looked
           identical. Surface the most-specific user-entered hint
-          (edition_label → physical_location → box_type → release
+          (edition_label -> physical_location -> box_type -> release
           id short form) so the two cards read differently at a
           glance, without needing to open the info popover.
         */}
@@ -1499,7 +1607,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
   return (
     <div
       data-shelf-vn={slot.vn_id}
-      title={`${slot.vn_title} — ${t.shelfLayout.placedAt
+      title={`${slot.vn_title} - ${t.shelfLayout.placedAt
         .replace('{row}', String(slot.row + 1))
         .replace('{col}', String(slot.col + 1))}`}
       className={`group/slot relative h-full w-full overflow-visible ${
@@ -1507,7 +1615,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
       } ${highlighted ? 'rounded-md ring-2 ring-accent ring-offset-2 ring-offset-bg-card' : ''
       }`}
     >
-      {/* Drag surface — covers the cover image only so the Info
+      {/* Drag surface - covers the cover image only so the Info
           button + Link + chips stay independently clickable. */}
       <div
         ref={setNodeRef}
@@ -1697,7 +1805,7 @@ function findEdition(
   dumped: boolean;
   // Optional release/owned metadata. All three sources
   // (ShelfSlotEntry / ShelfDisplaySlotEntry / ShelfEntry) now
-  // carry these — the synthetic pool path provided by
+  // carry these - the synthetic pool path provided by
   // `synthesizePoolEntryFromEdge` may not. The optional shape
   // lets the caller forward what's available and fall back to
   // safe defaults otherwise.
@@ -1751,7 +1859,7 @@ function findEdition(
       box_type: pooled.box_type,
       condition: pooled.condition,
       dumped: pooled.dumped,
-      // Pool entries DO carry these — ShelfEntry extends OwnedReleaseRow.
+      // Pool entries DO carry these - ShelfEntry extends OwnedReleaseRow.
       physical_location: pooled.physical_location,
       price_paid: pooled.price_paid,
       currency: pooled.currency,
@@ -1828,7 +1936,7 @@ function shelfEntryToPopoverData(entry: ShelfEntry): EditionInfoPopoverData {
 
 /**
  * Same projection for placed-cell entries. Surfaces the same per-
- * edition + release-level info the pool popover does — the user
+ * edition + release-level info the pool popover does - the user
  * complaint that placed slots had no info popover is fixed by
  * mounting the shared trigger here.
  */
@@ -1868,7 +1976,7 @@ function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
   };
 }
 
-/** Same shape as shelfSlotToPopoverData — front-display rows. */
+/** Same shape as shelfSlotToPopoverData - front-display rows. */
 function displaySlotToPopoverData(slot: ShelfDisplaySlotEntry): EditionInfoPopoverData {
   return {
     vn_id: slot.vn_id,
