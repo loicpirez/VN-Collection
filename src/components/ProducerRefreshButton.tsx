@@ -1,9 +1,11 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
+import { readApiError } from '@/lib/api-error-read';
+import { decodeProducerRefreshSummary } from '@/lib/picker-client-shape';
 
 /**
  * Per-page Refresh for the producer detail view. POSTs to
@@ -22,48 +24,64 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<string | null>(producerId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    inFlightRef.current = false;
+    identityRef.current = producerId;
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [producerId]);
 
   async function onClick() {
-    if (busy) return;
+    if (inFlightRef.current) return;
+    const ownerProducerId = producerId;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    inFlightRef.current = true;
     setBusy(true);
     try {
-      const r = await fetch(`/api/producer/${producerId}/refresh`, { method: 'POST' });
-      const body = (await r.json().catch(() => ({}))) as {
-        error?: string;
-        developers?: number;
-        publishers?: number;
-        owned?: number;
-        upstreamFailed?: boolean;
-        stale?: boolean;
-      };
+      const r = await fetch(`/api/producer/${ownerProducerId}/refresh`, { method: 'POST', signal: controller.signal });
       if (!r.ok) {
-        throw new Error(body.error || t.common.error);
+        throw new Error(await readApiError(r, t.common.error));
       }
-      // Defensive check against the route ever changing shape — a
-      // schema drift used to print "undefined dev / undefined pub"
-      // in the toast.
-      const devs = typeof body.developers === 'number' ? body.developers : 0;
-      const pubs = typeof body.publishers === 'number' ? body.publishers : 0;
-      const owned = typeof body.owned === 'number' ? body.owned : 0;
+      const body = decodeProducerRefreshSummary(await r.json());
+      if (!body) throw new Error(t.common.error);
+      if (identityRef.current !== ownerProducerId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       const message = t.producerVns.refreshDone
-        .replace('{devs}', String(devs))
-        .replace('{pubs}', String(pubs))
-        .replace('{owned}', String(owned));
+        .replace('{devs}', String(body.developers))
+        .replace('{pubs}', String(body.publishers))
+        .replace('{owned}', String(body.owned));
       // When the data came from a stale-while-error fallback the
       // counts reflect the last-known cache, not the live truth.
       // We surface that as a "warning" toast (yellow tone) and
       // append the stale-data suffix so the user can decide to
       // retry once VNDB is healthy again.
       if (body.stale) {
-        toast.warning(`${message} · ${t.producerVns.staleSuffix}`);
+        toast.warning(`${message} / ${t.producerVns.staleSuffix}`);
       } else {
         toast.success(message);
       }
       startTransition(() => router.refresh());
     } catch (err) {
+      if (identityRef.current !== ownerProducerId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((err as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerProducerId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -74,7 +92,7 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
       disabled={busy}
       className="btn inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
     >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" />}
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
       {busy ? t.producerVns.refreshing : t.producerVns.refresh}
     </button>
   );
