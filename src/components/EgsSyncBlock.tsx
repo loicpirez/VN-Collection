@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Clock, Loader2, RefreshCw, Save, Sparkles, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -8,18 +8,12 @@ import { formatIsoDateString } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
-interface Suggestion {
-  vn_id: string;
-  vn_title: string;
-  egs_id: number;
-  egs_gamename: string;
-  local_minutes: number;
-  egs_minutes: number | null;
-  local_rating: number | null;
-  egs_score: number | null;
-  egs_finish_date: string | null;
-  egs_start_date: string | null;
-}
+import {
+  decodeEgsSyncAppliedCount,
+  decodeEgsSyncPreview,
+  decodeEgsUsernameSetting,
+  type EgsSyncClientSuggestion as Suggestion,
+} from '@/lib/operation-client-shape';
 
 /**
  * EGS playtime + score sync. Symmetric to the Steam suggestions section:
@@ -33,7 +27,7 @@ export function EgsSyncBlock() {
   const t = useT();
   const locale = useLocale();
   const fmtMin = (n: number | null): string =>
-    formatMinutes(n, locale, t.year, { fallback: '—', emptyValue: 'allow_zero' });
+    formatMinutes(n, locale, t.year, { fallback: '-', emptyValue: 'allow_zero' });
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [usernameDirty, setUsernameDirty] = useState(false);
@@ -44,77 +38,135 @@ export function EgsSyncBlock() {
   const [picks, setPicks] = useState<Set<string>>(new Set());
   const [needsConfig, setNeedsConfig] = useState(false);
   const [configLoading, setConfigLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const usernameRef = useRef('');
+  const usernameDirtyRef = useRef(false);
+  const usernameSaveRef = useRef(false);
+  const syncInFlightRef = useRef(false);
+  const usernameAbortRef = useRef<AbortController | null>(null);
+  const syncAbortRef = useRef<AbortController | null>(null);
 
-  const loadConfig = useCallback(async () => {
+  const loadConfig = useCallback(async (signal?: AbortSignal) => {
     try {
-      const r = await fetch('/api/settings', { cache: 'no-store' });
+      const r = await fetch('/api/settings', { cache: 'no-store', signal });
       if (!r.ok) return;
-      const d = (await r.json()) as { egs_username?: string };
-      setUsername(d.egs_username ?? '');
+      const username = decodeEgsUsernameSetting(await r.json());
+      if (username === null || signal?.aborted || !mountedRef.current || usernameDirtyRef.current) return;
+      usernameRef.current = username;
+      setUsername(username);
       setUsernameDirty(false);
     } catch {
-      // silent
     } finally {
-      setConfigLoading(false);
+      if (!signal?.aborted && mountedRef.current) setConfigLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadConfig();
+    mountedRef.current = true;
+    const ac = new AbortController();
+    loadConfig(ac.signal);
+    return () => {
+      mountedRef.current = false;
+      usernameSaveRef.current = false;
+      syncInFlightRef.current = false;
+      usernameAbortRef.current?.abort();
+      syncAbortRef.current?.abort();
+      ac.abort();
+    };
   }, [loadConfig]);
 
   async function saveUsername() {
+    if (usernameSaveRef.current) return;
+    const ownerUsername = usernameRef.current.trim() || null;
+    const controller = new AbortController();
+    usernameAbortRef.current?.abort();
+    usernameAbortRef.current = controller;
+    usernameSaveRef.current = true;
     setSavingUsername(true);
     try {
       const r = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ egs_username: username.trim() || null }),
+        body: JSON.stringify({ egs_username: ownerUsername }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!mountedRef.current || usernameAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
-      setUsernameDirty(false);
+      if ((usernameRef.current.trim() || null) === ownerUsername) {
+        usernameDirtyRef.current = false;
+        setUsernameDirty(false);
+      }
     } catch (e) {
+      if (!mountedRef.current || usernameAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setSavingUsername(false);
+      if (usernameAbortRef.current === controller) {
+        usernameAbortRef.current = null;
+        usernameSaveRef.current = false;
+        if (mountedRef.current) setSavingUsername(false);
+      }
     }
   }
 
   async function compute() {
+    if (syncInFlightRef.current) return;
+    const controller = new AbortController();
+    syncAbortRef.current?.abort();
+    syncAbortRef.current = controller;
+    syncInFlightRef.current = true;
     setComputing(true);
     try {
-      const r = await fetch('/api/egs/sync', { cache: 'no-store' });
+      const r = await fetch('/api/egs/sync', { cache: 'no-store', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { needsConfig?: boolean; suggestions: Suggestion[] };
-      setNeedsConfig(!!d.needsConfig);
-      setSuggestions(d.suggestions);
-      setPicks(new Set(d.suggestions.map((s) => s.vn_id)));
+      const data = decodeEgsSyncPreview(await r.json());
+      if (!data) throw new Error(t.common.error);
+      if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
+      setNeedsConfig(data.needsConfig);
+      setSuggestions(data.suggestions);
+      setPicks(new Set(data.suggestions.map((s) => s.vn_id)));
     } catch (e) {
+      if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setComputing(false);
+      if (syncAbortRef.current === controller) {
+        syncAbortRef.current = null;
+        syncInFlightRef.current = false;
+        if (mountedRef.current) setComputing(false);
+      }
     }
   }
 
   async function apply() {
-    if (picks.size === 0) return;
+    if (picks.size === 0 || syncInFlightRef.current) return;
+    const controller = new AbortController();
+    syncAbortRef.current?.abort();
+    syncAbortRef.current = controller;
+    syncInFlightRef.current = true;
     setApplying(true);
     try {
       const r = await fetch('/api/egs/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_ids: Array.from(picks) }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { applied: number };
-      toast.success(`${t.egsSync.appliedSummary} (${d.applied})`);
+      const applied = decodeEgsSyncAppliedCount(await r.json());
+      if (applied === null) throw new Error(t.common.error);
+      if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
+      toast.success(`${t.egsSync.appliedSummary} (${applied})`);
       setSuggestions([]);
       setPicks(new Set());
     } catch (e) {
+      if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setApplying(false);
+      if (syncAbortRef.current === controller) {
+        syncAbortRef.current = null;
+        syncInFlightRef.current = false;
+        if (mountedRef.current) setApplying(false);
+      }
     }
   }
 
@@ -136,19 +188,21 @@ export function EgsSyncBlock() {
           value={username}
           placeholder={t.egsSync.usernamePlaceholder}
           aria-label={t.egsSync.usernamePlaceholder}
-          disabled={configLoading}
+          disabled={configLoading || savingUsername || computing || applying}
           onChange={(e) => {
             setUsername(e.target.value);
+            usernameRef.current = e.target.value;
+            usernameDirtyRef.current = true;
             setUsernameDirty(true);
           }}
         />
         <button
           type="button"
           className="btn btn-primary"
-          disabled={savingUsername || !usernameDirty}
+          disabled={savingUsername || computing || applying || !usernameDirty}
           onClick={saveUsername}
         >
-          {savingUsername ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />}
+          {savingUsername ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
           {t.common.save}
         </button>
       </div>
@@ -157,9 +211,9 @@ export function EgsSyncBlock() {
           type="button"
           className="btn"
           onClick={compute}
-          disabled={computing || !username.trim()}
+          disabled={computing || applying || savingUsername || !username.trim()}
         >
-          {computing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" />}
+          {computing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
           {t.egsSync.compute}
         </button>
         {suggestions.length > 0 && (
@@ -167,9 +221,9 @@ export function EgsSyncBlock() {
             type="button"
             className="btn btn-primary"
             onClick={apply}
-            disabled={applying || picks.size === 0}
+            disabled={computing || applying || savingUsername || picks.size === 0}
           >
-            {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" />}
+            {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
             {t.egsSync.applySelected.replace('{count}', String(picks.size))}
           </button>
         )}

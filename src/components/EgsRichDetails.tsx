@@ -4,14 +4,12 @@ import { ExternalLink, Film, Gamepad2, ShoppingBag, Twitter, Users } from 'lucid
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
+import { safeHref } from '@/lib/safe-href';
 import { SkeletonBlock } from './Skeleton';
+import { decodeVnEgsGameSnapshot } from '@/lib/search-client-shape';
 
 interface RawRow {
   [key: string]: string | null;
-}
-
-interface EgsExtra {
-  game: { id: number; gamename: string; raw?: RawRow } | null;
 }
 
 function n(v: string | null | undefined): number | null {
@@ -41,9 +39,11 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
 
   useEffect(() => {
     const ctrl = new AbortController();
+    setRaw(null);
+    setLoading(true);
     fetch(`/api/vn/${vnId}/erogamescape`, { cache: 'no-store', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: EgsExtra | null) => {
+      .then(async (r) => (r.ok ? decodeVnEgsGameSnapshot(await r.json()) : null))
+      .then((d) => {
         if (!ctrl.signal.aborted) setRaw(d?.game?.raw ?? null);
       })
       .catch(() => {
@@ -79,7 +79,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
 
   const trailer = n(raw.erogetrailers);
   const trailerUrl = trailer && trailer > 0 ? `https://erogetrailers.com/movie/${trailer}` : null;
-  const trial = raw.trial_url && raw.trial_url.startsWith('http') ? raw.trial_url : null;
+  const trial = safeHref(raw.trial_url);
   const dmm = raw.dmm && raw.dmm !== '' ? `https://dlsoft.dmm.co.jp/detail/${raw.dmm}/` : null;
   const dlsite =
     raw.dlsite_id && raw.dlsite_id !== '' && raw.dlsite_domain
@@ -103,12 +103,12 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
   const tourokubi = raw.tourokubi || null;
 
   const links: { href: string; label: string; icon: React.ReactNode }[] = [];
-  if (trailerUrl) links.push({ href: trailerUrl, label: 'EroGameTrailers', icon: <Film className="h-3 w-3" /> });
-  if (trial) links.push({ href: trial, label: t.egsRich.demo, icon: <Gamepad2 className="h-3 w-3" /> });
-  if (dmm) links.push({ href: dmm, label: 'DMM', icon: <ShoppingBag className="h-3 w-3" /> });
-  if (dlsite) links.push({ href: dlsite, label: 'DLsite', icon: <ShoppingBag className="h-3 w-3" /> });
-  if (gyutto) links.push({ href: gyutto, label: 'Gyutto', icon: <ShoppingBag className="h-3 w-3" /> });
-  if (twitter) links.push({ href: twitter, label: 'Twitter', icon: <Twitter className="h-3 w-3" /> });
+  if (trailerUrl) links.push({ href: trailerUrl, label: 'EroGameTrailers', icon: <Film className="h-3 w-3" aria-hidden /> });
+  if (trial) links.push({ href: trial, label: t.egsRich.demo, icon: <Gamepad2 className="h-3 w-3" aria-hidden /> });
+  if (dmm) links.push({ href: dmm, label: 'DMM', icon: <ShoppingBag className="h-3 w-3" aria-hidden /> });
+  if (dlsite) links.push({ href: dlsite, label: 'DLsite', icon: <ShoppingBag className="h-3 w-3" aria-hidden /> });
+  if (gyutto) links.push({ href: gyutto, label: 'Gyutto', icon: <ShoppingBag className="h-3 w-3" aria-hidden /> });
+  if (twitter) links.push({ href: twitter, label: 'Twitter', icon: <Twitter className="h-3 w-3" aria-hidden /> });
 
   const hasScoreRange = max2 != null || min2 != null || median2 != null;
   const hasPov = povA != null || povB != null || povC != null;
@@ -129,19 +129,23 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
     <div className="p-4 sm:p-5">
       {links.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
-            >
-              {l.icon}
-              {l.label}
-              <ExternalLink className="h-2.5 w-2.5 opacity-60" aria-hidden />
-            </a>
-          ))}
+          {links.map((l) => {
+            const href = safeHref(l.href);
+            if (!href) return null;
+            return (
+              <a
+                key={l.href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+              >
+                {l.icon}
+                {l.label}
+                <ExternalLink className="h-2.5 w-2.5 opacity-60" aria-hidden />
+              </a>
+            );
+          })}
         </div>
       )}
 
@@ -159,13 +163,13 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
         {hasScoreRange && (
           <Stat
             label={t.egsRich.scoreRange}
-            value={`${min2 ?? '?'} – ${max2 ?? '?'}${median2 != null ? ` · ~${median2}` : ''}`}
+            value={`${min2 ?? '?'} - ${max2 ?? '?'}${median2 != null ? ` / ~${median2}` : ''}`}
           />
         )}
         {fun != null && fun > 0 && (
           <Stat
             label={t.egsRich.timeToFun}
-            value={fmtMin(fun) ?? '—'}
+            value={fmtMin(fun) ?? '-'}
             hint={t.egsRich.timeToFunHint}
           />
         )}
@@ -180,7 +184,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
       {hasPov && totalPov > 0 && (
         <div className="mt-4 rounded-lg border border-border bg-bg-elev/40 p-3 text-[11px]">
           <div className="mb-1 inline-flex items-center gap-1 font-bold uppercase tracking-wider text-muted">
-            <Users className="h-3 w-3" /> {t.egsRich.povBreakdown}
+            <Users className="h-3 w-3" aria-hidden /> {t.egsRich.povBreakdown}
           </div>
           <p className="mb-2 text-muted/80">{t.egsRich.povBreakdownHint}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

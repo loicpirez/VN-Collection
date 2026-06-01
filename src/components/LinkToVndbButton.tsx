@@ -10,12 +10,7 @@ import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
-interface SearchHit {
-  id: string;
-  title: string;
-  released: string | null;
-  developers?: { id: string; name: string }[];
-}
+import { decodeVndbPickerResults, type VndbPickerHit } from '@/lib/search-client-shape';
 
 /**
  * Shown on /vn/egs_NNN pages. Lets the user search VNDB by title and
@@ -24,7 +19,7 @@ interface SearchHit {
  * routes / EGS link / credits / activity) to the new id and drops the
  * synthetic vn row.
  *
- * Symmetric to the existing EGS picker on VNDB-only VNs — the other
+ * Symmetric to the existing EGS picker on VNDB-only VNs - the other
  * half of "link both directions".
  */
 export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOpen }: { vnId: string; seedQuery: string; triggerClassName?: string; keepMenuOpen?: boolean }) {
@@ -35,18 +30,23 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(seedQuery);
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [hits, setHits] = useState<VndbPickerHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
-  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
+  const identity = `${vnId}|${seedQuery}`;
+  const identityRef = useRef<string | null>(identity);
+  const mutationRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  useDialogA11y({ open, onClose: () => { if (!mutationRef.current) setOpen(false); }, panelRef });
 
   // Abort the in-flight VNDB search whenever the user types again or
   // the dialog closes; otherwise a stale slower response overwrites the
   // hit list after a newer query has already rendered.
   const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
+    if (identityRef.current !== identity) return;
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
       searchAbortRef.current = null;
@@ -64,15 +64,39 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
         signal: ac.signal,
       });
       if (!r.ok || ac.signal.aborted) return;
-      const d = (await r.json()) as { results?: SearchHit[] };
-      if (ac.signal.aborted) return;
-      setHits((d.results ?? []).slice(0, 30));
+      const results = decodeVndbPickerResults(await r.json());
+      if (ac.signal.aborted || identityRef.current !== identity) return;
+      if (results) setHits(results.slice(0, 30));
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      if (!ac.signal.aborted) setSearching(false);
+      if (searchAbortRef.current === ac && identityRef.current === identity) {
+        searchAbortRef.current = null;
+        setSearching(false);
+      }
     }
-  }, []);
+  }, [identity]);
+
+  useEffect(() => {
+    identityRef.current = identity;
+    mutationRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setOpen(false);
+    setQuery(seedQuery);
+    setHits([]);
+    setSearching(false);
+    setLinkingId(null);
+    return () => {
+      identityRef.current = null;
+      mutationRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      searchAbortRef.current?.abort();
+    };
+  }, [identity, seedQuery]);
 
   const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
 
@@ -88,32 +112,51 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  useEffect(() => {
+    if (open) return;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setSearching(false);
+  }, [open]);
+
   // Cancel any in-flight search when the dialog unmounts.
   useEffect(() => () => {
     if (searchAbortRef.current) searchAbortRef.current.abort();
   }, []);
 
   async function link(targetId: string) {
-    const ok = await confirm({
-      message: t.linkVndb.confirm.replace('{id}', targetId),
-      tone: 'danger',
-    });
-    if (!ok) return;
-    setLinkingId(targetId);
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    const ownerIdentity = identity;
     try {
+      const ok = await confirm({
+        message: t.linkVndb.confirm.replace('{id}', targetId),
+        tone: 'danger',
+      });
+      if (!ok || identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setLinkingId(targetId);
       const r = await fetch(`/api/vn/${vnId}/link-vndb`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vndb_id: targetId }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.linkVndb.done);
-      // The synthetic vn row is gone — navigate to the real one.
+      // The synthetic vn row is gone - navigate to the real one.
       router.replace(`/vn/${targetId}`);
     } catch (e) {
-      toast.error((e as Error).message);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
     } finally {
-      setLinkingId(null);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationRef.current = false;
+        setLinkingId(null);
+      }
     }
   }
 
@@ -129,7 +172,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
         <Link2 className="h-4 w-4" aria-hidden /> {t.linkVndb.cta}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { if (!mutationRef.current) setOpen(false); }}>
           <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
           <div
             ref={panelRef}
@@ -148,10 +191,11 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
               <button
                 type="button"
                 onClick={() => setOpen(false)}
+                disabled={linkingId !== null}
                 aria-label={t.common.close}
                 className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
             <div className="relative mb-3">
@@ -162,6 +206,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                disabled={linkingId !== null}
                 placeholder={t.linkVndb.searchPlaceholder}
                 aria-label={t.linkVndb.searchPlaceholder}
                 className="input w-full pl-7 text-xs"
@@ -195,7 +240,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                     title={t.linkVndb.openVndb}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
                   <button
                     type="button"
@@ -203,7 +248,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                     disabled={linkingId !== null}
                     className="btn btn-primary"
                   >
-                    {linkingId === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
+                    {linkingId === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" aria-hidden />}
                     {t.linkVndb.useThis}
                   </button>
                 </li>

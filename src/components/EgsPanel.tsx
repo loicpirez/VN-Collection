@@ -12,17 +12,21 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { brandHref, yearHref } from '@/lib/egs-links';
+import { safeHref } from '@/lib/safe-href';
 
 import { readApiError } from '@/lib/api-error-read';
-interface EgsGame {
+import type { EgsCandidate } from '@/lib/erogamescape';
+import {
+  decodeEgsSearchCandidates,
+  decodeVnEgsGameSnapshot,
+  type VnEgsMappingSource as Source,
+} from '@/lib/search-client-shape';
+
+interface EgsPanelGame {
   id: number;
   gamename: string;
-  /** Brand / publisher display name surfaced by the EGS payload. */
   brand_name?: string | null;
-  /** Numeric brand FK on EGS — never a VNDB id. The brand link uses
-   *  `brandHref(null, brand_name)` until the VNDB mapping is known. */
   brand_id?: number | null;
-  /** Manufacturer / model tag (often a platform code on console releases). */
   model?: string | null;
   median: number | null;
   average: number | null;
@@ -32,16 +36,6 @@ interface EgsGame {
   playtime_median_minutes: number | null;
   url: string;
 }
-
-interface EgsCandidate {
-  id: number;
-  gamename: string;
-  median: number | null;
-  count: number | null;
-  sellday: string | null;
-}
-
-type Source = 'extlink' | 'search' | 'manual' | null;
 
 /**
  * Broadcast after the EGS link for a VN changes (refresh / relink /
@@ -64,7 +58,7 @@ export interface EgsChangedDetail {
  */
 interface FetchState {
   loading: boolean;
-  game: EgsGame | null;
+  game: EgsPanelGame | null;
   source: Source;
 }
 
@@ -83,7 +77,7 @@ interface Props {
    * data without a client fetch. Avoids "no match" flashing while the API
    * round-trips, and works even if /api/vn/[id]/erogamescape is briefly slow.
    */
-  initialGame?: EgsGame | null;
+  initialGame?: EgsPanelGame | null;
   initialSource?: Source;
 }
 
@@ -112,7 +106,7 @@ export function EgsPanel({
   const { confirm } = useConfirm();
   // Hydrate from the server payload so first paint already shows the match.
   // We skip the fetch-on-mount when initialGame is provided (the server just
-  // looked it up in the DB — a client round-trip would only re-confirm).
+  // looked it up in the DB - a client round-trip would only re-confirm).
   const [fetchState, setFetchState] = useState<FetchState>(() => ({
     loading: initialGame === null && initialSource === null,
     game: initialGame,
@@ -123,66 +117,141 @@ export function EgsPanel({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const operationInFlightRef = useRef(false);
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
+
+  function ownsPanel(ownerVnId: string): boolean {
+    return mountedRef.current && identityRef.current === ownerVnId;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    operationInFlightRef.current = false;
+    if (mountedRef.current) setUnlinking(false);
+  }
 
   const load = useCallback(
-    async (force = false, signal?: AbortSignal) => {
+    async (force = false, showLoading = false): Promise<boolean> => {
+      loadAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
+      if (showLoading) setFetchState((prev) => ({ ...prev, loading: true }));
       try {
         const url = `/api/vn/${vnId}/erogamescape${force ? '?refresh=1' : ''}`;
-        const r = await fetch(url, { cache: 'no-store', signal });
+        const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        const d = (await r.json()) as { game: EgsGame | null; source: Source };
-        if (signal?.aborted) return;
+        const d = decodeVnEgsGameSnapshot(await r.json());
+        if (!d) throw new Error(t.common.error);
+        if (controller.signal.aborted || loadAbortRef.current !== controller) return false;
         setFetchState((prev) => ({ ...prev, game: d.game, source: d.source }));
         setError(null);
+        return true;
       } catch (e) {
-        if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+        if ((e as Error).name === 'AbortError' || controller.signal.aborted || loadAbortRef.current !== controller) {
+          return false;
+        }
         setError((e as Error).message);
+        return false;
+      } finally {
+        if (loadAbortRef.current === controller) {
+          loadAbortRef.current = null;
+          if (showLoading) setFetchState((prev) => ({ ...prev, loading: false }));
+        }
       }
     },
     [vnId, t.common.error],
   );
 
   useEffect(() => {
-    // Only auto-fetch when the server didn't pre-hydrate us.
-    if (initialGame !== null || initialSource !== null) return;
-    const ctrl = new AbortController();
-    setFetchState((prev) => ({ ...prev, loading: true }));
-    load(false, ctrl.signal).finally(() => {
-      if (!ctrl.signal.aborted) setFetchState((prev) => ({ ...prev, loading: false }));
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    operationInFlightRef.current = false;
+    setFetchState({
+      loading: initialGame === null && initialSource === null,
+      game: initialGame,
+      source: initialSource,
     });
-    return () => ctrl.abort();
-  }, [load, initialGame, initialSource]);
+    setError(null);
+    setPickerOpen(false);
+    setRefreshing(false);
+    setUnlinking(false);
+    if (initialGame === null && initialSource === null) void load(false, true);
+    return () => {
+      mountedRef.current = false;
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [load, vnId, initialGame, initialSource]);
 
   async function onRefresh() {
+    if (operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
+    const ownerVnId = vnId;
     setRefreshing(true);
     try {
-      await load(true);
+      const refreshed = await load(true);
+      if (!refreshed || !ownsPanel(ownerVnId)) return;
       toast.success(t.toast.saved);
       window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
       startTransition(() => router.refresh());
     } finally {
-      setRefreshing(false);
+      if (identityRef.current === ownerVnId) {
+        operationInFlightRef.current = false;
+        if (mountedRef.current) setRefreshing(false);
+      }
     }
   }
 
   async function onUnlink() {
-    const ok = await confirm({ message: t.egs.unlinkConfirm, tone: 'danger' });
-    if (!ok) return;
+    if (operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
     setUnlinking(true);
     try {
-      await fetch(`/api/vn/${vnId}/erogamescape`, { method: 'DELETE' });
+      const ok = await confirm({ message: t.egs.unlinkConfirm, tone: 'danger' });
+      if (!ok || !ownsPanel(ownerVnId) || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+      const r = await fetch(`/api/vn/${vnId}/erogamescape`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsPanel(ownerVnId) || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setFetchState((prev) => ({ ...prev, game: null, source: null }));
       toast.success(t.toast.removed);
       window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
       startTransition(() => router.refresh());
     } catch (e) {
+      if (
+        (e as Error).name === 'AbortError' ||
+        !ownsPanel(ownerVnId) ||
+        mutationAbortRef.current !== controller ||
+        controller.signal.aborted
+      ) return;
       toast.error((e as Error).message);
     } finally {
-      setUnlinking(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
-  function onPicked(picked: EgsGame, pickedSource: Source) {
+  function onPicked(picked: EgsPanelGame, pickedSource: Source) {
+    if (!ownsPanel(vnId)) return;
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
     setFetchState((prev) => ({ ...prev, game: picked, source: pickedSource }));
     setPickerOpen(false);
     window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
@@ -199,8 +268,9 @@ export function EgsPanel({
       </div>
     );
   }
+  const operationBusy = refreshing || unlinking;
 
-  // ----- Empty / no-match branch — still surface the manual search affordance -----
+  // ----- Empty / no-match branch - still surface the manual search affordance -----
   if (!game) {
     return (
       <>
@@ -210,7 +280,7 @@ export function EgsPanel({
               <button
                 type="button"
                 onClick={onRefresh}
-                disabled={refreshing}
+                disabled={operationBusy}
                 className="btn btn-xs"
                 title={t.egs.refresh}
               >
@@ -220,6 +290,7 @@ export function EgsPanel({
               <button
                 type="button"
                 onClick={() => setPickerOpen(true)}
+                disabled={operationBusy}
                 className="btn btn-xs"
               >
                 <Search className="h-3 w-3" aria-hidden />
@@ -249,6 +320,7 @@ export function EgsPanel({
   const egsPt = fmtMinutes(game.playtime_median_minutes, locale, t.year);
   const vndbPt = fmtMinutes(vndbLengthMinutes, locale, t.year);
   const sumPt = fmtMinutes(totalPlaytime || null, locale, t.year);
+  const gameHref = safeHref(game.url);
 
   return (
     <>
@@ -267,17 +339,20 @@ export function EgsPanel({
             )}
           </div>
           <div className="flex items-center gap-1">
-            <a
-              href={game.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
-            >
-              <ExternalLink className="h-3 w-3" /> {t.egs.openOnEgs}
-            </a>
+            {gameHref && (
+              <a
+                href={gameHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden /> {t.egs.openOnEgs}
+              </a>
+            )}
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
+              disabled={operationBusy}
               className="btn btn-xs"
               title={t.egs.changeLink}
             >
@@ -286,8 +361,8 @@ export function EgsPanel({
             <button
               type="button"
               onClick={onRefresh}
-              disabled={refreshing}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+              disabled={operationBusy}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
               title={t.egs.refresh}
             >
               <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
@@ -295,8 +370,8 @@ export function EgsPanel({
             <button
               type="button"
               onClick={onUnlink}
-              disabled={unlinking}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
+              disabled={operationBusy}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 sm:min-h-0"
               title={t.egs.unlink}
             >
               {unlinking ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
@@ -307,7 +382,7 @@ export function EgsPanel({
         <div className="mb-2 line-clamp-2 text-sm font-semibold" title={game.gamename}>{game.gamename}</div>
 
         {/*
-          Clickable metadata strip — brand and release year are first-
+          Clickable metadata strip - brand and release year are first-
           class tokens on every EGS surface now. The brand chip routes
           to the matching `/producer/<id>` when the EGS row carries a
           VNDB-mapped producer id; otherwise it falls back to a name
@@ -322,7 +397,7 @@ export function EgsPanel({
               return href ? (
                 <Link
                   href={href}
-                  className="inline-flex items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
                   title={game.brand_name}
                 >
                   {game.brand_name}
@@ -336,7 +411,7 @@ export function EgsPanel({
               return href ? (
                 <Link
                   href={href}
-                  className="inline-flex items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 tabular-nums text-muted hover:border-accent hover:text-accent"
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 tabular-nums text-muted hover:border-accent hover:text-accent sm:min-h-0"
                 >
                   {game.sellday.slice(0, 4)}
                 </Link>
@@ -349,25 +424,25 @@ export function EgsPanel({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat
-            icon={<Star className="h-3 w-3" />}
+            icon={<Star className="h-3 w-3" aria-hidden />}
             label={t.egs.median}
-            value={game.median != null ? `${game.median} / 100` : '—'}
+            value={game.median != null ? `${game.median} / 100` : '-'}
             tone="accent"
           />
           <Stat
-            icon={<Star className="h-3 w-3" />}
+            icon={<Star className="h-3 w-3" aria-hidden />}
             label={t.egs.average}
-            value={game.average != null ? fmtNum(game.average, locale, 1) : '—'}
+            value={game.average != null ? fmtNum(game.average, locale, 1) : '-'}
           />
           <Stat
-            icon={<Users className="h-3 w-3" />}
+            icon={<Users className="h-3 w-3" aria-hidden />}
             label={t.egs.voteCount}
-            value={game.count != null ? fmtNum(game.count, locale) : '—'}
+            value={game.count != null ? fmtNum(game.count, locale) : '-'}
           />
           <Stat
-            icon={<Clock className="h-3 w-3" />}
+            icon={<Clock className="h-3 w-3" aria-hidden />}
             label={t.egs.playtimeMedian}
-            value={egsPt ?? '—'}
+            value={egsPt ?? '-'}
           />
         </div>
 
@@ -375,12 +450,12 @@ export function EgsPanel({
           <div className="mt-4 grid gap-3 rounded-lg border border-border bg-bg-elev/40 p-3 sm:grid-cols-3">
             <Stat
               label={t.egs.vndbRating}
-              value={vndbRating != null ? `${fmtNum(vndbRating / 10, locale, 1)} / 10` : '—'}
+              value={vndbRating != null ? `${fmtNum(vndbRating / 10, locale, 1)} / 10` : '-'}
               hint={vndbVoteCount != null ? `${fmtNum(vndbVoteCount, locale)} ${t.egs.votes}` : undefined}
             />
             <Stat
               label={t.egs.egsRating}
-              value={game.median != null ? `${game.median} / 100` : '—'}
+              value={game.median != null ? `${game.median} / 100` : '-'}
               hint={game.count != null ? `${fmtNum(game.count, locale)} ${t.egs.votes}` : undefined}
             />
             {combined != null && (
@@ -397,7 +472,7 @@ export function EgsPanel({
         {(myPt || egsPt || vndbPt || sumPt) && (
           <div className="mt-4">
             <div className="mb-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
-              <Clock className="h-3 w-3" /> {t.egs.playtimeTitle}
+              <Clock className="h-3 w-3" aria-hidden /> {t.egs.playtimeTitle}
             </div>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
               {vndbPt && <span><b className="text-white">{vndbPt}</b> <span className="text-muted">{t.egs.playtimeVndb}</span></span>}
@@ -460,7 +535,7 @@ function EgsPicker({
   vnId: string;
   initialQuery: string;
   onClose: () => void;
-  onPicked: (game: EgsGame, source: Source) => void;
+  onPicked: (game: EgsPanelGame, source: Source) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -470,53 +545,88 @@ function EgsPicker({
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const linkAbortRef = useRef<AbortController | null>(null);
+  const linkInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
   const titleId = useId();
   useDialogA11y({ open: true, onClose, panelRef });
 
-  const run = useCallback(async (signal?: AbortSignal) => {
+  const run = useCallback(async () => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
     const q = query.trim();
     if (!q) {
       setCandidates([]);
+      setLoading(false);
       return;
     }
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     setLoading(true);
     try {
-      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`, { cache: 'no-store', signal });
+      const r = await fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=20`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { candidates: EgsCandidate[] };
-      setCandidates(d.candidates);
+      const candidates = decodeEgsSearchCandidates(await r.json());
+      if (!candidates) throw new Error(t.common.error);
+      if (controller.signal.aborted || searchAbortRef.current !== controller) return;
+      setCandidates(candidates);
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || searchAbortRef.current !== controller) {
+        return;
+      }
       toast.error((e as Error).message);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [query, t.common.error, toast]);
 
   useEffect(() => {
-    if (!initialQuery.trim()) return;
-    const ctrl = new AbortController();
-    run(ctrl.signal);
-    return () => ctrl.abort();
+    if (initialQuery.trim()) void run();
+    return () => {
+      mountedRef.current = false;
+      searchAbortRef.current?.abort();
+      searchAbortRef.current = null;
+      linkAbortRef.current?.abort();
+      linkAbortRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function link(c: EgsCandidate) {
+    if (linkInFlightRef.current) return;
+    linkInFlightRef.current = true;
+    const controller = new AbortController();
+    linkAbortRef.current = controller;
     setLinking(c.id);
     try {
       const r = await fetch(`/api/vn/${vnId}/erogamescape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ egs_id: c.id }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { game: EgsGame; source: Source };
+      const d = decodeVnEgsGameSnapshot(await r.json());
+      if (!d?.game) throw new Error(t.common.error);
+      if (controller.signal.aborted || !mountedRef.current || linkAbortRef.current !== controller) return;
       onPicked(d.game, d.source);
       toast.success(t.toast.saved);
     } catch (e) {
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || !mountedRef.current || linkAbortRef.current !== controller) return;
       toast.error((e as Error).message);
     } finally {
-      setLinking(null);
+      if (linkAbortRef.current === controller) {
+        linkAbortRef.current = null;
+        linkInFlightRef.current = false;
+        if (mountedRef.current) setLinking(null);
+      }
     }
   }
 
@@ -547,7 +657,7 @@ function EgsPicker({
             className="tap-target inline-flex items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
             aria-label={t.common.close}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
         <p className="mb-3 text-xs text-muted">{t.egs.searchHint}</p>
@@ -559,7 +669,7 @@ function EgsPicker({
           }}
         >
           <input
-            className="input flex-1"
+            className="input min-h-[44px] flex-1"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.egs.searchPlaceholder}
@@ -567,7 +677,7 @@ function EgsPicker({
             autoFocus
           />
           <button type="submit" className="btn btn-primary" disabled={loading || !query.trim()}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Search className="h-4 w-4" />}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Search className="h-4 w-4" aria-hidden />}
             {t.egs.searchAction}
           </button>
         </form>
@@ -591,7 +701,7 @@ function EgsPicker({
                     {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                     {c.median != null && (
                       <span className="inline-flex items-center gap-0.5 text-accent">
-                        <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}
+                        <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {c.median}
                       </span>
                     )}
                     {c.count != null && <span>{fmtNum(c.count, locale)} {t.egs.votes}</span>}
@@ -603,7 +713,7 @@ function EgsPicker({
                   onClick={() => link(c)}
                   disabled={linking != null}
                 >
-                  {linking === c.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
+                  {linking === c.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" aria-hidden />}
                   {t.egs.linkAction}
                 </button>
               </li>

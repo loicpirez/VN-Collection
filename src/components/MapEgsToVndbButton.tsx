@@ -17,19 +17,12 @@ import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
-interface SearchHit {
-  id: string;
-  title: string;
-  released: string | null;
-  developers?: { id: string; name: string }[];
-}
-
-interface ManualLink {
-  egs_id: number;
-  vn_id: string | null;
-  note: string | null;
-  updated_at: number;
-}
+import {
+  decodeEgsVndbManualLink,
+  decodeVndbPickerResults,
+  type EgsVndbManualLink,
+  type VndbPickerHit,
+} from '@/lib/search-client-shape';
 
 /**
  * Map an EGS row (anticipated / top-ranked / unlinked) to a VNDB id without
@@ -42,7 +35,7 @@ interface ManualLink {
  * - Reset clears the override, returning to whatever EGS records natively.
  *
  * The companion synthetic-VN promotion flow is still available via
- * `<LinkToVndbButton>` on /vn/egs_NNN pages — that one re-keys local rows.
+ * `<LinkToVndbButton>` on /vn/egs_NNN pages - that one re-keys local rows.
  * This component is the lighter, listing-page-friendly variant.
  */
 export function MapEgsToVndbButton({
@@ -64,33 +57,43 @@ export function MapEgsToVndbButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(gamename);
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [hits, setHits] = useState<VndbPickerHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | 'reset' | 'none' | null>(null);
-  const [link, setLink] = useState<ManualLink | null>(null);
+  const [link, setLink] = useState<EgsVndbManualLink | null>(null);
+  const identity = `${egsId}|${gamename}|${vndbId ?? ''}`;
+  const identityRef = useRef<string | null>(identity);
+  const hydrationAbortRef = useRef<AbortController | null>(null);
+  const mutationRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
   // Pull current mapping state when the modal opens.
   useEffect(() => {
     if (!open) return;
     const ac = new AbortController();
+    hydrationAbortRef.current?.abort();
+    hydrationAbortRef.current = ac;
+    const ownerIdentity = identity;
     (async () => {
       try {
         const r = await fetch(`/api/egs/${egsId}/vndb`, { cache: 'no-store', signal: ac.signal });
         if (!r.ok) return;
-        const d = (await r.json()) as { link: ManualLink | null };
-        setLink(d.link);
+        const link = decodeEgsVndbManualLink(await r.json());
+        if (ac.signal.aborted || identityRef.current !== ownerIdentity || hydrationAbortRef.current !== ac) return;
+        if (link !== undefined) setLink(link);
       } catch {
         // Aborted on close; ignore.
       }
     })();
     return () => ac.abort();
-  }, [open, egsId]);
+  }, [open, egsId, identity]);
 
   // Abort the in-flight search whenever the user types again or the
   // dialog closes; otherwise an older, slower response can stamp the
   // hit list with stale results.
   const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
+    if (identityRef.current !== identity) return;
     const trimmed = q.trim();
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
@@ -109,15 +112,43 @@ export function MapEgsToVndbButton({
         signal: ac.signal,
       });
       if (!r.ok || ac.signal.aborted) return;
-      const d = (await r.json()) as { results?: SearchHit[] };
-      if (ac.signal.aborted) return;
-      setHits((d.results ?? []).slice(0, 30));
+      const results = decodeVndbPickerResults(await r.json());
+      if (ac.signal.aborted || identityRef.current !== identity) return;
+      if (results) setHits(results.slice(0, 30));
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      if (!ac.signal.aborted) setSearching(false);
+      if (searchAbortRef.current === ac && identityRef.current === identity) {
+        searchAbortRef.current = null;
+        setSearching(false);
+      }
     }
-  }, []);
+  }, [identity]);
+
+  useEffect(() => {
+    identityRef.current = identity;
+    mutationRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    hydrationAbortRef.current?.abort();
+    hydrationAbortRef.current = null;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setOpen(false);
+    setQuery(gamename);
+    setHits([]);
+    setSearching(false);
+    setBusy(null);
+    setLink(null);
+    return () => {
+      identityRef.current = null;
+      mutationRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      hydrationAbortRef.current?.abort();
+      searchAbortRef.current?.abort();
+    };
+  }, [identity, gamename]);
 
   const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
 
@@ -126,34 +157,53 @@ export function MapEgsToVndbButton({
     debouncedSearch(query);
   }, [open, query, debouncedSearch]);
 
+  useEffect(() => {
+    if (open) return;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setSearching(false);
+  }, [open]);
+
   // Cancel any in-flight search when the dialog unmounts.
   useEffect(() => () => {
     if (searchAbortRef.current) searchAbortRef.current.abort();
   }, []);
 
   async function pin(vndbIdToSet: string | null, label: string | 'reset' | 'none') {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    const ownerIdentity = identity;
     setBusy(label);
     try {
       let r: Response;
       if (label === 'reset') {
-        r = await fetch(`/api/egs/${egsId}/vndb`, { method: 'DELETE' });
+        r = await fetch(`/api/egs/${egsId}/vndb`, { method: 'DELETE', signal: controller.signal });
       } else {
         r = await fetch(`/api/egs/${egsId}/vndb`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vndb_id: vndbIdToSet }),
+          signal: controller.signal,
         });
       }
       if (!r.ok) {
         throw new Error(await readApiError(r, t.common.error));
       }
+      if (identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.mapEgs.savedToast);
       setOpen(false);
       router.refresh();
     } catch (e) {
-      toast.error((e as Error).message);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -162,10 +212,10 @@ export function MapEgsToVndbButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="icon-chip tap-target-tight inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent"
+        className="icon-chip inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent sm:min-h-0"
         title={t.mapEgs.title}
       >
-        <Link2 className="h-3 w-3" />
+        <Link2 className="h-3 w-3" aria-hidden />
         <span>{vndbId ? t.mapEgs.editCta : t.mapEgs.cta}</span>
       </button>
     ) : (
@@ -175,7 +225,7 @@ export function MapEgsToVndbButton({
         className="btn btn-primary btn-xs"
         title={t.mapEgs.title}
       >
-        <Link2 className="h-3.5 w-3.5" />
+        <Link2 className="h-3.5 w-3.5" aria-hidden />
         <span>{vndbId ? t.mapEgs.editCta : t.mapEgs.cta}</span>
       </button>
     );
@@ -185,7 +235,7 @@ export function MapEgsToVndbButton({
       {trigger}
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => { if (busy == null) setOpen(false); }}
         title={t.mapEgs.title}
         hideTitleVisually
         panelClassName="w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto p-4 sm:p-5"
@@ -195,20 +245,21 @@ export function MapEgsToVndbButton({
               <div className="min-w-0 flex-1">
                 <h2 className="text-base font-bold">{t.mapEgs.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapEgs.hint}</p>
-                <p className="mt-1 truncate text-[11px]" title={`EGS · #${egsId} · ${gamename}`}>
-                  <span className="text-muted">EGS · </span>
+                <p className="mt-1 truncate text-[11px]" title={`EGS / #${egsId} / ${gamename}`}>
+                  <span className="text-muted">EGS / </span>
                   <span className="font-mono">#{egsId}</span>
-                  <span className="text-muted"> · </span>
+                  <span className="text-muted"> / </span>
                   <span className="font-medium">{gamename}</span>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
+                disabled={busy != null}
                 aria-label={t.common.close}
-                className="tap-target inline-flex items-center justify-center rounded p-1 text-muted hover:text-white"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white sm:min-h-0 sm:min-w-0"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
 
@@ -218,7 +269,7 @@ export function MapEgsToVndbButton({
                   <span className="text-muted">{t.mapEgs.currentStatus}:</span>
                   {link.vn_id ? (
                     <span className="inline-flex items-center gap-1 text-accent">
-                      <Link2 className="h-3 w-3" />
+                      <Link2 className="h-3 w-3" aria-hidden />
                       <a
                         href={`/vn/${link.vn_id}`}
                         target="_blank"
@@ -231,7 +282,7 @@ export function MapEgsToVndbButton({
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-status-dropped">
-                      <CircleAlert className="h-3 w-3" />
+                      <CircleAlert className="h-3 w-3" aria-hidden />
                       {t.mapEgs.pinnedNone}
                     </span>
                   )}
@@ -244,7 +295,7 @@ export function MapEgsToVndbButton({
                     {busy === 'reset' ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     ) : (
-                      <Link2Off className="h-3 w-3" />
+                      <Link2Off className="h-3 w-3" aria-hidden />
                     )}
                     {t.mapEgs.reset}
                   </button>
@@ -260,6 +311,7 @@ export function MapEgsToVndbButton({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                disabled={busy != null}
                 placeholder={t.mapEgs.searchPlaceholder}
                 aria-label={t.mapEgs.searchPlaceholder}
                 className="input w-full pl-7 text-xs"
@@ -298,7 +350,7 @@ export function MapEgsToVndbButton({
                     title={t.mapEgs.openVndb}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
                   <button
                     type="button"
@@ -309,7 +361,7 @@ export function MapEgsToVndbButton({
                     {busy === h.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     ) : (
-                      <Link2 className="h-3 w-3" />
+                      <Link2 className="h-3 w-3" aria-hidden />
                     )}
                     {t.mapEgs.useThis}
                   </button>
@@ -328,7 +380,7 @@ export function MapEgsToVndbButton({
                 {busy === 'none' ? (
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 ) : (
-                  <Link2Off className="h-3 w-3" />
+                  <Link2Off className="h-3 w-3" aria-hidden />
                 )}
                 {t.mapEgs.pinNoVndb}
               </button>

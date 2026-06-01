@@ -17,18 +17,12 @@ import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { useDebouncedCallback } from '@/lib/hooks';
 
 import { readApiError } from '@/lib/api-error-read';
-interface EgsCandidate {
-  id: number;
-  gamename: string;
-  median: number | null;
-  count: number | null;
-  sellday: string | null;
-}
-
-interface MappingState {
-  egs_id: number | null;
-  source: 'manual' | 'manual-none' | 'extlink' | 'search' | null;
-}
+import type { EgsCandidate } from '@/lib/erogamescape';
+import {
+  decodeEgsSearchCandidates,
+  decodeVnEgsMappingState,
+  type VnEgsMappingState,
+} from '@/lib/search-client-shape';
 
 /**
  * Map a VNDB VN to an EGS entry without leaving the page.
@@ -63,37 +57,40 @@ export function MapVnToEgsButton({
   const [candidates, setCandidates] = useState<EgsCandidate[]>([]);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<number | 'reset' | 'none' | null>(null);
-  const [state, setState] = useState<MappingState | null>(null);
+  const [state, setState] = useState<VnEgsMappingState | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const identity = `${vnId}|${seedQuery}`;
+  const identityRef = useRef<string | null>(identity);
+  const hydrationAbortRef = useRef<AbortController | null>(null);
+  const mutationRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
-  useDialogA11y({ open, onClose: () => setOpen(false), panelRef });
+  useDialogA11y({ open, onClose: () => { if (!mutationRef.current) setOpen(false); }, panelRef });
 
   useEffect(() => {
     if (!open) return;
     const ac = new AbortController();
+    hydrationAbortRef.current?.abort();
+    hydrationAbortRef.current = ac;
+    const ownerIdentity = identity;
     (async () => {
       try {
         const r = await fetch(`/api/vn/${vnId}/erogamescape?search=0`, { cache: 'no-store', signal: ac.signal });
         if (!r.ok) return;
-        const d = (await r.json()) as {
-          game: { id?: number } | null;
-          source: MappingState['source'];
-          manual: { egs_id: number | null } | null;
-        };
-        setState({
-          egs_id: d.manual?.egs_id ?? d.game?.id ?? null,
-          source: d.source,
-        });
+        const state = decodeVnEgsMappingState(await r.json());
+        if (ac.signal.aborted || identityRef.current !== ownerIdentity || hydrationAbortRef.current !== ac) return;
+        if (state) setState(state);
       } catch {
         return;
       }
     })();
     return () => ac.abort();
-  }, [open, vnId]);
+  }, [open, vnId, identity]);
 
   const searchAbortRef = useRef<AbortController | null>(null);
   const search = useCallback(async (q: string) => {
+    if (identityRef.current !== identity) return;
     const trimmed = q.trim();
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
@@ -112,16 +109,43 @@ export function MapVnToEgsButton({
         signal: ac.signal,
       });
       if (!r.ok || ac.signal.aborted) return;
-      const d = (await r.json()) as { candidates?: EgsCandidate[] };
-      if (ac.signal.aborted) return;
-      setCandidates(d.candidates ?? []);
-      if (searchAbortRef.current === ac) searchAbortRef.current = null;
+      const candidates = decodeEgsSearchCandidates(await r.json());
+      if (ac.signal.aborted || identityRef.current !== identity) return;
+      if (candidates) setCandidates(candidates);
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
     } finally {
-      if (!ac.signal.aborted) setSearching(false);
+      if (searchAbortRef.current === ac && identityRef.current === identity) {
+        searchAbortRef.current = null;
+        setSearching(false);
+      }
     }
-  }, []);
+  }, [identity]);
+
+  useEffect(() => {
+    identityRef.current = identity;
+    mutationRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    hydrationAbortRef.current?.abort();
+    hydrationAbortRef.current = null;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setOpen(false);
+    setQuery(seedQuery);
+    setCandidates([]);
+    setSearching(false);
+    setBusy(null);
+    setState(null);
+    return () => {
+      identityRef.current = null;
+      mutationRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      hydrationAbortRef.current?.abort();
+      searchAbortRef.current?.abort();
+    };
+  }, [identity, seedQuery]);
 
   const debouncedSearch = useDebouncedCallback((q: string) => void search(q), 300);
 
@@ -129,6 +153,13 @@ export function MapVnToEgsButton({
     if (!open) return;
     debouncedSearch(query);
   }, [open, query, debouncedSearch]);
+
+  useEffect(() => {
+    if (open) return;
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    setSearching(false);
+  }, [open]);
 
   useEffect(() => () => {
     if (searchAbortRef.current) {
@@ -138,34 +169,48 @@ export function MapVnToEgsButton({
   }, []);
 
   async function pin(action: { egsId: number } | 'none' | 'reset', label: number | 'reset' | 'none') {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    const ownerIdentity = identity;
     setBusy(label);
     try {
       let r: Response;
       if (action === 'reset') {
         r = await fetch(`/api/vn/${vnId}/erogamescape?mode=clear-manual`, {
           method: 'DELETE',
+          signal: controller.signal,
         });
       } else if (action === 'none') {
         r = await fetch(`/api/vn/${vnId}/erogamescape?mode=manual-none`, {
           method: 'DELETE',
+          signal: controller.signal,
         });
       } else {
         r = await fetch(`/api/vn/${vnId}/erogamescape`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ egs_id: action.egsId }),
+          signal: controller.signal,
         });
       }
       if (!r.ok) {
         throw new Error(await readApiError(r, t.common.error));
       }
+      if (identityRef.current !== ownerIdentity || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.mapVn.savedToast);
       setOpen(false);
       router.refresh();
     } catch (e) {
-      toast.error((e as Error).message);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -174,17 +219,17 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="icon-chip tap-target-tight inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent"
+        className="icon-chip inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent sm:min-h-0"
         title={t.mapVn.title}
       >
-        <Link2 className="h-3 w-3" />
+        <Link2 className="h-3 w-3" aria-hidden />
         <span>{t.mapVn.cta}</span>
       </button>
     ) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={triggerClassName ?? 'inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white'}
+        className={triggerClassName ?? 'inline-flex min-h-[44px] w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white sm:min-h-0'}
         title={t.mapVn.title}
         {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
       >
@@ -199,7 +244,7 @@ export function MapVnToEgsButton({
       {open && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center"
-          onClick={() => setOpen(false)}
+          onClick={() => { if (busy == null) setOpen(false); }}
         >
           <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
           <div
@@ -214,20 +259,21 @@ export function MapVnToEgsButton({
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-bold">{t.mapVn.title}</h2>
                 <p className="mt-0.5 text-[11px] text-muted">{t.mapVn.hint}</p>
-                <p className="mt-1 truncate text-[11px]" title={`VN · ${vnId} · ${seedQuery}`}>
-                  <span className="text-muted">VN · </span>
+                <p className="mt-1 truncate text-[11px]" title={`VN / ${vnId} / ${seedQuery}`}>
+                  <span className="text-muted">VN / </span>
                   <span className="font-mono">{vnId}</span>
-                  <span className="text-muted"> · </span>
+                  <span className="text-muted"> / </span>
                   <span className="font-medium">{seedQuery}</span>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
+                disabled={busy != null}
                 aria-label={t.common.close}
-                className="tap-target inline-flex items-center justify-center rounded p-1 text-muted hover:text-white"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white sm:min-h-0 sm:min-w-0"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
 
@@ -237,12 +283,12 @@ export function MapVnToEgsButton({
                   <span className="text-muted">{t.mapVn.currentStatus}:</span>
                   {state.source === 'manual-none' ? (
                     <span className="inline-flex items-center gap-1 text-status-dropped">
-                      <CircleAlert className="h-3 w-3" />
+                      <CircleAlert className="h-3 w-3" aria-hidden />
                       {t.mapVn.pinnedNone}
                     </span>
                   ) : state.egs_id != null ? (
                     <span className="inline-flex items-center gap-1 text-accent">
-                      <Link2 className="h-3 w-3" />
+                      <Link2 className="h-3 w-3" aria-hidden />
                       <a
                         href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${state.egs_id}`}
                         target="_blank"
@@ -268,7 +314,7 @@ export function MapVnToEgsButton({
                       {busy === 'reset' ? (
                         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                       ) : (
-                        <Link2Off className="h-3 w-3" />
+                        <Link2Off className="h-3 w-3" aria-hidden />
                       )}
                       {t.mapVn.reset}
                     </button>
@@ -285,6 +331,7 @@ export function MapVnToEgsButton({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                disabled={busy != null}
                 placeholder={t.mapVn.searchPlaceholder}
                 aria-label={t.mapVn.searchPlaceholder}
                 className="input w-full pl-7 text-sm"
@@ -322,7 +369,7 @@ export function MapVnToEgsButton({
                     title={t.mapVn.openEgs}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
                   <button
                     type="button"
@@ -333,7 +380,7 @@ export function MapVnToEgsButton({
                     {busy === c.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                     ) : (
-                      <Link2 className="h-3 w-3" />
+                      <Link2 className="h-3 w-3" aria-hidden />
                     )}
                     {t.mapVn.useThis}
                   </button>
@@ -352,7 +399,7 @@ export function MapVnToEgsButton({
                 {busy === 'none' ? (
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 ) : (
-                  <Link2Off className="h-3 w-3" />
+                  <Link2Off className="h-3 w-3" aria-hidden />
                 )}
                 {t.mapVn.pinNoEgs}
               </button>
