@@ -2,8 +2,9 @@
  * R5-148 pin: every `/api/*` route that parses a JSON body funnels
  * through `readJsonObject(req)` from `@/lib/api-body`, which:
  *
- *   - Catches `req.json()` parse failure (missing body, malformed
+ *   - Catches JSON parse failure (missing body, malformed
  *     JSON) and returns `{}`.
+ *   - Stops reading at the shared streamed byte cap and returns `{}`.
  *   - Catches the `null` / array / primitive variants of a
  *     well-formed but non-object body and returns `{}`.
  *
@@ -20,7 +21,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readJsonObject } from '@/lib/api-body';
-import type { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -38,17 +39,19 @@ function* walkApi(dir: string): Generator<string> {
 const UNSAFE_REQ_JSON = /await\s+req\.json\(\)\.catch\(\(\)\s*=>\s*\(\{\}\)\)/;
 
 function fakeReq(body: unknown): NextRequest {
-  return {
-    json: async () => body,
-  } as unknown as NextRequest;
+  return new NextRequest('http://127.0.0.1/api/test', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 function fakeReqThrows(): NextRequest {
-  return {
-    json: async () => {
-      throw new SyntaxError('Unexpected end of JSON input');
-    },
-  } as unknown as NextRequest;
+  return new NextRequest('http://127.0.0.1/api/test', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{',
+  });
 }
 
 describe('readJsonObject — R5-148 behaviour', () => {
@@ -74,6 +77,10 @@ describe('readJsonObject — R5-148 behaviour', () => {
   it('returns {} when req.json() throws (missing / malformed body)', async () => {
     expect(await readJsonObject(fakeReqThrows())).toEqual({});
   });
+
+  it('returns {} when the streamed body exceeds the shared cap', async () => {
+    expect(await readJsonObject(fakeReq({ value: 'a'.repeat(1024 * 1024) }))).toEqual({});
+  });
 });
 
 describe('R5-148 sweep — no unsafe `(await req.json().catch(...))` survives under src/app/api/', () => {
@@ -84,5 +91,25 @@ describe('R5-148 sweep — no unsafe `(await req.json().catch(...))` survives un
       if (UNSAFE_REQ_JSON.test(src)) offenders.push(path.slice(ROOT.length + 1));
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('SECA-011 sweep — API JSON parsing stays on bounded helpers', () => {
+  it('no direct req.json() call survives under src/app/api/', () => {
+    const offenders: string[] = [];
+    for (const path of walkApi(join(ROOT, 'src/app/api'))) {
+      const src = readFileSync(path, 'utf8');
+      if (/\breq\.json\(\)/.test(src)) offenders.push(path.slice(ROOT.length + 1));
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('collection import bounds JSON and multipart streams before parsing', () => {
+    const src = readFileSync(
+      join(ROOT, 'src/app/api/collection/import/route.ts'),
+      'utf8',
+    );
+    expect(src).toContain('reparseWithLimit(req, MAX_IMPORT_BYTES)');
+    expect(src).toContain('readBodyWithLimit(req, MAX_IMPORT_BYTES)');
   });
 });

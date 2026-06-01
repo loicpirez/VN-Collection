@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { batchVnStockSummaries } from '@/lib/db';
+import { readJsonObject } from '@/lib/api-body';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const MAX_IDS = 200;
-const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
-
 /**
  * Read-only batch lookup for the VnCard stock chip.
  * Accepts either ?ids=v1,v2 in the query or POST { ids: [...] } body.
@@ -20,7 +20,8 @@ function parseIds(raw: string | string[] | null | undefined): string[] {
   return flat
     .split(',')
     .map((s) => s.trim())
-    .filter((s) => VN_ID_RE.test(s))
+    .filter(isValidVnId)
+    .map(normalizeVnId)
     .slice(0, MAX_IDS);
 }
 
@@ -38,9 +39,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  let body: unknown = null;
-  try { body = await req.json(); } catch {}
-  const raw = body && typeof body === 'object' && 'ids' in body ? (body as { ids?: unknown }).ids : null;
+  const body = await readJsonObject(req);
+  const raw = body.ids;
   const ids = parseIds(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : null);
   if (ids.length === 0) return NextResponse.json({ summary: {} });
   const map = batchVnStockSummaries(ids);

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { importData, type CollectionExportPayload } from '@/lib/db';
+import { importData } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
+import { PayloadTooLargeError, readBodyWithLimit, reparseWithLimit } from '@/lib/read-limited-body';
+import { decodeCollectionImportPayload } from '@/lib/collection-import';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,45 +38,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  let body: CollectionExportPayload;
+  let rawBody: unknown;
   const ct = req.headers.get('content-type') ?? '';
   try {
     if (ct.startsWith('multipart/form-data')) {
-      const fd = await req.formData();
+      const bounded = await reparseWithLimit(req, MAX_IMPORT_BYTES);
+      const fd = await bounded.formData();
       const file = fd.get('file');
       if (!(file instanceof File)) return NextResponse.json({ error: 'missing file' }, { status: 400 });
       if (file.size > MAX_IMPORT_BYTES) {
         return NextResponse.json({ error: 'file too large' }, { status: 413 });
       }
-      body = JSON.parse(await file.text()) as CollectionExportPayload;
+      rawBody = JSON.parse(await file.text()) as unknown;
     } else {
-      body = (await req.json()) as CollectionExportPayload;
+      const bytes = await readBodyWithLimit(req, MAX_IMPORT_BYTES);
+      rawBody = JSON.parse(bytes.toString('utf8')) as unknown;
     }
   } catch (e) {
-    console.error('[collection/import] JSON parse failed:', (e as Error).message);
+    if (e instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+    }
+    console.error('[collection/import] JSON parse failed:', e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
   }
-  if (!body || typeof body !== 'object' || !Array.isArray(body.collection) || !Array.isArray(body.vns)) {
-    return NextResponse.json({ error: 'unexpected payload shape' }, { status: 400 });
-  }
-  const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
-  const cap = 50_000; // hard ceiling per import file (one-shot user import).
-  if (body.vns.length > cap || body.collection.length > cap) {
-    return NextResponse.json(
-      { error: `import exceeds row cap (max ${cap} per table)` },
-      { status: 413 },
-    );
-  }
-  const badVn = body.vns.findIndex((v) => !v || typeof v !== 'object' || typeof (v as { id?: unknown }).id !== 'string' || !VN_ID_RE.test((v as { id: string }).id));
-  if (badVn !== -1) {
-    return NextResponse.json({ error: `vns[${badVn}].id must match v\\d+ or egs_\\d+` }, { status: 400 });
-  }
-  const badC = body.collection.findIndex((c) => !c || typeof c !== 'object' || typeof (c as { vn_id?: unknown }).vn_id !== 'string' || !VN_ID_RE.test((c as { vn_id: string }).vn_id));
-  if (badC !== -1) {
-    return NextResponse.json({ error: `collection[${badC}].vn_id must match v\\d+ or egs_\\d+` }, { status: 400 });
-  }
+  const decoded = decodeCollectionImportPayload(rawBody);
+  if (!decoded.ok) return NextResponse.json({ error: decoded.error }, { status: 400 });
   try {
-    const summary = importData(body);
+    const summary = importData(decoded.value);
     recordActivity({
       kind: 'collection.import',
       entity: 'collection',

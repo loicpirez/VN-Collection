@@ -57,4 +57,17 @@ describe('downloadToBucket raster sniffing', () => {
       downloadToBucket('https://cdn.vndb.org/cv/custom.bin', 'vnImage', 'custom'),
     ).resolves.toMatch(/\.png$/);
   });
+
+  it('redacts remote paths and queries from download errors', async () => {
+    mockSafeFetch.mockResolvedValue(new Response(null, { status: 403 }));
+    try {
+      await downloadToBucket('https://cdn.vndb.org/cv/private.jpg?token=secret', 'vnImage', 'private');
+      expect.unreachable('download should fail');
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain('https://cdn.vndb.org');
+      expect(message).not.toContain('/cv/private.jpg');
+      expect(message).not.toContain('secret');
+    }
+  });
 });

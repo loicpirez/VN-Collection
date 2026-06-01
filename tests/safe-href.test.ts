@@ -65,6 +65,15 @@ describe('safeHref — R5-124 sweep (extlink render surfaces import + call it)',
     'src/app/staff/[id]/page.tsx',
     'src/components/VnDetailActionsBar.tsx',
     'src/components/ReleasesSection.tsx',
+    'src/components/PlaceCard.tsx',
+    'src/components/PlaceBrowser.tsx',
+    'src/components/PlaceDetailClient.tsx',
+    'src/components/StockPanel.tsx',
+    'src/components/StockPhysicalLocations.tsx',
+    'src/components/MediaGallery.tsx',
+    'src/components/EgsPanel.tsx',
+    'src/components/ErogePricePanel.tsx',
+    'src/components/EgsRichDetails.tsx',
   ];
 
   for (const rel of surfaces) {

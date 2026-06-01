@@ -3,11 +3,22 @@ import { upstreamError } from '@/lib/api-error';
 import { advancedSearchVn, type AdvancedSearchOptions } from '@/lib/vndb';
 import { isInCollectionMany } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { PayloadTooLargeError, readBodyWithLimit } from '@/lib/read-limited-body';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const VALID_SORTS = new Set(['searchrank', 'rating', 'votecount', 'released', 'title']);
+const MAX_JSON_BYTES = 64 * 1024;
+const MAX_MULTI_VALUES = 32;
+const INTEGER_KEYS: ReadonlySet<string> = new Set([
+  'lengthMin',
+  'lengthMax',
+  'yearMin',
+  'yearMax',
+  'results',
+  'page',
+]);
 
 /**
  * Build an `AdvancedSearchOptions` from `unknown`, rejecting anything
@@ -27,10 +38,14 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
   for (const key of ['langs', 'platforms'] as const) {
     if (key in r) {
       const v = r[key];
-      if (!Array.isArray(v) || v.some((s) => typeof s !== 'string' || (s as string).length > 16)) {
+      if (
+        !Array.isArray(v)
+        || v.length > MAX_MULTI_VALUES
+        || v.some((s) => typeof s !== 'string' || s.length === 0 || s.length > 16)
+      ) {
         return { ok: false, error: `invalid ${key}` };
       }
-      out[key] = v as string[];
+      out[key] = Array.from(new Set(v));
     }
   }
   const RANGE: Record<string, { min: number; max: number }> = {
@@ -45,7 +60,13 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
   for (const key of ['lengthMin', 'lengthMax', 'yearMin', 'yearMax', 'ratingMin', 'results', 'page'] as const) {
     if (key in r) {
       const v = r[key];
-      if (typeof v !== 'number' || !Number.isFinite(v)) return { ok: false, error: `invalid ${key}` };
+      if (
+        typeof v !== 'number'
+        || !Number.isFinite(v)
+        || (INTEGER_KEYS.has(key) && !Number.isSafeInteger(v))
+      ) {
+        return { ok: false, error: `invalid ${key}` };
+      }
       const range = RANGE[key];
       const clamped = Math.max(range.min, Math.min(range.max, v));
       out[key] = clamped;
@@ -69,8 +90,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   let raw: unknown;
   try {
-    raw = await req.json();
-  } catch {
+    const body = await readBodyWithLimit(req, MAX_JSON_BYTES);
+    raw = JSON.parse(body.toString('utf8')) as unknown;
+  } catch (err) {
+    if (err instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+    }
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
   }
   const parsed = parseAdvancedBody(raw);

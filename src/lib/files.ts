@@ -4,6 +4,7 @@ import { extname, basename, normalize } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { safeFetch } from '@/lib/safe-fetch';
+import { sanitizeErrorMessage } from '@/lib/api-error-sanitize';
 
 // String-concat instead of `path.resolve(process.cwd(), …)` so
 // Turbopack's NFT (Node File Tracing) static analyzer doesn't drag
@@ -181,7 +182,7 @@ export async function downloadToBucket(
   // influence via /api/collection/import. Block everything not on
   // the shared allowlist before we touch the network.
   if (!isAllowedHttpTarget(url)) {
-    throw new Error(`download blocked by host allowlist: ${url}`);
+    throw new Error(sanitizeErrorMessage(`download blocked by host allowlist: ${url}`));
   }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -191,7 +192,7 @@ export async function downloadToBucket(
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) throw new Error(`download ${url} -> ${res.status}`);
+  if (!res.ok) throw new Error(sanitizeErrorMessage(`download ${url} -> ${res.status}`));
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const cl = res.headers.get('content-length');
   if (cl && parseInt(cl, 10) > MAX_IMAGE_BYTES) {

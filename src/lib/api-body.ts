@@ -1,5 +1,8 @@
 import 'server-only';
 import type { NextRequest } from 'next/server';
+import { readBodyWithLimit } from './read-limited-body';
+
+const MAX_JSON_BODY_BYTES = 1024 * 1024;
 
 /**
  * R5-148 — consistent request body parsing.
@@ -19,14 +22,15 @@ import type { NextRequest } from 'next/server';
  *     (they want a 400 with an explanation).
  *
  * `readJsonObject(req)` normalises both into a plain `Record<string,
- * unknown>` (empty object if the body is missing / `null` / not an
- * object) so the caller can safely narrow each field with `typeof`
- * checks before using it.
+ * unknown>` (empty object if the body is missing / oversized / `null`
+ * / not an object) so the caller can safely narrow each field with
+ * `typeof` checks before using it.
  */
 export async function readJsonObject(req: NextRequest): Promise<Record<string, unknown>> {
   let parsed: unknown;
   try {
-    parsed = await req.json();
+    const body = await readBodyWithLimit(req, MAX_JSON_BODY_BYTES);
+    parsed = JSON.parse(body.toString('utf8')) as unknown;
   } catch {
     return {};
   }
