@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ProviderId, ProxyConfig } from './proxy-config';
 import { buildProxyUrl, resolveProxyConfig, resolveStockProviderProxy } from './proxy-config';
 import { safeFetch } from './safe-fetch';
+import { isAllowedHttpTarget, resolveAndCheckHostname } from './url-allowlist';
 
 const directFetchStore = new AsyncLocalStorage<boolean>();
 
@@ -130,6 +131,7 @@ function performProxyRequest(
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const BODYLESS_RESPONSE_STATUSES = new Set([204, 205, 304]);
 const MAX_PROXY_REDIRECTS = 20;
 
 /**
@@ -140,6 +142,26 @@ const MAX_PROXY_REDIRECTS = 20;
  * `safeFetch` to re-resolve and re-pin every redirect hop to a validated IP.
  */
 export type HopResolver = (hopUrl: string) => Promise<{ agent: Agent; servername?: string }>;
+
+/**
+ * Builds a proxy-agent hop resolver that rejects off-allowlist URLs and hosts
+ * resolving to private addresses before each request is sent to the proxy.
+ * Proxy-resolved sockets cannot be IP-pinned locally, so this resolver keeps
+ * the trusted target boundary explicit for the initial URL and every redirect.
+ *
+ * @param agent Proxy agent reused for validated hops.
+ * @returns Hop resolver for {@link nodeAgentFetch}.
+ */
+export function createProxyHopResolver(agent: Agent): HopResolver {
+  return async (hopUrl) => {
+    if (!isAllowedHttpTarget(hopUrl)) {
+      throw new Error('proxy-fetch: blocked by host allowlist');
+    }
+    const { hostname } = new URL(hopUrl);
+    await resolveAndCheckHostname(hostname);
+    return { agent };
+  };
+}
 
 /**
  * Execute an HTTP/HTTPS request through a Node.js HTTP agent (proxy agent),
@@ -210,7 +232,10 @@ export async function nodeAgentFetch(
         responseHeaders.set(key, val);
       }
     }
-    return new Response(body, { status: res.statusCode, headers: responseHeaders });
+    const responseBody = method === 'HEAD' || BODYLESS_RESPONSE_STATUSES.has(res.statusCode)
+      ? null
+      : body;
+    return new Response(responseBody, { status: res.statusCode, headers: responseHeaders });
   }
 }
 
@@ -252,7 +277,7 @@ export async function providerFetch(
   const config = resolveProxyConfig(provider);
   if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
-  return nodeAgentFetch(url, init, agent);
+  return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));
 }
 
 /**
@@ -269,5 +294,5 @@ export async function stockProviderFetch(
   const config = resolveStockProviderProxy(providerId);
   if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
-  return nodeAgentFetch(url, init, agent);
+  return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));
 }

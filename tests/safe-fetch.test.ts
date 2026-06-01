@@ -56,6 +56,7 @@ vi.mock('node:http', async (importOriginal) => {
 
 import { resolve4, resolve6 } from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
+import { Agent } from 'node:http';
 
 const mockResolve4 = vi.mocked(resolve4);
 const mockResolve6 = vi.mocked(resolve6);
@@ -166,5 +167,96 @@ describe('safeFetch — SSRF pinning (R5-SEC-012)', () => {
     expect(runLookup(captured[0].options.agent).firstAddress).toBe('82.192.72.172');
     expect(captured[1].options.hostname).toBe('cdn.vndb.org');
     expect(runLookup(captured[1].options.agent).firstAddress).toBe('104.18.0.7');
+  });
+});
+
+describe('proxy hop validation', () => {
+  it('rejects an off-allowlist initial proxy target before opening a socket', async () => {
+    mockResolve4.mockResolvedValue(['93.184.216.34']);
+    mockResolve6.mockResolvedValue([]);
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    await expect(
+      nodeAgentFetch('https://evil.example.com/x', {}, undefined, createProxyHopResolver(proxyAgent)),
+    ).rejects.toThrow(/host allowlist/);
+    expect(captured).toHaveLength(0);
+  });
+
+  it('rejects an allowlisted initial proxy target resolving to a private IP before opening a socket', async () => {
+    mockResolve4.mockResolvedValue(['10.0.0.5']);
+    mockResolve6.mockResolvedValue([]);
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/kana/vn', {}, undefined, createProxyHopResolver(proxyAgent)),
+    ).rejects.toThrow(/private IPv4 10\.0\.0\.5/);
+    expect(captured).toHaveLength(0);
+  });
+
+  it('rejects an off-allowlist redirect before sending the second proxy request', async () => {
+    mockResolve4.mockResolvedValue(['82.192.72.172']);
+    mockResolve6.mockResolvedValue([]);
+    responseQueue.push({ statusCode: 302, headers: { location: 'https://evil.example.com/redirected' } });
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/kana/vn', {}, undefined, createProxyHopResolver(proxyAgent)),
+    ).rejects.toThrow(/host allowlist/);
+    expect(captured).toHaveLength(1);
+  });
+
+  it('rejects an allowlisted redirect resolving to a private IP before sending the second proxy request', async () => {
+    mockResolve4.mockImplementation(async (host: string) => {
+      if (host === 'api.vndb.org') return ['82.192.72.172'];
+      if (host === 'cdn.vndb.org') return ['10.0.0.5'];
+      throw new Error(`unexpected host ${host}`);
+    });
+    mockResolve6.mockResolvedValue([]);
+    responseQueue.push({ statusCode: 302, headers: { location: 'https://cdn.vndb.org/redirected' } });
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/kana/vn', {}, undefined, createProxyHopResolver(proxyAgent)),
+    ).rejects.toThrow(/private IPv4 10\.0\.0\.5/);
+    expect(captured).toHaveLength(1);
+  });
+
+  it('follows validated redirects through the same proxy agent', async () => {
+    mockResolve4.mockImplementation(async (host: string) => {
+      if (host === 'api.vndb.org') return ['82.192.72.172'];
+      if (host === 'cdn.vndb.org') return ['104.18.0.7'];
+      throw new Error(`unexpected host ${host}`);
+    });
+    mockResolve6.mockResolvedValue([]);
+    responseQueue.push({ statusCode: 302, headers: { location: 'https://cdn.vndb.org/cv/1.jpg' } });
+    responseQueue.push({ statusCode: 200, headers: {} });
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    const res = await nodeAgentFetch(
+      'https://api.vndb.org/kana/vn',
+      {},
+      undefined,
+      createProxyHopResolver(proxyAgent),
+    );
+    expect(res.status).toBe(200);
+    expect(captured).toHaveLength(2);
+    expect(captured[0].options.agent).toBe(proxyAgent);
+    expect(captured[1].options.agent).toBe(proxyAgent);
+  });
+
+  it('returns a bodyless Response for successful 204 mutations', async () => {
+    mockResolve4.mockResolvedValue(['82.192.72.172']);
+    mockResolve6.mockResolvedValue([]);
+    responseQueue.push({ statusCode: 204, headers: {} });
+    const { createProxyHopResolver, nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+    const res = await nodeAgentFetch(
+      'https://api.vndb.org/kana/ulist/v50956',
+      { method: 'PATCH', body: JSON.stringify({ labels_set: [5] }) },
+      undefined,
+      createProxyHopResolver(proxyAgent),
+    );
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
   });
 });
