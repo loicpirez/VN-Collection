@@ -687,6 +687,13 @@ describe('getProviderMeta', () => {
     expect(m?.physical).toBe(false);
   });
 
+  it('returns GEO as structured online stock without branch confirmation', () => {
+    const m = getProviderMeta('geo');
+    expect(m?.physicalStockMode).toBe('online_only');
+    expect(m?.branchParserImplemented).toBe(false);
+    expect(m?.confirmedPhysicalUsable).toBe(false);
+  });
+
   it('returns undefined for unknown id', () => {
     expect(getProviderMeta('unknown_provider' as never)).toBeUndefined();
   });

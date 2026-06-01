@@ -228,6 +228,25 @@ describe('normalizeProviderDiagnostic', () => {
     expect(diag.messageKey).toBe('yodobashiBlockedMessage');
   });
 
+  it('uses GEO online-store blocked guidance without claiming its list parser is unfinished', () => {
+    const diag = normalizeProviderDiagnostic({ id: 'geo', label: 'GEO', physicalStockMode: 'online_only' }, {
+      provider: 'geo',
+      status: 'error',
+      message: 'HTTP 403 from ec.geo-online.co.jp',
+      fetched_at: 100,
+      offer_count: 0,
+      blocked_kind: null,
+      fresh_offers_found: 0,
+      cached_offers_available: 0,
+    });
+    expect(diag.kind).toBe('blocked');
+    expect(diag.messageKey).toBe('geoBlockedMessage');
+    for (const locale of LOCALES) {
+      const diagnostics = dictionaries[locale].stock.providerDiagnostics as Record<string, string>;
+      expect(diagnostics.geoBlockedMessage).not.toMatch(/not implemented|未実装|pas encore implémenté/i);
+    }
+  });
+
   it('normalizes fetch timeout as unreachable', () => {
     const diag = normalizeProviderDiagnostic({ id: 'shop', label: 'Shop' }, {
       provider: 'shop',
@@ -274,6 +293,7 @@ describe('normalizeProviderDiagnostic', () => {
       'yodobashiUnreachableMessage',
       'joshinUnreachableMessage',
       'amiamiBlockedMessage',
+      'geoBlockedMessage',
     ];
     for (const locale of LOCALES) {
       const diagnostics = dictionaries[locale].stock.providerDiagnostics as Record<string, string>;

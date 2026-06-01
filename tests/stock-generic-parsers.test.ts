@@ -96,6 +96,31 @@ describe('parseGenericProviderPage — GEO', () => {
       location_label: 'GEO',
     });
   });
+
+  it('accepts list-item classes, extra card classes, and href before class', () => {
+    const html = `
+      <ul>
+        <li class="goodsListItem">
+          <a href="/shop/g/g515861501/" data-code="fixture" class="card sendDatalayer tracked">
+            <span class="labelNow reserve">予約受付中</span>
+            <span class="badge labelSituation new">新品</span>
+            <h3 class="line-clamp itemName compact">test 初回版</h3>
+            <div class="price sellPtnLeftPrice active"><b>7,450</b><span>円</span></div>
+          </a>
+        </li>
+      </ul>
+    `;
+    const offers = parseGenericProviderPage('geo', html, 'https://ec.geo-online.co.jp/shop/goods', TARGET);
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({
+      title: 'test 初回版',
+      url: 'https://ec.geo-online.co.jp/shop/g/g515861501/',
+      price: 7450,
+      availability: 'in_stock',
+      condition: '新品',
+      location_label: 'GEO',
+    });
+  });
 });
 
 describe('parseGenericProviderPage — Yodobashi', () => {

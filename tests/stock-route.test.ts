@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GET, POST, DELETE } from '@/app/api/vn/[id]/stock/route';
+
+vi.mock('@/lib/vndb', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/vndb')>();
+  return { ...actual, getVn: async () => null };
+});
 
 function makeReq(method: string, body?: unknown) {
   return new Request('http://localhost/api/vn/v1/stock', {
