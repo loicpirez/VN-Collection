@@ -31,3 +31,49 @@ describe('bounded VN card lookup queries', () => {
     expect(body).not.toContain('.all(...ids)');
   });
 });
+
+describe('home library request shape', () => {
+  it('coalesces identical in-flight collection requests across split sections', () => {
+    const body = source('src/components/LibraryClient.tsx');
+    expect(body).toContain('const pendingCollectionRequests = new Map<string, PendingCollectionRequest>()');
+    expect(body).toContain('function requestCollection(url: string, fallbackError: string)');
+    expect(body).toContain('activeRequest.consumers += 1');
+    expect(body).toContain('activeRequest.controller.abort()');
+    expect(body).toContain('const request = requestCollection(`/api/collection?${params}`, t.common.error)');
+    expect(body).not.toContain("fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })");
+  });
+});
+
+describe('collection producer sorting query shape', () => {
+  it('joins pre-aggregated developer and publisher names instead of scalar subqueries', () => {
+    const body = source('src/lib/db.ts');
+    const listCollectionBody = body.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
+    expect(listCollectionBody).toContain("producer: 'developer_sort.name'");
+    expect(listCollectionBody).toContain("publisher: 'publisher_sort.name'");
+    expect(listCollectionBody).toContain('SELECT di.vn_id, MIN(p.name) AS name');
+    expect(listCollectionBody).toContain('GROUP BY di.vn_id');
+    expect(listCollectionBody).toContain('SELECT pi.vn_id, MIN(p.name) AS name');
+    expect(listCollectionBody).toContain('GROUP BY pi.vn_id');
+    expect(listCollectionBody).not.toContain(
+      '(SELECT MIN(p.name) FROM vn_developer_index di LEFT JOIN producer p',
+    );
+    expect(listCollectionBody).not.toContain(
+      '(SELECT MIN(p.name) FROM vn_publisher_index pi LEFT JOIN producer p',
+    );
+  });
+});
+
+describe('collection enrichment query shape', () => {
+  it.each([
+    'listPlacesForVnsMany',
+    'listAspectKeysForVns',
+  ])('%s chunks ids before constructing placeholders', (functionName) => {
+    const body = source('src/lib/db.ts');
+    const fn = body.split(`function ${functionName}`)[1]?.split('\nfunction ')[0] ?? '';
+    expect(fn).toContain('const chunkSize = 500');
+    expect(fn).toContain('index += chunkSize');
+    expect(fn).toContain('vnIds.slice(index, index + chunkSize)');
+    expect(fn).toContain('.all(...chunk)');
+    expect(fn).not.toContain('.all(...vnIds)');
+  });
+});

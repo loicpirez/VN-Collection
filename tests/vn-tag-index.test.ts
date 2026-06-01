@@ -14,7 +14,7 @@
  */
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { addToCollection, listCollection, listKnownPlaces, setVnPublishers, updateCollection, upsertVn } from '@/lib/db';
+import { addToCollection, listCollection, listKnownPlaces, setVnPublishers, updateCollection, upsertProducer, upsertVn } from '@/lib/db';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -33,6 +33,7 @@ beforeAll(() => {
     DELETE FROM vn_developer_index;
     DELETE FROM vn_tag_index;
     DELETE FROM vn;
+    DELETE FROM producer;
   `);
 });
 
@@ -49,6 +50,7 @@ beforeEach(() => {
     DELETE FROM vn_developer_index;
     DELETE FROM vn_tag_index;
     DELETE FROM vn;
+    DELETE FROM producer;
   `);
 });
 
@@ -127,6 +129,28 @@ describe('R5-138 — listCollection filters via derived indexes', () => {
     const items = listCollection({ publisher: 'p91300' });
     expect(items.map((it) => it.id)).toContain('v9304');
     expect(listCollection({ publisher: 'p9999' }).map((it) => it.id)).not.toContain('v9304');
+  });
+
+  it('listCollection({sort: producer}) orders by the joined developer aggregate', () => {
+    upsertProducer({ id: 'p91400', name: 'Zeta developer' });
+    upsertProducer({ id: 'p91401', name: 'Alpha developer' });
+    upsertVn({ id: 'v9307', title: 'fixture-dev-zeta', developers: [{ id: 'p91400', name: 'Zeta developer' }] });
+    upsertVn({ id: 'v9308', title: 'fixture-dev-alpha', developers: [{ id: 'p91401', name: 'Alpha developer' }] });
+    addToCollection('v9307', { status: 'planning' });
+    addToCollection('v9308', { status: 'planning' });
+    expect(listCollection({ sort: 'producer', order: 'asc' }).map((it) => it.id)).toEqual(['v9308', 'v9307']);
+  });
+
+  it('listCollection({sort: publisher}) orders by the joined publisher aggregate', () => {
+    upsertProducer({ id: 'p91402', name: 'Zeta publisher' });
+    upsertProducer({ id: 'p91403', name: 'Alpha publisher' });
+    upsertVn({ id: 'v9309', title: 'fixture-pub-zeta' });
+    upsertVn({ id: 'v9310', title: 'fixture-pub-alpha' });
+    setVnPublishers('v9309', [{ id: 'p91402', name: 'Zeta publisher' }]);
+    setVnPublishers('v9310', [{ id: 'p91403', name: 'Alpha publisher' }]);
+    addToCollection('v9309', { status: 'planning' });
+    addToCollection('v9310', { status: 'planning' });
+    expect(listCollection({ sort: 'publisher', order: 'asc' }).map((it) => it.id)).toEqual(['v9310', 'v9309']);
   });
 
   it('listCollection({place}) and listKnownPlaces read from collection_place_index', () => {

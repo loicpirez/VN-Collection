@@ -31,6 +31,7 @@ import {
   parseResolutionValue,
   type AspectKey,
 } from './aspect-ratio';
+import { decodeStoredExtras, type ErogePriceExtrasV1 } from './erogeprice-meta';
 
 /**
  * Lazy resolution of the SQLite path. Both absolute and `cwd`-
@@ -815,6 +816,21 @@ function open(): Database.Database {
       vn_id      TEXT NOT NULL,
       title      TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS stock_batch_job (
+      id           TEXT PRIMARY KEY,
+      label        TEXT NOT NULL,
+      total        INTEGER NOT NULL,
+      done         INTEGER NOT NULL DEFAULT 0,
+      current_item TEXT,
+      errors_json  TEXT NOT NULL DEFAULT '[]',
+      started_at   INTEGER NOT NULL,
+      finished_at  INTEGER,
+      cancelled    INTEGER NOT NULL DEFAULT 0,
+      interrupted  INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_stock_batch_job_started
+      ON stock_batch_job(started_at DESC);
   `);
 
   // The aspect-ratio filter used to require an `owned_release` row to
@@ -3925,10 +3941,8 @@ export function listCollection({
     // ordered by release-iteration order in setVnPublishers (which
     // is fetch-order, not stable). Picking the alphabetically-first
     // entry per row makes the sort deterministic.
-    producer:
-      "(SELECT MIN(p.name) FROM vn_developer_index di LEFT JOIN producer p ON p.id = di.producer_id WHERE di.vn_id = v.id)",
-    publisher:
-      "(SELECT MIN(p.name) FROM vn_publisher_index pi LEFT JOIN producer p ON p.id = pi.producer_id WHERE pi.vn_id = v.id)",
+    producer: 'developer_sort.name',
+    publisher: 'publisher_sort.name',
     egs_rating: 'e.median',
     // Combined: VNDB rating (0-100) and EGS median (0-100), averaged.
     // When only one exists, fall back to it; nulls last regardless.
@@ -4092,6 +4106,26 @@ export function listCollection({
     where.push('sv.series_id = ?');
     params.push(series);
   }
+  if (sort === 'producer') {
+    join += `
+      LEFT JOIN (
+        SELECT di.vn_id, MIN(p.name) AS name
+        FROM vn_developer_index di
+        LEFT JOIN producer p ON p.id = di.producer_id
+        GROUP BY di.vn_id
+      ) developer_sort ON developer_sort.vn_id = v.id
+    `;
+  }
+  if (sort === 'publisher') {
+    join += `
+      LEFT JOIN (
+        SELECT pi.vn_id, MIN(p.name) AS name
+        FROM vn_publisher_index pi
+        LEFT JOIN producer p ON p.id = pi.producer_id
+        GROUP BY pi.vn_id
+      ) publisher_sort ON publisher_sort.vn_id = v.id
+    `;
+  }
   if (needsEgsJoin) {
     join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
   }
@@ -4180,14 +4214,18 @@ export function listCollectionForCards(opts: ListOptions = {}): CollectionItem[]
 
 function listPlacesForVnsMany(vnIds: string[]): Map<string, string[]> {
   if (vnIds.length === 0) return new Map();
-  const ph = vnIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT vn_id, place FROM collection_place_index WHERE vn_id IN (${ph})`)
-    .all(...vnIds) as { vn_id: string; place: string }[];
   const map = new Map<string, string[]>();
-  for (const r of rows) {
-    if (!map.has(r.vn_id)) map.set(r.vn_id, []);
-    map.get(r.vn_id)!.push(r.place);
+  const chunkSize = 500;
+  for (let index = 0; index < vnIds.length; index += chunkSize) {
+    const chunk = vnIds.slice(index, index + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT vn_id, place FROM collection_place_index WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as { vn_id: string; place: string }[];
+    for (const r of rows) {
+      if (!map.has(r.vn_id)) map.set(r.vn_id, []);
+      map.get(r.vn_id)!.push(r.place);
+    }
   }
   return map;
 }
@@ -4195,42 +4233,48 @@ function listPlacesForVnsMany(vnIds: string[]): Map<string, string[]> {
 function listAspectKeysForVns(vnIds: string[]): Map<string, AspectKey[]> {
   const map = new Map<string, Set<AspectKey>>();
   if (vnIds.length === 0) return new Map();
-  const placeholders = vnIds.map(() => '?').join(',');
-  // Source 1: VN-level manual override (highest priority — replaces
-  // every other signal for that VN when present).
-  const manualRows = db
-    .prepare(
-      `SELECT vn_id, aspect_key FROM vn_aspect_override WHERE vn_id IN (${placeholders})`,
-    )
-    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
+  const manualRows: Array<{ vn_id: string; aspect_key: string | null }> = [];
+  const ownedRows: Array<{ vn_id: string; aspect_key: string | null }> = [];
+  const cacheVnRows: Array<{ vn_id: string; aspect_key: string | null }> = [];
+  const chunkSize = 500;
+  for (let index = 0; index < vnIds.length; index += chunkSize) {
+    const chunk = vnIds.slice(index, index + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    manualRows.push(
+      ...(db
+        .prepare(
+          `SELECT vn_id, aspect_key FROM vn_aspect_override WHERE vn_id IN (${placeholders})`,
+        )
+        .all(...chunk) as Array<{ vn_id: string; aspect_key: string | null }>),
+    );
+    ownedRows.push(
+      ...(db
+        .prepare(`
+          SELECT o.vn_id, COALESCE(ao.aspect_key, rc.aspect_key) AS aspect_key
+          FROM owned_release o
+          LEFT JOIN owned_release_aspect_override ao
+            ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
+          LEFT JOIN release_resolution_cache rc
+            ON rc.release_id = o.release_id
+          WHERE o.vn_id IN (${placeholders})
+        `)
+        .all(...chunk) as Array<{ vn_id: string; aspect_key: string | null }>),
+    );
+    cacheVnRows.push(
+      ...(db
+        .prepare(
+          `SELECT vn_id, aspect_key FROM release_resolution_cache
+           WHERE vn_id IN (${placeholders})`,
+        )
+        .all(...chunk) as Array<{ vn_id: string; aspect_key: string | null }>),
+    );
+  }
   const manualByVn = new Map<string, AspectKey>();
   for (const r of manualRows) {
     if (isAspectKey(r.aspect_key) && r.aspect_key !== 'unknown') {
       manualByVn.set(r.vn_id, r.aspect_key);
     }
   }
-  // Source 2: owned_release joined with per-edition override (highest
-  // for non-manual VNs) and the resolution cache.
-  const ownedRows = db
-    .prepare(`
-      SELECT o.vn_id, COALESCE(ao.aspect_key, rc.aspect_key) AS aspect_key
-      FROM owned_release o
-      LEFT JOIN owned_release_aspect_override ao
-        ON ao.vn_id = o.vn_id AND ao.release_id = o.release_id
-      LEFT JOIN release_resolution_cache rc
-        ON rc.release_id = o.release_id
-      WHERE o.vn_id IN (${placeholders})
-    `)
-    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
-  // Source 3: release_resolution_cache rows bound directly to the VN
-  // (populated lazily from /vn/[id] and /release/[id] visits and now
-  // also from `materializeAspectForCollectionVns` below).
-  const cacheVnRows = db
-    .prepare(
-      `SELECT vn_id, aspect_key FROM release_resolution_cache
-       WHERE vn_id IN (${placeholders})`,
-    )
-    .all(...vnIds) as Array<{ vn_id: string; aspect_key: string | null }>;
 
   function addKey(vnId: string, raw: string | null): void {
     const key = isAspectKey(raw) && raw !== 'unknown' ? raw : null;
@@ -10211,6 +10255,10 @@ export function setStockProviderExtras(vnId: string, provider: string, extras: u
   } catch {
     return false;
   }
+  if (provider !== 'eroge_price') return false;
+  const normalized = decodeStoredExtras(payload);
+  if (!normalized) return false;
+  payload = JSON.stringify(normalized);
   const exists = db
     .prepare(`SELECT 1 FROM vn_stock_provider_status WHERE vn_id = ? AND provider = ? LIMIT 1`)
     .get(vnId, provider);
@@ -10232,21 +10280,12 @@ export function setStockProviderExtras(vnId: string, provider: string, extras: u
   return true;
 }
 
-/**
- * Read the JSON-decoded extras blob for `(vnId, provider)`. Returns
- * null when no row exists or when the stored JSON is unparseable
- * (the column is opportunistically written, never required).
- */
-export function getStockProviderExtras<T = unknown>(vnId: string, provider: string): T | null {
+/** Read validated Eroge Price extras for one VN, upgrading legacy payloads on the fly. */
+export function getErogePriceStockExtras(vnId: string): ErogePriceExtrasV1 | null {
   const row = db
-    .prepare(`SELECT extras_json FROM vn_stock_provider_status WHERE vn_id = ? AND provider = ? LIMIT 1`)
-    .get(vnId, provider) as { extras_json: string | null } | undefined;
-  if (!row?.extras_json) return null;
-  try {
-    return JSON.parse(row.extras_json) as T;
-  } catch {
-    return null;
-  }
+    .prepare(`SELECT extras_json FROM vn_stock_provider_status WHERE vn_id = ? AND provider = 'eroge_price' LIMIT 1`)
+    .get(vnId) as { extras_json: string | null } | undefined;
+  return decodeStoredExtras(row?.extras_json);
 }
 
 /**
@@ -10342,18 +10381,11 @@ export function batchVnStockSummaries(
   }
   for (const row of fbRows) {
     try {
-      const decoded = JSON.parse(row.extras_json) as {
-        candidates?: {
-          epId?: number;
-          egsId?: number; // legacy
-          detail?: { downloadRetailers?: { currentPrice?: number | null }[]; packageRetailers?: { currentPrice?: number | null }[] };
-        }[];
-        selectedEpId?: number | null;
-        selectedEgsId?: number | null;
-      };
-      const sel = decoded.selectedEpId ?? decoded.selectedEgsId;
+      const decoded = decodeStoredExtras(row.extras_json);
+      if (!decoded) continue;
+      const sel = decoded.selectedEpId;
       const candidate =
-        (decoded.candidates ?? []).find((c) => (c.epId ?? c.egsId) === sel) ??
+        decoded.candidates.find((c) => c.epId === sel) ??
         decoded.candidates?.[0];
       const prices = [
         ...(candidate?.detail?.downloadRetailers ?? []),
