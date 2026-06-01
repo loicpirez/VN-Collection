@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowLeftRight, ArrowRight, Check, Gamepad2, Link2, Loader2, Search, Settings2, X } from 'lucide-react';
@@ -11,37 +11,16 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { formatMinutes } from '@/lib/format';
 
 import { readApiError } from '@/lib/api-error-read';
-interface Suggestion {
-  vn_id: string;
-  vn_title: string;
-  steam_appid: number;
-  steam_name: string;
-  current_minutes: number;
-  steam_minutes: number;
-  delta: number;
-}
-
-interface SteamLink {
-  vn_id: string;
-  appid: number;
-  steam_name: string;
-  source: 'auto' | 'manual';
-  last_synced_minutes: number | null;
-  created_at: number;
-  updated_at: number;
-}
-
-interface UnlinkedGame {
-  appid: number;
-  name: string;
-  minutes: number;
-}
-
-interface CollectionMatch {
-  id: string;
-  title: string;
-  alttitle: string | null;
-}
+import { decodeCollectionFindMatches, type CollectionFindMatch } from '@/lib/collection-find-client-shape';
+import {
+  decodeSteamAppliedCount,
+  decodeSteamLibraryResult,
+  decodeSteamLinks,
+  decodeSteamSyncPreview,
+  type SteamLink,
+  type SteamSuggestion,
+  type UnlinkedSteamGame,
+} from '@/lib/steam-client-shape';
 
 export default function SteamSyncPage() {
   const t = useT();
@@ -59,14 +38,14 @@ export default function SteamSyncPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [suggestionsErrorCode, setSuggestionsErrorCode] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<SteamSuggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());
 
   const [showAllUnlinked, setShowAllUnlinked] = useState(false);
 
   // Unlinked Steam games (for the manual mapper)
   const [unlinkedLoading, setUnlinkedLoading] = useState(false);
-  const [unlinked, setUnlinked] = useState<UnlinkedGame[]>([]);
+  const [unlinked, setUnlinked] = useState<UnlinkedSteamGame[]>([]);
 
   // Currently-stored links (auto + manual)
   const [links, setLinks] = useState<SteamLink[]>([]);
@@ -74,23 +53,33 @@ export default function SteamSyncPage() {
 
   // Per-row manual-assign state: { [appid]: { query, matches[] } }
   const [assignQuery, setAssignQuery] = useState<Record<number, string>>({});
-  const [assignMatches, setAssignMatches] = useState<Record<number, CollectionMatch[]>>({});
+  const [assignMatches, setAssignMatches] = useState<Record<number, CollectionFindMatch[]>>({});
+  const assignSequenceRef = useRef<Record<number, number>>({});
+  const refreshAbortRef = useRef<AbortController | null>(null);
 
   const [applying, setApplying] = useState(false);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    refreshAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    refreshAbortRef.current = ctrl;
     setSuggestionsLoading(true);
     setUnlinkedLoading(true);
     try {
       const [sync, lib, ls] = await Promise.all([
-        fetch('/api/steam/sync', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/steam/library', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/steam/link', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/steam/sync', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).then(decodeSteamSyncPreview),
+        fetch('/api/steam/library', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).then(decodeSteamLibraryResult),
+        fetch('/api/steam/link', { cache: 'no-store', signal: ctrl.signal }).then(async (r) => {
+          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          return decodeSteamLinks(await r.json());
+        }),
       ]);
+      if (!sync || !lib || !ls) throw new Error(t.common.error);
+      if (ctrl.signal.aborted) return;
       if (sync.ok) {
-        const sugg: Suggestion[] = sync.suggestions ?? [];
+        const sugg = sync.suggestions;
         setSuggestions(sugg);
         setPicks(new Set(sugg.map((s) => s.vn_id)));
         setSuggestionsError(null);
@@ -99,19 +88,27 @@ export default function SteamSyncPage() {
         setSuggestionsError(sync.error ?? t.common.error);
         setSuggestionsErrorCode(typeof sync.code === 'string' ? sync.code : null);
       }
-      setUnlinked(lib.ok ? (lib.games ?? []) : []);
-      setLinks(ls.links ?? []);
+      setUnlinked(lib.ok ? lib.games : []);
+      if (!lib.ok && sync.ok) setSuggestionsError(lib.error);
+      setLinks(ls);
       setLinksLoading(false);
     } catch (e) {
+      if (ctrl.signal.aborted) return;
       console.error('[steam] refresh failed:', e);
       setSuggestionsError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
-      setSuggestionsLoading(false);
-      setUnlinkedLoading(false);
+      if (refreshAbortRef.current === ctrl) refreshAbortRef.current = null;
+      if (!ctrl.signal.aborted) {
+        setSuggestionsLoading(false);
+        setUnlinkedLoading(false);
+      }
     }
   }, [t.common.error]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    return () => refreshAbortRef.current?.abort();
+  }, [refresh]);
 
   function togglePick(id: string) {
     setPicks((cur) => {
@@ -134,8 +131,9 @@ export default function SteamSyncPage() {
         body: JSON.stringify({ applies }),
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { applied: number };
-      toast.success(t.steam.applied.replace('{n}', String(d.applied)));
+      const applied = decodeSteamAppliedCount(await r.json());
+      if (applied === null) throw new Error(t.common.error);
+      toast.success(t.steam.applied.replace('{n}', String(applied)));
       await refresh();
     } catch (e) {
       toast.error((e as Error).message);
@@ -146,13 +144,24 @@ export default function SteamSyncPage() {
 
   async function searchAssign(appid: number, query: string) {
     setAssignQuery((s) => ({ ...s, [appid]: query }));
+    const sequence = (assignSequenceRef.current[appid] ?? 0) + 1;
+    assignSequenceRef.current[appid] = sequence;
     if (query.trim().length < 1) {
       setAssignMatches((s) => ({ ...s, [appid]: [] }));
       return;
     }
-    const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
-    const d = (await r.json()) as { matches: CollectionMatch[] };
-    setAssignMatches((s) => ({ ...s, [appid]: d.matches }));
+    try {
+      const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      const matches = decodeCollectionFindMatches(await r.json());
+      if (!matches) throw new Error(t.common.error);
+      if (assignSequenceRef.current[appid] !== sequence) return;
+      setAssignMatches((s) => ({ ...s, [appid]: matches }));
+    } catch (e) {
+      if (assignSequenceRef.current[appid] !== sequence) return;
+      setAssignMatches((s) => ({ ...s, [appid]: [] }));
+      toast.error((e as Error).message || t.common.error);
+    }
   }
 
   async function link(appid: number, name: string, vnId: string) {
@@ -179,7 +188,7 @@ export default function SteamSyncPage() {
     setUnlinkingId(vnId);
     try {
       const r = await fetch(`/api/steam/link?vn_id=${vnId}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       toast.success(t.steam.unlinked);
       await refresh();
     } catch (e) {

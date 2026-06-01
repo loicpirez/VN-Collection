@@ -5,6 +5,7 @@ import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { isValidVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -14,6 +15,34 @@ export const maxDuration = 120;
  * most a few hundred entries; anything larger is a hostile caller.
  */
 const APPLIES_MAX = 2000;
+const PLAYTIME_MINUTES_MAX = 10_000_000;
+
+interface SteamApply {
+  vn_id: string;
+  playtime_minutes: number;
+}
+
+function parseApplies(value: unknown): { applies: SteamApply[]; error: string | null } {
+  if (!Array.isArray(value)) return { applies: [], error: 'applies array required' };
+  if (value.length > APPLIES_MAX) return { applies: [], error: `applies exceeds limit of ${APPLIES_MAX}` };
+  const applies: SteamApply[] = [];
+  for (const row of value) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return { applies: [], error: 'invalid applies row' };
+    const candidate = row as Record<string, unknown>;
+    if (
+      typeof candidate.vn_id !== 'string'
+      || !isValidVnId(candidate.vn_id)
+      || typeof candidate.playtime_minutes !== 'number'
+      || !Number.isSafeInteger(candidate.playtime_minutes)
+      || candidate.playtime_minutes < 0
+      || candidate.playtime_minutes > PLAYTIME_MINUTES_MAX
+    ) {
+      return { applies: [], error: 'invalid applies row' };
+    }
+    applies.push({ vn_id: candidate.vn_id.toLowerCase(), playtime_minutes: candidate.playtime_minutes });
+  }
+  return { applies, error: null };
+}
 
 /**
  * GET — preview suggestions.
@@ -52,24 +81,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const body = (await readJsonObject(req)) as { applies?: { vn_id?: unknown; playtime_minutes?: unknown }[] };
-  if (!Array.isArray(body.applies)) return NextResponse.json({ error: 'applies array required' }, { status: 400 });
-  if (body.applies.length > APPLIES_MAX) {
-    return NextResponse.json(
-      { error: `applies exceeds limit of ${APPLIES_MAX}` },
-      { status: 400 },
-    );
-  }
+  const body = await readJsonObject(req);
+  const parsed = parseApplies(body.applies);
+  if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 });
   let applied = 0;
   // Wrap the per-row writes in a transaction so a mid-loop crash leaves
   // either every confirmed row applied or none. Without this guard a
   // 1000-row apply that fails halfway would leave half the collection
   // updated with no rollback.
   db.transaction(() => {
-    for (const a of body.applies!) {
-      if (typeof a.vn_id !== 'string' || typeof a.playtime_minutes !== 'number') continue;
+    for (const a of parsed.applies) {
       if (!isInCollection(a.vn_id)) continue;
-      const minutes = Math.max(0, Math.floor(a.playtime_minutes));
+      const minutes = a.playtime_minutes;
       updateCollection(a.vn_id, { playtime_minutes: minutes });
       recordSync(a.vn_id, minutes);
       applied += 1;
@@ -81,7 +104,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       entity: 'steam',
       entityId: null,
       label: 'Applied Steam playtime sync',
-      payload: { applied, requested: body.applies.length },
+      payload: { applied, requested: parsed.applies.length },
     });
   } catch (e) {
     console.error('[steam:sync] activity log failed:', (e as Error).message);
