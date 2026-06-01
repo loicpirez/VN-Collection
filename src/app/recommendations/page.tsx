@@ -27,6 +27,8 @@ import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
 import { pickSimilarToVnView } from '@/lib/recommend-similar-view';
 import { db } from '@/lib/db';
 import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
+import { decodePersistedProducerSummaries } from '@/lib/vn-persisted-json-shape';
 
 /**
  * Pull the minimum metadata the seed chip needs (title + alttitle + the
@@ -54,13 +56,7 @@ function loadSeedChip(vnId: string): SeedChipData | null {
       }
     | undefined;
   if (!row || !row.title) return null;
-  let developer: string | null = null;
-  try {
-    const devs = row.developers ? (JSON.parse(row.developers) as Array<{ name?: string }>) : [];
-    developer = devs[0]?.name ?? null;
-  } catch {
-    developer = null;
-  }
+  const developer = decodePersistedProducerSummaries(row.developers)[0]?.name ?? null;
   return {
     id: row.id,
     title: row.title,
@@ -146,8 +142,8 @@ export default async function RecommendationsPage({
   const includeEro = isFlagOn(raw.ero);
   const includeOwned = isFlagOn(raw.owned);
   const includeWishlist = isFlagOn(raw.wishlist);
-  const seedVnId = raw.seed && /^(v\d+|egs_\d+)$/i.test(raw.seed)
-    ? raw.seed.toLowerCase()
+  const seedVnId = isValidVnId(raw.seed)
+    ? normalizeVnId(raw.seed)
     : undefined;
   // Seed chip data is loaded synchronously from SQLite so the picker
   // can render the cover + title on first paint. `null` here means the

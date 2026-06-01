@@ -119,6 +119,14 @@ describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface
       row: 'R5-047 SpoilerReveal covered',
       pattern: /check\('spoiler hover and click reveal text without opaque block'/,
     },
+    {
+      row: 'TESTA-007 narrow tutorial placement and touch targets',
+      pattern: /check\('narrow tutorial panel stays inside viewport with touch-safe actions'/,
+    },
+    {
+      row: 'TESTA-007 bounded narrow VN detail and section navigation',
+      pattern: /check\('narrow VN detail stays bounded with collapsed sections and touch-safe navigation'/,
+    },
   ];
 
   for (const { row, pattern } of CHECKS) {

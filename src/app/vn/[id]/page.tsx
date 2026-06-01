@@ -31,6 +31,7 @@ import { VnDetailLayout } from '@/components/VnDetailLayout';
 import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
@@ -192,13 +193,14 @@ const loadVn = cache(
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id: rawId } = await params;
-  const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
+  const candidateId = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
   // Sanity-check id shape; on garbage we fall through to the raw
   // string fallback rather than triggering the cache(...) path
   // that may hit VNDB with a malformed id.
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
-    return { title: id };
+  if (!isValidVnId(candidateId)) {
+    return { title: candidateId };
   }
+  const id = normalizeVnId(candidateId);
   // Share the same resolved VN row with the page body via
   // React.cache. For a VN already cached in `vn`, this returns
   // the row immediately; for a not-yet-seen VNDB id we fetch
@@ -225,8 +227,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   // Next gives us URL-encoded dynamic params (e.g. `egs%3A894`); decode once
   // so the rest of the page doesn't care. Legacy `egs:NNNN` form is still
   // accepted here — the startup migration converts them to `egs_NNNN`.
-  const id = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) notFound();
+  const candidateId = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
+  if (!isValidVnId(candidateId)) notFound();
+  const id = normalizeVnId(candidateId);
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const { vn, error } = await loadVn(id);
   if (!vn) {

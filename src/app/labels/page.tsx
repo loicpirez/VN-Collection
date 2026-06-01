@@ -5,6 +5,8 @@ import { ArrowLeft } from 'lucide-react';
 import { toString as qrToString } from 'qrcode';
 import { listCollectionForCards } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
+import { qrOriginFromHeaders } from '@/lib/qr-origin';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getDict();
@@ -25,6 +27,7 @@ export const dynamic = 'force-dynamic';
  * privacy posture demands local generation.
  */
 const MAX_LABELS = 200;
+const MAX_LABEL_FILTER_IDS = 500;
 
 async function qrSvg(text: string, fallbackText: string): Promise<string> {
   try {
@@ -40,16 +43,14 @@ async function qrSvg(text: string, fallbackText: string): Promise<string> {
   }
 }
 
-const VN_ID_PATTERN = /^(v\d+|egs_\d+)$/i;
-
 function parseIds(raw: string | undefined): Set<string> | 'invalid' | null {
   if (!raw) return null;
   const segments = raw.split(',').map((s) => s.trim()).filter(Boolean);
   if (segments.length === 0) return null;
   for (const seg of segments) {
-    if (!VN_ID_PATTERN.test(seg)) return 'invalid';
+    if (!isValidVnId(seg)) return 'invalid';
   }
-  return new Set(segments);
+  return new Set(segments.slice(0, MAX_LABEL_FILTER_IDS).map(normalizeVnId));
 }
 
 export default async function LabelsPage({
@@ -73,9 +74,11 @@ export default async function LabelsPage({
   // Prefer x-forwarded-host (when behind a reverse proxy) before host
   // so the QRs encode the public hostname the user actually browses.
   const h = await headers();
-  const proto = h.get('x-forwarded-proto') ?? 'http';
-  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
-  const origin = `${proto}://${host}`;
+  const origin = qrOriginFromHeaders({
+    forwardedProto: h.get('x-forwarded-proto'),
+    forwardedHost: h.get('x-forwarded-host'),
+    host: h.get('host'),
+  });
   // Push id filtering into SQL so we don't load the full library just
   // to drop most rows.
   const idList = filter ? Array.from(filter) : undefined;
