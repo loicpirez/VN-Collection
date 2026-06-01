@@ -258,10 +258,10 @@ async function buildAgent(config: ProxyConfig): Promise<Agent> {
   try {
     if (config.protocol === 'socks5' || config.protocol === 'socks5h') {
       const { SocksProxyAgent } = await import('socks-proxy-agent');
-      return new SocksProxyAgent(proxyUrl) as unknown as Agent;
+      return new SocksProxyAgent(proxyUrl);
     }
     const { HttpsProxyAgent } = await import('https-proxy-agent');
-    return new HttpsProxyAgent(proxyUrl) as unknown as Agent;
+    return new HttpsProxyAgent(proxyUrl);
   } catch (_e) {
     // Log a sanitised diagnostic line; never include `proxyUrl` itself.
     console.error('[proxy-fetch] agent init failed', { protocol: config.protocol, host: config.host });

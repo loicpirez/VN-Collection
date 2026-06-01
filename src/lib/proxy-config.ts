@@ -66,11 +66,24 @@ interface StoredProxyConfig {
 
 const VALID_PROTOCOLS = new Set<string>(['http', 'https', 'socks5', 'socks5h']);
 
+function sanitizeStoredProxyConfig(value: unknown): StoredProxyConfig {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const raw = value as Record<string, unknown>;
+  const config: StoredProxyConfig = {};
+  if (typeof raw.enabled === 'boolean') config.enabled = raw.enabled;
+  if (typeof raw.protocol === 'string') config.protocol = raw.protocol;
+  if (typeof raw.host === 'string') config.host = raw.host;
+  if (typeof raw.port === 'number' && Number.isInteger(raw.port)) config.port = raw.port;
+  if (typeof raw.username === 'string') config.username = raw.username;
+  if (typeof raw.password === 'string') config.password = raw.password;
+  return config;
+}
+
 function readDbConfig(provider: ProviderId): StoredProxyConfig {
   const raw = getAppSetting(PROXY_DB_KEY[provider]);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as StoredProxyConfig;
+    return sanitizeStoredProxyConfig(JSON.parse(raw));
   } catch {
     return {};
   }
@@ -80,7 +93,7 @@ function readDbConfigByKey(key: string): StoredProxyConfig {
   const raw = getAppSetting(key);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as StoredProxyConfig;
+    return sanitizeStoredProxyConfig(JSON.parse(raw));
   } catch {
     return {};
   }

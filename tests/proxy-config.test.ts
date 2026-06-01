@@ -106,6 +106,24 @@ describe('resolveProxyConfig', () => {
     vi.stubEnv('EGS_PROXY_ENABLED', 'false');
     expect(resolveProxyConfig('egs')).toBeNull();
   });
+
+  it('drops malformed stored fields instead of coercing them', () => {
+    dbMock.setAppSetting('egs_proxy_config', JSON.stringify({
+      enabled: 'true',
+      host: ['proxy.example.com'],
+      port: '1080',
+      username: 42,
+      password: false,
+    }));
+    expect(resolveProxyConfig('egs')).toBeNull();
+    expect(getProxyConfigForDisplay('egs')).toMatchObject({
+      enabled: false,
+      host: '',
+      port: null,
+      username: '',
+      hasPassword: false,
+    });
+  });
 });
 
 describe('buildProxyUrl', () => {
