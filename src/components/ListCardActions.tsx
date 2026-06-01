@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, MoreVertical, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -21,36 +21,85 @@ export function ListCardActions({ list }: { list: List }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<number | null>(list.id);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
-  async function patch(payload: Record<string, unknown>) {
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = list.id;
+    setOpen(false);
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      mutationInFlightRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [list.id]);
+
+  function startMutation() {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    mutationInFlightRef.current = true;
     setBusy(true);
-    try {
-      const r = await fetch(`/api/lists/${list.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      startTransition(() => router.refresh());
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
+    return controller;
+  }
+
+  function ownsMutation(ownerListId: number, controller: AbortController) {
+    return identityRef.current === ownerListId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerListId: number, controller: AbortController) {
+    if (mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (identityRef.current === ownerListId) {
       setBusy(false);
       setOpen(false);
     }
   }
 
-  async function rename() {
-    const next = await prompt({
-      title: t.lists.rename,
-      initial: list.name,
-      validate: (v) => (v.trim() ? null : t.lists.renameRequired),
-    });
-    if (next === null || !next || next === list.name) {
-      setOpen(false);
-      return;
+  async function patch(payload: Record<string, unknown>, ownerListId = list.id, controller = startMutation()) {
+    if (!controller) return;
+    try {
+      const r = await fetch(`/api/lists/${ownerListId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerListId, controller)) return;
+      startTransition(() => router.refresh());
+    } catch (e) {
+      if (!ownsMutation(ownerListId, controller)) return;
+      toast.error((e as Error).message);
+    } finally {
+      finishMutation(ownerListId, controller);
     }
-    await patch({ name: next });
+  }
+
+  async function rename() {
+    const ownerListId = list.id;
+    const controller = startMutation();
+    if (!controller) return;
+    try {
+      const next = await prompt({
+        title: t.lists.rename,
+        initial: list.name,
+        validate: (v) => (v.trim() ? null : t.lists.renameRequired),
+      });
+      if (!ownsMutation(ownerListId, controller)) return;
+      if (next === null || !next || next === list.name) return;
+      await patch({ name: next }, ownerListId, controller);
+    } finally {
+      finishMutation(ownerListId, controller);
+    }
   }
 
   async function togglePin() {
@@ -58,21 +107,21 @@ export function ListCardActions({ list }: { list: List }) {
   }
 
   async function destroy() {
-    const ok = await confirm({ message: t.lists.deleteConfirm, tone: 'danger' });
-    if (!ok) {
-      setOpen(false);
-      return;
-    }
-    setBusy(true);
+    const ownerListId = list.id;
+    const controller = startMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/lists/${list.id}`, { method: 'DELETE' });
+      const ok = await confirm({ message: t.lists.deleteConfirm, tone: 'danger' });
+      if (!ownsMutation(ownerListId, controller) || !ok) return;
+      const r = await fetch(`/api/lists/${ownerListId}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerListId, controller)) return;
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerListId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
-      setOpen(false);
+      finishMutation(ownerListId, controller);
     }
   }
 
@@ -85,13 +134,14 @@ export function ListCardActions({ list }: { list: List }) {
         id={triggerId}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100"
+        disabled={busy}
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
         aria-label={t.nav.openMenu}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MoreVertical className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MoreVertical className="h-4 w-4" aria-hidden />}
       </button>
       {open && (
         <div
@@ -111,13 +161,14 @@ export function ListCardActions({ list }: { list: List }) {
             else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
           }}
         >
-          <ActionRow icon={list.pinned ? PinOff : Pin} label={list.pinned ? t.lists.unpin : t.lists.pin} onClick={togglePin} />
-          <ActionRow icon={Pencil} label={t.lists.rename} onClick={rename} />
+          <ActionRow icon={list.pinned ? PinOff : Pin} label={list.pinned ? t.lists.unpin : t.lists.pin} onClick={togglePin} disabled={busy} />
+          <ActionRow icon={Pencil} label={t.lists.rename} onClick={rename} disabled={busy} />
           <ActionRow
             icon={Trash2}
             label={t.lists.delete}
             danger
             onClick={destroy}
+            disabled={busy}
           />
         </div>
       )}
@@ -130,17 +181,20 @@ function ActionRow({
   label,
   onClick,
   danger = false,
+  disabled = false,
 }: {
   icon: typeof Pin;
   label: string;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-muted hover:bg-bg-elev ${
+      disabled={disabled}
+      className={`flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-muted hover:bg-bg-elev sm:min-h-0 ${
         danger ? 'hover:text-status-dropped' : 'hover:text-white'
       }`}
       role="menuitem"

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ListChecks, Loader2, X } from 'lucide-react';
@@ -25,23 +25,51 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
   const toast = useToast();
   const [removing, setRemoving] = useState<number | null>(null);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setRemoving(null);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId]);
 
   if (lists.length === 0) return null;
 
   async function remove(list: ListChip) {
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setRemoving(list.id);
     try {
       const r = await fetch(
-        `/api/lists/${list.id}/items?vn=${encodeURIComponent(vnId)}`,
-        { method: 'DELETE' },
+        `/api/lists/${list.id}/items?vn=${encodeURIComponent(ownerVnId)}`,
+        { method: 'DELETE', signal: controller.signal },
       );
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.lists.removedFrom.replace('{name}', list.name));
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setRemoving(null);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setRemoving(null);
+      }
     }
   }
 
@@ -60,13 +88,13 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
             style={{ backgroundColor: l.color ?? '#475569' }}
             aria-hidden
           />
-          <Link href={`/lists/${l.id}`} className="px-1 text-white/90 hover:text-accent">
+          <Link href={`/lists/${l.id}`} className="inline-flex min-h-[44px] items-center px-1 text-white/90 hover:text-accent sm:min-h-0">
             {l.name}
           </Link>
           <button
             type="button"
             onClick={() => remove(l)}
-            disabled={removing === l.id}
+            disabled={removing !== null}
             aria-label={t.lists.removeFromList}
             title={t.lists.removeFromList}
             className="tap-target ml-0.5 inline-flex items-center justify-center rounded-full text-muted hover:bg-status-dropped/20 hover:text-status-dropped"
@@ -74,7 +102,7 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
             {removing === l.id ? (
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
             ) : (
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3" aria-hidden />
             )}
           </button>
         </span>
