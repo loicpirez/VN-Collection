@@ -253,23 +253,41 @@ function NavGroup({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
   const menuId = useId();
+
+  function updateMenuPosition() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const gutter = 8;
+    const width = 224;
+    setMenuPosition({
+      left: Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter)),
+      top: rect.bottom + 4,
+    });
+  }
+
   useEffect(() => {
     if (!open) return;
-    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    updateMenuPosition();
+    const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
     firstItem?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     }
     function key(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
         setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
         return;
       }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
       const menuItems = Array.from(
-        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+        menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
       );
       if (menuItems.length === 0) return;
       const idx = menuItems.indexOf(document.activeElement as HTMLElement);
@@ -283,16 +301,24 @@ function NavGroup({
     }
     window.addEventListener('mousedown', outside);
     window.addEventListener('keydown', key);
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
     return () => {
       window.removeEventListener('mousedown', outside);
       window.removeEventListener('keydown', key);
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
     };
   }, [open]);
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          updateMenuPosition();
+          setOpen((v) => !v);
+        }}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={menuId}
@@ -311,12 +337,18 @@ function NavGroup({
         <span className="hidden 2xl:inline">{label}</span>
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
-      {open && (
+      {open && createPortal(
         <div
+          ref={menuRef}
           id={menuId}
           role="menu"
           aria-label={label}
-          className="absolute left-0 top-full z-40 mt-1 w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+          className="fixed z-[1100] w-56 overflow-y-auto rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+          style={{
+            left: menuPosition.left,
+            top: menuPosition.top,
+            maxHeight: `calc(100vh - ${menuPosition.top + 8}px)`,
+          }}
         >
           {items.map((item) => {
             const itemActive = isActive(pathname, item);
@@ -338,7 +370,8 @@ function NavGroup({
               </Link>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
