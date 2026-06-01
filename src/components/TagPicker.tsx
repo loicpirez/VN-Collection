@@ -4,13 +4,7 @@ import { Loader2, Plus, Search, Tag as TagIcon, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { fmtNum } from '@/lib/locale-number';
-
-interface TagSummary {
-  id: string;
-  name: string;
-  category: 'cont' | 'ero' | 'tech';
-  vn_count: number;
-}
+import { decodeTagPickerResults, type TagPickerSummary as TagSummary } from '@/lib/picker-client-shape';
 
 /**
  * Shared tag picker used by /recommendations and /similar.
@@ -64,8 +58,8 @@ export function TagPicker({
         const r = await fetch(`/api/tags?${params.toString()}`, { cache: 'no-store', signal: ac.signal });
         if (ac.signal.aborted) return;
         if (!r.ok) return;
-        const d = (await r.json()) as { tags?: TagSummary[] };
-        setHits(d.tags ?? []);
+        const tags = decodeTagPickerResults(await r.json());
+        setHits(tags ?? []);
       } catch (e) {
         if ((e as Error).name !== 'AbortError') setHits([]);
       } finally {

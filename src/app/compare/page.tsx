@@ -15,6 +15,7 @@ import { LangList } from '@/components/LangFlag';
 import { SkeletonBlock } from '@/components/Skeleton';
 import type { CompareVn } from '@/components/CompareVnPicker';
 import { findSharedVasForVns } from '@/lib/compare-credits';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 const CompareVnPicker = nextDynamic(() => import('@/components/CompareVnPicker').then((m) => m.CompareVnPicker), {
   loading: () => (
@@ -41,7 +42,8 @@ function parseIds(raw: string | undefined): string[] {
   return raw
     .split(',')
     .map((s) => s.trim())
-    .filter((s) => /^(v\d+|egs_\d+)$/i.test(s))
+    .filter(isValidVnId)
+    .map(normalizeVnId)
     .slice(0, 4);
 }
 

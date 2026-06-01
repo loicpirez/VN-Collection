@@ -20,6 +20,7 @@ import {
 } from '@/lib/tags-page-modes';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeTagHomeTreeResponse, decodeTagsResponse } from '@/lib/browse-client-shape';
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
   { key: 'cont', tkey: 'cat_cont' },
   { key: 'ero', tkey: 'cat_ero' },
@@ -120,15 +121,20 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     setError(null);
     setStaleWarning(null);
 
+    const loadLocalTags = async (): Promise<VndbTag[]> => {
+      const response = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal });
+      if (!response.ok) throw new Error(await readApiError(response, t.common.error));
+      const tags = decodeTagsResponse(await response.json());
+      if (!tags) throw new Error(t.common.error);
+      return tags;
+    };
+
     const handle = setTimeout(async () => {
       try {
         let list: VndbTag[] = [];
         let tree: VndbTagHomeTree | null = null;
         if (isLocal) {
-          const res = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal });
-          if (!res.ok) throw new Error(await readApiError(res, t.common.error));
-          const d = await res.json();
-          list = d.tags ?? [];
+          list = await loadLocalTags();
           if (q.trim()) {
             const lower = q.trim().toLowerCase();
             list = list.filter((tag) => tag.name.toLowerCase().includes(lower));
@@ -137,9 +143,9 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
         } else if (isVndbBrowse) {
           if (skipTreeFetch) {
             // Re-use SSR hierarchy — only fetch local counts.
-            const localRes = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] });
+            const localTags = await loadLocalTags();
             const counts = new Map<string, number>();
-            for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+            for (const tag of localTags) {
               counts.set(tag.id, tag.vn_count);
             }
             if (alive) setLocalCounts(counts);
@@ -152,27 +158,29 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           }
           const [treeRes, localRes] = await Promise.all([
             fetch(`/api/tags/web-tree${refreshNonce ? '?force=1' : ''}`, { cache: 'no-store', signal: ctrl.signal }),
-            fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+            loadLocalTags(),
           ]);
-          const d = await treeRes.json().catch(() => ({}));
-          if (!treeRes.ok) throw new Error(d.error || t.common.error);
-          tree = d.data ?? null;
+          if (!treeRes.ok) throw new Error(await readApiError(treeRes, t.common.error));
+          const treePayload = decodeTagHomeTreeResponse(await treeRes.json());
+          if (!treePayload) throw new Error(t.common.error);
+          tree = treePayload.data;
           const counts = new Map<string, number>();
-          for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+          for (const tag of localRes) {
             counts.set(tag.id, tag.vn_count);
           }
           if (alive) setLocalCounts(counts);
-          if (alive && d.warning) setStaleWarning(String(d.warning));
+          if (alive && treePayload.warning) setStaleWarning(treePayload.warning);
         } else {
           const [tagRes, localRes] = await Promise.all([
             fetch(`/api/tags?results=100${category ? `&category=${category}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { cache: 'no-store', signal: ctrl.signal }),
-            fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.ok ? r.json() : { tags: [] }),
+            loadLocalTags(),
           ]);
-          const d = await tagRes.json().catch(() => ({}));
-          if (!tagRes.ok) throw new Error(d.error || t.common.error);
-          list = d.tags ?? [];
+          if (!tagRes.ok) throw new Error(await readApiError(tagRes, t.common.error));
+          const tags = decodeTagsResponse(await tagRes.json());
+          if (!tags) throw new Error(t.common.error);
+          list = tags;
           const counts = new Map<string, number>();
-          for (const tag of (localRes.tags ?? []) as Array<{ id: string; vn_count: number }>) {
+          for (const tag of localRes) {
             counts.set(tag.id, tag.vn_count);
           }
           if (alive) setLocalCounts(counts);

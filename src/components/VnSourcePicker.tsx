@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Library, Loader2, Plus, Search, Sparkles, Star } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { SafeImage } from '@/components/SafeImage';
+import { readApiError } from '@/lib/api-error-read';
+import {
+  decodeEgsSourcePickerResults,
+  decodeLocalVnSourcePickerResults,
+  decodeVndbSourcePickerResults,
+  type VnSourcePickerRow,
+} from '@/lib/picker-client-shape';
 
 export type VnPickerSource = 'library' | 'vndb' | 'egs';
 
@@ -12,6 +19,7 @@ export interface VnPickerHit {
   source: VnPickerSource;
   released?: string | null;
   thumbnail?: string | null;
+  localThumbnail?: string | null;
 }
 
 interface VnSourcePickerProps {
@@ -28,10 +36,6 @@ interface VnSourcePickerProps {
   /** Disabled state (e.g. during running batch). */
   disabled?: boolean;
 }
-
-interface LibHit { id: string; title: string; released?: string | null; thumbnail?: string | null }
-interface VndbHit { id: string; title: string; released?: string | null; image?: { thumbnail?: string } | null }
-interface EgsHit { egs_id: number; gamename: string; brand_name?: string | null; sellday?: string | null; image_url?: string | null }
 
 const SOURCE_ORDER: VnPickerSource[] = ['library', 'vndb', 'egs'];
 
@@ -64,9 +68,9 @@ export function VnSourcePicker({
   const t = useT();
   const [query, setQuery] = useState('');
   const [activeSource, setActiveSource] = useState<VnPickerSource | 'all'>('all');
-  const [library, setLibrary] = useState<LibHit[]>([]);
-  const [vndb, setVndb] = useState<VndbHit[]>([]);
-  const [egs, setEgs] = useState<EgsHit[]>([]);
+  const [library, setLibrary] = useState<VnSourcePickerRow[]>([]);
+  const [vndb, setVndb] = useState<VnSourcePickerRow[]>([]);
+  const [egs, setEgs] = useState<VnSourcePickerRow[]>([]);
   const [loading, setLoading] = useState<Record<VnPickerSource, boolean>>({ library: false, vndb: false, egs: false });
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,8 +95,11 @@ export function VnSourcePicker({
       if (enabled('library')) {
         promises.push(
           fetch(`/api/collection/find?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal })
-            .then((r) => r.ok ? r.json() : { matches: [] })
-            .then((d: { matches?: LibHit[] }) => { if (!ctrl.signal.aborted) setLibrary((d.matches ?? []).slice(0, perSourceLimit)); })
+            .then(async (r) => {
+              if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+              return r.json();
+            })
+            .then((d) => { if (!ctrl.signal.aborted) setLibrary((decodeLocalVnSourcePickerResults(d) ?? []).slice(0, perSourceLimit)); })
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] library search failed:', e);
@@ -104,8 +111,11 @@ export function VnSourcePicker({
       if (enabled('vndb')) {
         promises.push(
           fetch(`/api/search?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: ctrl.signal })
-            .then((r) => r.ok ? r.json() : { results: [] })
-            .then((d: { results?: VndbHit[] }) => { if (!ctrl.signal.aborted) setVndb((d.results ?? []).slice(0, perSourceLimit)); })
+            .then(async (r) => {
+              if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+              return r.json();
+            })
+            .then((d) => { if (!ctrl.signal.aborted) setVndb((decodeVndbSourcePickerResults(d) ?? []).slice(0, perSourceLimit)); })
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] VNDB search failed:', e);
@@ -117,8 +127,11 @@ export function VnSourcePicker({
       if (enabled('egs')) {
         promises.push(
           fetch(`/api/egs/search?q=${encodeURIComponent(q)}&limit=${perSourceLimit}`, { cache: 'no-store', signal: ctrl.signal })
-            .then((r) => r.ok ? r.json() : { candidates: [] })
-            .then((d: { candidates?: EgsHit[] }) => { if (!ctrl.signal.aborted) setEgs((d.candidates ?? []).slice(0, perSourceLimit)); })
+            .then(async (r) => {
+              if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+              return r.json();
+            })
+            .then((d) => { if (!ctrl.signal.aborted) setEgs((decodeEgsSourcePickerResults(d) ?? []).slice(0, perSourceLimit)); })
             .catch((e: unknown) => {
               if ((e as Error).name === 'AbortError') return;
               console.error('[VnSourcePicker] EGS search failed:', e);
@@ -130,7 +143,7 @@ export function VnSourcePicker({
       await Promise.allSettled(promises);
     }, 250);
     return () => { ctrl.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, perSourceLimit, sources]);
+  }, [query, perSourceLimit, sources, t.common.error]);
 
   const counts = {
     library: library.length,
@@ -153,7 +166,7 @@ export function VnSourcePicker({
         >
           {hit.thumbnail && (
             <span className="h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-bg">
-              <SafeImage src={hit.thumbnail} alt="" className="h-full w-full" fit="cover" />
+              <SafeImage src={hit.thumbnail} localSrc={hit.localThumbnail} alt="" className="h-full w-full" fit="cover" />
             </span>
           )}
           <span className="min-w-0 flex-1">
@@ -222,23 +235,17 @@ export function VnSourcePicker({
             <>
               {(showAll || activeSource === 'library') && library.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.library} (${library.length})`} source="library">
-                  {library.map((h) => renderRow({ id: h.id, title: h.title, source: 'library', released: h.released, thumbnail: h.thumbnail }))}
+                  {library.map((h) => renderRow({ ...h, source: 'library' }))}
                 </SourceGroup>
               )}
               {(showAll || activeSource === 'vndb') && vndb.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.vndb} (${vndb.length})`} source="vndb">
-                  {vndb.map((h) => renderRow({ id: h.id, title: h.title, source: 'vndb', released: h.released, thumbnail: h.image?.thumbnail ?? null }))}
+                  {vndb.map((h) => renderRow({ ...h, source: 'vndb' }))}
                 </SourceGroup>
               )}
               {(showAll || activeSource === 'egs') && egs.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.egs} (${egs.length})`} source="egs">
-                  {egs.map((h) => renderRow({
-                    id: `egs_${h.egs_id}`,
-                    title: h.gamename,
-                    source: 'egs',
-                    released: h.sellday ?? null,
-                    thumbnail: h.image_url ?? null,
-                  }))}
+                  {egs.map((h) => renderRow({ ...h, source: 'egs' }))}
                 </SourceGroup>
               )}
             </>

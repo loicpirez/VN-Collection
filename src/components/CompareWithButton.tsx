@@ -7,13 +7,7 @@ import { yearOnly } from '@/lib/locale-number';
 import { Dialog } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
 import { fetchAllCollectionItems } from '@/lib/collection-api-client';
-
-interface CollectionRow {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  released: string | null;
-}
+import { decodeCollectionCompareRow, type CollectionCompareRow } from '@/lib/collection-client-shape';
 
 /**
  * Single-shot "Compare with…" button shown on /vn/[id]. Click → modal
@@ -29,18 +23,27 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
   const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [rows, setRows] = useState<CollectionCompareRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
   const filterRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setOpen(false);
+    setRows([]);
+    setPicked(new Set());
+    setFilter('');
+  }, [currentVnId]);
+
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
-      const data = await fetchAllCollectionItems<CollectionRow>(
+      const data = await fetchAllCollectionItems(
         new URLSearchParams({ sort: 'released', order: 'desc' }),
+        decodeCollectionCompareRow,
         { signal },
+        t.common.error,
       );
       if (signal.aborted) return;
       setRows(data.filter((it) => it.id !== currentVnId));
@@ -49,7 +52,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [currentVnId]);
+  }, [currentVnId, t.common.error]);
 
   useEffect(() => {
     if (!open) return;

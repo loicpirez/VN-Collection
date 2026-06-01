@@ -3,13 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftRight, ArrowRight, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-
-interface Producer {
-  id: string;
-  name: string;
-  original: string | null;
-  vn_count: number;
-}
+import { decodeProducerPickerResults, type ProducerPickerRow as Producer } from '@/lib/picker-client-shape';
 
 /**
  * Two side-by-side producer pickers. Loads the local producer list from
@@ -26,11 +20,16 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
   const [b, setB] = useState(initialB ?? '');
 
   useEffect(() => {
+    setA(initialA ?? '');
+    setB(initialB ?? '');
+  }, [initialA, initialB]);
+
+  useEffect(() => {
     const ac = new AbortController();
     fetch('/api/producers', { cache: 'no-store', signal: ac.signal })
       .then((r) => (r.ok ? r.json() : { producers: [] }))
-      .then((d: { producers?: Producer[] }) => {
-        if (!ac.signal.aborted) setList(d.producers ?? []);
+      .then((d) => {
+        if (!ac.signal.aborted) setList(decodeProducerPickerResults(d) ?? []);
       })
       .catch(() => {
         if (!ac.signal.aborted) setList([]);

@@ -11,6 +11,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
 import { SimilarSeedPicker } from '@/components/SimilarSeedPicker';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +20,10 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<{ vn?: string }>;
 }): Promise<Metadata> {
-  const { vn: vnId } = await searchParams;
+  const { vn: rawVnId } = await searchParams;
   const dict = await getDict();
-  if (vnId) {
+  if (isValidVnId(rawVnId)) {
+    const vnId = normalizeVnId(rawVnId);
     const seed = getCollectionItem(vnId);
     if (seed) return { title: `${dict.similar.title}: ${seed.title}` };
   }
@@ -50,9 +52,9 @@ export default async function SimilarPage({
 }: {
   searchParams: Promise<{ vn?: string; tags?: string }>;
 }) {
-  const { vn: seedId, tags: rawTags } = await searchParams;
+  const { vn: rawSeedId, tags: rawTags } = await searchParams;
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  if (!seedId || !/^(v\d+|egs_\d+)$/i.test(seedId)) {
+  if (!isValidVnId(rawSeedId)) {
     return (
       <div className="w-full">
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
@@ -68,6 +70,7 @@ export default async function SimilarPage({
       </div>
     );
   }
+  const seedId = normalizeVnId(rawSeedId);
   const seed = getCollectionItem(seedId);
   if (!seed) {
     return (

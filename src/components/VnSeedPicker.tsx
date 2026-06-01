@@ -6,6 +6,8 @@ import { useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { clearSeed, setSeed } from '@/lib/seed-picker-url';
 import { SafeImage } from '@/components/SafeImage';
+import { decodeCollectionFindMatches } from '@/lib/collection-find-client-shape';
+import { decodeVndbSearchResults } from '@/lib/search-client-shape';
 
 /** Hit shape both autocomplete sources are normalised to. */
 interface VnHit {
@@ -80,72 +82,65 @@ export function VnSeedPicker({
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastQueryRef = useRef<string>('');
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   const seedId = searchParams.get('seed');
   const showChip = !!initialSeed && !editing;
 
-  // Reset the editing flag when the URL seed changes from outside
-  // (e.g. another tab, a Link click). Without this, switching back to
-  // a known seed would keep the picker open on the search input.
   useEffect(() => {
-    if (initialSeed && !editing) return;
-    if (!initialSeed) setEditing(true);
-  }, [initialSeed, editing]);
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    lastQueryRef.current = '';
+    setQuery('');
+    setHits([]);
+    setSearchingLocal(false);
+    setSearchingVndb(false);
+    setOpen(false);
+    setHighlight(0);
+    setEditing(!initialSeed);
+  }, [seedId, initialSeed?.id]);
 
   /** Hit the two endpoints in parallel; render local rows the moment they land. */
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
     if (trimmed.length < 1) {
+      searchAbortRef.current?.abort();
       setHits([]);
       setSearchingLocal(false);
       setSearchingVndb(false);
       return;
     }
     lastQueryRef.current = trimmed;
+    searchAbortRef.current?.abort();
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     setSearchingLocal(true);
     setSearchingVndb(true);
     const localPromise = fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
       cache: 'no-store',
+      signal: ac.signal,
     })
       .then((r) => (r.ok ? r.json() : { matches: [] }))
-      .then((d) => (d.matches as Array<{ id: string; title: string; alttitle: string | null }>) ?? [])
-      .catch(() => [] as Array<{ id: string; title: string; alttitle: string | null }>)
-      .finally(() => {
-        if (lastQueryRef.current === trimmed) setSearchingLocal(false);
-      });
-    const vndbPromise = fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then(
-        (d) =>
-          (d.results as Array<{
-            id: string;
-            title: string;
-            alttitle: string | null;
-            released: string | null;
-            image: { url: string; thumbnail: string; sexual?: number | null } | null;
-            developers?: { name: string }[];
-            in_collection?: boolean;
-          }>) ?? [],
-      )
+      .then((d) => decodeCollectionFindMatches(d) ?? [])
       .catch(() => [])
       .finally(() => {
-        if (lastQueryRef.current === trimmed) setSearchingVndb(false);
+        if (!ac.signal.aborted && lastQueryRef.current === trimmed) setSearchingLocal(false);
+      });
+    const vndbPromise = fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then((d) => decodeVndbSearchResults(d) ?? [])
+      .catch(() => [])
+      .finally(() => {
+        if (!ac.signal.aborted && lastQueryRef.current === trimmed) setSearchingVndb(false);
       });
     // Race local in first so the UI flickers minimally.
     const localRows = await localPromise;
-    if (lastQueryRef.current !== trimmed) return;
+    if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
     const localHits: VnHit[] = localRows.map((row) => {
-      const r = row as typeof row & {
-        image_url?: string | null;
-        image_thumb?: string | null;
-        local_image?: string | null;
-        local_image_thumb?: string | null;
-        image_sexual?: number | null;
-      };
-      const localThumb = r.local_image_thumb || r.local_image || null;
-      const remoteThumb = r.image_thumb || r.image_url || null;
+      const localThumb = row.local_image_thumb || row.local_image || null;
+      const remoteThumb = row.image_thumb || row.image_url || null;
       const url = localThumb ? `/api/files/${localThumb}` : remoteThumb;
-      const image = url ? { url, thumbnail: url, sexual: r.image_sexual ?? null } : null;
+      const image = url ? { url, thumbnail: url, sexual: row.image_sexual } : null;
       return {
         id: row.id,
         title: row.title,
@@ -159,7 +154,7 @@ export function VnSeedPicker({
     });
     setHits(localHits);
     const vndbRows = await vndbPromise;
-    if (lastQueryRef.current !== trimmed) return;
+    if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
     const localIds = new Set(localRows.map((r) => r.id));
     const vndbHits: VnHit[] = vndbRows
       .filter((row) => !localIds.has(row.id))
@@ -180,6 +175,9 @@ export function VnSeedPicker({
 
   useEffect(() => {
     debouncedSearch(query);
+    return () => {
+      searchAbortRef.current?.abort();
+    };
   }, [query, debouncedSearch]);
 
   useEffect(() => {
@@ -246,7 +244,7 @@ export function VnSeedPicker({
   const totalLoading = searchingLocal || searchingVndb;
   const searchingLabel = useMemo(() => {
     if (searchingLocal && searchingVndb) {
-      return `${t.recommend.seedPicker.searchingLocal} · ${t.recommend.seedPicker.searchingVndb}`;
+      return `${t.recommend.seedPicker.searchingLocal} / ${t.recommend.seedPicker.searchingVndb}`;
     }
     if (searchingLocal) return t.recommend.seedPicker.searchingLocal;
     if (searchingVndb) return t.recommend.seedPicker.searchingVndb;
@@ -396,8 +394,8 @@ export function VnSeedPicker({
                         {hit.alttitle && hit.alttitle !== hit.title && (
                           <p title={hit.alttitle} className="line-clamp-1 text-[10px] text-muted">{hit.alttitle}</p>
                         )}
-                        <p className="line-clamp-1 text-[10px] text-muted" title={[year, hit.developer].filter(Boolean).join(' · ')}>
-                          {[year, hit.developer].filter(Boolean).join(' · ')}
+                        <p className="line-clamp-1 text-[10px] text-muted" title={[year, hit.developer].filter(Boolean).join(' / ')}>
+                          {[year, hit.developer].filter(Boolean).join(' / ')}
                         </p>
                       </div>
                       {hit.inCollection && (

@@ -5,6 +5,8 @@ import { GitCompare, Loader2, Plus, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { SafeImage } from '@/components/SafeImage';
+import { decodeCollectionFindMatches } from '@/lib/collection-find-client-shape';
+import { decodeVndbSearchResults } from '@/lib/search-client-shape';
 
 interface VnHit {
   id: string;
@@ -51,16 +53,30 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   const [highlight, setHighlight] = useState(0);
   const [showAdd, setShowAdd] = useState(initialVns.length < 4);
   const lastQueryRef = useRef('');
-  const aliveRef = useRef(true);
+  const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    aliveRef.current = true;
     return () => {
-      aliveRef.current = false;
+      searchAbortRef.current?.abort();
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    focusTimerRef.current = null;
+    lastQueryRef.current = '';
+    setSelected(initialVns);
+    setQuery('');
+    setHits([]);
+    setSearching(false);
+    setOpen(false);
+    setHighlight(0);
+    setShowAdd(initialVns.length < 4);
+  }, [initialVns]);
 
   const selectedIds = new Set(selected.map((s) => s.id));
 
@@ -68,46 +84,27 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
     async (q: string) => {
       const trimmed = q.trim();
       if (!trimmed) {
+        searchAbortRef.current?.abort();
         setHits([]);
         setSearching(false);
         return;
       }
       lastQueryRef.current = trimmed;
+      searchAbortRef.current?.abort();
+      const ac = new AbortController();
+      searchAbortRef.current = ac;
       setSearching(true);
 
       const [localRes, vndbRes] = await Promise.allSettled([
-        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
+        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
           .then((r) => (r.ok ? r.json() : { matches: [] }))
-          .then(
-            (d) =>
-              (d.matches ?? []) as Array<{
-                id: string;
-                title: string;
-                alttitle: string | null;
-                image_url?: string | null;
-                image_thumb?: string | null;
-                local_image?: string | null;
-                local_image_thumb?: string | null;
-                image_sexual?: number | null;
-              }>,
-          ),
-        fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
+          .then((d) => decodeCollectionFindMatches(d) ?? []),
+        fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
           .then((r) => (r.ok ? r.json() : { results: [] }))
-          .then(
-            (d) =>
-              (d.results ?? []) as Array<{
-                id: string;
-                title: string;
-                alttitle: string | null;
-                released: string | null;
-                image: { url: string; thumbnail: string; sexual?: number | null } | null;
-                developers?: { name: string }[];
-                in_collection?: boolean;
-              }>,
-          ),
+          .then((d) => decodeVndbSearchResults(d) ?? []),
       ]);
 
-      if (!aliveRef.current || lastQueryRef.current !== trimmed) return;
+      if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
       setSearching(false);
 
       const localRows = localRes.status === 'fulfilled' ? localRes.value : [];

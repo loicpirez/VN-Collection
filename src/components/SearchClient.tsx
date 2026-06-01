@@ -20,17 +20,15 @@ import { languageDisplayName } from '@/lib/language-names';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import type { VndbSearchHit } from '@/lib/types';
+import type { EgsCandidate } from '@/lib/erogamescape';
 
 import { readApiError } from '@/lib/api-error-read';
+import {
+  decodeAddedEgsVnId,
+  decodeEgsSearchCandidates,
+  decodeVndbSearchResults,
+} from '@/lib/search-client-shape';
 type SearchSource = 'vndb' | 'egs' | 'local';
-
-interface EgsCandidate {
-  id: number;
-  gamename: string;
-  median: number | null;
-  count: number | null;
-  sellday: string | null;
-}
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
 const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d'];
@@ -83,6 +81,13 @@ function readAdvFromUrl(sp: URLSearchParams): AdvParams {
   };
 }
 
+function readSourceFromUrl(sp: { get(name: string): string | null }): SearchSource {
+  const raw = sp.get('source') ?? sp.get('src') ?? '';
+  if (raw === 'egs') return 'egs';
+  if (raw === 'local') return 'local';
+  return 'vndb';
+}
+
 function isAdvActive(adv: AdvParams): boolean {
   return (
     adv.langs.length > 0 ||
@@ -125,6 +130,7 @@ export function SearchClient() {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const urlKey = searchParams.toString();
   const initialAdvRef = useRef<AdvParams | null>(null);
   if (initialAdvRef.current === null) {
     initialAdvRef.current = readAdvFromUrl(new URLSearchParams(searchParams.toString()));
@@ -134,12 +140,7 @@ export function SearchClient() {
   // URL parameter takes either `?source=` (new, canonical) or `?src=`
   // (legacy short form). Accepts vndb / egs / local; anything else
   // falls back to vndb.
-  const initialSource: SearchSource = (() => {
-    const raw = searchParams.get('source') ?? searchParams.get('src') ?? '';
-    if (raw === 'egs') return 'egs';
-    if (raw === 'local') return 'local';
-    return 'vndb';
-  })();
+  const initialSource = readSourceFromUrl(searchParams);
 
   const [source, setSource] = useState<SearchSource>(initialSource);
   const [q, setQ] = useState(initialQ);
@@ -155,6 +156,13 @@ export function SearchClient() {
   const [addedEgsIds, setAddedEgsIds] = useState<Set<number>>(new Set());
   const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const observedUrlRef = useRef(urlKey);
+  const ownedUrlKeysRef = useRef(new Set<string>());
+  const pendingUrlAdvancedRunRef = useRef(false);
+  const advancedAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const egsAddAbortRef = useRef<AbortController | null>(null);
+  const egsAddInFlightRef = useRef(false);
   const panelId = useId();
   const tabIds = { vndb: useId(), egs: useId(), local: useId() } as const;
   const TABS = ['vndb', 'egs', 'local'] as const;
@@ -194,10 +202,46 @@ export function SearchClient() {
       if (nextAdv.hasReview) sp.set('hasReview', '1');
       if (nextAdv.hasAnime) sp.set('hasAnime', '1');
       const qs = sp.toString();
+      ownedUrlKeysRef.current.add(qs);
+      if (ownedUrlKeysRef.current.size > 20) {
+        const oldest = ownedUrlKeysRef.current.values().next().value;
+        if (oldest !== undefined) ownedUrlKeysRef.current.delete(oldest);
+      }
       router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
     },
     [router],
   );
+
+  useEffect(() => {
+    if (observedUrlRef.current === urlKey) return;
+    observedUrlRef.current = urlKey;
+    if (ownedUrlKeysRef.current.delete(urlKey)) return;
+    ownedUrlKeysRef.current.clear();
+    advancedAbortRef.current?.abort();
+    advancedAbortRef.current = null;
+    const sp = new URLSearchParams(urlKey);
+    const nextAdv = readAdvFromUrl(sp);
+    const nextQ = sp.get('q') ?? '';
+    const nextSource = readSourceFromUrl(sp);
+    const hasAdvanced = isAdvActive(nextAdv);
+    setQ(nextQ);
+    setAdv(nextAdv);
+    setSource(nextSource);
+    setTouched(!!nextQ || hasAdvanced);
+    setAdvOpen(hasAdvanced);
+    setResults([]);
+    setEgsResults([]);
+    setError(null);
+    setVndbLoading(nextSource === 'vndb' && (!!nextQ || hasAdvanced));
+    setEgsLoading(nextSource === 'egs' && !!nextQ);
+    pendingUrlAdvancedRunRef.current = nextSource === 'vndb' && hasAdvanced;
+  }, [urlKey]);
+
+  useEffect(() => () => advancedAbortRef.current?.abort(), []);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    egsAddAbortRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     const handle = setTimeout(() => syncUrl(q, adv, source), 300);
@@ -223,11 +267,11 @@ export function SearchClient() {
       try {
         const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { cache: 'no-store', signal: ctrl.signal });
         if (!r.ok) {
-          const err = await r.json().catch(() => ({}));
-          throw new Error(err.error || t.search.errorPrefix);
+          throw new Error(await readApiError(r, t.search.errorPrefix));
         }
-        const data = await r.json();
-        setResults(data.results);
+        const results = decodeVndbSearchResults(await r.json());
+        if (!results) throw new Error(t.search.errorPrefix);
+        setResults(results);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         console.error('[SearchClient] VNDB search failed:', e);
@@ -262,11 +306,11 @@ export function SearchClient() {
           { signal: ctrl.signal, cache: 'no-store' },
         );
         if (!r.ok) {
-          const err = await r.json().catch(() => ({}));
-          throw new Error(err.error || t.search.errorPrefix);
+          throw new Error(await readApiError(r, t.search.errorPrefix));
         }
-        const data = (await r.json()) as { candidates: EgsCandidate[] };
-        setEgsResults(data.candidates);
+        const candidates = decodeEgsSearchCandidates(await r.json());
+        if (!candidates) throw new Error(t.search.errorPrefix);
+        setEgsResults(candidates);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         console.error('[SearchClient] EGS search failed:', e);
@@ -283,28 +327,42 @@ export function SearchClient() {
   }, [q, source, t.search.errorPrefix]);
 
   async function addEgs(c: EgsCandidate) {
+    if (egsAddInFlightRef.current) return;
+    egsAddInFlightRef.current = true;
+    const controller = new AbortController();
+    egsAddAbortRef.current = controller;
     setAddingEgsId(c.id);
     try {
       const r = await fetch(`/api/egs/${c.id}/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { vn_id: string };
+      const vnId = decodeAddedEgsVnId(await r.json());
+      if (!vnId) throw new Error(t.common.error);
+      if (controller.signal.aborted || !mountedRef.current || egsAddAbortRef.current !== controller) return;
       setAddedEgsIds((prev) => new Set(prev).add(c.id));
       toast.success(t.toast.added);
       startTransition(() => router.refresh());
-      // Push the user to the new entry's page so they can polish the inventory.
-      router.push(`/vn/${d.vn_id}`);
+      router.push(`/vn/${vnId}`);
     } catch (e) {
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || !mountedRef.current || egsAddAbortRef.current !== controller) return;
       toast.error((e as Error).message);
     } finally {
-      setAddingEgsId(null);
+      if (egsAddAbortRef.current === controller) {
+        egsAddAbortRef.current = null;
+        egsAddInFlightRef.current = false;
+        if (mountedRef.current) setAddingEgsId(null);
+      }
     }
   }
 
   async function runAdvanced() {
+    advancedAbortRef.current?.abort();
+    const controller = new AbortController();
+    advancedAbortRef.current = controller;
     setTouched(true);
     setVndbLoading(true);
     setError(null);
@@ -326,20 +384,33 @@ export function SearchClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.search.errorPrefix));
-      const data = await r.json();
-      setResults(data.results);
+      const results = decodeVndbSearchResults(await r.json());
+      if (!results) throw new Error(t.search.errorPrefix);
+      if (controller.signal.aborted || advancedAbortRef.current !== controller) return;
+      setResults(results);
     } catch (e) {
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || advancedAbortRef.current !== controller) return;
       console.error('[SearchClient] advanced search failed:', e);
       setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
       setResults([]);
     } finally {
-      setVndbLoading(false);
+      if (advancedAbortRef.current === controller) {
+        advancedAbortRef.current = null;
+        setVndbLoading(false);
+      }
     }
   }
 
   runAdvancedRef.current = runAdvanced;
+
+  useEffect(() => {
+    if (!pendingUrlAdvancedRunRef.current) return;
+    pendingUrlAdvancedRunRef.current = false;
+    runAdvancedRef.current();
+  }, [q, adv, source]);
 
   const onQueryEnter = useCallback(() => runAdvancedRef.current(), []);
 
@@ -659,7 +730,7 @@ export function SearchClient() {
                   <button
                     type="button"
                     onClick={() => addEgs(c)}
-                    disabled={isAdding || isAdded}
+                    disabled={addingEgsId != null || isAdded}
                     className={`btn shrink-0 ${isAdded ? '' : 'btn-primary'}`}
                   >
                     {isAdding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}

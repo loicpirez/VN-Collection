@@ -5,6 +5,8 @@ import { Loader2, Pencil, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { SafeImage } from '@/components/SafeImage';
+import { decodeCollectionFindMatches } from '@/lib/collection-find-client-shape';
+import { decodeVndbSearchResults } from '@/lib/search-client-shape';
 
 interface VnHit {
   id: string;
@@ -55,10 +57,24 @@ export function SimilarSeedPicker({
   const lastQueryRef = useRef('');
   const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const seedId = currentSeed?.id ?? null;
+
+  useEffect(() => {
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    lastQueryRef.current = '';
+    setQuery('');
+    setHits([]);
+    setSearching(false);
+    setOpen(false);
+    setHighlight(0);
+    setEditing(!currentSeed);
+  }, [seedId]);
 
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
     if (!trimmed) {
+      searchAbortRef.current?.abort();
       setHits([]);
       setSearching(false);
       return;
@@ -72,33 +88,10 @@ export function SimilarSeedPicker({
     const [localRes, vndbRes] = await Promise.allSettled([
       fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
         .then((r) => (r.ok ? r.json() : { matches: [] }))
-        .then(
-          (d) =>
-            (d.matches ?? []) as Array<{
-              id: string;
-              title: string;
-              alttitle: string | null;
-              image_url?: string | null;
-              image_thumb?: string | null;
-              local_image?: string | null;
-              local_image_thumb?: string | null;
-              image_sexual?: number | null;
-            }>,
-        ),
+        .then((d) => decodeCollectionFindMatches(d) ?? []),
       fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
         .then((r) => (r.ok ? r.json() : { results: [] }))
-        .then(
-          (d) =>
-            (d.results ?? []) as Array<{
-              id: string;
-              title: string;
-              alttitle: string | null;
-              released: string | null;
-              image: { url: string; thumbnail: string; sexual?: number | null } | null;
-              developers?: { name: string }[];
-              in_collection?: boolean;
-            }>,
-        ),
+        .then((d) => decodeVndbSearchResults(d) ?? []),
     ]);
 
     if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
@@ -307,7 +300,7 @@ export function SimilarSeedPicker({
                         )}
                         {(year || hit.developer) && (
                           <p className="text-[11px] text-muted">
-                            {[year, hit.developer].filter(Boolean).join(' · ')}
+                            {[year, hit.developer].filter(Boolean).join(' / ')}
                           </p>
                         )}
                       </div>

@@ -13,6 +13,7 @@ import { stripVndbMarkup } from './VndbMarkup';
 import type { VndbTrait } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeTraitsResponse } from '@/lib/browse-client-shape';
 
 const Q_DEBOUNCE_MS = 300;
 
@@ -93,8 +94,9 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           : `/api/traits?${new URLSearchParams({ q, results: '60' })}`;
         const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        const d = await r.json();
-        let list: VndbTrait[] = d.traits;
+        const traits = decodeTraitsResponse(await r.json());
+        if (!traits) throw new Error(t.common.error);
+        let list: VndbTrait[] = traits;
         if (onlyMine && q.trim()) {
           const lower = q.trim().toLowerCase();
           list = list.filter((tr) =>

@@ -5,24 +5,9 @@ import { ChevronDown, ChevronRight, FileText, Library, MessageSquareQuote, Quote
 import { useT } from '@/lib/i18n/client';
 import { SkeletonBlock } from './Skeleton';
 import { SafeImage } from './SafeImage';
-
-interface Hit {
-  vn_id: string;
-  title: string;
-  source: 'notes' | 'custom_description' | 'quote';
-  snippet: string;
-}
-
-interface LibraryHit {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  image_url: string | null;
-  image_thumb: string | null;
-  local_image: string | null;
-  local_image_thumb: string | null;
-  image_sexual: number | null;
-}
+import { readApiError } from '@/lib/api-error-read';
+import { decodeCollectionFindMatches, type CollectionFindMatch } from '@/lib/collection-find-client-shape';
+import { decodeTextualSearchHits, type TextualSearchHit } from '@/lib/browse-client-shape';
 
 const ICONS = {
   notes: FileText,
@@ -65,8 +50,8 @@ export function TextualSearchPanel({
 }) {
   const t = useT();
   const panelId = useId();
-  const [libraryHits, setLibraryHits] = useState<LibraryHit[]>([]);
-  const [hits, setHits] = useState<Hit[]>([]);
+  const [libraryHits, setLibraryHits] = useState<CollectionFindMatch[]>([]);
+  const [hits, setHits] = useState<TextualSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(mode === 'standalone');
 
@@ -86,16 +71,26 @@ export function TextualSearchPanel({
         fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
           signal: ctrl.signal,
           cache: 'no-store',
-        }).then((r) => r.json()),
+        }).then(async (r) => {
+          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          const matches = decodeCollectionFindMatches(await r.json());
+          if (!matches) throw new Error(t.common.error);
+          return matches;
+        }),
         fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`, {
           signal: ctrl.signal,
           cache: 'no-store',
-        }).then((r) => r.json()),
+        }).then(async (r) => {
+          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          const hits = decodeTextualSearchHits(await r.json());
+          if (!hits) throw new Error(t.common.error);
+          return hits;
+        }),
       ])
-        .then(([library, textual]: [{ matches?: LibraryHit[] }, { hits?: Hit[] }]) => {
+        .then(([library, textual]) => {
           if (!alive || ctrl.signal.aborted) return;
-          setLibraryHits(library.matches ?? []);
-          setHits(textual.hits ?? []);
+          setLibraryHits(library);
+          setHits(textual);
         })
         .catch((e: unknown) => {
           if ((e as Error).name === 'AbortError' || ctrl.signal.aborted) return;
@@ -108,7 +103,7 @@ export function TextualSearchPanel({
       ctrl.abort();
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, t.common.error]);
 
   if (mode === 'accordion') {
     if (query.trim().length < 2) return null;
