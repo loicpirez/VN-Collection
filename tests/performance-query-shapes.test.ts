@@ -44,6 +44,27 @@ describe('home library request shape', () => {
   });
 });
 
+describe('collection pagination request shape', () => {
+  it('bounds public collection pages and drains full-collection workflows through the shared helper', () => {
+    const route = source('src/app/api/collection/route.ts');
+    const helper = source('src/lib/collection-api-client.ts');
+    expect(route).toContain('const DEFAULT_COLLECTION_PAGE_SIZE = 240');
+    expect(route).toContain('const MAX_COLLECTION_PAGE_SIZE = 500');
+    expect(route).toContain('limit: pageSize + 1');
+    expect(route).toContain('offset: (page - 1) * pageSize');
+    expect(helper).toContain('const FULL_COLLECTION_PAGE_SIZE = 500');
+    expect(helper).toContain("pageParams.set('page', String(page))");
+    expect(helper).toContain("pageParams.set('limit', String(FULL_COLLECTION_PAGE_SIZE))");
+    for (const path of [
+      'src/components/BulkDownloadButton.tsx',
+      'src/components/CompareWithButton.tsx',
+      'src/components/SelectiveFullDownload.tsx',
+    ]) {
+      expect(source(path)).toContain('fetchAllCollectionItems');
+    }
+  });
+});
+
 describe('collection producer sorting query shape', () => {
   it('joins pre-aggregated developer and publisher names instead of scalar subqueries', () => {
     const body = source('src/lib/db.ts');

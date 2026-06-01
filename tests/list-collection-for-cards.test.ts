@@ -185,6 +185,17 @@ describe('listCollectionForCards — behaviour', () => {
     addToCollection('v9404', { status: 'planning' });
     expect(listCollectionForCards({ limit: 1 })).toHaveLength(1);
   });
+
+  it('listCollectionForCards applies SQL offset after sorting', () => {
+    upsertVn({ id: 'v9405', title: 'Offset A' });
+    upsertVn({ id: 'v9406', title: 'Offset B' });
+    upsertVn({ id: 'v9407', title: 'Offset C' });
+    addToCollection('v9405', { status: 'planning' });
+    addToCollection('v9406', { status: 'planning' });
+    addToCollection('v9407', { status: 'planning' });
+    expect(listCollectionForCards({ q: 'Offset', sort: 'title', order: 'asc', limit: 1, offset: 1 }).map((it) => it.id))
+      .toEqual(['v9406']);
+  });
 });
 
 describe('R5-144 /api/collection route', () => {

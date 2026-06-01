@@ -3789,7 +3789,26 @@ export interface ListOptions {
   edition?: EditionType;
   yearMin?: number;
   yearMax?: number;
+  ratingMin?: number;
+  ratingMax?: number;
+  playtimeMinHours?: number;
+  playtimeMaxHours?: number;
   dumped?: boolean;
+  onlyEgsOnly?: boolean;
+  matchVndb?: boolean;
+  matchEgs?: boolean;
+  fanDisc?: boolean;
+  hasNotes?: boolean;
+  hasCustomCover?: boolean;
+  hasBanner?: boolean;
+  isFavorite?: boolean;
+  hasReleased?: boolean;
+  isNsfw?: boolean;
+  isNukige?: boolean;
+  inReadingQueue?: boolean;
+  inList?: boolean;
+  excludeNsfw?: boolean;
+  nsfwThreshold?: number;
   /** Single aspect filter (back-compat). Use `aspects` for multi-select. */
   aspect?: AspectKey;
   /** Multi-select aspect filter. Matches a VN if any of the supplied
@@ -3804,6 +3823,8 @@ export interface ListOptions {
    *  realistic collection size while protecting against pathological
    *  unbounded scans. Pass `Infinity` only in trusted bulk-export paths. */
   limit?: number;
+  /** Number of sorted rows to skip before applying `limit`. */
+  offset?: number;
   /**
    * R5-144: internal projection knob. `'full'` (default) selects
    * every column from `vn` (`v.*`) — used by `/lists/[id]`,
@@ -3895,11 +3916,31 @@ export function listCollection({
   edition,
   yearMin,
   yearMax,
+  ratingMin,
+  ratingMax,
+  playtimeMinHours,
+  playtimeMaxHours,
   dumped,
+  onlyEgsOnly,
+  matchVndb,
+  matchEgs,
+  fanDisc,
+  hasNotes,
+  hasCustomCover,
+  hasBanner,
+  isFavorite,
+  hasReleased,
+  isNsfw,
+  isNukige,
+  inReadingQueue,
+  inList,
+  excludeNsfw,
+  nsfwThreshold = 1,
   aspect,
   aspects,
   vnIds,
   limit = 10_000,
+  offset = 0,
   sort = 'updated_at',
   order = 'desc',
   _projection = 'full',
@@ -3959,7 +4000,14 @@ export function listCollection({
     sort === 'egs_rating' ||
     sort === 'combined_rating' ||
     sort === 'egs_playtime' ||
-    sort === 'combined_playtime';
+    sort === 'combined_playtime' ||
+    typeof ratingMin === 'number' ||
+    typeof ratingMax === 'number' ||
+    typeof playtimeMinHours === 'number' ||
+    typeof playtimeMaxHours === 'number' ||
+    typeof matchEgs === 'boolean' ||
+    typeof isNsfw === 'boolean' ||
+    excludeNsfw === true;
   const sortCol = sortMap[sort] ?? 'c.updated_at';
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const where: string[] = [];
@@ -4006,10 +4054,72 @@ export function listCollection({
     where.push("substr(v.released, 1, 4) <= ?");
     params.push(String(yearMax));
   }
+  const scoreExpression =
+    'ROUND((COALESCE(c.user_rating, 0) + COALESCE(v.rating, 0) + COALESCE(e.median, 0)) ' +
+    '/ NULLIF(' +
+    '(CASE WHEN c.user_rating IS NULL THEN 0 ELSE 1 END) + ' +
+    '(CASE WHEN v.rating IS NULL THEN 0 ELSE 1 END) + ' +
+    '(CASE WHEN e.median IS NULL THEN 0 ELSE 1 END)' +
+    ', 0))';
+  if (typeof ratingMin === 'number') {
+    where.push(`${scoreExpression} >= ?`);
+    params.push(ratingMin);
+  }
+  if (typeof ratingMax === 'number') {
+    where.push(`${scoreExpression} <= ?`);
+    params.push(ratingMax);
+  }
+  const playtimeHoursExpression =
+    'ROUND(COALESCE(NULLIF(c.playtime_minutes, 0), NULLIF(e.playtime_median_minutes, 0), NULLIF(v.length_minutes, 0)) / 60.0)';
+  if (typeof playtimeMinHours === 'number') {
+    where.push(`${playtimeHoursExpression} >= ?`);
+    params.push(playtimeMinHours);
+  }
+  if (typeof playtimeMaxHours === 'number') {
+    where.push(`${playtimeHoursExpression} <= ?`);
+    params.push(playtimeMaxHours);
+  }
   if (typeof dumped === 'boolean') {
     where.push('c.dumped = ?');
     params.push(dumped ? 1 : 0);
   }
+  const pushBooleanClause = (value: boolean | undefined, clause: string, clauseParams: unknown[] = []): void => {
+    if (typeof value !== 'boolean') return;
+    where.push(value ? `(${clause})` : `NOT (${clause})`);
+    params.push(...clauseParams);
+  };
+  pushBooleanClause(onlyEgsOnly, "substr(v.id, 1, 4) = 'egs_'");
+  pushBooleanClause(matchVndb, "substr(v.id, 1, 4) <> 'egs_'");
+  pushBooleanClause(matchEgs, 'e.vn_id IS NOT NULL');
+  pushBooleanClause(fanDisc, `EXISTS (
+    SELECT 1 FROM json_each(v.relations)
+    WHERE json_extract(value, '$.relation') = 'orig'
+  )`);
+  pushBooleanClause(hasNotes, "NULLIF(TRIM(c.notes), '') IS NOT NULL");
+  pushBooleanClause(hasCustomCover, "NULLIF(TRIM(v.custom_cover), '') IS NOT NULL");
+  pushBooleanClause(hasBanner, "NULLIF(TRIM(v.banner_image), '') IS NOT NULL");
+  pushBooleanClause(isFavorite, 'c.favorite = 1');
+  pushBooleanClause(hasReleased, "NULLIF(TRIM(v.released), '') IS NOT NULL");
+  const adultExpression = `(
+    COALESCE(v.image_sexual, 0) >= ?
+    OR COALESCE(e.erogame, 0) = 1
+    OR COALESCE(e.okazu, 0) = 1
+    OR EXISTS (
+      SELECT 1 FROM vn_tag_index adult_tag
+      WHERE adult_tag.vn_id = v.id AND adult_tag.category = 'ero'
+    )
+  )`;
+  if (excludeNsfw) {
+    where.push(`NOT ${adultExpression}`);
+    params.push(nsfwThreshold);
+  }
+  pushBooleanClause(isNsfw, adultExpression, [nsfwThreshold]);
+  pushBooleanClause(isNukige, `EXISTS (
+    SELECT 1 FROM vn_tag_index nukige_tag
+    WHERE nukige_tag.vn_id = v.id AND nukige_tag.tag_name = 'nukige' COLLATE NOCASE
+  )`);
+  pushBooleanClause(inReadingQueue, 'EXISTS (SELECT 1 FROM reading_queue rq WHERE rq.vn_id = v.id)');
+  pushBooleanClause(inList, 'EXISTS (SELECT 1 FROM user_list_vn ulv WHERE ulv.vn_id = v.id)');
   // Aspect filter — supports BOTH legacy single `aspect` and the
   // multi-select `aspects` array. Combined into one deduped set;
   // a VN matches if ANY selected aspect applies.
@@ -4136,8 +4246,9 @@ export function listCollection({
       : _projection === 'full-no-raw'
         ? FULL_NO_RAW_VN_COLUMNS
         : 'v.*';
-  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10_000;
-  params.push(safeLimit);
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(10_000, Math.floor(limit)) : 10_000;
+  const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.min(10_000_000, Math.floor(offset)) : 0;
+  params.push(safeLimit, safeOffset);
   const rows = db
     .prepare(`
       SELECT ${vnProjection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
@@ -4148,7 +4259,7 @@ export function listCollection({
       ${join}
       ${whereSql}
       ORDER BY ${sortCol} ${dir} NULLS LAST
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `)
     .all(...params) as DbRow[];
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);

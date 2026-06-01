@@ -38,6 +38,31 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'combined_rating',
   'custom',
 ];
+const DEFAULT_COLLECTION_PAGE_SIZE = 240;
+const MAX_COLLECTION_PAGE_SIZE = 500;
+const MAX_COLLECTION_PAGE = 20_000;
+
+function parsePositiveInteger(raw: string | null, fallback: number, max: number): number | null {
+  if (raw == null || raw === '') return fallback;
+  if (!/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
+  return Math.min(parsed, max);
+}
+
+function parseOptionalNumber(raw: string | null, min: number, max: number): number | undefined | null {
+  if (raw == null || raw === '') return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+  return parsed;
+}
+
+function parseOptionalBoolean(raw: string | null): boolean | undefined | null {
+  if (raw == null || raw === '') return undefined;
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  return null;
+}
 
 /**
  * 30-second in-process cache for the full-collection `vn_id` scan that
@@ -83,6 +108,33 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
   const dumpedRaw = sp.get('dumped');
+  const page = parsePositiveInteger(sp.get('page'), 1, MAX_COLLECTION_PAGE);
+  const pageSize = parsePositiveInteger(
+    sp.get('limit'),
+    DEFAULT_COLLECTION_PAGE_SIZE,
+    MAX_COLLECTION_PAGE_SIZE,
+  );
+  const ratingMin = parseOptionalNumber(sp.get('ratingMin'), 0, 100);
+  const ratingMax = parseOptionalNumber(sp.get('ratingMax'), 0, 100);
+  const playtimeMinHours = parseOptionalNumber(sp.get('playtimeMin'), 0, 100_000);
+  const playtimeMaxHours = parseOptionalNumber(sp.get('playtimeMax'), 0, 100_000);
+  const nsfwThreshold = parseOptionalNumber(sp.get('nsfwThreshold'), 0, 2);
+  const booleanFilters = {
+    onlyEgsOnly: parseOptionalBoolean(sp.get('only_egs_only')),
+    matchVndb: parseOptionalBoolean(sp.get('match_vndb')),
+    matchEgs: parseOptionalBoolean(sp.get('match_egs')),
+    fanDisc: parseOptionalBoolean(sp.get('fan_disc')),
+    hasNotes: parseOptionalBoolean(sp.get('has_notes')),
+    hasCustomCover: parseOptionalBoolean(sp.get('has_custom_cover')),
+    hasBanner: parseOptionalBoolean(sp.get('has_banner')),
+    isFavorite: parseOptionalBoolean(sp.get('is_favorite')),
+    hasReleased: parseOptionalBoolean(sp.get('has_released')),
+    isNsfw: parseOptionalBoolean(sp.get('is_nsfw')),
+    isNukige: parseOptionalBoolean(sp.get('is_nukige')),
+    inReadingQueue: parseOptionalBoolean(sp.get('in_reading_queue')),
+    inList: parseOptionalBoolean(sp.get('in_list')),
+    excludeNsfw: parseOptionalBoolean(sp.get('exclude_nsfw')),
+  };
   // ?aspect supports comma-separated multi-select (e.g.
   // ?aspect=4:3,16:9). Repeated params (sp.getAll) are also
   // honoured so URL builders can choose either convention.
@@ -107,6 +159,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       { error: `invalid aspect: ${aspectInvalid.join(', ')}` },
       { status: 400 },
     );
+  }
+  if (page == null || pageSize == null) {
+    return NextResponse.json({ error: 'invalid pagination' }, { status: 400 });
+  }
+  if (
+    ratingMin === null ||
+    ratingMax === null ||
+    playtimeMinHours === null ||
+    playtimeMaxHours === null ||
+    nsfwThreshold === null ||
+    Object.values(booleanFilters).some((value) => value === null)
+  ) {
+    return NextResponse.json({ error: 'invalid filter' }, { status: 400 });
   }
   const sort = (VALID_SORTS as string[]).includes(sortRaw)
     ? (sortRaw as ListOptions['sort'])
@@ -166,6 +231,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
       yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
       dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
+      ratingMin,
+      ratingMax,
+      playtimeMinHours,
+      playtimeMaxHours,
+      onlyEgsOnly: booleanFilters.onlyEgsOnly ?? undefined,
+      matchVndb: booleanFilters.matchVndb ?? undefined,
+      matchEgs: booleanFilters.matchEgs ?? undefined,
+      fanDisc: booleanFilters.fanDisc ?? undefined,
+      hasNotes: booleanFilters.hasNotes ?? undefined,
+      hasCustomCover: booleanFilters.hasCustomCover ?? undefined,
+      hasBanner: booleanFilters.hasBanner ?? undefined,
+      isFavorite: booleanFilters.isFavorite ?? undefined,
+      hasReleased: booleanFilters.hasReleased ?? undefined,
+      isNsfw: booleanFilters.isNsfw ?? undefined,
+      isNukige: booleanFilters.isNukige ?? undefined,
+      inReadingQueue: booleanFilters.inReadingQueue ?? undefined,
+      inList: booleanFilters.inList ?? undefined,
+      excludeNsfw: booleanFilters.excludeNsfw ?? undefined,
+      nsfwThreshold: nsfwThreshold ?? undefined,
       // Multi-select aspect filter — `aspect` stays for back-compat
       // (first item from the list), `aspects` carries the full set
       // when the user picks more than one.
@@ -173,13 +257,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       aspects: aspectValid.length > 1 ? aspectValid : undefined,
       sort,
       order,
+      limit: pageSize + 1,
+      offset: (page - 1) * pageSize,
     });
+    const hasMore = raw.length > pageSize;
+    const pageItems = hasMore ? raw.slice(0, pageSize) : raw;
     // Annotate each row with its list-membership count once, here, so
     // the library grid renders the ListsPicker badge correctly on first
     // paint without needing a popover open per card.
     const listCounts = countListMembershipsByVn();
     const queueIds = getReadingQueueVnIds();
-    const items = raw.map((it) => {
+    const items = pageItems.map((it) => {
       const {
         notes,
         started_date,
@@ -198,7 +286,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         in_reading_queue: queueIds.has(it.id),
       };
     });
-    return NextResponse.json({ items, stats: getStats() });
+    return NextResponse.json({
+      items,
+      stats: getStats(),
+      pagination: {
+        page,
+        page_size: pageSize,
+        returned: items.length,
+        has_more: hasMore,
+      },
+    });
   } catch (err) {
     console.error('[collection] DB error:', (err as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
