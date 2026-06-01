@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 95 tracked tasks. Statuses must be updated only
+place. The reports below contain 236 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -14,17 +14,17 @@ Each task uses the same five-column format:
 
 | Category | Report | Tracked tasks |
 | --- | --- | ---: |
-| Security | [security-report-tasks.md](security-report-tasks.md) | 8 |
-| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 12 |
+| Security | [security-report-tasks.md](security-report-tasks.md) | 34 |
+| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 40 |
 | Features | [features-report-tasks.md](features-report-tasks.md) | 7 |
-| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 12 |
-| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 9 |
-| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 8 |
-| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 7 |
+| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 25 |
+| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 10 |
+| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 15 |
+| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 14 |
 | i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 8 |
-| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 8 |
+| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 66 |
 | Testing | [testing-report-tasks.md](testing-report-tasks.md) | 9 |
-| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 7 |
+| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 8 |
 
 ## Status vocabulary
 
@@ -149,11 +149,70 @@ confirmed blocked first paint, enabled shared state, immediate revocation, disab
 geocoding after revocation, and no horizontal overflow. Nominatim language preferences
 now derive from the active locale.
 
+The responsive-density follow-up keeps density labels visible on narrow screens and
+removes blanket horizontal clipping from the configurable page frame. Shelf overflow
+remains owned by the shelf scroll frames. Browser QA at 390 px confirmed the shelf has
+one local horizontal scroll boundary, visible density text, and no page overflow. The
+same pass hardened provider-capability rendering against stale serialized snapshots
+during development hot reload.
+
+The stock-localization follow-up centralizes JPY formatting, uses the shared locale-aware
+date helper for provider timestamps, and stores app-authored stock conditions, editions,
+marketplace availability, and AliceNet Kobe availability as stable slugs. Existing
+English rows retain render-time compatibility maps. Browser QA at 390 px also found and
+fixed stock disclosure hydration mismatches caused by reading local storage during the
+first client render; a fresh reload now has no console errors or horizontal overflow.
+
+The download-status localization follow-up emits stable label and current-item codes for
+all production background-job producers, persists those codes for durable stock jobs,
+and translates them at render time while retaining legacy fallbacks. Durable snapshots
+validate decoded codes and parameters before exposing them to the client.
+
+The activity localization follow-up makes persisted event codes authoritative at render
+time. The activity filter and system feed now resolve the full production event catalog
+through locale dictionaries; legacy English labels remain searchable metadata only.
+
+The persisted-data typing follow-up removes the proxy-agent double cast, validates every
+display-setting cookie and local-storage field before hydration, and guards application-
+owned SQLite and proxy-setting JSON payloads with concrete decoders. Corrupt rows now
+fall back to bounded empty values instead of flowing into typed consumers.
+
+The library-facet follow-up replaces long native advanced-filter selects with searchable
+comboboxes for developers, publishers, series, tags, and places. Results are capped at
+60 rendered options with a visible range count, while keyboard and touch selection keep
+the full underlying facet list reachable without hidden truncation.
+
+The repository's intentionally limited lint gate was re-verified: Next.js 16 removed
+`next lint`, no formal linter is wired, and `CLAUDE.md` explicitly documents typecheck
+plus tests as the current safety net.
+
+The responsive-QA follow-up adds real narrow-browser assertions for tutorial placement,
+tutorial action touch targets, VN-detail horizontal overflow, compact document height,
+collapsed secondary sections, and the mobile section navigator's 44 px target floor.
+
+The library-toolbar follow-up gives display customization one predictable surface:
+card density, comfortable/dense mode, and home-section layout now sit together below
+the sort cluster on mobile and in the desktop toolbar. Filter presets remain in Options.
+
+The collection-card typing follow-up introduces separate database-card and public API
+DTOs. Slim card queries no longer reconstruct or advertise omitted rich-detail fields,
+and the client no longer carries a private-note fallback that its public response cannot
+legitimately receive.
+
+The stock-module boundary follow-up extracts the provider capability catalogue, bounded
+title-query generation, and client stock-response DTOs into focused modules. Existing
+server imports remain compatible through `stock.ts` re-exports while `StockPanel` stops
+declaring a duplicate wire contract.
+
+The second post-fix audit reopened four evidence-backed tasks: advanced-search request
+validation, printable-label origin normalization, failed-image fallback rendering, and
+canonical documentation drift after the stock-module and settings-tab refactors.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 77
-- `VERIFIED_EXISTING`: 2
-- `TODO`: 16
+- `DONE_WITH_DIFF`: 98
+- `VERIFIED_EXISTING`: 3
+- `TODO`: 1
 
 ## Working method
 
