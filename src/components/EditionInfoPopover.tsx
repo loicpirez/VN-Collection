@@ -17,6 +17,7 @@ import { fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -129,6 +130,26 @@ export function EditionInfoTrigger({
   const [placed, setPlaced] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const identity = `${data.vn_id}|${data.release_id}`;
+  const identityRef = useRef(identity);
+  const mountedRef = useRef(true);
+  const refreshAbortRef = useRef<AbortController | null>(null);
+  const refreshInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = identity;
+    refreshAbortRef.current?.abort();
+    refreshAbortRef.current = null;
+    refreshInFlightRef.current = false;
+    setRefreshing(false);
+    setOpen(false);
+    return () => {
+      mountedRef.current = false;
+      refreshAbortRef.current?.abort();
+      refreshAbortRef.current = null;
+    };
+  }, [identity]);
 
   // Outside-click + Escape close. Container check spans the button
   // + the popover (both rendered as siblings into the parent's
@@ -198,6 +219,45 @@ export function EditionInfoTrigger({
 
   function stop(e: React.SyntheticEvent) {
     e.stopPropagation();
+  }
+  async function refreshReleaseMetadata(e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation();
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    const ownerIdentity = identity;
+    const controller = new AbortController();
+    refreshAbortRef.current = controller;
+    setRefreshing(true);
+    try {
+      const r = await fetch(
+        `/api/collection/${data.vn_id}/assets?refresh=true`,
+        { method: 'POST', signal: controller.signal },
+      );
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (
+        controller.signal.aborted ||
+        !mountedRef.current ||
+        identityRef.current !== ownerIdentity ||
+        refreshAbortRef.current !== controller
+      ) return;
+      toast.success(t.toast.saved);
+      router.refresh();
+    } catch (err) {
+      if (
+        (err as Error).name === 'AbortError' ||
+        controller.signal.aborted ||
+        !mountedRef.current ||
+        identityRef.current !== ownerIdentity ||
+        refreshAbortRef.current !== controller
+      ) return;
+      toast.error((err as Error).message);
+    } finally {
+      if (identityRef.current === ownerIdentity && refreshAbortRef.current === controller) {
+        refreshAbortRef.current = null;
+        refreshInFlightRef.current = false;
+        if (mountedRef.current) setRefreshing(false);
+      }
+    }
   }
   const isSynthetic = data.release_id.startsWith('synthetic:');
   const ariaLabel = ariaLabelOverride ?? t.shelfLayout.poolItemDetails;
@@ -323,7 +383,7 @@ export function EditionInfoTrigger({
                         onMouseDown={stop}
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-accent/40 bg-accent/10 px-2 py-1 text-xs uppercase tracking-wider text-accent hover:bg-accent/20"
-                        title={state.releasePlatforms.join(' · ').toUpperCase()}
+                        title={state.releasePlatforms.join(' / ').toUpperCase()}
                       >
                         <Edit3 className="h-2.5 w-2.5" aria-hidden />
                         {t.form.choosePlatform}
@@ -345,32 +405,7 @@ export function EditionInfoTrigger({
                           onPointerDown={stop}
                           onMouseDown={stop}
                           disabled={refreshing}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (refreshing) return;
-                            setRefreshing(true);
-                            try {
-                              const r = await fetch(
-                                `/api/collection/${data.vn_id}/assets?refresh=true`,
-                                { method: 'POST' },
-                              );
-                              if (!r.ok) {
-                                const body = (await r.json().catch(() => ({}))) as { error?: string };
-                                throw new Error(body.error || t.common.error);
-                              }
-                              toast.success(t.toast.saved);
-                              // The server-rendered popover data is
-                              // stale until the parent re-fetches. A
-                              // router.refresh() invalidates the RSC
-                              // cache so the next paint reads the
-                              // freshly-materialized release_meta_cache.
-                              router.refresh();
-                            } catch (err) {
-                              toast.error((err as Error).message);
-                            } finally {
-                              setRefreshing(false);
-                            }
-                          }}
+                          onClick={refreshReleaseMetadata}
                           className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-border bg-bg-elev/50 px-2 py-1 text-xs uppercase tracking-wider text-muted hover:border-accent hover:text-accent disabled:opacity-50"
                           title={t.shelfLayout.refreshReleases}
                         >
@@ -412,9 +447,9 @@ export function EditionInfoTrigger({
                 {t.shelfLayout.alsoAvailableOn}{' '}
                 <span
                   className="text-white/80"
-                  title={otherPlatforms.join(' · ')}
+                  title={otherPlatforms.join(' / ')}
                 >
-                  {otherPlatforms.map((p) => platformLabel(p)).join(' · ')}
+                  {otherPlatforms.map((p) => platformLabel(p)).join(' / ')}
                 </span>
               </div>
               );
@@ -440,7 +475,7 @@ export function EditionInfoTrigger({
               return (
                 <div>
                   {t.detail.languages}:{' '}
-                  <span className="text-white">{langs.join(' · ').toUpperCase()}</span>
+                  <span className="text-white">{langs.join(' / ').toUpperCase()}</span>
                   {data.rel_languages.length > 0 && (
                     <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
                       {t.shelfLayout.releaseFieldBadge}
@@ -472,7 +507,7 @@ export function EditionInfoTrigger({
             {data.physical_location.length > 0 && (
               <div className="inline-flex items-center gap-1">
                 <MapPin className="h-2.5 w-2.5" aria-hidden />
-                <span className="text-white">{data.physical_location.join(' · ')}</span>
+                <span className="text-white">{data.physical_location.join(' / ')}</span>
               </div>
             )}
             {data.price_paid != null && (
@@ -500,7 +535,7 @@ export function EditionInfoTrigger({
               onPointerDown={stop}
               onMouseDown={stop}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             >
               <ExternalLink className="h-2.5 w-2.5" aria-hidden />
               {t.shelfLayout.poolOpenVn}
@@ -511,7 +546,7 @@ export function EditionInfoTrigger({
                 onPointerDown={stop}
                 onMouseDown={stop}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
               >
                 <ExternalLink className="h-2.5 w-2.5" aria-hidden />
                 {t.shelfLayout.poolOpenRelease}

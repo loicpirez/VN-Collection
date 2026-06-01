@@ -27,6 +27,7 @@ import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
+import { decodeKnownPlacesResponse } from '@/lib/place-client-shape';
 import {
   OWNED_EDITIONS_EVENT,
   type OwnedEditionsChangedDetail,
@@ -41,49 +42,11 @@ import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 import type { VndbRelease } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
-interface OwnedEdition {
-  vn_id: string;
-  release_id: string;
-  notes: string | null;
-  location: Location;
-  physical_location: string[];
-  box_type: BoxType;
-  edition_label: string | null;
-  condition: string | null;
-  price_paid: number | null;
-  currency: string | null;
-  acquired_date: string | null;
-  purchase_place: string | null;
-  /**
-   * Lowercase VNDB platform code the user physically owns for this
-   * edition. NULL when the underlying release is multi-platform AND
-   * the user has not picked one yet. Populated automatically via
-   * release_meta_cache when the release has exactly one platform.
-   */
-  owned_platform: string | null;
-  /**
-   * Release-level platforms list joined server-side from
-   * `release_meta_cache`. Drives the per-edition platform picker:
-   * empty → free-text input, length=1 → auto-locked, length>1 → select.
-   */
-  rel_platforms: string[];
-  dumped: boolean;
-  added_at: number;
-  /** Populated server-side via `listOwnedReleasesWithShelfForVn`.
-   *  Null when the edition isn't placed on any /shelf?view=layout. */
-  shelf:
-    | { kind: 'cell'; id: number; name: string; row: number; col: number }
-    | { kind: 'display'; id: number; name: string; afterRow: number; position: number }
-    | null;
-  aspect: {
-    width: number | null;
-    height: number | null;
-    raw_resolution: string | null;
-    aspect_key: AspectKey;
-    source: 'manual' | 'vndb' | 'unknown';
-    note: string | null;
-  };
-}
+import {
+  decodeOwnedEditionsResponse,
+  decodeVnDetailReleasesResponse,
+  type OwnedEditionClientRow as OwnedEdition,
+} from '@/lib/vn-detail-client-shape';
 
 const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | 'damaged' }[] = [
   { value: 'sealed', key: 'sealed' },
@@ -136,23 +99,45 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   const [adderOpen, setAdderOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ releaseId: string; kind: 'add' | 'remove' | 'save' } | null>(null);
+  const appliedDeepLinkRef = useRef<string | null>(null);
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
+  const reloadAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   useSectionCount(loading ? null : owned.length);
 
-  const reload = useCallback(async (signal?: AbortSignal) => {
+  const reload = useCallback(async () => {
+    reloadAbortRef.current?.abort();
+    const controller = new AbortController();
+    reloadAbortRef.current = controller;
+    const ownerVnId = vnId;
+    const { signal } = controller;
+    if (mountedRef.current) setLoading(true);
     try {
-      const [o, r] = await Promise.all([
-        fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal }).then((x) => x.json()),
-        fetch(`/api/vn/${vnId}/releases`, { cache: 'no-store', signal }).then((x) => x.json()),
+      const [ownedResponse, releasesResponse] = await Promise.all([
+        fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal }),
+        fetch(`/api/vn/${vnId}/releases`, { cache: 'no-store', signal }),
       ]);
-      if (signal?.aborted) return;
-      setOwned((o.owned ?? []) as OwnedEdition[]);
-      setReleases((r.releases ?? []) as VndbRelease[]);
+      if (!ownedResponse.ok) throw new Error(await readApiError(ownedResponse, t.common.error));
+      if (!releasesResponse.ok) throw new Error(await readApiError(releasesResponse, t.common.error));
+      const owned = decodeOwnedEditionsResponse(await ownedResponse.json());
+      const releases = decodeVnDetailReleasesResponse(await releasesResponse.json());
+      if (!owned || !releases) throw new Error(t.common.error);
+      if (signal.aborted || !mountedRef.current || identityRef.current !== ownerVnId || reloadAbortRef.current !== controller) return;
+      setOwned(owned);
+      setReleases(releases);
     } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+      if ((e as Error).name === 'AbortError' || signal.aborted) return;
       // ignore — section is optional
+    } finally {
+      if (reloadAbortRef.current === controller) {
+        reloadAbortRef.current = null;
+        if (mountedRef.current && identityRef.current === ownerVnId) setLoading(false);
+      }
     }
-  }, [vnId]);
+  }, [vnId, t.common.error]);
 
   // Deep-link support: the shelf popover "Choose platform" chip
   // navigates here with `?edit_release=<release_id>` so we open the
@@ -161,7 +146,27 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   // pencil icon themselves — the popover's "Choisir la plateforme"
   // action would feel half-done.
   const searchParams = useSearchParams();
-  const appliedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    reloadAbortRef.current?.abort();
+    mutationAbortRef.current?.abort();
+    mutationInFlightRef.current = false;
+    appliedDeepLinkRef.current = null;
+    setOwned([]);
+    setReleases([]);
+    setKnownPlaces([]);
+    setEditingId(null);
+    setAdderOpen(false);
+    setBusy(false);
+    setPendingAction(null);
+    return () => {
+      mountedRef.current = false;
+      reloadAbortRef.current?.abort();
+      mutationAbortRef.current?.abort();
+    };
+  }, [vnId]);
+
   useEffect(() => {
     const editRel = searchParams.get('edit_release');
     if (!editRel || appliedDeepLinkRef.current === editRel) return;
@@ -173,14 +178,14 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoading(true);
-    reload(ctrl.signal).finally(() => {
-      if (!ctrl.signal.aborted) setLoading(false);
-    });
+    void reload();
     fetch('/api/places', { cache: 'no-store', signal: ctrl.signal })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        return r.json();
+      })
       .then((d) => {
-        if (!ctrl.signal.aborted) setKnownPlaces(d.known_places ?? []);
+        if (!ctrl.signal.aborted) setKnownPlaces(decodeKnownPlacesResponse(d) ?? []);
       })
       .catch((e) => {
         if ((e as Error).name !== 'AbortError') {
@@ -188,7 +193,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         }
       });
     return () => ctrl.abort();
-  }, [reload]);
+  }, [reload, t.common.error]);
 
   // Re-fetch whenever any other component (ReleasesSection's per-row
   // toggle, /release/[id]'s ReleaseOwnedToggle, future widgets) flips
@@ -222,7 +227,35 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   const canAddSynthetic =
     releases.length === 0 && !owned.some((o) => o.release_id === syntheticReleaseId);
 
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return mountedRef.current &&
+      identityRef.current === ownerVnId &&
+      mutationAbortRef.current === controller &&
+      !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (mountedRef.current) {
+      setBusy(false);
+      setPendingAction(null);
+    }
+  }
+
   async function addEdition(releaseId: string) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setBusy(true);
     setPendingAction({ releaseId, kind: 'add' });
     try {
@@ -230,9 +263,12 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ release_id: releaseId }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       await reload();
+      if (!ownsMutation(ownerVnId, controller)) return;
       setAdderOpen(false);
       setEditingId(releaseId);
       toast.success(t.toast.added);
@@ -244,25 +280,30 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         }),
       );
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function removeEdition(releaseId: string) {
-    const ok = await confirm({ message: t.inventory.removeConfirm, tone: 'danger' });
-    if (!ok) return;
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setBusy(true);
     setPendingAction({ releaseId, kind: 'remove' });
     try {
+      const ok = await confirm({ message: t.inventory.removeConfirm, tone: 'danger' });
+      if (!ok || !ownsMutation(ownerVnId, controller)) return;
       const r = await fetch(
         `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`,
-        { method: 'DELETE' },
+        { method: 'DELETE', signal: controller.signal },
       );
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       await reload();
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.removed);
       window.dispatchEvent(
         new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {
@@ -270,10 +311,10 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         }),
       );
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -281,6 +322,9 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     releaseId: string,
     patch: Partial<OwnedEdition> & { aspect_override?: AspectOverridePatch },
   ) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setBusy(true);
     setPendingAction({ releaseId, kind: 'save' });
     try {
@@ -288,17 +332,20 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ release_id: releaseId, ...patch }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as { owned: OwnedEdition[] };
-      setOwned(d.owned);
+      const owned = decodeOwnedEditionsResponse(await r.json());
+      if (!owned) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      setOwned(owned);
       toast.success(t.toast.saved);
       setEditingId(null);
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
-      setPendingAction(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 

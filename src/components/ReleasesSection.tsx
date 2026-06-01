@@ -26,6 +26,7 @@ import type { VndbRelease } from '@/lib/vndb-types';
 import { safeHref } from '@/lib/safe-href';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeOwnedEditionsResponse, decodeVnDetailReleasesResponse } from '@/lib/vn-detail-client-shape';
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
   2: 'voiced2',
@@ -36,10 +37,8 @@ const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> 
 function fmtRes(r: VndbRelease['resolution']): string | null {
   if (r == null) return null;
   if (typeof r === 'string') return r;
-  return `${r[0]}×${r[1]}`;
+  return `${r[0]}x${r[1]}`;
 }
-
-interface OwnedEntry { release_id: string }
 
 /**
  * One release entry in the list. Memoized so toggling a single
@@ -103,7 +102,7 @@ const ReleaseRow = memo(function ReleaseRow({
             className="inline-flex items-center gap-0.5 rounded bg-bg px-1.5 py-0.5 text-[10px] font-normal text-muted hover:bg-accent hover:text-bg"
             title={t.releases.viewDetails}
           >
-            <Info className="h-3 w-3" /> {t.releases.viewDetails}
+            <Info className="h-3 w-3" aria-hidden /> {t.releases.viewDetails}
           </Link>
         </h3>
         <div className="flex items-center gap-2">
@@ -171,17 +170,17 @@ const ReleaseRow = memo(function ReleaseRow({
         {r.engine && <span>{t.releases.engine}: {r.engine}</span>}
         {voicedKey && (
           <span className="inline-flex items-center gap-1">
-            <Mic2 className="h-3 w-3" /> {t.releases[voicedKey]}
+            <Mic2 className="h-3 w-3" aria-hidden /> {t.releases[voicedKey]}
           </span>
         )}
         {r.minage != null && (
           <span className="inline-flex items-center gap-1">
-            <Shield className="h-3 w-3" /> {t.releases.ageRating} {r.minage}+
+            <Shield className="h-3 w-3" aria-hidden /> {t.releases.ageRating} {r.minage}+
           </span>
         )}
         {r.media.length > 0 && (
           <span className="inline-flex items-center gap-1">
-            <Package className="h-3 w-3" /> {r.media.map((m) => `${m.medium}${m.qty > 1 ? `×${m.qty}` : ''}`).join(', ')}
+            <Package className="h-3 w-3" aria-hidden /> {r.media.map((m) => `${m.medium}${m.qty > 1 ? `x${m.qty}` : ''}`).join(', ')}
           </span>
         )}
       </div>
@@ -189,7 +188,7 @@ const ReleaseRow = memo(function ReleaseRow({
         <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[11px] text-muted">
           {devList.map((p, i) => (
             <span key={`dev-${p.id}`} className="inline-flex items-baseline gap-1">
-              {i > 0 && <span aria-hidden>·</span>}
+              {i > 0 && <span aria-hidden>/</span>}
               <Link
                 href={`/producer/${p.id}`}
                 className="font-bold text-white/80 transition-colors hover:text-accent"
@@ -199,10 +198,10 @@ const ReleaseRow = memo(function ReleaseRow({
               </Link>
             </span>
           ))}
-          {devList.length > 0 && pubList.length > 0 && <span aria-hidden>·</span>}
+          {devList.length > 0 && pubList.length > 0 && <span aria-hidden>/</span>}
           {pubList.map((p, i) => (
             <span key={`pub-${p.id}`} className="inline-flex items-baseline gap-1">
-              {i > 0 && <span aria-hidden>·</span>}
+              {i > 0 && <span aria-hidden>/</span>}
               <Link
                 href={`/producer/${p.id}`}
                 className="transition-colors hover:text-accent"
@@ -226,7 +225,7 @@ const ReleaseRow = memo(function ReleaseRow({
       {(r.gtin || r.catalog) && (
         <div className="mt-2 text-[11px] text-muted">
           {r.gtin && <span>{t.releases.gtin}: <span className="font-mono">{r.gtin}</span></span>}
-          {r.gtin && r.catalog && <span> · </span>}
+          {r.gtin && r.catalog && <span> / </span>}
           {r.catalog && <span>{t.releases.catalog}: <span className="font-mono">{r.catalog}</span></span>}
         </div>
       )}
@@ -243,7 +242,7 @@ const ReleaseRow = memo(function ReleaseRow({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
               >
-                <ExternalLink className="h-3 w-3" /> {l.label}
+                <ExternalLink className="h-3 w-3" aria-hidden /> {l.label}
               </a>
             );
           })}
@@ -268,10 +267,27 @@ export function ReleasesSection({
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const pendingRef = useRef(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (releases !== null) return;
+    identityRef.current = vnId;
+    pendingRef.current = false;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    setPendingId(null);
+    setOwned(new Set());
+    return () => {
+      identityRef.current = null;
+      pendingRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId]);
+
+  useEffect(() => {
     const ac = new AbortController();
+    setReleases(null);
     setLoading(true);
     setError(null);
     fetch(`/api/vn/${vnId}/releases`, { cache: 'no-store', signal: ac.signal })
@@ -279,8 +295,10 @@ export function ReleasesSection({
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return r.json();
       })
-      .then((d: { releases: VndbRelease[] }) => {
-        if (!ac.signal.aborted) setReleases(d.releases);
+      .then((d) => {
+        const releases = decodeVnDetailReleasesResponse(d);
+        if (!releases) throw new Error(t.common.error);
+        if (!ac.signal.aborted) setReleases(releases);
       })
       .catch((e: Error) => {
         if (e.name === 'AbortError' || ac.signal.aborted) return;
@@ -290,16 +308,21 @@ export function ReleasesSection({
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [vnId, releases, t.common.error]);
+  }, [vnId, t.common.error]);
 
   const refreshOwned = useCallback(async (signal?: AbortSignal) => {
-    if (!inCollection) return;
+    const ownerVnId = vnId;
+    if (!inCollection) {
+      if (identityRef.current === ownerVnId) setOwned(new Set());
+      return;
+    }
     try {
       const r = await fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal });
       if (!r.ok) return;
-      const d = (await r.json()) as { owned: OwnedEntry[] };
-      if (signal?.aborted) return;
-      setOwned(new Set(d.owned.map((o) => o.release_id)));
+      const d = decodeOwnedEditionsResponse(await r.json());
+      if (!d) return;
+      if (signal?.aborted || identityRef.current !== ownerVnId) return;
+      setOwned(new Set(d.map((o) => o.release_id)));
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal?.aborted) return;
       // ignore
@@ -332,6 +355,10 @@ export function ReleasesSection({
 
   const toggleOwned = useCallback(async (releaseId: string, isOwned: boolean) => {
     if (!inCollection || pendingRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
     pendingRef.current = true;
     setPendingId(releaseId);
     try {
@@ -339,10 +366,11 @@ export function ReleasesSection({
         ? `/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`
         : `/api/collection/${vnId}/owned-releases`;
       const init: RequestInit = isOwned
-        ? { method: 'DELETE' }
-        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ release_id: releaseId }) };
+        ? { method: 'DELETE', signal: controller.signal }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ release_id: releaseId }), signal: controller.signal };
       const r = await fetch(url, init);
-      if (!r.ok) throw new Error(t.common.error);
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || mutationAbortRef.current !== controller || identityRef.current !== ownerVnId) return;
       setOwned((prev) => {
         const next = new Set(prev);
         if (isOwned) next.delete(releaseId);
@@ -355,8 +383,11 @@ export function ReleasesSection({
         }),
       );
     } catch (e) {
+      if (controller.signal.aborted || mutationAbortRef.current !== controller || identityRef.current !== ownerVnId || (e instanceof Error && e.name === 'AbortError')) return;
       setError((e as Error).message);
     } finally {
+      if (mutationAbortRef.current !== controller || identityRef.current !== ownerVnId) return;
+      mutationAbortRef.current = null;
       pendingRef.current = false;
       setPendingId(null);
     }
@@ -380,7 +411,7 @@ export function ReleasesSection({
               t={t}
               inCollection={inCollection}
               isOwned={owned.has(r.id)}
-              pending={pendingId === r.id}
+              pending={pendingId !== null}
               onToggle={toggleOwned}
             />
           ))}

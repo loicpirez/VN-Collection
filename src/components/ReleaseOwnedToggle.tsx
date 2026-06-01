@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
@@ -56,8 +56,41 @@ export function ReleaseOwnedToggle({
   const [inCollection, setInCollection] = useState(initialInCollection);
   const [owned, setOwned] = useState(initialOwned);
   const [busy, setBusy] = useState(false);
+  const identity = `${vnId}|${releaseId}`;
+  const identityRef = useRef(identity);
+  const mountedRef = useRef(true);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = identity;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setInCollection(initialInCollection);
+    setOwned(initialOwned);
+    setBusy(false);
+    return () => {
+      mountedRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [identity, initialInCollection, initialOwned]);
+
+  function ownsMutation(ownerIdentity: string, controller: AbortController): boolean {
+    return mountedRef.current &&
+      identityRef.current === ownerIdentity &&
+      mutationAbortRef.current === controller &&
+      !controller.signal.aborted;
+  }
 
   async function toggle() {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    const ownerIdentity = identity;
     setBusy(true);
     try {
       if (!owned && !inCollection) {
@@ -65,20 +98,25 @@ export function ReleaseOwnedToggle({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'planning' }),
+          signal: controller.signal,
         });
         if (!add.ok) throw new Error(await readApiError(add, t.common.error));
+        if (!ownsMutation(ownerIdentity, controller)) return;
         setInCollection(true);
       }
       const r = owned
         ? await fetch(`/api/collection/${vnId}/owned-releases?release_id=${encodeURIComponent(releaseId)}`, {
             method: 'DELETE',
+            signal: controller.signal,
           })
         : await fetch(`/api/collection/${vnId}/owned-releases`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ release_id: releaseId }),
+            signal: controller.signal,
           });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerIdentity, controller)) return;
       const nowOwned = !owned;
       setOwned(nowOwned);
       toast.success(nowOwned ? t.toast.added : t.toast.removed);
@@ -91,9 +129,14 @@ export function ReleaseOwnedToggle({
         }),
       );
     } catch (e) {
+      if (!ownsMutation(ownerIdentity, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
     }
   }
 
@@ -121,7 +164,7 @@ export function ReleaseOwnedToggle({
           onClick={toggle}
           disabled={busy}
           aria-pressed={owned}
-          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 sm:min-h-0 ${
             owned
               ? 'border-status-completed bg-status-completed/15 text-status-completed'
               : 'border-border bg-bg text-muted hover:border-accent hover:text-white'
@@ -139,7 +182,7 @@ export function ReleaseOwnedToggle({
         {owned && (
           <Link
             href={`/vn/${vnId}?edit_release=${encodeURIComponent(releaseId)}#my-editions`}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
           >
             <Pencil className="h-3 w-3" aria-hidden />
             {t.releases.editInventory}
@@ -150,7 +193,7 @@ export function ReleaseOwnedToggle({
             type="button"
             onClick={toggle}
             disabled={busy}
-            className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped sm:min-h-[24px] sm:min-w-[24px]"
             title={t.releases.removeMyEdition}
             aria-label={t.releases.removeMyEdition}
           >
