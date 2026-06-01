@@ -120,9 +120,9 @@ describe('per-scope reset never clobbers the legacy default', () => {
 });
 
 describe('navbar page spacing default', () => {
-  it('defaults headerFollowsPageSpace to true for fresh settings', () => {
+  it('defaults headerFollowsPageSpace to false for fresh settings', () => {
     const migrated = migrateLegacyCardDensity({}, true);
-    expect(migrated.settings.headerFollowsPageSpace).toBe(true);
+    expect(migrated.settings.headerFollowsPageSpace).toBe(false);
   });
 
   it('preserves an explicit opt-in for route-aware header spacing', () => {

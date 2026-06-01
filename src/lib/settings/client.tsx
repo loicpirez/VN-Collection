@@ -121,7 +121,7 @@ const DEFAULTS: DisplaySettings = {
   cardDensityPx: 220,
   density: {},
   pageSpace: {},
-  headerFollowsPageSpace: true,
+  headerFollowsPageSpace: false,
   spoilerLevel: 0,
   showSexualTraits: false,
   globalPageSpace: null,
