@@ -33,6 +33,38 @@ describe('stock-price navigation race', () => {
   });
 });
 
+describe('place and AliceNet Kobe navigation races', () => {
+  it('surfaces per-place stock load failures instead of rendering an empty result', () => {
+    const body = source('src/components/PlaceVnBrowser.tsx');
+    expect(body).toContain("import { readApiError } from '@/lib/api-error-read'");
+    expect(body).toContain("import { ErrorAlert } from './ErrorAlert'");
+    expect(body).toContain('throw new Error(await readApiError(r, t.common.error as string))');
+    expect(body).toContain('if (!d) throw new Error(t.common.error as string)');
+    expect(body).toContain('<ErrorAlert title={t.common.error as string} className="mb-4">');
+    expect(body).toContain('loadError && items.length === 0 ? null');
+  });
+
+  it.each([
+    ['src/components/PlaceBrowser.tsx', 'reloadAbortRef.current?.abort()'],
+    ['src/components/PlaceVnBrowser.tsx', 'load(controller.signal)'],
+  ])('%s cancels its mount request during cleanup', (path, invocation) => {
+    const body = source(path);
+    expect(body).toContain('const controller = new AbortController()');
+    expect(body).toContain(invocation);
+    expect(body).toMatch(/return \(\) => (?:controller\.abort\(\)|\{[\s\S]*?\.current\?\.abort\(\);[\s\S]*?\})/);
+    expect(body).toContain("error.name === 'AbortError'");
+  });
+
+  it('owns every AliceNet Kobe reload and aborts it during cleanup', () => {
+    const body = source('src/components/AliceNetKobeClient.tsx');
+    expect(body).toContain('const loadAbortRef = useRef<AbortController | null>(null)');
+    expect(body).toContain('loadAbortRef.current?.abort()');
+    expect(body).toContain("fetch('/api/alicesoft-kobe', { cache: 'no-store', signal })");
+    expect(body).toContain('loadAbortRef.current !== controller');
+    expect(body).toContain("error.name === 'AbortError'");
+  });
+});
+
 describe('shelf fullscreen focus restoration', () => {
   it('delegates modal focus restoration to the shared dialog hook', () => {
     const body = source('src/components/ShelfSpatialFullscreen.tsx');

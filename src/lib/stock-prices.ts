@@ -1,8 +1,30 @@
 import { decodeStoredExtras, type ErogePriceExtrasV1 } from './erogeprice-meta';
+import { asJsonRecord } from './json-shape';
 
 /** Minimal cached stock payload needed by the price-history section. */
 export interface StockSnapshotForPrices {
   statuses?: Array<{ provider: string; extras_json?: string | null }>;
+}
+
+function decodeStockSnapshotForPrices(value: unknown): StockSnapshotForPrices | null {
+  const record = asJsonRecord(value);
+  if (!record || !Array.isArray(record.statuses)) return null;
+  const statuses: Array<{ provider: string; extras_json?: string | null }> = [];
+  for (const row of record.statuses) {
+    const status = asJsonRecord(row);
+    if (
+      !status ||
+      typeof status.provider !== 'string' ||
+      !(status.extras_json === undefined || status.extras_json === null || typeof status.extras_json === 'string')
+    ) {
+      return null;
+    }
+    statuses.push({
+      provider: status.provider,
+      extras_json: status.extras_json,
+    });
+  }
+  return { statuses };
 }
 
 /**
@@ -36,7 +58,8 @@ export async function fetchStockPriceExtras(
     signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const snapshot = (await response.json()) as StockSnapshotForPrices | null;
+  const snapshot = decodeStockSnapshotForPrices(await response.json());
+  if (!snapshot) throw new Error('invalid stock payload');
   if (signal.aborted) return null;
   return extrasFromStockSnapshot(snapshot);
 }
