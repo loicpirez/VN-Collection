@@ -72,7 +72,7 @@ export function DumpIgnoreButton({ vnId, ignored }: Props) {
       type="button"
       onClick={toggle}
       disabled={busy}
-      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-border bg-bg-card/80 px-2 py-1 text-[10px] font-semibold text-muted transition-colors hover:border-accent hover:text-accent disabled:cursor-wait disabled:opacity-50"
+      className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-card/80 px-2 py-1 text-[10px] font-semibold text-muted transition-colors hover:border-accent hover:text-accent disabled:cursor-wait disabled:opacity-50 sm:min-h-8"
       title={label}
       aria-label={label}
     >

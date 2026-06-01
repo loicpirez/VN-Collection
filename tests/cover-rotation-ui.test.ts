@@ -54,6 +54,7 @@ describe('CoverRotationButtons — VN cover rotation overlay', () => {
   it('constrains the reset chip inside narrow cover containers', () => {
     expect(src).toContain('max-w-[calc(100%-0.5rem)]');
     expect(src).toContain('max-w-full min-h-[44px] overflow-hidden text-ellipsis whitespace-nowrap');
+    expect(src).toContain("t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))");
   });
   it('issues a PATCH against the cover API', () => {
     expect(src).toMatch(/\/api\/collection\/\$\{ownerVnId\}\/cover/);
@@ -74,6 +75,7 @@ describe('VN detail page mounts the rotation overlay for both cover branches', (
     // OUTSIDE the `(egsPosterHas || customPosterHas) ?` ternary so
     // the simple and compare branches both get it.
     expect(src).toMatch(/initialRotation=\{vn\.cover_rotation\}/);
+    expect(src).toMatch(/anchor="top-right"/);
   });
 });
 

@@ -174,7 +174,7 @@ export function CoverRotationButtons({
         data-rotation-active={hasRotation ? 'true' : 'false'}
         className="max-w-full min-h-[44px] overflow-hidden text-ellipsis whitespace-nowrap rounded-md bg-bg-card/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
       >
-        {rotation} deg
+        {t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))}
       </button>
     </div>
   );

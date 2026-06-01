@@ -447,7 +447,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 <CoverRotationButtons
                   vnId={vn.id}
                   initialRotation={vn.cover_rotation}
-                  anchor="bottom-right"
+                  anchor="top-right"
                 />
               )}
             </div>
