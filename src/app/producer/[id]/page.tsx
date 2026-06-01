@@ -240,7 +240,7 @@ export default async function ProducerPage({
             sectionIds={PRODUCER_SECTION_IDS}
             settingsKey={PRODUCER_DETAIL_SETTINGS_KEY}
             eventName={PRODUCER_DETAIL_LAYOUT_EVENT}
-
+            identityKey={id}
           />
         );
       })()}

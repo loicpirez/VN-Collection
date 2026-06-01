@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -43,6 +43,7 @@ import {
 
 import { readApiError } from '@/lib/api-error-read';
 interface Props {
+  seriesId: number;
   initialLayout: SeriesDetailLayoutV1;
   /** Pre-rendered section JSX keyed by section id. Only present keys are rendered; absent keys are treated as not-applicable and skipped. */
   sectionNodes: Partial<Record<SeriesSectionId, React.ReactNode>>;
@@ -59,7 +60,7 @@ interface Props {
  * the hero is allowed — useful for the dense "works only" view some
  * collectors prefer.
  */
-export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
+export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Props) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -69,6 +70,26 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [draft, setDraft] = useState<SeriesDetailLayoutV1>(initialLayout);
   const [saving, setSaving] = useState(false);
+  const identityRef = useRef<number | null>(seriesId);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = null;
+    saveInFlightRef.current = false;
+    identityRef.current = seriesId;
+    setSaving(false);
+    setEditMode(false);
+    setLayout(initialLayout);
+    setDraft(initialLayout);
+    return () => {
+      saveAbortRef.current?.abort();
+      saveAbortRef.current = null;
+      saveInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [seriesId]);
 
   useEffect(() => {
     setLayout(initialLayout);
@@ -105,18 +126,31 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
   );
 
   const reset = useCallback(() => {
+    if (saveInFlightRef.current) return;
     setDraft(defaultSeriesDetailLayoutV1());
   }, []);
 
   const save = useCallback(async () => {
+    if (saveInFlightRef.current) return;
+    const ownerSeriesId = seriesId;
+    const controller = new AbortController();
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = controller;
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
       const r = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ series_detail_section_layout_v1: draft }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (
+        identityRef.current !== ownerSeriesId
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       const normalized = validateSeriesDetailLayoutV1(draft);
       setLayout(normalized);
       setDraft(normalized);
@@ -127,24 +161,35 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (
+        identityRef.current !== ownerSeriesId
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      if (saveAbortRef.current === controller) {
+        saveAbortRef.current = null;
+        saveInFlightRef.current = false;
+        if (identityRef.current === ownerSeriesId) setSaving(false);
+      }
     }
-  }, [draft, toast, t.common.error, t.toast.saved, router]);
+  }, [draft, toast, t.common.error, t.toast.saved, router, seriesId]);
 
   const cancel = useCallback(() => {
+    if (saveInFlightRef.current) return;
     setDraft(layout);
     setEditMode(false);
   }, [layout]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   function onDragEnd(e: DragEndEvent) {
+    if (saveInFlightRef.current) return;
     const { active: from, over } = e;
     if (!over || from.id === over.id) return;
     const oldIdx = draft.order.indexOf(from.id as SeriesSectionId);
@@ -154,6 +199,7 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
   }
 
   function patchSection(id: SeriesSectionId, patch: Partial<SeriesSectionState>) {
+    if (saveInFlightRef.current) return;
     setDraft((d) => ({
       ...d,
       sections: { ...d.sections, [id]: { ...d.sections[id], ...patch } },
@@ -177,7 +223,7 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={reset}
               disabled={saving}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
             >
               <RotateCcw className="h-3 w-3" aria-hidden /> {layoutDict.reset}
             </button>
@@ -185,7 +231,7 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={cancel}
               disabled={saving}
-              className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white"
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
             >
               {t.common.cancel}
             </button>
@@ -205,7 +251,7 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
               setDraft(layout);
               setEditMode(true);
             }}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             title={layoutDict.editHint}
           >
             <Layout className="h-3 w-3" aria-hidden /> {layoutDict.edit}
@@ -227,6 +273,7 @@ export function SeriesDetailLayout({ initialLayout, sectionNodes }: Props) {
                   showLabel={layoutDict.show}
                   collapseByDefaultLabel={layoutDict.collapseByDefault}
                   dragHandleLabel={layoutDict.dragHandle}
+                  disabled={saving}
                   onPatch={(patch) => patchSection(id, patch)}
                 />
               ))}
@@ -308,7 +355,7 @@ function CollapsibleSection({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-bg-elev/40"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-bg-elev/40"
         title={open ? collapseLabel : expandLabel}
       >
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -329,6 +376,7 @@ function EditableRow({
   showLabel,
   collapseByDefaultLabel,
   dragHandleLabel,
+  disabled,
   onPatch,
 }: {
   id: SeriesSectionId;
@@ -338,10 +386,12 @@ function EditableRow({
   showLabel: string;
   collapseByDefaultLabel: string;
   dragHandleLabel: string;
+  disabled: boolean;
   onPatch: (patch: Partial<SeriesSectionState>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled,
     transition: { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   });
   const style: React.CSSProperties = {
@@ -362,16 +412,18 @@ function EditableRow({
         {...listeners}
         aria-label={dragHandleLabel}
         title={dragHandleLabel}
+        disabled={disabled}
         className="tap-target-tight inline-flex h-7 w-7 cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" aria-hidden />
       </button>
       <span className="min-w-0 flex-1 truncate text-xs font-semibold">{label}</span>
-      <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-muted">
+      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted sm:min-h-0">
         <input
           type="checkbox"
           checked={state.collapsedByDefault}
           onChange={(e) => onPatch({ collapsedByDefault: e.target.checked })}
+          disabled={disabled}
           className="h-3 w-3 accent-accent"
         />
         {collapseByDefaultLabel}
@@ -381,6 +433,7 @@ function EditableRow({
         onClick={() => onPatch({ visible: !state.visible })}
         aria-pressed={!state.visible}
         title={state.visible ? hideLabel : showLabel}
+        disabled={disabled}
         className={`tap-target-tight inline-flex h-7 w-7 items-center justify-center rounded ${
           state.visible
             ? 'text-muted hover:bg-bg-elev hover:text-white'

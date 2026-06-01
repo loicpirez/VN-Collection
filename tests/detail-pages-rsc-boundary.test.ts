@@ -47,7 +47,7 @@ describe('detail pages — RSC boundary safety', () => {
     // Allow exactly the documented set of attributes. Future
     // attributes should be added here intentionally after the
     // boundary review.
-    const ALLOWED = ['sections', 'initialLayout', 'sectionIds', 'settingsKey', 'eventName'];
+    const ALLOWED = ['sections', 'initialLayout', 'sectionIds', 'settingsKey', 'eventName', 'identityKey'];
     const presentAttrs = Array.from(attrs.matchAll(/(\w+)=/g)).map((m) => m[1]);
     for (const attr of presentAttrs) {
       expect(ALLOWED).toContain(attr);

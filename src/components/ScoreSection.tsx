@@ -70,7 +70,7 @@ export function ScoreSection({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+          className="ml-auto inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
         >
           {expanded
             ? <><ChevronUp className="h-3 w-3" aria-hidden /> {t.detail.scoreHideBreakdown}</>

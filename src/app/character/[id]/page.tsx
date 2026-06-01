@@ -424,7 +424,7 @@ export default async function CharacterPage({
             sectionIds={CHARACTER_SECTION_IDS}
             settingsKey={CHARACTER_DETAIL_SETTINGS_KEY}
             eventName={CHARACTER_DETAIL_LAYOUT_EVENT}
-
+            identityKey={id}
           />
         );
       })()}

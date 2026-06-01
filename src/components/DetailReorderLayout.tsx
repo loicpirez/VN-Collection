@@ -11,7 +11,7 @@
  *   A "Layout" chip in the toolbar activates edit mode.
  * - Persists via PATCH /api/settings under the provided `settingsKey`.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -57,6 +57,8 @@ interface Props {
   settingsKey: string;
   /** CustomEvent name dispatched after a save. */
   eventName: string;
+  /** Current route entity identity used to invalidate obsolete save completions. */
+  identityKey: string;
 }
 
 function defaultSectionLayoutV1(sectionIds: readonly string[]): SectionLayoutV1 {
@@ -71,6 +73,7 @@ export function DetailReorderLayout({
   sectionIds,
   settingsKey,
   eventName,
+  identityKey,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -78,6 +81,31 @@ export function DetailReorderLayout({
   const [layout, setLayout] = useState<SectionLayoutV1>(initialLayout);
   const [draft, setDraft] = useState<SectionLayoutV1>(initialLayout);
   const [saving, setSaving] = useState(false);
+  const identityRef = useRef<string | null>(identityKey);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = null;
+    saveInFlightRef.current = false;
+    identityRef.current = identityKey;
+    setSaving(false);
+    setEditing(false);
+    setLayout(initialLayout);
+    setDraft(initialLayout);
+    return () => {
+      saveAbortRef.current?.abort();
+      saveAbortRef.current = null;
+      saveInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [identityKey]);
+
+  useEffect(() => {
+    setLayout(initialLayout);
+    if (!editing) setDraft(initialLayout);
+  }, [initialLayout, editing]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -92,8 +120,8 @@ export function DetailReorderLayout({
   }, [eventName]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -116,6 +144,7 @@ export function DetailReorderLayout({
   }, [sections, layout, draft, editing]);
 
   function onDragEnd(event: DragEndEvent) {
+    if (saveInFlightRef.current) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setDraft((prev) => {
@@ -127,6 +156,7 @@ export function DetailReorderLayout({
   }
 
   function toggleVisible(id: string) {
+    if (saveInFlightRef.current) return;
     setDraft((prev) => ({
       ...prev,
       sections: {
@@ -137,6 +167,7 @@ export function DetailReorderLayout({
   }
 
   function toggleCollapsed(id: string) {
+    if (saveInFlightRef.current) return;
     setDraft((prev) => ({
       ...prev,
       sections: {
@@ -147,31 +178,54 @@ export function DetailReorderLayout({
   }
 
   const save = useCallback(async () => {
+    if (saveInFlightRef.current) return;
+    const ownerIdentityKey = identityKey;
+    const controller = new AbortController();
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = controller;
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingsKey]: draft }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (
+        identityRef.current !== ownerIdentityKey
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       setLayout(draft);
       setEditing(false);
       window.dispatchEvent(new CustomEvent(eventName, { detail: { layout: draft } }));
       toast.success(t.layout.saved);
     } catch {
+      if (
+        identityRef.current !== ownerIdentityKey
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       toast.error(t.layout.saveError);
     } finally {
-      setSaving(false);
+      if (saveAbortRef.current === controller) {
+        saveAbortRef.current = null;
+        saveInFlightRef.current = false;
+        if (identityRef.current === ownerIdentityKey) setSaving(false);
+      }
     }
-  }, [draft, settingsKey, eventName, toast, t]);
+  }, [draft, settingsKey, eventName, identityKey, toast, t]);
 
   function cancel() {
+    if (saveInFlightRef.current) return;
     setDraft(layout);
     setEditing(false);
   }
 
   function reset() {
+    if (saveInFlightRef.current) return;
     setDraft(defaultSectionLayoutV1(sectionIds));
   }
 
@@ -195,7 +249,7 @@ export function DetailReorderLayout({
           <button
             type="button"
             onClick={() => { setDraft(layout); setEditing(true); }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 py-1 text-[11px] text-muted hover:border-accent hover:text-accent transition-colors"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-0"
             title={t.layout.editLayout}
           >
             <LayoutList className="h-3.5 w-3.5" aria-hidden /> {t.layout.editLayout}
@@ -211,10 +265,10 @@ export function DetailReorderLayout({
         <LayoutList className="h-4 w-4 text-accent" aria-hidden />
         <span className="text-xs font-bold text-accent">{t.layout.editLayout}</span>
         <span className="ml-auto flex gap-2">
-          <button type="button" onClick={reset} className="btn text-xs" title={t.layout.reset}>
+          <button type="button" onClick={reset} disabled={saving} className="btn text-xs" title={t.layout.reset}>
             <RotateCcw className="h-3.5 w-3.5" aria-hidden /> {t.layout.reset}
           </button>
-          <button type="button" onClick={cancel} className="btn text-xs">
+          <button type="button" onClick={cancel} disabled={saving} className="btn text-xs">
             <X className="h-3.5 w-3.5" aria-hidden /> {t.common.cancel}
           </button>
           <button type="button" onClick={save} disabled={saving} className="btn btn-primary text-xs">
@@ -235,6 +289,7 @@ export function DetailReorderLayout({
                 visible={visible}
                 label={sec?.label}
                 collapsed={collapsed}
+                disabled={saving}
                 onToggleVisible={() => toggleVisible(id)}
                 onToggleCollapsed={sec?.label ? () => toggleCollapsed(id) : undefined}
               />
@@ -252,6 +307,7 @@ function SortableSection({
   visible,
   label,
   collapsed,
+  disabled,
   onToggleVisible,
   onToggleCollapsed,
 }: {
@@ -260,10 +316,11 @@ function SortableSection({
   visible: boolean;
   label?: string;
   collapsed: boolean;
+  disabled: boolean;
   onToggleVisible: () => void;
   onToggleCollapsed?: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const t = useT();
 
@@ -275,6 +332,7 @@ function SortableSection({
           <button
             type="button"
             onClick={onToggleCollapsed}
+            disabled={disabled}
             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
             title={collapsed ? t.layout.expandSection : t.layout.collapseSection}
           >
@@ -286,6 +344,7 @@ function SortableSection({
         <button
           type="button"
           onClick={onToggleVisible}
+          disabled={disabled}
           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent"
           aria-label={visible ? t.layout.hideSection : t.layout.showSection}
           title={visible ? t.layout.hideSection : t.layout.showSection}
@@ -297,6 +356,7 @@ function SortableSection({
           className="inline-flex min-h-[44px] min-w-[44px] cursor-grab items-center justify-center rounded border border-border bg-bg-card/90 text-muted hover:text-accent active:cursor-grabbing"
           aria-label={t.layout.drag}
           title={t.layout.drag}
+          disabled={disabled}
           {...attributes}
           {...listeners}
         >

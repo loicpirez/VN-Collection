@@ -132,7 +132,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         <ArrowLeft className="h-4 w-4" /> {t.nav.series}
       </Link>
 
-      <SeriesDetailLayout initialLayout={layout} sectionNodes={sectionNodes} />
+      <SeriesDetailLayout seriesId={series.id} initialLayout={layout} sectionNodes={sectionNodes} />
     </DensityScopeProvider>
   );
 }

@@ -411,7 +411,7 @@ export default async function StaffPage({
             sectionIds={STAFF_SECTION_IDS}
             settingsKey={STAFF_DETAIL_SETTINGS_KEY}
             eventName={STAFF_DETAIL_LAYOUT_EVENT}
-
+            identityKey={id}
           />
         );
       })()}

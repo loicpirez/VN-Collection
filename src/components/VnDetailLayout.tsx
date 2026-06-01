@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -75,6 +75,26 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   // Working copy while editing — committed on "Save", discarded on "Cancel".
   const [draft, setDraft] = useState<VnDetailLayoutV1>(initialLayout);
   const [saving, setSaving] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = null;
+    saveInFlightRef.current = false;
+    identityRef.current = vnId;
+    setSaving(false);
+    setEditMode(false);
+    setLayout(initialLayout);
+    setDraft(initialLayout);
+    return () => {
+      saveAbortRef.current?.abort();
+      saveAbortRef.current = null;
+      saveInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId]);
 
   // Re-sync the working copy whenever a fresh `initialLayout` arrives
   // (server re-fetch after a related action).
@@ -126,18 +146,31 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   // Reset draft.order to canonical when the user clicks Reset; the
   // server reload after Save brings persisted state back into line.
   const reset = useCallback(() => {
+    if (saveInFlightRef.current) return;
     setDraft(defaultVnDetailLayoutV1());
   }, []);
 
   const save = useCallback(async () => {
+    if (saveInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = controller;
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
       const r = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_detail_section_layout_v1: draft }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (
+        identityRef.current !== ownerVnId
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       // Round-trip through the validator locally too so what we
       // optimistically apply matches what the server stored.
       const normalized = validateVnDetailLayoutV1(draft);
@@ -150,13 +183,23 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (
+        identityRef.current !== ownerVnId
+        || saveAbortRef.current !== controller
+        || controller.signal.aborted
+      ) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      if (saveAbortRef.current === controller) {
+        saveAbortRef.current = null;
+        saveInFlightRef.current = false;
+        if (identityRef.current === ownerVnId) setSaving(false);
+      }
     }
-  }, [draft, toast, t.common.error, t.toast.saved, router]);
+  }, [draft, toast, t.common.error, t.toast.saved, router, vnId]);
 
   const cancel = useCallback(() => {
+    if (saveInFlightRef.current) return;
     setDraft(layout);
     setEditMode(false);
   }, [layout]);
@@ -165,11 +208,12 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   // chevron/hide button passes through without engaging the drag.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   function onDragEnd(e: DragEndEvent) {
+    if (saveInFlightRef.current) return;
     const { active: from, over } = e;
     if (!over || from.id === over.id) return;
     const oldIdx = draft.order.indexOf(from.id as VnSectionId);
@@ -179,6 +223,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
   }
 
   function patchSection(id: VnSectionId, patch: Partial<VnSectionState>) {
+    if (saveInFlightRef.current) return;
     setDraft((d) => ({
       ...d,
       sections: { ...d.sections, [id]: { ...d.sections[id], ...patch } },
@@ -200,7 +245,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={reset}
               disabled={saving}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
             >
               <RotateCcw className="h-3 w-3" aria-hidden /> {t.vnLayout.reset}
             </button>
@@ -208,7 +253,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={cancel}
               disabled={saving}
-              className="rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white"
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
             >
               {t.common.cancel}
             </button>
@@ -228,7 +273,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               setDraft(layout);
               setEditMode(true);
             }}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             title={t.vnLayout.editHint}
           >
             <Layout className="h-3 w-3" aria-hidden /> {t.vnLayout.edit}
@@ -269,6 +314,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
                   showLabel={t.vnLayout.show}
                   collapseByDefaultLabel={t.vnLayout.collapseByDefault}
                   dragHandleLabel={t.vnLayout.dragHandle}
+                  disabled={saving}
                   onPatch={(patch) => patchSection(id, patch)}
                 />
               ))}
@@ -311,6 +357,7 @@ function EditableRow({
   showLabel,
   collapseByDefaultLabel,
   dragHandleLabel,
+  disabled,
   onPatch,
 }: {
   id: VnSectionId;
@@ -320,10 +367,12 @@ function EditableRow({
   showLabel: string;
   collapseByDefaultLabel: string;
   dragHandleLabel: string;
+  disabled: boolean;
   onPatch: (patch: Partial<VnSectionState>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled,
     transition: { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   });
   const style: React.CSSProperties = {
@@ -344,6 +393,7 @@ function EditableRow({
         {...listeners}
         aria-label={dragHandleLabel}
         title={dragHandleLabel}
+        disabled={disabled}
         className="inline-flex min-h-[44px] min-w-[44px] cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" aria-hidden />
@@ -354,6 +404,7 @@ function EditableRow({
           type="checkbox"
           checked={state.collapsedByDefault}
           onChange={(e) => onPatch({ collapsedByDefault: e.target.checked })}
+          disabled={disabled}
           className="h-3 w-3 accent-accent"
         />
         {collapseByDefaultLabel}
@@ -363,6 +414,7 @@ function EditableRow({
         onClick={() => onPatch({ visible: !state.visible })}
         aria-pressed={!state.visible}
         title={state.visible ? hideLabel : showLabel}
+        disabled={disabled}
         className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded ${
           state.visible
             ? 'text-muted hover:bg-bg-elev hover:text-white'
