@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Bookmark, Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Bookmark, Check, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -13,13 +13,72 @@ import type { BoxType, EditionType, Location, Status } from '@/lib/types';
 import type { CollectionItem, SeriesRow } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeKnownPlacesResponse } from '@/lib/place-client-shape';
 
-type SaveField = 'status' | 'favorite' | 'dumped';
+type SaveField = 'status' | 'favorite' | 'dumped' | 'dumped_ignored';
 
 interface Props {
   vn: CollectionItem;
   inCollection: boolean;
   allSeries: SeriesRow[];
+}
+
+interface FormSeed {
+  status: Status;
+  userRating: string;
+  playtime: string;
+  started: string;
+  finished: string;
+  notes: string;
+  favorite: boolean;
+  location: Location;
+  editionType: EditionType;
+  editionLabel: string;
+  physicalLocations: string[];
+  boxType: BoxType;
+  downloadUrl: string;
+  dumped: boolean;
+  dumpedIgnored: boolean;
+}
+
+function formSeed(vn: CollectionItem): FormSeed {
+  return {
+    status: (vn.status as Status) ?? 'planning',
+    userRating: vn.user_rating != null ? String(vn.user_rating) : '',
+    playtime: String(vn.playtime_minutes ?? 0),
+    started: vn.started_date ?? '',
+    finished: vn.finished_date ?? '',
+    notes: vn.notes ?? '',
+    favorite: !!vn.favorite,
+    location: (vn.location as Location) ?? 'unknown',
+    editionType: (vn.edition_type as EditionType) ?? 'none',
+    editionLabel: vn.edition_label ?? '',
+    physicalLocations: [...(vn.physical_location ?? [])],
+    boxType: (vn.box_type as BoxType) ?? 'none',
+    downloadUrl: vn.download_url ?? '',
+    dumped: !!vn.dumped,
+    dumpedIgnored: !!vn.dumped_ignored,
+  };
+}
+
+function payloadFromSeed(seed: FormSeed) {
+  return {
+    status: seed.status,
+    user_rating: seed.userRating === '' ? null : Number(seed.userRating),
+    playtime_minutes: Number(seed.playtime),
+    started_date: seed.started || null,
+    finished_date: seed.finished || null,
+    notes: seed.notes || null,
+    favorite: seed.favorite,
+    location: seed.location,
+    edition_type: seed.editionType,
+    edition_label: seed.editionLabel || null,
+    physical_location: seed.physicalLocations,
+    box_type: seed.boxType,
+    download_url: seed.downloadUrl.trim() || null,
+    dumped: seed.dumped,
+    dumped_ignored: seed.dumpedIgnored,
+  };
 }
 
 export function EditForm({ vn, inCollection, allSeries }: Props) {
@@ -29,43 +88,49 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const initial = formSeed(vn);
 
-  const [status, setStatus] = useState<Status>((vn.status as Status) ?? 'planning');
-  const [userRating, setUserRating] = useState<string>(vn.user_rating != null ? String(vn.user_rating) : '');
-  const [playtime, setPlaytime] = useState<string>(String(vn.playtime_minutes ?? 0));
-  const [started, setStarted] = useState<string>(vn.started_date ?? '');
-  const [finished, setFinished] = useState<string>(vn.finished_date ?? '');
-  const [notes, setNotes] = useState<string>(vn.notes ?? '');
-  const [favorite, setFavorite] = useState<boolean>(!!vn.favorite);
-  const [location, setLocation] = useState<Location>((vn.location as Location) ?? 'unknown');
-  const [editionType, setEditionType] = useState<EditionType>((vn.edition_type as EditionType) ?? 'none');
-  const [editionLabel, setEditionLabel] = useState<string>(vn.edition_label ?? '');
-  const [physicalLocations, setPhysicalLocations] = useState<string[]>(vn.physical_location ?? []);
-  const [boxType, setBoxType] = useState<BoxType>((vn.box_type as BoxType) ?? 'none');
-  const [downloadUrl, setDownloadUrl] = useState<string>(vn.download_url ?? '');
-  const [dumped, setDumped] = useState<boolean>(!!vn.dumped);
+  const [status, setStatus] = useState<Status>(initial.status);
+  const [userRating, setUserRating] = useState<string>(initial.userRating);
+  const [playtime, setPlaytime] = useState<string>(initial.playtime);
+  const [started, setStarted] = useState<string>(initial.started);
+  const [finished, setFinished] = useState<string>(initial.finished);
+  const [notes, setNotes] = useState<string>(initial.notes);
+  const [favorite, setFavorite] = useState<boolean>(initial.favorite);
+  const [location, setLocation] = useState<Location>(initial.location);
+  const [editionType, setEditionType] = useState<EditionType>(initial.editionType);
+  const [editionLabel, setEditionLabel] = useState<string>(initial.editionLabel);
+  const [physicalLocations, setPhysicalLocations] = useState<string[]>(initial.physicalLocations);
+  const [boxType, setBoxType] = useState<BoxType>(initial.boxType);
+  const [downloadUrl, setDownloadUrl] = useState<string>(initial.downloadUrl);
+  const [dumped, setDumped] = useState<boolean>(initial.dumped);
+  const [dumpedIgnored, setDumpedIgnored] = useState<boolean>(initial.dumpedIgnored);
   const [knownPlaces, setKnownPlaces] = useState<string[]>([]);
 
   useEffect(() => {
     const ctrl = new AbortController();
     fetch('/api/places', { signal: ctrl.signal, cache: 'no-store' })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        return r.json();
+      })
       .then((d) => {
         if (ctrl.signal.aborted) return;
-        setKnownPlaces(d.known_places ?? []);
+        setKnownPlaces(decodeKnownPlacesResponse(d) ?? []);
       })
       .catch((e: unknown) => {
         if ((e as Error).name === 'AbortError') return;
         console.error('[EditForm] places fetch failed:', e);
       });
     return () => ctrl.abort();
-  }, []);
+  }, [t.common.error]);
 
   const [seriesPickerId, setSeriesPickerId] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [pendingFields, setPendingFields] = useState<ReadonlySet<SaveField>>(() => new Set<SaveField>());
   const [addingSeries, setAddingSeries] = useState(false);
   const [removingSeriesId, setRemovingSeriesId] = useState<number | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
   const [removingItem, setRemovingItem] = useState(false);
   const myseries = useMemo(() => vn.series ?? [], [vn.series]);
 
@@ -93,6 +158,11 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     setDumped(next);
   }, [markPending]);
 
+  const handleDumpedIgnoredChange = useCallback((next: boolean) => {
+    markPending('dumped_ignored');
+    setDumpedIgnored(next);
+  }, [markPending]);
+
   const buildPayload = useCallback((override?: Partial<{
     status: Status;
     userRating: string;
@@ -101,6 +171,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     finished: string;
     favorite: boolean;
     dumped: boolean;
+    dumpedIgnored: boolean;
   }>) => {
     const s = override?.status ?? status;
     const ur = override?.userRating ?? userRating;
@@ -109,6 +180,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     const fd = override?.finished ?? finished;
     const fav = override?.favorite ?? favorite;
     const dmp = override?.dumped ?? dumped;
+    const dmpIgnored = override?.dumpedIgnored ?? dumpedIgnored;
     return {
       status: s,
       user_rating: ur === '' ? null : Number(ur),
@@ -124,14 +196,16 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       box_type: boxType,
       download_url: downloadUrl.trim() || null,
       dumped: dmp,
+      dumped_ignored: dmpIgnored,
     };
-  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
+  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped, dumpedIgnored]);
 
   const lastSavedRef = useRef<string | null>(null);
   const prevDumpedRef = useRef<boolean>(!!vn.dumped);
   const prevFavoriteRef = useRef<boolean>(!!vn.favorite);
   const mountedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
 
   const seededRef = useRef({
@@ -142,14 +216,129 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     finished: vn.finished_date ?? '',
     favorite: !!vn.favorite,
     dumped: !!vn.dumped,
+    dumpedIgnored: !!vn.dumped_ignored,
   });
 
   const pendingCommitRef = useRef<(() => void) | null>(null);
+  const identityRef = useRef<string | null>(vn.id);
+  const skipAutoSaveRef = useRef(false);
+  const collectionAbortRef = useRef<AbortController | null>(null);
+  const collectionMutationKindRef = useRef<'autosave' | 'action' | null>(null);
+  const seriesAbortRef = useRef<AbortController | null>(null);
+
+  function beginAutosave(ownerVnId: string): AbortController | null {
+    if (identityRef.current !== ownerVnId || collectionMutationKindRef.current === 'action') return null;
+    collectionAbortRef.current?.abort();
+    const controller = new AbortController();
+    collectionAbortRef.current = controller;
+    collectionMutationKindRef.current = 'autosave';
+    return controller;
+  }
+
+  function beginCollectionAction(ownerVnId: string): AbortController | null {
+    if (identityRef.current !== ownerVnId || collectionMutationKindRef.current === 'action') return null;
+    collectionAbortRef.current?.abort();
+    const controller = new AbortController();
+    collectionAbortRef.current = controller;
+    collectionMutationKindRef.current = 'action';
+    return controller;
+  }
+
+  function ownsCollectionMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId
+      && collectionAbortRef.current === controller
+      && !controller.signal.aborted;
+  }
+
+  function finishCollectionMutation(controller: AbortController) {
+    if (collectionAbortRef.current !== controller) return;
+    collectionAbortRef.current = null;
+    collectionMutationKindRef.current = null;
+  }
+
+  function clearPendingAutosave() {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = null;
+    pendingCommitRef.current = null;
+  }
+
+  function beginSeriesMutation(ownerVnId: string): AbortController | null {
+    if (identityRef.current !== ownerVnId || seriesAbortRef.current) return null;
+    const controller = new AbortController();
+    seriesAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsSeriesMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId
+      && seriesAbortRef.current === controller
+      && !controller.signal.aborted;
+  }
+
+  function finishSeriesMutation(controller: AbortController) {
+    if (seriesAbortRef.current === controller) seriesAbortRef.current = null;
+  }
+
+  useEffect(() => {
+    const next = formSeed(vn);
+    identityRef.current = vn.id;
+    skipAutoSaveRef.current = true;
+    unmountedRef.current = false;
+    setError(null);
+    setStatus(next.status);
+    setUserRating(next.userRating);
+    setPlaytime(next.playtime);
+    setStarted(next.started);
+    setFinished(next.finished);
+    setNotes(next.notes);
+    setFavorite(next.favorite);
+    setLocation(next.location);
+    setEditionType(next.editionType);
+    setEditionLabel(next.editionLabel);
+    setPhysicalLocations(next.physicalLocations);
+    setBoxType(next.boxType);
+    setDownloadUrl(next.downloadUrl);
+    setDumped(next.dumped);
+    setDumpedIgnored(next.dumpedIgnored);
+    setSeriesPickerId('');
+    setSaveStatus('idle');
+    setPendingFields(new Set<SaveField>());
+    setAddingSeries(false);
+    setRemovingSeriesId(null);
+    setAddingItem(false);
+    setRemovingItem(false);
+    seededRef.current = {
+      status: next.status,
+      userRating: next.userRating,
+      playtime: next.playtime,
+      started: next.started,
+      finished: next.finished,
+      favorite: next.favorite,
+      dumped: next.dumped,
+      dumpedIgnored: next.dumpedIgnored,
+    };
+    lastSavedRef.current = JSON.stringify(payloadFromSeed(next));
+    prevDumpedRef.current = next.dumped;
+    prevFavoriteRef.current = next.favorite;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    return () => {
+      identityRef.current = null;
+      collectionAbortRef.current?.abort();
+      collectionAbortRef.current = null;
+      collectionMutationKindRef.current = null;
+      seriesAbortRef.current?.abort();
+      seriesAbortRef.current = null;
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  // The complete form reset is intentionally identity-scoped. Same-VN
+  // router refreshes use the selective reseed effect below to preserve drafts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vn.id]);
 
   /**
    * Re-sync server-owned fields from the incoming `vn` prop when a sibling
    * surface (SmartStatusHint, PomodoroTimer, FavoriteToggleButton, game-log
-   * sessions, …) mutates them and `router.refresh()` delivers a fresh prop.
+   * sessions, ...) mutates them and `router.refresh()` delivers a fresh prop.
    * Each field is re-seeded only when its prop value changed since the last
    * seed AND the local state still matches that prior seed (i.e. the user has
    * no unsaved edit in flight); a dirty field keeps the user's value. After
@@ -167,9 +356,10 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       finished: vn.finished_date ?? '',
       favorite: !!vn.favorite,
       dumped: !!vn.dumped,
+      dumpedIgnored: !!vn.dumped_ignored,
     };
     const seeded = seededRef.current;
-    const next = { status, userRating, playtime, started, finished, favorite, dumped };
+    const next = { status, userRating, playtime, started, finished, favorite, dumped, dumpedIgnored };
     let reseeded = false;
     if (incoming.status !== seeded.status) {
       if (status === seeded.status) { setStatus(incoming.status); next.status = incoming.status; reseeded = true; }
@@ -201,11 +391,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       seeded.dumped = incoming.dumped;
       prevDumpedRef.current = next.dumped;
     }
+    if (incoming.dumpedIgnored !== seeded.dumpedIgnored) {
+      if (dumpedIgnored === seeded.dumpedIgnored) { setDumpedIgnored(incoming.dumpedIgnored); next.dumpedIgnored = incoming.dumpedIgnored; reseeded = true; }
+      seeded.dumpedIgnored = incoming.dumpedIgnored;
+    }
     if (reseeded) {
       lastSavedRef.current = JSON.stringify(buildPayload(next));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vn.status, vn.user_rating, vn.playtime_minutes, vn.started_date, vn.finished_date, vn.favorite, vn.dumped]);
+  }, [vn.status, vn.user_rating, vn.playtime_minutes, vn.started_date, vn.finished_date, vn.favorite, vn.dumped, vn.dumped_ignored]);
 
   /**
    * Flush a pending debounced save when the VN identity changes underneath the
@@ -225,6 +419,11 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     if (!mountedRef.current) {
       mountedRef.current = true;
       lastSavedRef.current = JSON.stringify(buildPayload());
+      skipAutoSaveRef.current = false;
+      return;
+    }
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
       return;
     }
     if (!inCollection) return;
@@ -240,11 +439,21 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     }
     const dumpedJustEnabled = dumped && !prevDumpedRef.current;
     const favoriteChanged = favorite !== prevFavoriteRef.current;
+    const ownerVnId = vn.id;
     setSaveStatus('saving');
     const commit = () => {
+      autoSaveTimerRef.current = null;
       pendingCommitRef.current = null;
-      call('PATCH', payload)
+      const detached = unmountedRef.current || identityRef.current !== ownerVnId;
+      const controller = detached ? null : beginAutosave(ownerVnId);
+      if (!detached && !controller) return;
+      call('PATCH', payload, {
+        keepalive: detached,
+        signal: controller?.signal,
+      })
         .then(() => {
+          if (controller && !ownsCollectionMutation(ownerVnId, controller)) return;
+          if (identityRef.current !== ownerVnId) return;
           lastSavedRef.current = serialized;
           prevDumpedRef.current = dumped;
           prevFavoriteRef.current = favorite;
@@ -262,55 +471,87 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           }, 2000);
         })
         .catch((e: Error) => {
-          if (unmountedRef.current) return;
+          if (e.name === 'AbortError') return;
+          if (controller && !ownsCollectionMutation(ownerVnId, controller)) return;
+          if (unmountedRef.current || identityRef.current !== ownerVnId) return;
           setPendingFields(new Set<SaveField>());
           setSaveStatus('idle');
           setError(e.message);
           toast.error(e.message);
+        })
+        .finally(() => {
+          if (controller) finishCollectionMutation(controller);
         });
     };
     const timer = setTimeout(commit, 800);
+    autoSaveTimerRef.current = timer;
     pendingCommitRef.current = () => {
       clearTimeout(timer);
       commit();
     };
     return () => {
       clearTimeout(timer);
+      if (autoSaveTimerRef.current === timer) autoSaveTimerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped]);
+  }, [status, userRating, playtime, started, finished, notes, favorite, location, editionType, editionLabel, physicalLocations, boxType, downloadUrl, dumped, dumpedIgnored]);
 
-  async function call(method: 'POST' | 'PATCH' | 'DELETE', body?: unknown) {
-    setError(null);
+  async function call(method: 'POST' | 'PATCH' | 'DELETE', body?: unknown, options?: {
+    keepalive?: boolean;
+    signal?: AbortSignal;
+  }) {
+    const ownerVnId = vn.id;
+    if (identityRef.current === ownerVnId) setError(null);
     const res = await fetch(`/api/collection/${vn.id}`, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      keepalive: options?.keepalive,
+      signal: options?.signal,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || t.common.error);
-    }
+    if (!res.ok) throw new Error(await readApiError(res, t.common.error));
     return res.json();
   }
 
-  function withTransition(fn: () => Promise<unknown>, after?: () => void) {
+  function withCollectionTransition(
+    ownerVnId: string,
+    controller: AbortController,
+    fn: () => Promise<unknown>,
+    after?: () => void,
+  ) {
     startTransition(() => {
       fn()
         .then(() => {
+          if (!ownsCollectionMutation(ownerVnId, controller)) return;
           router.refresh();
           after?.();
         })
         .catch((e: Error) => {
+          if (e.name === 'AbortError' || !ownsCollectionMutation(ownerVnId, controller)) return;
           setError(e.message);
           toast.error(e.message);
+        })
+        .finally(() => {
+          if (!ownsCollectionMutation(ownerVnId, controller)) return;
+          finishCollectionMutation(controller);
+          setAddingItem(false);
+          setRemovingItem(false);
         });
     });
   }
 
   function handleAdd() {
-    withTransition(
-      () => call('POST', { status: 'planning' }).then(() => toast.success(t.toast.added)),
+    const ownerVnId = vn.id;
+    const controller = beginCollectionAction(ownerVnId);
+    if (!controller) return;
+    setAddingItem(true);
+    withCollectionTransition(
+      ownerVnId,
+      controller,
+      () => call('POST', { status: 'planning' }, { signal: controller.signal }).then(() => {
+        if (!ownsCollectionMutation(ownerVnId, controller)) return;
+        if (identityRef.current === ownerVnId) toast.success(t.toast.added);
+      }),
     );
   }
 
@@ -323,53 +564,87 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
   const playtimeInvalid = Number.isNaN(playtimeNum) || playtimeNum < 0;
 
   const trackingSaving = pendingFields.has('status') || pendingFields.has('favorite');
-  const dumpedSaving = pendingFields.has('dumped');
+  const dumpedSaving = pendingFields.has('dumped') || pendingFields.has('dumped_ignored');
 
   async function handleRemove() {
-    const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
-    if (!ok) return;
+    const ownerVnId = vn.id;
+    const controller = beginCollectionAction(ownerVnId);
+    if (!controller) return;
     setRemovingItem(true);
-    withTransition(
-      () => call('DELETE')
-        .then(() => toast.success(t.toast.removed))
-        .catch((e: Error) => {
-          if (!unmountedRef.current) setRemovingItem(false);
-          throw e;
+    const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
+    if (!ok || !ownsCollectionMutation(ownerVnId, controller)) {
+      finishCollectionMutation(controller);
+      if (!unmountedRef.current && identityRef.current === ownerVnId) setRemovingItem(false);
+      return;
+    }
+    clearPendingAutosave();
+    withCollectionTransition(
+      ownerVnId,
+      controller,
+      () => call('DELETE', undefined, { signal: controller.signal })
+        .then(() => {
+          if (ownsCollectionMutation(ownerVnId, controller)) toast.success(t.toast.removed);
         }),
       () => router.push('/'),
     );
   }
 
   async function addSeries(seriesId: number) {
+    const ownerVnId = vn.id;
+    const controller = beginSeriesMutation(ownerVnId);
+    if (!controller) return;
     setError(null);
     setAddingSeries(true);
     try {
-      const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsSeriesMutation(ownerVnId, controller)) return;
       setSeriesPickerId('');
       toast.success(t.seriesAutoSuggest.added);
       startTransition(() => router.refresh());
-    } catch (e) {
-      setError((e as Error).message);
-      toast.error((e as Error).message);
+    } catch (e: unknown) {
+      if ((e as Error).name === 'AbortError' || !ownsSeriesMutation(ownerVnId, controller)) return;
+      const message = (e as Error).message;
+      setError(message);
+      toast.error(message);
     } finally {
-      if (!unmountedRef.current) setAddingSeries(false);
+      if (ownsSeriesMutation(ownerVnId, controller)) {
+        finishSeriesMutation(controller);
+        if (!unmountedRef.current) setAddingSeries(false);
+      }
     }
   }
 
   async function removeSeries(seriesId: number) {
+    const ownerVnId = vn.id;
+    const controller = beginSeriesMutation(ownerVnId);
+    if (!controller) return;
     setError(null);
     setRemovingSeriesId(seriesId);
     try {
-      const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/series/${seriesId}/vn/${vn.id}`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsSeriesMutation(ownerVnId, controller)) return;
       toast.success(t.toast.removedFromSeries);
       startTransition(() => router.refresh());
-    } catch (e) {
-      setError((e as Error).message);
-      toast.error((e as Error).message);
+    } catch (e: unknown) {
+      if ((e as Error).name === 'AbortError' || !ownsSeriesMutation(ownerVnId, controller)) return;
+      const message = (e as Error).message;
+      setError(message);
+      toast.error(message);
     } finally {
-      if (!unmountedRef.current) setRemovingSeriesId(null);
+      if (ownsSeriesMutation(ownerVnId, controller)) {
+        finishSeriesMutation(controller);
+        if (!unmountedRef.current) setRemovingSeriesId(null);
+      }
     }
   }
 
@@ -377,9 +652,9 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     return (
       <div className="p-4 sm:p-6">
         <p className="mb-4 text-muted">{t.form.notInCollection}</p>
-        <button type="button" className="btn btn-primary" onClick={handleAdd} disabled={pending}>
-          <Plus className="h-4 w-4" />
-          {pending ? t.form.adding : t.form.add}
+        <button type="button" className="btn btn-primary" onClick={handleAdd} disabled={pending || addingItem}>
+          <Plus className="h-4 w-4" aria-hidden />
+          {pending || addingItem ? t.form.adding : t.form.add}
         </button>
         {error && <p role="alert" className="mt-3 text-sm text-status-dropped">{error}</p>}
       </div>
@@ -446,6 +721,8 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           onDownloadUrlChange={setDownloadUrl}
           dumped={dumped}
           onDumpedChange={handleDumpedChange}
+          dumpedIgnored={dumpedIgnored}
+          onDumpedIgnoredChange={handleDumpedIgnoredChange}
         />
       </div>
 
@@ -453,7 +730,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
       <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-          <Bookmark className="h-4 w-4" /> {t.detail.seriesSection}
+          <Bookmark className="h-4 w-4" aria-hidden /> {t.detail.seriesSection}
         </h3>
         {myseries.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -462,15 +739,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
                 <Link href={`/series/${s.id}`} className="hover:text-accent">{s.name}</Link>
                 <button
                   type="button"
-                  className="inline-flex items-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60 sm:min-h-0 sm:min-w-0"
                   onClick={() => removeSeries(s.id)}
-                  disabled={removingSeriesId === s.id}
+                  disabled={addingSeries || removingSeriesId !== null}
                   aria-busy={removingSeriesId === s.id || undefined}
                   aria-label={t.series.removeFromSeries}
                 >
                   {removingSeriesId === s.id
                     ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                    : <span aria-hidden>×</span>}
+                    : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </span>
             ))}
@@ -482,6 +759,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
               className="input flex-1"
               value={seriesPickerId}
               onChange={(e) => setSeriesPickerId(e.target.value)}
+              disabled={addingSeries || removingSeriesId !== null}
               aria-label={t.detail.addToSeries}
             >
               <option value="">{t.detail.addToSeries}</option>
@@ -492,7 +770,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             <button
               type="button"
               className="btn btn-primary disabled:cursor-wait"
-              disabled={!seriesPickerId || addingSeries}
+              disabled={!seriesPickerId || addingSeries || removingSeriesId !== null}
               onClick={() => seriesPickerId && addSeries(Number(seriesPickerId))}
               aria-busy={addingSeries || undefined}
               aria-label={t.detail.addToSeries}

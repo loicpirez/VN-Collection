@@ -28,7 +28,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { BCP47 } from '@/lib/locale-number';
+import { BCP47, formatCurrency } from '@/lib/locale-number';
 
 export interface SparklinePoint {
   /** Timestamp in ms epoch. */
@@ -100,7 +100,7 @@ export function PriceHistoryChart({
   height = 240,
   guides = [],
   ariaLabel,
-  formatYen = (y) => `¥${y.toLocaleString('ja-JP')}`,
+  formatYen = (y) => formatCurrency(y, locale),
   hideLegend = false,
 }: Props): ReactNode {
   const formatDate = new Intl.DateTimeFormat(BCP47[locale], { dateStyle: 'medium' });

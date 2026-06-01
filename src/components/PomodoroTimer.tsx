@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Pause, Play, Square, Timer } from 'lucide-react';
+import { Loader2, Pause, Play, Plus, Square, Timer } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -41,6 +41,27 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
   const [now, setNow] = useState(Date.now());
   const [saving, setSaving] = useState(false);
   const tickRef = useRef<NodeJS.Timeout | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    inFlightRef.current = false;
+    setStartedAt(null);
+    setPausedAt(null);
+    setPausedMs(0);
+    setNow(Date.now());
+    setSaving(false);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, [vnId]);
 
   useEffect(() => {
     if (startedAt != null && pausedAt == null) {
@@ -93,25 +114,45 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
   }
 
   async function logElapsed() {
+    if (inFlightRef.current) return;
+    const ownerVnId = vnId;
+    const ownerCurrentMinutes = currentMinutes;
     const min = Math.round(elapsedSec / 60);
     if (min <= 0) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
     const ok = await confirm({ message: t.pomodoro.confirm.replace('{n}', String(min)) });
-    if (!ok) return;
+    if (!ok || identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) {
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+      }
+      return;
+    }
     setSaving(true);
     try {
-      const r = await fetch(`/api/collection/${vnId}`, {
+      const r = await fetch(`/api/collection/${ownerVnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playtime_minutes: currentMinutes + min }),
+        body: JSON.stringify({ playtime_minutes: ownerCurrentMinutes + min }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       reset();
       router.refresh();
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        inFlightRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -123,7 +164,7 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
     <div className="rounded-lg border border-border bg-bg-elev/30 p-3 text-xs">
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="inline-flex items-center gap-1 font-bold uppercase tracking-wider text-muted">
-          <Timer className="h-3 w-3 text-accent" /> {t.pomodoro.label}
+          <Timer className="h-3 w-3 text-accent" aria-hidden /> {t.pomodoro.label}
         </span>
         <input
           type="number"
@@ -158,25 +199,25 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
       <div className="flex flex-wrap gap-1.5">
         {startedAt == null ? (
           <button type="button" onClick={start} className="btn btn-primary text-xs">
-            <Play className="h-3 w-3" /> {t.pomodoro.start}
+            <Play className="h-3 w-3" aria-hidden /> {t.pomodoro.start}
           </button>
         ) : pausedAt == null ? (
           <button type="button" onClick={pause} className="btn text-xs">
-            <Pause className="h-3 w-3" /> {t.pomodoro.pause}
+            <Pause className="h-3 w-3" aria-hidden /> {t.pomodoro.pause}
           </button>
         ) : (
           <button type="button" onClick={resume} className="btn btn-primary text-xs">
-            <Play className="h-3 w-3" /> {t.pomodoro.resume}
+            <Play className="h-3 w-3" aria-hidden /> {t.pomodoro.resume}
           </button>
         )}
         {startedAt != null && (
           <button type="button" onClick={reset} className="btn text-xs" disabled={saving}>
-            <Square className="h-3 w-3" /> {t.pomodoro.reset}
+            <Square className="h-3 w-3" aria-hidden /> {t.pomodoro.reset}
           </button>
         )}
         {(elapsedSec >= 60 || done) && (
           <button type="button" onClick={logElapsed} disabled={saving} className="btn btn-primary text-xs">
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : '+'}
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
             {/* U-049: localize the "(N min)" suffix via t.year.minutesUnit */}
             {t.pomodoro.logTo} ({Math.round(elapsedSec / 60)}{t.year.minutesUnit})
           </button>

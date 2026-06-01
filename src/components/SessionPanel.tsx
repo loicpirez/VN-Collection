@@ -1,12 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PomodoroTimer } from './PomodoroTimer';
-import { GameLog, type GameLogEntry } from './GameLog';
+import { GameLog } from './GameLog';
+import type { TrackingGameLogEntry } from '@/lib/tracking-client-shape';
 
 interface Props {
   vnId: string;
   currentMinutes: number;
-  initialLog: GameLogEntry[];
+  initialLog: TrackingGameLogEntry[];
 }
 
 /**
@@ -18,6 +19,7 @@ interface Props {
  */
 export function SessionPanel({ vnId, currentMinutes, initialLog }: Props) {
   const [elapsedMin, setElapsedMin] = useState(0);
+  useEffect(() => setElapsedMin(0), [vnId]);
   return (
     <>
       <div className="grid gap-4 md:grid-cols-[1fr_280px]">

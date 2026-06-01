@@ -64,6 +64,12 @@ describe('LoadingImage — skeleton present in initial render', () => {
     );
     expect(html).toContain('alt="Game cover"');
   });
+
+  it('renders an accessible placeholder after image errors', () => {
+    expect(loadingImageSource).toContain('data-loading-image-error');
+    expect(loadingImageSource).toContain("role={ariaHidden ? undefined : 'img'}");
+    expect(loadingImageSource).toContain('<ImageOff');
+  });
 });
 
 describe('HeroBanner — loading skeleton lifecycle', () => {

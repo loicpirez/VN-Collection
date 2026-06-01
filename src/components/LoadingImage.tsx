@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type CSSProperties } from 'react';
+import { ImageOff } from 'lucide-react';
 
 export interface LoadingImageProps {
   /** Resolved image URL to render. */
@@ -55,18 +56,30 @@ export function LoadingImage({
           aria-hidden
         />
       )}
-      <img
-        src={src}
-        alt={alt}
-        width={width}
-        height={height}
-        aria-hidden={ariaHidden || undefined}
-        decoding="async"
-        loading={loading}
-        className={`${imageClassName} transition-opacity duration-200 ${loaded && !errored ? 'opacity-100' : 'opacity-0'}`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
-      />
+      {errored ? (
+        <span
+          data-loading-image-error
+          role={ariaHidden ? undefined : 'img'}
+          aria-label={ariaHidden ? undefined : alt}
+          aria-hidden={ariaHidden || undefined}
+          className="absolute inset-0 flex items-center justify-center bg-bg-elev text-muted"
+        >
+          <ImageOff className="h-1/3 w-1/3" aria-hidden />
+        </span>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          width={width}
+          height={height}
+          aria-hidden={ariaHidden || undefined}
+          decoding="async"
+          loading={loading}
+          className={`${imageClassName} transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+        />
+      )}
     </span>
   );
 }
