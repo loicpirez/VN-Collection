@@ -3,8 +3,9 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
-import { cancelJob, finishJob, getJob, isJobCancelled, recordError, setJobCurrent, startJob, tickJob } from '@/lib/download-status';
+import { cancelJob, finishJob, getJob, isJobCancelled, jobLabel, recordError, setJobCurrent, startJob, tickJob } from '@/lib/download-status';
 import { upsertDurableStockBatchJob } from '@/lib/stock-batch-store';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,9 +15,18 @@ const MAX_ACTIVE_BATCH_JOBS = 2;
 const STOCK_BATCH_VN_CONCURRENCY = 2;
 const activeBatchJobs = new Map<string, AbortController>();
 
-function parseVnIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === 'string' && /^(v\d+|egs_\d+)$/i.test(v)).slice(0, MAX_BATCH);
+interface VnIdsParse {
+  vnIds: string[];
+  error: string | null;
+}
+
+function parseVnIds(value: unknown): VnIdsParse {
+  if (!Array.isArray(value)) return { vnIds: [], error: 'vnIds must be an array' };
+  if (value.length > MAX_BATCH) return { vnIds: [], error: `vnIds exceeds limit of ${MAX_BATCH}` };
+  if (value.some((v) => typeof v !== 'string' || !isValidVnId(v))) {
+    return { vnIds: [], error: 'vnIds must contain only VN ids' };
+  }
+  return { vnIds: Array.from(new Set((value as string[]).map(normalizeVnId))), error: null };
 }
 
 interface ProviderParse {
@@ -30,8 +40,11 @@ function parseProviders(value: unknown): ProviderParse {
   const providers: StockProviderId[] = [];
   const unknown: string[] = [];
   for (const item of value) {
-    if (typeof item !== 'string') continue;
-    if (allowed.has(item)) providers.push(item as StockProviderId);
+    if (typeof item !== 'string') {
+      unknown.push('non-string');
+      continue;
+    }
+    if (allowed.has(item) && !providers.includes(item as StockProviderId)) providers.push(item as StockProviderId);
     else unknown.push(item.slice(0, 80));
   }
   return { providers, unknown };
@@ -46,7 +59,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = await readJsonObject(req);
-  const vnIds = parseVnIds(body.vnIds);
+  const parsedVnIds = parseVnIds(body.vnIds);
+  if (parsedVnIds.error) return NextResponse.json({ error: parsedVnIds.error }, { status: 400 });
+  const vnIds = parsedVnIds.vnIds;
   if (vnIds.length === 0) return NextResponse.json({ error: 'no valid vnIds' }, { status: 400 });
   const parsed = parseProviders(body.providers);
   if (Array.isArray(body.providers) && parsed.unknown.length > 0) {
@@ -63,7 +78,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const job = startJob('stock-batch', `Stock refresh × ${vnIds.length}`, vnIds.length, null);
+  const job = startJob('stock-batch', jobLabel('stock_refresh', `Stock refresh × ${vnIds.length}`, { count: vnIds.length }), vnIds.length, null);
   const controller = new AbortController();
   activeBatchJobs.set(job.id, controller);
   persistJob(job.id);
@@ -77,7 +92,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           if (isJobCancelled(job.id) || controller.signal.aborted) return;
           setJobCurrent(job.id, vnId);
           persistJob(job.id);
-          const providerJob = startJob('stock-batch', `Providers - ${vnId}`, providers.length, vnId);
+          const providerJob = startJob('stock-batch', jobLabel('stock_providers_for_vn', `Providers - ${vnId}`, { vnId }), providers.length, vnId);
           try {
             await refreshStockForVn(vnId, providers, controller.signal, (provider, _done, _total) => {
               setJobCurrent(providerJob.id, provider);

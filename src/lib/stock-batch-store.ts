@@ -1,18 +1,35 @@
 import 'server-only';
 import { db } from './db';
-import type { DownloadJob } from './download-status';
+import { isJobCurrentItemCode, isJobLabelCode, type DownloadJob, type JobTextParams } from './download-status';
 
 interface StockBatchJobRow {
   id: string;
   label: string;
+  label_code: string | null;
+  label_params_json: string | null;
   total: number;
   done: number;
   current_item: string | null;
+  current_item_code: string | null;
+  current_item_params_json: string | null;
   errors_json: string;
   started_at: number;
   finished_at: number | null;
   cancelled: number;
   interrupted: number;
+}
+
+function parseTextParams(raw: string | null): JobTextParams | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed == null || Array.isArray(parsed)) return null;
+    const entries = Object.entries(parsed);
+    if (!entries.every(([, value]) => typeof value === 'string' || typeof value === 'number')) return null;
+    return Object.fromEntries(entries);
+  } catch {
+    return null;
+  }
 }
 
 interface DownloadJobError {
@@ -52,9 +69,13 @@ function toDownloadJob(row: StockBatchJobRow): DownloadJob {
     kind: 'stock-batch',
     vn_id: null,
     label: row.label,
+    label_code: row.label_code && isJobLabelCode(row.label_code) ? row.label_code : null,
+    label_params: parseTextParams(row.label_params_json),
     total: row.total,
     done: row.done,
     current_item: row.current_item,
+    current_item_code: row.current_item_code && isJobCurrentItemCode(row.current_item_code) ? row.current_item_code : null,
+    current_item_params: parseTextParams(row.current_item_params_json),
     errors: parseErrors(row.errors_json),
     started_at: row.started_at,
     finished_at: row.finished_at,
@@ -91,7 +112,7 @@ export function markUnfinishedDurableStockBatchJobsInterrupted(): number {
   const now = Date.now();
   const update = db.prepare(`
     UPDATE stock_batch_job
-    SET errors_json = ?, finished_at = ?, current_item = NULL, interrupted = 1
+    SET errors_json = ?, finished_at = ?, current_item = NULL, current_item_code = NULL, current_item_params_json = NULL, interrupted = 1
     WHERE id = ?
   `);
   db.transaction(() => {
@@ -120,15 +141,19 @@ export function upsertDurableStockBatchJob(job: DownloadJob): void {
   initialize();
   db.prepare(`
     INSERT INTO stock_batch_job (
-      id, label, total, done, current_item, errors_json,
+      id, label, label_code, label_params_json, total, done, current_item, current_item_code, current_item_params_json, errors_json,
       started_at, finished_at, cancelled, interrupted
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       label = excluded.label,
+      label_code = excluded.label_code,
+      label_params_json = excluded.label_params_json,
       total = excluded.total,
       done = excluded.done,
       current_item = excluded.current_item,
+      current_item_code = excluded.current_item_code,
+      current_item_params_json = excluded.current_item_params_json,
       errors_json = excluded.errors_json,
       finished_at = excluded.finished_at,
       cancelled = excluded.cancelled,
@@ -136,9 +161,13 @@ export function upsertDurableStockBatchJob(job: DownloadJob): void {
   `).run(
     job.id,
     job.label,
+    job.label_code ?? null,
+    job.label_params ? JSON.stringify(job.label_params) : null,
     job.total,
     job.done,
     job.current_item ?? null,
+    job.current_item_code ?? null,
+    job.current_item_params ? JSON.stringify(job.current_item_params) : null,
     JSON.stringify(job.errors),
     job.started_at,
     job.finished_at,
@@ -157,7 +186,7 @@ export function listDurableStockBatchJobs(): DownloadJob[] {
   initialize();
   gc();
   const rows = db.prepare(`
-    SELECT id, label, total, done, current_item, errors_json,
+    SELECT id, label, label_code, label_params_json, total, done, current_item, current_item_code, current_item_params_json, errors_json,
            started_at, finished_at, cancelled, interrupted
     FROM stock_batch_job
     ORDER BY started_at DESC
