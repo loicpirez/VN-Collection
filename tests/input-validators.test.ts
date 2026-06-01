@@ -55,7 +55,7 @@ describe('validateText', () => {
 });
 
 describe('validateIsoDate', () => {
-  it('accepts a UTC-ms integer and returns it floored', () => {
+  it('accepts a UTC-ms integer', () => {
     expect(validateIsoDate(1_700_000_000_123)).toEqual({ ok: true, value: 1_700_000_000_123 });
   });
 
@@ -89,6 +89,10 @@ describe('validateIsoDate', () => {
 
   it('rejects a non-finite number', () => {
     expect(validateIsoDate(Number.POSITIVE_INFINITY).ok).toBe(false);
+  });
+
+  it('rejects a fractional numeric timestamp instead of flooring it', () => {
+    expect(validateIsoDate(1_700_000_000_123.5).ok).toBe(false);
   });
 });
 

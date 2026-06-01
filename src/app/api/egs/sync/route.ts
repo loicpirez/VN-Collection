@@ -36,7 +36,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const picks = body.vn_ids.filter((s): s is string => typeof s === 'string' && isVndbVnId(s));
+  if (body.vn_ids.some((s) => typeof s !== 'string' || !isVndbVnId(s))) {
+    return NextResponse.json({ error: 'vn_ids must contain only VNDB VN ids' }, { status: 400 });
+  }
+  const picks = Array.from(new Set((body.vn_ids as string[]).map((id) => id.toLowerCase())));
   if (picks.length === 0) return NextResponse.json({ applied: 0 });
   const result = await applyEgsSuggestions(picks);
   try {

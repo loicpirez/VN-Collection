@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { EgsUnreachable, searchEgsCandidates } from '@/lib/erogamescape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { clampQuery } from '@/lib/api-query';
+import { clampQuery, parseBoundedQueryInteger } from '@/lib/api-query';
 import { tooManyRequests } from '@/lib/rate-limit-response';
 
 export const dynamic = 'force-dynamic';
@@ -20,8 +20,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const limited = tooManyRequests(req, 'egs/search', { limit: 30, windowMs: 10_000 });
   if (limited) return limited;
   const q = clampQuery(req.nextUrl.searchParams.get('q'), Q_MAX);
-  const limitRaw = req.nextUrl.searchParams.get('limit');
-  const limit = limitRaw ? Math.min(50, Math.max(1, Number(limitRaw) || 20)) : 20;
+  const limit = parseBoundedQueryInteger(req.nextUrl.searchParams.get('limit'), {
+    fallback: 20,
+    min: 1,
+    max: 50,
+  });
   if (!q) {
     return NextResponse.json({ candidates: [] });
   }

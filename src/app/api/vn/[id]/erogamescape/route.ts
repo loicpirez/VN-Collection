@@ -5,14 +5,14 @@ import { getVnEgsLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { isVndbVnId } from '@/lib/vn-id-shape';
+import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+  if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const sp = req.nextUrl.searchParams;
@@ -38,12 +38,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (denied) return denied;
   const { id: rawIdPost } = await ctx.params;
   const id = rawIdPost.toLowerCase();
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+  if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const body = (await readJsonObject(req)) as { egs_id?: number };
-  const egsId = Number(body.egs_id);
-  if (!Number.isInteger(egsId) || egsId <= 0) {
+  const body = await readJsonObject(req);
+  const egsId = body.egs_id;
+  if (typeof egsId !== 'number' || !Number.isSafeInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid egs_id' }, { status: 400 });
   }
   try {
@@ -83,7 +83,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (denied) return denied;
   const { id: rawIdDelete } = await ctx.params;
   const id = rawIdDelete.toLowerCase();
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+  if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const raw = req.nextUrl.searchParams.get('mode');

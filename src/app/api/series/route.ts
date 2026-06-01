@@ -18,17 +18,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const body = (await readJsonObject(req)) as { name?: unknown; description?: unknown };
-  const nameResult = validateText(body.name, { field: 'name', max: 500 });
+  const nameResult = validateText(body.name, { field: 'name', max: 200 });
   if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
-  const name = nameResult.value.slice(0, 200);
   let description: string | null = null;
   if (body.description != null) {
     const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
     if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
-    description = typeof body.description === 'string' ? body.description : null;
+    description = descResult.value;
   }
   try {
-    const created = createSeries(name, description);
+    const created = createSeries(nameResult.value, description);
     try {
       recordActivity({
         kind: 'series.create',

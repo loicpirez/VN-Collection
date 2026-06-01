@@ -9,12 +9,13 @@ import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
+import { parseOwnedReleaseIdentity } from '@/lib/owned-release-id';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 function parseId(raw: string): number | null {
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 /**
@@ -49,45 +50,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (
     typeof body.after_row !== 'number' ||
     typeof body.position !== 'number' ||
-    !Number.isInteger(body.after_row) ||
-    !Number.isInteger(body.position) ||
+    !Number.isSafeInteger(body.after_row) ||
+    !Number.isSafeInteger(body.position) ||
     body.after_row < 0 ||
     body.position < 0 ||
     typeof body.vn_id !== 'string' ||
-    typeof body.release_id !== 'string' ||
-    body.vn_id.length === 0 ||
-    body.vn_id.length > 64 ||
-    body.release_id.length === 0 ||
-    body.release_id.length > 64
+    typeof body.release_id !== 'string'
   ) {
     return NextResponse.json(
       { error: 'after_row/position/vn_id/release_id required' },
       { status: 400 },
     );
   }
-  if (!/^(v\d+|egs_\d+)$/i.test(body.vn_id)) {
-    return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
-  }
-  if (
-    !/^r\d+$/i.test(body.release_id) &&
-    body.release_id !== `synthetic:${body.vn_id}`
-  ) {
-    return NextResponse.json({ error: 'invalid release_id' }, { status: 400 });
-  }
+  const identity = parseOwnedReleaseIdentity(body.vn_id, body.release_id);
+  if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
   try {
     placeShelfDisplayItem({
       shelfId: sid,
       afterRow: body.after_row,
       position: body.position,
-      vnId: body.vn_id,
-      releaseId: body.release_id,
+      vnId: identity.value.vnId,
+      releaseId: identity.value.releaseId,
     });
     recordActivity({
       kind: 'shelf.display.place',
       entity: 'shelf_display_slot',
       entityId: `${sid}:${body.after_row}:${body.position}`,
       label: 'Placed front display edition',
-      payload: { shelf_id: sid, after_row: body.after_row, position: body.position, vn_id: body.vn_id, release_id: body.release_id },
+      payload: { shelf_id: sid, after_row: body.after_row, position: body.position, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
     });
     return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
   } catch (e) {
@@ -110,22 +100,15 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     vn_id?: unknown;
     release_id?: unknown;
   };
-  if (typeof body.vn_id !== 'string' || typeof body.release_id !== 'string') {
-    return NextResponse.json({ error: 'vn_id/release_id required' }, { status: 400 });
-  }
-  if (
-    !/^r\d+$/i.test(body.release_id) &&
-    body.release_id !== `synthetic:${body.vn_id}`
-  ) {
-    return NextResponse.json({ error: 'invalid release_id' }, { status: 400 });
-  }
-  removeShelfDisplayPlacement(body.vn_id, body.release_id);
+  const identity = parseOwnedReleaseIdentity(body.vn_id, body.release_id);
+  if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
+  removeShelfDisplayPlacement(identity.value.vnId, identity.value.releaseId);
   recordActivity({
     kind: 'shelf.display.unplace',
     entity: 'shelf_display_slot',
-    entityId: `${body.vn_id}:${body.release_id}`,
+    entityId: `${identity.value.vnId}:${identity.value.releaseId}`,
     label: 'Removed front display placement',
-    payload: { shelf_id: sid, vn_id: body.vn_id, release_id: body.release_id },
+    payload: { shelf_id: sid, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
   });
   return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
 }

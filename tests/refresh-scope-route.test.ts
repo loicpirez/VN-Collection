@@ -139,4 +139,9 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     const json = await res.json();
     expect(json.error).toBe('invalid param value');
   });
+
+  it('rejects malformed explicit params containers', async () => {
+    expect((await POST(postScope({ scope: 'tags-list', params: [] }))).status).toBe(400);
+    expect((await POST(postScope({ scope: 'tags-list', params: { gid: 73 } }))).status).toBe(400);
+  });
 });

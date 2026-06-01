@@ -3,6 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { searchTraits } from '@/lib/vndb';
 import { tooManyRequests } from '@/lib/rate-limit-response';
+import { parseBoundedQueryInteger } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,10 +21,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const q = (sp.get('q') ?? '').slice(0, Q_MAX);
   // Clamp the results count so a malformed `?results=99999` doesn't burn
   // the VNDB throttle budget on a huge response.
-  const resultsRaw = Number(sp.get('results') ?? '50');
-  const results = Number.isFinite(resultsRaw)
-    ? Math.max(RESULTS_MIN, Math.min(RESULTS_MAX, Math.trunc(resultsRaw)))
-    : 50;
+  const results = parseBoundedQueryInteger(sp.get('results'), {
+    fallback: 50,
+    min: RESULTS_MIN,
+    max: RESULTS_MAX,
+  });
   try {
     const traits = await searchTraits(q, { results });
     return NextResponse.json({ traits });

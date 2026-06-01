@@ -23,11 +23,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const body = (await readJsonObject(req)) as { name?: unknown; params?: unknown };
-    const nameResult = validateText(body.name, { field: 'name', max: 200 });
+    const nameResult = validateText(body.name, { field: 'name', max: 60 });
     if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
-    const paramsResult = validateText(body.params, { field: 'params', max: 4000, allowEmpty: true });
+    const paramsResult = validateText(body.params, { field: 'params', max: 2000, allowEmpty: true });
     if (!paramsResult.ok) return NextResponse.json({ error: paramsResult.error }, { status: 400 });
-    const created = createSavedFilter(nameResult.value.slice(0, 200), body.params as string);
+    const created = createSavedFilter(nameResult.value, paramsResult.value);
     recordActivity({
       kind: 'saved_filter.create',
       entity: 'saved_filter',
@@ -46,7 +46,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const id = Number(req.nextUrl.searchParams.get('id'));
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }
     const ok = deleteSavedFilter(id);
@@ -71,11 +71,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (
       !Array.isArray(body.ids) ||
       body.ids.length > 500 ||
-      body.ids.some((x) => !Number.isInteger(x) || (x as number) <= 0)
+      body.ids.some((x) => !Number.isSafeInteger(x) || (x as number) <= 0)
     ) {
       return NextResponse.json({ error: 'ids array of positive integers required' }, { status: 400 });
     }
-    reorderSavedFilters(body.ids as number[]);
+    const ids = body.ids as number[];
+    if (new Set(ids).size !== ids.length) {
+      return NextResponse.json({ error: 'ids must not contain duplicates' }, { status: 400 });
+    }
+    reorderSavedFilters(ids);
     recordActivity({
       kind: 'saved_filter.reorder',
       entity: 'saved_filter',

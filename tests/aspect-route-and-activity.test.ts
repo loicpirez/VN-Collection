@@ -107,6 +107,22 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     expect(res.status).toBe(400);
   });
 
+  it('PATCH rejects malformed notes instead of silently discarding them', async () => {
+    const res = await PATCH(buildPatch(SYNTHETIC_ID, { aspect_key: '16:9', note: { text: 'invalid' } }) as never, {
+      params: Promise.resolve({ id: SYNTHETIC_ID }),
+    });
+    expect(res.status).toBe(400);
+    expect(getVnAspectOverride(SYNTHETIC_ID)).toBeNull();
+  });
+
+  it('PATCH rejects notes longer than 500 characters instead of truncating them', async () => {
+    const res = await PATCH(buildPatch(SYNTHETIC_ID, { aspect_key: '16:9', note: 'x'.repeat(501) }) as never, {
+      params: Promise.resolve({ id: SYNTHETIC_ID }),
+    });
+    expect(res.status).toBe(400);
+    expect(getVnAspectOverride(SYNTHETIC_ID)).toBeNull();
+  });
+
   it('DELETE clears + records aspect.clear (sugar for PATCH null)', async () => {
     setVnAspectOverride({ vnId: SYNTHETIC_ID, aspectKey: '16:9' });
     const res = await DELETE(buildDelete(SYNTHETIC_ID) as never, {

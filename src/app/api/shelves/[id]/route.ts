@@ -6,17 +6,20 @@ import {
   listShelfSlots,
   renameShelf,
   resizeShelf,
+  SHELF_MAX,
+  SHELF_MIN,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
+import { validateSafeInt, validateText } from '@/lib/input-validators';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 function parseId(raw: string): number | null {
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -43,21 +46,26 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     cols?: unknown;
     rows?: unknown;
   };
+  const colsResult = body.cols === undefined ? null : validateSafeInt(body.cols, { field: 'cols', min: SHELF_MIN, max: SHELF_MAX });
+  if (colsResult && !colsResult.ok) return NextResponse.json({ error: colsResult.error }, { status: 400 });
+  const rowsResult = body.rows === undefined ? null : validateSafeInt(body.rows, { field: 'rows', min: SHELF_MIN, max: SHELF_MAX });
+  if (rowsResult && !rowsResult.ok) return NextResponse.json({ error: rowsResult.error }, { status: 400 });
+  const nameResult = 'name' in body ? validateText(body.name, { field: 'name', max: 100 }) : null;
+  if (nameResult && !nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  const current = getShelf(sid);
+  if (!current) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   try {
-    if (typeof body.name === 'string' && body.name.trim().length > 0) {
-      const name = body.name.trim().slice(0, 100);
-      const shelf = renameShelf(sid, name);
+    if (nameResult?.ok) {
+      const shelf = renameShelf(sid, nameResult.value);
       if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
       recordActivity({ kind: 'shelf.rename', entity: 'shelf', entityId: String(sid), label: 'Renamed shelf', payload: { name: shelf.name } });
     }
-    if (typeof body.cols === 'number' || typeof body.rows === 'number') {
-      const current = getShelf(sid);
-      if (!current) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (colsResult || rowsResult) {
       const result = resizeShelf(
         sid,
-        typeof body.cols === 'number' ? body.cols : current.cols,
-        typeof body.rows === 'number' ? body.rows : current.rows,
+        colsResult?.ok ? colsResult.value : current.cols,
+        rowsResult?.ok ? rowsResult.value : current.rows,
       );
       if (!result) return NextResponse.json({ error: 'not found' }, { status: 404 });
       recordActivity({ kind: 'shelf.resize', entity: 'shelf', entityId: String(sid), label: 'Resized shelf', payload: { cols: result.shelf.cols, rows: result.shelf.rows, evicted: result.evicted.length } });

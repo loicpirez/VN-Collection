@@ -64,3 +64,41 @@ describe('owned release acquired date validation', () => {
     expect(body.error).toContain('acquired_date');
   });
 });
+
+describe('owned release aspect override validation', () => {
+  it('rejects a malformed aspect override before updating the owned edition', async () => {
+    await POST(request('POST', { release_id: RELEASE_ID, notes: 'before' }), ctx());
+    const res = await PATCH(request('PATCH', {
+      release_id: RELEASE_ID,
+      notes: 'after',
+      aspect_override: { width: 1920 },
+    }), ctx());
+    expect(res.status).toBe(400);
+    const row = db
+      .prepare('SELECT notes FROM owned_release WHERE vn_id = ? AND release_id = ?')
+      .get(VN_ID, RELEASE_ID) as { notes: string | null } | undefined;
+    expect(row?.notes).toBe('before');
+  });
+
+  it('rejects malformed aspect notes instead of silently coercing them', async () => {
+    await POST(request('POST', { release_id: RELEASE_ID }), ctx());
+    const res = await PATCH(request('PATCH', {
+      release_id: RELEASE_ID,
+      aspect_override: { aspect_key: '16:9', note: { text: 'invalid' } },
+    }), ctx());
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('owned release annotation validation', () => {
+  it('rejects purchase locations longer than 200 characters instead of truncating them', async () => {
+    const res = await POST(request('POST', { release_id: RELEASE_ID, purchase_place: 'x'.repeat(201) }), ctx());
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects more than 32 physical-location tags instead of truncating them', async () => {
+    const physicalLocation = Array.from({ length: 33 }, (_, index) => `Shelf ${index}`);
+    const res = await POST(request('POST', { release_id: RELEASE_ID, physical_location: physicalLocation }), ctx());
+    expect(res.status).toBe(400);
+  });
+});

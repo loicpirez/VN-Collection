@@ -14,6 +14,25 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+const MAX_LABEL_IDS = 100;
+const MAX_NOTES_LENGTH = 10_000;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseLabelIds(value: unknown): number[] | null {
+  if (
+    !Array.isArray(value)
+    || value.length > MAX_LABEL_IDS
+    || value.some((entry) => typeof entry !== 'number' || !Number.isSafeInteger(entry) || entry < 0)
+  ) {
+    return null;
+  }
+  return Array.from(new Set(value));
+}
+
+function parseNullableDate(value: unknown): string | null | undefined {
+  if (value === null || value === '') return null;
+  return typeof value === 'string' && ISO_DATE_RE.test(value) ? value : undefined;
+}
 
 /**
  * Tiny route to drive the "VNDB list status" panel on /vn/[id].
@@ -25,12 +44,13 @@ export const runtime = 'nodejs';
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const vnId = id.toLowerCase();
   try {
     const labels = await fetchUlistLabels();
     if (typeof labels === 'object' && 'needsAuth' in labels) {
       return NextResponse.json({ needsAuth: true, entry: null, labels: [] });
     }
-    const entry = await fetchUlistEntry(id);
+    const entry = await fetchUlistEntry(vnId);
     if (entry && typeof entry === 'object' && 'needsAuth' in entry) {
       return NextResponse.json({ needsAuth: true, entry: null, labels });
     }
@@ -45,32 +65,53 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const vnId = id.toLowerCase();
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const patch: UlistPatch = {};
-  if (Array.isArray(body.labels_set)) {
-    patch.labels_set = body.labels_set.map((n) => Number(n)).filter((n) => Number.isInteger(n));
+  if ('labels_set' in body) {
+    const labels = parseLabelIds(body.labels_set);
+    if (!labels) return NextResponse.json({ error: 'invalid labels_set' }, { status: 400 });
+    patch.labels_set = labels;
   }
-  if (Array.isArray(body.labels_unset)) {
-    patch.labels_unset = body.labels_unset.map((n) => Number(n)).filter((n) => Number.isInteger(n));
+  if ('labels_unset' in body) {
+    const labels = parseLabelIds(body.labels_unset);
+    if (!labels) return NextResponse.json({ error: 'invalid labels_unset' }, { status: 400 });
+    patch.labels_unset = labels;
   }
   if ('vote' in body) {
     const v = body.vote;
     if (v === null || v === '') patch.vote = null;
-    else if (typeof v === 'number' && v >= 10 && v <= 100) patch.vote = v;
-    else return NextResponse.json({ error: 'vote must be 10-100 or null' }, { status: 400 });
+    else if (typeof v === 'number' && Number.isSafeInteger(v) && v >= 10 && v <= 100) patch.vote = v;
+    else return NextResponse.json({ error: 'vote must be an integer 10-100 or null' }, { status: 400 });
   }
-  if ('notes' in body) patch.notes = (body.notes as string | null) || null;
-  if ('started' in body) patch.started = (body.started as string | null) || null;
-  if ('finished' in body) patch.finished = (body.finished as string | null) || null;
+  if ('notes' in body) {
+    if (body.notes !== null && typeof body.notes !== 'string') {
+      return NextResponse.json({ error: 'notes must be a string or null' }, { status: 400 });
+    }
+    if (typeof body.notes === 'string' && body.notes.length > MAX_NOTES_LENGTH) {
+      return NextResponse.json({ error: 'notes too long' }, { status: 400 });
+    }
+    patch.notes = body.notes || null;
+  }
+  if ('started' in body) {
+    const started = parseNullableDate(body.started);
+    if (started === undefined) return NextResponse.json({ error: 'started must be YYYY-MM-DD or null' }, { status: 400 });
+    patch.started = started;
+  }
+  if ('finished' in body) {
+    const finished = parseNullableDate(body.finished);
+    if (finished === undefined) return NextResponse.json({ error: 'finished must be YYYY-MM-DD or null' }, { status: 400 });
+    patch.finished = finished;
+  }
 
   try {
-    const r = await patchUlistEntry(id, patch);
+    const r = await patchUlistEntry(vnId, patch);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     try {
       recordActivity({
         kind: 'vndb-status.update',
         entity: 'vn',
-        entityId: id,
+        entityId: vnId,
         label: 'Updated VNDB ulist entry',
         // Payload carries only field NAMES and label-id counts, never
         // the user's raw notes/vote body — the round-4-followup
@@ -82,7 +123,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         },
       });
     } catch (e) {
-      console.error(`[vndb-status:${id}] activity log failed:`, (e as Error).message);
+      console.error(`[vndb-status:${vnId}] activity log failed:`, (e as Error).message);
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -95,18 +136,19 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const vnId = id.toLowerCase();
   try {
-    const r = await deleteUlistEntry(id);
+    const r = await deleteUlistEntry(vnId);
     if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     try {
       recordActivity({
         kind: 'vndb-status.remove',
         entity: 'vn',
-        entityId: id,
+        entityId: vnId,
         label: 'Removed VNDB ulist entry',
       });
     } catch (e) {
-      console.error(`[vndb-status:${id}] activity log failed:`, (e as Error).message);
+      console.error(`[vndb-status:${vnId}] activity log failed:`, (e as Error).message);
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

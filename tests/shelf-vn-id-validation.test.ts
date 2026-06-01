@@ -10,12 +10,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createShelf } from '@/lib/db';
-import { POST as slotsPOST } from '@/app/api/shelves/[id]/slots/route';
-import { POST as displaysPOST } from '@/app/api/shelves/[id]/displays/route';
+import { DELETE as slotsDELETE, POST as slotsPOST } from '@/app/api/shelves/[id]/slots/route';
+import { DELETE as displaysDELETE, POST as displaysPOST } from '@/app/api/shelves/[id]/displays/route';
 
-function loopbackReq(path: string, body: unknown): NextRequest {
+function loopbackReq(path: string, body: unknown, method = 'POST'): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -97,5 +97,23 @@ describe('shelf displays route — vn_id validation (R5-095)', () => {
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
     expect(body.error).toBe('invalid vn_id');
+  });
+});
+
+describe('shelf unplacement routes — symmetric identity validation', () => {
+  it('rejects malformed VN ids before slot removal', async () => {
+    const res = await slotsDELETE(
+      loopbackReq(`/api/shelves/${shelfId}/slots`, { vn_id: '../etc/passwd', release_id: 'r1' }, 'DELETE'),
+      ctx(String(shelfId)),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects malformed VN ids before front-display removal', async () => {
+    const res = await displaysDELETE(
+      loopbackReq(`/api/shelves/${shelfId}/displays`, { vn_id: '../etc/passwd', release_id: 'r1' }, 'DELETE'),
+      ctx(String(shelfId)),
+    );
+    expect(res.status).toBe(400);
   });
 });

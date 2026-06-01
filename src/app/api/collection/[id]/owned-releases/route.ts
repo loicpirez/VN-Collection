@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  db,
   isInCollection,
   isValidBoxType,
   isValidLocation,
@@ -12,11 +13,12 @@ import {
   type OwnedReleasePatch,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
-import { validateVnIdOr400, isVndbVnId } from '@/lib/vn-id';
+import { isVndbVnId, normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { parsePhysicalLocations } from '@/lib/physical-location-input';
 
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,55 @@ export const runtime = 'nodejs';
 
 const VALID_CONDITIONS = new Set(['new', 'used', 'sealed', 'opened', 'damaged']);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+type AspectOverrideInput = {
+  width?: number | null;
+  height?: number | null;
+  aspectKey?: Parameters<typeof setOwnedReleaseAspectOverride>[0]['aspectKey'];
+  note?: string | null;
+};
+
+function parseAspectOverride(raw: unknown): { value?: AspectOverrideInput | null; error?: string } {
+  if (raw === null) return { value: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'invalid aspect_override' };
+  const obj = raw as Record<string, unknown>;
+  const width = obj.width;
+  const height = obj.height;
+  const hasWidth = width != null;
+  const hasHeight = height != null;
+  if (hasWidth !== hasHeight) return { error: 'aspect_override width and height are required together' };
+  if (
+    hasWidth
+    && (
+      typeof width !== 'number'
+      || !Number.isSafeInteger(width)
+      || width <= 0
+      || width > 100_000
+      || typeof height !== 'number'
+      || !Number.isSafeInteger(height)
+      || height <= 0
+      || height > 100_000
+    )
+  ) {
+    return { error: 'aspect_override dimensions must be positive integers' };
+  }
+  const aspectKey = obj.aspect_key;
+  if (aspectKey != null && (!isAspectKey(aspectKey) || aspectKey === 'unknown')) {
+    return { error: 'invalid aspect_override aspect_key' };
+  }
+  const note = obj.note;
+  if (note != null && typeof note !== 'string') return { error: 'aspect_override note must be a string or null' };
+  if (typeof note === 'string' && note.length > 500) return { error: 'aspect_override note too long (max 500)' };
+  if (!hasWidth && aspectKey == null) return { error: 'aspect_override requires dimensions or aspect_key' };
+  return {
+    value: {
+      width: hasWidth ? width as number : null,
+      height: hasHeight ? height as number : null,
+      aspectKey: isAspectKey(aspectKey) ? aspectKey : null,
+      note: typeof note === 'string' ? note : null,
+    },
+  };
+}
 
 function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; error?: string } {
   const patch: OwnedReleasePatch = {};
@@ -74,7 +125,7 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
   if ('purchase_place' in body) {
     const v = body.purchase_place;
     if (v === null || v === '') patch.purchase_place = null;
-    else if (typeof v === 'string' && v.trim().length > 0) patch.purchase_place = v.trim().slice(0, 200);
+    else if (typeof v === 'string' && v.trim().length > 0 && v.trim().length <= 200) patch.purchase_place = v.trim();
     else return { patch, error: 'invalid purchase_place' };
   }
   if ('owned_platform' in body) {
@@ -90,26 +141,14 @@ function pickPatch(body: Record<string, unknown>): { patch: OwnedReleasePatch; e
       return { patch, error: 'invalid owned_platform' };
     }
   }
-  if ('dumped' in body) patch.dumped = !!body.dumped;
+  if ('dumped' in body) {
+    if (typeof body.dumped !== 'boolean') return { patch, error: 'dumped must be boolean' };
+    patch.dumped = body.dumped;
+  }
   if ('physical_location' in body) {
-    const v = body.physical_location;
-    const TAG_MAX = 100;
-    if (v == null) patch.physical_location = [];
-    else if (Array.isArray(v)) {
-      if (!v.every((x) => typeof x === 'string')) return { patch, error: 'physical_location entries must be strings' };
-      patch.physical_location = v
-        .map((s) => (s as string).trim().slice(0, TAG_MAX))
-        .filter((s): s is string => s.length > 0)
-        .slice(0, 32);
-    } else if (typeof v === 'string') {
-      patch.physical_location = v
-        .split(',')
-        .map((s) => s.trim().slice(0, TAG_MAX))
-        .filter(Boolean)
-        .slice(0, 32);
-    } else {
-      return { patch, error: 'physical_location must be array or string' };
-    }
+    const locations = parsePhysicalLocations(body.physical_location);
+    if (!locations.ok) return { patch, error: locations.error };
+    patch.physical_location = locations.value;
   }
   return { patch };
 }
@@ -131,9 +170,10 @@ function validateReleaseId(raw: string, vnId: string): { ok: boolean; normalized
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const owned = listOwnedReleasesWithShelfForVn(id);
   return NextResponse.json({ owned });
@@ -142,9 +182,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
@@ -183,16 +224,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  updateOwnedRelease(id, validation.normalized, patch);
+  const aspectOverride = 'aspect_override' in body ? parseAspectOverride(body.aspect_override) : null;
+  if (aspectOverride?.error) return NextResponse.json({ error: aspectOverride.error }, { status: 400 });
+  db.transaction(() => {
+    updateOwnedRelease(id, validation.normalized, patch);
+    if (!aspectOverride) return;
+    if (aspectOverride.value === null) {
+      setOwnedReleaseAspectOverride({ vnId: id, releaseId: validation.normalized, aspectKey: 'unknown' });
+      return;
+    }
+    setOwnedReleaseAspectOverride({
+      vnId: id,
+      releaseId: validation.normalized,
+      ...aspectOverride.value,
+    });
+  })();
   recordActivity({
     kind: 'owned_release.update',
     entity: 'owned_release',
@@ -200,37 +256,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     label: 'Updated owned edition',
     payload: { vn_id: id, release_id: validation.normalized, ...patch },
   });
-  if ('aspect_override' in body) {
-    const v = body.aspect_override;
-    if (v == null) {
-      setOwnedReleaseAspectOverride({ vnId: id, releaseId: validation.normalized, aspectKey: 'unknown' });
-    } else if (typeof v === 'object') {
-      const obj = v as Record<string, unknown>;
-      const width = typeof obj.width === 'number' ? obj.width : null;
-      const height = typeof obj.height === 'number' ? obj.height : null;
-      const aspectKey = isAspectKey(obj.aspect_key) ? obj.aspect_key : null;
-      const note = typeof obj.note === 'string' ? obj.note.slice(0, 500) : null;
-      setOwnedReleaseAspectOverride({
-        vnId: id,
-        releaseId: validation.normalized,
-        width,
-        height,
-        aspectKey,
-        note,
-      });
-    } else {
-      return NextResponse.json({ error: 'invalid aspect_override' }, { status: 400 });
-    }
-  }
   return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });

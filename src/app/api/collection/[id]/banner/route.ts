@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  db,
   getCollectionItem,
   normalizeRotation,
   setBanner,
@@ -8,7 +9,7 @@ import {
 } from '@/lib/db';
 import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
 import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
@@ -37,9 +38,10 @@ const MAX_BANNER_BYTES = 15 * 1024 * 1024;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   const item = getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
@@ -113,9 +115,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     position?: string | null;
@@ -129,21 +132,30 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!hasPosition && !hasRotation) {
     return NextResponse.json({ error: 'missing position or rotation' }, { status: 400 });
   }
+  let nextPosition: string | null = null;
+  let nextRotation = 0;
   if (hasPosition) {
     const value = body.position;
     if (value !== null && (typeof value !== 'string' || !POSITION_RE.test(value))) {
       return NextResponse.json({ error: 'position must be "X% Y%" or null' }, { status: 400 });
     }
-    setBannerPosition(id, value ?? null);
-    recordActivity({ kind: 'banner.position', entity: 'vn', entityId: id, label: 'Updated banner position', payload: { position: value ?? null } });
+    nextPosition = value ?? null;
   }
   if (hasRotation) {
     if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
       return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
     }
-    const next = normalizeRotation(body.rotation);
-    setBannerRotation(id, next);
-    recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: next } });
+    nextRotation = normalizeRotation(body.rotation);
+  }
+  db.transaction(() => {
+    if (hasPosition) setBannerPosition(id, nextPosition);
+    if (hasRotation) setBannerRotation(id, nextRotation);
+  })();
+  if (hasPosition) {
+    recordActivity({ kind: 'banner.position', entity: 'vn', entityId: id, label: 'Updated banner position', payload: { position: nextPosition } });
+  }
+  if (hasRotation) {
+    recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: nextRotation } });
   }
   return NextResponse.json({ item: getCollectionItem(id) });
 }
@@ -151,17 +163,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
-  setBanner(id, null);
-  setBannerPosition(id, null);
-  // Rotation is metadata on the active banner image. Wipe on reset
-  // so a fresh upload doesn't inherit a stale 90deg flag.
-  setBannerRotation(id, 0);
+  db.transaction(() => {
+    setBanner(id, null);
+    setBannerPosition(id, null);
+    setBannerRotation(id, 0);
+  })();
   recordActivity({ kind: 'banner.reset', entity: 'vn', entityId: id, label: 'Reset banner' });
   return NextResponse.json({ item: getCollectionItem(id) });
 }

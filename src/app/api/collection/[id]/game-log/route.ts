@@ -7,8 +7,8 @@ import {
   updateGameLogEntry,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-import { validateVnIdOr400 } from '@/lib/vn-id';
-import { validateIsoDate } from '@/lib/input-validators';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
+import { validateIsoDate, validateSafeInt } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
@@ -52,9 +52,10 @@ export const runtime = 'nodejs';
  * convert to UTC server-side or via Date.prototype.getTime() first.
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return NextResponse.json({ entries: listGameLogForVn(id, 200) });
 }
@@ -74,9 +75,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'note too long (max 10000)' }, { status: 400 });
   }
   const note = body.note.slice(0, 10000);
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   let at: number | undefined;
   if (body.logged_at != null) {
@@ -84,10 +86,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!loggedAt.ok) return NextResponse.json({ error: loggedAt.error }, { status: 400 });
     at = loggedAt.value;
   }
-  const minutes =
-    typeof body.session_minutes === 'number' && body.session_minutes > 0
-      ? Math.min(Math.floor(body.session_minutes), 100_000)
-      : null;
+  let minutes: number | null = null;
+  if (body.session_minutes != null) {
+    const parsedMinutes = validateSafeInt(body.session_minutes, { field: 'session_minutes', min: 0, max: 100_000 });
+    if (!parsedMinutes.ok) return NextResponse.json({ error: parsedMinutes.error }, { status: 400 });
+    minutes = parsedMinutes.value > 0 ? parsedMinutes.value : null;
+  }
   try {
     const entry = addGameLogEntry(id, note, at, minutes);
     logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
@@ -101,9 +105,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     id?: unknown;
@@ -111,20 +116,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     logged_at?: unknown;
     session_minutes?: unknown;
   };
-  const eid = Number(body.id);
-  if (!Number.isInteger(eid) || eid <= 0) {
+  const eid = body.id;
+  if (typeof eid !== 'number' || !Number.isSafeInteger(eid) || eid <= 0) {
     return NextResponse.json({ error: 'entry id required' }, { status: 400 });
   }
   const patch: { note?: string; logged_at?: number; session_minutes?: number | null } = {};
-  if (typeof body.note === 'string') patch.note = body.note.slice(0, 10000);
+  if ('note' in body) {
+    if (typeof body.note !== 'string') return NextResponse.json({ error: 'note must be a string' }, { status: 400 });
+    if (body.note.length > 10000) return NextResponse.json({ error: 'note too long (max 10000)' }, { status: 400 });
+    patch.note = body.note;
+  }
   if (body.logged_at != null) {
     const loggedAt = validateIsoDate(body.logged_at);
     if (!loggedAt.ok) return NextResponse.json({ error: loggedAt.error }, { status: 400 });
     patch.logged_at = loggedAt.value;
   }
-  if (body.session_minutes === null) patch.session_minutes = null;
-  else if (typeof body.session_minutes === 'number' && body.session_minutes >= 0) {
-    patch.session_minutes = body.session_minutes > 0 ? Math.min(Math.floor(body.session_minutes), 100_000) : null;
+  if ('session_minutes' in body) {
+    if (body.session_minutes === null) patch.session_minutes = null;
+    else {
+      const parsedMinutes = validateSafeInt(body.session_minutes, { field: 'session_minutes', min: 0, max: 100_000 });
+      if (!parsedMinutes.ok) return NextResponse.json({ error: parsedMinutes.error }, { status: 400 });
+      patch.session_minutes = parsedMinutes.value > 0 ? parsedMinutes.value : null;
+    }
   }
   try {
     const entry = updateGameLogEntry(id, eid, patch);
@@ -145,12 +158,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const eid = Number(req.nextUrl.searchParams.get('entry'));
-  if (!Number.isInteger(eid) || eid <= 0) {
+  if (!Number.isSafeInteger(eid) || eid <= 0) {
     return NextResponse.json({ error: 'entry required' }, { status: 400 });
   }
   const ok = deleteGameLogEntry(id, eid);

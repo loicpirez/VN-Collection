@@ -28,8 +28,9 @@ vi.mock('@/lib/erogamescape', () => ({
       super(msg);
     }
   },
-  searchEgsCandidates: vi.fn().mockImplementation((q: string) => {
+  searchEgsCandidates: vi.fn().mockImplementation((q: string, limit?: number) => {
     egsLastQuery = q;
+    egsLastLimit = limit;
     return Promise.resolve([]);
   }),
 }));
@@ -41,6 +42,7 @@ let tagsLastOptions: { results?: number; category?: string } = {};
 let traitsLastQuery = '';
 let traitsLastOptions: { results?: number } = {};
 let egsLastQuery = '';
+let egsLastLimit: number | undefined;
 
 import { GET as searchGET } from '@/app/api/search/route';
 import { GET as egsSearchGET } from '@/app/api/egs/search/route';
@@ -82,6 +84,18 @@ describe('S-046: search query length caps', () => {
     expect(egsLastQuery.length).toBeLessThanOrEqual(200);
   });
 
+  it('GET /api/egs/search rejects fractional result limits', async () => {
+    const r = await egsSearchGET(loopbackReq('http://localhost/api/egs/search?q=foo&limit=12.5'));
+    expect(r.status).toBe(200);
+    expect(egsLastLimit).toBe(20);
+  });
+
+  it('GET /api/egs/search rejects suffixed result limits', async () => {
+    const r = await egsSearchGET(loopbackReq('http://localhost/api/egs/search?q=foo&limit=12junk'));
+    expect(r.status).toBe(200);
+    expect(egsLastLimit).toBe(20);
+  });
+
   it('GET /api/staff truncates oversized q', async () => {
     const r = await staffGET(loopbackReq(`http://localhost/api/staff?q=${encodeURIComponent(HUGE_Q)}`));
     expect(r.status).toBe(200);
@@ -113,6 +127,18 @@ describe('S-046: search query length caps', () => {
     // 50 is the documented default; the helper must never forward NaN.
     expect(traitsLastOptions.results).toBe(50);
   });
+
+  it('GET /api/tags with fractional results param falls back to default', async () => {
+    const r = await tagsGET(loopbackReq('http://localhost/api/tags?q=foo&results=12.5'));
+    expect(r.status).toBe(200);
+    expect(tagsLastOptions.results).toBe(50);
+  });
+
+  it('GET /api/traits with suffixed results param falls back to default', async () => {
+    const r = await traitsGET(loopbackReq('http://localhost/api/traits?q=foo&results=12junk'));
+    expect(r.status).toBe(200);
+    expect(traitsLastOptions.results).toBe(50);
+  });
 });
 
 describe('S-047/S-048/S-049/S-050/S-052: array-length caps on reorder PATCH', () => {
@@ -132,6 +158,11 @@ describe('S-047/S-048/S-049/S-050/S-052: array-length caps on reorder PATCH', ()
     expect(r.status).toBe(400);
   });
 
+  it('PATCH /api/saved-filters rejects duplicate ids', async () => {
+    const r = await savedFiltersPATCH(patchReq('http://localhost/api/saved-filters', { ids: [1, 1] }));
+    expect(r.status).toBe(400);
+  });
+
   it('PATCH /api/shelves rejects > 500 ids', async () => {
     const order = Array.from({ length: 501 }, (_, i) => i + 1);
     const r = await shelvesPATCH(patchReq('http://localhost/api/shelves', { order }));
@@ -140,6 +171,11 @@ describe('S-047/S-048/S-049/S-050/S-052: array-length caps on reorder PATCH', ()
 
   it('PATCH /api/shelves rejects zero / negative ids', async () => {
     const r = await shelvesPATCH(patchReq('http://localhost/api/shelves', { order: [0, 1] }));
+    expect(r.status).toBe(400);
+  });
+
+  it('PATCH /api/shelves rejects duplicate ids', async () => {
+    const r = await shelvesPATCH(patchReq('http://localhost/api/shelves', { order: [1, 1] }));
     expect(r.status).toBe(400);
   });
 
@@ -152,6 +188,11 @@ describe('S-047/S-048/S-049/S-050/S-052: array-length caps on reorder PATCH', ()
   it('PATCH /api/reading-queue rejects > 1000 ids', async () => {
     const ids = Array.from({ length: 1001 }, (_, i) => `v${i + 1}`);
     const r = await readingQueuePATCH(patchReq('http://localhost/api/reading-queue', { ids }));
+    expect(r.status).toBe(400);
+  });
+
+  it('PATCH /api/reading-queue rejects duplicate VN ids after normalization', async () => {
+    const r = await readingQueuePATCH(patchReq('http://localhost/api/reading-queue', { ids: ['v1', 'V1'] }));
     expect(r.status).toBe(400);
   });
 });

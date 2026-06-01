@@ -111,12 +111,12 @@ describe('POST /api/vn/[id]/stock/sources — validation', () => {
     expect(listStockSources(VN_ID)).toHaveLength(32);
   });
 
-  it('ignores release_id values that do not look like r\\d+', async () => {
+  it('rejects release_id values that do not look like r\\d+', async () => {
     const res = await POST(
       makeReq({ url: 'https://www.amazon.co.jp/dp/B000JF6UD2', release_id: 'not-a-release' }) as never,
       { params: Promise.resolve({ id: VN_ID }) },
     );
-    expect(res.status).toBe(200);
-    expect(listStockSources(VN_ID)[0].release_id).toBeNull();
+    expect(res.status).toBe(400);
+    expect(listStockSources(VN_ID)).toHaveLength(0);
   });
 });

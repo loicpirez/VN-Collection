@@ -31,6 +31,7 @@ vi.mock('@/lib/db', async (importOriginal) => {
 });
 
 import { PATCH } from '@/app/api/collection/[id]/route';
+import { PATCH as patchRoutes } from '@/app/api/collection/[id]/routes/route';
 
 const VN_ID = 'v99999';
 const NOW = Date.now();
@@ -156,6 +157,22 @@ describe('PATCH /api/collection/[id] — pickFields validation', () => {
   it('accepts valid download_url', async () => {
     const res = await PATCH(patchReq(VN_ID, { download_url: 'https://example.com/game.zip' }), ctx());
     expect(res.status).toBe(200);
+  });
+
+  it('rejects oversized physical-location arrays instead of silently truncating them', async () => {
+    const physicalLocation = Array.from({ length: 33 }, (_, index) => `Shelf ${index}`);
+    const res = await PATCH(patchReq(VN_ID, { physical_location: physicalLocation }), ctx());
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects oversized physical-location tags instead of silently truncating them', async () => {
+    const res = await PATCH(patchReq(VN_ID, { physical_location: ['x'.repeat(201)] }), ctx());
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects duplicate route reorder ids', async () => {
+    const res = await patchRoutes(patchReq(VN_ID, { ids: [1, 1] }), ctx());
+    expect(res.status).toBe(400);
   });
 
   it('returns 404 when VN is not in collection', async () => {

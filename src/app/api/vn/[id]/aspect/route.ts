@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deriveVnAspectKey, getVnAspectOverride, setVnAspectOverride } from '@/lib/db';
 import { ASPECT_KEYS, isAspectKey } from '@/lib/aspect-ratio';
 import { recordActivity } from '@/lib/activity';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -35,9 +35,10 @@ export const runtime = 'nodejs';
  * DELETE → clear the override (sugar — same as PATCH null).
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   const override = getVnAspectOverride(id);
   const derived = deriveVnAspectKey(id);
   return NextResponse.json({ override, derived });
@@ -46,16 +47,23 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const raw = body.aspect_key;
+  if ('note' in body && body.note !== null && typeof body.note !== 'string') {
+    return NextResponse.json({ error: 'note must be a string or null' }, { status: 400 });
+  }
+  if (typeof body.note === 'string' && body.note.length > 500) {
+    return NextResponse.json({ error: 'note too long (max 500)' }, { status: 400 });
+  }
   if (raw == null) {
     setVnAspectOverride({ vnId: id, aspectKey: null });
     logAspect('aspect.clear', id);
   } else if (typeof raw === 'string' && isAspectKey(raw) && raw !== 'unknown') {
-    const note = typeof body.note === 'string' ? body.note.slice(0, 500) : null;
+    const note = typeof body.note === 'string' ? body.note : null;
     setVnAspectOverride({
       vnId: id,
       aspectKey: raw,
@@ -77,9 +85,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   setVnAspectOverride({ vnId: id, aspectKey: null });
   logAspect('aspect.clear', id);
   return NextResponse.json({ override: null, derived: deriveVnAspectKey(id) });

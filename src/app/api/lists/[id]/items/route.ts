@@ -4,14 +4,9 @@ import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { internalError } from '@/lib/api-error';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-// Lists accept both VNDB and synthetic VN ids — same shapes used by
-// the rest of the app. Rejecting other strings keeps spurious rows
-// (typos, copy-paste blunders) out of `user_list_vn`, since the
-// table deliberately has no FK on vn_id.
-const VN_ID_RE = /^(v\d+|egs_\d+)$/i;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
@@ -19,18 +14,27 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const { id } = await ctx.params;
     const listId = Number(id);
-    if (!Number.isInteger(listId) || listId <= 0) {
+    if (!Number.isSafeInteger(listId) || listId <= 0) {
       return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     }
     if (!getUserList(listId)) return NextResponse.json({ error: 'list not found' }, { status: 404 });
 
     const body = (await readJsonObject(req)) as { vn_id?: unknown; note?: unknown; order?: unknown };
-    if (typeof body.order === 'object' && Array.isArray((body.order as unknown[]) ?? null)) {
-      const arr = body.order as unknown[];
+    if ('order' in body) {
+      if (!Array.isArray(body.order)) {
+        return NextResponse.json({ error: 'order must be an array of VN ids' }, { status: 400 });
+      }
+      const arr = body.order;
       if (arr.length > 10000) {
         return NextResponse.json({ error: 'order array too long (max 10000)' }, { status: 400 });
       }
-      const ids = arr.filter((s): s is string => typeof s === 'string' && VN_ID_RE.test(s));
+      if (arr.some((s) => typeof s !== 'string' || !isValidVnId(s))) {
+        return NextResponse.json({ error: 'order must contain only VN ids' }, { status: 400 });
+      }
+      const ids = (arr as string[]).map(normalizeVnId);
+      if (new Set(ids).size !== ids.length) {
+        return NextResponse.json({ error: 'order must not contain duplicates' }, { status: 400 });
+      }
       reorderListItems(listId, ids);
       recordActivity({
         kind: 'list.reorder',
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       });
       return NextResponse.json({ ok: true });
     }
-    if (typeof body.vn_id !== 'string' || !VN_ID_RE.test(body.vn_id.trim())) {
+    if (typeof body.vn_id !== 'string' || !isValidVnId(body.vn_id.trim())) {
       return NextResponse.json({ error: 'invalid vn_id' }, { status: 400 });
     }
     let note: string | null = null;
@@ -50,8 +54,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ error: 'note too long (max 2000)' }, { status: 400 });
       }
       note = body.note;
+    } else if (body.note !== undefined && body.note !== null) {
+      return NextResponse.json({ error: 'note must be a string or null' }, { status: 400 });
     }
-    const item = addVnToList(listId, body.vn_id.trim(), note);
+    const item = addVnToList(listId, normalizeVnId(body.vn_id.trim()), note);
     if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
     recordActivity({
       kind: 'list.item.add',
@@ -72,19 +78,20 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   try {
     const { id } = await ctx.params;
     const listId = Number(id);
-    if (!Number.isInteger(listId) || listId <= 0) {
+    if (!Number.isSafeInteger(listId) || listId <= 0) {
       return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     }
     const vnId = req.nextUrl.searchParams.get('vn');
-    if (!vnId || !VN_ID_RE.test(vnId)) {
+    if (!isValidVnId(vnId)) {
       return NextResponse.json({ error: 'invalid vn query param' }, { status: 400 });
     }
-    const ok = removeVnFromList(listId, vnId);
+    const normalizedVnId = normalizeVnId(vnId);
+    const ok = removeVnFromList(listId, normalizedVnId);
     if (!ok) return NextResponse.json({ error: 'not in list' }, { status: 404 });
     recordActivity({
       kind: 'list.item.remove',
       entity: 'vn',
-      entityId: vnId,
+      entityId: normalizedVnId,
       label: 'Removed from list',
       payload: { list_id: listId },
     });

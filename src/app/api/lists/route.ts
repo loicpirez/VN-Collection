@@ -22,34 +22,44 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     color?: unknown;
     icon?: unknown;
   };
-  const nameResult = validateText(body.name, { field: 'name', max: 500 });
+  const nameResult = validateText(body.name, { field: 'name', max: 200 });
   if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  let description: string | null = null;
   if (typeof body.description === 'string') {
-    const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
+    const descResult = validateText(body.description, { field: 'description', max: 2000, allowEmpty: true });
     if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
+    description = descResult.value;
+  } else if (body.description !== undefined && body.description !== null) {
+    return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
   }
   const COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,32})$/;
   const ICON_RE = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
   let color: string | null = null;
   if (typeof body.color === 'string') {
-    const trimmed = body.color.trim().slice(0, 64);
+    const trimmed = body.color.trim();
+    if (trimmed.length > 64) return NextResponse.json({ error: 'color too long (max 64)' }, { status: 400 });
     if (trimmed && !COLOR_RE.test(trimmed)) {
       return NextResponse.json({ error: 'invalid color' }, { status: 400 });
     }
     color = trimmed || null;
+  } else if (body.color !== undefined && body.color !== null) {
+    return NextResponse.json({ error: 'color must be a string or null' }, { status: 400 });
   }
   let icon: string | null = null;
   if (typeof body.icon === 'string') {
-    const trimmed = body.icon.trim().slice(0, 64);
+    const trimmed = body.icon.trim();
+    if (trimmed.length > 64) return NextResponse.json({ error: 'icon too long (max 64)' }, { status: 400 });
     if (trimmed && !ICON_RE.test(trimmed)) {
       return NextResponse.json({ error: 'invalid icon' }, { status: 400 });
     }
     icon = trimmed || null;
+  } else if (body.icon !== undefined && body.icon !== null) {
+    return NextResponse.json({ error: 'icon must be a string or null' }, { status: 400 });
   }
   try {
     const list = createUserList({
-      name: typeof body.name === 'string' ? body.name.slice(0, 200) : '',
-      description: typeof body.description === 'string' ? body.description.slice(0, 2000) : null,
+      name: nameResult.value,
+      description,
       color,
       icon,
     });

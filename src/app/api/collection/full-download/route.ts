@@ -36,9 +36,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 429 },
     );
   }
-  const ids = body.vn_ids.filter(
-    (s): s is string => typeof s === 'string' && isVndbVnId(s),
-  );
+  if (body.vn_ids.some((s) => typeof s !== 'string' || !isVndbVnId(s))) {
+    return NextResponse.json({ error: 'vn_ids must contain only VNDB VN ids' }, { status: 400 });
+  }
+  const ids = Array.from(new Set((body.vn_ids as string[]).map((id) => id.toLowerCase())));
   if (ids.length === 0) {
     return NextResponse.json({ queued: 0 });
   }

@@ -42,9 +42,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const scopeId = typeof body.scope === 'string' ? body.scope : '';
   const rawParams = body.params;
   const params: Record<string, string> = {};
-  if (rawParams && typeof rawParams === 'object' && !Array.isArray(rawParams)) {
+  if (rawParams !== undefined) {
+    if (!rawParams || typeof rawParams !== 'object' || Array.isArray(rawParams)) {
+      return NextResponse.json({ error: 'params must be an object' }, { status: 400 });
+    }
     for (const [k, v] of Object.entries(rawParams as Record<string, unknown>)) {
-      if (typeof v === 'string') params[k] = v;
+      if (!/^[A-Za-z0-9-]{1,64}$/.test(k) || typeof v !== 'string' || v.length > 200) {
+        return NextResponse.json({ error: 'params must contain bounded string values' }, { status: 400 });
+      }
+      params[k] = v;
     }
   }
 

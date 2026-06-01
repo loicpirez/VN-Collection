@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 
 function parseId(s: string): number | null {
   const n = Number(s);
-  return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -56,9 +56,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     banner_path?: string | null;
   } = {};
   if ('name' in body) {
-    const nameResult = validateText(body.name, { field: 'name', max: 500 });
+    const nameResult = validateText(body.name, { field: 'name', max: 200 });
     if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
-    patch.name = nameResult.value.slice(0, 200);
+    patch.name = nameResult.value;
   }
   if ('description' in body) {
     if (body.description == null) {
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     } else {
       const descResult = validateText(body.description, { field: 'description', max: 20000, allowEmpty: true });
       if (!descResult.ok) return NextResponse.json({ error: descResult.error }, { status: 400 });
-      patch.description = typeof body.description === 'string' ? body.description : null;
+      patch.description = descResult.value;
     }
   }
   if ('cover_path' in body) {

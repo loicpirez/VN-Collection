@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listUserActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { parseBoundedQueryInteger, parseOptionalQueryInteger } from '@/lib/api-query';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-function num(v: string | null): number | null {
-  if (!v) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 /**
  * Length cap for string filters before they flow into the LIKE clauses
@@ -38,12 +33,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // documents the contract at the entry point too.
     return NextResponse.json({
       activity: listUserActivity({
-        limit: num(sp.get('limit')) ?? 100,
+        limit: parseBoundedQueryInteger(sp.get('limit'), { fallback: 100, min: 1, max: 500 }),
         kind: clampText(sp.get('kind')),
         entity: clampText(sp.get('entity')),
         q: clampText(sp.get('q')),
-        from: num(sp.get('from')),
-        to: num(sp.get('to')),
+        from: parseOptionalQueryInteger(sp.get('from')),
+        to: parseOptionalQueryInteger(sp.get('to')),
       }),
     });
   } catch (err) {
@@ -51,4 +46,3 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
 }
-

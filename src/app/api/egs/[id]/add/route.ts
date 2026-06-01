@@ -20,9 +20,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (denied) return denied;
   const { id: rawId } = await ctx.params;
   const egsId = Number(rawId);
-  if (!Number.isInteger(egsId) || egsId <= 0) {
+  if (!Number.isSafeInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid EGS id' }, { status: 400 });
   }
+  const body = (await readJsonObject(req)) as Record<string, unknown>;
+  if ('status' in body && !isValidStatus(body.status)) {
+    return NextResponse.json({ error: 'invalid status' }, { status: 400 });
+  }
+  const patch: CollectionPatch = {
+    status: isValidStatus(body.status) ? (body.status as Status) : 'planning',
+  };
   // Distinguish "EGS is unreachable" (502) from "lookup succeeded but
   let game: Awaited<ReturnType<typeof fetchEgsGame>>;
   try {
@@ -51,11 +58,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   });
   await linkEgsToVn(vnId, egsId);
 
-  // Optional initial collection state passed by the caller (status, favorite…).
-  const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const patch: CollectionPatch = {
-    status: isValidStatus(body.status) ? (body.status as Status) : 'planning',
-  };
   addToCollection(vnId, patch);
 
   // Track EGS-only adds as a distinct event so the activity log

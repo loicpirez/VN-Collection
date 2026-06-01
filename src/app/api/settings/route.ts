@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, getAppSetting, setAppSetting } from '@/lib/db';
+import { db, getAppSetting, getDisabledStockProviders, setAppSetting } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import {
   parseHomeSectionLayoutV1,
@@ -41,6 +41,7 @@ import {
   type ProviderId,
 } from '@/lib/proxy-config';
 import { STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
+import { validateTokenShape } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 
@@ -222,11 +223,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       steam_id: getAppSetting('steam_id') ?? '',
       egs_username: getAppSetting('egs_username') ?? '',
       vndb_fanout: getAppSetting('vndb_fanout') !== '0',
-      stock_disabled_providers: (() => {
-        const raw = getAppSetting('stock_disabled_providers');
-        if (!raw) return [];
-        try { return JSON.parse(raw) as string[]; } catch { return []; }
-      })(),
+      stock_disabled_providers: [...getDisabledStockProviders()],
       stock_retry_without_proxy: getAppSetting('stock_retry_without_proxy') === '1',
       vndb_proxy_config: getProxyConfigForDisplay('vndb'),
       vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
@@ -268,14 +265,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     const v = body.vndb_token;
     if (v == null || v === '') {
       writes.push(() => setAppSetting('vndb_token', null));
-    } else if (typeof v === 'string') {
-      const trimmed = v.trim();
-      if (trimmed.length > 200 || /[\s"]/.test(trimmed)) {
-        return NextResponse.json({ error: 'invalid token format' }, { status: 400 });
-      }
-      writes.push(() => setAppSetting('vndb_token', trimmed || null));
     } else {
-      return NextResponse.json({ error: 'vndb_token must be a string' }, { status: 400 });
+      const token = validateTokenShape(v, 'vndb_token');
+      if (!token.ok) return NextResponse.json({ error: token.error }, { status: 400 });
+      writes.push(() => setAppSetting('vndb_token', token.value));
     }
   }
   if ('random_quote_source' in body) {
@@ -508,22 +501,20 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     const v = body.steam_api_key;
     if (v == null || v === '') {
       writes.push(() => setAppSetting('steam_api_key', null));
-    } else if (typeof v === 'string' && v.trim().length > 0) {
-      const steamKey = v.trim().slice(0, 64);
-      writes.push(() => setAppSetting('steam_api_key', steamKey));
     } else {
-      return NextResponse.json({ error: 'steam_api_key must be a string' }, { status: 400 });
+      const steamKey = validateTokenShape(v, 'steam_api_key');
+      if (!steamKey.ok) return NextResponse.json({ error: steamKey.error }, { status: 400 });
+      writes.push(() => setAppSetting('steam_api_key', steamKey.value));
     }
   }
   if ('steam_id' in body) {
     const v = body.steam_id;
     if (v == null || v === '') {
       writes.push(() => setAppSetting('steam_id', null));
-    } else if (typeof v === 'string' && /^\d{4,20}$/.test(v.trim())) {
-      const steamId = v.trim();
-      writes.push(() => setAppSetting('steam_id', steamId));
     } else {
-      return NextResponse.json({ error: 'steam_id must be a 64-bit numeric SteamID' }, { status: 400 });
+      const steamId = validateTokenShape(v, 'steam_id');
+      if (!steamId.ok) return NextResponse.json({ error: steamId.error }, { status: 400 });
+      writes.push(() => setAppSetting('steam_id', steamId.value));
     }
   }
   if ('egs_username' in body) {
@@ -545,7 +536,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (v == null) {
       writes.push(() => setAppSetting('stock_disabled_providers', null));
     } else if (Array.isArray(v) && v.every((item) => typeof item === 'string' && STOCK_PROVIDER_IDS.includes(item as (typeof STOCK_PROVIDER_IDS)[number]))) {
-      const disabledProviders = v;
+      const disabledProviders = [...new Set(v)];
       writes.push(() => setAppSetting('stock_disabled_providers', disabledProviders.length > 0 ? JSON.stringify(disabledProviders) : null));
     } else {
       return NextResponse.json({ error: 'stock_disabled_providers must be an array of valid provider IDs' }, { status: 400 });

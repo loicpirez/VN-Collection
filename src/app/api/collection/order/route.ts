@@ -3,6 +3,7 @@ import { resetCollectionCustomOrder, setCollectionCustomOrder } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
+import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -18,9 +19,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (!Array.isArray(body.ids) || body.ids.length > 50000) {
     return NextResponse.json({ error: 'ids must be an array of at most 50000 VN ids' }, { status: 400 });
   }
-  const ids = body.ids.filter((id): id is string => typeof id === 'string' && /^(v\d+|egs_\d+)$/i.test(id));
+  if (body.ids.some((id) => typeof id !== 'string' || !isValidVnId(id))) {
+    return NextResponse.json({ error: 'ids must contain only VN ids' }, { status: 400 });
+  }
+  const ids = (body.ids as string[]).map(normalizeVnId);
   if (ids.length === 0) {
     return NextResponse.json({ error: 'ids must be a non-empty array of VN ids' }, { status: 400 });
+  }
+  if (new Set(ids).size !== ids.length) {
+    return NextResponse.json({ error: 'ids must not contain duplicates' }, { status: 400 });
   }
   try {
     setCollectionCustomOrder(ids);

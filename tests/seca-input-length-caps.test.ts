@@ -46,25 +46,46 @@ describe('seca-input-length-caps — game-log note length cap', () => {
   });
 });
 
-describe('seca-input-length-caps — lists field length caps (source-pin)', () => {
-  it('lists/route.ts caps name, description, color, icon length', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    const src = readFileSync(join(__dirname, '..', 'src/app/api/lists/route.ts'), 'utf8');
-    expect(src).toContain('body.name.slice(0, 200)');
-    expect(src).toContain('body.description.slice(0, 2000)');
-    expect(src).toContain("body.color.trim().slice(0, 64)");
-    expect(src).toContain("body.icon.trim().slice(0, 64)");
+describe('seca-input-length-caps — lists field length caps', () => {
+  it.each([
+    { name: 'x'.repeat(MAX_NAME + 1) },
+    { name: 'Valid', description: 'x'.repeat(MAX_DESC + 1) },
+    { name: 'Valid', color: 'x'.repeat(MAX_COLOR + 1) },
+    { name: 'Valid', icon: 'x'.repeat(MAX_ICON + 1) },
+    { name: 'Valid', description: {} },
+    { name: 'Valid', color: {} },
+    { name: 'Valid', icon: {} },
+  ])('POST /api/lists rejects invalid metadata %#', async (body) => {
+    const { POST } = await import('@/app/api/lists/route');
+    const res = await POST(localReq('/api/lists', 'POST', body));
+    expect(res.status).toBe(400);
   });
 
-  it('lists/[id]/route.ts caps name, description, color, icon length on PATCH', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    const src = readFileSync(join(__dirname, '..', 'src/app/api/lists/[id]/route.ts'), 'utf8');
-    expect(src).toContain('body.name.slice(0, 200)');
-    expect(src).toContain('body.description.slice(0, 2000)');
-    expect(src).toContain("body.color.trim().slice(0, 64)");
-    expect(src).toContain("body.icon.trim().slice(0, 64)");
+  it.each([
+    { name: 'x'.repeat(MAX_NAME + 1) },
+    { description: 'x'.repeat(MAX_DESC + 1) },
+    { color: 'x'.repeat(MAX_COLOR + 1) },
+    { icon: 'x'.repeat(MAX_ICON + 1) },
+    { name: {} },
+    { description: {} },
+    { color: {} },
+    { icon: {} },
+    { pinned: 'yes' },
+  ])('PATCH /api/lists/[id] rejects invalid metadata %#', async (body) => {
+    const { PATCH } = await import('@/app/api/lists/[id]/route');
+    const res = await PATCH(localReq('/api/lists/1', 'PATCH', body), { params: Promise.resolve({ id: '1' }) });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /api/lists/[id]/items rejects malformed notes instead of discarding them', async () => {
+    const { createUserList } = await import('@/lib/db');
+    const { POST } = await import('@/app/api/lists/[id]/items/route');
+    const list = createUserList({ name: 'Note validation' });
+    const res = await POST(
+      localReq(`/api/lists/${list.id}/items`, 'POST', { vn_id: 'v1', note: { text: 'invalid' } }),
+      { params: Promise.resolve({ id: String(list.id) }) },
+    );
+    expect(res.status).toBe(400);
   });
 });
 

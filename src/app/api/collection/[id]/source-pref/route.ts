@@ -8,7 +8,7 @@ import {
   type SourcePrefMap,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 
@@ -20,9 +20,10 @@ const VALID_FIELDS: SourceField[] = ['title', 'description', 'image', 'brand', '
 const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return NextResponse.json({ pref: getSourcePref(id) });
 }
@@ -30,19 +31,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const next: SourcePrefMap = { ...getSourcePref(id) };
   for (const key of Object.keys(body)) {
     if (!(VALID_FIELDS as string[]).includes(key)) {
-      return NextResponse.json({ error: `unknown field: ${key}` }, { status: 400 });
+      return NextResponse.json({ error: 'unknown field' }, { status: 400 });
     }
     const value = body[key];
     if (!(typeof value === 'string') || !(VALID_CHOICES as string[]).includes(value)) {
-      return NextResponse.json({ error: `invalid value for ${key}: ${String(value)}` }, { status: 400 });
+      return NextResponse.json({ error: `invalid value for ${key}` }, { status: 400 });
     }
     next[key as SourceField] = value as SourceChoice;
   }

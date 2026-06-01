@@ -93,4 +93,13 @@ describe('POST /api/vn/[id]/stock/aliases — validation', () => {
     expect(res.status).toBe(200);
     expect(listStockAliases(VN_ID)).toHaveLength(19);
   });
+
+  it('rejects malformed actions instead of silently creating an alias', async () => {
+    const res = await POST(
+      makeReq({ term: 'unexpected', action: 'rename' }) as never,
+      { params: Promise.resolve({ id: VN_ID }) },
+    );
+    expect(res.status).toBe(400);
+    expect(listStockAliases(VN_ID)).toHaveLength(0);
+  });
 });

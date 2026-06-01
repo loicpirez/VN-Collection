@@ -62,6 +62,12 @@ describe('NEW-TCO-006 — labels QR item cap', () => {
     expect(src).toContain('const MAX_LABELS = 200');
   });
 
+  it('labels/page.tsx caps explicit id filters below SQLite placeholder limits', () => {
+    const src = readFileSync(join('src', 'app', 'labels', 'page.tsx'), 'utf8');
+    expect(src).toContain('const MAX_LABEL_FILTER_IDS = 500');
+    expect(src).toContain('segments.slice(0, MAX_LABEL_FILTER_IDS)');
+  });
+
   it('labels/page.tsx slices to MAX_LABELS', () => {
     const src = readFileSync(join('src', 'app', 'labels', 'page.tsx'), 'utf8');
     expect(src).toMatch(/allItems\.slice\(0,\s*MAX_LABELS\)/);

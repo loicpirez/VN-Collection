@@ -74,7 +74,8 @@ export function validateIsoDate(value: unknown): ValidationResult<number> {
   let ms: number;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return err('logged_at must be a finite timestamp');
-    ms = Math.floor(value);
+    if (!Number.isInteger(value)) return err('logged_at must be an integer timestamp');
+    ms = value;
   } else if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed.length === 0) return err('logged_at is required');

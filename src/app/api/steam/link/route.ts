@@ -3,8 +3,9 @@ import { deleteSteamLink, isInCollection, listSteamLinks, setSteamLink } from '@
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
-import { isVndbVnId } from '@/lib/vn-id-shape';
+import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { validateSafeInt, validateText } from '@/lib/input-validators';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -30,35 +31,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof body.vn_id !== 'string' || !isVndbVnId(body.vn_id)) {
     return NextResponse.json({ error: 'vn_id required (must be a VNDB id)' }, { status: 400 });
   }
-  if (typeof body.appid !== 'number' || !Number.isInteger(body.appid) || body.appid <= 0) {
-    return NextResponse.json({ error: 'appid required' }, { status: 400 });
-  }
-  if (typeof body.steam_name !== 'string' || body.steam_name.trim().length === 0) {
-    return NextResponse.json({ error: 'steam_name required' }, { status: 400 });
-  }
-  // Cap the display string. Steam game names are typically < 100 chars
-  // (longest legitimate ones cap around 250 with subtitle); 500 is a
-  // generous ceiling that prevents a hostile caller from stuffing
-  // megabytes into `steam_link.steam_name`.
-  if (body.steam_name.length > 500) {
-    return NextResponse.json({ error: 'steam_name too long (max 500)' }, { status: 400 });
-  }
-  if (!isInCollection(body.vn_id)) {
+  const appidResult = validateSafeInt(body.appid, { field: 'appid', min: 1, max: 4_294_967_295 });
+  if (!appidResult.ok) return NextResponse.json({ error: appidResult.error }, { status: 400 });
+  const nameResult = validateText(body.steam_name, { field: 'steam_name', max: 200 });
+  if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
+  const vnId = body.vn_id.toLowerCase();
+  if (!isInCollection(vnId)) {
     return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
   }
   const link = setSteamLink({
-    vnId: body.vn_id,
-    appid: body.appid,
-    steamName: body.steam_name,
+    vnId,
+    appid: appidResult.value,
+    steamName: nameResult.value,
     source: 'manual',
   });
   try {
     recordActivity({
       kind: 'steam.link',
       entity: 'vn',
-      entityId: body.vn_id,
+      entityId: vnId,
       label: 'Pinned Steam app to VN',
-      payload: { appid: body.appid, source: 'manual' },
+      payload: { appid: appidResult.value, source: 'manual' },
     });
   } catch (e) {
     console.error('[steam:link] activity log failed:', (e as Error).message);
@@ -70,16 +63,17 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   const vnId = req.nextUrl.searchParams.get('vn_id');
-  if (!vnId || !/^(v\d+|egs_\d+)$/i.test(vnId)) {
+  if (!isValidVnId(vnId)) {
     return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
   }
-  const ok = deleteSteamLink(vnId);
+  const normalizedVnId = vnId.toLowerCase();
+  const ok = deleteSteamLink(normalizedVnId);
   if (!ok) return NextResponse.json({ error: 'not linked' }, { status: 404 });
   try {
     recordActivity({
       kind: 'steam.unlink',
       entity: 'vn',
-      entityId: vnId,
+      entityId: normalizedVnId,
       label: 'Removed Steam pin',
     });
   } catch (e) {

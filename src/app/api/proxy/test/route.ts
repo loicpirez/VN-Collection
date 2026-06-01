@@ -107,7 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json(
-    { error: `unknown provider: ${provider}` },
+    { error: 'unknown provider' },
     { status: 400 },
   );
 }

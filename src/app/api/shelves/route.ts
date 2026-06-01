@@ -4,10 +4,12 @@ import {
   listShelves,
   listUnplacedOwnedReleases,
   reorderShelves,
+  SHELF_MAX,
+  SHELF_MIN,
 } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { validateText } from '@/lib/input-validators';
+import { validateSafeInt, validateText } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
@@ -30,14 +32,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cols?: unknown;
     rows?: unknown;
   };
-  const nameResult = validateText(body.name, { field: 'name', max: 200 });
+  const nameResult = validateText(body.name, { field: 'name', max: 100 });
   if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
-  const name = nameResult.value.slice(0, 100);
+  const colsResult = body.cols === undefined ? null : validateSafeInt(body.cols, { field: 'cols', min: SHELF_MIN, max: SHELF_MAX });
+  if (colsResult && !colsResult.ok) return NextResponse.json({ error: colsResult.error }, { status: 400 });
+  const rowsResult = body.rows === undefined ? null : validateSafeInt(body.rows, { field: 'rows', min: SHELF_MIN, max: SHELF_MAX });
+  if (rowsResult && !rowsResult.ok) return NextResponse.json({ error: rowsResult.error }, { status: 400 });
   try {
     const shelf = createShelf({
-      name,
-      cols: typeof body.cols === 'number' ? body.cols : undefined,
-      rows: typeof body.rows === 'number' ? body.rows : undefined,
+      name: nameResult.value,
+      cols: colsResult?.ok ? colsResult.value : undefined,
+      rows: rowsResult?.ok ? rowsResult.value : undefined,
     });
     recordActivity({ kind: 'shelf.create', entity: 'shelf', entityId: String(shelf.id), label: 'Created shelf', payload: { name: shelf.name, cols: shelf.cols, rows: shelf.rows } });
     return NextResponse.json({ shelf });
@@ -57,11 +62,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (
     !Array.isArray(body.order) ||
     body.order.length > 500 ||
-    body.order.some((v) => !Number.isInteger(v) || (v as number) <= 0)
+    body.order.some((v) => !Number.isSafeInteger(v) || (v as number) <= 0)
   ) {
     return NextResponse.json({ error: 'order must be array of positive integers (max 500)' }, { status: 400 });
   }
-  reorderShelves(body.order as number[]);
+  const order = body.order as number[];
+  if (new Set(order).size !== order.length) {
+    return NextResponse.json({ error: 'order must not contain duplicates' }, { status: 400 });
+  }
+  reorderShelves(order);
   recordActivity({ kind: 'shelf.reorder', entity: 'shelf', label: 'Reordered shelves', payload: { order: body.order } });
   return NextResponse.json({ shelves: listShelves() });
 }

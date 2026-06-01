@@ -20,11 +20,12 @@ import { ensureLocalImagesForVn } from '@/lib/assets';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
+import { parsePhysicalLocations } from '@/lib/physical-location-input';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 600;
@@ -37,14 +38,14 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
   }
   if ('user_rating' in body) {
     const v = body.user_rating;
-    if (v !== null && (typeof v !== 'number' || !Number.isInteger(v) || v < 10 || v > 100)) {
+    if (v !== null && (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 10 || v > 100)) {
       return { fields, error: 'user_rating must be an integer 10-100 or null' };
     }
     fields.user_rating = v as number | null;
   }
   if ('playtime_minutes' in body) {
     const v = body.playtime_minutes;
-    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 10_000_000) {
+    if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0 || v > 10_000_000) {
       // Same integer-only rule. Upper bound = ~19 years, well past
       // any realistic VN playtime; rejects accidental millisecond
       // values (which used to silently land as huge minute counts).
@@ -75,7 +76,10 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     if (typeof v === 'string' && v.length > 50_000) return { fields, error: 'notes too long (max 50000)' };
     fields.notes = (v as string | null) || null;
   }
-  if ('favorite' in body) fields.favorite = !!body.favorite;
+  if ('favorite' in body) {
+    if (typeof body.favorite !== 'boolean') return { fields, error: 'favorite must be boolean' };
+    fields.favorite = body.favorite;
+  }
   if ('location' in body) {
     if (!isValidLocation(body.location)) return { fields, error: 'invalid location' };
     fields.location = body.location;
@@ -112,28 +116,26 @@ function pickFields(body: Record<string, unknown>): { fields: CollectionPatch; e
     }
   }
   if ('dumped' in body) {
-    fields.dumped = !!body.dumped;
+    if (typeof body.dumped !== 'boolean') return { fields, error: 'dumped must be boolean' };
+    fields.dumped = body.dumped;
+  }
+  if ('dumped_ignored' in body) {
+    if (typeof body.dumped_ignored !== 'boolean') return { fields, error: 'dumped_ignored must be boolean' };
+    fields.dumped_ignored = body.dumped_ignored;
   }
   if ('physical_location' in body) {
-    const v = body.physical_location;
-    if (v == null) {
-      fields.physical_location = [];
-    } else if (Array.isArray(v)) {
-      if (!v.every((x) => typeof x === 'string')) return { fields, error: 'physical_location entries must be strings' };
-      fields.physical_location = v.map((s) => (s as string).trim()).filter((s): s is string => s.length > 0).slice(0, 32);
-    } else if (typeof v === 'string') {
-      fields.physical_location = v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 32);
-    } else {
-      return { fields, error: 'physical_location must be array or string' };
-    }
+    const locations = parsePhysicalLocations(body.physical_location);
+    if (!locations.ok) return { fields, error: locations.error };
+    fields.physical_location = locations.value;
   }
   return { fields };
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   try {
     const item = getCollectionItem(id);
     if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
@@ -147,9 +149,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!getCollectionItem(id)) {
     try {
       const vn = await getVn(id);
@@ -201,9 +204,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   try {
     const body = (await readJsonObject(req)) as Record<string, unknown>;
     const { fields, error } = pickFields(body);
@@ -241,9 +245,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   try {
     // Fail loudly when the row isn't there: silent success was masking
     // stale optimistic-UI deletes and typo'd ids that would never tell
