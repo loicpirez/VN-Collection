@@ -42,6 +42,14 @@ describe('responsive tap targets', () => {
     expect(source('src/components/GameLog.tsx')).toContain('min-h-[44px]');
   });
 
+  it('adds touch-safe horizontal section navigation on VN detail pages', () => {
+    const detail = source('src/components/VnDetailLayout.tsx');
+    expect(detail).toContain('aria-label={t.vnLayout.mobileNavigation}');
+    expect(detail).toContain('overflow-x-auto');
+    expect(detail).toContain('href={`#section-${id}`}');
+    expect(detail).toContain('min-h-[44px]');
+  });
+
   it('keeps settings tabs and per-page layout controls reachable on narrow screens', () => {
     const src = source('src/components/SettingsButton.tsx');
     expect(src).toContain('overflow-x-auto');
@@ -65,5 +73,12 @@ describe('responsive tap targets', () => {
     expect(stock).not.toContain('top-1.5 hidden h-6 w-6');
     expect(stock).toContain('min-h-[44px] flex-1 rounded-md');
     expect(stock).toContain('sm:min-h-[36px]');
+  });
+
+  it('keeps stock provider setup compact until the user opens it', () => {
+    const stock = source('src/components/StockPanel.tsx');
+    expect(stock).toContain('const [providerSetupOpen, setProviderSetupOpen]');
+    expect(stock).toContain('open={providerSetupOpen}');
+    expect(stock).toContain('setProviderSetupOpen((e.currentTarget as HTMLDetailsElement).open)');
   });
 });

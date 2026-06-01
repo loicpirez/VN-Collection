@@ -203,6 +203,19 @@ export function StockPanel({
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hideStale, setHideStale] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [providerSetupOpen, setProviderSetupOpen] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STOCK_UI_KEY);
+      if (raw) return (JSON.parse(raw) as Record<string, boolean>).providerSetupOpen ?? false;
+    } catch {}
+    return false;
+  });
+  useEffect(() => {
+    try {
+      const prev = JSON.parse(localStorage.getItem(STOCK_UI_KEY) ?? '{}') as Record<string, boolean>;
+      localStorage.setItem(STOCK_UI_KEY, JSON.stringify({ ...prev, providerSetupOpen }));
+    } catch {}
+  }, [providerSetupOpen]);
   const [searchSetupOpen, setSearchSetupOpen] = useState(() => {
     try {
       const raw = localStorage.getItem(STOCK_UI_KEY);
@@ -759,15 +772,22 @@ export function StockPanel({
       </p>
 
       {providers.length > 0 && (
-        <div className="mt-4 rounded-lg border border-border bg-bg-elev/25 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">{t.stock.providers}</h3>
+        <details
+          open={providerSetupOpen}
+          onToggle={(e) => setProviderSetupOpen((e.currentTarget as HTMLDetailsElement).open)}
+          className="mt-4 group rounded-lg border border-border bg-bg-elev/25"
+        >
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 py-2 text-[11px] text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+            <PackageSearch className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="flex-1 font-bold uppercase tracking-widest">{t.stock.providers}</span>
             <span className="text-[11px] text-muted">
               {t.stock.providerSelectedCount
                 .replace('{selected}', String(selectedProviderIds.length))
                 .replace('{total}', String(refreshableProviders.length))}
             </span>
-          </div>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="p-3 pt-0">
           <div className="mt-3 flex flex-wrap gap-2">
             <GroupBtn
               label={t.stock.groupPhysical}
@@ -830,7 +850,8 @@ export function StockPanel({
               );
             })}
           </div>
-        </div>
+          </div>
+        </details>
       )}
 
       <details
