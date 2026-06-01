@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeImage } from './SafeImage';
 import { CoverEditOverlay } from './CoverEditOverlay';
 import {
@@ -66,21 +66,13 @@ export function CoverHero({
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [remoteFailed, setRemoteFailed] = useState(false);
   // Keep client state synced with server-rendered props on refresh.
-  useEffect(() => setRemote(initialRemote), [initialRemote]);
-  useEffect(() => setLocal(initialLocal), [initialLocal]);
-  useEffect(() => setRotation(initialRotation), [initialRotation]);
-  useEffect(() => setRemoteFailed(false), [remote, local]);
-
-  // The mutate-on-error-revert pattern needs a stable snapshot of the
-  // previous values so an error toast can roll the UI back. Using a
-  // ref keeps the closure simple without React state churn.
-  const prevRef = useRef<{ remote: string | null; local: string | null }>({
-    remote: initialRemote,
-    local: initialLocal,
-  });
   useEffect(() => {
-    prevRef.current = { remote, local };
-  }, [remote, local]);
+    setRemote(initialRemote);
+    setLocal(initialLocal);
+    setRotation(initialRotation);
+    setRemoteFailed(false);
+  }, [vnId, initialRemote, initialLocal, initialRotation]);
+  useEffect(() => setRemoteFailed(false), [remote, local]);
 
   useEffect(() => {
     function onChanged(e: Event) {

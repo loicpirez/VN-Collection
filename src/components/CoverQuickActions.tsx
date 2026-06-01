@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -8,6 +8,7 @@ import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { decodeVndbStatusClientState } from '@/lib/vndb-ui-client-shape';
 interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */
@@ -65,14 +66,26 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
     available: false,
     onWishlist: false,
   });
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   // VNDB wishlist isn't meaningful for synthetic egs_* VNs (no VNDB id).
   const wishlistSupported = isVndbVnId(vnId);
 
   useEffect(() => {
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(null);
     if (!wishlistSupported) {
       setWishlist({ loading: false, available: false, onWishlist: false });
-      return;
+      return () => {
+        identityRef.current = null;
+        mutationAbortRef.current?.abort();
+        mutationAbortRef.current = null;
+      };
     }
     const ac = new AbortController();
     setWishlist((prev) => ({ ...prev, loading: true }));
@@ -88,12 +101,9 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
           }
           return;
         }
-        const data = (await r.json()) as {
-          needsAuth?: boolean;
-          entry?: { labels: { id: number }[] } | null;
-        };
+        const data = decodeVndbStatusClientState(await r.json());
         if (ac.signal.aborted) return;
-        if (data.needsAuth) {
+        if (!data || data.needsAuth) {
           setWishlist({ loading: false, available: false, onWishlist: false });
         } else {
           const onWishlist = !!data.entry?.labels?.some((l) => l.id === 5);
@@ -105,58 +115,104 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
         }
       }
     })();
-    return () => ac.abort();
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      ac.abort();
+    };
   }, [vnId, wishlistSupported]);
 
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId &&
+      mutationAbortRef.current === controller &&
+      !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(null);
+  }
+
   async function addToCollection() {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setBusy('add');
     try {
       const r = await fetch(`/api/collection/${vnId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'planning' }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.added);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function removeFromCollection() {
-    const ok = await confirm({ message: t.coverActions.removeConfirm, tone: 'danger' });
-    if (!ok) return;
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     setBusy('remove');
+    const ok = await confirm({ message: t.coverActions.removeConfirm, tone: 'danger' });
+    if (!ok || !ownsMutation(ownerVnId, controller)) {
+      finishMutation(ownerVnId, controller);
+      return;
+    }
     try {
-      const r = await fetch(`/api/collection/${vnId}`, { method: 'DELETE' });
-      if (!r.ok) throw new Error(t.common.error);
+      const r = await fetch(`/api/collection/${vnId}`, { method: 'DELETE', signal: controller.signal });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.coverActions.removed);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function toggleVndbWishlist() {
     if (!wishlist.available) return;
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     setBusy('wish');
     const wasOn = wishlist.onWishlist;
     try {
       const r = await fetch(`/api/wishlist/${vnId}`, {
         method: wasOn ? 'DELETE' : 'POST',
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setWishlist((prev) => ({ ...prev, onWishlist: !wasOn }));
       toast.success(wasOn ? t.coverActions.unwishlisted : t.coverActions.wishlisted);
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -177,7 +233,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
             onClick={addToCollection}
             disabled={busy !== null}
           >
-            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
+            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
             {t.coverActions.addToCollection}
           </button>
         ) : (
@@ -188,7 +244,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
             disabled={busy !== null}
             title={t.coverActions.removeFromCollection}
           >
-            {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" />}
+            {busy === 'remove' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
             {t.coverActions.removeFromCollection}
           </button>
         )
@@ -209,7 +265,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
           {busy === 'wish' || wishlist.loading ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
-            <Heart className={`h-4 w-4 ${wishlist.onWishlist ? 'fill-current' : ''}`} />
+            <Heart className={`h-4 w-4 ${wishlist.onWishlist ? 'fill-current' : ''}`} aria-hidden />
           )}
           {wishlist.onWishlist ? t.coverActions.wishlisted : t.coverActions.wishlist}
         </button>

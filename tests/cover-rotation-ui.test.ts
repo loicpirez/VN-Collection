@@ -50,8 +50,13 @@ describe('CoverRotationButtons — VN cover rotation overlay', () => {
   it('wires rotate-right onClick to rotateBy\\(90\\)', () => {
     expect(src).toMatch(/onClick=\{\(\)\s*=>\s*rotateBy\(90\)\}/);
   });
+
+  it('constrains the reset chip inside narrow cover containers', () => {
+    expect(src).toContain('max-w-[calc(100%-0.5rem)]');
+    expect(src).toContain('max-w-full min-h-[44px] overflow-hidden text-ellipsis whitespace-nowrap');
+  });
   it('issues a PATCH against the cover API', () => {
-    expect(src).toMatch(/\/api\/collection\/\$\{vnId\}\/cover/);
+    expect(src).toMatch(/\/api\/collection\/\$\{ownerVnId\}\/cover/);
     expect(src).toMatch(/method: 'PATCH'/);
     expect(src).toMatch(/JSON\.stringify\(\{ rotation: next \}\)/);
   });
@@ -84,8 +89,12 @@ describe('HeroBanner — rotation buttons', () => {
     expect(src).toMatch(/aria-label=\{t\.coverActions\.rotateRight\}/);
   });
   it('rotateBy targets the banner PATCH endpoint', () => {
-    expect(src).toMatch(/\/api\/collection\/\$\{vnId\}\/banner/);
+    expect(src).toMatch(/\/api\/collection\/\$\{ownerVnId\}\/banner/);
     expect(src).toMatch(/JSON\.stringify\(\{ rotation: next \}\)/);
+  });
+
+  it('keeps compact hero controls inside both horizontal artwork insets', () => {
+    expect(src).toContain('absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end');
   });
 });
 

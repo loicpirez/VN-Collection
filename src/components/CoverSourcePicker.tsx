@@ -12,6 +12,11 @@ import { dispatchCoverChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
+import {
+  decodeEgsCoverCandidates,
+  decodeUploadedCoverPath,
+  type EgsCoverCandidate,
+} from '@/lib/image-source-client-shape';
 interface Props {
   vnId: string;
   /** VNDB's default image URL — clicking "use VNDB" clears any override. */
@@ -82,6 +87,9 @@ export function CoverSourcePicker({
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const titleId = useId();
   const customTabId = useId();
   const vndbTabId = useId();
@@ -89,6 +97,24 @@ export function CoverSourcePicker({
   const customPanelId = useId();
   const vndbPanelId = useId();
   const egsPanelId = useId();
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setOpen(false);
+    setTab(initialTab(egsId, currentCustomCover));
+    setBusy(false);
+    setRotationState(currentRotation);
+    setUrlValue('');
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, egsId, currentCustomCover, currentRotation]);
 
   // body-scroll lock + ESC + focus trap. Replaces the previous
   // bespoke ESC handler with the shared hook so every modal in the
@@ -111,6 +137,26 @@ export function CoverSourcePicker({
     return () => window.removeEventListener('vn:open-cover-picker', onOpen as EventListener);
   }, [vnId]);
 
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setBusy(true);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(false);
+  }
+
   /**
    * Storing a new custom_cover only changes the displayed hero when the
    * user's `source_pref.image` resolves to the custom column. If the user
@@ -118,12 +164,13 @@ export function CoverSourcePicker({
    * — picking a new cover should obviously promote it to active. This
    * was the "selecting new cover doesn't do anything" bug.
    */
-  async function pinCustomPref(): Promise<void> {
+  async function pinCustomPref(ownerVnId: string, signal: AbortSignal): Promise<void> {
     try {
-      await fetch(`/api/collection/${vnId}/source-pref`, {
+      await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: 'custom' }),
+        signal,
       });
     } catch {
       // Pref sync is best-effort; cover already saved.
@@ -131,15 +178,19 @@ export function CoverSourcePicker({
   }
 
   async function applySource(source: 'url' | 'screenshot' | 'release' | 'path', value: string) {
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/cover`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/cover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, value }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await pinCustomPref();
+      await pinCustomPref(ownerVnId, controller.signal);
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Optimistic broadcast so the rendered hero / cards repaint
       // before router.refresh() comes back. `value` may be either a
       // remote URL or a relative storage path; split on the scheme
@@ -147,7 +198,7 @@ export function CoverSourcePicker({
       // rendering path.
       const isRemote = /^https?:\/\//i.test(value);
       dispatchCoverChanged({
-        vnId,
+        vnId: ownerVnId,
         newSrc: isRemote ? value : null,
         newLocal: isRemote ? null : value,
       });
@@ -155,36 +206,42 @@ export function CoverSourcePicker({
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function resetToVndb() {
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
       // Clear any custom_cover override then pin the source pref to VNDB
       // so the hero resolver picks vndbPoster regardless of what custom
       // / EGS columns contain.
-      const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'DELETE' });
+      const r = await fetch(`/api/collection/${ownerVnId}/cover`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      await fetch(`/api/collection/${vnId}/source-pref`, {
+      await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: 'vndb' }),
+        signal: controller.signal,
       }).catch(() => undefined);
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Tell every mounted listener the custom cover is gone so the
       // hero falls back to the VNDB image immediately rather than
       // after the next router refresh resolves.
-      dispatchCoverChanged({ vnId, newSrc: vndbImage, newLocal: null });
+      dispatchCoverChanged({ vnId: ownerVnId, newSrc: vndbImage, newLocal: null });
       toast.success(t.toast.coverReset);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -194,53 +251,62 @@ export function CoverSourcePicker({
    * already handles egsPoster as a first-class column.
    */
   async function useEgs() {
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/source-pref`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: 'egs' }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function rotateBy(delta: 90 | -90 | 'reset') {
-    if (busy) return;
+    const ownerVnId = vnId;
     const prev = rotation;
     const next: 0 | 90 | 180 | 270 =
       delta === 'reset'
         ? 0
         : (((((rotation + delta) % 360) + 360) % 360) as 0 | 90 | 180 | 270);
     if (next === prev) return;
+    const controller = beginMutation();
+    if (!controller) return;
     setRotationState(next);
-    setBusy(true);
     try {
-      const r = await fetch(`/api/collection/${vnId}/cover`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/cover`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rotation: next }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Same broadcast pattern as <CoverHero>: the listeners
       // already handle a rotation-only update without touching
       // src/local, so omit those and let the consumer keep
       // whatever cover bytes it already had.
-      dispatchCoverChanged({ vnId, newSrc: null, newLocal: null, rotation: next });
+      dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, rotation: next });
       toast.success(t.toast.coverSaved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       setRotationState(prev);
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -249,25 +315,30 @@ export function CoverSourcePicker({
       toast.error(t.cover.mustBeImage);
       return;
     }
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const r = await fetch(`/api/collection/${vnId}/cover`, { method: 'POST', body: fd });
+      const r = await fetch(`/api/collection/${ownerVnId}/cover`, { method: 'POST', body: fd, signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const payload = (await r.json().catch(() => ({}))) as { cover?: string | null };
-      await pinCustomPref();
+      const cover = decodeUploadedCoverPath(await r.json().catch(() => null));
+      if (!cover) throw new Error(t.common.error);
+      await pinCustomPref(ownerVnId, controller.signal);
+      if (!ownsMutation(ownerVnId, controller)) return;
       // The cover route returns the new storage path; surface it so
       // listeners can repaint immediately. The path is local — the
       // remote URL is `null` since this came from an upload.
-      dispatchCoverChanged({ vnId, newSrc: null, newLocal: payload.cover ?? null });
+      dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: cover });
       toast.success(t.toast.coverSaved);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -290,7 +361,7 @@ export function CoverSourcePicker({
       value: img.local || img.url,
       source: 'release' as const,
       sexual: img.sexual ?? null,
-      label: `${mediaTypeLabel(img.type, t)} · ${img.release_title}`,
+      label: `${mediaTypeLabel(img.type, t)} / ${img.release_title}`,
     })),
   ];
 
@@ -346,7 +417,7 @@ export function CoverSourcePicker({
                   {t.coverActions.rotationLabel}
                 </span>
                 <span className="min-w-[2.5rem] rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-accent">
-                  {rotation}°
+                  {rotation} deg
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1">
@@ -458,7 +529,7 @@ export function CoverSourcePicker({
                       egsId={egsId}
                       busy={busy}
                       onUseDefault={useEgs}
-                      onPickUrl={(url) => applySource('url', url)}
+                      onPickUrl={(url) => applySource(/^https?:\/\//i.test(url) ? 'url' : 'path', url)}
                     />
                   ) : (
                     <p className="text-xs text-muted">{t.coverPicker.noEgs}</p>
@@ -503,7 +574,7 @@ export function CoverSourcePicker({
                         inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
-                        placeholder="https://…"
+                        placeholder="https://example.com/image.jpg"
                         aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[160px] sm:min-w-[200px]"
                       />
@@ -521,7 +592,7 @@ export function CoverSourcePicker({
 
                   <div>
                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
-                      {t.coverPicker.galleryLabel} · {galleryItems.length}
+                      {t.coverPicker.galleryLabel} / {galleryItems.length}
                     </label>
                     {galleryItems.length === 0 ? (
                       <p className="text-xs text-muted">{t.coverPicker.galleryEmpty}</p>
@@ -597,7 +668,7 @@ function TabButton({
       aria-controls={controls}
       aria-selected={active}
       tabIndex={active ? 0 : -1}
-      className={`relative flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+      className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors sm:min-h-0 ${
         disabled
           ? 'cursor-not-allowed text-muted/40'
           : active
@@ -636,12 +707,6 @@ function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
   return 'custom';
 }
 
-interface EgsCandidate {
-  source: 'banner' | 'vndb' | 'image_php' | 'surugaya' | 'dmm' | 'dlsite' | 'gyutto';
-  url: string;
-  label: string;
-}
-
 /**
  * Side-by-side grid of EVERY cover source EGS knows about — banner,
  * linked VNDB cover, EGS image.php, plus shop URLs (Suruga-ya / DMM /
@@ -665,7 +730,7 @@ function EgsCandidateGrid({
   onPickUrl: (url: string) => void;
 }) {
   const t = useT();
-  const [candidates, setCandidates] = useState<EgsCandidate[] | null>(null);
+  const [candidates, setCandidates] = useState<EgsCoverCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -673,14 +738,21 @@ function EgsCandidateGrid({
     setCandidates(null);
     setError(null);
     fetch(`/api/egs-cover/${egsId}/candidates`, { cache: 'no-store', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { candidates: EgsCandidate[] }) => setCandidates(d.candidates))
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const candidates = decodeEgsCoverCandidates(await r.json());
+        if (!candidates) throw new Error(t.common.error);
+        return candidates;
+      })
+      .then((candidates) => {
+        if (!ctrl.signal.aborted) setCandidates(candidates);
+      })
       .catch((e: Error) => {
-        if (e.name === 'AbortError') return;
+        if (e.name === 'AbortError' || ctrl.signal.aborted) return;
         setError(e.message);
       });
     return () => ctrl.abort();
-  }, [egsId]);
+  }, [egsId, t.common.error]);
 
   if (error) {
     return <ErrorAlert title={t.common.error}>{error}</ErrorAlert>;
@@ -726,7 +798,7 @@ function EgsCandidateGrid({
           className="btn btn-primary"
           title={t.coverPicker.useEgsAutoHint}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
           {t.coverPicker.useEgsAuto}
         </button>
         <span className="text-muted">{t.coverPicker.egsCandidateHint}</span>

@@ -12,6 +12,7 @@ import {
 } from '@/lib/cover-banner-events';
 import { buildRotationStyle } from './SafeImage';
 import { ErrorAlert } from './ErrorAlert';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   vnId: string;
@@ -59,10 +60,30 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const ref = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const draggingRef = useRef(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   useEffect(() => {
-    setPosition(initialPosition || DEFAULT_POSITION);
-  }, [initialPosition]);
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    const nextPosition = initialPosition || DEFAULT_POSITION;
+    setPosition(nextPosition);
+    setDraftPosition(nextPosition);
+    setBusy(false);
+    setEditing(false);
+    setError(null);
+    setR18Reveal(false);
+    draggingRef.current = false;
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initialPosition]);
 
   // Keep `liveSrc` and `rotation` synced with the server-rendered prop
   // whenever a router.refresh() lands new data. Without this the
@@ -71,7 +92,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   useEffect(() => {
     setLiveSrc(src);
     setRotation(initialRotation);
-  }, [src, initialRotation]);
+  }, [vnId, src, initialRotation]);
   useEffect(() => {
     setBannerLoaded(false);
     const img = imgRef.current;
@@ -129,34 +150,55 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     return () => ro.disconnect();
   }, [rotation]);
 
-  async function rotateBy(delta: 90 | -90) {
-    if (busy) return;
-    const prevRotation = rotation;
-    const next = (((rotation + delta) % 360) + 360) % 360 as 0 | 90 | 180 | 270;
-    // Optimistic update first; revert on failure.
-    setRotation(next);
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(true);
     setError(null);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(false);
+  }
+
+  async function rotateBy(delta: 90 | -90) {
+    const ownerVnId = vnId;
+    const prevRotation = rotation;
+    const next = (((rotation + delta) % 360) + 360) % 360 as 0 | 90 | 180 | 270;
+    const controller = beginMutation();
+    if (!controller) return;
+    // Optimistic update first; revert on failure.
+    setRotation(next);
     try {
-      const res = await fetch(`/api/collection/${vnId}/banner`, {
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rotation: next }),
+        signal: controller.signal,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || t.common.error);
-      }
-      dispatchBannerChanged({ vnId, newSrc: liveSrc, newLocal: null, rotation: next });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
+      dispatchBannerChanged({ vnId: ownerVnId, newSrc: liveSrc, newLocal: null, rotation: next });
       toast.success(t.toast.bannerSaved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       setRotation(prevRotation);
       const msg = (e as Error).message;
       setError(msg);
       toast.error(msg);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -220,52 +262,57 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   }
 
   async function save() {
-    setBusy(true);
-    setError(null);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const res = await fetch(`/api/collection/${vnId}/banner`, {
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ position: draftPosition }),
+        signal: controller.signal,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
-      }
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setPosition(draftPosition);
       setEditing(false);
       toast.success(t.toast.bannerSaved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       const msg = (e as Error).message;
       setError(msg);
       toast.error(msg);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function reset() {
-    setBusy(true);
-    setError(null);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const res = await fetch(`/api/collection/${vnId}/banner`, {
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ position: null }),
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error(t.common.error);
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       setPosition(DEFAULT_POSITION);
       setDraftPosition(DEFAULT_POSITION);
       setEditing(false);
       toast.success(t.toast.bannerReset);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       const msg = (e as Error).message;
       setError(msg);
       toast.error(msg);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -289,7 +336,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
         {liveSrc && (
           <div
-            className="absolute right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -451,7 +498,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
 
       {liveSrc && (
         <div
-          className={`absolute right-3 top-3 z-10 flex flex-wrap items-center gap-1.5 transition-opacity ${
+          className={`absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5 transition-opacity ${
             editing
               ? 'opacity-100'
               : 'can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100'

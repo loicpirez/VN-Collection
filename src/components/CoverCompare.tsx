@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, GitCompareArrows, Loader2 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -89,12 +89,31 @@ export function CoverCompare({
   const [pending, startTransition] = useTransition();
   const [compareOpen, setCompareOpen] = useState(false);
   const [optimistic, setOptimistic] = useState<SourceChoice>(current);
+  const [saving, setSaving] = useState(false);
   // Track rotation as live state so the active cover repaints
   // instantly when the standalone `<CoverRotationButtons>` (mounted
   // by the VN detail page) dispatches `vn:cover-changed`. Re-syncs
   // with the server-rendered `initialRotation` on router.refresh.
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
-  useEffect(() => setRotation(initialRotation), [initialRotation]);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setCompareOpen(false);
+    setOptimistic(current);
+    setSaving(false);
+    setRotation(initialRotation);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, current, initialRotation]);
   useEffect(() => {
     function onChanged(e: Event) {
       const detail = (e as CustomEvent<VnCoverChangedDetail>).detail;
@@ -121,20 +140,35 @@ export function CoverCompare({
       : vndb;
 
   async function persist(next: SourceChoice) {
-    if (pending) return;
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const previous = optimistic;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setSaving(true);
     setOptimistic(next);
     try {
-      const r = await fetch(`/api/collection/${vnId}/source-pref`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: next }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
-      setOptimistic(current);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setOptimistic(previous);
       toast.error((e as Error).message);
+    } finally {
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -165,7 +199,7 @@ export function CoverCompare({
             <button
               type="button"
               onClick={() => setCompareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
               title={t.compare.compareTitle}
             >
               <GitCompareArrows className="h-3 w-3" aria-hidden />
@@ -221,10 +255,11 @@ export function CoverCompare({
             tone={col.tone}
             label={col.label}
             poster={col.poster}
-            alt={`${alt} — ${col.label}`}
+            alt={`${alt} / ${col.label}`}
             sexual={sexual}
             active={resolved.used === col.key}
-            pending={pending && optimistic === col.key}
+            pending={(saving || pending) && optimistic === col.key}
+            saving={saving}
             onUse={col.onUse}
             useLabel={col.useLabel}
           />
@@ -234,8 +269,8 @@ export function CoverCompare({
         <button
           type="button"
           onClick={() => persist('auto')}
-          disabled={pending}
-          className={`rounded-md px-2 py-0.5 ${
+          disabled={saving || pending}
+          className={`min-h-[44px] rounded-md px-2 py-0.5 sm:min-h-0 ${
             optimistic === 'auto'
               ? 'bg-accent text-bg font-bold'
               : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -246,7 +281,7 @@ export function CoverCompare({
         <button
           type="button"
           onClick={() => setCompareOpen(false)}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
         >
           {t.common.close}
         </button>
@@ -263,6 +298,7 @@ function CoverColumn({
   sexual,
   active,
   pending,
+  saving,
   onUse,
   useLabel,
 }: {
@@ -273,6 +309,7 @@ function CoverColumn({
   sexual: number | null;
   active: boolean;
   pending: boolean;
+  saving: boolean;
   onUse: () => void;
   useLabel: string;
 }) {
@@ -298,8 +335,8 @@ function CoverColumn({
           <button
             type="button"
             onClick={onUse}
-            disabled={active || pending}
-            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
+            disabled={active || saving}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 sm:min-h-0 ${
               active
                 ? 'bg-accent/20 text-accent cursor-default'
                 : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'

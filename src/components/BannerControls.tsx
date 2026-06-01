@@ -1,10 +1,11 @@
 'use client';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageMinus, ImagePlus, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { ErrorAlert } from './ErrorAlert';
 import { useToast } from './ToastProvider';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   vnId: string;
@@ -20,43 +21,85 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
-  async function upload(file: File) {
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setBusy(false);
+    setError(null);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId]);
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(true);
     setError(null);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(false);
+  }
+
+  async function upload(file: File) {
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`/api/collection/${vnId}/banner`, { method: 'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
-      }
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'POST', body: fd, signal: controller.signal });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.bannerSaved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       const msg = (e as Error).message;
       setError(msg);
       toast.error(msg);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function reset() {
-    setBusy(true);
-    setError(null);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const res = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(t.common.error);
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'DELETE', signal: controller.signal });
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.bannerReset);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       const msg = (e as Error).message;
       setError(msg);
       toast.error(msg);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -85,7 +128,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy || pending}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
             title={t.banner.hint}
             data-menu-keep-open=""
           >
@@ -97,7 +140,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
               type="button"
               onClick={reset}
               disabled={busy || pending}
-              className="inline-flex items-center gap-1 rounded-md border border-status-dropped/50 bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-status-dropped shadow-card backdrop-blur transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/50 bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-status-dropped shadow-card backdrop-blur transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50 sm:min-h-0"
             >
               <ImageMinus className="h-3 w-3" aria-hidden />
               {t.banner.reset}

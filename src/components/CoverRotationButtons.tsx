@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -9,6 +9,7 @@ import {
   type VnCoverChangedDetail,
   dispatchCoverChanged,
 } from '@/lib/cover-banner-events';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   vnId: string;
@@ -35,9 +36,25 @@ export function CoverRotationButtons({
   const [, startTransition] = useTransition();
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [busy, setBusy] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   // Re-sync on server-rendered prop change (router.refresh path).
-  useEffect(() => setRotation(initialRotation), [initialRotation]);
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setRotation(initialRotation);
+    setBusy(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initialRotation]);
 
   // Subscribe to the shared cover-changed event so a sibling
   // surface that flips rotation (the legacy `<CoverHero>` overlay
@@ -56,31 +73,39 @@ export function CoverRotationButtons({
   }, [vnId]);
 
   async function apply(next: 0 | 90 | 180 | 270) {
-    if (busy || next === rotation) return;
+    if (mutationInFlightRef.current || next === rotation) return;
+    const ownerVnId = vnId;
     const prev = rotation;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setRotation(next);
     setBusy(true);
     try {
-      const r = await fetch(`/api/collection/${vnId}/cover`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/cover`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rotation: next }),
+        signal: controller.signal,
       });
-      if (!r.ok) {
-        const err = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || t.common.error);
-      }
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       // Tell any sibling surface (CoverHero overlay, source-picker
       // modal, Library card preview) the rotation moved. The new
       // `<SafeImage rotation={…}>` consumers read this event and
       // repaint instantly without a full router.refresh.
-      dispatchCoverChanged({ vnId, newSrc: null, newLocal: null, rotation: next });
+      dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, rotation: next });
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setRotation(prev);
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -95,17 +120,17 @@ export function CoverRotationButtons({
   // because the container may sit inside a hover-visibility gate.
   const positionClass =
     anchor === 'top-right'
-      ? 'right-2 top-12'
+      ? 'right-1 top-12'
       : anchor === 'bottom-right'
-        ? 'right-2 bottom-2'
-        : 'left-2 bottom-2';
+        ? 'right-1 bottom-1'
+        : 'left-1 bottom-1';
 
   const hasRotation = rotation !== 0;
   return (
     <div
       data-testid="cover-rotation-controls"
       className={[
-        'pointer-events-auto absolute z-30 flex flex-col items-end gap-1',
+        'pointer-events-auto absolute z-30 flex max-w-[calc(100%-0.5rem)] flex-col items-end gap-1',
         positionClass,
         // Hide the WHOLE container on desktop only when there's no
         // active rotation. As soon as the user rotates, the cluster
@@ -147,9 +172,9 @@ export function CoverRotationButtons({
         aria-label={t.coverActions.resetRotation}
         title={t.coverActions.resetRotation}
         data-rotation-active={hasRotation ? 'true' : 'false'}
-        className="min-h-[44px] rounded-md bg-bg-card/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
+        className="max-w-full min-h-[44px] overflow-hidden text-ellipsis whitespace-nowrap rounded-md bg-bg-card/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-45"
       >
-        {rotation}°
+        {rotation} deg
       </button>
     </div>
   );

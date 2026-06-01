@@ -190,4 +190,19 @@ describe('PATCH /api/collection/[id]/banner — rotation + position', () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it('does not persist a valid position when the same payload has an invalid rotation', async () => {
+    fakeVn('v90024');
+    const initial = await patchBanner(
+      makePatchRequest({ position: '10% 20%' }) as unknown as import('next/server').NextRequest,
+      { params: Promise.resolve({ id: 'v90024' }) },
+    );
+    expect(initial.status).toBe(200);
+    const res = await patchBanner(
+      makePatchRequest({ position: '80% 90%', rotation: 'left' }) as unknown as import('next/server').NextRequest,
+      { params: Promise.resolve({ id: 'v90024' }) },
+    );
+    expect(res.status).toBe(400);
+    expect(getCollectionItem('v90024')?.banner_position).toBe('10% 20%');
+  });
 });

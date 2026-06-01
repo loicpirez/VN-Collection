@@ -1,5 +1,5 @@
 'use client';
-import { useId, useRef, useState, useTransition } from 'react'
+import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, X } from 'lucide-react';
@@ -10,6 +10,7 @@ import { dispatchBannerChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeUploadedBannerPath } from '@/lib/image-source-client-shape';
 interface Props {
   vnId: string;
   /** Current custom banner path/URL — null when none is set. */
@@ -59,6 +60,9 @@ export function BannerSourcePicker({
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
   const titleId = useId();
   const customTabId = useId();
   const defaultTabId = useId();
@@ -66,17 +70,58 @@ export function BannerSourcePicker({
   const defaultPanelId = useId();
   const [, startTransition] = useTransition();
 
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setOpen(false);
+    setTab('custom');
+    setBusy(false);
+    setUrlValue('');
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId]);
+
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef: dialogRef });
 
-  async function applySource(source: 'url' | 'screenshot' | 'release' | 'path' | 'cover', value?: string) {
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(true);
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return identityRef.current === ownerVnId && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setBusy(false);
+  }
+
+  async function applySource(source: 'url' | 'screenshot' | 'release' | 'path' | 'cover', value?: string) {
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/banner`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/banner`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(value ? { source, value } : { source }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Broadcast for the HeroBanner mounted above us. `cover` is a
       // server-resolved source (the route picks the right path from
       // the row), so we don't have a precise newSrc/newLocal here —
@@ -85,7 +130,7 @@ export function BannerSourcePicker({
       // `path` we DO have `value`, so listeners can repaint instantly.
       const isRemote = typeof value === 'string' && /^https?:\/\//i.test(value);
       dispatchBannerChanged({
-        vnId,
+        vnId: ownerVnId,
         newSrc: source === 'cover' ? null : (isRemote ? value ?? null : null),
         newLocal: source === 'cover' ? null : (isRemote ? null : value ?? null),
       });
@@ -93,26 +138,31 @@ export function BannerSourcePicker({
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function resetBanner() {
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
-      const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'DELETE' });
+      const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Reset → null src + null rotation so HeroBanner clears the backdrop.
-      dispatchBannerChanged({ vnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
+      dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
       toast.success(t.toast.bannerReset);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -121,21 +171,26 @@ export function BannerSourcePicker({
       toast.error(t.cover.mustBeImage);
       return;
     }
-    setBusy(true);
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const r = await fetch(`/api/collection/${vnId}/banner`, { method: 'POST', body: fd });
+      const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'POST', body: fd, signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const payload = (await r.json().catch(() => ({}))) as { banner?: string | null };
-      dispatchBannerChanged({ vnId, newSrc: null, newLocal: payload.banner ?? null });
+      const banner = decodeUploadedBannerPath(await r.json().catch(() => null));
+      if (!banner) throw new Error(t.common.error);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: banner });
       toast.success(t.toast.bannerSaved);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -161,7 +216,7 @@ export function BannerSourcePicker({
         value: img.local || img.url,
         source: 'release' as const,
         sexual: img.sexual ?? null,
-        label: `${localizedType} · ${img.release_title}`,
+        label: `${localizedType} / ${img.release_title}`,
         aspect: img.type === 'pkgmed' ? ('aspect-square' as const) : ('aspect-[2/3]' as const),
       };
     }),
@@ -306,7 +361,7 @@ export function BannerSourcePicker({
                         inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
-                        placeholder="https://…"
+                        placeholder="https://example.com/image.jpg"
                         aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[160px] sm:min-w-[200px]"
                       />
@@ -324,7 +379,7 @@ export function BannerSourcePicker({
 
                   <div>
                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
-                      {t.coverPicker.galleryLabel} · {galleryItems.length}
+                      {t.coverPicker.galleryLabel} / {galleryItems.length}
                     </label>
                     {galleryItems.length === 0 ? (
                       <p className="text-xs text-muted">{t.coverPicker.galleryEmpty}</p>
@@ -397,7 +452,7 @@ function TabButton({
       aria-controls={controls}
       aria-selected={active}
       tabIndex={active ? 0 : -1}
-      className={`relative flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+      className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors sm:min-h-0 ${
         disabled
           ? 'cursor-not-allowed text-muted/40'
           : active

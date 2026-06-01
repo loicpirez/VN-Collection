@@ -1,11 +1,12 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeVnAspectClientState } from '@/lib/vn-detail-client-shape';
 /**
  * Per-VN aspect-ratio override + display. Surfaces the currently
  * derived aspect (manual / per-edition / cached release resolution /
@@ -41,15 +42,34 @@ export function AspectOverrideControl({
   // saved in a different tab / earlier session show up.
   const [loading, setLoading] = useState(initialDerived === undefined);
   const [saving, setSaving] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setOverride(initialOverride ?? null);
+    setDerived(initialDerived ?? 'unknown');
+    setLoading(initialDerived === undefined);
+    setSaving(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, initialDerived, initialOverride]);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
       const r = await fetch(`/api/vn/${vnId}/aspect`, { cache: 'no-store', signal });
-      if (!r.ok) throw new Error(await r.text());
-      const d = (await r.json()) as {
-        override: { aspect_key: AspectKey; note: string | null } | null;
-        derived: AspectKey;
-      };
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      const d = decodeVnAspectClientState(await r.json());
+      if (!d) throw new Error(t.common.error);
       if (signal.aborted) return;
       setOverride(d.override);
       setDerived(d.derived);
@@ -58,34 +78,51 @@ export function AspectOverrideControl({
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [vnId]);
+  }, [vnId, t.common.error]);
 
   useEffect(() => {
     const ac = new AbortController();
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = ac;
     void load(ac.signal);
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+      if (loadAbortRef.current === ac) loadAbortRef.current = null;
+    };
   }, [load]);
 
   async function save(next: AspectKey | null) {
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    loadAbortRef.current?.abort();
+    loadAbortRef.current = null;
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setSaving(true);
     try {
-      const r = await fetch(`/api/vn/${vnId}/aspect`, {
+      const r = await fetch(`/api/vn/${ownerVnId}/aspect`, {
         method: next ? 'PATCH' : 'DELETE',
         headers: next ? { 'Content-Type': 'application/json' } : undefined,
         body: next ? JSON.stringify({ aspect_key: next }) : undefined,
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as {
-        override: { aspect_key: AspectKey; note: string | null } | null;
-        derived: AspectKey;
-      };
+      const d = decodeVnAspectClientState(await r.json());
+      if (!d) throw new Error(t.common.error);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setOverride(d.override);
       setDerived(d.derived);
       toast.success(t.toast.saved);
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -110,7 +147,7 @@ export function AspectOverrideControl({
         <span>{t.aspectOverride.description}</span>
         <span className="text-[10px]">
           {isManual ? t.aspectOverride.sourceManual : t.aspectOverride.sourceDerived}
-          {' · '}
+          {' / '}
           <span className="font-mono text-accent">{activeKey}</span>
         </span>
       </p>

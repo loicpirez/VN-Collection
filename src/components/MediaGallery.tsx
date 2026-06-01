@@ -24,6 +24,8 @@ import { SafeImage } from './SafeImage';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { dispatchBannerChanged, dispatchCoverChanged } from '@/lib/cover-banner-events';
+import { safeHref } from '@/lib/safe-href';
+import { readApiError } from '@/lib/api-error-read';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 export interface MediaItem {
@@ -88,7 +90,7 @@ export function MediaGallery({
         local: img.local ?? null,
         local_thumb: img.local_thumb ?? null,
         sexual: img.sexual ?? null,
-        alt: `${localizedType} — ${img.release_title}`,
+        alt: `${localizedType} / ${img.release_title}`,
         caption: img.release_title,
         aspect: img.type === 'pkgmed' ? 'square' : 'portrait',
         dims: img.dims ?? null,
@@ -277,10 +279,10 @@ export function MediaGallery({
               {active + 1} / {visible.length}
               {visible[active].dims && visible[active].dims![0] > 0 && (
                 <span className="ml-2 font-mono opacity-80">
-                  {visible[active].dims![0]}×{visible[active].dims![1]}
+                  {visible[active].dims![0]}x{visible[active].dims![1]}
                 </span>
               )}
-              {visible[active].caption && ` · ${visible[active].caption}`}
+              {visible[active].caption && ` / ${visible[active].caption}`}
             </div>
           </div>
         </div>
@@ -460,6 +462,25 @@ function TileKebab({
   const [busy, setBusy] = useState<'cover' | 'banner' | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+  const originalHref = safeHref(item.url);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setOpen(false);
+    setBusy(null);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId]);
 
   // Outside-click + Escape + arrow-key roving focus.
   useEffect(() => {
@@ -565,7 +586,11 @@ function TileKebab({
   }, [open]);
 
   async function setAs(kind: 'cover' | 'banner') {
-    if (busy) return;
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(kind);
     // Best-guess resolved src + local pair for the optimistic event.
     // `bannerValue` is the path we send to the server; for paths
@@ -577,15 +602,14 @@ function TileKebab({
     const newLocal = isRemote ? null : bannerValue;
     try {
       const path = kind === 'cover' ? 'cover' : 'banner';
-      const res = await fetch(`/api/collection/${vnId}/${path}`, {
+      const res = await fetch(`/api/collection/${ownerVnId}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: 'path', value: bannerValue }),
+        signal: controller.signal,
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || t.common.error);
-      }
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       // Notify every mounted surface (HeroBanner, CoverEditOverlay,
       // VnCard, OwnedEditionsSection, sibling MediaTile renderers) so
       // the new cover/banner paints without a manual refresh. The
@@ -593,17 +617,22 @@ function TileKebab({
       // rendered surfaces (cards on the Library page) that don't
       // listen to the event.
       if (kind === 'cover') {
-        dispatchCoverChanged({ vnId, newSrc, newLocal });
+        dispatchCoverChanged({ vnId: ownerVnId, newSrc, newLocal });
       } else {
-        dispatchBannerChanged({ vnId, newSrc, newLocal });
+        dispatchBannerChanged({ vnId: ownerVnId, newSrc, newLocal });
       }
       toast.success(t.toast.saved);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(null);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -711,20 +740,22 @@ function TileKebab({
             onClick={() => { setOpen(false); setAs('banner'); }}
             disabled={busy === 'banner'}
           />
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            role="menuitem"
-            tabIndex={-1}
-            onClick={() => setOpen(false)}
-            aria-label={t.media.openOriginal}
-            title={t.media.openOriginal}
-            className="flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none"
-          >
-            <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="truncate whitespace-nowrap">{t.media.openOriginalShort}</span>
-          </a>
+          {originalHref && (
+            <a
+              href={originalHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+              aria-label={t.media.openOriginal}
+              title={t.media.openOriginal}
+              className="flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded px-2 py-1.5 text-left text-muted hover:bg-bg-elev hover:text-white focus:bg-bg-elev focus:text-white focus:outline-none"
+            >
+              <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate whitespace-nowrap">{t.media.openOriginalShort}</span>
+            </a>
+          )}
         </div>
       </PortalPopover>
     </>

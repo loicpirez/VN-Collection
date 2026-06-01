@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImageUp, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { readApiError } from '@/lib/api-error-read';
 
 interface Props {
   vnId: string;
@@ -21,34 +22,62 @@ export function SetBannerButton({ vnId, value, source = 'path', className = '' }
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setBusy(false);
+    setDone(false);
+    setError(null);
     if (doneTimer.current) clearTimeout(doneTimer.current);
-  }, []);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+    };
+  }, [vnId]);
 
   async function set(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/collection/${vnId}/banner`, {
+      const res = await fetch(`/api/collection/${ownerVnId}/banner`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, value }),
+        signal: controller.signal,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || t.common.error);
-      }
+      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setDone(true);
       startTransition(() => router.refresh());
       if (doneTimer.current) clearTimeout(doneTimer.current);
-      doneTimer.current = setTimeout(() => setDone(false), 1500);
+      doneTimer.current = setTimeout(() => {
+        if (identityRef.current === ownerVnId) setDone(false);
+      }, 1500);
     } catch (err) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setError((err as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
