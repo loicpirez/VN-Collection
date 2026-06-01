@@ -20,6 +20,7 @@ import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Status } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+const VN_QUERY_CHUNK = 500;
 
 // WeakMap-cached `CardData` projection. The row shape is custom (no
 // CollectionItem here — this query returns just the columns the card
@@ -87,20 +88,26 @@ interface VnRow {
 function loadCards(items: UserListItem[], queueIds: Set<string>): Map<string, VnRow> {
   if (items.length === 0) return new Map();
   const ids = items.map((i) => i.vn_id);
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(
-      `SELECT v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
-              v.local_image, v.local_image_thumb,
-              c.custom_cover, v.released, v.rating,
-              c.user_rating, c.playtime_minutes, v.length_minutes,
-              c.status, c.edition_type, c.favorite,
-              v.developers, v.publishers, v.relations
-         FROM vn v
-    LEFT JOIN collection c ON c.vn_id = v.id
-        WHERE v.id IN (${placeholders})`,
-    )
-    .all(...ids) as Omit<VnRow, 'in_reading_queue'>[];
+  const rows: Omit<VnRow, 'in_reading_queue'>[] = [];
+  for (let index = 0; index < ids.length; index += VN_QUERY_CHUNK) {
+    const chunk = ids.slice(index, index + VN_QUERY_CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    rows.push(
+      ...(db
+        .prepare(
+          `SELECT v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
+                  v.local_image, v.local_image_thumb,
+                  c.custom_cover, v.released, v.rating,
+                  c.user_rating, c.playtime_minutes, v.length_minutes,
+                  c.status, c.edition_type, c.favorite,
+                  v.developers, v.publishers, v.relations
+             FROM vn v
+        LEFT JOIN collection c ON c.vn_id = v.id
+            WHERE v.id IN (${placeholders})`,
+        )
+        .all(...chunk) as Omit<VnRow, 'in_reading_queue'>[]),
+    );
+  }
   return new Map(rows.map((r) => [r.id, { ...r, in_reading_queue: queueIds.has(r.id) }]));
 }
 

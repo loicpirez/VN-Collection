@@ -177,13 +177,21 @@ describe('listCollectionForCards — behaviour', () => {
     expect(listCollectionForCards({ tag: 'g50' }).map((it) => it.id)).toEqual(['v9401']);
     expect(listCollectionForCards({ status: 'completed' }).map((it) => it.id)).toEqual(['v9402']);
   });
+
+  it('listCollectionForCards enforces the requested SQL limit', () => {
+    upsertVn({ id: 'v9403', title: 'Limit A' });
+    upsertVn({ id: 'v9404', title: 'Limit B' });
+    addToCollection('v9403', { status: 'planning' });
+    addToCollection('v9404', { status: 'planning' });
+    expect(listCollectionForCards({ limit: 1 })).toHaveLength(1);
+  });
 });
 
 describe('R5-144 /api/collection route', () => {
-  it('default GET path calls listCollectionForCards; ?detail=full keeps listCollection', () => {
+  it('uses listCollectionForCards without a rich-detail query escape hatch', () => {
     const src = readFileSync(join(__dirname, '..', 'src/app/api/collection/route.ts'), 'utf8');
     expect(src).toMatch(/listCollectionForCards/);
-    expect(src).toMatch(/detail.*===\s*'full'/);
-    expect(src).toMatch(/wantsFullDetail/);
+    expect(src).not.toMatch(/detail.*===\s*'full'/);
+    expect(src).not.toMatch(/wantsFullDetail/);
   });
 });

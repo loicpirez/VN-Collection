@@ -1,4 +1,5 @@
 import 'server-only';
+import { normalizeOptionalCoordinate } from '@/lib/place-coordinates';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
@@ -768,6 +769,10 @@ function open(): Database.Database {
     -- P-144: order-by-fetched_at-DESC + LIMIT path for listRecentVnStockOffers.
     CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_fetched_at
       ON vn_stock_offer(fetched_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_location_branch
+      ON vn_stock_offer(location_branch, availability, vn_id);
+    CREATE INDEX IF NOT EXISTS idx_vn_stock_offer_location_label
+      ON vn_stock_offer(location_label, availability, vn_id);
 
     CREATE TABLE IF NOT EXISTS vn_stock_provider_status (
       vn_id      TEXT NOT NULL,
@@ -7483,21 +7488,23 @@ export interface PlacePayload {
 export function listPlaces(): PlaceWithLinks[] {
   const rows = db
     .prepare(`
+      WITH stock_by_place AS (
+        SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+        FROM place_provider_link ppl2
+        JOIN vn_stock_offer vso ON (
+          vso.location_branch = ppl2.provider_label
+          OR vso.location_label = ppl2.provider_label
+        )
+        WHERE vso.availability IN ('in_stock', 'limited')
+        GROUP BY ppl2.place_id
+      )
       SELECT
         p.*,
         GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        (
-          SELECT COUNT(DISTINCT vso.vn_id)
-          FROM vn_stock_offer vso
-          JOIN place_provider_link ppl2 ON (
-            ppl2.provider_label = vso.location_branch
-            OR ppl2.provider_label = vso.location_label
-          )
-          WHERE ppl2.place_id = p.id
-            AND vso.availability IN ('in_stock', 'limited')
-        ) AS stock_count
+        COALESCE(sbp.stock_count, 0) AS stock_count
       FROM place_registry p
       LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
       GROUP BY p.id
       ORDER BY p.name COLLATE NOCASE ASC
     `)
@@ -7512,21 +7519,23 @@ export function listPlaces(): PlaceWithLinks[] {
 export function getPlace(id: number): PlaceWithLinks | null {
   const row = db
     .prepare(`
+      WITH stock_by_place AS (
+        SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+        FROM place_provider_link ppl2
+        JOIN vn_stock_offer vso ON (
+          vso.location_branch = ppl2.provider_label
+          OR vso.location_label = ppl2.provider_label
+        )
+        WHERE vso.availability IN ('in_stock', 'limited')
+        GROUP BY ppl2.place_id
+      )
       SELECT
         p.*,
         GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        (
-          SELECT COUNT(DISTINCT vso.vn_id)
-          FROM vn_stock_offer vso
-          JOIN place_provider_link ppl2 ON (
-            ppl2.provider_label = vso.location_branch
-            OR ppl2.provider_label = vso.location_label
-          )
-          WHERE ppl2.place_id = p.id
-            AND vso.availability IN ('in_stock', 'limited')
-        ) AS stock_count
+        COALESCE(sbp.stock_count, 0) AS stock_count
       FROM place_registry p
       LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
       WHERE p.id = ?
       GROUP BY p.id
     `)
@@ -7551,8 +7560,8 @@ export function createPlace(payload: PlacePayload): number {
       payload.name_ja ?? null,
       payload.kind ?? 'shop',
       payload.address ?? null,
-      payload.lat ?? null,
-      payload.lng ?? null,
+      normalizeOptionalCoordinate(payload.lat),
+      normalizeOptionalCoordinate(payload.lng),
       payload.url ?? null,
       payload.notes ?? null,
       now,
@@ -7566,7 +7575,10 @@ export function updatePlace(id: number, patch: Partial<PlacePayload>): void {
   if (fields.length === 0) return;
   const sets = fields.map((f) => `${f} = ?`);
   sets.push('updated_at = ?');
-  const vals: unknown[] = fields.map((f) => patch[f] ?? null);
+  const vals: unknown[] = fields.map((f) => {
+    if (f === 'lat' || f === 'lng') return normalizeOptionalCoordinate(patch[f]);
+    return patch[f] ?? null;
+  });
   vals.push(Date.now());
   vals.push(id);
   db.prepare(`UPDATE place_registry SET ${sets.join(', ')} WHERE id = ?`).run(...vals);

@@ -288,6 +288,7 @@ describe('stock_count subquery in listPlaces/getPlace', () => {
     const id = createPlace({ name: `${PLACE_NAME_PREFIX}sc` });
     linkProviderToPlace(id, 'BranchA');
     expect(getPlace(id)!.stock_count).toBe(2);
+    expect(listPlaces().find((place) => place.id === id)!.stock_count).toBe(2);
   });
 });
 

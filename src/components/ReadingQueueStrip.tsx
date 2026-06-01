@@ -12,6 +12,8 @@ interface QueueVn {
   image_sexual: number | null;
 }
 
+const VN_QUERY_CHUNK = 500;
+
 /**
  * Home-page strip listing the VNs the user has explicitly queued (distinct
  * from the "Planning" status — Planning is intent, Queue is order). Hidden
@@ -27,10 +29,16 @@ export async function ReadingQueueStrip({ initialState }: { initialState?: HomeS
   const queue = listReadingQueue();
   if (queue.length === 0) return null;
   const ids = queue.map((q) => q.vn_id);
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = db
-    .prepare(`SELECT id, title, image_thumb, image_url, image_sexual, local_image_thumb FROM vn WHERE id IN (${placeholders})`)
-    .all(...ids) as QueueVn[];
+  const rows: QueueVn[] = [];
+  for (let index = 0; index < ids.length; index += VN_QUERY_CHUNK) {
+    const chunk = ids.slice(index, index + VN_QUERY_CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    rows.push(
+      ...(db
+        .prepare(`SELECT id, title, image_thumb, image_url, image_sexual, local_image_thumb FROM vn WHERE id IN (${placeholders})`)
+        .all(...chunk) as QueueVn[]),
+    );
+  }
   const byId = new Map(rows.map((r) => [r.id, r]));
   const entries: ReadingQueueEntry[] = queue
     .map((q, index) => {
