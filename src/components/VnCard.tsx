@@ -72,6 +72,8 @@ interface VnCardProps {
   badge?: { label: string; tone?: 'accent' | 'muted' };
   /** When set, renders a hover-only "remove from wishlist" button. */
   onRemoveFromWishlist?: () => void | Promise<void>;
+  /** True while this card's wishlist removal is in flight — disables the control and swaps the icon for a spinner. */
+  removingFromWishlist?: boolean;
 }
 
 export const VnCard = memo(VnCardImpl);
@@ -87,7 +89,7 @@ export const VnCard = memo(VnCardImpl);
  * that callsite extracts the build into a stable helper so the prop
  * identity is stable across renders.
  */
-function VnCardImpl({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist }: VnCardProps) {
+function VnCardImpl({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist, removingFromWishlist = false }: VnCardProps) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -252,13 +254,15 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (removingFromWishlist) return;
             void onRemoveFromWishlist();
           }}
+          disabled={removingFromWishlist}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className="absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped disabled:cursor-not-allowed disabled:opacity-60 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
         >
-          <X className="h-4 w-4" aria-hidden />
+          {removingFromWishlist ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
         </button>
       )}
       {badge && (

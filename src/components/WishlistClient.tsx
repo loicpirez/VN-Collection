@@ -89,7 +89,7 @@ const MemoWishlistCard = memo(function MemoWishlistCard({
   data,
   selectable,
   selected,
-  canRemove,
+  removing,
   onSelect,
   onAdded,
   onRemove,
@@ -98,7 +98,7 @@ const MemoWishlistCard = memo(function MemoWishlistCard({
   data: CardData;
   selectable: boolean;
   selected: boolean;
-  canRemove: boolean;
+  removing: boolean;
   onSelect: (id: string) => void;
   onAdded: (id: string) => void;
   onRemove: (id: string) => void | Promise<void>;
@@ -112,7 +112,8 @@ const MemoWishlistCard = memo(function MemoWishlistCard({
       selected={selected}
       onSelect={handleSelect}
       onAdded={onAdded}
-      onRemoveFromWishlist={canRemove ? handleRemove : undefined}
+      onRemoveFromWishlist={selectable ? undefined : handleRemove}
+      removingFromWishlist={removing}
       data={data}
     />
   );
@@ -733,7 +734,7 @@ export function WishlistClient() {
                     data={wishlistCardData(it)}
                     selectable={selectMode}
                     selected={selected.has(it.vn.id)}
-                    canRemove={it.in_collection && removingId !== it.vn.id}
+                    removing={removingId === it.vn.id}
                     onSelect={toggleSelected}
                     onAdded={handleAdded}
                     onRemove={removeOne}
