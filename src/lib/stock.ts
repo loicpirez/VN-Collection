@@ -1,6 +1,6 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getDisabledStockProviders, getEgsForVn, getStockProviderExtras, getStockRetryWithoutProxy, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getEgsForVn, getStockRetryWithoutProxy, listKobeStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -153,7 +153,7 @@ const PROVIDERS: StockProviderMeta[] = [
   { id: 'amazon_jp',          label: 'Amazon JP',          kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'amiami',             label: 'AmiAmi',             kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'otakarasouko',       label: 'Otakarasouko',       kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
-  { id: 'geo',                label: 'GEO',                kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
+  { id: 'geo',                label: 'GEO',                kind: 'direct',    physical: true,  physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'joshin',             label: 'Joshin',             kind: 'direct',    physical: true,  physicalStockMode: 'phone_only',                             cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'neowing',            label: 'Neowing',            kind: 'direct',    physical: false, physicalStockMode: 'online_only',                            cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
   { id: 'yodobashi',          label: 'Yodobashi',          kind: 'direct',    physical: true,  physicalStockMode: 'exact_online_possible_not_implemented',  cloudflare: false, branchParserImplemented: false, confirmedPhysicalUsable: false },
@@ -433,6 +433,8 @@ function sourceHost(url: string): string {
 
 /** Per-request timeout for shop fetches — avoids one slow shop hanging the refresh loop. */
 const STOCK_FETCH_TIMEOUT_MS = 15_000;
+const STOCK_PROVIDER_TIMEOUT_MS = 45_000;
+const STOCK_PROVIDER_CONCURRENCY = 4;
 const STOCK_MAX_RETRY = 2;
 const STOCK_MAX_RETRY_AFTER_MS = 60_000;
 const STOCK_DEFAULT_429_WAIT_MS = 5_000;
@@ -1621,11 +1623,12 @@ function parseGamersList(html: string, url: string, target: StockTarget): Parsed
 
 function parseGeoList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
-  for (const m of html.matchAll(/<li>\s*<a class=["']sendDatalayer["'][\s\S]*?<\/li>/gi)) {
+  for (const m of html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)) {
     const block = m[0] ?? '';
-    const href = /<a class=["']sendDatalayer["']\s+href=["']([^"']+)["']/i.exec(block)?.[1];
-    const title = /<h3 class=["']itemName["'][^>]*>([\s\S]*?)<\/h3>/i.exec(block)?.[1];
-    const price = /<div class=["']sellPtnLeftPrice["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
+    const anchorAttrs = /<a\b([^>]*\bclass=["'][^"']*\bsendDatalayer\b[^"']*["'][^>]*)>/i.exec(block)?.[1];
+    const href = anchorAttrs ? /\bhref=["']([^"']+)["']/i.exec(anchorAttrs)?.[1] : null;
+    const title = /<h3 class=["'][^"']*\bitemName\b[^"']*["'][^>]*>([\s\S]*?)<\/h3>/i.exec(block)?.[1];
+    const price = /<div class=["'][^"']*\bsellPtnLeftPrice\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["'][^"']*labelNow[^"']*["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const condition = /<span class=["'][^"']*labelSituation[^"']*["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? null;
     if (!href || !title) continue;
@@ -2207,7 +2210,7 @@ async function refreshErogePrice(vnId: string, vn: CollectionItem, now: number, 
 
   let previousManualPin: number | null = null;
   try {
-    const previous = getStockProviderExtras<ErogePriceExtrasV1>(vnId, 'eroge_price');
+    const previous = getErogePriceStockExtras(vnId);
     if (previous && typeof previous.selectedEpId === 'number') {
       previousManualPin = previous.selectedEpId;
     }
@@ -2736,33 +2739,38 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     }
     return getStockForVn(vnId);
   }
-  for (let _pi = 0; _pi < activeProviders.length; _pi++) {
-    const provider = activeProviders[_pi];
+  const refreshOneProvider = async (provider: StockProviderId): Promise<void> => {
+    if (signal?.aborted) return;
     const now = Date.now();
     const canRetryDirect = retryWithoutProxy && isStockProviderProxied(provider);
+    const providerCtrl = new AbortController();
+    const onOuterAbort = () => providerCtrl.abort();
+    signal?.addEventListener('abort', onOuterAbort, { once: true });
+    const providerTimeout = setTimeout(() => providerCtrl.abort(), STOCK_PROVIDER_TIMEOUT_MS);
     try {
-      let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases));
-      if (offers.length === 0 && canRetryDirect) {
+      let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases));
+      if (offers.length === 0 && canRetryDirect && !providerCtrl.signal.aborted) {
         const directOffers = dedupeProviderOffers(
-          await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases)),
+          await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases)),
         );
         if (directOffers.length > 0) offers = directOffers;
       }
       writeProviderResult(provider, offers, now);
     } catch (e) {
-      if (canRetryDirect) {
+      if (signal?.aborted) return;
+      if (canRetryDirect && !providerCtrl.signal.aborted) {
         try {
           const directOffers = dedupeProviderOffers(
-            await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, signal, aliases)),
+            await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases)),
           );
           writeProviderResult(provider, directOffers, now);
-          onProviderProgress?.(provider, _pi + 1, activeProviders.length);
-          continue;
+          return;
         } catch {
-          // Direct retry also failed; record the original proxied error below.
         }
       }
-      const msg = (e as Error).message;
+      const msg = providerCtrl.signal.aborted
+        ? `provider timeout after ${STOCK_PROVIDER_TIMEOUT_MS}ms`
+        : (e as Error).message;
       const isCloudflare = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
       const cachedOffers = provider === 'surugaya'
         ? listVnStockOffers(vnId).filter((offer) => offer.provider === provider)
@@ -2779,8 +2787,21 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         fresh_offers_found: 0,
         cached_offers_available: preserveExistingOffers ? cachedOffers.length : 0,
       }, { preserveExistingOffers });
+    } finally {
+      clearTimeout(providerTimeout);
+      signal?.removeEventListener('abort', onOuterAbort);
     }
-    onProviderProgress?.(provider, _pi + 1, activeProviders.length);
+  };
+  let completedProviders = 0;
+  for (let start = 0; start < activeProviders.length; start += STOCK_PROVIDER_CONCURRENCY) {
+    if (signal?.aborted) break;
+    const chunk = activeProviders.slice(start, start + STOCK_PROVIDER_CONCURRENCY);
+    await Promise.all(chunk.map(refreshOneProvider));
+    for (const provider of chunk) {
+      if (signal?.aborted) break;
+      completedProviders += 1;
+      onProviderProgress?.(provider, completedProviders, activeProviders.length);
+    }
   }
   return getStockForVn(vnId);
 }
