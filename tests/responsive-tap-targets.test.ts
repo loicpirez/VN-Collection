@@ -35,6 +35,15 @@ describe('responsive tap targets', () => {
     expect(source('src/components/DateInput.tsx')).toContain('min-h-[44px]');
   });
 
+  it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {
+    const dumped = source('src/app/dumped/page.tsx');
+    const ignore = source('src/components/DumpIgnoreButton.tsx');
+    expect(dumped).toContain('inline-flex min-h-[44px] items-center gap-1.5');
+    expect(dumped).toContain('sm:min-h-0');
+    expect(ignore).toContain('inline-flex min-h-[44px] items-center gap-1');
+    expect(ignore).toContain('sm:min-h-8');
+  });
+
   it('keeps detail reorder, density, mobile nav, and game-log controls touch-safe', () => {
     expect(source('src/components/DetailReorderLayout.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/CardDensitySlider.tsx')).toContain('min-h-[44px]');
