@@ -5,6 +5,7 @@ import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 import { safeFetch } from '@/lib/safe-fetch';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { tooManyRequests } from '@/lib/rate-limit-response';
+import { decodeCachedEgsCoverUrl, decodeEgsCoverRaw, decodeEgsCoverRawJson, type EgsCoverRawRow } from '@/lib/egs-cover-raw';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -47,8 +48,7 @@ function readCached(key: string): string | null | undefined {
     .get(key) as CacheRow | undefined;
   if (!row || row.expires_at < Date.now()) return undefined;
   try {
-    const parsed = JSON.parse(row.body) as { url: string | null };
-    return parsed.url;
+    return decodeCachedEgsCoverUrl(JSON.parse(row.body));
   } catch {
     return undefined;
   }
@@ -111,52 +111,21 @@ async function probeImage(url: string): Promise<boolean> {
   }
 }
 
-interface RawRow {
-  vn_id?: string | null;
-  banner_url?: string | null;
-  surugaya_1?: string | null;
-  dmm?: string | null;
-  dlsite_id?: string | null;
-  gyutto_id?: string | null;
-}
-
-function readLocalRaw(egsId: number): RawRow {
+function readLocalRaw(egsId: number): EgsCoverRawRow {
   const row = db
     .prepare('SELECT vn_id, raw_json FROM egs_game WHERE egs_id = ? LIMIT 1')
     .get(egsId) as { vn_id: string | null; raw_json: string | null } | undefined;
-  if (!row) return {};
-  const out: RawRow = { vn_id: row.vn_id };
-  if (row.raw_json) {
-    try {
-      const parsed = JSON.parse(row.raw_json) as Record<string, string | null>;
-      out.banner_url = parsed.banner_url ?? null;
-      out.surugaya_1 = parsed.surugaya_1 ?? null;
-      out.dmm = parsed.dmm ?? null;
-      out.dlsite_id = parsed.dlsite_id ?? null;
-      out.gyutto_id = parsed.gyutto_id ?? null;
-    } catch {
-      // stale snapshot — fall through with vn_id only
-    }
-  }
-  return out;
+  return decodeEgsCoverRawJson(row?.raw_json, row?.vn_id ?? null);
 }
 
-async function readRawWithFallback(egsId: number): Promise<RawRow> {
+async function readRawWithFallback(egsId: number): Promise<EgsCoverRawRow> {
   const local = readLocalRaw(egsId);
   if (local.banner_url || local.surugaya_1 || local.dmm || local.dlsite_id || local.gyutto_id) {
     return local;
   }
   try {
     const game = await fetchEgsGame(egsId);
-    const raw = (game?.raw ?? {}) as Record<string, string | null>;
-    return {
-      vn_id: local.vn_id ?? (typeof raw.vndb_id === 'string' ? raw.vndb_id : null),
-      banner_url: raw.banner_url ?? null,
-      surugaya_1: raw.surugaya_1 ?? null,
-      dmm: raw.dmm ?? null,
-      dlsite_id: raw.dlsite_id ?? null,
-      gyutto_id: raw.gyutto_id ?? null,
-    };
+    return decodeEgsCoverRaw(game?.raw, local.vn_id);
   } catch {
     return local;
   }
@@ -175,7 +144,7 @@ function vndbCoverFor(vnId: string | null | undefined, origin: string): string |
   return row.image_url ?? null;
 }
 
-function shopUrl(raw: RawRow): string | null {
+function shopUrl(raw: EgsCoverRawRow): string | null {
   const surugaya = (raw.surugaya_1 ?? '').trim();
   if (/^\d+$/.test(surugaya) && surugaya !== '0') {
     return `https://www.suruga-ya.jp/database/pics/game/${surugaya}.jpg`;
@@ -269,7 +238,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (limited) return limited;
   const { id } = await ctx.params;
   const egsId = Number(id);
-  if (!Number.isInteger(egsId) || egsId <= 0) {
+  if (!Number.isSafeInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const origin = new URL(req.url).origin;

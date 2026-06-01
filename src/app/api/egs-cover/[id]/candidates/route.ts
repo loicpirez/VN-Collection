@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { decodeEgsCoverRawJson } from '@/lib/egs-cover-raw';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-interface RawRow {
-  banner_url: string | null;
-  vn_id: string | null;
-  surugaya_1: string | null;
-  dmm: string | null;
-  dlsite_id: string | null;
-  gyutto_id: string | null;
-}
 
 export interface CoverCandidate {
   /** Stable identifier for the source. Used by the UI to set a preference. */
@@ -40,7 +32,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (denied) return denied;
   const { id } = await ctx.params;
   const egsId = Number(id);
-  if (!Number.isInteger(egsId) || egsId <= 0) {
+  if (!Number.isSafeInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const row = db
@@ -49,33 +41,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     )
     .get(egsId) as { raw_json: string | null; vn_id: string | null } | undefined;
 
-  let raw: RawRow = {
-    banner_url: null,
-    vn_id: null,
-    surugaya_1: null,
-    dmm: null,
-    dlsite_id: null,
-    gyutto_id: null,
-  };
-  if (row) {
-    raw.vn_id = row.vn_id;
-    if (row.raw_json) {
-      try {
-        const parsed = JSON.parse(row.raw_json) as Partial<RawRow>;
-        raw = {
-          ...raw,
-          banner_url: parsed.banner_url ?? null,
-          surugaya_1: parsed.surugaya_1 ?? null,
-          dmm: parsed.dmm ?? null,
-          dlsite_id: parsed.dlsite_id ?? null,
-          gyutto_id: parsed.gyutto_id ?? null,
-        };
-      } catch {
-        // raw_json corrupted; skip shop variants but still surface
-        // the linked VN cover if there's one.
-      }
-    }
-  }
+  const raw = decodeEgsCoverRawJson(row?.raw_json, row?.vn_id ?? null);
 
   const out: CoverCandidate[] = [];
 

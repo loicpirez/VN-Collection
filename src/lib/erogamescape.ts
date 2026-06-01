@@ -14,6 +14,16 @@ import {
   type EgsRow,
 } from './db';
 import { getReleasesForVn } from './vndb';
+import {
+  decodeEgsAnticipatedPage,
+  decodeEgsAnticipatedRows,
+  decodeEgsCandidates,
+  decodeEgsGame,
+  decodeEgsRawColumnMap,
+  decodeEgsTopRankedPage,
+  decodeEgsTopRankedRows,
+  decodeEgsUserReviews,
+} from './egs-cache-shape';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -86,14 +96,14 @@ function cacheKey(prefix: string, value: string): string {
   return `egs:${prefix}:${value}`;
 }
 
-function readCache<T>(key: string): T | null {
+function readCache<T>(key: string, decode: (value: unknown) => T | null): T | null {
   const row = db
     .prepare('SELECT body, expires_at FROM vndb_cache WHERE cache_key = ?')
     .get(key) as CacheRow | undefined;
   if (!row) return null;
   if (row.expires_at < Date.now()) return null;
   try {
-    return JSON.parse(row.body) as T;
+    return decode(JSON.parse(row.body));
   } catch {
     return null;
   }
@@ -106,13 +116,17 @@ function readCache<T>(key: string): T | null {
  * successful payload — the user keeps browsing instead of seeing a
  * generic error block.
  */
-function readExpiredCache<T>(key: string): { value: T; fetchedAt: number } | null {
+function readExpiredCache<T>(
+  key: string,
+  decode: (value: unknown) => T | null,
+): { value: T; fetchedAt: number } | null {
   const row = db
     .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
     .get(key) as { body: string; fetched_at: number } | undefined;
   if (!row) return null;
   try {
-    return { value: JSON.parse(row.body) as T, fetchedAt: row.fetched_at };
+    const value = decode(JSON.parse(row.body));
+    return value === null ? null : { value, fetchedAt: row.fetched_at };
   } catch {
     return null;
   }
@@ -391,7 +405,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
   assertSqlInt(id, 'gamelist.id');
   const cacheK = cacheKey('game', String(id));
   if (!opts.force) {
-    const cached = readCache<EgsGame | null>(cacheK);
+    const cached = readCache(cacheK, decodeEgsGame);
     if (cached !== null) return cached;
   }
 
@@ -494,7 +508,7 @@ function rowToGame(row: EgsRow): EgsGame | null {
   if (row.raw_json) {
     try {
       const parsed = JSON.parse(row.raw_json) as unknown;
-      if (parsed && typeof parsed === 'object') raw = parsed as Record<string, string | null>;
+      raw = decodeEgsRawColumnMap(parsed);
     } catch {
       // ignore — stale or malformed snapshot, keep undefined
     }
@@ -748,7 +762,7 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
   if (!trimmed) return null;
   const cacheK = cacheKey('search', trimmed.toLowerCase());
   if (!opts.force) {
-    const cached = readCache<EgsGame | null>(cacheK);
+    const cached = readCache(cacheK, decodeEgsGame);
     if (cached !== null) return cached;
   }
   // The query is interpolated directly into a Postgres ILIKE clause
@@ -797,7 +811,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   const trimmed = query.trim();
   if (!trimmed) return [];
   const cacheK = cacheKey('candidates', `${limit}:${trimmed.toLowerCase()}`);
-  const cached = readCache<EgsCandidate[]>(cacheK);
+  const cached = readCache(cacheK, decodeEgsCandidates);
   if (cached) return cached;
   const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
   const escaped = sanitizeForEgsLike(trimmed);
@@ -891,7 +905,7 @@ export async function fetchEgsUserReviews(username: string): Promise<EgsUserRevi
   const trimmed = username.trim();
   if (!trimmed) return [];
   const cacheK = cacheKey('user-reviews', trimmed.toLowerCase());
-  const cached = readCache<EgsUserReviewRow[]>(cacheK);
+  const cached = readCache(cacheK, decodeEgsUserReviews);
   if (cached) return cached;
 
   // Username is interpolated into an equality clause. EGS uids are
@@ -971,7 +985,7 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
   const cacheK = cacheKey('anticipated', String(safe));
   // Skip the cache when it stored a previous EMPTY result (same
   // pattern as fetchEgsTopRanked above).
-  const cached = readCache<EgsAnticipated[]>(cacheK);
+  const cached = readCache(cacheK, decodeEgsAnticipatedRows);
   if (cached && cached.length > 0) {
     return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
@@ -1054,7 +1068,7 @@ export async function fetchEgsAnticipatedPage(
   const safePage = Math.max(1, Math.min(20, Math.floor(page)));
   const offset = (safePage - 1) * safeSize;
   const cacheK = cacheKey('anticipated', `p${safePage}:${safeSize}`);
-  const cached = readCache<{ rows: EgsAnticipated[]; hasMore: boolean }>(cacheK);
+  const cached = readCache(cacheK, decodeEgsAnticipatedPage);
   if (cached && cached.rows.length > 0) {
     return {
       rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
@@ -1082,7 +1096,7 @@ export async function fetchEgsAnticipatedPage(
   try {
     rawRows = await fetchTable(sql);
   } catch (e) {
-    const stale = readExpiredCache<{ rows: EgsAnticipated[]; hasMore: boolean }>(cacheK);
+    const stale = readExpiredCache(cacheK, decodeEgsAnticipatedPage);
     if (stale && stale.value.rows.length > 0) {
       return {
         rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
@@ -1218,7 +1232,7 @@ export async function fetchEgsTopRanked(
   // when the real cause was a transient network failure. Now an
   // empty cached array just triggers a fresh fetch. A genuine
   // non-empty cache hit still short-circuits as before.
-  const cached = readCache<EgsTopRanked[]>(cacheK);
+  const cached = readCache(cacheK, decodeEgsTopRankedRows);
   if (cached && cached.length > 0) {
     return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
@@ -1344,7 +1358,7 @@ export async function fetchEgsTopRankedPage(
   const safeMin = Math.max(1, Math.floor(minVotes));
   const offset = (safePage - 1) * safeSize;
   const cacheK = cacheKey('top-ranked', `${safeMin}:p${safePage}:${safeSize}`);
-  const cached = readCache<{ rows: EgsTopRanked[]; hasMore: boolean }>(cacheK);
+  const cached = readCache(cacheK, decodeEgsTopRankedPage);
   if (cached && cached.rows.length > 0) {
     return {
       rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
@@ -1379,7 +1393,7 @@ export async function fetchEgsTopRankedPage(
   try {
     rawRows = await fetchTable(sql);
   } catch (e) {
-    const stale = readExpiredCache<{ rows: EgsTopRanked[]; hasMore: boolean }>(cacheK);
+    const stale = readExpiredCache(cacheK, decodeEgsTopRankedPage);
     if (stale && stale.value.rows.length > 0) {
       return {
         rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),

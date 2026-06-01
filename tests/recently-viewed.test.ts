@@ -125,4 +125,54 @@ describe('recentlyViewed — recordRecentlyViewed / clearRecentlyViewed', () => 
     expect(items.length).toBe(1);
     expect(items[0].id).toBe('v90050');
   });
+
+  it('drops malformed stored rows and canonicalizes accepted ids', async () => {
+    const { decodeRecentlyViewedEntries } = await loadModule();
+    expect(decodeRecentlyViewedEntries([
+      {
+        id: 'V90051',
+        title: 'Recovered',
+        poster: null,
+        localPoster: null,
+        sexual: 0,
+        viewedAt: 1,
+      },
+      {
+        id: 'v90052',
+        title: { malformed: true },
+        poster: null,
+        localPoster: null,
+        sexual: 0,
+        viewedAt: 2,
+      },
+      {
+        id: 'not-a-vn',
+        title: 'Rejected',
+        poster: null,
+        localPoster: null,
+        sexual: 0,
+        viewedAt: 3,
+      },
+    ])).toEqual([{
+      id: 'v90051',
+      title: 'Recovered',
+      poster: null,
+      localPoster: null,
+      sexual: 0,
+      viewedAt: 1,
+    }]);
+  });
+
+  it('caps decoded storage rows to the rendered strip limit', async () => {
+    const { decodeRecentlyViewedEntries } = await loadModule();
+    const rows = Array.from({ length: 15 }, (_, i) => ({
+      id: `v8${String(i).padStart(4, '0')}`,
+      title: `Fixture ${i}`,
+      poster: null,
+      localPoster: null,
+      sexual: null,
+      viewedAt: i,
+    }));
+    expect(decodeRecentlyViewedEntries(rows)).toHaveLength(12);
+  });
 });
