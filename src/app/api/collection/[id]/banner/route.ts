@@ -6,7 +6,7 @@ import {
   setBannerPosition,
   setBannerRotation,
 } from '@/lib/db';
-import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
@@ -94,9 +94,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     next = value;
   } else if ((source === 'screenshot' || source === 'release' || source === 'path') && value) {
-    // value is either a relative storage path (preferred — local) or a URL.
-    // Reject paths trying to escape the storage root.
-    if (/(^|\/)\.\.(\/|$)/.test(value) || value.includes('\0')) {
+    if (!isValidImageSourceValue(value)) {
       return NextResponse.json({ error: 'invalid path' }, { status: 400 });
     }
     next = value;
@@ -104,6 +102,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'invalid source' }, { status: 400 });
   }
 
+  if (next && !isValidImageSourceValue(next)) {
+    return NextResponse.json({ error: 'invalid image source' }, { status: 400 });
+  }
   setBanner(id, next);
   recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Set banner', payload: { source } });
   return NextResponse.json({ item: getCollectionItem(id), banner: next });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setCustomCover, setCoverRotation, normalizeRotation } from '@/lib/db';
-import { saveUpload, UnsupportedFileType } from '@/lib/files';
+import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
@@ -88,11 +88,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     next = value;
   } else if ((source === 'screenshot' || source === 'release' || source === 'path') && value) {
-    // Reject any path that tries to escape STORAGE_ROOT (..) or
-    // contains URL-encoding tricks. The /api/files/[...path] route
-    // checks again at read time, but normalizing here keeps the
-    // stored value clean too.
-    if (/(^|\/)\.\.(\/|$)/.test(value) || value.includes('\0')) {
+    if (!isValidImageSourceValue(value)) {
       return NextResponse.json({ error: 'invalid path' }, { status: 400 });
     }
     next = value;

@@ -49,6 +49,33 @@ function isInsideStorage(absPath: string): boolean {
 }
 
 /**
+ * Validates an image source before persisting it as a cover or banner value.
+ * Remote HTTP sources must pass the shared SSRF allowlist. Local values may be
+ * storage-relative or application-relative paths, but cannot contain encoded
+ * traversal, null bytes, backslashes, protocol-relative hosts, or URI schemes.
+ *
+ * @param value Candidate image source.
+ * @returns Whether the source is safe to persist.
+ */
+export function isValidImageSourceValue(value: string): boolean {
+  if (!value || value !== value.trim()) return false;
+  if (/^https?:\/\//i.test(value)) return isAllowedHttpTarget(value);
+  let decoded = value;
+  try {
+    for (let pass = 0; pass < 3; pass++) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+  } catch {
+    return false;
+  }
+  if (decoded.includes('\0') || decoded.includes('\\')) return false;
+  if (decoded.startsWith('//') || /^[a-z][a-z\d+.-]*:/i.test(decoded)) return false;
+  return !decoded.split('/').some((segment) => segment === '..');
+}
+
+/**
  * Test whether a file exists under the storage root. `relPath` is resolved
  * via path normalization first; anything that escapes the storage root
  * (e.g. `../etc/passwd`) returns `false` without touching the filesystem.
@@ -121,7 +148,8 @@ function extFromContentType(ct: string | null): string {
   if (ct.includes('png')) return '.png';
   if (ct.includes('webp')) return '.webp';
   if (ct.includes('gif')) return '.gif';
-  if (ct.includes('svg')) return '.svg';
+  if (ct.includes('bmp')) return '.bmp';
+  if (ct.includes('avif')) return '.avif';
   return '.bin';
 }
 
@@ -169,12 +197,15 @@ export async function downloadToBucket(
   if (cl && parseInt(cl, 10) > MAX_IMAGE_BYTES) {
     throw new Error(`Image too large: ${cl} bytes (max ${MAX_IMAGE_BYTES})`);
   }
-  const ct = res.headers.get('content-type');
   const buf = await readBodyWithCap(res, MAX_IMAGE_BYTES);
   if (!buf) {
     throw new Error(`Image too large: > ${MAX_IMAGE_BYTES} bytes (streaming cap)`);
   }
-  const ext = ct ? extFromContentType(ct) : extname(url) || '.bin';
+  const detected = detectImageMime(buf);
+  if (!detected) {
+    throw new UnsupportedFileType(res.headers.get('content-type'));
+  }
+  const ext = extFromContentType(detected);
   const safeName = `${sanitizeFilename(filenameHint)}${ext}`;
   const dir = bucketPath(bucket);
   await ensureDir(dir);
