@@ -14,7 +14,7 @@ import { scrapeProducersForVn } from '@/lib/scrape-producer-relations';
 import { scrapeTagDagForVn } from '@/lib/scrape-tag-dag';
 import { scrapeCharactersForVn } from '@/lib/scrape-character-instances';
 import { recordActivity } from '@/lib/activity';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { upstreamError } from '@/lib/api-error';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -30,9 +30,10 @@ interface EgsWarning {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
   if (deny) return deny;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
 
   // Data / metadata operations are intentionally NOT gated on
   // collection membership. The assets endpoint refreshes the VNDB

@@ -7,6 +7,7 @@ import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+import { isValidVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // Restrict to the two id shapes the rest of the app actually
   // produces. Without this gate a caller could burn VNDB rate-limit
   // budget by firing arbitrary strings at the upstream API.
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) {
+  if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
   const cached = getCollectionItem(id);

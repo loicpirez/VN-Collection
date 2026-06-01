@@ -71,8 +71,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof raw !== 'string' || !isVndbVnId(raw)) {
     return NextResponse.json({ error: 'invalid vndb_id' }, { status: 400 });
   }
-  setEgsVnLink(egsId, raw);
-  logEgsVndbLink('egs.vndb-link', egsId, { vn_id: raw });
+  const vnId = raw.toLowerCase();
+  setEgsVnLink(egsId, vnId);
+  logEgsVndbLink('egs.vndb-link', egsId, { vn_id: vnId });
   return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
 }
 

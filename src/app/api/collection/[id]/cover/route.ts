@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionItem, setCustomCover, setCoverRotation, normalizeRotation } from '@/lib/db';
 import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
-import { validateVnIdOr400 } from '@/lib/vn-id';
+import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
 import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
@@ -30,9 +30,10 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   const item = getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
@@ -104,9 +105,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   // Fail loudly when the row isn't in collection — consistent with
   // other DELETE routes and avoids masking stale optimistic UI.
   if (!getCollectionItem(id)) {
@@ -130,9 +132,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const { id } = await ctx.params;
-  const bad = validateVnIdOr400(id);
+  const { id: rawId } = await ctx.params;
+  const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
+  const id = normalizeVnId(rawId);
   if (!getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }

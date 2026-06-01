@@ -5,13 +5,14 @@ import {
   VNDB_VN_ID_RE,
   isValidVnId,
   isVndbVnId,
+  normalizeVnId,
 } from './vn-id-shape';
 
 // Re-export the pure validators so server callers can keep
 // importing from `@/lib/vn-id` exactly as before. The actual
 // implementations live in `./vn-id-shape` (no `'server-only'`),
 // which is what client components import directly.
-export { VN_ID_RE, VNDB_VN_ID_RE, isValidVnId, isVndbVnId };
+export { VN_ID_RE, VNDB_VN_ID_RE, isValidVnId, isVndbVnId, normalizeVnId };
 
 /**
  * Server-only: build a 400 `NextResponse` when the id is invalid.

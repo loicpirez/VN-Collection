@@ -32,6 +32,16 @@ export function isValidVnId(id: string | null | undefined): id is string {
 }
 
 /**
+ * Canonicalize an already-validated VN identifier for case-sensitive storage.
+ *
+ * @param id VN identifier accepted by `isValidVnId`.
+ * @returns The lowercase storage form.
+ */
+export function normalizeVnId(id: string): string {
+  return id.toLowerCase();
+}
+
+/**
  * R5-120 — strict VNDB-only variant. Use in API routes that talk
  * directly to VNDB (link-vndb, vndb-status, series link, etc.)
  * where a synthetic `egs_*` id has no upstream record to operate

@@ -3,6 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { getCharactersForVn } from '@/lib/vndb';
 import { getCharacterImages } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { isValidVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (denied) return denied;
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
-  if (!/^(v\d+|egs_\d+)$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     const characters = await getCharactersForVn(id);
     const localPaths = getCharacterImages(characters.map((c) => c.id));

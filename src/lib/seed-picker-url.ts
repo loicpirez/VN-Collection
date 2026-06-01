@@ -18,7 +18,7 @@
  *     params, so a tampered autocomplete row can't poison the URL.
  */
 
-const SEED_PATTERN = /^(v\d+|egs_\d+)$/i;
+import { isValidVnId } from './vn-id-shape';
 
 /**
  * Predicate: does `value` match the accepted seed-id shape (`v\d+` or
@@ -26,8 +26,7 @@ const SEED_PATTERN = /^(v\d+|egs_\d+)$/i;
  * touch the URL.
  */
 export function isValidSeedVnId(value: string | null | undefined): boolean {
-  if (!value) return false;
-  return SEED_PATTERN.test(value);
+  return isValidVnId(value);
 }
 
 /**

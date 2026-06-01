@@ -39,15 +39,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!isVndbVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
+  const vnId = id.toLowerCase();
   try {
-    const r = await addToVndbWishlist(id);
+    const r = await addToVndbWishlist(vnId);
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
-    recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: id, label: 'Added VNDB wishlist label' });
+    recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: vnId, label: 'Added VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return vndbErrorResponse(e as Error, `wishlist/${id}`);
+    return vndbErrorResponse(e as Error, `wishlist/${vnId}`);
   }
 }
 
@@ -58,14 +59,15 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (!isVndbVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
+  const vnId = id.toLowerCase();
   try {
-    const r = await removeFromVndbWishlist(id);
+    const r = await removeFromVndbWishlist(vnId);
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
-    recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: id, label: 'Removed VNDB wishlist label' });
+    recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: vnId, label: 'Removed VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return vndbErrorResponse(e as Error, `wishlist/${id}`);
+    return vndbErrorResponse(e as Error, `wishlist/${vnId}`);
   }
 }
