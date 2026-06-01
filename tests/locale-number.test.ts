@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDate, fmtNum, formatIsoDateString, formatVndbDateString, yearOnly } from '@/lib/locale-number';
+import { currencyFormatter, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, yearOnly } from '@/lib/locale-number';
 
 describe('locale date formatting', () => {
   it('formats VNDB partial dates without inventing missing precision', () => {
@@ -18,6 +18,12 @@ describe('locale date formatting', () => {
     expect(fmtNum(1234567.5, 'en', 1)).toBe('1,234,567.5');
     expect(fmtNum(1234567.5, 'fr', 1)).toContain('1');
     expect(fmtNum(1234567.5, 'ja', 1)).toBe('1,234,567.5');
+  });
+
+  it('formats currency with the active locale', () => {
+    expect(formatCurrency(1234, 'en')).toContain('1,234');
+    expect(formatCurrency(1234, 'ja')).toContain('1,234');
+    expect(currencyFormatter('fr').format(1234)).toContain('1');
   });
 
   it('formats timestamps using the requested locale', () => {

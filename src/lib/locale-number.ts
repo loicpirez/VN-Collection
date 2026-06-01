@@ -19,6 +19,20 @@ export function fmtNum(n: number, locale: Locale, fractionDigits?: number): stri
   });
 }
 
+/** Build a locale-aware currency formatter for repeated rendering. */
+export function currencyFormatter(locale: Locale, currency = 'JPY'): Intl.NumberFormat {
+  return new Intl.NumberFormat(BCP47[locale], {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  });
+}
+
+/** Format one currency value using the active application locale. */
+export function formatCurrency(value: number, locale: Locale, currency = 'JPY'): string {
+  return currencyFormatter(locale, currency).format(value);
+}
+
 /** Format a Date/timestamp with locale-appropriate representation. */
 export function fmtDate(d: Date, locale: Locale, opts?: Intl.DateTimeFormatOptions): string {
   return d.toLocaleString(BCP47[locale], opts);
