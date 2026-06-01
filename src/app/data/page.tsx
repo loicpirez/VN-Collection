@@ -12,6 +12,7 @@ import { EgsSyncBlock } from '@/components/EgsSyncBlock';
 import { OpenSettingsButton } from '@/components/OpenSettingsButton';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 import { CollapsibleSummary } from '@/components/CollapsibleSummary';
+import { ExportGameListButton } from '@/components/ExportGameListButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +134,7 @@ export default async function DataPage() {
           <a href="/api/export/ics" className="btn" download>
             <CalendarRange className="h-4 w-4" /> {t.dataMgmt.exportIcs}
           </a>
+          <ExportGameListButton />
           <a href="/api/backup" className="btn" download>
             <HardDrive className="h-4 w-4" /> {t.dataMgmt.backupDb}
           </a>
