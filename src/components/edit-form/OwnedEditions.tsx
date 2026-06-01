@@ -20,6 +20,8 @@ interface Props {
   onDownloadUrlChange: (next: string) => void;
   dumped: boolean;
   onDumpedChange: (next: boolean) => void;
+  dumpedIgnored: boolean;
+  onDumpedIgnoredChange: (next: boolean) => void;
 }
 
 /**
@@ -44,6 +46,8 @@ export const OwnedEditions = memo(function OwnedEditions({
   onDownloadUrlChange,
   dumped,
   onDumpedChange,
+  dumpedIgnored,
+  onDumpedIgnoredChange,
 }: Props) {
   const t = useT();
   return (
@@ -122,6 +126,18 @@ export const OwnedEditions = memo(function OwnedEditions({
           <div className="flex flex-col gap-0.5">
             <span className="label">{t.form.dumped}</span>
             <span className="text-[10px] text-muted/70">{t.form.dumpedHint}</span>
+          </div>
+        </label>
+        <label className="flex items-start gap-2 sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
+            checked={dumpedIgnored}
+            onChange={(e) => onDumpedIgnoredChange(e.target.checked)}
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="label">{t.form.dumpedIgnored}</span>
+            <span className="text-[10px] text-muted/70">{t.form.dumpedIgnoredHint}</span>
           </div>
         </label>
       </div>

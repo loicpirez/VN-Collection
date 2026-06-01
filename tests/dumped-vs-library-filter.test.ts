@@ -116,4 +116,24 @@ describe('dumped page vs library ?dumped=1 filter', () => {
     expect(s.fullyDumpedVns).toBe(1); // only v90104
     expect(s.editionPct).toBe(67);
   });
+
+  it('excludes ignored VNs from active tracker totals while retaining their recoverable row', () => {
+    seedVn('v90105');
+    addToCollection('v90105', {});
+    updateCollection('v90105', { dumped: true, dumped_ignored: true });
+    db.prepare(
+      `INSERT INTO owned_release (vn_id, release_id, dumped, added_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run('v90105', 'r901051', 1, Date.now());
+    const entry = listDumpStatus().find((row) => row.vn_id === 'v90105');
+    expect(entry?.dumped_ignored).toBe(true);
+    expect(getDumpSummary()).toEqual({
+      totalVns: 0,
+      totalEditions: 0,
+      dumpedEditions: 0,
+      fullyDumpedVns: 0,
+      editionPct: 0,
+    });
+    expect(listCollection({ dumped: true }).map((item) => item.id)).toContain('v90105');
+  });
 });

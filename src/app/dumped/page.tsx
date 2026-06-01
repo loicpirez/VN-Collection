@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, HardDriveDownload, LayoutGrid, PackageOpen, Plus, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, EyeOff, HardDriveDownload, LayoutGrid, PackageOpen, Plus, XCircle } from 'lucide-react';
 import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -9,6 +9,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { dumpedShelfHref, dumpedVnHref, dumpedEditionsAnchor } from '@/lib/dumped-links';
+import { DumpIgnoreButton } from '@/components/DumpIgnoreButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * editions where none are flagged dumped, and (b) VNs in the
  * collection that have NO owned editions at all. The latter is
  * not a dump-progress signal — it's a tracking gap — so we now
- * split the tabs into five buckets and tag (b) with a CTA that
+ * split the tabs into explicit buckets and tag (b) with a CTA that
  * routes back to the VN's "My editions" anchor.
  *
  * Tabs (URL: `?tab=`):
@@ -36,13 +37,14 @@ export async function generateMetadata(): Promise<Metadata> {
  *   - `missing` — has ≥1 owned edition, not marked dumped.
  *   - `none` — VN in collection with NO owned editions.
  *     Hidden from the `all` tab.
+ *   - `ignored` — explicitly excluded from active dump tracking.
  */
-type DumpTab = 'all' | 'complete' | 'missing' | 'none';
-const TABS: DumpTab[] = ['all', 'complete', 'missing', 'none'];
+type DumpTab = 'all' | 'complete' | 'missing' | 'none' | 'ignored';
+const TABS: DumpTab[] = ['all', 'complete', 'missing', 'none', 'ignored'];
 
 function parseTab(raw: string | string[] | undefined): DumpTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (v === 'complete' || v === 'missing' || v === 'none') return v;
+  if (v === 'complete' || v === 'missing' || v === 'none' || v === 'ignored') return v;
   return 'all';
 }
 
@@ -55,6 +57,7 @@ type BucketKey = Exclude<DumpTab, 'all'>;
  * "tab says 3, list shows 4".
  */
 function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
+  if (e.dumped_ignored) return 'ignored';
   if (e.collection_dumped) return 'complete';
   if (e.total_editions === 0) return 'none';
   return 'missing';
@@ -92,7 +95,7 @@ export default async function DumpedPage({
       if (c !== 'none') acc.all += 1;
       return acc;
     },
-    { all: 0, complete: 0, missing: 0, none: 0 },
+    { all: 0, complete: 0, missing: 0, none: 0, ignored: 0 },
   );
 
   // Filter entries to the active tab. The `all` tab now hides
@@ -107,7 +110,7 @@ export default async function DumpedPage({
 
   const tabPct = (key: DumpTab): string => {
     if (key === 'all') return '100';
-    const denom = key === 'none' ? entries.length : counts.all;
+    const denom = key === 'none' || key === 'ignored' ? entries.length : counts.all;
     if (denom === 0) return '0';
     return Math.min(100, Math.round((counts[key] / denom) * 100)).toString();
   };
@@ -119,6 +122,7 @@ export default async function DumpedPage({
     complete: <CheckCircle2 className="h-3.5 w-3.5 text-status-completed" aria-hidden />,
     missing: <XCircle className="h-3.5 w-3.5 text-status-dropped" aria-hidden />,
     none: <PackageOpen className="h-3.5 w-3.5 text-muted" aria-hidden />,
+    ignored: <EyeOff className="h-3.5 w-3.5 text-muted" aria-hidden />,
   } as const;
 
   return (
@@ -292,8 +296,8 @@ export default async function DumpedPage({
                         )}
                       </div>
                     </Link>
-                    {onShelfHere && (
-                      <div className="border-t border-border/60 px-2 pb-2 pt-1.5">
+                    <div className="flex flex-wrap gap-1.5 border-t border-border/60 px-2 pb-2 pt-1.5">
+                      {onShelfHere && (
                         <Link
                           href={dumpedShelfHref(e.vn_id)}
                           className="inline-flex min-h-8 max-w-full items-center gap-1 rounded-md border border-border bg-bg-card/80 px-2 py-1 text-[10px] font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
@@ -302,8 +306,9 @@ export default async function DumpedPage({
                           <LayoutGrid className="h-3 w-3 shrink-0" aria-hidden />
                           <span className="truncate">{t.dumped.viewOnShelf}</span>
                         </Link>
-                      </div>
-                    )}
+                      )}
+                      <DumpIgnoreButton vnId={e.vn_id} ignored={e.dumped_ignored} />
+                    </div>
                   </li>
                 );
               })}
