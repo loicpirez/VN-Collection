@@ -7,10 +7,45 @@
  * (`useStockSummaryChip` below) to avoid stale closures and to clean up
  * pending listeners on unmount.
  */
+import { asJsonRecord } from './json-shape';
+import { isValidVnId, normalizeVnId } from './vn-id-shape';
 
 export interface StockSummaryEntry {
   available: number;
   best_price: number | null;
+}
+
+function decodeStockSummaryEntry(value: unknown): StockSummaryEntry | null {
+  const row = asJsonRecord(value);
+  if (!row) return null;
+  if (
+    typeof row.available !== 'number' ||
+    !Number.isSafeInteger(row.available) ||
+    row.available < 0 ||
+    !(row.best_price === null || (typeof row.best_price === 'number' && Number.isFinite(row.best_price) && row.best_price >= 0))
+  ) {
+    return null;
+  }
+  return { available: row.available, best_price: row.best_price };
+}
+
+/**
+ * Decode the lazy stock-summary response before entries reach card caches.
+ *
+ * @param value Parsed local API response.
+ * @returns Safe summary entries, or `null` when the response envelope is malformed.
+ */
+export function decodeStockSummaryResponse(value: unknown): Record<string, StockSummaryEntry> | null {
+  const record = asJsonRecord(value);
+  const summary = asJsonRecord(record?.summary);
+  if (!summary) return null;
+  const out: Record<string, StockSummaryEntry> = {};
+  for (const [vnId, entry] of Object.entries(summary)) {
+    if (!isValidVnId(vnId)) continue;
+    const decoded = decodeStockSummaryEntry(entry);
+    if (decoded) out[normalizeVnId(vnId)] = decoded;
+  }
+  return out;
 }
 
 type Listener = (entry: StockSummaryEntry | null) => void;
@@ -75,8 +110,11 @@ async function flushQueue() {
       for (const id of ids) notify(id, null);
       return;
     }
-    const data = (await res.json()) as { summary?: Record<string, StockSummaryEntry> };
-    const summary = data.summary ?? {};
+    const summary = decodeStockSummaryResponse(await res.json());
+    if (!summary) {
+      for (const id of ids) notify(id, null);
+      return;
+    }
     for (const id of ids) notify(id, summary[id] ?? null);
   } catch {
     for (const id of ids) notify(id, null);

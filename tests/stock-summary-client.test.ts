@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   _resetStockSummaryClient,
+  decodeStockSummaryResponse,
   subscribeStockSummary,
 } from '@/lib/stock-summary-client';
 
@@ -24,6 +25,17 @@ afterEach(() => {
 });
 
 describe('subscribeStockSummary', () => {
+  it('decodes valid rows and omits malformed siblings', () => {
+    expect(decodeStockSummaryResponse({
+      summary: {
+        v1: { available: 1, best_price: 100 },
+        v2: { available: -1, best_price: null },
+        bad: { available: 1, best_price: 20 },
+      },
+    })).toEqual({ v1: { available: 1, best_price: 100 } });
+    expect(decodeStockSummaryResponse({ summary: null })).toBeNull();
+  });
+
   it('coalesces multiple subscriptions in the same tick into one fetch', async () => {
     const fetchMock = setupFetchMock({ v1: { available: 1, best_price: 100 } });
     (globalThis as { fetch: unknown }).fetch = fetchMock;
