@@ -13,6 +13,7 @@ import {
   CARD_DENSITY_MAX,
   CARD_DENSITY_MIN,
   DisplaySettingsProvider,
+  sanitizeDisplaySettings,
   type DisplaySettings,
 } from '@/lib/settings/client';
 import { CardDensityVarSetter } from '@/components/CardDensityVarSetter';
@@ -62,8 +63,7 @@ async function readInitialDisplaySettings(): Promise<Partial<DisplaySettings> | 
   const raw = store.get('vn_display_settings_v1')?.value;
   if (!raw) return undefined;
   try {
-    const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<DisplaySettings>;
-    if (parsed && typeof parsed === 'object') return parsed;
+    return sanitizeDisplaySettings(JSON.parse(decodeURIComponent(raw)));
   } catch {
     // ignore — malformed cookie
   }

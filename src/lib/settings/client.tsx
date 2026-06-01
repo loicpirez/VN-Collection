@@ -1,6 +1,11 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { PageSpaceOverrides, PageSpacePreset } from '@/lib/page-space';
+import {
+  PAGE_SPACE_SCOPES,
+  isPageSpacePreset,
+  type PageSpaceOverrides,
+  type PageSpacePreset,
+} from '@/lib/page-space';
 
 const COOKIE_NAME = 'vn_display_settings_v1';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
@@ -161,6 +166,70 @@ export function clampCardDensity(px: number): number {
   return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(px)));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sanitizeDensityScopes(value: unknown): DensityScopes {
+  if (!isRecord(value)) return {};
+  const density: DensityScopes = {};
+  for (const scope of DENSITY_SCOPES) {
+    const raw = value[scope];
+    if (typeof raw === 'number' && Number.isFinite(raw)) density[scope] = clampCardDensity(raw);
+  }
+  return density;
+}
+
+function sanitizePageSpaceOverrides(value: unknown): PageSpaceOverrides {
+  if (!isRecord(value)) return {};
+  const pageSpace: PageSpaceOverrides = {};
+  for (const scope of PAGE_SPACE_SCOPES) {
+    const raw = value[scope];
+    if (typeof raw === 'string' && isPageSpacePreset(raw)) pageSpace[scope] = raw;
+  }
+  return pageSpace;
+}
+
+/**
+ * Validate browser-persisted display settings before they influence SSR or
+ * client rendering. Unknown fields and invalid values are discarded so the
+ * provider's defaults remain authoritative.
+ *
+ * @param input Decoded cookie or local-storage payload.
+ * @returns A partial settings object containing only supported values.
+ */
+export function sanitizeDisplaySettings(input: unknown): Partial<DisplaySettings> {
+  if (!isRecord(input)) return {};
+  const sanitized: Partial<DisplaySettings> = {};
+  for (const key of [
+    'hideImages',
+    'blurR18',
+    'preferLocalImages',
+    'preferNativeTitle',
+    'hideSexual',
+    'denseLibrary',
+    'headerFollowsPageSpace',
+    'showSexualTraits',
+  ] as const) {
+    if (typeof input[key] === 'boolean') sanitized[key] = input[key];
+  }
+  if (typeof input.nsfwThreshold === 'number' && Number.isFinite(input.nsfwThreshold)) {
+    sanitized.nsfwThreshold = Math.max(0, Math.min(2, input.nsfwThreshold));
+  }
+  if (typeof input.cardDensityPx === 'number' && Number.isFinite(input.cardDensityPx)) {
+    sanitized.cardDensityPx = clampCardDensity(input.cardDensityPx);
+  }
+  sanitized.density = sanitizeDensityScopes(input.density);
+  sanitized.pageSpace = sanitizePageSpaceOverrides(input.pageSpace);
+  if (input.spoilerLevel === 0 || input.spoilerLevel === 1 || input.spoilerLevel === 2) {
+    sanitized.spoilerLevel = input.spoilerLevel;
+  }
+  if (input.globalPageSpace === null || (typeof input.globalPageSpace === 'string' && isPageSpacePreset(input.globalPageSpace))) {
+    sanitized.globalPageSpace = input.globalPageSpace;
+  }
+  return sanitized;
+}
+
 /**
  * Pure helper: does a settings object carry an explicit per-scope
  * override for the given scope? Exported so the Settings panel can
@@ -270,20 +339,21 @@ export function migrateLegacyCardDensity(
   parsed: Partial<DisplaySettings>,
   alreadyMigrated: boolean,
 ): { settings: DisplaySettings; migrated: boolean } {
+  const safe = sanitizeDisplaySettings(parsed);
   const merged: DisplaySettings = {
     ...DEFAULTS,
-    ...parsed,
-    density: { ...(parsed.density ?? {}) },
-    pageSpace: { ...(parsed.pageSpace ?? {}) },
+    ...safe,
+    density: { ...(safe.density ?? {}) },
+    pageSpace: { ...(safe.pageSpace ?? {}) },
   };
   if (
     !alreadyMigrated &&
     merged.density.library == null &&
-    typeof parsed.cardDensityPx === 'number' &&
-    Number.isFinite(parsed.cardDensityPx) &&
-    clampCardDensity(parsed.cardDensityPx) !== CARD_DENSITY_DEFAULT
+    typeof safe.cardDensityPx === 'number' &&
+    Number.isFinite(safe.cardDensityPx) &&
+    clampCardDensity(safe.cardDensityPx) !== CARD_DENSITY_DEFAULT
   ) {
-    merged.density.library = clampCardDensity(parsed.cardDensityPx);
+    merged.density.library = clampCardDensity(safe.cardDensityPx);
     return { settings: merged, migrated: true };
   }
   return { settings: merged, migrated: false };
@@ -306,11 +376,12 @@ export function DisplaySettingsProvider({
     // Seed from the server-supplied initial without running the legacy
     // migration here — the migration must consult localStorage to know
     // whether it has run before, which we can't do during SSR.
+    const safeInitial = sanitizeDisplaySettings(initial);
     const merged: DisplaySettings = {
       ...DEFAULTS,
-      ...(initial ?? {}),
-      density: { ...(initial?.density ?? {}) },
-      pageSpace: { ...(initial?.pageSpace ?? {}) },
+      ...safeInitial,
+      density: { ...(safeInitial.density ?? {}) },
+      pageSpace: { ...(safeInitial.pageSpace ?? {}) },
     };
     return merged;
   });
@@ -319,7 +390,7 @@ export function DisplaySettingsProvider({
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Partial<DisplaySettings>) : {};
+      const parsed = raw ? sanitizeDisplaySettings(JSON.parse(raw)) : {};
       const alreadyMigrated = localStorage.getItem(LEGACY_LIBRARY_MIGRATED_KEY) === '1';
       const { settings: next, migrated } = migrateLegacyCardDensity(parsed, alreadyMigrated);
       setSettings(next);
