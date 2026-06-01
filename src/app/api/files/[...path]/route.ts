@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { readStored } from '@/lib/files';
+import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,7 +13,9 @@ function safeAttachmentFilename(raw: string | undefined): string {
   return cleaned || 'asset.svg';
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
+export async function GET(req: Request, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
+  const denied = requireLocalhostOrToken(req);
+  if (denied) return denied;
   const { path } = await ctx.params;
   const rel = path.join('/');
   if (path.some((seg) => seg === '..' || seg === '.')) {
@@ -27,7 +30,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ path: string[]
   const isSvg = file.contentType.includes('svg') || rel.toLowerCase().endsWith('.svg');
   const headers: Record<string, string> = {
     'Content-Type': isSvg ? 'application/octet-stream' : file.contentType,
-    'Cache-Control': 'public, max-age=86400, immutable',
+    'Cache-Control': 'private, max-age=86400, immutable',
     // SVG path keeps `style-src 'unsafe-inline'` because in-SVG <style>
     // is sometimes the only way to render. For all other (raster) image
     // responses, neither scripts nor styles can ever execute, so we
