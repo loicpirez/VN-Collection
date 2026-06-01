@@ -971,7 +971,7 @@ export function parseHgame1Detail(html: string, url: string, target: StockTarget
   const condition = firstMatchText(html, /<th>\s*商品状態\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
   const availability: VnStockAvailability =
     stockCode === '1' ? 'out_of_stock' : stockCode === '2' ? 'limited' : stockCode === '3' ? 'in_stock' : availabilityFromText(html);
-  const label = stockCode === '1' ? 'Sold out' : stockCode === '2' ? '1' : stockCode === '3' ? 'Several' : null;
+  const label = stockCode === '1' ? '在庫なし' : stockCode === '2' ? '残り1点' : stockCode === '3' ? '在庫あり' : null;
   return {
     provider_offer_id: target.jan ?? new URL(url).pathname,
     title,

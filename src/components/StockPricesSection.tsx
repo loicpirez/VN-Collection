@@ -47,9 +47,17 @@ export function StockPricesSection({ vnId }: { vnId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, { cache: 'no-store' })
+    const controller = new AbortController();
+    setExtras(null);
+    setError(null);
+    setLoading(true);
+    fetch(`/api/vn/${encodeURIComponent(vnId)}/stock`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data: StockSnapshot | null) => {
+        if (controller.signal.aborted) return;
         if (!data) return;
         const row = (data.statuses ?? []).find((s) => s.provider === 'eroge_price');
         if (!row?.extras_json) return;
@@ -59,11 +67,14 @@ export function StockPricesSection({ vnId }: { vnId: string }) {
         } catch {}
       })
       .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
         setError((e as Error).message);
       })
       .finally(() => {
+        if (controller.signal.aborted) return;
         setLoading(false);
       });
+    return () => controller.abort();
   }, [vnId]);
 
   if (loading) return <StockPricesSkeleton />;

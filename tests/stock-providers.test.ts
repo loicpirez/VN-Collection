@@ -203,7 +203,20 @@ describe('stock provider parsers', () => {
       'https://www.hgame1.com/item/4900000000000.html',
       target,
     );
-    expect(offer).toMatchObject({ price: 2780, availability: 'limited', availability_label: '1' });
+    expect(offer).toMatchObject({ price: 2780, availability: 'limited', availability_label: '残り1点' });
+  });
+
+  it.each([
+    ['1', 'out_of_stock', '在庫なし'],
+    ['3', 'in_stock', '在庫あり'],
+  ])('maps Unoya stock code %s to a source-derived label', (stockCode, availability, availabilityLabel) => {
+    const offer = parseHgame1Detail(
+      `<h1>Sample Title</h1><input type="hidden" name="price" value="2780">
+       <th>数量</th><td>在庫の状況<SCRIPT> switch(parseInt("${stockCode}")){}</SCRIPT></td>`,
+      'https://www.hgame1.com/item/4900000000000.html',
+      target,
+    );
+    expect(offer).toMatchObject({ availability, availability_label: availabilityLabel });
   });
 
   it('parses Melonbooks price and inventory label', () => {
