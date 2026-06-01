@@ -23,4 +23,13 @@ describe('library filters and grid UX', () => {
   it('shows a skeleton instead of an empty-state flash when search opens with a query', () => {
     expect(source('src/components/SearchClient.tsx')).toContain('useState(!!initialQ || isAdvActive(initialAdv))');
   });
+
+  it('loads and caches advanced facets only when the filter drawer opens', () => {
+    const src = source('src/components/LibraryClient.tsx');
+    expect(src).toContain('const facetsFetchedRef = useRef(false)');
+    expect(src).toContain('const requestFacets = useCallback(() => {');
+    expect(src).toContain('if (facetsFetchedRef.current || facetsAbortRef.current) return');
+    expect(src).toContain('onOpen={requestFacets}');
+    expect(src).not.toContain('if (facetsFetchedRef.current) return;\n    facetsFetchedRef.current = true;');
+  });
 });

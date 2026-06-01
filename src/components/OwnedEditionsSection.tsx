@@ -180,7 +180,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     fetch('/api/places', { cache: 'no-store', signal: ctrl.signal })
       .then((r) => r.json())
       .then((d) => {
-        if (!ctrl.signal.aborted) setKnownPlaces(d.places ?? []);
+        if (!ctrl.signal.aborted) setKnownPlaces(d.known_places ?? []);
       })
       .catch((e) => {
         if ((e as Error).name !== 'AbortError') {
@@ -912,6 +912,8 @@ function fmtRes(r: VndbRelease['resolution']): string | null {
   return `${r[0]}×${r[1]}`;
 }
 
+const EDITION_PICKER_PAGE_SIZE = 40;
+
 /**
  * "Add edition" picker. Lists every release of the VN that the user
  * doesn't already own, with enough info per row to choose correctly:
@@ -952,6 +954,7 @@ function EditionPicker({
   const [filterOfficial, setFilterOfficial] = useState<'all' | 'official' | 'patch'>('all');
   const [filterEro, setFilterEro] = useState<'all' | 'ero' | 'noero'>('all');
   const [filterMtl, setFilterMtl] = useState<'all' | 'mtl' | 'nomtl'>('all');
+  const [page, setPage] = useState(1);
 
   // Build the language/platform option sets from the actual data so
   // every chip is meaningful (no dead options like "Klingon").
@@ -992,6 +995,16 @@ function EditionPicker({
     });
   }, [unownedReleases, search, filterLang, filterPlatform, filterOfficial, filterEro, filterMtl]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterLang, filterPlatform, filterOfficial, filterEro, filterMtl]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / EDITION_PICKER_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * EDITION_PICKER_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + EDITION_PICKER_PAGE_SIZE, filtered.length);
+  const visibleReleases = filtered.slice(pageStart, pageEnd);
+
   function resetFilters() {
     setSearch('');
     setFilterLang('');
@@ -1019,7 +1032,7 @@ function EditionPicker({
           <input
             type="search"
             inputMode="search"
-            className="input w-full text-xs"
+            className="input min-h-[44px] w-full text-xs"
             placeholder={t.inventory.pickerSearchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1082,7 +1095,7 @@ function EditionPicker({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:text-white"
+                className="min-h-[44px] rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
               >
                 {t.inventory.pickerFilterReset}
               </button>
@@ -1093,6 +1106,21 @@ function EditionPicker({
                 .replace('{total}', String(unownedReleases.length))}
             </span>
           </div>
+        </div>
+      )}
+      {filtered.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted" role="status" aria-live="polite">
+          <span>
+            {t.inventory.pickerRange
+              .replace('{start}', String(pageStart + 1))
+              .replace('{end}', String(pageEnd))
+              .replace('{total}', String(filtered.length))}
+          </span>
+          <span>
+            {t.inventory.pickerPage
+              .replace('{current}', String(currentPage))
+              .replace('{total}', String(totalPages))}
+          </span>
         </div>
       )}
       <div className="grid max-h-[60vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
@@ -1126,12 +1154,7 @@ function EditionPicker({
             {t.inventory.pickerNoResults}
           </p>
         )}
-        {filtered.length > 100 && (
-          <p className="col-span-full px-1 py-0.5 text-[10px] text-muted">
-            {t.inventory.pickerCapNotice}
-          </p>
-        )}
-        {filtered.slice(0, 100).map((r) => {
+        {visibleReleases.map((r) => {
           const cover = r.images.find((img) => img.type === 'pkgfront') ?? r.images[0] ?? null;
           const coverSrc = cover?.url ?? parentVnCover?.url ?? null;
           const coverLocal = cover?.url ? null : parentVnCover?.localPath ?? null;
@@ -1214,6 +1237,31 @@ function EditionPicker({
           );
         })}
       </div>
+      {totalPages > 1 && (
+        <nav className="mt-3 flex items-center justify-between gap-2" aria-label={t.inventory.pickerPaginationLabel}>
+          <button
+            type="button"
+            className="btn min-h-[44px] text-xs"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            {t.inventory.pickerPrevious}
+          </button>
+          <span className="text-[10px] text-muted">
+            {t.inventory.pickerPage
+              .replace('{current}', String(currentPage))
+              .replace('{total}', String(totalPages))}
+          </span>
+          <button
+            type="button"
+            className="btn min-h-[44px] text-xs"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            {t.inventory.pickerNext}
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

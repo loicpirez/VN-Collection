@@ -335,68 +335,46 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }
 
   const facetsFetchedRef = useRef(false);
-  useEffect(() => {
-    if (facetsFetchedRef.current) return;
-    facetsFetchedRef.current = true;
+  const facetsAbortRef = useRef<AbortController | null>(null);
+  const requestFacets = useCallback(() => {
+    if (facetsFetchedRef.current || facetsAbortRef.current) return;
     const ctrl = new AbortController();
+    facetsAbortRef.current = ctrl;
     const opts: RequestInit = { signal: ctrl.signal, cache: 'no-store' };
-    fetch('/api/producers', opts)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
-        return r.json();
-      })
-      .then((d) => {
+    const readFacet = async <T,>(url: string): Promise<T> => {
+      const response = await fetch(url, opts);
+      if (!response.ok) {
+        throw new Error(t.common.httpStatus.replace('{status}', String(response.status)));
+      }
+      return response.json() as Promise<T>;
+    };
+    void Promise.all([
+      readFacet<{ producers?: ProducerStat[]; publishers?: ProducerStat[] }>('/api/producers'),
+      readFacet<{ series?: SeriesRow[] }>('/api/series'),
+      readFacet<{ known_places?: string[] }>('/api/places'),
+      readFacet<{ tags?: { id: string; name: string; vn_count: number }[] }>('/api/collection/tags'),
+    ])
+      .then(([producerData, seriesData, placeData, tagData]) => {
         if (ctrl.signal.aborted) return;
-        setProducers(d.producers ?? []);
-        setPublishers(d.publishers ?? []);
+        setProducers(producerData.producers ?? []);
+        setPublishers(producerData.publishers ?? []);
+        setSeries(seriesData.series ?? []);
+        setKnownPlaces(placeData.known_places ?? []);
+        setCollectionTags((tagData.tags ?? []).slice(0, 200));
+        facetsFetchedRef.current = true;
       })
-      .catch((e: Error) => {
-        if (ctrl.signal.aborted || e.name === 'AbortError') return;
-        // Surface a toast so a silent dropdown failure doesn't
-        // masquerade as an empty filter set.
-        toast.error(`${t.common.error}: ${e.message}`);
+      .catch((error: Error) => {
+        if (ctrl.signal.aborted || error.name === 'AbortError') return;
+        toast.error(`${t.common.error}: ${error.message}`);
+      })
+      .finally(() => {
+        if (facetsAbortRef.current === ctrl) facetsAbortRef.current = null;
       });
-    fetch('/api/series', opts)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
-        return r.json();
-      })
-      .then((d) => {
-        if (ctrl.signal.aborted) return;
-        setSeries(d.series ?? []);
-      })
-      .catch((e: Error) => {
-        if (ctrl.signal.aborted || e.name === 'AbortError') return;
-        toast.error(`${t.common.error}: ${e.message}`);
-      });
-    fetch('/api/places', opts)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
-        return r.json();
-      })
-      .then((d: { places: string[] }) => {
-        if (ctrl.signal.aborted) return;
-        setKnownPlaces(d.places ?? []);
-      })
-      .catch((e: Error) => {
-        if (ctrl.signal.aborted || e.name === 'AbortError') return;
-        toast.error(`${t.common.error}: ${e.message}`);
-      });
-    fetch('/api/collection/tags', opts)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(t.common.httpStatus.replace('{status}', String(r.status)));
-        return r.json();
-      })
-      .then((d: { tags: { id: string; name: string; vn_count: number }[] }) => {
-        if (ctrl.signal.aborted) return;
-        setCollectionTags((d.tags ?? []).slice(0, 200));
-      })
-      .catch((e: Error) => {
-        if (ctrl.signal.aborted || e.name === 'AbortError') return;
-        toast.error(`${t.common.error}: ${e.message}`);
-      });
-    return () => ctrl.abort();
   }, [toast, t.common.error, t.common.httpStatus]);
+
+  useEffect(() => {
+    return () => facetsAbortRef.current?.abort();
+  }, []);
 
   // Resolve tag name when filtered by tag
   useEffect(() => {
@@ -620,7 +598,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         if (!ternaryMatches(urlMatchVndb, !it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchEgs, !!it.egs?.egs_id)) return false;
         if (!ternaryMatches(urlFanDisc, (it.relations ?? []).some((r) => r.relation === 'orig'))) return false;
-        if (!ternaryMatches(urlHasNotes, !!(it.notes && it.notes.trim().length > 0))) return false;
+        if (!ternaryMatches(urlHasNotes, it.has_notes ?? !!(it.notes && it.notes.trim().length > 0))) return false;
         if (!ternaryMatches(urlHasCustomCover, !!it.custom_cover)) return false;
         if (!ternaryMatches(urlHasBanner, !!it.banner_image)) return false;
         if (!ternaryMatches(urlIsFavorite, !!it.favorite)) return false;
@@ -864,6 +842,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         />
         <AdvancedFiltersDrawer
           activeCount={advancedFilterCount}
+          onOpen={requestFacets}
           t={t}
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1796,10 +1775,12 @@ function latestReleased(items: CollectionItem[]): string {
  */
 function AdvancedFiltersDrawer({
   activeCount,
+  onOpen,
   t,
   children,
 }: {
   activeCount: number;
+  onOpen: () => void;
   t: ReturnType<typeof useT>;
   children: React.ReactNode;
 }) {
@@ -1810,15 +1791,22 @@ function AdvancedFiltersDrawer({
   // `vn:open-advanced-filters` so its empty state remains
   // actionable instead of looking like a no-op click.
   useEffect(() => {
-    function handle() { setOpen(true); }
+    function handle() {
+      setOpen(true);
+      onOpen();
+    }
     window.addEventListener('vn:open-advanced-filters', handle);
     return () => window.removeEventListener('vn:open-advanced-filters', handle);
-  }, []);
+  }, [onOpen]);
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => {
+          const next = !value;
+          if (next) onOpen();
+          return next;
+        })}
         aria-expanded={open}
         aria-controls={drawerId}
         data-shortcut="lib-filter"

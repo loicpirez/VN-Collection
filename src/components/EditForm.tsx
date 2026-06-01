@@ -52,7 +52,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       .then((r) => r.json())
       .then((d) => {
         if (ctrl.signal.aborted) return;
-        setKnownPlaces(d.places ?? []);
+        setKnownPlaces(d.known_places ?? []);
       })
       .catch((e: unknown) => {
         if ((e as Error).name === 'AbortError') return;
