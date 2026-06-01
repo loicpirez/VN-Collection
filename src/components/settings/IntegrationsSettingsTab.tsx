@@ -17,7 +17,7 @@ interface ProxySettingsSectionProps {
   providerKey: string;
   /**
    * Provider id passed to `POST /api/proxy/test`. For fixed providers
-   * (egs, vndb, vndbmirror, alicesoft_kobe, stock) this is the
+   * (egs, vndb, vndbmirror, alicenet, stock) this is the
    * canonical id from `ProviderId`. For per-shop overrides this is the
    * shop's `StockProviderId` (sofmap, surugaya, amiami, …).
    */
@@ -503,11 +503,11 @@ export function IntegrationsSettingsTab({
       />
       <ProxySettingsSection
         t={t}
-        providerKey="alicesoft_kobe_proxy_config"
-        providerId="alicesoft_kobe"
-        label={t.settings.proxyProviderAliceKobe}
-        config={server?.alicesoft_kobe_proxy_config}
-        onSave={(patch) => saveServer({ alicesoft_kobe_proxy_config: patch })}
+        providerKey="alicenet_proxy_config"
+        providerId="alicenet"
+        label={t.settings.proxyProviderAliceNet}
+        config={server?.alicenet_proxy_config}
+        onSave={(patch) => saveServer({ alicenet_proxy_config: patch })}
       />
       <ProxySettingsSection
         t={t}

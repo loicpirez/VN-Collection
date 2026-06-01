@@ -28,7 +28,7 @@ export const DENSITY_SCOPES = [
   'upcoming',
   'dumped',
   'egs',
-  'alicesoftKobe',
+  'aliceNet',
   'places',
   'staffWorks',
   'producerWorks',

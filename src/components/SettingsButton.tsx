@@ -104,7 +104,7 @@ export type ServerSettingsPatch = Partial<{
     vndb_proxy_config: Record<string, unknown>;
     vndbmirror_proxy_config: Record<string, unknown>;
     egs_proxy_config: Record<string, unknown>;
-    alicesoft_kobe_proxy_config: Record<string, unknown>;
+    alicenet_proxy_config: Record<string, unknown>;
     stock_proxy_config: Record<string, unknown>;
     stock_disabled_providers: string[] | null;
     stock_retry_without_proxy: boolean;

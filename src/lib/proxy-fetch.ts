@@ -27,7 +27,7 @@ export function runStockFetchDirect<T>(fn: () => Promise<T>): Promise<T> {
  * `fetch`), so a gzip / brotli / zstd / deflate response arrives as
  * compressed bytes. Returns the decoded bytes so the caller can apply the
  * correct charset itself (Shift_JIS, EUC-JP, …). Never force UTF-8 here —
- * that corrupts every non-UTF-8 shop page (Sofmap, GEO, Suruga-ya, Kobe).
+ * that corrupts every non-UTF-8 shop page (Sofmap, GEO, Suruga-ya, AliceNet).
  */
 function decodeProxyBody(raw: Buffer, contentEncoding: string): ArrayBuffer {
   const enc = contentEncoding.toLowerCase().trim();

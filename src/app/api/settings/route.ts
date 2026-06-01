@@ -59,7 +59,7 @@ const SENSITIVE_LOG_KEYS = new Set<string>([
   'vndb_proxy_config',
   'vndbmirror_proxy_config',
   'egs_proxy_config',
-  'alicesoft_kobe_proxy_config',
+  'alicenet_proxy_config',
   'stock_proxy_config',
   ...STOCK_PROVIDER_PROXY_KEYS,
 ]);
@@ -100,7 +100,7 @@ const SAFE_KEYS = new Set<string>([
   'vndb_proxy_config',
   'vndbmirror_proxy_config',
   'egs_proxy_config',
-  'alicesoft_kobe_proxy_config',
+  'alicenet_proxy_config',
   'stock_proxy_config',
   // Per-shop overrides — accepts `<provider>_proxy_config` for every
   // id in STOCK_PROVIDER_IDS. The PATCH handler validates the payload
@@ -228,7 +228,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       vndb_proxy_config: getProxyConfigForDisplay('vndb'),
       vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
       egs_proxy_config: getProxyConfigForDisplay('egs'),
-      alicesoft_kobe_proxy_config: getProxyConfigForDisplay('alicesoft_kobe'),
+      alicenet_proxy_config: getProxyConfigForDisplay('alicenet'),
       stock_proxy_config: getProxyConfigForDisplay('stock'),
       // Per-shop overrides — one display row per stock provider id.
       // Spreading the object keeps the GET response shape flat so
@@ -546,7 +546,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     ['vndb_proxy_config', 'vndb'],
     ['vndbmirror_proxy_config', 'vndbmirror'],
     ['egs_proxy_config', 'egs'],
-    ['alicesoft_kobe_proxy_config', 'alicesoft_kobe'],
+    ['alicenet_proxy_config', 'alicenet'],
     ['stock_proxy_config', 'stock'],
   ] as [string, ProviderId][]) {
     if (!(key in body)) continue;

@@ -14,7 +14,7 @@ export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
  * fixed `ProviderId` enum below stays minimal so the type system can model
  * the four core providers; the per-shop layer is by-string lookup.
  */
-export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicesoft_kobe' | 'stock';
+export type ProviderId = 'vndb' | 'vndbmirror' | 'egs' | 'alicenet' | 'stock';
 
 /** Per-shop provider id (free-form, matches `StockProviderId` in stock.ts). */
 export type StockProxyProviderId = string;
@@ -43,7 +43,7 @@ const ENV_PREFIX: Record<ProviderId, string> = {
   vndb: 'VNDB',
   vndbmirror: 'VNDBMIRROR',
   egs: 'EGS',
-  alicesoft_kobe: 'ALICE_KOBE',
+  alicenet: 'ALICENET',
   stock: 'STOCK',
 };
 
@@ -51,7 +51,7 @@ export const PROXY_DB_KEY: Record<ProviderId, string> = {
   vndb: 'vndb_proxy_config',
   vndbmirror: 'vndbmirror_proxy_config',
   egs: 'egs_proxy_config',
-  alicesoft_kobe: 'alicesoft_kobe_proxy_config',
+  alicenet: 'alicenet_proxy_config',
   stock: 'stock_proxy_config',
 };
 

@@ -73,7 +73,7 @@ interface FixedServerSettings {
   vndb_proxy_config: ProxyDisplayConfig;
   vndbmirror_proxy_config: ProxyDisplayConfig;
   egs_proxy_config: ProxyDisplayConfig;
-  alicesoft_kobe_proxy_config: ProxyDisplayConfig;
+  alicenet_proxy_config: ProxyDisplayConfig;
   stock_proxy_config: ProxyDisplayConfig;
   stock_disabled_providers: StockProviderId[];
   stock_retry_without_proxy: boolean;
@@ -155,7 +155,7 @@ export function decodeServerSettingsResponse(value: unknown): ServerSettings | n
   const vndbProxy = decodeProxyConfig(row?.vndb_proxy_config);
   const mirrorProxy = decodeProxyConfig(row?.vndbmirror_proxy_config);
   const egsProxy = decodeProxyConfig(row?.egs_proxy_config);
-  const kobeProxy = decodeProxyConfig(row?.alicesoft_kobe_proxy_config);
+  const alicenetProxy = decodeProxyConfig(row?.alicenet_proxy_config);
   const stockProxy = decodeProxyConfig(row?.stock_proxy_config);
   const disabledProviders = decodeDisabledProviders(row?.stock_disabled_providers);
   if (
@@ -185,7 +185,7 @@ export function decodeServerSettingsResponse(value: unknown): ServerSettings | n
     !vndbProxy ||
     !mirrorProxy ||
     !egsProxy ||
-    !kobeProxy ||
+    !alicenetProxy ||
     !stockProxy ||
     !disabledProviders ||
     typeof row.stock_retry_without_proxy !== 'boolean'
@@ -232,7 +232,7 @@ export function decodeServerSettingsResponse(value: unknown): ServerSettings | n
     vndb_proxy_config: vndbProxy,
     vndbmirror_proxy_config: mirrorProxy,
     egs_proxy_config: egsProxy,
-    alicesoft_kobe_proxy_config: kobeProxy,
+    alicenet_proxy_config: alicenetProxy,
     stock_proxy_config: stockProxy,
     stock_disabled_providers: disabledProviders,
     stock_retry_without_proxy: row.stock_retry_without_proxy,

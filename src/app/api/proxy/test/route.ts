@@ -18,7 +18,7 @@ const PROVIDER_TEST_URLS: Record<ProviderId, string> = {
   vndb: 'https://api.vndb.org/kana/schema',
   vndbmirror: 'https://api.yorhel.org/kana/schema',
   egs: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/sql_for_erogamer_form.php',
-  alicesoft_kobe: 'https://www.alice-kobe.com/html/page4.html',
+  alicenet: 'https://www.alice-kobe.com/html/page4.html',
   // Suruga-ya search page — a typical shop fetch that should succeed when
   // the stock proxy is healthy.
   stock: 'https://www.suruga-ya.jp/search?category=&search_word=test',
@@ -56,7 +56,7 @@ const STOCK_SHOP_TEST_URLS: Record<StockProviderId, string> = {
   bikkuri_takarajima: 'https://beak-takarajima.celosia.co.jp/',
 };
 
-const FIXED_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicesoft_kobe', 'stock']);
+const FIXED_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicenet', 'stock']);
 const STOCK_PROVIDERS = new Set<string>(STOCK_PROVIDER_IDS);
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
