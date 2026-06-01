@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, Loader2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -31,13 +31,33 @@ export function FavoriteToggleButton({
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setOn(initial);
+    setBusy(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId, initial]);
 
   async function toggle(e: React.MouseEvent | React.KeyboardEvent) {
     if (stopPropagation) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (busy) return;
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    const ownerVnId = vnId;
     const next = !on;
     setOn(next);
     setBusy(true);
@@ -47,22 +67,31 @@ export function FavoriteToggleButton({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'planning' }),
+          signal: controller.signal,
         });
         if (!r0.ok) throw new Error(await readApiError(r0, t.common.error));
+        if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       }
       const r = await fetch(`/api/collection/${vnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ favorite: next }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(next ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
       startTransition(() => router.refresh());
     } catch (err) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || (err instanceof Error && err.name === 'AbortError')) return;
       setOn(!next);
       toast.error((err as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 

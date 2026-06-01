@@ -1,11 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ListOrdered, Loader2, Plus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
+import { decodeReadingQueueResponse } from '@/lib/tracking-client-shape';
 /**
  * Toggle button: adds / removes the VN from the user's reading queue.
  * Lives next to the download buttons on /vn/[id].
@@ -20,40 +21,76 @@ export function QueueButton({ vnId }: { vnId: string }) {
   const router = useRouter();
   const [queued, setQueued] = useState(false);
   const [busy, setBusy] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   useEffect(() => {
+    const ownerVnId = vnId;
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setQueued(false);
+    setBusy(false);
     const ac = new AbortController();
     fetch('/api/reading-queue', { cache: 'no-store', signal: ac.signal })
-      .then((r) => r.json())
-      .then((d: { entries: { vn_id: string }[] }) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const data = decodeReadingQueueResponse(await r.json());
+        if (!data) throw new Error(t.common.error);
+        return data;
+      })
+      .then((d) => {
+        if (ac.signal.aborted || identityRef.current !== ownerVnId) return;
         setQueued(d.entries.some((e) => e.vn_id === vnId));
       })
       .catch(() => undefined);
-    return () => ac.abort();
-  }, [vnId]);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      ac.abort();
+    };
+  }, [vnId, t.common.error]);
 
   async function toggle() {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    const ownerVnId = vnId;
     setBusy(true);
     try {
       if (queued) {
-        const r = await fetch(`/api/reading-queue?vn_id=${vnId}`, { method: 'DELETE' });
-        if (!r.ok) throw new Error(t.common.error);
+        const r = await fetch(`/api/reading-queue?vn_id=${vnId}`, { method: 'DELETE', signal: controller.signal });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         setQueued(false);
       } else {
         const r = await fetch('/api/reading-queue', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vn_id: vnId }),
+          signal: controller.signal,
         });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         setQueued(true);
       }
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       router.refresh();
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -69,7 +106,7 @@ export function QueueButton({ vnId }: { vnId: string }) {
       }`}
       title={queued ? t.readingQueue.removeCta : t.readingQueue.addCta}
     >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : queued ? <ListOrdered className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : queued ? <ListOrdered className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
       {queued ? t.readingQueue.removeCta : t.readingQueue.addCta}
     </button>
   );

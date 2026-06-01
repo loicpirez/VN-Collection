@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Loader2, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -28,6 +28,23 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setDismissed(false);
+    setBusy(false);
+    return () => {
+      identityRef.current = null;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId]);
 
   const shouldShow = status === 'playing'
     && (playtimeMinutes ?? 0) > 0
@@ -37,20 +54,32 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
   if (!shouldShow) return null;
 
   async function markComplete() {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    const ownerVnId = vnId;
     setBusy(true);
     try {
       const r = await fetch(`/api/collection/${vnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed', finished_date: isoCalendarDay(new Date(), locale) }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -64,7 +93,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
           type="button"
           onClick={markComplete}
           disabled={busy}
-          className="rounded-md bg-accent px-2 py-1 font-bold text-bg disabled:opacity-50"
+          className="min-h-[44px] rounded-md bg-accent px-2 py-1 font-bold text-bg disabled:opacity-50 sm:min-h-0"
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.smartStatus.markCompleted}
         </button>

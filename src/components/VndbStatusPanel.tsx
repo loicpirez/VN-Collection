@@ -13,27 +13,8 @@ import { EGS_CHANGED_EVENT, type EgsChangedDetail } from './EgsPanel';
 import { fmtNum } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
-interface Label {
-  id: number;
-  label: string;
-  private: boolean;
-  count?: number;
-}
-
-interface Entry {
-  id: string;
-  vote: number | null;
-  started: string | null;
-  finished: string | null;
-  notes: string | null;
-  labels: { id: number; label: string }[];
-}
-
-interface State {
-  entry: Entry | null;
-  labels: Label[];
-  needsAuth: boolean;
-}
+import { decodeVndbStatusClientState, type VndbStatusClientState } from '@/lib/vndb-ui-client-shape';
+import type { VndbUlistEntryDetail } from '@/lib/vndb';
 
 /**
  * Shows the user's VNDB ulist labels for this VN (Wishlist / Playing /
@@ -48,33 +29,95 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const { confirm } = useConfirm();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [state, setState] = useState<State | null>(null);
+  const [state, setState] = useState<VndbStatusClientState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingLabel, setPendingLabel] = useState<number | null>(null);
   const [pendingClear, setPendingClear] = useState(false);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  function ownsPanel(ownerVnId: string): boolean {
+    return mountedRef.current && identityRef.current === ownerVnId;
+  }
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(ownerVnId: string, controller: AbortController): boolean {
+    return ownsPanel(ownerVnId) && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(ownerVnId: string, controller: AbortController) {
+    if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    if (mountedRef.current) {
+      setPendingLabel(null);
+      setPendingClear(false);
+    }
+  }
+
+  const load = useCallback(async (showLoading = false): Promise<boolean> => {
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    if (showLoading) setLoading(true);
     try {
-      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal });
+      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = (await r.json()) as State & { needsAuth?: boolean };
-      if (signal?.aborted) return;
-      setState({ entry: d.entry, labels: d.labels ?? [], needsAuth: !!d.needsAuth });
+      const d = decodeVndbStatusClientState(await r.json());
+      if (!d) throw new Error(t.common.error);
+      if (controller.signal.aborted || loadAbortRef.current !== controller) return false;
+      setState(d);
       setError(null);
+      return true;
     } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || loadAbortRef.current !== controller) {
+        return false;
+      }
       setError((e as Error).message || t.common.error);
+      return false;
+    } finally {
+      if (loadAbortRef.current === controller) {
+        loadAbortRef.current = null;
+        if (showLoading) setLoading(false);
+      }
     }
   }, [vnId, t.common.error]);
 
   useEffect(() => {
-    const ctrl = new AbortController();
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    setState(null);
+    setError(null);
     setLoading(true);
-    load(ctrl.signal).finally(() => {
-      if (!ctrl.signal.aborted) setLoading(false);
-    });
-    return () => ctrl.abort();
+    setPendingLabel(null);
+    setPendingClear(false);
+    return () => {
+      mountedRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId]);
+
+  useEffect(() => {
+    void load(true);
+    return () => {
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -88,8 +131,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }, [load, vnId]);
 
   const reload = useCallback(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
+    void load(true);
   }, [load]);
 
   if (loading) {
@@ -126,12 +168,16 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }
 
   const currentLabelIds = new Set((state.entry?.labels ?? []).map((l) => l.id));
+  const mutationBusy = pendingLabel != null || pendingClear;
   // VNDB's `Voted` label (id 7) is automatic, hide it from manual toggles.
-  // Same with the user's custom-only labels (id >= 10) — keep them visible
+  // Same with the user's custom-only labels (id >= 10) - keep them visible
   // since they may matter to the user.
   const togglable = state.labels.filter((l) => l.id !== 7);
 
   async function toggle(labelId: number) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
     const has = currentLabelIds.has(labelId);
     setPendingLabel(labelId);
     try {
@@ -139,34 +185,47 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(has ? { labels_unset: [labelId] } : { labels_set: [labelId] }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.saved);
       await load();
+      if (!ownsMutation(ownerVnId, controller)) return;
       // Re-pull the server component so the rest of the VN page (status
       // badge, smart-status hint, activity timeline) reflects the new label.
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setPendingLabel(null);
+      finishMutation(ownerVnId, controller);
     }
   }
 
   async function clearAll() {
-    const ok = await confirm({ message: t.vndbStatus.removeConfirm, tone: 'danger' });
-    if (!ok) return;
+    const ownerVnId = vnId;
+    const controller = beginMutation();
+    if (!controller) return;
     setPendingClear(true);
     try {
-      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { method: 'DELETE' });
+      const ok = await confirm({ message: t.vndbStatus.removeConfirm, tone: 'danger' });
+      if (!ok || !ownsMutation(ownerVnId, controller)) return;
+      const r = await fetch(`/api/vn/${vnId}/vndb-status`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.removed);
       await load();
+      if (!ownsMutation(ownerVnId, controller)) return;
       startTransition(() => router.refresh());
     } catch (e) {
+      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      setPendingClear(false);
+      finishMutation(ownerVnId, controller);
     }
   }
 
@@ -178,15 +237,16 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
             href={`https://vndb.org/${vnId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
           >
-            <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="h-3 w-3" aria-hidden />
             VNDB
           </a>
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            disabled={mutationBusy}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             title={t.vndbStatus.refresh}
           >
             <RefreshCw className="h-3 w-3" aria-hidden />
@@ -196,11 +256,11 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
             <button
               type="button"
               onClick={clearAll}
-              disabled={pendingClear}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
+              disabled={mutationBusy}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
               title={t.vndbStatus.removeFromList}
             >
-              {pendingClear ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
+              {pendingClear ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
               {t.vndbStatus.removeFromList}
             </button>
           )}
@@ -213,7 +273,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         </p>
       )}
 
-      <UlistDetailsEditor vnId={vnId} entry={state.entry} onSaved={load} />
+      <UlistDetailsEditor vnId={vnId} entry={state.entry} disabled={mutationBusy} onSaved={async () => { await load(); }} />
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {togglable.map((l) => {
@@ -224,11 +284,11 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               key={l.id}
               type="button"
               onClick={() => toggle(l.id)}
-              disabled={pendingLabel === l.id}
+              disabled={mutationBusy}
               // aria-pressed mirrors the visual on/off state for SR
-              // users — the toggle's color/icon difference was the
+              // users - the toggle's color/icon difference was the
               aria-pressed={active}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 ${
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 sm:min-h-0 ${
                 active
                   ? 'border-accent bg-accent/15 text-accent font-bold'
                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -254,15 +314,17 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
  * list entry. Mirrors `PATCH /api/vn/[id]/vndb-status` accepting any
  * subset of those fields. Vote is stored on VNDB as a 10–100 integer
  * (1 decimal place); the UI lets the user type 0–10 with one decimal
- * to keep it intuitive. Empty string → null (clears the field).
+ * to keep it intuitive. Empty string -> null (clears the field).
  */
 function UlistDetailsEditor({
   vnId,
   entry,
+  disabled,
   onSaved,
 }: {
   vnId: string;
-  entry: Entry | null;
+  entry: VndbUlistEntryDetail | null;
+  disabled: boolean;
   onSaved: () => Promise<void>;
 }) {
   const t = useT();
@@ -279,6 +341,29 @@ function UlistDetailsEditor({
   // in-progress typing. Only sync from `entry` when the editor is
   // clean.
   const dirty = useRef(false);
+  const identityRef = useRef(vnId);
+  const mountedRef = useRef(true);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    identityRef.current = vnId;
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    dirty.current = false;
+    setVote(entry?.vote != null ? fmtNum(entry.vote / 10, locale, 1) : '');
+    setStarted(entry?.started ?? '');
+    setFinished(entry?.finished ?? '');
+    setNotes(entry?.notes ?? '');
+    setSaving(false);
+    return () => {
+      mountedRef.current = false;
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+    };
+  }, [vnId]);
 
   useEffect(() => {
     if (dirty.current) return;
@@ -294,7 +379,9 @@ function UlistDetailsEditor({
   };
 
   async function save() {
-    setSaving(true);
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    let controller: AbortController | null = null;
     try {
       const patch: Record<string, unknown> = {};
       const trimmed = vote.trim();
@@ -304,7 +391,6 @@ function UlistDetailsEditor({
         const n = Math.round(Number(trimmed) * 10);
         if (!Number.isFinite(n) || n < 10 || n > 100) {
           toast.error(t.vndbStatus.voteRange);
-          setSaving(false);
           return;
         }
         patch.vote = n;
@@ -312,25 +398,37 @@ function UlistDetailsEditor({
       patch.started = started.trim() || null;
       patch.finished = finished.trim() || null;
       patch.notes = notes.trim() || null;
+      mutationInFlightRef.current = true;
+      controller = new AbortController();
+      mutationAbortRef.current = controller;
+      setSaving(true);
       const r = await fetch(`/api/vn/${vnId}/vndb-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (controller.signal.aborted || !mountedRef.current || identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
       toast.success(t.toast.saved);
       dirty.current = false;
       await onSaved();
+      if (controller.signal.aborted || !mountedRef.current || identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
     } catch (e) {
+      if (!controller || (e as Error).name === 'AbortError' || controller.signal.aborted || !mountedRef.current || identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
       toast.error((e as Error).message);
     } finally {
-      setSaving(false);
+      if (controller && identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        if (mountedRef.current) setSaving(false);
+      }
     }
   }
 
   return (
     <details className="group mt-3 rounded-lg border border-border bg-bg-elev/20 p-3 text-xs">
-      <summary className="cursor-pointer list-none text-muted hover:text-white [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center text-muted hover:text-white sm:min-h-0 [&::-webkit-details-marker]:hidden">
         <CollapsibleSummary>{t.vndbStatus.detailsToggle}</CollapsibleSummary>
       </summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -344,8 +442,8 @@ function UlistDetailsEditor({
             step={0.1}
             value={vote}
             onChange={(e) => markDirty(setVote)(e.target.value)}
-            placeholder="—"
-            className="rounded border border-border bg-bg px-2 py-1"
+            placeholder="-"
+            className="min-h-[44px] rounded border border-border bg-bg px-2 py-1 sm:min-h-0"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -353,7 +451,7 @@ function UlistDetailsEditor({
           {/*
             DateInput formats per the app's `useLocale()` (fr-FR / en-US / ja-JP)
             instead of inheriting the OS / browser locale that a raw
-            <input type="date"> uses — so a French-speaking user on a Japanese
+            <input type="date"> uses - so a French-speaking user on a Japanese
             OS no longer sees kanji-formatted dates in their VNDB list editor.
             Value stays as ISO YYYY-MM-DD on the wire, which is what the VNDB
             PATCH /ulist endpoint expects.
@@ -388,7 +486,7 @@ function UlistDetailsEditor({
         <button
           type="button"
           onClick={save}
-          disabled={saving}
+          disabled={saving || disabled}
           className="btn"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
