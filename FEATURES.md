@@ -650,8 +650,8 @@ posture at a glance. State is mirrored to localStorage + cookie by
 ### Full settings modal ✅ (gear icon)
 `SettingsButton` opens a modal portal (escapes the header stacking
 context) with tabbed groups: Display, Content / Spoilers, Library
-defaults, Home layout, VN page layout, Data / accounts, Integrations,
-and Downloads / automation. It mirrors every content-controls toggle,
+defaults, Page layout, Data / accounts, Integrations, Downloads /
+automation, and Keyboard shortcuts. It mirrors every content-controls toggle,
 plus:
 - **VNDB token** (paste from <https://vndb.org/u/tokens>) + writeback
   + status pull + fan-out toggle + backup URL
@@ -765,7 +765,7 @@ Takarajima. Dynamic or protected shops such as AmiAmi, Neowing,
 GAMECITY, and blocked Suruga-ya responses remain visible as provider
 diagnostics instead of creating fake offers from generic page titles.
 
-`StockProviderMeta` in `src/lib/stock.ts` is the machine-readable provider
+`StockProviderMeta` in `src/lib/stock-provider-capabilities.ts` is the machine-readable provider
 capability contract used by the VN stock UI. It keeps result shape separate
 from physical-store confidence:
 

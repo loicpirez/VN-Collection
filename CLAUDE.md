@@ -252,6 +252,9 @@ vndb-collection/
 │       ├── vndb-types.ts               # types shared with client (no 'server-only')
 │       ├── erogamescape.ts             # EGS SQL form client (server-only) + resolveEgsForVn
 │       ├── stock.ts                    # Generic shop stock parsers + per-VN stock refresh
+│       ├── stock-provider-capabilities.ts # Canonical shop capability catalogue
+│       ├── stock-query.ts              # Bounded title-query generation
+│       ├── stock-api-types.ts          # Client-safe stock response DTOs
 │       ├── alicesoft-kobe.ts           # AliceNet Kobe fetch/parse/match/refresh (server-only)
 │       ├── proxy-config.ts             # Per-provider proxy configuration + credential masking
 │       ├── proxy-fetch.ts              # providerFetch() — routes through SOCKS5/HTTP agent
@@ -942,7 +945,7 @@ export interface KobeCandidate {
 
 ## Generic stock provider capability contract
 
-`StockProviderMeta` in `src/lib/stock.ts` is the source of truth for the
+`StockProviderMeta` in `src/lib/stock-provider-capabilities.ts` is the source of truth for the
 generic per-VN stock tiles. Keep these dimensions separate:
 
 - `lookupCapabilities`: `aggregate_price`, `direct_link`, `jan_lookup`,
@@ -1559,18 +1562,17 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   1. `display` — image / title / card-density preferences
   2. `content` — spoilers / NSFW threshold / sexual content
   3. `library` — default sort / order / grouping
-  4. `home` — section visibility / reset (drag-reorder lives on
-     the home page itself via `<HomeLayoutEditorTrigger>`, but
-     the per-section visibility list is mirrored here)
-  5. `vn-page` — VN detail section visibility / collapse defaults
-  6. `account` — VNDB token (audited) + writeback toggle +
+  4. `vn-page` — home and detail-page section layout, visibility,
+     collapse defaults, and reset actions
+  5. `account` — VNDB token (audited) + writeback toggle +
      status pull + backup URL
-  7. `integrations` — Steam API key + SteamID + EGS username +
+  6. `integrations` — Steam API key + SteamID + EGS username +
      random-quote source toggle
-  8. `automation` — fan-out toggle only
+  7. `automation` — fan-out toggle only
+  8. `shortcuts` — keyboard shortcut reference
 
-Each tab renders into a single panel block. ARIA tab semantics
-are partial — see the audit notes in `SettingsButton.tsx`. Don't
+Each tab renders into a single panel block with tablist, tab, and
+tabpanel semantics. Don't
 add a second `{activeTab === '<id>' && (...)}` block for the same
 tab; the H6 audit found that pattern split panels in unexpected
 ways.

@@ -505,8 +505,8 @@ active so you always know your current posture at a glance.
 
 The top-right gear opens the canonical settings modal. It is split
 into tabs: **Display**, **Content / Spoilers**, **Library defaults**,
-**Home layout**, **VN page layout**, **Data / accounts**,
-**Integrations**, and **Downloads / automation**. Every content-
+**Page layout**, **Data / accounts**, **Integrations**, **Downloads /
+automation**, and **Keyboard shortcuts**. Every content-
 controls toggle is mirrored, plus:
 
 - **VNDB token** — pasted from [vndb.org/u/tokens](https://vndb.org/u/tokens).
