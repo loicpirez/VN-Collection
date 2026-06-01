@@ -182,6 +182,8 @@ export type CollectionItem = VnRow &
     list_count?: number;
     /** Whether this VN is currently in the reading queue. */
     in_reading_queue?: boolean;
+    /** Whether a personal note exists without exposing its contents in card-list responses. */
+    has_notes?: boolean;
   };
 
 export interface VndbSearchHit {

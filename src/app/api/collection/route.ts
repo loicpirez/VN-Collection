@@ -6,7 +6,6 @@ import {
   getStats,
   isValidEditionType,
   isValidStatus,
-  listCollection,
   listCollectionForCards,
   materializeAspectForCollectionVns,
   materializeReleaseAspectsForCollectionVns,
@@ -155,9 +154,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       materializeAspectForCollectionVns(allVnIds);
     }
 
-    const wantsFullDetail = sp.get('detail') === 'full';
-    const collectionFetcher = wantsFullDetail ? listCollection : listCollectionForCards;
-    const raw = collectionFetcher({
+    const raw = listCollectionForCards({
       status: status as ListOptions['status'],
       q,
       producer: producer || undefined,
@@ -182,11 +179,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // paint without needing a popover open per card.
     const listCounts = countListMembershipsByVn();
     const queueIds = getReadingQueueVnIds();
-    const items = raw.map((it) => ({
-      ...it,
-      list_count: listCounts.get(it.id) ?? 0,
-      in_reading_queue: queueIds.has(it.id),
-    }));
+    const items = raw.map((it) => {
+      const {
+        notes,
+        started_date,
+        finished_date,
+        location,
+        edition_label,
+        box_type,
+        download_url,
+        custom_description,
+        ...libraryItem
+      } = it;
+      return {
+        ...libraryItem,
+        has_notes: !!notes?.trim(),
+        list_count: listCounts.get(it.id) ?? 0,
+        in_reading_queue: queueIds.has(it.id),
+      };
+    });
     return NextResponse.json({ items, stats: getStats() });
   } catch (err) {
     console.error('[collection] DB error:', (err as Error).message);
