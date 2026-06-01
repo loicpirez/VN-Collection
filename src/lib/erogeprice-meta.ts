@@ -665,16 +665,16 @@ export function decodeStoredExtras(raw: string | null | undefined): ErogePriceEx
     if (!c || typeof c !== 'object') continue;
     const id = typeof c.epId === 'number' ? c.epId : typeof c.egsId === 'number' ? c.egsId : null;
     if (id == null || !Number.isInteger(id) || id <= 0) continue;
+    const detail = parseEpGameDetail(c.detail);
+    if (!detail) continue;
     candidates.push({
       epId: id,
       gameUrl: typeof c.gameUrl === 'string' ? c.gameUrl : buildErogePriceGameUrl(id),
-      // Trust the persisted shapes for nested payloads — we wrote them
-      // ourselves via the parsers above so they already conform.
-      detail: c.detail as ErogePriceBundle['detail'],
-      priceStats: c.priceStats as ErogePriceBundle['priceStats'],
-      priceHistory: (c.priceHistory as ErogePriceBundle['priceHistory']) ?? [],
-      related: (c.related as ErogePriceBundle['related']) ?? { connections: [], sameBrand: [] },
-      fetchedAt: typeof c.fetchedAt === 'number' ? c.fetchedAt : Date.now(),
+      detail,
+      priceStats: parseEpPriceStats(c.priceStats),
+      priceHistory: parseEpPriceHistory(c.priceHistory),
+      related: parseEpRelated(c.related),
+      fetchedAt: typeof c.fetchedAt === 'number' && Number.isFinite(c.fetchedAt) ? c.fetchedAt : Date.now(),
     });
   }
   if (candidates.length === 0) return null;

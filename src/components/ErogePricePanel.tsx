@@ -24,6 +24,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, BadgePercent, Crown, Loader2, Pin, TrendingDown, TrendingUp, Mic2, Pencil, Music2, X } from 'lucide-react';
+import { decodeStoredExtras } from '@/lib/erogeprice-meta';
 import type {
   EpApiPricePoint,
   EpApiRelatedConnection,
@@ -704,12 +705,8 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
           statuses?: { provider: string; extras_json?: string | null }[];
         };
         const row = (snap.statuses ?? []).find((s) => s.provider === 'eroge_price');
-        if (row?.extras_json) {
-          try {
-            const next = JSON.parse(row.extras_json) as ErogePriceExtrasV1;
-            if (next.schemaVersion === 1) setExtras(next);
-          } catch {}
-        }
+        const next = decodeStoredExtras(row?.extras_json);
+        if (next) setExtras(next);
       }
       setAddInput('');
       setAddOpen(false);

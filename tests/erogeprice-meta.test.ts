@@ -21,6 +21,7 @@ import {
   buildErogePriceApiSearchUrl,
   buildErogePriceGameUrl,
   buildErogePriceSearchUrl,
+  decodeStoredExtras,
   fetchErogePriceBundle,
   parseEpGameDetail,
   parseEpPriceHistory,
@@ -212,5 +213,21 @@ describe('searchAndFetchAll — integrates EVERY candidate', () => {
     const emptySearch = { games: [], pagination: { page: 1, limit: 20, total: 0 } };
     const emptyFetcher: JsonFetcher = () => Promise.resolve(emptySearch);
     await expect(searchAndFetchAll('dummy', emptyFetcher)).resolves.toBeNull();
+  });
+});
+
+describe('decodeStoredExtras — persisted payload validation', () => {
+  it('normalizes nested persisted rows through the API parsers', async () => {
+    const extras = await searchAndFetchAll('synthetic-query', fakeFetcher);
+    const decoded = decodeStoredExtras(JSON.stringify(extras));
+    expect(decoded?.candidates).toHaveLength(2);
+    expect(decoded?.candidates[0].detail.title).toBeTruthy();
+  });
+
+  it('rejects envelopes whose candidate detail is malformed', () => {
+    expect(decodeStoredExtras(JSON.stringify({
+      schemaVersion: 1,
+      candidates: [{ epId: 90001, detail: {} }],
+    }))).toBeNull();
   });
 });

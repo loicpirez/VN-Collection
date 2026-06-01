@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { PATCH } from '@/app/api/vn/[id]/stock/eroge-price/route';
-import { getStockProviderExtras, setStockProviderExtras } from '@/lib/db';
+import { getErogePriceStockExtras, setStockProviderExtras } from '@/lib/db';
 import type { ErogePriceBundle, ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 
 function makePatch(vnId: string, body?: unknown): Request {
@@ -76,6 +76,12 @@ function seedExtras(vnId: string): ErogePriceExtrasV1 {
 }
 
 describe('PATCH /api/vn/[id]/stock/eroge-price — manual matching', () => {
+  it('rejects unsupported provider extras and malformed eroge-price envelopes at the storage boundary', () => {
+    expect(setStockProviderExtras('v90000', 'other_provider', { schemaVersion: 1 })).toBe(false);
+    expect(setStockProviderExtras('v90000', 'eroge_price', { schemaVersion: 1, candidates: [] })).toBe(false);
+    expect(getErogePriceStockExtras('v90000')).toBeNull();
+  });
+
   it('rejects an invalid VN id', async () => {
     const res = await PATCH(makePatch('bad', { ep_id: 99001 }) as never, {
       params: Promise.resolve({ id: 'bad' }),
@@ -127,7 +133,7 @@ describe('PATCH /api/vn/[id]/stock/eroge-price — manual matching', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).selectedEpId).toBe(99002);
 
-    const persisted = getStockProviderExtras<ErogePriceExtrasV1>(vn, 'eroge_price');
+    const persisted = getErogePriceStockExtras(vn);
     expect(persisted?.selectedEpId).toBe(99002);
     // Bundles / schema / refreshedAt / search query must be unchanged.
     expect(persisted?.schemaVersion).toBe(seeded.schemaVersion);
@@ -146,7 +152,7 @@ describe('PATCH /api/vn/[id]/stock/eroge-price — manual matching', () => {
         params: Promise.resolve({ id: vn }),
       });
       expect(res.status).toBe(200);
-      const persisted = getStockProviderExtras<ErogePriceExtrasV1>(vn, 'eroge_price');
+      const persisted = getErogePriceStockExtras(vn);
       expect(persisted?.selectedEpId).toBe(id);
     }
   });

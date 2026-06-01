@@ -33,9 +33,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { clearStockProviderExtras, getStockProviderExtras, setStockProviderExtras } from '@/lib/db';
+import { clearStockProviderExtras, getErogePriceStockExtras, setStockProviderExtras } from '@/lib/db';
 import {
-  decodeStoredExtras,
   fetchErogePriceBundle,
   type ErogePriceExtrasV1,
 } from '@/lib/erogeprice-meta';
@@ -56,11 +55,7 @@ function parseEpId(raw: unknown): number | null {
 
 /** Read + upgrade the persisted blob. Returns null if the row is absent. */
 function readExtras(vnId: string): ErogePriceExtrasV1 | null {
-  const row = getStockProviderExtras<unknown>(vnId, 'eroge_price');
-  // `getStockProviderExtras` returns JSON.parse'd — wrap back through
-  // `decodeStoredExtras` so legacy `egsId` keys still work even when
-  // operators upgrade in-place.
-  return row ? decodeStoredExtras(JSON.stringify(row)) : null;
+  return getErogePriceStockExtras(vnId);
 }
 
 export async function PATCH(
