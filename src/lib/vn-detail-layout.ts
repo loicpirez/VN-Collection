@@ -12,8 +12,8 @@
  *
  * `order` is implicit: it's the position of the id in the array. Any
  * `VN_SECTION_IDS` value not present in the persisted config is
- * appended (visible, not collapsed) in canonical order — that way
- * future sections show up automatically without a migration.
+ * appended with their canonical defaults in order — that way future
+ * sections show up automatically without a migration.
  */
 
 export const VN_SECTION_IDS = [
@@ -55,14 +55,27 @@ export interface VnDetailLayoutV1 {
   sections: Record<VnSectionId, VnSectionState>;
 }
 
-function defaultState(): VnSectionState {
-  return { visible: true, collapsedByDefault: false };
+const DEFAULT_COLLAPSED_SECTION_IDS = new Set<VnSectionId>([
+  'stock-prices',
+  'egs-details',
+  'cast',
+  'staff',
+  'tag-overlap',
+  'similar',
+  'aspect-override',
+  'releases',
+  'quotes',
+  'edit-form',
+]);
+
+function defaultState(id: VnSectionId): VnSectionState {
+  return { visible: true, collapsedByDefault: DEFAULT_COLLAPSED_SECTION_IDS.has(id) };
 }
 
 /** Fresh layout containing every known VN-detail section, visible, in canonical order. */
 export function defaultVnDetailLayoutV1(): VnDetailLayoutV1 {
   const sections = {} as Record<VnSectionId, VnSectionState>;
-  for (const id of VN_SECTION_IDS) sections[id] = defaultState();
+  for (const id of VN_SECTION_IDS) sections[id] = defaultState(id);
   return {
     order: [...VN_SECTION_IDS],
     sections,
@@ -113,7 +126,7 @@ export function validateVnDetailLayoutV1(input: unknown): VnDetailLayoutV1 {
         collapsedByDefault: s.collapsedByDefault === true,
       };
     } else {
-      sections[id] = defaultState();
+      sections[id] = defaultState(id);
     }
   }
 

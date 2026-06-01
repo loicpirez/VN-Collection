@@ -236,6 +236,25 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
         )}
       </div>
 
+      {!editMode && visibleIds.length > 0 && (
+        <nav
+          aria-label={t.vnLayout.mobileNavigation}
+          className="-mx-1 mb-3 overflow-x-auto border-y border-border/60 px-1 lg:hidden"
+        >
+          <div className="flex w-max min-w-full gap-1 py-2">
+            {visibleIds.map((id) => (
+              <a
+                key={id}
+                href={`#section-${id}`}
+                className="inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-border bg-bg-elev/40 px-3 py-2 text-[11px] font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {t.vnLayout.sectionLabels[id]}
+              </a>
+            ))}
+          </div>
+        </nav>
+      )}
+
       {editMode ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={editIds} strategy={verticalListSortingStrategy}>

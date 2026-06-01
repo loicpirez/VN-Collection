@@ -14,12 +14,16 @@ import {
  */
 
 describe('validateVnDetailLayoutV1', () => {
-  it('returns a complete default layout for null/empty input', () => {
+  it('returns a complete mobile-friendly default layout for null/empty input', () => {
     const out = validateVnDetailLayoutV1(null);
     expect(out.order).toEqual([...VN_SECTION_IDS]);
     for (const id of VN_SECTION_IDS) {
-      expect(out.sections[id]).toEqual({ visible: true, collapsedByDefault: false });
+      expect(out.sections[id].visible).toBe(true);
     }
+    expect(out.sections.stock.collapsedByDefault).toBe(false);
+    expect(out.sections.characters.collapsedByDefault).toBe(false);
+    expect(out.sections.releases.collapsedByDefault).toBe(true);
+    expect(out.sections['stock-prices'].collapsedByDefault).toBe(true);
   });
 
   it('returns defaults for invalid (array / primitive) input', () => {
@@ -50,8 +54,8 @@ describe('validateVnDetailLayoutV1', () => {
     expect(out.sections.notes).toEqual({ visible: false, collapsedByDefault: true });
     // Missing `visible` defaults to true.
     expect(out.sections.characters).toEqual({ visible: true, collapsedByDefault: true });
-    // Untouched sections stay at defaults.
-    expect(out.sections.releases).toEqual({ visible: true, collapsedByDefault: false });
+    // Untouched sections stay at their canonical defaults.
+    expect(out.sections.releases).toEqual({ visible: true, collapsedByDefault: true });
   });
 
   it('rejects duplicate ids in order (keeps the first occurrence)', () => {
