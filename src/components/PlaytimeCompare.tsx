@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Clock, GitCompareArrows, Hourglass, Loader2, Sparkles, User as UserIcon } from 'lucide-react';
 import { useToast } from './ToastProvider';
@@ -40,12 +40,32 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
   const t = useT();
   const locale = useLocale();
   const fmt = (min: number | null): string =>
-    formatMinutes(min, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' });
+    formatMinutes(min, locale, t.year, { fallback: '-', emptyValue: 'strict_positive' });
   const toast = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [compareOpen, setCompareOpen] = useState(false);
   const [optimistic, setOptimistic] = useState<SourceChoice>(current);
+  const [saving, setSaving] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setCompareOpen(false);
+    setOptimistic(current);
+    setSaving(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, current]);
 
   const vndbHas = vndb != null && vndb > 0;
   const egsHas = egs != null && egs > 0;
@@ -82,20 +102,35 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
           : mine;
 
   async function persist(next: SourceChoice) {
-    if (pending) return;
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const previous = optimistic;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setSaving(true);
     setOptimistic(next);
     try {
-      const r = await fetch(`/api/collection/${vnId}/source-pref`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playtime: next }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
-      setOptimistic(current);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setOptimistic(previous);
       toast.error((e as Error).message);
+    } finally {
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -116,7 +151,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
           <button
             type="button"
             onClick={() => setCompareOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             title={t.compare.compareTitle}
           >
             <GitCompareArrows className="h-3 w-3" aria-hidden />
@@ -174,8 +209,8 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
               <button
                 type="button"
                 onClick={c.onUse}
-                disabled={empty || (active && optimistic !== 'auto')}
-                className={`mt-1 inline-flex w-full items-center justify-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                disabled={saving || empty || (active && optimistic !== 'auto')}
+                className={`mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
                   active
                     ? 'bg-accent/20 text-accent cursor-default'
                     : empty
@@ -183,7 +218,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
                       : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
                 }`}
               >
-                {pending && optimistic === (c.key === 'combined' ? 'auto' : c.key === 'mine' ? 'custom' : c.key) && (
+                {(saving || pending) && optimistic === (c.key === 'combined' ? 'auto' : c.key === 'mine' ? 'custom' : c.key) && (
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 )}
                 {c.useLabel}
@@ -196,7 +231,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
         <button
           type="button"
           onClick={() => setCompareOpen(false)}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
         >
           {t.common.close}
         </button>

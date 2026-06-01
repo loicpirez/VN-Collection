@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, CornerDownRight, GitCompareArrows, Loader2 } from 'lucide-react';
@@ -35,6 +35,26 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
   const [pending, startTransition] = useTransition();
   const [compareOpen, setCompareOpen] = useState(false);
   const [optimistic, setOptimistic] = useState<SourceChoice>(current);
+  const [saving, setSaving] = useState(false);
+  const identityRef = useRef<string | null>(vnId);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+    identityRef.current = vnId;
+    setCompareOpen(false);
+    setOptimistic(current);
+    setSaving(false);
+    return () => {
+      mutationAbortRef.current?.abort();
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      identityRef.current = null;
+    };
+  }, [vnId, current]);
 
   const vndbHas = vndbDevs.length > 0;
   const egsHas = !!egsBrand && egsBrand.trim().length > 0;
@@ -46,20 +66,35 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
   );
 
   async function persist(next: SourceChoice) {
-    if (pending) return;
+    if (mutationInFlightRef.current) return;
+    const ownerVnId = vnId;
+    const previous = optimistic;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    setSaving(true);
     setOptimistic(next);
     try {
-      const r = await fetch(`/api/collection/${vnId}/source-pref`, {
+      const r = await fetch(`/api/collection/${ownerVnId}/source-pref`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brand: next }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
-      setOptimistic(current);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setOptimistic(previous);
       toast.error((e as Error).message);
+    } finally {
+      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationInFlightRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -80,7 +115,7 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
             <button
               type="button"
               onClick={() => setCompareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
               title={t.compare.compareTitle}
             >
               <GitCompareArrows className="h-3 w-3" aria-hidden />
@@ -103,12 +138,12 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[11px] uppercase tracking-wider text-muted">
-          {label} · {t.compare.compareLabel}
+          {label} / {t.compare.compareLabel}
         </span>
         <button
           type="button"
           onClick={() => setCompareOpen(false)}
-          className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
         >
           {t.common.close}
         </button>
@@ -120,7 +155,8 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           active={optimistic === 'vndb' || (optimistic === 'auto' && resolved.used === 'vndb')}
           empty={!vndbHas}
           onUse={() => persist('vndb')}
-          pending={pending && optimistic === 'vndb'}
+          pending={(saving || pending) && optimistic === 'vndb'}
+          saving={saving}
           useLabel={t.compare.useVndb}
         >
           <DevChips devs={vndbDevs} />
@@ -131,7 +167,8 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           active={optimistic === 'egs' || (optimistic === 'auto' && resolved.used === 'egs')}
           empty={!egsHas}
           onUse={() => persist('egs')}
-          pending={pending && optimistic === 'egs'}
+          pending={(saving || pending) && optimistic === 'egs'}
+          saving={saving}
           useLabel={t.compare.useEgs}
         >
           {egsBrand && (
@@ -145,14 +182,14 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
         <button
           type="button"
           onClick={() => persist('auto')}
-          disabled={pending}
-          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] ${
+          disabled={saving || pending}
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
             optimistic === 'auto'
               ? 'bg-accent text-bg font-bold'
               : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
           }`}
         >
-          {pending && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+          {(saving || pending) && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
           {t.compare.useAuto}
         </button>
       </div>
@@ -162,7 +199,7 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
 
 function DevChips({ devs }: { devs: Developer[] }) {
   if (devs.length === 0) {
-    return <p className="text-[11px] italic text-muted/70">—</p>;
+    return <p className="text-[11px] italic text-muted/70">-</p>;
   }
   return (
     <div className="flex flex-wrap gap-2 font-semibold">
@@ -170,7 +207,7 @@ function DevChips({ devs }: { devs: Developer[] }) {
         <Link
           key={d.id}
           href={`/producer/${d.id}`}
-          className="rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent"
+          className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent sm:min-h-0"
         >
           {d.name}
         </Link>
@@ -186,6 +223,7 @@ function Column({
   empty,
   onUse,
   pending,
+  saving,
   useLabel,
   children,
 }: {
@@ -195,6 +233,7 @@ function Column({
   empty: boolean;
   onUse: () => void;
   pending: boolean;
+  saving: boolean;
   useLabel: string;
   children: React.ReactNode;
 }) {
@@ -213,8 +252,8 @@ function Column({
           <button
             type="button"
             onClick={onUse}
-            disabled={active || pending}
-            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+            disabled={active || saving}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
               active
                 ? 'bg-accent/20 text-accent cursor-default'
                 : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
@@ -225,7 +264,7 @@ function Column({
           </button>
         )}
       </div>
-      {empty ? <p className="text-[11px] italic text-muted/70">—</p> : children}
+      {empty ? <p className="text-[11px] italic text-muted/70">-</p> : children}
     </div>
   );
 }
