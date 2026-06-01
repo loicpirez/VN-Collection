@@ -6,6 +6,7 @@ import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import type { PlaceWithLinks } from '@/lib/db';
+import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 
 type PlaceKind = 'shop' | 'chain' | 'storage';
 
@@ -120,15 +121,24 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
 
   async function handleSave() {
     if (!name.trim()) return;
-    setSaving(true);
     setError(null);
+    const coordinates = {
+      lat: lat !== '' ? Number(lat) : null,
+      lng: lng !== '' ? Number(lng) : null,
+    };
+    const hasAnyCoordinate = coordinates.lat != null || coordinates.lng != null;
+    if (hasAnyCoordinate && !hasFiniteCoordinates(coordinates)) {
+      setError(t.places.invalidCoordinates as string);
+      return;
+    }
+    setSaving(true);
     const body = {
       name: name.trim(),
       name_ja: nameJa.trim() || null,
       kind,
       address: address.trim() || null,
-      lat: lat !== '' && !Number.isNaN(Number(lat)) ? Number(lat) : null,
-      lng: lng !== '' && !Number.isNaN(Number(lng)) ? Number(lng) : null,
+      lat: coordinates.lat,
+      lng: coordinates.lng,
       url: url.trim() || null,
       notes: notes.trim() || null,
     };

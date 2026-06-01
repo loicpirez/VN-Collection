@@ -3,52 +3,19 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PlaceWithLinks } from '@/lib/db';
+import { hasFiniteCoordinates } from '@/lib/place-coordinates';
+import { readSavedMapView, writeSavedMapView } from '@/lib/map-view-storage';
 
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+const markerIcon = L.icon({
+  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+  iconUrl: '/leaflet/marker-icon.png',
+  shadowUrl: '/leaflet/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  tooltipAnchor: [16, -28],
+  shadowSize: [41, 41],
 });
-
-const VIEW_STORAGE_KEY = 'places:map:view:v1';
-
-interface SavedView {
-  lat: number;
-  lng: number;
-  zoom: number;
-}
-
-function readSavedView(): SavedView | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SavedView>;
-    if (
-      typeof parsed.lat === 'number' &&
-      typeof parsed.lng === 'number' &&
-      typeof parsed.zoom === 'number' &&
-      Number.isFinite(parsed.lat) &&
-      Number.isFinite(parsed.lng) &&
-      Number.isFinite(parsed.zoom)
-    ) {
-      return { lat: parsed.lat, lng: parsed.lng, zoom: Math.max(1, Math.min(20, parsed.zoom)) };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function writeSavedView(view: SavedView): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(view));
-  } catch {
-    // localStorage may be unavailable (privacy mode, etc.) — silent fail
-  }
-}
 
 interface Props {
   places: PlaceWithLinks[];
@@ -102,23 +69,25 @@ export function MapCanvas({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const withCoords = places.filter((p) => p.lat != null && p.lng != null);
+    const withCoords = places.filter(hasFiniteCoordinates);
     const focusPlace = focusId != null ? withCoords.find((p) => p.id === focusId) : null;
-    const saved = readSavedView();
+    const saved = readSavedMapView();
+    const requestedFocus = { lat: focusLat, lng: focusLng };
+    const firstPlace = withCoords[0];
 
     let center: [number, number];
     let zoom: number;
     if (focusPlace) {
       center = [focusPlace.lat!, focusPlace.lng!];
       zoom = 15;
-    } else if (focusLat != null && focusLng != null) {
-      center = [focusLat, focusLng];
+    } else if (hasFiniteCoordinates(requestedFocus)) {
+      center = [requestedFocus.lat, requestedFocus.lng];
       zoom = 15;
     } else if (saved) {
       center = [saved.lat, saved.lng];
       zoom = saved.zoom;
-    } else if (withCoords.length > 0) {
-      center = [withCoords[0].lat!, withCoords[0].lng!];
+    } else if (firstPlace) {
+      center = [firstPlace.lat, firstPlace.lng];
       zoom = 12;
     } else {
       center = [35.6894, 139.6917];
@@ -146,7 +115,7 @@ export function MapCanvas({
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         const c = map.getCenter();
-        writeSavedView({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
+        writeSavedMapView({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
       }, 400);
     };
     map.on('moveend', persist);
@@ -165,7 +134,7 @@ export function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const withCoords = places.filter((p) => p.lat != null && p.lng != null);
+    const withCoords = places.filter(hasFiniteCoordinates);
     const current = markersRef.current;
     const nextIds = new Set(withCoords.map((p) => p.id));
     for (const [id, marker] of current.entries()) {
@@ -179,10 +148,10 @@ export function MapCanvas({
       const existing = current.get(place.id);
       if (existing) {
         const [curLat, curLng] = [existing.getLatLng().lat, existing.getLatLng().lng];
-        if (curLat !== place.lat || curLng !== place.lng) existing.setLatLng([place.lat!, place.lng!]);
+        if (curLat !== place.lat || curLng !== place.lng) existing.setLatLng([place.lat, place.lng]);
         existing.setPopupContent(html);
       } else {
-        const marker = L.marker([place.lat!, place.lng!]).addTo(map);
+        const marker = L.marker([place.lat, place.lng], { icon: markerIcon }).addTo(map);
         marker.bindPopup(html);
         const pid = place.id;
         marker.on('popupopen', () => { onMarkerFocusRef.current?.(pid); });
@@ -202,14 +171,15 @@ export function MapCanvas({
         return;
       }
     }
-    if (focusLat != null && focusLng != null) {
-      map.setView([focusLat, focusLng], Math.max(map.getZoom(), 14));
+    const requestedFocus = { lat: focusLat, lng: focusLng };
+    if (hasFiniteCoordinates(requestedFocus)) {
+      map.setView([requestedFocus.lat, requestedFocus.lng], Math.max(map.getZoom(), 14));
     }
   }, [focusId, focusLat, focusLng, places]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !searchTarget) return;
+    if (!map || !searchTarget || !hasFiniteCoordinates(searchTarget)) return;
     const targetZoom = searchTarget.zoom ?? Math.max(map.getZoom(), 13);
     map.setView([searchTarget.lat, searchTarget.lng], targetZoom);
   }, [searchTarget]);
@@ -227,13 +197,4 @@ export function MapCanvas({
       className={`w-full rounded-xl border border-border overflow-hidden ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
     />
   );
-}
-
-export function clearSavedMapView(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(VIEW_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
 }

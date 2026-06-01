@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { MapPin, Plus, RotateCcw, Search, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import type { PlaceWithLinks } from '@/lib/db';
-import { clearSavedMapView } from './MapCanvas';
+import { clearSavedMapView } from '@/lib/map-view-storage';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
+import { hasFiniteCoordinates } from '@/lib/place-coordinates';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 type MapSize = 'compact' | 'normal' | 'large' | 'tall';
 
@@ -42,9 +44,12 @@ const MapCanvas = dynamic(() => import('./MapCanvas').then((m) => m.MapCanvas), 
 function MapLoadingPlaceholder() {
   const t = useT();
   return (
-    <div className="flex h-[55vh] min-h-[400px] w-full items-center justify-center rounded-xl border border-border bg-bg-card text-sm text-muted">
-      {t.map.loadingMap as string}
-    </div>
+    <SkeletonBoundary
+      label={t.map.loadingMap as string}
+      className="h-[55vh] min-h-[400px] w-full rounded-xl border border-border bg-bg-card p-3"
+    >
+      <SkeletonBlock className="h-full w-full rounded-lg" />
+    </SkeletonBoundary>
   );
 }
 
@@ -74,8 +79,11 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
     try { window.localStorage.setItem(MAP_SIZE_KEY, s); } catch { /* ignore */ }
   }
 
-  const withCoords = places.filter((p) => p.lat != null && p.lng != null);
-  const withoutCoords = places.filter((p) => p.lat == null || p.lng == null);
+  const withCoords = places.filter(hasFiniteCoordinates);
+  const withoutCoords = places.filter((p) => !hasFiniteCoordinates(p));
+  const invalidCoords = places.filter(
+    (p) => (p.lat != null || p.lng != null) && !hasFiniteCoordinates(p),
+  );
 
   async function doSearch() {
     const q = searchQ.trim();
@@ -99,7 +107,12 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   }
 
   function pickSearchResult(r: NominatimResult) {
-    setSearchTarget({ lat: Number(r.lat), lng: Number(r.lon), zoom: 14 });
+    const target = { lat: Number(r.lat), lng: Number(r.lon), zoom: 14 };
+    if (!hasFiniteCoordinates(target)) {
+      setSearchError(t.map.searchError as string);
+      return;
+    }
+    setSearchTarget(target);
     setSearchResults([]);
     setSearchQ('');
     setSearchError(null);
@@ -113,7 +126,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
 
   function handleSidebarClick(place: PlaceWithLinks) {
     setActivePlaceId(place.id);
-    if (place.lat != null && place.lng != null) {
+    if (hasFiniteCoordinates(place)) {
       setSearchTarget({ lat: place.lat, lng: place.lng, zoom: 15 });
     }
   }
@@ -229,6 +242,12 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         ))}
       </div>
 
+      {invalidCoords.length > 0 && (
+        <p role="alert" className="mb-3 text-sm text-status-onhold">
+          {(t.map.invalidCoordinates as string).replace('{n}', String(invalidCoords.length))}
+        </p>
+      )}
+
       {withCoords.length === 0 ? (
         <p className="text-sm text-muted">{t.map.noPlaces as string}</p>
       ) : (
@@ -313,7 +332,7 @@ function PlaceSidebarItem({
   active: boolean;
   onClick: (place: PlaceWithLinks) => void;
 }) {
-  const hasCoords = place.lat != null && place.lng != null;
+  const hasCoords = hasFiniteCoordinates(place);
   return (
     <div
       className={`group flex items-center gap-3 rounded-lg border bg-bg-card px-3 py-2.5 transition-colors ${

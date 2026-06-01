@@ -3,6 +3,7 @@ import { getPlace, updatePlace, deletePlace } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
+import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 
 export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,17 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if ('lng' in body) patch.lng = typeof body.lng === 'number' ? body.lng : null;
     if ('url' in body) patch.url = typeof body.url === 'string' ? body.url.trim() || null : null;
     if ('notes' in body) patch.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null;
+    if ('lat' in patch || 'lng' in patch) {
+      const current = getPlace(id);
+      const coordinates = {
+        lat: 'lat' in patch && (typeof patch.lat === 'number' || patch.lat === null) ? patch.lat : current?.lat,
+        lng: 'lng' in patch && (typeof patch.lng === 'number' || patch.lng === null) ? patch.lng : current?.lng,
+      };
+      const hasAnyCoordinate = coordinates.lat != null || coordinates.lng != null;
+      if (hasAnyCoordinate && !hasFiniteCoordinates(coordinates)) {
+        return NextResponse.json({ error: 'valid lat and lng required together' }, { status: 400 });
+      }
+    }
     updatePlace(id, patch);
     return NextResponse.json({ ok: true });
   } catch (err) {

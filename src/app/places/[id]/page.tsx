@@ -12,8 +12,8 @@ export async function generateMetadata({ params }: Props) {
   const { id } = await params;
   const place = getPlace(Number(id));
   const t = await getDict();
-  if (!place) return { title: t.app.title };
-  return { title: `${place.name} — ${t.places.title} — ${t.app.title}` };
+  if (!place) return { title: t.places.title };
+  return { title: `${place.name} | ${t.places.title}` };
 }
 
 export default async function PlacePage({ params }: Props) {
@@ -22,8 +22,8 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <PlaceDetailClient place={place} />
-    </main>
+    </section>
   );
 }
