@@ -33,6 +33,6 @@ describe('cover source picker request lifecycle', () => {
     expect(PICKER).toContain('placeholder="https://example.com/image.jpg"');
     expect(PICKER).toContain('{t.coverPicker.galleryLabel} / {galleryItems.length}');
     expect(PICKER).toContain('{rotation} deg');
-    expect(ROTATION).toContain('{rotation} deg');
+    expect(ROTATION).toContain("t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))");
   });
 });

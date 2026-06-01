@@ -209,11 +209,19 @@ The second post-fix audit reopened four evidence-backed tasks: advanced-search r
 validation, printable-label origin normalization, failed-image fallback rendering, and
 canonical documentation drift after the stock-module and settings-tab refactors.
 
+The navigation, artwork, dump-tracker, and stock-browser naming follow-up portals
+desktop grouped menus through the document body with viewport clamping, adds a durable
+dump-ignore preference with a recovery tab, keeps new dump controls touch-safe, and
+anchors compact cover controls inside poster bounds. The stock browser is now
+canonically named AliceNet across active routes, filenames, provider identifiers,
+settings, tests, and docs. Only the real upstream hostname and first-open migration
+inputs retain prior identifiers.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 98
+- `DONE_WITH_DIFF`: 378
 - `VERIFIED_EXISTING`: 3
-- `TODO`: 1
+- `TODO`: 0
 
 ## Working method
 
