@@ -26,8 +26,7 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const el = ref.current!;
     let unsub: (() => void) | null = null;
     let alive = true;
     const io = new IntersectionObserver(

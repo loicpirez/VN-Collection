@@ -89,6 +89,11 @@ describe('titleQueries', () => {
     const vn = makeVn({ title: null as unknown as string, alttitle: null });
     expect(titleQueries(vn)).toEqual([]);
   });
+
+  it('accepts collection rows without per-language titles', () => {
+    const vn = makeVn({ title: 'alpha', titles: undefined });
+    expect(titleQueries(vn)).toEqual(['alpha']);
+  });
 });
 
 describe('titleQueriesForProvider', () => {

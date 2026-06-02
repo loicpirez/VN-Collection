@@ -1,6 +1,6 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getEgsForVn, getStockRetryWithoutProxy, listAliceNetStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getStockRetryWithoutProxy, listAliceNetStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
@@ -142,9 +142,6 @@ const BROWSER_HEADERS = {
   'sec-fetch-user': '?1',
   'upgrade-insecure-requests': '1',
 } as const;
-/** Legacy alias; SHOP_HEADERS callers still exist. */
-const SHOP_HEADERS = BROWSER_HEADERS;
-
 /**
  * Layer per-host `referer` / `origin` / `sec-fetch-site` on top of
  * `BROWSER_HEADERS` so a request to `eroge-price.com/api/games/3676`
@@ -397,7 +394,6 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!value) continue;
       total += value.byteLength;
       if (total > MAX_SHOP_BYTES) {
         await reader.cancel('cap exceeded').catch(() => undefined);
@@ -444,9 +440,9 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
-    for (const link of release.extlinks ?? []) {
+    for (const link of release.extlinks) {
       const host = sourceHost(link.url);
-      if (PROVIDER_HOSTS[provider]?.test(host)) {
+      if (PROVIDER_HOSTS[provider].test(host)) {
         targets.push({
           url: provider === 'amazon_jp' ? canonicalAmazonDpUrl(link.url) ?? link.url : link.url,
           releaseId: release.id,
@@ -489,13 +485,11 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
     // keyword search URL, also query by JAN. JAN searches typically return
     // very high-confidence matches because the code is unique per package.
     if (JAN_SEARCH_PROVIDERS.has(provider)) {
-      const buildSearchUrl = TITLE_SEARCH_URLS[provider];
-      if (buildSearchUrl) {
-        for (const release of releases) {
-          const jan = janFromRelease(release);
-          if (!jan) continue;
-          targets.push({ url: buildSearchUrl(jan), releaseId: release.id, jan, query: jan, source: 'search' });
-        }
+      const buildSearchUrl = TITLE_SEARCH_URLS[provider]!;
+      for (const release of releases) {
+        const jan = janFromRelease(release);
+        if (!jan) continue;
+        targets.push({ url: buildSearchUrl(jan), releaseId: release.id, jan, query: jan, source: 'search' });
       }
     }
   }
@@ -573,7 +567,7 @@ function offerPriorityRank(offer: Pick<VnStockOfferRow, 'source' | 'jan' | 'prod
 function officialRetailerSourceUrls(vn: CollectionItem, releases: VndbRelease[]): string[] {
   const urls = [
     ...(vn.extlinks ?? []).map((link) => link.url),
-    ...releases.flatMap((release) => (release.extlinks ?? []).map((link) => link.url)),
+    ...releases.flatMap((release) => release.extlinks.map((link) => link.url)),
   ];
   return [...new Set(urls)].filter((url) => {
     const host = sourceHost(url);
@@ -591,8 +585,7 @@ async function discoverRetailerTargetsFromOfficialPages(
     try {
       const html = await fetchShopText(sourceUrl, { signal });
       for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)) {
-        const href = m[1];
-        if (!href) continue;
+        const href = m[1]!;
         const url = absUrl(sourceUrl, href);
         const provider = providerForHost(sourceHost(url));
         if (!provider) continue;
@@ -660,7 +653,7 @@ export function parseSofmapList(html: string, target: StockTarget): ParsedOffer[
   const listEnd = html.indexOf('</ul>', searchFrom);
   const listHtml = listEnd === -1 ? html.slice(searchFrom) : html.slice(searchFrom, listEnd + 5);
   for (const m of listHtml.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)) {
-    const block = m[1] ?? '';
+    const block = m[1]!;
     if (!block.includes('product_detail')) continue;
     const detailHref = /<a\s+href=["'](https?:\/\/[^"']*product_detail[^"']*sku=(\d+)[^"']*)["'][^>]*class=["']itemimg["']/i.exec(block);
     if (!detailHref?.[1] || !detailHref[2]) continue;
@@ -799,7 +792,7 @@ async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: Collecti
       continue;
     }
     const detailLinks = [...html.matchAll(/href=["']([^"']*product_detail[^"']*sku=[^"']+)["']/gi)]
-      .map((m) => absUrl(url, m[1] ?? ''))
+      .map((m) => absUrl(url, m[1]!))
       .filter((href) => sourceHost(href).endsWith('sofmap.com'));
     for (const detailUrl of [...new Set(detailLinks)].slice(0, 5)) {
       try {
@@ -849,8 +842,7 @@ export function extractHgame1SearchLinks(html: string, baseUrl: string): string[
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of html.matchAll(/href=["']([^"']*\/item\/[0-9A-Za-z_-]+\.html)["']/gi)) {
-    const href = m[1] ?? '';
-    if (!href) continue;
+    const href = m[1]!;
     const abs = absUrl(baseUrl, href);
     if (sourceHost(abs) !== 'www.hgame1.com') continue;
     if (seen.has(abs)) continue;
@@ -925,8 +917,7 @@ export function extractMelonbooksProductLinks(html: string, baseUrl: string): st
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of html.matchAll(/href=["']([^"']*\/detail\/detail\.php\?product_id=\d+[^"']*)["']/gi)) {
-    const href = m[1] ?? '';
-    if (!href) continue;
+    const href = m[1]!;
     const abs = absUrl(baseUrl, href);
     if (sourceHost(abs) !== 'www.melonbooks.co.jp') continue;
     let pid: string | null = null;
@@ -1009,7 +1000,7 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Colle
   for (const target of allTargetsForProvider(releases, 'mandarake', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { signal });
     const links = [...html.matchAll(/href=["']([^"']*detailPage\/item\?[^"']*itemCode=[^"']+)["']/gi)]
-      .map((m) => absUrl(target.url, m[1] ?? ''))
+      .map((m) => absUrl(target.url, m[1]!))
       .filter((href) => sourceHost(href) === 'order.mandarake.co.jp');
     if (links.length > 0 && !/detailPage\/item/i.test(new URL(target.url).pathname)) {
       for (const detailUrl of [...new Set(links)].slice(0, 5)) {
@@ -1418,7 +1409,7 @@ function offerFromListBlock(
 function parseAnimateList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']item_list_class["'][\s\S]*?<\/li>/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const a = /<h3>\s*<a\s+href=["']([^"']+)["'][^>]*title=["']([^"']+)["'][^>]*>/i.exec(block);
     const price = /<p class=["']price["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
     const stock = /<p class=["']stock["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
@@ -1432,7 +1423,7 @@ function parseAnimateList(html: string, url: string, target: StockTarget): Parse
 function parseEbtenList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<dl class=["']block-thumbnail-t--goods[\s\S]*?<\/dl>/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const a = /<a\s+href=["']([^"']+)["'][^>]*class=["']js-enhanced-ecommerce-goods-name["'][^>]*>([\s\S]*?)<\/a>/i.exec(block);
     const price = /<div class=["'][^"']*js-enhanced-ecommerce-goods-price[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["']stock["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
@@ -1446,7 +1437,7 @@ function parseEbtenList(html: string, url: string, target: StockTarget): ParsedO
 function parseGetchuList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']content_block["'][\s\S]*?<\/li>/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const a = /<A\s+HREF=["']?([^"'\s>]+)["']?[^>]*class=["']blueb["'][^>]*>([\s\S]*?)<\/A>/i.exec(block);
     const price = /特典付き価格[\s\S]*?<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? /<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? '';
     const stock = block.includes('<!--予約-->') ? '予約受付中' : block;
@@ -1460,7 +1451,7 @@ function parseGetchuList(html: string, url: string, target: StockTarget): Parsed
 function parseGamersList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li class=["']list_product["'][\s\S]*?<\/li>/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const href = /<a\s+href=["']([^"']+)["']/i.exec(block)?.[1];
     const title = /<h3 class=["'][^"']*item_list_ttl[^"']*["'][^>]*>([\s\S]*?)<\/h3>/i.exec(block)?.[1];
     const price = /<p class=["']price["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
@@ -1475,7 +1466,7 @@ function parseGamersList(html: string, url: string, target: StockTarget): Parsed
 function parseGeoList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const anchorAttrs = /<a\b([^>]*\bclass=["'][^"']*\bsendDatalayer\b[^"']*["'][^>]*)>/i.exec(block)?.[1];
     const href = anchorAttrs ? /\bhref=["']([^"']+)["']/i.exec(anchorAttrs)?.[1] : null;
     const title = /<h3 class=["'][^"']*\bitemName\b[^"']*["'][^>]*>([\s\S]*?)<\/h3>/i.exec(block)?.[1];
@@ -1492,7 +1483,7 @@ function parseGeoList(html: string, url: string, target: StockTarget): ParsedOff
 function parseYodobashiList(provider: 'yodobashi', html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<div[^>]+class=["'][^"']*productListTile[^"']*["'][\s\S]*?<!-- \/pListBlock -->/gi)) {
-    const block = m[0] ?? '';
+    const block = m[0];
     const href = /<a[^>]+href=["']([^"']+)["'][\s\S]*?<div class=["']pName[^"']*["'][^>]*>([\s\S]*?)<\/div><\/a>/i.exec(block);
     const price = /<span class=["']productPrice["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["'](?:green|red)["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? /<div class=["'](?:soldout|yoyaku)["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
@@ -1507,10 +1498,10 @@ function parseJoshinList(html: string, url: string, target: StockTarget): Parsed
   const starts = [...html.matchAll(/<div class=["']search_container_name["']>/gi)];
   const offers: ParsedOffer[] = [];
   for (let i = 0; i < starts.length; i++) {
-    const start = starts[i];
-    if (start?.index == null) continue;
+    const start = starts[i]!;
+    const startIndex = start.index!;
     const end = starts[i + 1]?.index ?? html.length;
-    const block = html.slice(start.index, end);
+    const block = html.slice(startIndex, end);
     const a = /<a\s+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(block);
     if (!a?.[1] || !a[2]) continue;
     const price = /<div class=["']search_container_price["'][\s\S]*?<div class=["']price["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
@@ -1525,11 +1516,11 @@ function parseAmazonList(html: string, url: string, target: StockTarget): Parsed
   const starts = [...html.matchAll(/<div role=["']listitem["'][^>]+data-asin=["']([A-Z0-9]{10})["'][^>]+data-component-type=["']s-search-result["']/gi)];
   const offers: ParsedOffer[] = [];
   for (let i = 0; i < starts.length; i++) {
-    const start = starts[i];
-    const asin = start?.[1];
-    if (!asin || start.index == null) continue;
+    const start = starts[i]!;
+    const asin = start[1]!;
+    const startIndex = start.index!;
     const end = starts[i + 1]?.index ?? html.length;
-    const block = html.slice(start.index, end);
+    const block = html.slice(startIndex, end);
     const title = /<h2[^>]*aria-label=["']([^"']+)["'][\s\S]*?<\/h2>/i.exec(block)?.[1] ?? /<h2[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/h2>/i.exec(block)?.[1];
     const href = /<a[^>]+href=["']([^"']*\/dp\/[A-Z0-9]{10}[^"']*)["']/i.exec(block)?.[1] ?? `/dp/${asin}`;
     const price = /<span class=["']a-offscreen["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
@@ -1578,12 +1569,12 @@ export function parseAmazonDetail(html: string, url: string, target: StockTarget
 function parseYahooList(html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<a\s+href=["']([^"']+)["'][^>]+data-beacon=["']([^"']*?tname:[^"']+?)["'][^>]*>[\s\S]*?<span class=["'][^"']*ItemTitle[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?<span class=["'][^"']*ItemPrice_ItemPrice[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)) {
-    const href = m[1] ?? '';
-    const beacon = decodeEntities(m[2] ?? '');
+    const href = m[1]!;
+    const beacon = decodeEntities(m[2]!);
     const title = m[3] ?? /(?:^|;)tname:([^;]+)/.exec(beacon)?.[1] ?? '';
     const beaconPrice = /(?:^|;)prc:(\d+)/.exec(beacon)?.[1];
     const price = beaconPrice ? `${beaconPrice}円` : (m[4] ?? '');
-    const stock = /text:([^;]+)/.exec(beacon)?.[1] ?? (/予約/.test(m[0] ?? '') ? '予約' : '');
+    const stock = /text:([^;]+)/.exec(beacon)?.[1] ?? (/予約/.test(m[0]) ? '予約' : '');
     const offer = offerFromListBlock('asakusa_mach', url, target, href, title, price, stock, { location: 'Yahoo Shopping' });
     if (offer) offers.push(offer);
   }
@@ -1593,8 +1584,8 @@ function parseYahooList(html: string, url: string, target: StockTarget): ParsedO
 function parseMakeshopList(provider: StockProviderId, html: string, url: string, target: StockTarget): ParsedOffer[] {
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']innerBox["'][\s\S]*?<p class=["']name["']>\s*<a href=([^>\s]+)[^>]*>([\s\S]*?)<\/a><\/p>[\s\S]*?<p class=["']price["']>\s*([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/li>/gi)) {
-    const href = (m[1] ?? '').replace(/^["']|["']$/g, '');
-    const offer = offerFromListBlock(provider, url, target, href, m[2] ?? '', m[3] ?? '', m[0] ?? '', { location: providerLabel(provider) });
+    const href = m[1]!.replace(/^["']|["']$/g, '');
+    const offer = offerFromListBlock(provider, url, target, href, m[2] ?? '', m[3] ?? '', m[0], { location: providerLabel(provider) });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1639,9 +1630,9 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
   const offers: ParsedOffer[] = [];
   for (const pattern of providerListPatterns(provider)) {
     for (const m of html.matchAll(pattern)) {
-      const rawHref = m[1] ?? '';
-      const title = stripTags(m[2] ?? '');
-      const priceText = stripTags(m[3] ?? '');
+      const rawHref = m[1]!;
+      const title = stripTags(m[2]!);
+      const priceText = stripTags(m[3]!);
       if (!title || isSearchPagePseudoTitle(title) || !targetMatchesTitle(target, title)) continue;
       const offerUrl = absUrl(url, rawHref);
       offers.push({
@@ -1649,7 +1640,7 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
         title,
         url: offerUrl,
         price: parsePriceYen(priceText),
-        availability: availabilityFromText(m[0] ?? '') === 'out_of_stock' ? 'out_of_stock' : availabilityFromText(m[0] ?? '') === 'unknown' ? 'unknown' : 'in_stock',
+        availability: availabilityFromText(m[0]) === 'out_of_stock' ? 'out_of_stock' : availabilityFromText(m[0]) === 'unknown' ? 'unknown' : 'in_stock',
         availability_label: null,
         condition: null,
         edition_label: /特典|限定|初回|DX|BOX/i.test(title) ? 'edition_bonus' : null,
@@ -1663,8 +1654,7 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
 }
 
 function providerEncoding(provider: StockProviderId): string | undefined {
-  if (provider === 'trader' || provider === 'getchu') return 'euc-jp';
-  if (provider === 'sofmap') return 'shift_jis';
+  if (provider === 'getchu') return 'euc-jp';
   return undefined;
 }
 
@@ -1688,7 +1678,7 @@ async function refreshGenericProvider(provider: StockProviderId, vnId: string, r
 function parseJsonLd(html: string): unknown[] {
   const blocks: unknown[] = [];
   for (const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
-    const raw = decodeEntities(m[1] ?? '').replace(/,\s*([}\]])/g, '$1').trim();
+    const raw = decodeEntities(m[1]!).replace(/,\s*([}\]])/g, '$1').trim();
     try {
       blocks.push(JSON.parse(raw));
     } catch {}
@@ -1736,8 +1726,7 @@ function availabilityFromSchema(value: unknown): VnStockAvailability {
 function extractFirstShopLink(html: string, baseUrl: string): string | null {
   let fallback: string | null = null;
   for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
-    const raw = m[1];
-    if (!raw) continue;
+    const raw = m[1]!;
     const abs = absUrl(baseUrl, raw);
     const host = sourceHost(abs).toLowerCase();
     if (!host || host === 'eroge-price.com' || host.endsWith('.eroge-price.com')) continue;
@@ -1799,7 +1788,7 @@ interface ErogePriceCellRoles {
  * price column shows `-`. We must NOT push those as in-stock offers.
  */
 function classifyErogePriceRow(rowHtml: string, baseUrl: string): ErogePriceCellRoles | null {
-  const cellMatches = [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1] ?? '');
+  const cellMatches = [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1]!);
   if (cellMatches.length < 2) return null;
 
   // The Eroge Price page renders one row per shop in the canonical column
@@ -1922,7 +1911,7 @@ export function parseErogePrice(html: string, url: string, vnId: string, now: nu
   // "-" in the version column.
   let currentVersion: string | null = null;
   for (const m of html.matchAll(/(<h2[^>]*>[\s\S]*?<\/h2>|<h3[^>]*>[\s\S]*?<\/h3>|<tr[^>]*>[\s\S]*?<\/tr>)/gi)) {
-    const chunk = m[0] ?? '';
+    const chunk = m[0];
     if (/^<h[23]/i.test(chunk)) {
       const heading = stripTags(chunk).trim();
       if (/ダウンロード版|DL版|パッケージ版|通常版|限定版|セット/.test(heading)) {
@@ -2211,13 +2200,9 @@ export function parseSurugayaSearch(html: string): SurugayaSearchResult {
 
     const productUrl = `https://www.suruga-ya.jp/product/${pageKind}/${productId}`;
 
-    let storeCode: string | null = null;
-    let branchNumber: string | null = null;
-    try {
-      const qs = new URLSearchParams(queryStr.replace(/^[?&]/, ''));
-      storeCode = qs.get('tenpo_cd');
-      branchNumber = qs.get('branch_number');
-    } catch {}
+    const qs = new URLSearchParams(queryStr.replace(/^[?&]/, ''));
+    const storeCode = qs.get('tenpo_cd');
+    const branchNumber = qs.get('branch_number');
 
     // Bound context: start at the link position (content comes after it), forward to next card's start.
     // Do NOT look backward past a previous card — that causes availability/price bleeding.
@@ -2301,7 +2286,7 @@ export function parseSurugayaSearch(html: string): SurugayaSearchResult {
       primaryPrice,
       officialAvailability,
       marketplacePrice,
-      marketplaceCount: marketplaceCount ?? null,
+      marketplaceCount,
       storeCode,
       branchNumber,
       imageUrl,
@@ -2339,7 +2324,7 @@ function surugayaCardToOffer(card: SurugayaSearchCard, classifyTarget: ClassifyT
     page_kind: card.pageKind,
     title: card.title,
     url: card.url,
-    price: price ?? null,
+    price,
     availability,
     availability_label: availLabel,
     condition: card.condition,
@@ -2509,7 +2494,6 @@ async function refreshProvider(
   releases: VndbRelease[],
   vn: CollectionItem,
   discovered: Map<StockProviderId, StockTarget[]>,
-  egsId: number | null | undefined,
   now: number,
   signal?: AbortSignal,
   aliases: string[] = [],
@@ -2536,7 +2520,6 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   if (!vn) throw new Error(`VN not found: ${vnId}`);
   const aliases = listStockAliases(vnId).map((a) => a.alias_term);
   const releases = isVndbVnId(vnId) ? await getReleasesForVn(vnId, 100) : [];
-  const egsId = getEgsForVn(vnId)?.egs_id ?? null;
   const disabledProviders = getDisabledStockProviders();
   const activeProviders = providers.filter((p) => !disabledProviders.has(p));
   const discovered = await discoverRetailerTargetsFromOfficialPages(vn, releases, signal);
@@ -2599,10 +2582,10 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     signal?.addEventListener('abort', onOuterAbort, { once: true });
     const providerTimeout = setTimeout(() => providerCtrl.abort(), STOCK_PROVIDER_TIMEOUT_MS);
     try {
-      let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases));
+      let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, now, providerCtrl.signal, aliases));
       if (offers.length === 0 && canRetryDirect && !providerCtrl.signal.aborted) {
         const directOffers = dedupeProviderOffers(
-          await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases)),
+          await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, now, providerCtrl.signal, aliases)),
         );
         if (directOffers.length > 0) offers = directOffers;
       }
@@ -2612,7 +2595,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       if (canRetryDirect && !providerCtrl.signal.aborted) {
         try {
           const directOffers = dedupeProviderOffers(
-            await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, egsId, now, providerCtrl.signal, aliases)),
+            await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, now, providerCtrl.signal, aliases)),
           );
           writeProviderResult(provider, directOffers, now);
           return;

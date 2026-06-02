@@ -64,7 +64,6 @@ function hasBlockingHttpStatus(message: string | null | undefined): boolean {
   const match = /\bHTTP\s*(\d{3})\b/i.exec(message ?? '');
   if (!match) return false;
   const code = Number(match[1]);
-  if (!Number.isFinite(code)) return false;
   if (code === 404) return false; // no_results, not blocked
   if (code === 410) return false; // gone, treat as no_results
   return code >= 400 && code < 600;
@@ -114,7 +113,7 @@ export function normalizeProviderDiagnostic(
   status?: ProviderDiagnosticStatus | null,
   visibleOfferCount = 0,
 ): NormalizedProviderDiagnostic {
-  const offersFound = status?.offer_count ?? visibleOfferCount ?? 0;
+  const offersFound = status?.offer_count ?? visibleOfferCount;
   const freshOffersFound = status?.fresh_offers_found ?? offersFound;
   const cachedOffersAvailable = status?.cached_offers_available ?? 0;
   const technicalDetail = status?.message ?? null;

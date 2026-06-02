@@ -357,6 +357,149 @@ describe('refreshStockForVn — fetch deadline', () => {
   });
 });
 
+describe('refreshStockForVn — fetch boundaries', () => {
+  it('rejects a blocked manual source before issuing a network request', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'melonbooks', url: 'https://example.test/item' });
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(statusFor('melonbooks')?.message).toMatch(/Blocked stock URL/);
+  });
+
+  it('retries transient network failures and records the final error', async () => {
+    vi.useFakeTimers();
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockRejectedValue(new Error('offline'));
+
+    const promise = refreshStockForVn(VN_ID, ['melonbooks']);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(statusFor('melonbooks')?.message).toBe('offline');
+  });
+
+  it('continues after a transient network failure', async () => {
+    vi.useFakeTimers();
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    fetchMock.mockImplementation(() => Promise.resolve(htmlResponse(melonbooksDetailHtml('Test Game 通常版', 4100))));
+
+    const promise = refreshStockForVn(VN_ID, ['melonbooks']);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await promise;
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(statusFor('melonbooks')?.status).toBe('ok');
+  });
+
+  it('waits and retries a rate-limited response', async () => {
+    vi.useFakeTimers();
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockResolvedValueOnce(htmlResponse('slow down', { status: 429, headers: { 'retry-after': '1' } }));
+    fetchMock.mockImplementation(() => Promise.resolve(htmlResponse(melonbooksDetailHtml('Test Game 通常版', 4200))));
+
+    const promise = refreshStockForVn(VN_ID, ['melonbooks']);
+    await vi.advanceTimersByTimeAsync(6_000);
+    await promise;
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(statusFor('melonbooks')?.status).toBe('ok');
+  });
+
+  it('records an exhausted rate limit', async () => {
+    vi.useFakeTimers();
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockImplementation(() => Promise.resolve(htmlResponse('slow down', { status: 429 })));
+
+    const promise = refreshStockForVn(VN_ID, ['melonbooks']);
+    await vi.advanceTimersByTimeAsync(11_000);
+    await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(statusFor('melonbooks')?.message).toMatch(/HTTP 429/);
+  });
+
+  it('rejects a declared oversized response', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockResolvedValue(
+      htmlResponse('too large', { headers: { 'content-length': String(16 * 1024 * 1024 + 1) } }),
+    );
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')?.message).toMatch(/response too large/);
+  });
+
+  it('rejects a streamed oversized response', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockResolvedValue(
+      new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1));
+          controller.close();
+        },
+      })),
+    );
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')?.message).toMatch(/response exceeded/);
+  });
+
+  it('rejects a response without a body', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')?.message).toMatch(/empty body/);
+  });
+
+  it('falls back after decoding an empty response', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockImplementation(() => Promise.resolve(htmlResponse('')));
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')).toMatchObject({ status: 'no_results' });
+  });
+
+  it('propagates cancellation into an in-flight request', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    const controller = new AbortController();
+    let started!: () => void;
+    const fetchStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        const signal = init.signal as AbortSignal;
+        started();
+        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      }),
+    );
+
+    const promise = refreshStockForVn(VN_ID, ['melonbooks'], controller.signal);
+    await fetchStarted;
+    controller.abort();
+    await promise;
+
+    expect(statusFor('melonbooks')).toBeUndefined();
+  });
+});
+
 describe('refreshStockForVn — direct retry fallback', () => {
   it('retries over a direct connection when the proxied attempt yields zero offers', async () => {
     proxiedMock.mockReturnValue(true);

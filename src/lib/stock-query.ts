@@ -7,7 +7,7 @@ export function titleQueries(vn: CollectionItem, extraTerms: string[] = []): str
     vn.title,
     vn.alttitle,
     ...extraTerms,
-    ...((vn.titles ?? []).flatMap((title) => [title.title, title.latin]) ?? []),
+    ...(vn.titles ?? []).flatMap((title) => [title.title, title.latin]),
   ];
   const seen = new Set<string>();
   const out: string[] = [];

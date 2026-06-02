@@ -31,10 +31,7 @@ export class StockPanelBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Server-side console only; user gets the fallback UI.
-    if (typeof window !== 'undefined') {
-      console.error('[StockPanelBoundary]', error, info);
-    }
+    console.error('[StockPanelBoundary]', error, info);
   }
 
   reset = () => this.setState({ error: null });

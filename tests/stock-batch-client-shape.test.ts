@@ -27,7 +27,10 @@ describe('stock batch client response adapters', () => {
   });
 
   it('rejects malformed settings, pages, and jobs', () => {
+    expect(decodeDisabledStockProviders({})).toEqual([]);
+    expect(decodeDisabledStockProviders({ stock_disabled_providers: null })).toBeNull();
     expect(decodeDisabledStockProviders({ stock_disabled_providers: ['bad'] })).toBeNull();
+    expect(decodeStockBatchQueuePage({ entries: Array(501).fill(null), next_page: null })).toBeNull();
     expect(decodeStockBatchQueuePage({ entries: [{ vn_id: 'bad', title: null }], next_page: null })).toBeNull();
     expect(decodeStockBatchQueuePage({ entries: [], next_page: 1.5 })).toBeNull();
     expect(decodeStockBatchStart({ jobId: '', queued: 1 })).toBeNull();

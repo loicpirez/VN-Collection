@@ -153,6 +153,23 @@ describe('subscribeStockSummary cache lifecycle', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('refreshes the cache entry when overlapping requests resolve for the same VN', async () => {
+    const resolvers: Array<(value: { ok: true; json: () => Promise<{ summary: { v1: { available: number; best_price: number } } }> }) => void> = [];
+    const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => {
+      resolvers.push(resolve);
+    }));
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+    subscribeStockSummary('v1', () => {});
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+    subscribeStockSummary('v1', () => {});
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+    resolvers[0]({ ok: true, json: async () => ({ summary: { v1: { available: 1, best_price: 100 } } }) });
+    await vi.advanceTimersByTimeAsync(0);
+    resolvers[1]({ ok: true, json: async () => ({ summary: { v1: { available: 2, best_price: 200 } } }) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not deliver a cached value to a subscriber that unsubscribes before its microtask', async () => {
     const fetchMock = okFetch({ v1: { available: 9, best_price: 90 } });
     (globalThis as { fetch: unknown }).fetch = fetchMock;

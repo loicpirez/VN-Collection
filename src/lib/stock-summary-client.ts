@@ -66,10 +66,11 @@ let queueTimer: ReturnType<typeof setTimeout> | null = null;
 function cachePut(vnId: string, entry: StockSummaryEntry | null) {
   if (cache.has(vnId)) cache.delete(vnId);
   cache.set(vnId, { entry, at: Date.now() });
-  while (cache.size > CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined) break;
-    cache.delete(oldest);
+  if (cache.size > CACHE_MAX) {
+    for (const oldest of cache.keys()) {
+      cache.delete(oldest);
+      break;
+    }
   }
 }
 
@@ -101,7 +102,6 @@ async function flushQueue() {
   queueTimer = null;
   const ids = [...queue];
   queue = new Set();
-  if (ids.length === 0) return;
   try {
     const params = new URLSearchParams();
     params.set('ids', ids.join(','));

@@ -99,6 +99,7 @@ const snapshot = {
 describe('stock API response adapters', () => {
   it('decodes a full snapshot and canonicalizes ids', () => {
     expect(decodeStockSnapshot(snapshot)?.offers[0]?.vn_id).toBe('v90001');
+    expect(decodeStockSnapshot({ ...snapshot, offers: [{ ...offer, condition: 'used' }] })).not.toBeNull();
   });
 
   it('decodes alias and clear-cache envelopes', () => {
@@ -119,5 +120,70 @@ describe('stock API response adapters', () => {
 
   it('accepts the supported pre-refresh provider state', () => {
     expect(decodeStockSnapshot({ ...snapshot, statuses: [{ ...status, status: 'not_checked' }] })?.statuses[0]?.status).toBe('not_checked');
+  });
+
+  it('rejects malformed status, source, summary, and outer containers', () => {
+    expect(decodeStockSnapshot(null)).toBeNull();
+    expect(decodeStockSnapshot({ ...snapshot, statuses: [{ ...status, offer_count: -1 }] })).toBeNull();
+    expect(decodeStockSnapshot({ ...snapshot, sources: [{ ...source, id: 0 }] })).toBeNull();
+    expect(decodeStockSnapshot({ ...snapshot, summary: { ...summary, total: -1 } })).toBeNull();
+  });
+
+  it('accepts every provider capability enum member and omitted optional provider fields', () => {
+    for (const lookupCapability of ['aggregate_price', 'direct_link', 'jan_lookup', 'title_search', 'cached_inventory']) {
+      expect(decodeStockSnapshot({
+        ...snapshot,
+        providers: [{ ...provider, lookupCapabilities: [lookupCapability] }],
+      })).not.toBeNull();
+    }
+    for (const resultCapability of ['structured_prices', 'structured_offers', 'search_leads', 'cached_offers']) {
+      expect(decodeStockSnapshot({
+        ...snapshot,
+        providers: [{ ...provider, resultCapability }],
+      })).not.toBeNull();
+    }
+    for (const supportLevel of ['supported', 'limited', 'manual_only']) {
+      expect(decodeStockSnapshot({
+        ...snapshot,
+        providers: [{ ...provider, supportLevel }],
+      })).not.toBeNull();
+    }
+    for (const physicalStockMode of [
+      'none',
+      'online_only',
+      'single_shop',
+      'store_locator_only',
+      'phone_only',
+      'store_name_online',
+      'exact_online',
+      'exact_online_possible_not_implemented',
+      'exact_online_browser_required',
+      'exact_cached',
+    ]) {
+      expect(decodeStockSnapshot({
+        ...snapshot,
+        providers: [{ ...provider, physicalStockMode }],
+      })).not.toBeNull();
+    }
+    const { lookupCapabilities: _lookupCapabilities, resultCapability: _resultCapability, supportLevel: _supportLevel, ...minimalProvider } = provider;
+    expect(decodeStockSnapshot({ ...snapshot, providers: [minimalProvider] })).not.toBeNull();
+    expect(decodeStockSnapshot({ ...snapshot, providers: [{ ...provider, lookupCapabilities: ['bad'] }] })).toBeNull();
+    expect(decodeStockSnapshot({ ...snapshot, providers: [{ ...provider, disabled: false }] })).not.toBeNull();
+  });
+
+  it('accepts every offer availability and status enum member', () => {
+    for (const availability of ['in_stock', 'limited', 'out_of_stock', 'unknown', 'error']) {
+      expect(decodeStockSnapshot({ ...snapshot, offers: [{ ...offer, availability }] })).not.toBeNull();
+    }
+    for (const statusValue of ['ok', 'no_results', 'partial', 'protected', 'error', 'skipped', 'not_checked']) {
+      expect(decodeStockSnapshot({ ...snapshot, statuses: [{ ...status, status: statusValue }] })).not.toBeNull();
+    }
+  });
+
+  it('rejects malformed alias variants', () => {
+    expect(decodeStockAliasesResult(null)).toBeNull();
+    expect(decodeStockAliasesResult({})).toBeNull();
+    expect(decodeStockAliasesResult({ aliases: null, error: 'bad aliases' })).toBeNull();
+    expect(decodeStockAliasesResult({ aliases: ['Query'], error: 4 })).toBeNull();
   });
 });

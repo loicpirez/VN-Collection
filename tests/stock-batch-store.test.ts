@@ -58,6 +58,21 @@ describe('durable stock batch store', () => {
     });
   });
 
+  it('stores absent label codes and true cancellation flags', () => {
+    const input = job({
+      id: `${PREFIX}flags`,
+      label_code: undefined,
+      cancelled: true,
+      interrupted: true,
+    });
+    upsertDurableStockBatchJob(input);
+    expect(listDurableStockBatchJobs().find((entry) => entry.id === input.id)).toMatchObject({
+      label_code: null,
+      cancelled: true,
+      interrupted: true,
+    });
+  });
+
   it('marks unfinished rows as interrupted without fabricating completion', () => {
     const input = job({ id: `${PREFIX}interrupted`, done: 2 });
     upsertDurableStockBatchJob(input);

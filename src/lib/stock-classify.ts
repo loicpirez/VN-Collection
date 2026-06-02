@@ -244,7 +244,7 @@ export function normalizeTitle(title: string): string {
   return title
     .replace(/\s+/g, ' ')
     .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/[　〜]/g, (c) => (c === '　' ? ' ' : '~'))
+    .replace(/〜/g, '~')
     .replace(/[☆★♪♥◆◇♦♠♣♡✿❀✦✧✩✪✫✬✭✮✯✰❤♔♕♖♗♘♙♚♛♜♝♞♟]/g, '')
     .replace(/[【】「」『』（）()[\]]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -412,11 +412,12 @@ export function classifyOffer(
       const platformInTitle = platformFromTitle(title);
       const platformInCat = platformFromCategory(cat);
       const resolvedPlatform = platformInCat !== 'unknown' ? platformInCat : platformInTitle;
-      const targetHasPlatform = (target.platforms ?? []).length > 0;
+      const targetPlatforms = target.platforms ?? [];
+      const targetHasPlatform = targetPlatforms.length > 0;
       const samePlatform =
         !targetHasPlatform ||
         resolvedPlatform === 'unknown' ||
-        (target.platforms ?? []).some((tp) => {
+        targetPlatforms.some((tp) => {
           const ntp = tp.toLowerCase();
           const np = resolvedPlatform.toLowerCase();
           return ntp.includes(np) || np.includes(ntp);

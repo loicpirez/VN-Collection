@@ -170,6 +170,12 @@ describe('remaining title-detection branches', () => {
     expect(c.matchWarnings).toContain('related_goods_category');
   });
 
+  it('does not add a target-mention warning to unrelated goods', () => {
+    const c = classifyOffer('別のタペストリー', 'タペストリー', { title: '架空ゲーム' });
+    expect(c.seriesRelation).toBe('related_goods');
+    expect(c.matchWarnings).not.toContain('only_mentions_target_in_bonus');
+  });
+
   it('detects the PC platform from a for-Windows title with no category', () => {
     const c = classifyOffer('架空ゲーム for Windows', null, { title: '架空ゲーム' });
     expect(c.platform).toBe('PC');
@@ -184,5 +190,10 @@ describe('isEligibleGameStockOffer relation rejection', () => {
       match_confidence: 'high',
       series_relation: 'sequel_or_pack',
     })).toBe(false);
+  });
+
+  it('accepts a limited legacy row and rejects unavailable rows', () => {
+    expect(isEligibleGameStockOffer({ availability: 'limited' })).toBe(true);
+    expect(isEligibleGameStockOffer({ availability: 'sold_out' })).toBe(false);
   });
 });

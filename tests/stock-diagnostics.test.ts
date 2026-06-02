@@ -61,6 +61,20 @@ describe('normalizeProviderDiagnostic', () => {
     expect(diag.secondaryKey).toBe('latestProtectedNote');
   });
 
+  it('keeps Suruga-ya protected responses partial when offers remain visible', () => {
+    const diag = normalizeProviderDiagnostic(
+      { id: 'surugaya', label: 'Suruga-ya' },
+      {
+        provider: 'surugaya',
+        status: 'protected',
+        message: 'Cloudflare protected',
+        offer_count: 1,
+        cached_offers_available: 0,
+      },
+    );
+    expect(diag.kind).toBe('partial');
+  });
+
   it('normalizes HTTP 403 as blocked and hides raw text from user-facing keys', () => {
     const diag = normalizeProviderDiagnostic(baseMeta, {
       provider: 'sample_shop',
@@ -76,6 +90,16 @@ describe('normalizeProviderDiagnostic', () => {
     expect(diag.messageKey).toBe('blockedByShopMessage');
     expect(diag.messageKey).not.toMatch(/HTTP 403/i);
     expect(diag.technicalDetail).toBe('HTTP 403 from shop.example');
+  });
+
+  it('uses phone guidance for blocked Joshin requests', () => {
+    const diag = normalizeProviderDiagnostic({ id: 'joshin', label: 'Joshin' }, {
+      provider: 'joshin',
+      status: 'error',
+      message: 'HTTP 403 from shop.example',
+    });
+    expect(diag.badgeKey).toBe('blockedPhoneBadge');
+    expect(diag.messageKey).toBe('joshinBlockedMessage');
   });
 
   it('normalizes missing source data without exposing raw wording', () => {
@@ -112,6 +136,53 @@ describe('normalizeProviderDiagnostic', () => {
     expect(diag.kind).toBe('unsupported');
     expect(diag.tone).toBe('neutral');
     expect(diag.messageKey).toBe('wondergooUnsupportedMessage');
+  });
+
+  it('uses store-locator guidance and message-based missing-source detection', () => {
+    const diag = normalizeProviderDiagnostic(
+      { id: 'sample_shop', label: 'Sample Shop', physicalStockMode: 'store_locator_only' },
+      {
+        provider: 'sample_shop',
+        status: 'ok',
+        message: 'source URL unavailable',
+      },
+    );
+    expect(diag.kind).toBe('unsupported');
+    expect(diag.messageKey).toBe('wondergooUnsupportedMessage');
+  });
+
+  it('returns not-checked diagnostics and generic skipped guidance', () => {
+    expect(normalizeProviderDiagnostic(baseMeta, null, 2)).toMatchObject({
+      kind: 'not_checked',
+      offersFound: 2,
+    });
+    expect(normalizeProviderDiagnostic(baseMeta, {
+      provider: 'sample_shop',
+      status: 'skipped',
+      message: null,
+    }).messageKey).toBe('missingSourceMessage');
+  });
+
+  it('detects Suruga-ya message protection when search offers remain visible', () => {
+    expect(normalizeProviderDiagnostic({ id: 'surugaya', label: 'Suruga-ya' }, {
+      provider: 'surugaya',
+      status: 'ok',
+      message: 'cloudflare challenge',
+      offer_count: 1,
+    }).kind).toBe('partial');
+    expect(normalizeProviderDiagnostic({ id: 'surugaya', label: 'Suruga-ya' }, {
+      provider: 'surugaya',
+      status: 'protected',
+      message: null,
+      offer_count: 0,
+      blocked_kind: 'detail_page',
+    }).messageKey).toBe('protectedMessage');
+    expect(normalizeProviderDiagnostic({ id: 'surugaya', label: 'Suruga-ya' }, {
+      provider: 'surugaya',
+      status: 'ok',
+      message: null,
+      offer_count: 0,
+    }).kind).toBe('no_results');
   });
 
   it('generic Cloudflare providers without offers stay protected', () => {
@@ -278,6 +349,31 @@ describe('normalizeProviderDiagnostic', () => {
     // 404 falls through the HTTP-block check; we treat it as a generic error.
     expect(diag.kind).toBe('network_error');
     expect(diag.tone).toBe('danger');
+  });
+
+  it('treats HTTP 410 as a generic provider error and empty success as no results', () => {
+    expect(normalizeProviderDiagnostic(baseMeta, {
+      provider: 'sample_shop',
+      status: 'error',
+      message: 'HTTP 410 from shop.example',
+    }).kind).toBe('network_error');
+    expect(normalizeProviderDiagnostic(baseMeta, {
+      provider: 'sample_shop',
+      status: 'ok',
+      message: null,
+      offer_count: 0,
+    }).kind).toBe('no_results');
+    expect(normalizeProviderDiagnostic(baseMeta, {
+      provider: 'sample_shop',
+      status: 'ok',
+      message: null,
+      offer_count: 1,
+    }).kind).toBe('ok');
+    expect(normalizeProviderDiagnostic(baseMeta, {
+      provider: 'sample_shop',
+      status: 'error',
+      message: null,
+    }).kind).toBe('network_error');
   });
 
   it('has user-facing i18n keys in every locale', () => {

@@ -170,9 +170,6 @@ export class EgsUnreachable extends Error {
   }
 }
 
-const EGS_FETCH_MAX_RETRIES = 1;
-const EGS_FETCH_RETRY_BASE_MS = 1500;
-
 /**
  * EGS SQL form endpoint constraints: REQUIRES POST with form-encoded body,
  * returns an HTML table (not JSON/CSV), column names are lowercase.
@@ -221,20 +218,7 @@ async function fetchTable(sql: string): Promise<string[][]> {
   if (!isAllowedHttpTarget(SQL_ENDPOINT)) {
     throw new EgsUnreachable('blocked', 'host not on SSRF allowlist');
   }
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < EGS_FETCH_MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, EGS_FETCH_RETRY_BASE_MS * attempt));
-    }
-    try {
-      return await fetchTableOnce(sql);
-    } catch (e) {
-      lastErr = e;
-      if (e instanceof EgsUnreachable && e.kind === 'network') continue;
-      throw e;
-    }
-  }
-  throw lastErr;
+  return fetchTableOnce(sql);
 }
 
 const TABLE_RE = /<table\b[^>]*class="[^"]*\bsql_for_erogamer\b[^"]*"[^>]*>([\s\S]*?)<\/table>/i;
@@ -660,7 +644,7 @@ export async function resolveEgsForVn(
     try {
       const releases = await getReleasesForVn(vnId);
       for (const r of releases) {
-        const candidate = findEgsIdInExtlinks(r.extlinks ?? []);
+        const candidate = findEgsIdInExtlinks(r.extlinks);
         if (candidate != null) {
           egsId = candidate;
           break;
@@ -729,7 +713,7 @@ export async function resolveEgsForVn(
 
   // Lookup succeeded, never matched before, still no match — persist the
   // negative so we don't retry on every page view.
-  persistNoMatch(vnId);
+  if (getCollectionItem(vnId)) persistNoMatch(vnId);
   return { game, source };
 }
 

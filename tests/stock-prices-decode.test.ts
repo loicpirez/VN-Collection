@@ -50,6 +50,13 @@ describe('fetchStockPriceExtras', () => {
     ).rejects.toThrow('invalid stock payload');
   });
 
+  it('rejects a malformed stock snapshot envelope', async () => {
+    const request: typeof fetch = () => Promise.resolve(jsonResponse(null));
+    await expect(
+      fetchStockPriceExtras('v90001', new AbortController().signal, request),
+    ).rejects.toThrow('invalid stock payload');
+  });
+
   it('rejects a malformed statuses entry where extras_json is the wrong type', async () => {
     const request = vi.fn().mockResolvedValue(
       jsonResponse({ statuses: [{ provider: 'eroge_price', extras_json: 12 }] }),

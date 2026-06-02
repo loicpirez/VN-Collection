@@ -7,12 +7,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { allowTargetMock } = vi.hoisted(() => ({ allowTargetMock: vi.fn() }));
+
 vi.mock('@/lib/proxy-fetch', () => ({ providerFetch: vi.fn() }));
 vi.mock('@/lib/vndb', () => ({ getReleasesForVn: vi.fn() }));
+vi.mock('@/lib/url-allowlist', () => ({ isAllowedHttpTarget: allowTargetMock }));
 
 import { db } from '@/lib/db';
 import { providerFetch } from '@/lib/proxy-fetch';
 import { getReleasesForVn } from '@/lib/vndb';
+import type { VndbRelease } from '@/lib/vndb';
 import {
   applyManualEgsToVndb,
   clearEgsCache,
@@ -83,12 +87,42 @@ function seedVn(id: string, title: string, alttitle: string | null = null): void
     .run(id, title, alttitle, Date.now());
 }
 
+function releaseWithExtlinks(extlinks: VndbRelease['extlinks']): VndbRelease {
+  return {
+    id: 'r90001',
+    title: 'Release',
+    alttitle: null,
+    languages: [],
+    platforms: [],
+    media: [],
+    released: null,
+    minage: null,
+    patch: false,
+    freeware: false,
+    uncensored: null,
+    official: true,
+    has_ero: false,
+    resolution: null,
+    engine: null,
+    voiced: null,
+    notes: null,
+    gtin: null,
+    catalog: null,
+    producers: [],
+    extlinks,
+    vns: [],
+    images: [],
+  };
+}
+
 beforeEach(() => {
   clearCache();
   clearEgsRows();
   mockProviderFetch.mockReset();
   mockGetReleases.mockReset();
   mockGetReleases.mockResolvedValue([]);
+  allowTargetMock.mockReset();
+  allowTargetMock.mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -202,9 +236,49 @@ describe('fetchEgsGame', () => {
     await expect(fetchEgsGame(9)).rejects.toMatchObject({ kind: 'network' });
   });
 
+  it('maps a non-Error thrown fetch value to a network EgsUnreachable', async () => {
+    mockProviderFetch.mockRejectedValueOnce('offline');
+    await expect(fetchEgsGame(901)).rejects.toMatchObject({ kind: 'network' });
+  });
+
   it('rejects an over-large declared content-length', async () => {
     queueFetches(() => new Response('x', { status: 200, headers: { 'content-length': String(5 * 1024 * 1024) } }));
     await expect(fetchEgsGame(10)).rejects.toMatchObject({ kind: 'server' });
+  });
+
+  it('rejects an over-large response body even without a content-length header', async () => {
+    queueFetches(ok('x'.repeat(4 * 1024 * 1024 + 1)));
+    await expect(fetchEgsGame(902)).rejects.toMatchObject({ kind: 'server' });
+  });
+
+  it('rejects a static EGS endpoint when it is absent from the SSRF allowlist', async () => {
+    allowTargetMock.mockReturnValueOnce(false);
+    await expect(fetchEgsGame(903)).rejects.toMatchObject({ kind: 'blocked' });
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
+
+  it('maps a response-like status zero to a server EgsUnreachable', async () => {
+    const response = ok('');
+    Object.defineProperty(response, 'status', { value: 0 });
+    mockProviderFetch.mockResolvedValueOnce(response);
+    await expect(fetchEgsGame(904)).rejects.toMatchObject({ kind: 'server', status: 0 });
+  });
+
+  it('aborts a stalled provider fetch after the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      mockProviderFetch.mockImplementationOnce(async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+      );
+      const pending = fetchEgsGame(905);
+      const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' });
+      await vi.advanceTimersByTimeAsync(7_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('decodes HTML entities and numeric character references in cells', async () => {
@@ -232,6 +306,16 @@ describe('fetchEgsGame', () => {
     const game = await fetchEgsGame(13);
     expect(game?.okazu).toBeNull();
     expect(game?.erogame).toBeNull();
+  });
+
+  it('defaults a missing title and a missing trailing cell in a sparse game row', async () => {
+    queueFetches(
+      ok(tableHtml([['median', 'count2'], ['50']])),
+      ok(tableHtml([['total_play_time']])),
+    );
+    const game = await fetchEgsGame(14);
+    expect(game?.gamename).toBe('');
+    expect(game?.count).toBeNull();
   });
 
   it('short-circuits to the cached game when a fresh cache row exists', async () => {
@@ -290,6 +374,18 @@ describe('searchEgsByName', () => {
     queueFetches(ok(tableHtml([['id'], ['NULL']])));
     expect(await searchEgsByName('weird')).toBeNull();
   });
+
+  it('serves a cached search result without fetching again', async () => {
+    queueFetches(
+      ok(tableHtml([['id'], ['322']])),
+      ok(tableHtml([['gamename'], ['Cached Search']])),
+      ok(tableHtml([['total_play_time']])),
+    );
+    expect((await searchEgsByName('cached-search'))?.id).toBe(322);
+    mockProviderFetch.mockReset();
+    expect((await searchEgsByName('cached-search'))?.id).toBe(322);
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
 });
 
 describe('searchEgsCandidates', () => {
@@ -309,12 +405,14 @@ describe('searchEgsCandidates', () => {
       // `toNumber(undefined)` yields null. A literal "NULL" cell would survive
       // the `?? null` guard, so we drop the cells entirely instead.
       ['2', 'Cand Two'],
+      ['3'],
       ['NULL', 'Skipped', 'x', '1', '1', '2000-01-01'], // id null → skipped
     ])));
     const out = await searchEgsCandidates('cand', 10);
-    expect(out).toHaveLength(2);
+    expect(out).toHaveLength(3);
     expect(out[0]).toMatchObject({ id: 1, gamename: 'Cand One', gamename_furigana: 'かな1', median: 80, count: 30 });
     expect(out[1]).toMatchObject({ id: 2, gamename: 'Cand Two', gamename_furigana: null, median: null, count: null, sellday: null });
+    expect(out[2]).toMatchObject({ id: 3, gamename: '' });
   });
 
   it('caches an empty candidate list on zero rows', async () => {
@@ -359,6 +457,16 @@ describe('parseHtmlTable branches (via fetchEgsGame)', () => {
     const game = await fetchEgsGame(456);
     expect(game?.gamename).toBe('Fallback Title');
   });
+
+  it('returns no game when HTML contains neither a named nor fallback table', async () => {
+    queueFetches(ok('<html><body><p>empty</p></body></html>'));
+    expect(await fetchEgsGame(457)).toBeNull();
+  });
+
+  it('ignores table rows that contain no cells', async () => {
+    queueFetches(ok('<table class="sql_for_erogamer"><tr></tr></table>'));
+    expect(await fetchEgsGame(458)).toBeNull();
+  });
 });
 
 describe('fetchEgsAnticipated', () => {
@@ -374,6 +482,23 @@ describe('fetchEgsAnticipated', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ egs_id: 100, vndb_id: 'v555', will_buy: 42, probably_buy: 10, watching: 5 });
     expect(rows[1]).toMatchObject({ egs_id: 101, brand_name: null, vndb_id: null });
+  });
+
+  it('defaults missing anticipated row cells without dropping a valid id', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'sellday', 'brand_name', 'vndb', 'will_buy', 'probably', 'watching'],
+      ['102'],
+    ])));
+    expect(await fetchEgsAnticipated(51)).toEqual([{
+      egs_id: 102,
+      gamename: '',
+      brand_name: null,
+      sellday: '',
+      vndb_id: null,
+      will_buy: 0,
+      probably_buy: 0,
+      watching: 0,
+    }]);
   });
 
   it('returns [] without caching when zero rows come back', async () => {
@@ -420,6 +545,36 @@ describe('fetchEgsAnticipatedPage', () => {
     expect(page.hasMore).toBe(false);
   });
 
+  it('defaults missing anticipated page cells without dropping a valid id', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'sellday', 'brand_name', 'vndb', 'will_buy', 'probably', 'watching'],
+      ['311'],
+    ])));
+    const page = await fetchEgsAnticipatedPage(20, 100);
+    expect(page.rows).toEqual([{
+      egs_id: 311,
+      gamename: '',
+      brand_name: null,
+      sellday: '',
+      vndb_id: null,
+      will_buy: 0,
+      probably_buy: 0,
+      watching: 0,
+    }]);
+  });
+
+  it('keeps a valid VNDB link and avoids caching when every anticipated page row has an invalid id', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'sellday', 'brand_name', 'vndb', 'will_buy', 'probably', 'watching'],
+      ['312', 'Linked', '2099-01-01', '', 'v123', '1', '0', '0'],
+    ])));
+    expect((await fetchEgsAnticipatedPage(1, 10)).rows[0]?.vndb_id).toBe('v123');
+
+    queueFetches(ok(tableHtml([['id'], ['NULL']])));
+    expect((await fetchEgsAnticipatedPage(2, 10)).rows).toEqual([]);
+    expect(db.prepare(`SELECT 1 FROM vndb_cache WHERE cache_key = 'egs:anticipated:p2:10'`).get()).toBeUndefined();
+  });
+
   it('serves an expired cache row with stale=true when the fetch fails', async () => {
     const cacheKey = 'egs:anticipated:p1:10';
     const payload = {
@@ -440,6 +595,17 @@ describe('fetchEgsAnticipatedPage', () => {
     mockProviderFetch.mockRejectedValue(new Error('down-and-empty'));
     await expect(fetchEgsAnticipatedPage(3, 10)).rejects.toThrow();
   });
+
+  it('rethrows when the expired anticipated cache body is malformed or decodes to null', async () => {
+    const now = Date.now();
+    const key = 'egs:anticipated:p1:10';
+    for (const body of ['{broken', JSON.stringify({ rows: 'bad', hasMore: false })]) {
+      db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES (?, ?, NULL, NULL, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET body = excluded.body, fetched_at = excluded.fetched_at, expires_at = excluded.expires_at`)
+        .run(key, body, now - 86_400_000, now - 3_600_000);
+      mockProviderFetch.mockRejectedValueOnce(new Error('down'));
+      await expect(fetchEgsAnticipatedPage(1, 10)).rejects.toThrow();
+    }
+  });
 });
 
 describe('fetchEgsTopRanked', () => {
@@ -454,6 +620,29 @@ describe('fetchEgsTopRanked', () => {
     expect(rows[0]).toMatchObject({ egs_id: 400, median: 88, okazu: true, erogame: false, vndb_id: 'v123', banner_url: 'https://example/b.jpg' });
     // median NULL → median2 fallback used.
     expect(rows[1]).toMatchObject({ egs_id: 401, median: 72, okazu: false, erogame: true, vndb_id: null });
+  });
+
+  it('skips invalid top-ranked ids and defaults missing optional cells', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'furigana', 'brand_id', 'brand_name', 'median', 'median2', 'average2', 'count2', 'sellday', 'banner_url', 'okazu', 'erogame', 'vndb'],
+      ['NULL'],
+      ['402'],
+    ])));
+    expect(await fetchEgsTopRanked(11, 1)).toEqual([{
+      egs_id: 402,
+      gamename: '',
+      furigana: null,
+      brand_id: null,
+      brand_name: null,
+      median: null,
+      average: null,
+      count: null,
+      sellday: null,
+      banner_url: null,
+      okazu: false,
+      erogame: false,
+      vndb_id: null,
+    }]);
   });
 
   it('does not cache a zero-row response', async () => {
@@ -495,6 +684,43 @@ describe('fetchEgsTopRankedPage', () => {
     expect(page.hasMore).toBe(false);
   });
 
+  it('defaults missing top-ranked page cells without dropping a valid id', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'furigana', 'brand_id', 'brand_name', 'median', 'median2', 'average2', 'count2', 'sellday', 'banner_url', 'okazu', 'erogame', 'vndb'],
+      ['601'],
+    ])));
+    const page = await fetchEgsTopRankedPage(1, 100, 1);
+    expect(page.rows).toEqual([{
+      egs_id: 601,
+      gamename: '',
+      furigana: null,
+      brand_id: null,
+      brand_name: null,
+      median: null,
+      average: null,
+      count: null,
+      sellday: null,
+      banner_url: null,
+      okazu: false,
+      erogame: false,
+      vndb_id: null,
+    }]);
+  });
+
+  it('keeps a valid VNDB link on a top-ranked page row', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'furigana', 'brand_id', 'brand_name', 'median', 'median2', 'average2', 'count2', 'sellday', 'banner_url', 'okazu', 'erogame', 'vndb'],
+      ['602', 'Linked', '', '', '', '80', '', '', '', '', '', '', '', 'v124'],
+    ])));
+    expect((await fetchEgsTopRankedPage(1, 10, 2)).rows[0]?.vndb_id).toBe('v124');
+  });
+
+  it('does not cache a top-ranked page when every parsed row has an invalid id', async () => {
+    queueFetches(ok(tableHtml([['id'], ['NULL']])));
+    expect((await fetchEgsTopRankedPage(1, 10, 1)).rows).toEqual([]);
+    expect(db.prepare(`SELECT 1 FROM vndb_cache WHERE cache_key = 'egs:top-ranked:1:p1:10'`).get()).toBeUndefined();
+  });
+
   it('rethrows when the fetch fails and there is no expired cache', async () => {
     mockProviderFetch.mockRejectedValue(new Error('down-and-empty'));
     await expect(fetchEgsTopRankedPage(2, 10, 10)).rejects.toThrow();
@@ -521,6 +747,25 @@ describe('fetchEgsUserReviews', () => {
     const out = await fetchEgsUserReviews('user_a');
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ egs_id: 10, tokuten: 85, total_play_time_hours: 12, start_date: '2020-01-01', gamename: 'Rev Game' });
+  });
+
+  it('defaults missing optional review cells and serves the cached result', async () => {
+    queueFetches(ok(tableHtml([
+      ['egs_id', 'tokuten', 'total_play_time', 'start_date', 'finish_date', 'timestamp', 'gamename'],
+      ['11'],
+    ])));
+    expect(await fetchEgsUserReviews('cached_user')).toEqual([{
+      egs_id: 11,
+      gamename: '',
+      tokuten: null,
+      total_play_time_hours: null,
+      start_date: null,
+      finish_date: null,
+      timestamp: null,
+    }]);
+    mockProviderFetch.mockReset();
+    expect(await fetchEgsUserReviews('cached_user')).toHaveLength(1);
+    expect(mockProviderFetch).not.toHaveBeenCalled();
   });
 
   it('caches an empty result on zero rows', async () => {
@@ -705,6 +950,59 @@ describe('linkEgsToVn', () => {
     const link = db.prepare(`SELECT 1 FROM vn_egs_link WHERE vn_id = 'v201'`).get();
     expect(link).toBeUndefined();
   });
+
+  it('persists a synthetic EGS-only link without writing a VNDB override', async () => {
+    seedVn('egs_445', 'Synthetic EGS');
+    queueFetches(
+      ok(tableHtml([['gamename'], ['Synthetic Manual']])),
+      ok(tableHtml([['total_play_time']])),
+    );
+    expect((await linkEgsToVn('egs_445', 445))?.id).toBe(445);
+    expect(db.prepare(`SELECT 1 FROM vn_egs_link WHERE vn_id = 'egs_445'`).get()).toBeUndefined();
+  });
+
+  it('persists each concrete EGS boolean value from manually linked games', async () => {
+    for (const [vnId, egsId, okazu, erogame] of [['v202', 446, 't', 'f'], ['v203', 447, 'f', 't']] as const) {
+      seedVn(vnId, `Title ${vnId}`);
+      queueFetches(
+        ok(tableHtml([['gamename', 'okazu', 'erogame'], [`Manual ${egsId}`, okazu, erogame]])),
+        ok(tableHtml([['total_play_time']])),
+      );
+      expect((await linkEgsToVn(vnId, egsId))?.id).toBe(egsId);
+    }
+    const rows = db.prepare(`SELECT vn_id, okazu, erogame FROM egs_game WHERE vn_id IN ('v202', 'v203') ORDER BY vn_id`).all();
+    expect(rows).toEqual([
+      { vn_id: 'v202', okazu: 1, erogame: 0 },
+      { vn_id: 'v203', okazu: 0, erogame: 1 },
+    ]);
+  });
+
+  it('persists a decoded cached game without optional raw columns', async () => {
+    seedVn('v204', 'Title V204');
+    const now = Date.now();
+    db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES (?, ?, NULL, NULL, ?, ?)`)
+      .run('egs:game:448', JSON.stringify({
+        id: 448,
+        gamename: 'Cached without raw',
+        gamename_furigana: null,
+        brand_id: null,
+        brand_name: null,
+        model: null,
+        description: null,
+        image_url: '/api/egs-cover/448',
+        okazu: null,
+        erogame: null,
+        median: null,
+        average: null,
+        dispersion: null,
+        count: null,
+        sellday: null,
+        playtime_median_minutes: null,
+        url: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=448',
+      }), now, now + 3_600_000);
+    expect((await linkEgsToVn('v204', 448))?.id).toBe(448);
+    expect(db.prepare(`SELECT raw_json FROM egs_game WHERE vn_id = 'v204'`).get()).toEqual({ raw_json: null });
+  });
 });
 
 describe('clearEgsCache', () => {
@@ -777,6 +1075,14 @@ describe('fetchEgsPlaytimeMedian branches (via fetchEgsGame)', () => {
     const game = await fetchEgsGame(779);
     // gamelist 9h → 540 minutes (playtime sub-fetch swallowed the error).
     expect(game?.playtime_median_minutes).toBe(540);
+  });
+
+  it('falls back to gamelist median when every userreview playtime is unusable', async () => {
+    queueFetches(
+      ok(tableHtml([['gamename', 'total_play_time_median'], ['No Valid Reviews', '4']])),
+      ok(tableHtml([['total_play_time'], ['NULL'], ['0'], ['bad']])),
+    );
+    expect((await fetchEgsGame(780))?.playtime_median_minutes).toBe(240);
   });
 });
 
@@ -875,6 +1181,95 @@ describe('resolveEgsForVn additional branches', () => {
     const res = await resolveEgsForVn('v408');
     expect(res.source).toBe('search');
     expect(res.game?.id).toBe(9090);
+  });
+
+  it('persists a clean negative for an invalid synthetic id without fetching', async () => {
+    seedVn('egs_bad', 'Invalid Synthetic');
+    expect(await resolveEgsForVn('egs_bad', { allowSearch: false })).toEqual({ game: null, source: null });
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
+
+  it('ignores matching extlinks without a game id', async () => {
+    seedVn('v409', 'Title V409');
+    mockGetReleases.mockResolvedValue([
+      releaseWithExtlinks([{ url: 'https://erogamescape.dyndns.org/no-game', label: 'ErogameScape', name: '' }]),
+    ]);
+    expect(await resolveEgsForVn('v409', { allowSearch: false })).toEqual({ game: null, source: null });
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
+
+  it('ignores an extlink game id too large to represent as a finite number', async () => {
+    seedVn('v94091', 'Title V94091');
+    mockGetReleases.mockResolvedValue([
+      releaseWithExtlinks([{ url: `https://erogamescape.dyndns.org/game.php?game=${'9'.repeat(400)}`, label: 'ErogameScape', name: '' }]),
+    ]);
+    expect(await resolveEgsForVn('v94091', { allowSearch: false })).toEqual({ game: null, source: null });
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
+
+  it('propagates an invalid manual id instead of swallowing a programming error', async () => {
+    seedVn('v410', 'Title V410');
+    db.prepare(`INSERT INTO vn_egs_link (vn_id, egs_id, note, updated_at) VALUES ('v410', -1, NULL, ?)`).run(Date.now());
+    await expect(resolveEgsForVn('v410')).rejects.toThrow(/invalid EGS SQL integer/);
+  });
+
+  it('propagates an invalid extlink id instead of swallowing a programming error', async () => {
+    seedVn('v411', 'Title V411');
+    mockGetReleases.mockResolvedValue([
+      releaseWithExtlinks([{ url: 'https://erogamescape.dyndns.org/game.php?game=9999999999999999', label: 'ErogameScape', name: '' }]),
+    ]);
+    await expect(resolveEgsForVn('v411', { allowSearch: false })).rejects.toThrow(/invalid EGS SQL integer/);
+  });
+
+  it('persists a clean negative when the VN row is absent and no search probe exists', async () => {
+    expect(await resolveEgsForVn('v412')).toEqual({ game: null, source: null });
+    expect(mockProviderFetch).not.toHaveBeenCalled();
+  });
+
+  it('propagates a plain name-search failure', async () => {
+    seedVn('v413', 'Title V413');
+    mockProviderFetch.mockResolvedValueOnce(new Response('teapot', { status: 418 }));
+    await expect(resolveEgsForVn('v413')).rejects.toThrow(/EGS HTTP 418/);
+  });
+
+  it('preserves a prior search-sourced and null-sourced match after a clean miss', async () => {
+    for (const [id, source] of [['v414', 'search'], ['v415', null]] as const) {
+      seedVn(id, `Title ${id}`, `Alt ${id}`);
+      db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, source, fetched_at) VALUES (?, 558, 'Prior', ?, ?)`)
+        .run(id, source, Date.now() - 100 * 24 * 3600 * 1000);
+      queueFetches(ok(tableHtml([['id']])));
+      const res = await resolveEgsForVn(id, { force: true });
+      expect(res.game?.id).toBe(558);
+      expect(res.source).toBe(source);
+    }
+  });
+
+  it('returns a recent cached negative as a null game', async () => {
+    seedVn('v416', 'Title V416');
+    db.prepare(`INSERT INTO egs_game (vn_id, egs_id, source, fetched_at) VALUES ('v416', NULL, NULL, ?)`).run(Date.now());
+    expect(await resolveEgsForVn('v416')).toEqual({ game: null, source: null });
+  });
+
+  it('projects a sparse recent cached row and each stored boolean value', async () => {
+    for (const [id, okazu, erogame] of [['v417', 0, 1], ['v418', 1, 0]] as const) {
+      seedVn(id, `Title ${id}`);
+      db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, okazu, erogame, source, fetched_at) VALUES (?, 559, NULL, ?, ?, 'manual', ?)`)
+        .run(id, okazu, erogame, Date.now());
+      const res = await resolveEgsForVn(id);
+      expect(res.source).toBe('manual');
+      expect(res.game?.gamename).toBe('');
+      expect(res.game?.okazu).toBe(Boolean(okazu));
+      expect(res.game?.erogame).toBe(Boolean(erogame));
+    }
+  });
+
+  it('handles an extlink whose EGS game row is absent', async () => {
+    seedVn('v419', 'Title V419');
+    mockGetReleases.mockResolvedValue([
+      releaseWithExtlinks([{ url: 'https://erogamescape.dyndns.org/game.php?game=419', label: 'ErogameScape', name: '' }]),
+    ]);
+    queueFetches(ok(tableHtml([['gamename']])));
+    expect(await resolveEgsForVn('v419', { allowSearch: false })).toEqual({ game: null, source: null });
   });
 });
 
