@@ -862,7 +862,7 @@ function PerPageLayoutPanel() {
           return (
             <li
               key={scope}
-              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] xl:grid-cols-[minmax(8rem,0.7fr)_minmax(20rem,1.3fr)_minmax(20rem,1fr)]"
+              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] lg:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)]"
             >
               <div className="min-w-0">
                 <span className={spaceOverridden ? 'block text-white' : 'block text-muted'}>
@@ -907,7 +907,7 @@ function PerPageLayoutPanel() {
                   {t.settings.pageSpaceReset}
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-1 xl:justify-end">
+              <div className="flex flex-wrap items-center gap-1 lg:col-span-2 lg:justify-end">
                 {densityScopes.length > 0 ? (
                   densityScopes.map((densityScope) => {
                     const overridden = hasScopeOverride(settings, densityScope);
