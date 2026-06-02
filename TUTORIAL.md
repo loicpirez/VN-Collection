@@ -146,7 +146,8 @@ Default sections:
       `image.php`, plus shop covers (Suruga-ya / DMM / DLsite /
       Gyutto). Click a tile to pin that exact source as your
       custom cover — survives refresh. A separate "Use EGS auto"
-      button keeps the original priority-fallback behavior.
+      button keeps the original priority-fallback behavior. Remote
+      candidates are shown only when their image host is trusted.
 6. **Pomodoro timer** + **Game log** — `SessionPanel` hosts both side
    by side. Start a 25-min reading session; on stop, prompt to merge
    the elapsed minutes into `playtime_minutes`. The Pomodoro publishes
@@ -163,6 +164,8 @@ Default sections:
    centred on this VN.
 10. **Series auto-suggest** if VNDB relations match in-collection VNs.
 11. **Cast / Staff / Routes / Activity log** — each its own section.
+    Route journals page after 40 entries while keeping the complete order
+    available to the editor.
 12. **Releases & owned editions** — track physical / digital copies.
     Each edition records location, box type, condition, price paid,
     currency, **acquired date**, and **purchase place** (the store

@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 401 tracked tasks. Statuses must be updated only
+place. The reports below contain 425 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -14,17 +14,17 @@ Each task uses the same five-column format:
 
 | Category | Report | Tracked tasks |
 | --- | --- | ---: |
-| Security | [security-report-tasks.md](security-report-tasks.md) | 34 |
-| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 111 |
+| Security | [security-report-tasks.md](security-report-tasks.md) | 36 |
+| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 118 |
 | Features | [features-report-tasks.md](features-report-tasks.md) | 8 |
-| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 32 |
+| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 34 |
 | UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 15 |
 | Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 35 |
-| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 45 |
-| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 34 |
+| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 51 |
+| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 39 |
 | Typing | [typing-report-tasks.md](typing-report-tasks.md) | 67 |
 | Testing | [testing-report-tasks.md](testing-report-tasks.md) | 11 |
-| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 9 |
+| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 11 |
 
 ## Status vocabulary
 
@@ -271,10 +271,28 @@ flips desktop navbar menus before introducing internal scroll, makes the map pri
 notice independently collapsible, isolates Leaflet below modal layers, and gives
 per-page density controls a stable non-overlapping settings grid.
 
+The final boundary and lifecycle follow-up validates EGS cover candidates before
+caching or rendering, rejects malformed collection filters before expensive
+materialization, and aborts obsolete Steam reads and writes.
+
+The final UI follow-up moves custom dialog layouts to the shared root portal layer,
+normalizes decorative Lucide accessibility and presentation tokens, windows route
+journals at 40 rows, and keeps one cover-picker owner mounted outside collapsible
+menus. Browser QA caught and verified the resident picker fix directly.
+
+Final fresh gates:
+
+- `yarn typecheck`
+- `yarn test`: 3343 passed, 3 skipped
+- `yarn build`
+- `yarn qa`: 24 passed, 0 failed
+- `yarn sentinel`: 29 passed, 0 failed
+
 Current status:
 
-- `DONE_WITH_DIFF`: 398
+- `DONE_WITH_DIFF`: 422
 - `VERIFIED_EXISTING`: 3
+- `IN_PROGRESS`: 0
 - `TODO`: 0
 
 ## Working method

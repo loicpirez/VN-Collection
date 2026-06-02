@@ -189,8 +189,11 @@ that lets the user pick the cover from three categorical sources:
      attached to this VN (each tile is a one-click "set as cover").
 
 The current pick is ring-highlighted so it's obvious which image is
-live. Initial tab is inferred from `currentCustomCover` (EGS URL →
-EGS tab, anything else → Custom tab, null → VNDB tab).
+live. The modal opens on **Custom** so upload, URL paste, and attached
+artwork remain immediately visible. VNDB and EGS stay one tab away.
+Custom dialog layouts use the shared body-level `DialogPortal`, matching
+the canonical dialog layer so navigation and page-local stacking contexts
+cannot cover them.
 
 #### Multi-source EGS cover picker ✅
 The EGS tab no longer locks you into the resolver's priority chain.
@@ -203,7 +206,8 @@ known source side-by-side as clickable tiles:
 - **Suruga-ya / DMM / DLsite / Gyutto** — shop variants whenever the
   EGS row carries that store id.
 
-The candidates route does **no probing** (HEAD requests would
+The candidates route filters persisted or upstream remote URLs through
+the trusted image-host allowlist, then does **no probing** (HEAD requests would
 quadruple latency); the UI lazy-loads each tile and the `<img onError>`
 hook surfaces 404s. Clicking a tile calls
 `POST /api/collection/[id]/cover {source:'url', value:<absolute>}` so
@@ -388,7 +392,9 @@ banner as a hero strip plus the cover thumbnail.
 
 ### Routes ✅
 Per-VN ordered list of routes (e.g. "Heroine A → Heroine B → True route")
-with completion tracking and free-form notes.
+with completion tracking and free-form notes. The editor renders 40 routes per
+page while retaining the complete ordered array for reorder operations, so long
+journals remain responsive without changing route semantics.
 
 ### Per-route notes ✅
 Each route entry has a sticky-note toggle that expands an inline textarea
@@ -498,7 +504,7 @@ the page header + tab strip paint immediately.
 
 ### EGS cover resolver ✅
 `GET /api/egs-cover/[id]` — tiered resolution chain (first hit wins):
-  1. `gamelist.banner_url` (curated EGS banner, trusted — no probe).
+  1. `gamelist.banner_url` (curated EGS banner, trusted-host gate, no probe).
   2. **Linked VNDB cover** via `egs_game.vn_id` → `vn.image_url` (or
      local mirror at `/api/files/<local_image>`). Best quality + most
      reliable for anticipated entries.
@@ -514,7 +520,9 @@ header. Same-origin `/api/files/<path>` targets still 302-redirect
 Cloudflare bot-mitigation failures that were silently breaking the
 browser fetch when the route 302'd cross-origin.
 
-Hits cache for 7 days. Misses cache for 1 hour (down from 24 h) so
+Allowlist validation runs before a resolved URL enters the cache; legacy
+off-allowlist cached values are ignored so lower-priority valid fallbacks
+remain reachable. Hits cache for 7 days. Misses cache for 1 hour (down from 24 h) so
 freshly-published banners surface inside the hour. The global
 `POST /api/refresh/global` busts every `egs:cover-resolved:*` row so
 users can force re-resolution.

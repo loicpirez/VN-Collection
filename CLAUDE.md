@@ -347,7 +347,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs_<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
 | GET | `/api/egs-cover/[id]` | Tiered cover resolver for an EGS game (proxies bytes server-side) |
-| GET | `/api/egs-cover/[id]/candidates` | Enumerate every known EGS cover source (banner, VNDB, image.php, Suruga-ya, DMM, DLsite, Gyutto) without probing — UI shows them side-by-side |
+| GET | `/api/egs-cover/[id]/candidates` | Enumerate trusted-host EGS cover sources (banner, VNDB, image.php, Suruga-ya, DMM, DLsite, Gyutto) without probing — UI shows them side-by-side |
 | GET | `/api/route/[routeId]` / PATCH / DELETE | Per-route management |
 | GET/POST/PATCH | `/api/collection/[id]/routes` | Per-VN routes (autocomplete from cast) |
 | GET / POST | `/api/lists` | List / create user lists |
@@ -1069,7 +1069,9 @@ API:
 
 UI: `<MapEgsToVndbButton>` and `<MapVnToEgsButton>` are the two
 shared modal pickers; both wrapped via `useDialogA11y` so Escape
-and focus restore work consistently. Surfaces:
+and focus restore work consistently. Custom dialog layouts render through
+the body-level `<DialogPortal>` at the canonical modal layer so page-local
+stacking contexts cannot cover or clip them. Surfaces:
   - `/upcoming?tab=anticipated` rows missing `vndb_id`
   - `/top-ranked?tab=egs` rows missing `vndb_id`
   - `/egs` unlinked list (paginated, 50 rows + "+N more" hint)
@@ -1438,6 +1440,13 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   the active cover/banner) subscribe via `useEffect` with a
   vn-id scoped guard so cross-VN events are ignored.
 
+### VN route journal paging
+- `<RoutesSection>` keeps the complete ordered route array in memory so
+  move-up and move-down operations preserve global ordering.
+- The rendered editor window is capped at 40 routes per page. Page controls
+  use localized labels and clamp after deletion so long journals do not mount
+  an unbounded number of interactive rows.
+
 ### Cover / banner rotation
 - `vn.cover_rotation`, `vn.banner_rotation`, `owned_release.cover_rotation`
   store rotation in degrees (0/90/180/270). `normalizeRotation`
@@ -1479,6 +1488,9 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   upload, URL input, or pick from the in-VN gallery). Modal opens to
   the **Custom** tab so the file-upload affordance is on screen
   immediately. Tab order: Custom → VNDB → EGS.
+- Candidate URLs from persisted or upstream EGS data pass through the
+  trusted image-host allowlist before the browser sees them or the resolver
+  writes them to its seven-day cache. Legacy unsafe cache rows are ignored.
 - A secondary trigger lives directly on the cover image as
   `CoverEditOverlay` (pinned top-right, always tap-target, hover-
   revealed on desktop). It dispatches a `vn:open-cover-picker`

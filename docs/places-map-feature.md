@@ -6,7 +6,7 @@ Link the `location_branch` strings that appear in `vn_stock_offer` to
 user-defined places (physical shops / locations). Each place has a lat/lng so
 it can appear on an OpenStreetMap tile layer. Per-place, the user can browse
 which VNs are currently in stock there — the same VN browser pattern as the
-AliceNet Kobe client.
+AliceNet client.
 
 ---
 
@@ -63,7 +63,7 @@ name emitted by the stock scrapers, e.g. "Sofmap AKIBA アミューズメント�
 
 ### `/places`
 
-AliceNet Kobe-style browser with tabs:
+AliceNet-style browser with tabs:
 
 - **All** — every registered place as cards
 - **Linked** — places with at least one `provider_label` mapped
@@ -72,7 +72,7 @@ AliceNet Kobe-style browser with tabs:
 
 Each **PlaceCard** shows: name, name_ja, address, linked branch count, in-stock VN count, lat/lng chip, link to `/places/[id]`.
 
-**Assign provider dialog** — same pattern as AliceNet Kobe manual-link dialog:
+**Assign provider dialog** — same pattern as the AliceNet manual-link dialog:
 shows a list of unassigned `location_branch` strings with a "Link" button.
 
 ### `/places/[id]`
