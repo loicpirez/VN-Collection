@@ -56,6 +56,9 @@ describe('CoverRotationButtons — VN cover rotation overlay', () => {
     expect(src).toContain('max-w-full min-h-[44px] overflow-hidden text-ellipsis whitespace-nowrap');
     expect(src).toContain("t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))");
   });
+  it('keeps the redundant poster rotation stack off compact viewports', () => {
+    expect(src).toContain('hidden max-w-[calc(100%-0.5rem)] flex-col items-end gap-1 md:flex');
+  });
   it('issues a PATCH against the cover API', () => {
     expect(src).toMatch(/\/api\/collection\/\$\{ownerVnId\}\/cover/);
     expect(src).toMatch(/method: 'PATCH'/);
@@ -97,6 +100,13 @@ describe('HeroBanner — rotation buttons', () => {
 
   it('keeps compact hero controls inside both horizontal artwork insets', () => {
     expect(src).toContain('absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end');
+  });
+
+  it('collapses the resting mobile banner toolbar to one edit entry', () => {
+    expect(src).toContain('min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white');
+    expect(src).toContain('md:hidden');
+    expect(src).toContain('hidden flex-wrap items-center justify-end gap-1.5');
+    expect(src).toContain('md:flex');
   });
 });
 

@@ -23,10 +23,10 @@ export function CoverEditOverlay({ vnId }: { vnId: string }) {
       }}
       title={t.coverPicker.openTitle}
       aria-label={t.coverPicker.open}
-      className="absolute right-2 top-2 z-10 inline-flex min-h-[44px] items-center gap-1 rounded-md bg-black/70 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card backdrop-blur transition-opacity hover:bg-accent hover:text-bg sm:min-h-[36px] can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100"
+      className="absolute right-2 top-2 z-10 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md bg-black/70 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-card backdrop-blur transition-opacity hover:bg-accent hover:text-bg sm:min-h-[36px] sm:px-3 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100"
     >
       <ImageUp className="h-3.5 w-3.5" aria-hidden />
-      {t.coverPicker.open}
+      <span className="hidden sm:inline">{t.coverPicker.open}</span>
     </button>
   );
 }

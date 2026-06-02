@@ -130,7 +130,7 @@ export function CoverRotationButtons({
     <div
       data-testid="cover-rotation-controls"
       className={[
-        'pointer-events-auto absolute z-30 flex max-w-[calc(100%-0.5rem)] flex-col items-end gap-1',
+        'pointer-events-auto absolute z-30 hidden max-w-[calc(100%-0.5rem)] flex-col items-end gap-1 md:flex',
         positionClass,
         // Hide the WHOLE container on desktop only when there's no
         // active rotation. As soon as the user rotates, the cluster

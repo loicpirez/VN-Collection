@@ -331,6 +331,10 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   }, [xPct, yPct, t.banner.focalPointPosition]);
   const coverRotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'cover');
   const containRotatedStyle = buildRotationStyle(rotation, containerSize?.w ?? null, containerSize?.h ?? null, 'contain');
+  const startEditing = () => {
+    setDraftPosition(position);
+    setEditing(true);
+  };
 
   if (settings.hideImages && !editing) {
     return (
@@ -338,23 +342,32 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
         {liveSrc && (
           <div
-            className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
             {inCollection && (
               <button
                 type="button"
-                onClick={() => { setDraftPosition(position); setEditing(true); }}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg sm:min-h-0"
+                onClick={startEditing}
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg md:hidden"
                 title={t.banner.adjust}
                 aria-label={t.banner.adjust}
               >
-                <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+                <Crosshair className="h-3.5 w-3.5" aria-hidden />
               </button>
             )}
             {inCollection && (
-              <>
+              <div className="hidden flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:flex md:group-focus-within:opacity-100">
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="inline-flex items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                  title={t.banner.adjust}
+                  aria-label={t.banner.adjust}
+                >
+                  <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+                </button>
                 <button
                   type="button"
                   onClick={() => rotateBy(-90)}
@@ -375,7 +388,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                 >
                   <RotateCw className="h-3.5 w-3.5" aria-hidden />
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
@@ -518,18 +531,54 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               {inCollection && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setDraftPosition(position);
-                    setEditing(true);
-                  }}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg sm:min-h-0"
+                  onClick={startEditing}
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg md:hidden"
                   title={t.banner.adjust}
                   aria-label={t.banner.adjust}
                 >
-                  <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+                  <Crosshair className="h-3.5 w-3.5" aria-hidden />
                 </button>
               )}
               {inCollection && (
+                <div className="hidden flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:flex md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                    title={t.banner.adjust}
+                    aria-label={t.banner.adjust}
+                  >
+                    <Crosshair className="h-3 w-3" aria-hidden /> {t.banner.adjust}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateBy(-90)}
+                    disabled={busy}
+                    className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50 sm:min-h-0 sm:min-w-0 sm:h-7 sm:w-7"
+                    title={t.coverActions.rotateLeft}
+                    aria-label={t.coverActions.rotateLeft}
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateBy(90)}
+                    disabled={busy}
+                    className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur transition-colors hover:text-white disabled:opacity-50 sm:min-h-0 sm:min-w-0 sm:h-7 sm:w-7"
+                    title={t.coverActions.rotateRight}
+                    aria-label={t.coverActions.rotateRight}
+                  >
+                    <RotateCw className="h-3 w-3" aria-hidden />
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="rounded-md bg-bg-card/90 px-2 py-1 font-mono text-[10px] text-muted shadow-card backdrop-blur">
+                {draftPosition}
+              </span>
+              {inCollection ? (
                 <>
                   <button
                     type="button"
@@ -551,16 +600,6 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                   >
                     <RotateCw className="h-3 w-3" aria-hidden />
                   </button>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <span className="rounded-md bg-bg-card/90 px-2 py-1 font-mono text-[10px] text-muted shadow-card backdrop-blur">
-                {draftPosition}
-              </span>
-              {inCollection ? (
-                <>
                   <button
                     type="button"
                     onClick={save}

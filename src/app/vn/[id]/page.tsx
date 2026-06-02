@@ -637,11 +637,33 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         {platformLabel(p)}
                       </Link>
                     ))}
-                    {vn.platforms.length > 10 && (
-                      <span className="text-xs text-muted/60">
-                        {t.form.andNMore.replace('{n}', String(vn.platforms.length - 10))}
-                      </span>
-                    )}
+                    {vn.platforms.length > 10 && (() => {
+                      const hiddenPlatforms = vn.platforms.slice(10);
+                      const hiddenLabels = hiddenPlatforms.map(platformLabel);
+                      const moreLabel = t.form.andNMore.replace('{n}', String(hiddenPlatforms.length));
+                      return (
+                        <details className="group relative">
+                          <summary
+                            className="inline-flex min-h-[28px] cursor-pointer list-none items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+                            title={hiddenLabels.join(', ')}
+                            aria-label={`${moreLabel}: ${hiddenLabels.join(', ')}`}
+                          >
+                            {moreLabel}
+                          </summary>
+                          <div className="absolute right-0 top-full z-20 mt-1 hidden min-w-44 max-w-64 flex-wrap gap-1 rounded-md border border-border bg-bg-card p-2 shadow-card group-open:flex group-hover:flex group-focus-within:flex">
+                            {hiddenPlatforms.map((p) => (
+                              <Link
+                                key={p}
+                                href={`/search?platforms=${encodeURIComponent(p)}`}
+                                className="rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+                              >
+                                {platformLabel(p)}
+                              </Link>
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
                   </dd>
                 </div>
               )}
