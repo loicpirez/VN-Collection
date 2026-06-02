@@ -21,7 +21,9 @@ The **home page** is now five reorderable sections: Recently viewed,
 Reading queue, Today's anniversaries, and the Library split into a
 controls strip (search / filters / sort) plus its own grid section.
 Click **Customize home** (top right) to drag-reorder or hide any
-section. Hidden sections stay restorable from Settings → Home tab.
+section. Hidden sections stay restorable from the Settings modal under
+the Layout tab, on its Home sub-tab (Home is a sub-tab of Layout, not a
+top-level Settings tab).
 Hiding `library-grid` while keeping `library-controls` shipped is
 valid — the operator can keep the toolbar for quick navigation
 without the cover wall. Restore the same way.
@@ -345,8 +347,9 @@ section directly on a VN detail page.
 Tabbed-style sections:
 
 - **VNDB token** — paste your token, validate.
-- **Exports** — JSON (round-trippable), CSV (spreadsheet flat),
-  ICS (calendar of started/finished dates).
+- **Exports** - JSON (round-trippable), CSV (spreadsheet flat),
+  ICS (calendar of started/finished dates), and a plain-text game-list
+  archive (`GET /api/export/game-list`).
 - **Imports** — file picker or page-wide drag-and-drop a `.json` (merge)
   or `.db` (full replace).
 - **Maintenance** — duplicates detector + stale-data wizard with
@@ -436,22 +439,55 @@ Tabbed-style sections:
 
 ## 12. Keyboard shortcuts
 
+Global actions:
+
 | Key | Action |
 | --- | --- |
-| `/` | Focus the library filter |
-| `?` | Open / close the shortcut help dialog |
+| `/` | Filter the library |
+| `?` | Open this help |
+| `Esc` | Close |
+
+Global navigation (`g` then a key):
+
+| Key | Destination |
+| --- | --- |
 | `g h` | Library |
 | `g s` | Search |
 | `g w` | Wishlist |
-| `g r` | Recommendations |
+| `g l` | Lists |
+| `g r` | For you |
 | `g u` | Upcoming |
+| `g o` | Top-ranked |
+| `g m` | Similar |
+| `g c` | Compare |
 | `g q` | Quotes |
-| `g y` | Year recap |
+| `g y` | Year |
+| `g p` | Studios |
+| `g g` | Tags |
+| `g i` | Traits |
+| `g k` | Characters |
+| `g f` | Staff |
+| `g e` | Shelf |
+| `g b` | Dumped |
+| `g a` | Activity |
 | `g t` | Stats |
+| `g v` | Steam |
+| `g x` | EGS |
 | `g d` | Data |
-| `Esc` | Close menus / dialogs |
 
-`g` arms for ~1 second; ignored inside text inputs / textareas.
+Page-scoped:
+
+| Scope | Key | Action |
+| --- | --- | --- |
+| VN page | `f` | Toggle favourite |
+| VN page | `e` | Jump to tracking |
+| VN page | `n` | Jump to notes |
+| Library | `f` | Open filter panel |
+| Tags | `1` | Library tab |
+| Tags | `2` | VNDB tab |
+
+`g` arms for ~1 second; ignored inside text inputs / textareas. The full set
+is defined in `src/lib/shortcut-registry.ts`.
 
 ---
 

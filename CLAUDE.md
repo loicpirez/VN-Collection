@@ -133,8 +133,8 @@ Always run it before declaring a change "done".
 
 ## Safety rules (read before ANY commit)
 
-- **Package manager**: `yarn`, never `npm`. Both lockfiles exist for
-  legacy reasons but yarn is canonical. CI, smoke tests, and every
+- **Package manager**: `yarn`, never `npm`. `yarn.lock` is the only
+  lockfile present and is canonical. CI, smoke tests, and every
   internal doc assume yarn.
 - **Commands you'll run**:
     - `yarn dev`           — local dev server on :3000
@@ -387,7 +387,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
 | DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
 | GET | `/api/download-status/stream` | SSE stream of the download-status snapshot (pub/sub driven, with keep-alive comments every 25 s) |
-| GET | `/api/alicenet` | Stats snapshot: `{ total, matched, unmatched, none_found, in_wishlist, pending: { vndb_pending, egs_pending } }`. Reads only from SQLite — never touches the AliceNet website. |
+| GET | `/api/alicenet` | Bounded/paged result: `{ items, stats, pending, last_fetch }`. `stats` is the nested counter block (`total, matched, vndb_matched, egs_only, unmatched, none_found, in_wishlist`), `pending` is `{ vndb_pending, egs_pending }`, and `last_fetch` is the last download epoch (or `null`). Reads the mirrored rows from SQLite but also calls VNDB via `fetchAuthenticatedWishlist()` to annotate each item with the live wishlist label (Label 5); it does not re-fetch the AliceNet website. |
 | POST | `/api/alicenet/fetch` | Download the AliceNet stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
 | POST | `/api/alicenet/match-next` | Match the next batch against VNDB + EGS. Body: `{ batch?: number (1–20), retry_none?: boolean }`. Returns `{ processed, remaining }`. |
 | POST | `/api/alicenet/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
@@ -1136,7 +1136,7 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 
 ### Feature flags
 - `ALICENET_ENABLED=true` — enables the `/alicenet` page and all `/api/alicenet/*` routes.
-- `VNCOLL_DISABLE_ACTIVITY=true` — skips writes to the global `user_activity` audit table. Per-VN `vn_activity` (reading log) is unaffected.
+- `VNCOLL_DISABLE_ACTIVITY=1` skips writes to the global `user_activity` audit table. The gate honours only the literal `'1'`; any other value (including `true`) is a no-op. Per-VN `vn_activity` (reading log) is unaffected.
 
 ### i18n
 - Every user-facing string lives in `src/lib/i18n/dictionaries.ts` under `fr` / `en` / `ja`.
@@ -1857,13 +1857,16 @@ After non-trivial changes, walk through these in the browser
     override; Similar tag picker
   - `/data` — only operational sections (no inline credential
     forms)
-  - Settings modal: Display / Content / Library / Home /
-    VN-page / Account / Integrations / Automation, including
-    the deep-link from /data's "Manage in Settings →
-    Integrations" button.
-  - `/alicenet` (when `ALICENET_ENABLED=true`): stats bar, all five
-    filter tabs, Download Stock, Find VNDB & EGS Matches, Reset,
-    candidate chips, manual link dialog.
+  - Settings modal: eight top-level tabs (Display / Content /
+    Library / Layout (vn-page) / Account / Integrations /
+    Automation / Shortcuts). Home is not a top-level tab; it is the
+    default inner sub-tab of the Layout tab (alongside VN, Character,
+    Staff, Producer, Series). Includes the deep-link from /data's
+    "Manage in Settings -> Integrations" button.
+  - `/alicenet` (when `ALICENET_ENABLED=true`): stats bar, all eight
+    filter tabs (All, Matched, VNDB, EGS only, Unmatched, No VNDB
+    result, In collection, In my wishlist), Download Stock, Find VNDB
+    & EGS Matches, Reset, candidate chips, manual link dialog.
   - Mobile (≤ 640px): navbar is a Menu sheet, density slider
     accessible, advanced filter drawer fits, no horizontal
     scroll on any listing grid.

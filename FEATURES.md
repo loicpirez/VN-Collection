@@ -606,11 +606,13 @@ Backed by `GET/POST /api/reading-goal` (year → target) and the
 Hub for everything that touches the file-system: VNDB token, bulk asset
 download status, exports, imports, backups.
 
-### JSON / CSV / ICS export ✅
-- JSON — round-trippable backup.
-- CSV — one flat row per VN, arrays joined with `; `.
-- ICS — RFC 5545 calendar with a VEVENT per `started_date` and
+### JSON / CSV / ICS / game-list export ✅
+- JSON - round-trippable backup.
+- CSV - one flat row per VN, arrays joined with `; `.
+- ICS - RFC 5545 calendar with a VEVENT per `started_date` and
   `finished_date`.
+- Game list - plain-text archive list at `GET /api/export/game-list`,
+  triggered from `/data` via `ExportGameListButton`.
 
 ### JSON / .db import ✅
 JSON merges (existing rows updated, new rows added). A `.db` upload
@@ -713,10 +715,11 @@ group across all three locales.
 FR / EN / JA. Switch via the language pill in the top nav.
 
 ### `VNCOLL_DISABLE_ACTIVITY` ✅
-Set `VNCOLL_DISABLE_ACTIVITY=true` in `.env.local` to disable writing rows to
-the global `user_activity` audit table. Useful for embedded / read-only
-deployments where audit persistence is unwanted. The `vn_activity` per-VN
-reading-log is unaffected.
+Set `VNCOLL_DISABLE_ACTIVITY=1` in `.env.local` to disable writing rows to
+the global `user_activity` audit table. The gate honours only the literal
+`1`; any other value (including `true`) is a no-op. Useful for embedded /
+read-only deployments where audit persistence is unwanted. The `vn_activity`
+per-VN reading-log is unaffected.
 
 ---
 
@@ -875,14 +878,23 @@ checks release ext-links first (most accurate), falls back to title/alttitle
 search. Returns `{ processed, remaining }`.
 
 ### Download All sequence ✅
-The "Download all" button in `AliceNetClient` runs a four-step sequence:
-1. **Stock** — `POST /api/alicenet/fetch` (fresh inventory + full sync)
-2. **VNDB match** — `POST /api/alicenet/match-next` in a loop
-3. **VNDB data** — `POST /api/alicenet/download-vndb` in a loop
-4. **EGS resolve** — `POST /api/alicenet/resolve-egs` in a loop
+The "Download all" button in `AliceNetClient` (`runDownloadAll()`) runs a
+six-step sequence:
+1. **Stock** - `POST /api/alicenet/fetch` (fresh inventory + full sync)
+2. **VNDB + EGS match** - `POST /api/alicenet/match-next` (`retry_none: false`) in a loop
+3. **Retry no-result** - `POST /api/alicenet/match-next` (`retry_none: true`) in a loop
+4. **Match VNDB from EGS** - `POST /api/alicenet/match-vndb-from-egs` in a loop
+5. **VNDB data** - `POST /api/alicenet/download-vndb` in a loop
+6. **EGS resolve** - `POST /api/alicenet/resolve-egs` in a loop
 
 A Stop button is visible during any active operation. Each step reports
 `processed / remaining` for a live progress bar.
+
+Three of these match operations are also exposed as standalone single ops in
+the UI, each backed by its own route: match VNDB from EGS
+(`POST /api/alicenet/match-vndb-from-egs`), aggressive VNDB retry
+(`POST /api/alicenet/retry-vndb-aggressive`), and search EGS for no-VNDB items
+(`POST /api/alicenet/search-egs-no-vndb`).
 
 ### Candidate remap ✅
 `CandidateChips` renders the top-3 VNDB candidates stored at match time.
@@ -901,13 +913,19 @@ only clears `source = 'auto'` rows.
 `{ cleared }`.
 
 ### Filter tabs ✅
-`AliceNetClient` exposes five tabs: **All** · **Matched** · **Unmatched** ·
-**No result** (items where VNDB returned zero results) · **Wishlist**
-(items whose matched VN is in the local collection with `status='planning'`).
+`AliceNetClient` exposes eight tabs: **All**, **Matched**, **VNDB**,
+**EGS only**, **Unmatched**, **No VNDB result** (items where VNDB returned
+zero results), **In collection**, and **In my wishlist**.
+
+The **In my wishlist** tab keys on `in_wishlist === 1`, which the
+`GET /api/alicenet` route computes per item from the live VNDB wishlist (Label
+5) via `fetchAuthenticatedWishlist()`, not from any local `collection.status`.
+The separate **In collection** tab keys on `in_collection === 1`.
 
 DB: `listAliceNetStock()` LEFT JOINs the `collection` table to populate the
-`in_wishlist` flag inline, and LEFT JOINs `vn` for `image_url`,
-`local_image`, and `image_sexual`.
+`in_collection` flag inline, and LEFT JOINs `vn` for `image_url`,
+`local_image`, and `image_sexual`. It does not produce `in_wishlist`; that
+flag is layered on by the route from the live VNDB wishlist.
 
 ### VN cover thumbnails ✅
 Each matched row renders a small `SafeImage` thumbnail (40 × 56 px) sourced
@@ -1043,15 +1061,55 @@ first render and cached.
 Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 
 ### Keyboard shortcuts ✅
+Defined in `src/lib/shortcut-registry.ts`. `g` arms for ~1 second and is
+ignored inside text inputs / textareas.
+
+Global navigation (`g` then a key, from `ROUTE_SHORTCUTS`):
+
+| Key | Destination |
+| --- | --- |
+| `g h` | Library |
+| `g s` | Search |
+| `g w` | Wishlist |
+| `g l` | Lists |
+| `g r` | For you |
+| `g u` | Upcoming |
+| `g o` | Top-ranked |
+| `g m` | Similar |
+| `g c` | Compare |
+| `g q` | Quotes |
+| `g y` | Year |
+| `g p` | Studios |
+| `g g` | Tags |
+| `g i` | Traits |
+| `g k` | Characters |
+| `g f` | Staff |
+| `g e` | Shelf |
+| `g b` | Dumped |
+| `g a` | Activity |
+| `g t` | Stats |
+| `g v` | Steam |
+| `g x` | EGS |
+| `g d` | Data |
+
+Global actions (`globalShortcutRows`):
+
 | Key | Action |
 | --- | --- |
-| `/` | Focus library search |
-| `g h` | Go home |
-| `g s` | Go to search |
-| `g w` | Go to wishlist |
-| `g r` | Go to recommendations |
-| `?` | Open shortcut help |
-| `Escape` | Close menus / dialogs |
+| `/` | Filter the library |
+| `?` | Open this help |
+| `Esc` | Close |
+
+Page-scoped (`pageShortcutSections`):
+
+| Scope | Key | Action |
+| --- | --- | --- |
+| VN page | `f` | Toggle favourite |
+| VN page | `e` | Jump to tracking |
+| VN page | `n` | Jump to notes |
+| Library | `f` | Open filter panel |
+| Tags | `1` | Library tab |
+| Tags | `2` | VNDB tab |
 
 ### Grouped responsive navbar ✅
 The top nav has three always-visible primary links (Library / Wishlist /
@@ -1455,8 +1513,9 @@ across the whole collection. Top stats grid:
 
 Below the stats, one card per VN with the dumped-editions ratio,
 a mini progress bar, and a "fully done" badge when the count
-matches. Companion to `/producers?tab=completion` — answers
-"how complete is my archive?" the same way completion %
+matches. Companion to the per-studio completion view on
+`/producer/[id]` (rendered by `ProducerVnsSections`), which answers
+"how complete is my archive?" the same way that owned/total breakdown
 answers "how thoroughly have I read this developer?".
 Helpers: `listDumpStatus()` / `getDumpSummary()` in `lib/db.ts`.
 

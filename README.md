@@ -115,8 +115,8 @@ Set `ALICENET_ENABLED=true` in `.env.local` to enable the `/alicenet` page.
 - Full sync: items no longer listed (sold) are deleted from the local DB.
 - Auto-match stock entries against VNDB and ErogameScape with rate-limited batch processing.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
-- Four-step "Download all": stock → VNDB match → VNDB data download → EGS resolution.
-- Filter tabs: All · Matched · Unmatched · No result · Wishlist.
+- Six-step "Download all": stock, VNDB + EGS match, retry no-result, match VNDB from EGS, VNDB data download, EGS resolution. Three of those operations are also exposed as standalone single ops (`match-vndb-from-egs`, `retry-vndb-aggressive`, `search-egs-no-vndb`).
+- Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In my wishlist.
 - Outbound fetch can route through a per-provider SOCKS5/HTTP proxy.
 
 ### Per-VN stock and price lookup
@@ -250,7 +250,7 @@ settings, cached stock rows, and activity rows forward automatically.
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
 | `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
 | `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |
-| `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `true` to disable the global `user_activity` audit log |
+| `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `1` to disable the global `user_activity` audit log (only the literal `1` is honoured; other values are a no-op) |
 
 ---
 
