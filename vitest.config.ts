@@ -10,6 +10,12 @@ export default defineConfig({
     // keeps the suite easy to reason about without explicit cleanup.
     isolate: true,
     setupFiles: ['tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      reportsDirectory: 'coverage',
+      include: ['src/**/*.{ts,tsx}'],
+    },
   },
   resolve: {
     alias: {

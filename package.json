@@ -12,6 +12,7 @@
     "sentinel": "node scripts/frontend-regression-sentinel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
