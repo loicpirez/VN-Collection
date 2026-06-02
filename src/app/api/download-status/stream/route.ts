@@ -34,38 +34,46 @@ export async function GET(req: NextRequest): Promise<Response> {
   if (deny) return deny;
   const encoder = new TextEncoder();
   let aborted = false;
-  let cleanup: () => void = () => undefined;
+  let cleanedUp = false;
+  let keepAlive: ReturnType<typeof setInterval> | null = null;
+  let unsubscribe: (() => void) | null = null;
+  let activeController: ReadableStreamDefaultController<Uint8Array> | null = null;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    aborted = true;
+    if (keepAlive) clearInterval(keepAlive);
+    unsubscribe?.();
+    req.signal.removeEventListener('abort', cleanup);
+    try {
+      activeController?.close();
+    } catch {
+      // Already closed by the runtime.
+    }
+  };
 
   const stream = new ReadableStream({
     start(controller) {
+      activeController = controller;
       function push(payload: string) {
         if (aborted) return;
         try {
           controller.enqueue(encoder.encode(payload));
         } catch {
           aborted = true;
+          cleanup();
         }
       }
 
       push(buildSnapshot());
+      if (cleanedUp) return;
 
-      const unsubscribe = subscribeStatus(() => push(buildSnapshot()));
+      unsubscribe = subscribeStatus(() => push(buildSnapshot()));
 
-      const keepAlive = setInterval(() => {
+      keepAlive = setInterval(() => {
         push(': keep-alive\n\n');
       }, 25_000);
-
-      cleanup = () => {
-        if (aborted) return;
-        aborted = true;
-        clearInterval(keepAlive);
-        unsubscribe();
-        try {
-          controller.close();
-        } catch {
-          // Already closed by the runtime.
-        }
-      };
 
       req.signal.addEventListener('abort', cleanup);
     },
