@@ -217,9 +217,14 @@ canonically named AliceNet across active routes, filenames, provider identifiers
 settings, tests, and docs. Only the real upstream hostname and first-open migration
 inputs retain prior identifiers.
 
+The live-server sanity pass also found and closed a strict-decoder regression on the
+library route: VNDB relation summaries legitimately omit publisher arrays. The client
+now normalizes that optional source field for rendering while rejecting malformed
+arrays when present.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 378
+- `DONE_WITH_DIFF`: 379
 - `VERIFIED_EXISTING`: 3
 - `TODO`: 0
 
