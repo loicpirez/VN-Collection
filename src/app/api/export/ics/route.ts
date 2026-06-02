@@ -29,24 +29,22 @@ function fold(line: string): string {
   const enc = new TextEncoder();
   const bytes = enc.encode(line);
   if (bytes.length <= 75) return line;
-  // Walk by character, count bytes, emit CRLF + " " when we'd
-  // exceed 75 octets on the current segment. Continuation
-  // segments allow 74 octets to keep room for the leading space.
+  const codePoints = Array.from(line);
   const out: string[] = [];
-  let segStart = 0;
+  let seg = '';
   let segBytes = 0;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (const ch of codePoints) {
     const chBytes = enc.encode(ch).length;
     if (segBytes + chBytes > 75) {
-      out.push(line.slice(segStart, i));
-      segStart = i;
-      segBytes = 1 /* leading space */ + chBytes;
+      out.push(seg);
+      seg = ch;
+      segBytes = 1 + chBytes;
     } else {
+      seg += ch;
       segBytes += chBytes;
     }
   }
-  out.push(line.slice(segStart));
+  out.push(seg);
   return out.join('\r\n ');
 }
 

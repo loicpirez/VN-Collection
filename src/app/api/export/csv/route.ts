@@ -67,7 +67,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const items = listCollection({ sort: 'title' });
+    const items = listCollection({ sort: 'title', _projection: 'full-no-raw' });
     const lines: string[] = [COLUMNS.join(',')];
     for (const it of items) {
       const row = [
