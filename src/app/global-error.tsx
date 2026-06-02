@@ -17,7 +17,7 @@ function readLocaleCookie(): SupportedLocale | null {
  * the user has never opened the language switcher), fall back to the
  * navigator's preferred language instead of defaulting to French.
  * This is the only locale-resolution path in the entire app that
- * runs WITHOUT the I18nProvider — so we have to do the matching
+ * runs WITHOUT the I18nProvider - so we have to do the matching
  * ourselves.
  */
 function readLocaleFromNavigator(): SupportedLocale | null {
@@ -35,13 +35,13 @@ function readLocaleFromNavigator(): SupportedLocale | null {
 const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: string; digest: string }> = {
   fr: {
     title: 'Une erreur est survenue.',
-    body: "La page a rencontré une erreur inattendue. Essayez de rafraîchir — si le problème persiste, redémarrez le serveur.",
+    body: "La page a rencontré une erreur inattendue. Essayez de rafraîchir - si le problème persiste, redémarrez le serveur.",
     retry: 'Réessayer',
     digest: 'digest :',
   },
   en: {
     title: 'Something broke.',
-    body: 'The page hit an unexpected error. Try refreshing — if it persists, restart the server.',
+    body: 'The page hit an unexpected error. Try refreshing - if it persists, restart the server.',
     retry: 'Try again',
     digest: 'digest:',
   },
@@ -55,7 +55,7 @@ const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: str
 
 /**
  * Top-level error boundary for crashes in the root layout itself.
- * `app/error.tsx` only catches errors INSIDE the layout — but the
+ * `app/error.tsx` only catches errors INSIDE the layout - but the
  * layout can also throw (font loading, i18n provider, cookie
  * parsing). When that happens, this is the last line of defense
  * before Next.js shows its default error page.

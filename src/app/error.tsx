@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n/client';
  * Route-segment error boundary. Catches any uncaught render error
  * below the `/app` segments (excluding pages with their own
  * `error.tsx`). Without this, an uncaught throw fell back to the
- * framework default — a blank screen in prod, a raw stack in dev.
+ * framework default - a blank screen in prod, a raw stack in dev.
  *
  * Logs to the browser console so developers can still inspect the
  * stack, then renders a friendly recovery UI with a Reset button
@@ -39,11 +39,11 @@ export default function GlobalSegmentError({
       )}
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button type="button" onClick={reset} className="btn btn-primary">
-          <RotateCw className="h-4 w-4" />
+          <RotateCw className="h-4 w-4" aria-hidden />
           {t.errorBoundary.retry}
         </button>
         <Link href="/" className="btn">
-          <Home className="h-4 w-4" />
+          <Home className="h-4 w-4" aria-hidden />
           {t.errorBoundary.home}
         </Link>
       </div>

@@ -29,11 +29,11 @@ export default function QuotesError({
       )}
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button type="button" onClick={reset} className="btn btn-primary">
-          <RotateCw className="h-4 w-4" />
+          <RotateCw className="h-4 w-4" aria-hidden />
           {t.errorBoundary.retry}
         </button>
         <Link href="/" className="btn">
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden />
           {t.errorBoundary.home}
         </Link>
       </div>
