@@ -122,7 +122,7 @@ export interface VnRelation {
   languages: string[];
   platforms: string[];
   developers: { id?: string; name: string }[];
-  publishers: { id?: string; name: string }[];
+  publishers?: { id?: string; name: string }[];
   image_url: string | null;
   image_thumb: string | null;
   image_sexual: number | null;
