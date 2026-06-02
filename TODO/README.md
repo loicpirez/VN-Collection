@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 425 tracked tasks. Statuses must be updated only
+place. The reports below contain 478 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -15,16 +15,16 @@ Each task uses the same five-column format:
 | Category | Report | Tracked tasks |
 | --- | --- | ---: |
 | Security | [security-report-tasks.md](security-report-tasks.md) | 36 |
-| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 118 |
-| Features | [features-report-tasks.md](features-report-tasks.md) | 8 |
-| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 34 |
-| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 15 |
-| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 35 |
-| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 51 |
-| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 39 |
-| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 67 |
-| Testing | [testing-report-tasks.md](testing-report-tasks.md) | 11 |
-| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 11 |
+| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 121 |
+| Features | [features-report-tasks.md](features-report-tasks.md) | 15 |
+| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 39 |
+| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 18 |
+| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 41 |
+| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 57 |
+| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 43 |
+| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 68 |
+| Testing | [testing-report-tasks.md](testing-report-tasks.md) | 20 |
+| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 20 |
 
 ## Status vocabulary
 
@@ -288,10 +288,47 @@ Final fresh gates:
 - `yarn qa`: 24 passed, 0 failed
 - `yarn sentinel`: 29 passed, 0 failed
 
+## Fresh audit - 2026-06-02
+
+A second full read-only audit ran one reviewer per field across the committed
+tree (security, bugs, features, performance, UI/UX, responsive, accessibility,
+i18n, typing, testing, documentation). It added 53 new evidence-backed findings
+with exact file and line citations, continuing each category id sequence. Every
+new finding was filed as `TODO` and has since been implemented (see Current status below).
+
+Highlights:
+
+- Security returned clean. The prior 36-item hardening still holds (SSRF hop
+  validation, auth gates on mutating and data-exposing routes, bounded JSON,
+  path traversal, XSS, safeHref, secret redaction, parameterized SQL).
+- Bugs: EGS sync overwrites operator-entered start and finish dates when
+  applying a playtime-only suggestion (BUGA-119, HIGH).
+- Features: seven dead or half-wired paths, including reading-queue predicted
+  time and drag reorder, saved-filter and list-item reorder endpoints with no
+  caller, and a compare picker that silently drops not-yet-mirrored VNs.
+- i18n: `languageDisplayName` is never passed the active locale, and
+  `readApiError` surfaces verbatim English server errors in fr and ja toasts
+  (I18NA-041 and I18NA-042, HIGH).
+- Accessibility: the decorative-icon sweep added `aria-hidden` to several icons
+  that still carried a state-conveying `aria-label`, muting that state
+  (A11YA-052..057).
+- Responsive: several popovers and the shared dialog have no height cap, so
+  lower controls overflow the mobile viewport (RESPA-036..040).
+- Testing: the CSV and ICS export logic and several bounded parsers have no
+  tests, and a few existing tests use status allowlists or real timers.
+
+The 53 findings were then implemented in one wave: 52 `DONE_WITH_DIFF` and one
+`VERIFIED_EXISTING` (FEA-014, whose `producer-completion.ts` module was found to
+have live callers in `brand-overlap`, `producer-full`, and `vndb-feed-cache-shape`,
+so it was kept and only its stale doc reference was corrected). A latent strict
+decoder regression that broke VNDB search (developers without a producer id) was
+also fixed. Fresh gates passed: `yarn typecheck`, `yarn test` (3384 passed, 3
+skipped), and `yarn build`.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 422
-- `VERIFIED_EXISTING`: 3
+- `DONE_WITH_DIFF`: 474
+- `VERIFIED_EXISTING`: 4
 - `IN_PROGRESS`: 0
 - `TODO`: 0
 
