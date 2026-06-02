@@ -3,7 +3,8 @@ import path from 'node:path';
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
+    globals: true,
     environment: 'node',
     pool: 'forks',
     // SQLite spins up a real DB per test file; isolation per worker
