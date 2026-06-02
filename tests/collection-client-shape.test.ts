@@ -41,6 +41,7 @@ const card = {
   edition_type: 'none',
   physical_location: [],
   dumped: false,
+  dumped_ignored: true,
   added_at: 1,
   updated_at: 1,
   series: [],
@@ -63,6 +64,7 @@ describe('collection client response adapters', () => {
     expect(decoded?.items[0]?.id).toBe('v90001');
     expect(decoded?.items[0]?.developers[0]?.id).toBe('p90001');
     expect(decoded?.stats.total).toBe(1);
+    expect(decoded?.items[0]?.dumped_ignored).toBe(true);
   });
 
   it('normalizes VNDB relation summaries that do not expose publishers', () => {
@@ -94,6 +96,7 @@ describe('collection client response adapters', () => {
   it('rejects malformed card rows and page metadata', () => {
     expect(decodeCollectionCardItem({ ...card, cover_rotation: 45 })).toBeNull();
     expect(decodeCollectionCardItem({ ...card, tags: [{ id: 'bad' }] })).toBeNull();
+    expect(decodeCollectionCardItem({ ...card, dumped_ignored: 'false' })).toBeNull();
     expect(decodeCollectionPage({ items: [card] }, decodeCollectionCardItem)).toBeNull();
     expect(decodeCollectionPage({ items: [card], pagination: { ...pagination, returned: 2 } }, decodeCollectionCardItem)).toBeNull();
   });

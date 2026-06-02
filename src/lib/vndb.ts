@@ -1054,21 +1054,76 @@ export async function getTrait(id: string): Promise<VndbTrait | null> {
 }
 
 /**
- * Fetch characters tagged with the given trait. Used for the trait detail
- * page's "Characters with this trait" gallery.
+ * Fetch one page of characters tagged with a trait.
+ *
+ * @param traitId VNDB trait identifier.
+ * @param options Page size, page number, and spoiler visibility.
+ * @returns One validated VNDB results envelope.
  */
-export async function getCharactersForTrait(
+export async function getCharactersForTraitPage(
   traitId: string,
-  { results = 60, includeSpoiler = false }: { results?: number; includeSpoiler?: boolean } = {},
-): Promise<VndbCharacter[]> {
-  // trait filter tuple order per KANA.md: [traitId, maxSpoiler] — 0 hides spoilers
+  { results = 60, page = 1, includeSpoiler = false }: { results?: number; page?: number; includeSpoiler?: boolean } = {},
+): Promise<VndbResponse<VndbCharacter>> {
+  // trait filter tuple order per KANA.md: [traitId, maxSpoiler].
   const filter = includeSpoiler ? ['trait', '=', traitId] : ['trait', '=', [traitId, 0]];
-  const r = await vndbPost<VndbCharacter>('/character', {
+  return vndbPost<VndbCharacter>('/character', {
     filters: filter,
     fields: CHARACTER_FIELDS,
     results: Math.min(results, 100),
+    page: Math.max(1, Math.floor(page)),
   }, TTL.characters, decodeVndbCharacter);
-  return r.results;
+}
+
+/**
+ * Fetch characters tagged with the given trait. Used for bounded galleries.
+ *
+ * @param traitId VNDB trait identifier.
+ * @param options Page-size and spoiler options.
+ * @returns The first matching page of characters.
+ */
+export async function getCharactersForTrait(
+  traitId: string,
+  options: { results?: number; includeSpoiler?: boolean } = {},
+): Promise<VndbCharacter[]> {
+  return (await getCharactersForTraitPage(traitId, options)).results;
+}
+
+/**
+ * Fetch every character carrying a trait that also appears in a supplied VN set.
+ *
+ * @param traitId VNDB trait identifier.
+ * @param vnIds Candidate VNDB VN identifiers.
+ * @param options Spoiler visibility option.
+ * @returns Deduplicated matching characters sorted by display name.
+ */
+export async function getCharactersForTraitInVns(
+  traitId: string,
+  vnIds: string[],
+  { includeSpoiler = false }: { includeSpoiler?: boolean } = {},
+): Promise<VndbCharacter[]> {
+  const ids = Array.from(new Set(vnIds.filter(isVndbVnId).map((id) => id.toLowerCase())));
+  if (ids.length === 0) return [];
+  const traitFilter = includeSpoiler ? ['trait', '=', traitId] : ['trait', '=', [traitId, 0]];
+  const byId = new Map<string, VndbCharacter>();
+  for (let offset = 0; offset < ids.length; offset += 90) {
+    const chunk = ids.slice(offset, offset + 90);
+    const vnFilter = chunk.length === 1
+      ? ['id', '=', chunk[0]]
+      : ['or', ...chunk.map((id) => ['id', '=', id])];
+    let page = 1;
+    for (;;) {
+      const response = await vndbPost<VndbCharacter>('/character', {
+        filters: ['and', traitFilter, ['vn', '=', vnFilter]],
+        fields: CHARACTER_FIELDS,
+        results: 100,
+        page,
+      }, TTL.characters, decodeVndbCharacter);
+      for (const character of response.results) byId.set(character.id, character);
+      if (!response.more) break;
+      page += 1;
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Search VNDB-wide for traits by name. */

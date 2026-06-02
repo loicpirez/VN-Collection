@@ -321,6 +321,7 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     !isOptionalEditionType(row.edition_type) ||
     physicalLocation === null ||
     !isOptionalBoolean(row.dumped) ||
+    !isOptionalBoolean(row.dumped_ignored) ||
     !isOptionalFiniteNumber(row.added_at) ||
     !isOptionalFiniteNumber(row.updated_at) ||
     series === null ||
@@ -361,6 +362,7 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     ...(row.edition_type === undefined ? {} : { edition_type: row.edition_type }),
     ...(physicalLocation === undefined ? {} : { physical_location: physicalLocation }),
     ...(row.dumped === undefined ? {} : { dumped: row.dumped }),
+    ...(row.dumped_ignored === undefined ? {} : { dumped_ignored: row.dumped_ignored }),
     ...(row.added_at === undefined ? {} : { added_at: row.added_at }),
     ...(row.updated_at === undefined ? {} : { updated_at: row.updated_at }),
     ...(series === undefined ? {} : { series }),
