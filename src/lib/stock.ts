@@ -301,9 +301,10 @@ function absUrl(base: string, href: string): string {
 
 function parsePriceYen(value: string): number | null {
   const normalized = decodeEntities(value).replace(/<[^>]+>/g, ' ');
-  const direct = /(?:JPY|¥|￥)\s*([\d,]+)/i.exec(normalized) ?? /([\d,]+)\s*円/.exec(normalized);
-  if (!direct?.[1]) return null;
-  const n = Number(direct[1].replace(/,/g, ''));
+  const direct = /(?:(?:JPY|¥|￥)\s*([\d,]+)|([\d,]+)\s*円)/i.exec(normalized);
+  const raw = direct?.[1] ?? direct?.[2];
+  if (!raw) return null;
+  const n = Number(raw.replace(/,/g, ''));
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
@@ -564,7 +565,7 @@ function offerPriorityRank(offer: Pick<VnStockOfferRow, 'source' | 'jan' | 'prod
 
 function officialRetailerSourceUrls(vn: CollectionItem, releases: VndbRelease[]): string[] {
   const urls = [
-    ...(vn.extlinks ?? []).map((link) => link.url),
+    ...vn.extlinks.map((link) => link.url),
     ...releases.flatMap((release) => release.extlinks.map((link) => link.url)),
   ];
   return [...new Set(urls)].filter((url) => {
@@ -726,7 +727,7 @@ function withSofmapAdultBypass(url: string): string {
 async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -853,7 +854,7 @@ export function extractHgame1SearchLinks(html: string, baseUrl: string): string[
 async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -918,9 +919,7 @@ export function extractMelonbooksProductLinks(html: string, baseUrl: string): st
     const href = m[1]!;
     const abs = absUrl(baseUrl, href);
     if (sourceHost(abs) !== 'www.melonbooks.co.jp') continue;
-    let pid: string | null = null;
-    try { pid = new URL(abs).searchParams.get('product_id'); } catch {}
-    const key = pid ?? abs;
+    const key = new URL(abs).searchParams.get('product_id')!;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(abs);
@@ -931,7 +930,7 @@ export function extractMelonbooksProductLinks(html: string, baseUrl: string): st
 async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -991,7 +990,7 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
 async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -1046,7 +1045,7 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
 async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -1259,7 +1258,7 @@ async function refreshTrader(
 ): Promise<VnStockOfferInput[]> {
   const queries = titleQueries(vn, aliases).slice(0, 3);
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -1310,8 +1309,8 @@ async function refreshTrader(
           signal,
           headers: TRADER_MOBILE_HEADERS,
         });
-        const detailed = parseTraderChukoDetail(html, listOffer.url, listOffer);
-        if (detailed) { finalOffer = detailed; source = 'direct'; }
+        finalOffer = parseTraderChukoDetail(html, listOffer.url, listOffer)!;
+        source = 'direct';
       } catch {}
     }
 
@@ -1539,8 +1538,9 @@ export function parseAmazonDetail(html: string, url: string, target: StockTarget
     genericTitle(html);
   const title = rawTitle?.replace(/\s*:\s*Amazon(?:\.co\.jp)?\s*$/i, '').trim() ?? '';
   if (!title || isSearchPagePseudoTitle(title)) return null;
+  const wholePrice = firstMatchText(html, /<span[^>]+class=["'][^"']*a-price-whole[^"']*["'][^>]*>([\s\S]*?)<\/span>/i);
   const price =
-    firstMatchText(html, /<span[^>]+class=["'][^"']*a-price-whole[^"']*["'][^>]*>([\s\S]*?)<\/span>/i) ??
+    (wholePrice ? `JPY ${wholePrice}` : null) ??
     firstMatchText(html, /<span[^>]+class=["']a-offscreen["'][^>]*>([\s\S]*?)<\/span>/i) ??
     '';
   const availabilityBlock =
@@ -1660,7 +1660,7 @@ function providerEncoding(provider: StockProviderId): string | undefined {
 async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -1729,8 +1729,6 @@ function extractFirstShopLink(html: string, baseUrl: string): string | null {
     const abs = absUrl(baseUrl, raw);
     const host = sourceHost(abs).toLowerCase();
     if (!host || host === 'eroge-price.com' || host.endsWith('.eroge-price.com')) continue;
-    // Skip same-base navigation links (e.g. anchor links inside the page).
-    if (abs.startsWith(baseUrl + '#') || abs === baseUrl) continue;
     if (providerForHost(host)) return abs;
     if (!fallback) fallback = abs;
   }
@@ -2086,13 +2084,13 @@ async function refreshErogePrice(vnId: string, vn: CollectionItem, now: number, 
   } catch {}
 
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
   const all: VnStockOfferInput[] = [];
   for (const bundle of extras.candidates) {
-    const offers = bundleToOfferInputs(bundle, vnId, now, vn.title ?? null);
+    const offers = bundleToOfferInputs(bundle, vnId, now, vn.title);
     for (const offer of offers) {
       const cl = classifyOffer(offer.title, null, classifyTarget, {
         source: 'direct',
@@ -2352,7 +2350,7 @@ async function refreshSurugaya(
 ): Promise<VnStockOfferInput[]> {
   const queries = titleQueries(vn, aliases).slice(0, 3);
   const classifyTarget: ClassifyTarget = {
-    title: vn.title ?? '',
+    title: vn.title,
     altTitles: [vn.alttitle].filter((v): v is string => typeof v === 'string' && v.length > 0),
     aliases,
   };
@@ -2409,32 +2407,19 @@ async function loadVnForStock(vnId: string): Promise<CollectionItem | null> {
  *   2. (provider, product_id) — Amazon ASIN, Suruga-ya product id, etc.
  *   3. (provider, normalised_url) — same shop URL.
  *
- * The winning row is the one with the better source-priority rank
- * (`direct` / `manual` > `search`), then better match confidence.
+ * The winning row is the one with the better deterministic match score.
  */
 function dedupeProviderOffers(rows: VnStockOfferInput[]): VnStockOfferInput[] {
   if (rows.length <= 1) return rows;
   const byKey = new Map<string, VnStockOfferInput>();
-  const sourceRank = (src: string): number =>
-    src === 'direct' || src === 'manual' || src === 'alicenet' ? 0 : 1;
-  const confRank = (c: string | null | undefined): number => {
-    if (c === 'exact') return 0;
-    if (c === 'high') return 1;
-    if (c === 'medium') return 2;
-    if (c === 'low') return 3;
-    return 4;
-  };
   function betterThan(a: VnStockOfferInput, b: VnStockOfferInput): boolean {
-    const sa = sourceRank(a.source);
-    const sb = sourceRank(b.source);
-    if (sa !== sb) return sa < sb;
-    return confRank(a.match_confidence) < confRank(b.match_confidence);
+    return a.match_score! > b.match_score!;
   }
   for (const row of rows) {
     const candidates: string[] = [];
     if (row.jan) candidates.push(`jan:${row.jan}`);
     if (row.product_id) candidates.push(`pid:${row.product_id}`);
-    try { candidates.push(`url:${new URL(row.url).toString()}`); } catch { candidates.push(`url:${row.url}`); }
+    candidates.push(`url:${new URL(row.url).toString()}`);
     const key = `${row.provider}|${candidates.join('|')}`;
     const existing = byKey.get(key);
     if (!existing || betterThan(row, existing)) byKey.set(key, row);

@@ -160,6 +160,21 @@ describe('refreshStockForVn — Hgame1 search page + detail', () => {
     expect(offers).toHaveLength(1);
     expect(offers[0]).toMatchObject({ price: 3480, availability: 'in_stock', location_label: 'PC Shop Unoya' });
   });
+
+  it('stops before Hgame1 detail fetches when cancellation lands after the search page', async () => {
+    seedVn({ title: 'TestGame', alttitle: 'TestGame' });
+    releasesMock.mockResolvedValue([]);
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(htmlResponse('<a href="/item/4900000011111.html">TestGame</a>'));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['hgame1'], controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(snapshot.offers.filter((offer) => offer.provider === 'hgame1')).toEqual([]);
+  });
 });
 
 describe('refreshStockForVn — Mandarake keyword list to detail', () => {
@@ -222,6 +237,21 @@ describe('refreshStockForVn — Melonbooks search page to detail', () => {
       (o) => o.provider === 'melonbooks' && o.url.includes('product_id=950555'),
     );
     expect(offer).toMatchObject({ price: 6600, availability: 'in_stock', source: 'search' });
+  });
+
+  it('stops before Melonbooks detail fetches when cancellation lands after the search page', async () => {
+    seedVn({ title: 'TestGame', alttitle: 'TestGame' });
+    releasesMock.mockResolvedValue([]);
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(htmlResponse('<a href="/detail/detail.php?product_id=950558">TestGame</a>'));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['melonbooks'], controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(snapshot.offers.filter((offer) => offer.provider === 'melonbooks')).toEqual([]);
   });
 });
 
@@ -287,7 +317,7 @@ describe('refreshStockForVn — Trader search list + detail', () => {
   });
 
   it('stops Trader iteration when cancelled after a search response', async () => {
-    seedVn({ title: 'TestGame', alttitle: 'TestGame' });
+    seedVn({ title: 'TestGame', alttitle: 'OtherGame' });
     releasesMock.mockResolvedValue([]);
     const controller = new AbortController();
     fetchMock.mockImplementation(() => {
@@ -406,6 +436,7 @@ describe('refreshStockForVn — official-page retailer discovery', () => {
     ]);
 
     const officialHtml = `<html><body>
+      <a href="https://example.test/unhandled">Unsupported</a>
       <a href="https://www.melonbooks.co.jp/detail/detail.php?product_id=950777">Buy at Melonbooks</a>
     </body></html>`;
     const melonDetail = `<h1 class="page-header">てすとげーむ 限定版</h1>

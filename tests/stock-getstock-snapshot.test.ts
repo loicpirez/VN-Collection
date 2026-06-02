@@ -58,14 +58,14 @@ function offer(overrides: Partial<VnStockOfferInput> = {}): VnStockOfferInput {
   };
 }
 
-function seedAlicenet(code: string, salePrice: string | null): void {
+function seedAlicenet(code: string, salePrice: string | null, listPrice: string | null = '5,000円'): void {
   // AliceNet stores prices as display strings; getStockForVn runs them through
   // parsePriceYen, which needs a yen marker (¥ / 円), not a bare integer.
   db.prepare(`
     INSERT INTO alicenet_stock (code, title, jan, list_price, sale_price, vn_id, vn_match_source, fetched_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, 'manual', ?, ?)
     ON CONFLICT(code) DO UPDATE SET vn_id = excluded.vn_id, sale_price = excluded.sale_price
-  `).run(code, 'てすとげーむ used', '4900000000001', '5,000円', salePrice, VN_ID, NOW, NOW);
+  `).run(code, 'てすとげーむ used', '4900000000001', listPrice, salePrice, VN_ID, NOW, NOW);
 }
 
 beforeEach(() => {
@@ -113,12 +113,13 @@ describe('getStockForVn — summary counters', () => {
     replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
       offer({ provider_offer_id: 'g1', content_kind: 'game_package', series_relation: 'exact_game', match_confidence: 'high' }),
       offer({ provider_offer_id: 'rel1', content_kind: 'figure', series_relation: 'related_goods', match_confidence: 'high', availability: 'in_stock' }),
+      offer({ provider_offer_id: 'rel2', content_kind: 'figure', series_relation: 'related_goods', match_confidence: 'high', availability: 'limited' }),
       offer({ provider_offer_id: 'nr1', content_kind: 'game_package', series_relation: 'exact_game', match_confidence: 'medium' }),
       offer({ provider_offer_id: 'rj1', content_kind: 'game_package', series_relation: 'exact_game', match_confidence: 'reject' }),
-    ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 4 });
+    ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 5 });
 
     const snapshot = getStockForVn(VN_ID);
-    expect(snapshot.summary.related_available).toBe(1);
+    expect(snapshot.summary.related_available).toBe(2);
     expect(snapshot.summary.needs_review).toBe(1);
     expect(snapshot.summary.rejected).toBe(1);
     expect(snapshot.summary.last_refresh).toBe(NOW);
@@ -156,6 +157,12 @@ describe('getStockForVn — AliceNet synthesis', () => {
     const alice = getStockForVn(VN_ID).offers.find((o) => o.provider === 'alicenet');
     expect(alice?.price).toBe(5000);
   });
+
+  it('keeps the AliceNet price empty when neither sale nor list price exists', () => {
+    seedAlicenet('123-456789-003', null, null);
+    const alice = getStockForVn(VN_ID).offers.find((o) => o.provider === 'alicenet');
+    expect(alice?.price).toBeNull();
+  });
 });
 
 describe('getStockForVn — sorting', () => {
@@ -173,6 +180,33 @@ describe('getStockForVn — sorting', () => {
     // both in_stock come first; among them, the direct-source one ranks first.
     expect(ids.indexOf('direct-hit')).toBeLessThan(ids.indexOf('search-hit'));
     expect(ids.indexOf('search-hit')).toBeLessThan(ids.indexOf('oos'));
+  });
+
+  it('orders every availability and source-priority tier, then priced rows before null prices', () => {
+    replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
+      offer({ provider_offer_id: 'manual', source: 'manual', price: null }),
+      offer({ provider_offer_id: 'jan', source: 'search', jan: '4900000000001', match_confidence: null, price: 3000 }),
+      offer({ provider_offer_id: 'product', source: 'search', product_id: 'fixture-product', match_confidence: null, price: 2900 }),
+      offer({ provider_offer_id: 'exact', source: 'search', match_confidence: 'exact', price: 2800 }),
+      offer({ provider_offer_id: 'medium', source: 'search', match_confidence: 'medium', price: 2700 }),
+      offer({ provider_offer_id: 'fallback', source: 'search', match_confidence: null, price: 2600 }),
+      offer({ provider_offer_id: 'limited', availability: 'limited', price: 2500 }),
+      offer({ provider_offer_id: 'unknown', availability: 'unknown', price: 2400 }),
+      offer({ provider_offer_id: 'out', availability: 'out_of_stock', price: 2300 }),
+      offer({ provider_offer_id: 'error', availability: 'error', price: 2200 }),
+    ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 10 });
+
+    expect(getStockForVn(VN_ID).offers.map((row) => row.provider_offer_id)).toEqual([
+      'manual', 'jan', 'product', 'exact', 'medium', 'fallback', 'limited', 'unknown', 'out', 'error',
+    ]);
+  });
+
+  it('uses persisted provider ids as labels when the provider catalogue has no entry', () => {
+    replaceVnStockProviderSnapshot(VN_ID, 'legacy_shop', [
+      offer({ provider: 'legacy_shop', provider_offer_id: 'legacy' }),
+    ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
+
+    expect(getStockForVn(VN_ID).offers[0].provider_label).toBe('legacy_shop');
   });
 });
 

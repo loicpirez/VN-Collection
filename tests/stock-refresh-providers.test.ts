@@ -119,8 +119,27 @@ function cachedSurugayaOffer(): VnStockOfferInput {
 
 const EP_ID = 90011;
 
+interface EpRetailerFixture {
+  retailerId: number;
+  retailerName: string;
+  productUrl: string;
+  isAvailable: boolean;
+  isOnSale: boolean;
+  currentPrice: number | null;
+  regularPrice: number | null;
+  originalPrice: number | null;
+  condition: string | null;
+}
+
+interface EpDetailFixture {
+  id: number;
+  title: string;
+  downloadRetailers: EpRetailerFixture[];
+  packageRetailers: EpRetailerFixture[];
+}
+
 /** Eroge Price /api/games detail with one download + one package retailer. */
-function epDetail() {
+function epDetail(): EpDetailFixture {
   return {
     id: EP_ID,
     title: 'Eroge Price Title',
@@ -182,6 +201,30 @@ describe('refreshStockForVn — eroge_price bundle conversion', () => {
 
     const pkg = offers.find((o) => o.edition_label === 'パッケージ版');
     expect(pkg).toMatchObject({ price: 5200, availability: 'out_of_stock', location_label: 'Amazon', condition: '新品' });
+  });
+
+  it('uses the Eroge Price title and preserves a missing retailer price', async () => {
+    seedVn('', 'Test Game');
+    const detail = epDetail();
+    detail.packageRetailers.push({
+      retailerId: 3,
+      retailerName: 'Missing Price Shop',
+      productUrl: 'https://www.amazon.co.jp/dp/B000JF6UD3',
+      isAvailable: true,
+      isOnSale: true,
+      currentPrice: null,
+      regularPrice: null,
+      originalPrice: null,
+      condition: null,
+    });
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(url === apiGameUrl(EP_ID) ? jsonResponse(detail) : routeErogePrice(url)),
+    );
+
+    const snapshot = await refreshStockForVn(VN_ID, ['eroge_price']);
+
+    const offer = snapshot.offers.find((candidate) => candidate.location_label === 'Missing Price Shop');
+    expect(offer).toMatchObject({ title: 'Eroge Price Title', price: null, availability: 'in_stock' });
   });
 
   it('persists the eroge_price extras envelope for the price-history panel', async () => {
@@ -331,6 +374,20 @@ describe('refreshStockForVn — surugaya card shaping', () => {
     expect(statusFor('surugaya')?.status).toBe('partial');
   });
 
+  it('keeps Suruga-ya availability unknown when a card has no stock marker', async () => {
+    seedVn();
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(htmlResponse('<a href="/product/detail/950301">てすとげーむ 通常版</a>')),
+    );
+
+    const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
+
+    expect(snapshot.offers.find((offer) => offer.provider_offer_id === '950301')).toMatchObject({
+      availability: 'unknown',
+      price: null,
+    });
+  });
+
   it('records protected when the surugaya search page is a Cloudflare challenge', async () => {
     seedVn();
     fetchMock.mockImplementation(() =>
@@ -372,5 +429,18 @@ describe('refreshStockForVn — surugaya card shaping', () => {
     const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
 
     expect(snapshot.offers.some((offer) => offer.provider_offer_id === '950398')).toBe(true);
+  });
+
+  it('stops later Suruga-ya title queries after cancellation', async () => {
+    seedVn('てすとげーむ', 'Test Game');
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(htmlResponse('<html></html>'));
+    });
+
+    await refreshStockForVn(VN_ID, ['surugaya'], controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
