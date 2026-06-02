@@ -1748,6 +1748,8 @@ export const dictionaries = {
       externalPrivacyEnable: 'Autoriser la carte externe',
       externalPrivacyDisable: 'Bloquer la carte externe',
       externalPrivacyRequired: 'Autorise les services cartographiques externes pour utiliser cette recherche.',
+      externalPrivacyDismiss: 'Masquer cet avertissement',
+      externalPrivacyShow: 'Afficher la confidentialité de la carte',
       externalMapDisabled: 'La carte externe est bloquée. Autorise-la ci-dessus pour charger les tuiles CARTO.',
     },
     markdown: {
@@ -5215,6 +5217,8 @@ export const dictionaries = {
       externalPrivacyEnable: 'Allow external map',
       externalPrivacyDisable: 'Block external map',
       externalPrivacyRequired: 'Allow external map services to use this search.',
+      externalPrivacyDismiss: 'Hide this notice',
+      externalPrivacyShow: 'Show map privacy',
       externalMapDisabled: 'The external map is blocked. Allow it above to load CARTO tiles.',
     },
     markdown: {
@@ -8679,6 +8683,8 @@ export const dictionaries = {
       externalPrivacyEnable: '外部マップを許可',
       externalPrivacyDisable: '外部マップをブロック',
       externalPrivacyRequired: '検索を使用するには外部マップサービスを許可してください。',
+      externalPrivacyDismiss: 'この通知を非表示',
+      externalPrivacyShow: 'マップのプライバシーを表示',
       externalMapDisabled: '外部マップはブロックされています。上で許可すると CARTO タイルを読み込みます。',
     },
     markdown: {
