@@ -22,7 +22,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const dict = await getDict();
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : Array.isArray(sp.q) ? sp.q[0] : undefined;
-  return { title: q ? `${q} — ${dict.staffSearch.pageTitle}` : dict.staffSearch.pageTitle };
+  return { title: q ? `${q} - ${dict.staffSearch.pageTitle}` : dict.staffSearch.pageTitle };
 }
 
 /**
@@ -63,7 +63,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     source: 'local' | 'vndb';
   };
 
-  // Always fetch local results — both scopes browse local data by default.
+  // Always fetch local results - both scopes browse local data by default.
   const localRows: StaffRow[] = searchLocalStaff({
     q: query || undefined,
     role,
@@ -150,7 +150,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   return (
     <DensityScopeProvider scope="staffWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -233,7 +233,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
               {t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
             </Link>
           ))}
-          <span className="text-muted/60">·</span>
+          <span className="text-muted/60">/</span>
           {langs.map((l) => (
             <Link
               key={l}
@@ -334,8 +334,8 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                     )}
                   </div>
                   {s.aliases && s.aliases.length > 1 && (
-                    <p className="mt-1 line-clamp-1 text-[10px] text-muted/70" title={s.aliases.map((a) => a.name).join(' · ')}>
-                      {t.common.aka} {s.aliases.slice(0, 3).map((a) => a.name).join(' · ')}
+                    <p className="mt-1 line-clamp-1 text-[10px] text-muted/70" title={s.aliases.map((a) => a.name).join(' / ')}>
+                      {t.common.aka} {s.aliases.slice(0, 3).map((a) => a.name).join(' / ')}
                     </p>
                   )}
                 </Link>

@@ -16,7 +16,7 @@ interface Props {
   /** Resolved showSexualTraits from <SpoilerToggle/>. */
   showSexual: boolean;
   href: string;
-  /** Rendered when revealed — the actual chip content. */
+  /** Rendered when revealed - the actual chip content. */
   children: React.ReactNode;
   /** Optional tooltip (e.g. for the localized lie/spoiler badge label). */
   title?: string;
@@ -32,7 +32,7 @@ interface Props {
  *     (a `<button>` while gated, a `<Link>` once revealed) but the
  *     wrapper survives all transitions. This guarantees that any QA /
  *     Playwright handle on `[data-spoiler-state]` stays valid across a
- *     hover → click sequence — the previous design lost the click on a
+ *     hover → click sequence - the previous design lost the click on a
  *     now-detached `<button>` node when the user clicked to reveal.
  *
  *   - Desktop hover and keyboard focus reveal the actual chip text
@@ -48,7 +48,7 @@ interface Props {
  *   - Reveal state is local to the chip; reload re-redacts.
  *
  *   - The chip never shows the legacy block-character placeholder
- *     — the operator's "persistent black block" regression.
+ *     - the operator's "persistent black block" regression.
  */
 export function SpoilerChip({
   level,
@@ -107,7 +107,7 @@ export function SpoilerChip({
         : 'hidden';
 
   // While gated (button branch), preview state should show the real
-  // children behind the lock — so the operator can read the tag during
+  // children behind the lock - so the operator can read the tag during
   // hover/focus and decide whether to click to persist.
   const isStillSpoilery = level > 0 || sexual;
   const wasGatedAndRevealed = shouldHide && revealed;
@@ -140,11 +140,11 @@ export function SpoilerChip({
         >
           <Lock className="h-2.5 w-2.5" aria-hidden />
           {effectiveState === 'transient' ? (
-            // Transient preview — show the real chip content so the
+            // Transient preview - show the real chip content so the
             // operator can read the tag during hover/focus.
             <span className="inline-flex items-center gap-1">{children}</span>
           ) : (
-            // Masked — localised text label, no block-characters.
+            // Masked - localised text label, no block-characters.
             <span>{hiddenLabel}</span>
           )}
         </button>
@@ -167,7 +167,7 @@ export function SpoilerChip({
           >
             {isStillSpoilery && <Lock className="h-2.5 w-2.5 opacity-60" aria-hidden />}
             {children}
-            {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} />}
+            {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} aria-hidden />}
             {level > 0 && !lie && <span className="text-[9px]" aria-hidden>!</span>}
           </Link>
           {wasGatedAndRevealed && (

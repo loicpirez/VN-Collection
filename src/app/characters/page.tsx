@@ -49,11 +49,11 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const dict = await getDict();
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : Array.isArray(sp.q) ? sp.q[0] : undefined;
-  return { title: q ? `${q} — ${dict.charactersSearch.pageTitle}` : dict.charactersSearch.pageTitle };
+  return { title: q ? `${q} - ${dict.charactersSearch.pageTitle}` : dict.charactersSearch.pageTitle };
 }
 
 /**
- * `/characters` — full-featured browsing experience.
+ * `/characters` - full-featured browsing experience.
  *
  * The page is server-rendered so the URL is the only source of
  * truth. It dispatches between three tabs (Local / VNDB / Combined)
@@ -89,7 +89,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   }
 
   const hasFilters = hasActiveCharacterFilter(params);
-  // Always fetch local results — local tab browses all, VNDB tab uses
+  // Always fetch local results - local tab browses all, VNDB tab uses
   // local as fallback when no text query is active.
   const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).flatMap(
     (row) => {
@@ -99,7 +99,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
     },
   );
   let vndbResults: VndbCharacter[] = [];
-  // Hit the VNDB API for any non-local tab — including empty-query on
+  // Hit the VNDB API for any non-local tab - including empty-query on
   // VNDB tab so the operator can browse without typing a name first.
   if (tab !== 'local') {
     vndbResults = await searchCharacters(query, {
@@ -173,7 +173,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   return (
     <DensityScopeProvider scope="characterWorks" as="main" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -225,7 +225,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
         {/*
           R5-156: navigates between URL states (full route render
           with new searchParams). Plain `<nav>` + `aria-current=
-          "page"` on the active link — no `role="tablist"` /
+          "page"` on the active link - no `role="tablist"` /
           `role="tab"` without matching `tabpanel`.
         */}
         <NavTabStrip
@@ -238,7 +238,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           ]}
         />
 
-        {/* Segmented controls — each row is a labelled group of `.chip` /
+        {/* Segmented controls - each row is a labelled group of `.chip` /
             `.chip-active` buttons so the visual contract matches the rest of
             the toolbar. Tooltips on icon-only chips via `title`. */}
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -306,7 +306,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           </SegmentRow>
         </div>
 
-        {/* Range / numeric inputs — submit via the same GET form
+        {/* Range / numeric inputs - submit via the same GET form
             above. The form encompasses the toolbar, so each input
             posts back its name on submission. */}
         <form method="get" className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
@@ -615,7 +615,7 @@ function RangeFieldset({
           aria-label={minLabel}
           className="input w-full"
         />
-        <span className="text-muted">–</span>
+        <span className="text-muted">-</span>
         <input
           type="number"
           inputMode="numeric"

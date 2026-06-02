@@ -1093,7 +1093,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               disabled={busy}
               className="inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:text-white sm:min-h-0"
             >
-              <X className="h-3 w-3" /> {t.shelfLayout.cancel}
+              <X className="h-3 w-3" aria-hidden /> {t.shelfLayout.cancel}
             </button>
           </div>
         )}

@@ -250,7 +250,7 @@ export function SearchClient() {
 
   const advActive = isAdvActive(adv);
 
-  // Quick search — VNDB
+  // Quick search - VNDB
   useEffect(() => {
     if (source !== 'vndb') return;
     if (advActive) return; // advanced is driven by an explicit submit
@@ -287,7 +287,7 @@ export function SearchClient() {
     };
   }, [q, source, advActive, t.search.errorPrefix]);
 
-  // Quick search — EGS-side (no VNDB extlink needed; works for games missing from VNDB).
+  // Quick search - EGS-side (no VNDB extlink needed; works for games missing from VNDB).
   useEffect(() => {
     if (source !== 'egs') return;
     if (!q.trim()) {
@@ -505,15 +505,14 @@ export function SearchClient() {
             className={`btn ${advOpen || advActive ? 'btn-primary' : ''}`}
             onClick={() => setAdvOpen((v) => !v)}
           >
-            <SlidersHorizontal className="h-4 w-4" />
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
             {t.search.advanced}
             {advActive && (
               <Circle
                 className="h-2 w-2 fill-current opacity-80"
-                aria-label={t.search.advancedActive}
-              />
+                aria-label={t.search.advancedActive} aria-hidden />
             )}
-            {advOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {advOpen ? <ChevronUp className="h-3 w-3" aria-hidden /> : <ChevronDown className="h-3 w-3" aria-hidden />}
           </button>
           {advActive && (
             <button type="button" className="btn" onClick={() => setAdv(DEFAULT_ADV)}>
@@ -579,7 +578,7 @@ export function SearchClient() {
                         setAdv((s) => ({ ...s, lengthMin: n, lengthMax: n }));
                       }}
                     >
-                      {n} · {t.search.lengthLabels[n - 1] ?? ''}
+                      {n} / {t.search.lengthLabels[n - 1] ?? ''}
                     </button>
                   );
                 })}
@@ -675,9 +674,9 @@ export function SearchClient() {
 
       {/*
         Source-tabbed rendering. The user explicitly picks one of:
-          - 'vndb' — VN search via the VNDB Kana API
-          - 'egs'  — game search via the ErogameScape SQL form
-          - 'local' — free-text match across local notes / custom
+          - 'vndb' - VN search via the VNDB Kana API
+          - 'egs'  - game search via the ErogameScape SQL form
+          - 'local' - free-text match across local notes / custom
             synopses / cached quotes.
         Each tab renders its OWN result body; we do NOT mix them
         in the same vertical flow (manual QA flagged the previous
@@ -719,7 +718,7 @@ export function SearchClient() {
                       {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                       {c.median != null && (
                         <span className="inline-flex items-center gap-0.5 text-accent">
-                          <Star className="h-2.5 w-2.5 fill-accent" /> {c.median}
+                          <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {c.median}
                         </span>
                       )}
                       {c.count != null && (
@@ -733,7 +732,7 @@ export function SearchClient() {
                     disabled={addingEgsId != null || isAdded}
                     className={`btn shrink-0 ${isAdded ? '' : 'btn-primary'}`}
                   >
-                    {isAdding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
+                    {isAdding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
                     {isAdded ? t.search.inCollection : t.search.addEgsOnly}
                   </button>
                 </li>

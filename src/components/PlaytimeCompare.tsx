@@ -32,7 +32,7 @@ type Tab = 'vndb' | 'egs' | 'mine' | 'combined';
  *
  * The active column drives the inline display on the detail page (see
  * /vn/[id]/page.tsx). When unset / `auto` we fall back to: combined →
- * VNDB → EGS → user — community values rank first because the user
+ * VNDB → EGS → user - community values rank first because the user
  * usually wants "how long does this VN take" rather than their own
  * personal log.
  */
@@ -70,7 +70,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
   const vndbHas = vndb != null && vndb > 0;
   const egsHas = egs != null && egs > 0;
   const mineHas = mine != null && mine > 0;
-  // "Combined" is the average of every populated source — VNDB, EGS,
+  // "Combined" is the average of every populated source - VNDB, EGS,
   // and Mine. Matches the `combined_playtime` SQL on the library sort.
   // Example: 95 / 90 / 93 → (95+90+93)/3 ≈ 92.67.
   const combinedHas = vndbHas || egsHas || mineHas;
@@ -201,7 +201,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
               }`}>
                 <c.icon className="h-3 w-3" aria-hidden />
                 {c.label}
-                {active && <Check className="ml-0.5 inline-block h-3 w-3 text-accent" />}
+                {active && <Check className="ml-0.5 inline-block h-3 w-3 text-accent" aria-hidden />}
               </div>
               <div className={`text-sm font-mono ${empty ? 'text-muted/60' : 'text-white/90'}`}>
                 {fmt(c.value)}

@@ -35,7 +35,7 @@ async function loadProducer(id: string): Promise<ProducerRow | null> {
     upsertProducer(fresh);
     return getProducerLocal(id);
   } catch {
-    // VNDB unreachable — serve the stale cached row so the page still
+    // VNDB unreachable - serve the stale cached row so the page still
     // renders. The freshness check above ensures we'd have refetched
     // when next.js's revalidate window expired anyway; until then a
     // stale producer record is far better than a 500.
@@ -98,7 +98,7 @@ export default async function ProducerPage({
   return (
     <DensityScopeProvider scope="producerWorks">
       <Link href="/producers" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.producers.back}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.producers.back}
       </Link>
 
       <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:flex-row sm:items-start sm:p-6">
@@ -149,7 +149,7 @@ export default async function ProducerPage({
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <ProducerLogoUpload producerId={producer.id} hasLogo={!!producer.logo_path} />
-        {/* Density slider — controls every VN grid below (dev + pub
+        {/* Density slider - controls every VN grid below (dev + pub
             credit sections). Mounting on /producer/[id] closes the
             "missing slider on detail pages" consistency gap. */}
         <CardDensitySlider scope="producerWorks" />
@@ -185,7 +185,7 @@ export default async function ProducerPage({
                 rel="noopener noreferrer"
                 className="btn"
               >
-                <ExternalLink className="h-3.5 w-3.5" /> VNDB
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden /> VNDB
               </a>
               {producer.extlinks.map((l) => {
                 const href = safeHref(l.url);
@@ -198,7 +198,7 @@ export default async function ProducerPage({
                     rel="noopener noreferrer"
                     className="btn"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" /> {l.label}
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden /> {l.label}
                   </a>
                 );
               })}

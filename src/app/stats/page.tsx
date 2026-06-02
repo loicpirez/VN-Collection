@@ -59,8 +59,8 @@ export default async function StatsPage() {
   }
   const auth = await getAuthInfo();
 
-  const myPlaytime = formatMinutes(my.playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' });
-  const myAvg = my.avg_user_rating != null ? fmtNum(my.avg_user_rating / 10, locale, 1) : '—';
+  const myPlaytime = formatMinutes(my.playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '-' });
+  const myAvg = my.avg_user_rating != null ? fmtNum(my.avg_user_rating / 10, locale, 1) : '-';
 
   // Each donut slice doubles as a deep-link into the Library
   // filtered by that status. The chart legend renders as `<Link>`s
@@ -134,17 +134,17 @@ export default async function StatsPage() {
             <Stat label={t.stats.egsMatched} value={`${agg.egs.matched} / ${agg.egs.matched + agg.egs.unmatched}`} locale={locale} />
             <Stat
               label={t.stats.egsAvgMedian}
-              value={agg.egs.avg_median != null ? `${fmtNum(agg.egs.avg_median, locale, 1)} / 100` : '—'}
+              value={agg.egs.avg_median != null ? `${fmtNum(agg.egs.avg_median, locale, 1)} / 100` : '-'}
               locale={locale}
             />
             <Stat
               label={t.stats.egsSumPlaytime}
-              value={formatMinutes(agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' })}
+              value={formatMinutes(agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '-' })}
               locale={locale}
             />
             <Stat
               label={t.stats.egsTotalPlaytime}
-              value={formatMinutes(my.playtime_minutes + agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '—' })}
+              value={formatMinutes(my.playtime_minutes + agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '-' })}
               locale={locale}
             />
           </div>
@@ -152,13 +152,13 @@ export default async function StatsPage() {
       )}
 
       {finishedSeries.some((d) => d.value > 0) && (
-        <Card title={t.charts.finishedByMonth} icon={<BarChart3 className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.finishedByMonth} icon={<BarChart3 className="h-5 w-5 text-accent" aria-hidden />}>
           <VBarChart data={finishedSeries} height={120} locale={locale} />
         </Card>
       )}
 
       {agg.ratingDistribution.some((d) => d.count > 0) && (
-        <Card title={t.charts.ratingDistribution} icon={<Star className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.ratingDistribution} icon={<Star className="h-5 w-5 text-accent" aria-hidden />}>
           <VBarChart
             data={agg.ratingDistribution.map((d) => ({ label: `${d.bucket}`, value: d.count }))}
             height={120}
@@ -169,7 +169,7 @@ export default async function StatsPage() {
       )}
 
       {agg.topTags.length > 0 && (
-        <Card title={t.charts.topTags} icon={<TagsIcon className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.topTags} icon={<TagsIcon className="h-5 w-5 text-accent" aria-hidden />}>
           {/* Tag rows are clickable: each links to the Library
               filtered by that tag id. The HBarChart wraps the row
               in <Link> when `href` is present. */}
@@ -189,7 +189,7 @@ export default async function StatsPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {agg.byLanguage.length > 0 && (
-          <Card title={t.charts.byLanguage} icon={<Languages className="h-5 w-5 text-accent" />}>
+          <Card title={t.charts.byLanguage} icon={<Languages className="h-5 w-5 text-accent" aria-hidden />}>
             {/* Language rows → VNDB search prefilled with the
                 language code. Library doesn't have a language
                 filter today, so we route through /search whose
@@ -206,7 +206,7 @@ export default async function StatsPage() {
         )}
 
         {agg.byPlatform.length > 0 && (
-          <Card title={t.charts.byPlatform} icon={<Globe className="h-5 w-5 text-accent" />}>
+          <Card title={t.charts.byPlatform} icon={<Globe className="h-5 w-5 text-accent" aria-hidden />}>
             {/* Platform rows → /search?platforms=<code>. Same
                 rationale as language: Library has no platform
                 filter, /search's advanced drawer does. */}
@@ -222,7 +222,7 @@ export default async function StatsPage() {
         )}
 
         {agg.byLocation.some((d) => d.location !== 'unknown') && (
-          <Card title={t.charts.byLocation} icon={<MapPin className="h-5 w-5 text-accent" />}>
+          <Card title={t.charts.byLocation} icon={<MapPin className="h-5 w-5 text-accent" aria-hidden />}>
             {/* Location rows → Library filtered by that physical
                 location. Library has a `?place=` filter that
                 matches the same enum. */}
@@ -241,7 +241,7 @@ export default async function StatsPage() {
         )}
 
         {agg.byEdition.some((d) => d.edition !== 'none') && (
-          <Card title={t.charts.byEdition} icon={<Package className="h-5 w-5 text-accent" />}>
+          <Card title={t.charts.byEdition} icon={<Package className="h-5 w-5 text-accent" aria-hidden />}>
             {/* Edition rows → /?edition=<type>. Library accepts
                 the param and filters via `collection.edition_type`.
                 The 'none' bucket is skipped (no actionable view). */}
@@ -261,7 +261,7 @@ export default async function StatsPage() {
       </div>
 
       {yearsBuckets.length > 0 && (
-        <Card title={t.charts.byYear} icon={<BarChart3 className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.byYear} icon={<BarChart3 className="h-5 w-5 text-accent" aria-hidden />}>
           <VBarChart
             data={yearsBuckets.map((d) => {
               const range = d.label.split('-');
@@ -311,7 +311,7 @@ export default async function StatsPage() {
         </div>
         {auth ? (
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <UserIcon className="h-4 w-4 text-muted" />
+            <UserIcon className="h-4 w-4 text-muted" aria-hidden />
             <span className="text-muted">{t.stats.authedAs}</span>
             <a
               href={`https://vndb.org/${auth.id}`}
@@ -323,7 +323,7 @@ export default async function StatsPage() {
             </a>
             {auth.permissions.length > 0 && (
               <span className="text-xs text-muted">
-                · {t.stats.permissions}: {auth.permissions.join(', ')}
+                / {t.stats.permissions}: {auth.permissions.join(', ')}
               </span>
             )}
           </div>
@@ -364,7 +364,7 @@ function ProducerRankCards({ t, locale }: { t: Awaited<ReturnType<typeof getDict
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {devs.length > 0 && (
-        <Card title={t.charts.topDevelopers} icon={<Wrench className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.topDevelopers} icon={<Wrench className="h-5 w-5 text-accent" aria-hidden />}>
           <HBarChart
             data={devs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
             barClassName="bg-accent"
@@ -373,7 +373,7 @@ function ProducerRankCards({ t, locale }: { t: Awaited<ReturnType<typeof getDict
         </Card>
       )}
       {pubs.length > 0 && (
-        <Card title={t.charts.topPublishers} icon={<Package className="h-5 w-5 text-accent" />}>
+        <Card title={t.charts.topPublishers} icon={<Package className="h-5 w-5 text-accent" aria-hidden />}>
           <HBarChart
             data={pubs.map((p) => ({ label: p.name, value: p.vn_count, href: `/producer/${p.id}` }))}
             barClassName="bg-accent-blue"

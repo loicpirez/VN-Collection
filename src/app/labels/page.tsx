@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
  * VN's detail page so a scan from a phone lands on the right entry.
  *
  * QRs are generated server-side as inline SVG via the `qrcode` package
- * — no external service. Earlier versions called api.qrserver.com,
+ * - no external service. Earlier versions called api.qrserver.com,
  * which leaked the host URL (often a LAN hostname or LAN IP) plus
  * every VN ID to a third party for every label printed. Self-hosted
  * privacy posture demands local generation.
@@ -70,7 +70,7 @@ export default async function LabelsPage({
   }
   const filter = parsedIds;
   // Derive the host from the incoming request so QR codes resolve back to
-  // the same origin the user is browsing — works for any port or LAN IP.
+  // the same origin the user is browsing - works for any port or LAN IP.
   // Prefer x-forwarded-host (when behind a reverse proxy) before host
   // so the QRs encode the public hostname the user actually browses.
   const h = await headers();
@@ -113,7 +113,7 @@ export default async function LabelsPage({
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between print:hidden">
         <Link href="/data" className="inline-flex items-center gap-1 text-sm text-muted hover:text-white">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
         </Link>
         <PrintButton label={t.labels.print} />
       </div>
@@ -144,7 +144,7 @@ export default async function LabelsPage({
                 PAGE-017: dangerouslySetInnerHTML safety note.
                 The SVG string in `qrs[i]` is produced server-side by the
                 `qrcode` npm package (toString with type:'svg'). It contains
-                only SVG path/rect elements — no script, no event handler,
+                only SVG path/rect elements - no script, no event handler,
                 no external resource reference. The source is entirely
                 internal; no user-supplied string ever reaches this field.
                 This pattern is reviewed on every `qrcode` dependency update.
@@ -158,7 +158,7 @@ export default async function LabelsPage({
                 <p className="line-clamp-3 font-bold leading-tight" title={it.title}>{it.title}</p>
                 <p className="mt-0.5 font-mono text-[10px] text-muted">{it.id}</p>
                 {(it.physical_location ?? []).length > 0 && (
-                  <p className="mt-0.5 text-[10px] text-muted">{(it.physical_location ?? []).join(' · ')}</p>
+                  <p className="mt-0.5 text-[10px] text-muted">{(it.physical_location ?? []).join(' / ')}</p>
                 )}
               </div>
             </div>

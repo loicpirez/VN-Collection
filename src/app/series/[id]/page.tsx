@@ -44,7 +44,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   }));
   const layout = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
 
-  // Build the section list — each is wrapped into a slot the layout
+  // Build the section list - each is wrapped into a slot the layout
   // host can reorder / hide / collapse. The grid sits inside `works`
   // so hiding it really hides the entire VN list.
   const heroSection = (
@@ -53,7 +53,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         <div className="h-40 w-full overflow-hidden bg-bg-elev">
           <SafeImage
             src={publicUrlFor(series.banner_path) ?? ''}
-            alt={`${series.name} — ${t.series.banner}`}
+            alt={`${series.name} - ${t.series.banner}`}
             className="h-full w-full"
           />
         </div>
@@ -62,7 +62,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         {series.cover_path ? (
           <SafeImage
             src={publicUrlFor(series.cover_path) ?? ''}
-            alt={`${series.name} — ${t.series.cover}`}
+            alt={`${series.name} - ${t.series.cover}`}
             className="h-32 w-24 shrink-0 rounded-lg"
           />
         ) : (
@@ -132,7 +132,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   return (
     <DensityScopeProvider scope="seriesWorks">
       <Link href="/series" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.series}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.series}
       </Link>
 
       <SeriesDetailLayout seriesId={series.id} initialLayout={layout} sectionNodes={sectionNodes} />

@@ -73,7 +73,7 @@ export default async function CharacterPage({
   try {
     char = await getCharacter(id);
   } catch {
-    // VNDB unreachable / throttled / payload malformed — fall through
+    // VNDB unreachable / throttled / payload malformed - fall through
     // to `notFound()` below rather than 500ing. The user sees the
     // same UX as "really doesn't exist", which is the right policy
     // for a read-only detail page that can't recover client-side.
@@ -86,7 +86,7 @@ export default async function CharacterPage({
   // that drive a chip (blood type, birthday month, sex) link out
   // so the user can pivot from "this character" → "everyone like
   // this". Purely informational rows (age, height, weight, …)
-  // stay as plain text — there's no equivalent chip on the
+  // stay as plain text - there's no equivalent chip on the
   // browser.
   const meta: { label: string; value: string; href?: string }[] = [];
   if (char.age != null) meta.push({ label: t.characters.age, value: `${char.age}` });
@@ -138,12 +138,12 @@ export default async function CharacterPage({
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
   const vas = getVasForCharacter(id);
-  // Other VNDB character records with the SAME display name — covers
+  // Other VNDB character records with the SAME display name - covers
   // the case where VNDB editors split a recurring character across
   // volumes of a series (e.g. the same protagonist may carry
   // different character ids in volume 1 vs volume 3).
   const siblings = findCharacterSiblings(id);
-  // vndb.org HTML scrape — provides character "instances" and the full
+  // vndb.org HTML scrape - provides character "instances" and the full
   // per-VN voice-actor map that the Kana API doesn't expose.
   const scraped = readScrapedCharacterInfo(id);
   const initialLayout = parseCharacterDetailLayoutV1(getAppSetting(CHARACTER_DETAIL_SETTINGS_KEY));
@@ -151,7 +151,7 @@ export default async function CharacterPage({
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <div className="grid gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:gap-6 sm:p-6 md:grid-cols-[200px_1fr] md:gap-8">
@@ -167,7 +167,7 @@ export default async function CharacterPage({
             <div className="mt-1 break-words text-muted">{char.original}</div>
           )}
           {char.aliases.length > 0 && (
-            <div className="mt-1 text-xs text-muted">{char.aliases.slice(0, 6).join(' · ')}</div>
+            <div className="mt-1 text-xs text-muted">{char.aliases.slice(0, 6).join(' / ')}</div>
           )}
 
           {meta.length > 0 && (
@@ -215,7 +215,7 @@ export default async function CharacterPage({
           node: (
             <section className="mt-6 rounded-xl border border-accent/30 bg-accent/5 p-4">
               <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
-                <Users className="h-4 w-4" /> {t.characters.sameName}
+                <Users className="h-4 w-4" aria-hidden /> {t.characters.sameName}
               </h2>
               <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
               <PaginatedGrid
@@ -283,14 +283,14 @@ export default async function CharacterPage({
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-                <Users className="h-4 w-4 text-accent" /> {t.characters.instances}
-                <span className="text-[10px] font-normal text-muted">· {scraped.instances.length}</span>
+                <Users className="h-4 w-4 text-accent" aria-hidden /> {t.characters.instances}
+                <span className="text-[10px] font-normal text-muted">/ {scraped.instances.length}</span>
               </h2>
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.instances.map((inst) => (
                   <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
                     <Link href={`/character/${inst.cid}`} className="font-semibold hover:text-accent">{inst.name}</Link>
-                    <span className="text-muted">·</span>
+                    <span className="text-muted">/</span>
                     <Link href={`/vn/${inst.vn_id}`} className="text-muted hover:text-accent">{inst.vn_title}</Link>
                   </li>
                 ))}
@@ -305,14 +305,14 @@ export default async function CharacterPage({
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-                <Mic2 className="h-4 w-4 text-accent" /> {t.characters.voicedByAll}
-                <span className="text-[10px] font-normal text-muted">· {scraped.voiced_by.length}</span>
+                <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.characters.voicedByAll}
+                <span className="text-[10px] font-normal text-muted">/ {scraped.voiced_by.length}</span>
               </h2>
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.voiced_by.map((v) => (
                   <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
                     <Link href={`/staff/${v.sid}`} className="font-semibold hover:text-accent">{v.staff_name}</Link>
-                    <span className="text-muted">·</span>
+                    <span className="text-muted">/</span>
                     <Link href={`/vn/${v.vn_id}`} className="text-muted hover:text-accent">{v.vn_title}</Link>
                   </li>
                 ))}
@@ -326,7 +326,7 @@ export default async function CharacterPage({
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-                <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
+                <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.characters.alsoVoicedBy}
               </h2>
               <PaginatedGrid
                 ariaLabel={t.characters.appearsIn}
@@ -362,7 +362,7 @@ export default async function CharacterPage({
           node: (
             <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-                {t.characters.appearsIn} · {sortedVns.length}
+                {t.characters.appearsIn} / {sortedVns.length}
               </h2>
               <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
                 {sortedVns.map((v) => {
@@ -407,7 +407,7 @@ export default async function CharacterPage({
                         )}
                         {year && <span>{year}</span>}
                         {v.releaseCount > 1 && (
-                          // "N editions" chip — surfaces how many
+                          // "N editions" chip - surfaces how many
                           // release-tuples VNDB reported for this VN id
                           // so the user knows the deduped card still
                           // covers multiple editions.

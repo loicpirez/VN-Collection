@@ -20,7 +20,7 @@ import {
  * variable, so the surface reacts without a reload.
  *
  * Mounting two providers with different scopes on the same page is
- * supported — each provider's children inherit only their own
+ * supported - each provider's children inherit only their own
  * variable.
  */
 export function DensityScopeProvider({
@@ -31,7 +31,7 @@ export function DensityScopeProvider({
    * `as` lets the caller pick the wrapper element so the provider
    * doesn't bake in `<div>` when the surrounding markup needs a
    * `<section>` / `<article>` / `<main>` instead. We don't proxy
-   * every HTML attribute — keep it focused on the few props pages
+   * every HTML attribute - keep it focused on the few props pages
    * actually need.
    */
   as: As = 'div',

@@ -221,8 +221,8 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
               aria-label={t.dateInput.prevYear}
               title={t.dateInput.prevYear}
             >
-              <ChevronLeft className="h-3 w-3" />
-              <ChevronLeft className="-ml-2 h-3 w-3" />
+              <ChevronLeft className="h-3 w-3" aria-hidden />
+              <ChevronLeft className="-ml-2 h-3 w-3" aria-hidden />
             </button>
             <button
               type="button"
@@ -231,7 +231,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
               aria-label={t.dateInput.prevMonth}
               title={t.dateInput.prevMonth}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden />
             </button>
             <div className="flex-1 text-center text-xs font-bold uppercase tracking-wider text-white">
               {monthLabel}
@@ -243,7 +243,7 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
               aria-label={t.dateInput.nextMonth}
               title={t.dateInput.nextMonth}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
             <button
               type="button"
@@ -252,8 +252,8 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
               aria-label={t.dateInput.nextYear}
               title={t.dateInput.nextYear}
             >
-              <ChevronRight className="h-3 w-3" />
-              <ChevronRight className="-ml-2 h-3 w-3" />
+              <ChevronRight className="h-3 w-3" aria-hidden />
+              <ChevronRight className="-ml-2 h-3 w-3" aria-hidden />
             </button>
           </div>
 

@@ -13,7 +13,7 @@ import { decodeProxyTestResult } from '@/lib/proxy-test-shape';
 
 interface ProxySettingsSectionProps {
   t: ReturnType<typeof useT>;
-  /** DB key — `<id>_proxy_config`. Used by the parent to wire onSave. */
+  /** DB key - `<id>_proxy_config`. Used by the parent to wire onSave. */
   providerKey: string;
   /**
    * Provider id passed to `POST /api/proxy/test`. For fixed providers
@@ -135,7 +135,7 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
             id={hostId}
             type="text"
             defaultValue={config?.host ?? ''}
-            placeholder="proxy.example.com"
+            placeholder={t.settings.proxyHostPlaceholder}
             onBlur={(e) => onSave({ host: e.target.value.trim() || null })}
             className="input text-[11px]"
           />
@@ -147,7 +147,7 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
             min={1}
             max={65535}
             defaultValue={config?.port ?? ''}
-            placeholder="1080"
+            placeholder={t.settings.proxyPortPlaceholder}
             onBlur={(e) => {
               const v = e.target.value.trim();
               onSave({ port: v ? Number(v) : null });
@@ -166,7 +166,7 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
           />
           <label htmlFor={passwordId} className="font-semibold text-muted">{t.settings.proxyPassword}</label>
           {config?.hasPassword && !pwFocused && !pwDraft ? (
-            // STORED STATE — render a real chip + Replace button
+            // STORED STATE - render a real chip + Replace button
             // instead of relying on placeholder text. Previous design
             // showed `•••••••• déjà enregistré` *inside* the input as
             // a placeholder; users repeatedly mistook the dots for
@@ -207,7 +207,7 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
               </button>
             </div>
           ) : (
-            // EDIT STATE — normal password input + visibility toggle.
+            // EDIT STATE - normal password input + visibility toggle.
             <div className="flex items-center gap-1">
               <input
                 id={passwordId}

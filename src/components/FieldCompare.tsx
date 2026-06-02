@@ -34,7 +34,7 @@ interface Props {
  * that expands into a side-by-side view with per-column "Use this" actions.
  *
  * The renderer is plain `<p>` whitespace-pre-wrap. For brand/dev chips use
- * BrandCompare; for cover images use CoverCompare — both deal with non-string
+ * BrandCompare; for cover images use CoverCompare - both deal with non-string
  * payloads and would otherwise need a function prop (which can't cross the
  * server/client boundary).
  */
@@ -115,13 +115,13 @@ export function FieldCompare({
     }
   }
 
-  // Display tab — purely visual; flipping it doesn't touch source_pref unless
+  // Display tab - purely visual; flipping it doesn't touch source_pref unless
   // the user explicitly clicks "Use as default".
   const [activeTab, setActiveTab] = useState<'vndb' | 'egs'>(resolved.used === 'egs' ? 'egs' : 'vndb');
   useEffect(() => {
     setActiveTab(resolved.used === 'egs' ? 'egs' : 'vndb');
     // resolved.used is recomputed each render, but `optimistic` is the actual
-    // pref signal — re-sync when the pref changes.
+    // pref signal - re-sync when the pref changes.
   }, [resolved.used]);
 
   const vndbTabId = useId();
@@ -174,7 +174,7 @@ export function FieldCompare({
                   }`}
                   title={!vndbHas ? t.compare.emptySide : undefined}
                 >
-                  VNDB{!vndbHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} />}
+                  VNDB{!vndbHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} aria-hidden />}
                 </button>
                 <button
                   type="button"
@@ -191,7 +191,7 @@ export function FieldCompare({
                   }`}
                   title={!egsHas ? t.compare.emptySide : undefined}
                 >
-                  EGS{!egsHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} />}
+                  EGS{!egsHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} aria-hidden />}
                 </button>
               </div>
             )}
@@ -291,7 +291,7 @@ export function FieldCompare({
 /**
  * Memoized so flipping tabs / optimistic-pinning / pending state
  * doesn't re-tokenize the description on every render.
- * `<VndbMarkup>` parses BBCode each time it's called — cheap with the
+ * `<VndbMarkup>` parses BBCode each time it's called - cheap with the
  * O(N) sticky-regex tokenizer, but free is better than cheap.
  */
 const Body = memo(function Body({ text }: { text: string }) {
@@ -333,7 +333,7 @@ function ColumnCard({
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className={`text-[10px] font-bold uppercase tracking-wider ${tone === 'egs' ? 'text-accent' : 'text-muted'}`}>
           {label}
-          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" />}
+          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
         {!empty && (
           <button

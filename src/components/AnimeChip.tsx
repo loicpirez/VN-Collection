@@ -6,7 +6,7 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
  * Surfaces an "Anime adaptation exists" chip on the VN detail page when
  * VNDB flags the VN with has_anime. We probe the filter rather than the
- * field (VNDB doesn't expose has_anime as a selectable field) — a single
+ * field (VNDB doesn't expose has_anime as a selectable field) - a single
  * cached lookup per VN, the result is true/false.
  *
  * Skips entirely for egs_-only synthetic ids since VNDB has no record.
@@ -30,7 +30,7 @@ export async function AnimeChip({ vnId }: { vnId: string }) {
       className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] text-accent"
       title={t.animeChip.tooltip}
     >
-      <Tv className="h-3 w-3" /> {t.animeChip.label}
+      <Tv className="h-3 w-3" aria-hidden /> {t.animeChip.label}
     </span>
   );
 }

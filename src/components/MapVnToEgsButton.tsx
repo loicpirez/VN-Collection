@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { useDebouncedCallback } from '@/lib/hooks';
@@ -242,19 +242,20 @@ export function MapVnToEgsButton({
     <>
       {trigger}
       {open && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          onClick={() => { if (busy == null) setOpen(false); }}
-        >
-          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
+        <DialogPortal>
           <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="fixed inset-0 z-[1000] flex items-center justify-center"
+            onClick={() => { if (busy == null) setOpen(false); }}
           >
+            <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-bold">{t.mapVn.title}</h2>
@@ -404,8 +405,9 @@ export function MapVnToEgsButton({
                 {t.mapVn.pinNoEgs}
               </button>
             </footer>
+            </div>
           </div>
-        </div>
+        </DialogPortal>
       )}
     </>
   );

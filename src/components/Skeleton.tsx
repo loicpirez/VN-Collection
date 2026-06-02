@@ -1,5 +1,5 @@
 /**
- * Loading skeleton primitives. Use these instead of spinners — they mirror the
+ * Loading skeleton primitives. Use these instead of spinners - they mirror the
  * shape of the eventual content so the UI doesn't jump when data arrives.
  *
  * Rule of thumb (also in CLAUDE.md): every async section renders a skeleton
@@ -13,7 +13,7 @@
  */
 
 interface BlockProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Tailwind size classes (h-* w-* etc.) — anything goes. */
+  /** Tailwind size classes (h-* w-* etc.) - anything goes. */
   className?: string;
 }
 
@@ -54,7 +54,7 @@ function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 /**
- * Single rectangle pulse. Use to mock a heading, a line of text, an avatar —
+ * Single rectangle pulse. Use to mock a heading, a line of text, an avatar -
  * combine multiple to mock more complex layouts.
  */
 export function SkeletonBlock({ className, ...rest }: BlockProps) {
@@ -122,7 +122,7 @@ export function SkeletonCardGrid({
 }
 
 /**
- * Stack of horizontal rows — good for a list of releases, characters, credits,
+ * Stack of horizontal rows - good for a list of releases, characters, credits,
  * activity entries, etc. Each row has a thumbnail block + two text lines.
  *
  * Sets `aria-busy="true"` + `aria-live="polite"` so screen readers
@@ -161,7 +161,7 @@ export function SkeletonRows({
 }
 
 /**
- * A horizontal row of tab-shaped placeholders — for a tab bar / segmented
+ * A horizontal row of tab-shaped placeholders - for a tab bar / segmented
  * control while its labels resolve. Each tab is a wide rounded bar; combine
  * with the content skeleton below it.
  */
@@ -175,7 +175,7 @@ export function SkeletonTabRow({ count = 3, className }: { count?: number; class
   );
 }
 
-/** A few stacked text lines — for paragraph / detail-panel placeholders. */
+/** A few stacked text lines - for paragraph / detail-panel placeholders. */
 export function SkeletonText({ lines = 3, className }: { lines?: number; className?: string }) {
   return (
     <div className={cx('space-y-2', className)}>
@@ -190,7 +190,7 @@ export function SkeletonText({ lines = 3, className }: { lines?: number; classNa
 }
 
 /**
- * Tabular skeleton — header row + N body rows. Sets `aria-busy` so screen
+ * Tabular skeleton - header row + N body rows. Sets `aria-busy` so screen
  * readers announce the loading state without the caller needing to wrap.
  */
 export function SkeletonTable({

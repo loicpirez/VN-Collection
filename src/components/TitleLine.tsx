@@ -15,7 +15,7 @@ interface Props {
    * Override the heading level. Defaults to `h1`, suitable for detail
    * pages where the VN title is the page's primary heading. Card grids
    * should pass `h3` (or `h4`) so dozens of cards don't each render an
-   * `<h1>` — that breaks the document outline (A11y A-004).
+   * `<h1>` - that breaks the document outline (A11y A-004).
    */
   as?: HeadingTag;
 }

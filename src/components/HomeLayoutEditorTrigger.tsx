@@ -27,7 +27,7 @@ import {
 } from '@/lib/home-section-layout';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 
 import { readApiError } from '@/lib/api-error-read';
 /**
@@ -189,18 +189,19 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
         Keep the dialog markup mounted so it can flip open instantly.
       */}
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur"
-          onClick={() => { if (!inFlightRef.current) setOpen(false); }}
-        >
+        <DialogPortal>
           <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onClick={(e) => e.stopPropagation()}
-            className="w-[min(calc(100vw-1rem),520px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-bg/80 backdrop-blur"
+            onClick={() => { if (!inFlightRef.current) setOpen(false); }}
           >
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              onClick={(e) => e.stopPropagation()}
+              className="w-[min(calc(100vw-1rem),520px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+            >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-bold">{t.homeLayout.title}</h2>
@@ -247,8 +248,9 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
                 <span>{t.homeLayout.reset}</span>
               </button>
             </footer>
+            </div>
           </div>
-        </div>
+        </DialogPortal>
       )}
     </>
   );

@@ -22,7 +22,7 @@ interface Props {
   /**
    * Optional CSS classes applied to the visible content while the
    * spoiler is in `transient` (hover/focus) state. The operator's
-   * rule is that hover/focus reveal **actual readable text** — so
+   * rule is that hover/focus reveal **actual readable text** - so
    * the default is `''` (no blur). Override only when a specific
    * call site wants a softer preview (e.g. nested sexual chips).
    */
@@ -37,7 +37,7 @@ interface Props {
  * descendant `<SpoilerReveal>` whose level is `≤` the ancestor's
  * level also shows as revealed regardless of its own gate state.
  * Without this, the old code left nested `[spoiler]` blocks inside
- * a revealed tag chip blurred — the operator's "double-hidden text
+ * a revealed tag chip blurred - the operator's "double-hidden text
  * after reveal" report.
  *
  * The context only ever escalates visibility, never demotes it.
@@ -70,7 +70,7 @@ export function SpoilerReveal({
     perSectionOverride,
   });
 
-  // Cascade override — an ancestor at >= my level overrides me to
+  // Cascade override - an ancestor at >= my level overrides me to
   // revealed. Never lowers; only ever escalates.
   const effective: 'hidden' | 'transient' | 'revealed' =
     ancestor.ancestorRevealedLevel >= level ? 'revealed' : visibility;
@@ -108,7 +108,7 @@ export function SpoilerReveal({
 
   // Wrapper class: cursor and focus ring only. The placeholder span
   // carries its own dashed-border/padding so the wrapper size does
-  // NOT change when we swap between hidden and revealed — this is the
+  // NOT change when we swap between hidden and revealed - this is the
   // key fix for the hover-flicker bug: if the wrapper resized on
   // transition the pointer would move off the now-smaller element and
   // pointerLeave would fire, snapping back to hidden.

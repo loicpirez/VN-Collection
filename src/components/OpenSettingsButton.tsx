@@ -8,7 +8,7 @@ import { Settings2 } from 'lucide-react';
  * "no event handlers across the server→client boundary" rule.
  *
  * Server components can't pass `onClick` directly into a Client
- * Component's prop — the previous implementation tried that on
+ * Component's prop - the previous implementation tried that on
  * `/data` and Next.js correctly errored out. Encapsulating the
  * handler INSIDE this Client Component is the canonical fix.
  */

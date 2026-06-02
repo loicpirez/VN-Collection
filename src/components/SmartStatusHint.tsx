@@ -15,7 +15,7 @@ interface Props {
 }
 
 /**
- * Non-intrusive banner: "you've logged ≥ VNDB length — mark as completed?".
+ * Non-intrusive banner: "you've logged ≥ VNDB length - mark as completed?".
  * Only renders when the user is `playing`, has logged some time, and is
  * at or above the community length estimate. Dismiss is session-local so
  * a refresh re-surfaces it; auto-hides once the user confirms.
@@ -86,7 +86,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
   return (
     <aside className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-accent/40 bg-accent/5 px-4 py-2 text-xs">
       <span className="inline-flex items-center gap-2 text-accent">
-        <CheckCircle2 className="h-4 w-4" /> {t.smartStatus.hint}
+        <CheckCircle2 className="h-4 w-4" aria-hidden /> {t.smartStatus.hint}
       </span>
       <span className="flex items-center gap-1">
         <button

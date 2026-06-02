@@ -126,7 +126,7 @@ export function ImportPanel() {
         {busy ? (
           <Loader2 className="h-6 w-6 animate-spin text-accent" aria-hidden />
         ) : (
-          <Upload className="h-6 w-6 text-muted" />
+          <Upload className="h-6 w-6 text-muted" aria-hidden />
         )}
         <p className="text-xs text-muted">{busy ? t.dataMgmt.importing : t.dataMgmt.importDropFile}</p>
         <button
@@ -168,7 +168,7 @@ export function ImportPanel() {
       {summary && summary.kind === 'db' && (
         <div className="mt-3 rounded-lg border border-border bg-bg-card p-3 text-left text-xs">
           <p className="inline-flex items-center gap-1.5 font-bold text-status-completed">
-            <DbIcon className="h-3.5 w-3.5" /> {t.dataMgmt.restoreDone}
+            <DbIcon className="h-3.5 w-3.5" aria-hidden /> {t.dataMgmt.restoreDone}
           </p>
           <ul className="mt-2 grid grid-cols-2 gap-1 text-muted">
             {summary.data.tables.map((row) => (

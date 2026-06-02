@@ -20,7 +20,7 @@ interface Props {
 }
 
 /**
- * Personal synopsis override. When set, takes priority over VNDB / EGS — the
+ * Personal synopsis override. When set, takes priority over VNDB / EGS - the
  * user reads their own copy by default. A "Show sources" toggle reveals the
  * fallback (FieldCompare) so the original wording is still one click away.
  */
@@ -236,7 +236,7 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
         User-authored synopsis goes through VndbMarkup so BBCode
         (`[url=…]`, `[spoiler]`) plus inline VNDB refs (`vNNN`,
         `cNNN`, etc.) become canonical internal links via
-        normalizeVndbHref — same contract as the VNDB description
+        normalizeVndbHref - same contract as the VNDB description
         path, no plain-text bypass.
       */}
       <div className="whitespace-pre-wrap leading-relaxed text-white/85">

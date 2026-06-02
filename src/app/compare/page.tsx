@@ -61,7 +61,7 @@ interface SharedCharacter {
   per_vn: { vn_id: string; va_name: string }[];
 }
 
-/** Characters appearing in every VN (cross-VN appearances are rare — recurring side characters / mascots). */
+/** Characters appearing in every VN (cross-VN appearances are rare - recurring side characters / mascots). */
 function findSharedCharacters(vnIds: string[]): SharedCharacter[] {
   if (vnIds.length < 2) return [];
   const placeholders = vnIds.map(() => '?').join(',');
@@ -119,7 +119,7 @@ export default async function ComparePage({
   const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
   const titleById = new Map(items.map((it) => [it.id, it.title]));
 
-  // Similarity score — naive but useful: weighted overlap ratio across tags
+  // Similarity score - naive but useful: weighted overlap ratio across tags
   // / staff / devs / langs / plats. Tags carry more signal than platforms,
   // so they're weighted accordingly.
   function ratio(shared: number, union: Set<string | number>[]): number {
@@ -150,7 +150,7 @@ export default async function ComparePage({
   return (
     <div className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -164,7 +164,7 @@ export default async function ComparePage({
         <section className="mb-6 rounded-2xl border border-accent/40 bg-accent/5 p-6">
           <header className="mb-4 flex items-baseline justify-between gap-2">
             <h2 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-accent">
-              <Heart className="h-4 w-4" /> {t.compareView.common.title}
+              <Heart className="h-4 w-4" aria-hidden /> {t.compareView.common.title}
             </h2>
             <span className="text-xs text-muted">
               {t.compareView.common.similarity}: <span className="font-bold text-accent">{similarityScore}%</span>
@@ -185,14 +185,14 @@ export default async function ComparePage({
             />
             <SharedFacet
               label={t.compareView.common.staff}
-              values={sharedStaff.slice(0, 12).map((s) => `${s.name} (${s.role ? roleLabel(s.role, t.staff) : '—'})`)}
+              values={sharedStaff.slice(0, 12).map((s) => `${s.name} (${s.role ? roleLabel(s.role, t.staff) : '-'})`)}
               extra={sharedStaff.length > 12 ? sharedStaff.length - 12 : null}
             />
           </div>
           {sharedTagsWithNames.length > 0 && (
             <div className="mt-4">
               <p className="mb-1 text-[11px] uppercase tracking-wider text-muted">
-                {t.compareView.common.tags} · {sharedTagsWithNames.length}
+                {t.compareView.common.tags} / {sharedTagsWithNames.length}
               </p>
               <div className="flex flex-wrap gap-1">
                 {sharedTagsWithNames.map((tg) => (
@@ -210,7 +210,7 @@ export default async function ComparePage({
           {sharedVas.length > 0 && (
             <div className="mt-4">
               <p className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted">
-                <Sparkles className="h-3 w-3" /> {t.compareView.common.vas} · {sharedVas.length}
+                <Sparkles className="h-3 w-3" aria-hidden /> {t.compareView.common.vas} / {sharedVas.length}
               </p>
               <ul className="space-y-0.5 text-[11px]">
                 {sharedVas.slice(0, 10).map((va) => (
@@ -222,7 +222,7 @@ export default async function ComparePage({
                           const names = credit.characters.map((c) => c.c_name).join(', ');
                           return `${titleById.get(credit.vn_id) ?? credit.vn_id}: ${names}`;
                         })
-                        .join(' · ')}
+                        .join(' / ')}
                     </span>
                   </li>
                 ))}
@@ -235,7 +235,7 @@ export default async function ComparePage({
           {sharedCharacters.length > 0 && (
             <div className="mt-4">
               <p className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted">
-                <Users className="h-3 w-3" /> {t.compareView.common.characters} · {sharedCharacters.length}
+                <Users className="h-3 w-3" aria-hidden /> {t.compareView.common.characters} / {sharedCharacters.length}
               </p>
               <ul className="space-y-0.5 text-[11px]">
                 {sharedCharacters.slice(0, 10).map((c) => (
@@ -290,8 +290,8 @@ export default async function ComparePage({
             {items.map((it) => (
               <div key={`rating-${it.id}`} className="bg-bg-card p-3 text-sm">
                 <span className="inline-flex items-baseline gap-1 text-accent">
-                  <Star className="h-3 w-3 self-center fill-accent" />
-                  {it.rating != null ? fmtNum(it.rating / 10, locale, 1) : '—'}
+                  <Star className="h-3 w-3 self-center fill-accent" aria-hidden />
+                  {it.rating != null ? fmtNum(it.rating / 10, locale, 1) : '-'}
                 </span>
                 {it.user_rating != null && (
                   <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
@@ -407,7 +407,7 @@ export default async function ComparePage({
               return (
                 <div key={`va-${it.id}`} className="bg-bg-card p-3 text-[11px]">
                   {vas.length === 0 ? (
-                    <span className="text-muted/60">—</span>
+                    <span className="text-muted/60">-</span>
                   ) : (
                     vas.map((v) => {
                       const shared = sharedVaIds.has(v.staff.id);
@@ -418,7 +418,7 @@ export default async function ComparePage({
                           className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
                             shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
                           }`}
-                          title={`${v.character.name}${v.note ? ` · ${v.note}` : ''}`}
+                          title={`${v.character.name}${v.note ? ` / ${v.note}` : ''}`}
                         >
                           {v.staff.name}
                         </Link>
@@ -452,7 +452,7 @@ function SharedFacet({ label, values, extra }: { label: string; values: string[]
     <div>
       <p className="mb-1 text-[10px] uppercase tracking-wider text-muted">{label}</p>
       {values.length === 0 ? (
-        <p className="text-muted">—</p>
+        <p className="text-muted">-</p>
       ) : (
         <div className="flex flex-wrap gap-1">
           {values.map((v) => (

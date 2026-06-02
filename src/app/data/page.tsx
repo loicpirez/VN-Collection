@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Activity, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, KeyRound, QrCode, Sparkles } from 'lucide-react';
+import { Activity, ArrowRight, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, KeyRound, QrCode, Sparkles } from 'lucide-react';
 import { getDbStatus } from '@/lib/db';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
@@ -47,13 +47,14 @@ export default async function DataPage() {
           href="/activity"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent"
         >
-          <Activity className="h-4 w-4" aria-hidden /> {t.nav.activity} →
+          <Activity className="h-4 w-4" aria-hidden /> {t.nav.activity}
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
-          <Activity className="h-5 w-5 text-accent" /> {t.dataMgmt.statusTitle}
+          <Activity className="h-5 w-5 text-accent" aria-hidden /> {t.dataMgmt.statusTitle}
         </h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.statusHint}</p>
 
@@ -80,7 +81,7 @@ export default async function DataPage() {
           <StatCard
             label={
               <span className="inline-flex items-center gap-1">
-                <Sparkles className="h-3 w-3 text-accent" /> {t.dataMgmt.statusEgs}
+                <Sparkles className="h-3 w-3 text-accent" aria-hidden /> {t.dataMgmt.statusEgs}
               </span>
             }
             value={`${status.egs_matched} / ${status.egs_matched + status.egs_unmatched}`}
@@ -88,7 +89,7 @@ export default async function DataPage() {
           />
           <StatCard
             label={t.dataMgmt.statusCache}
-            value={`${status.cache_fresh} ${t.dataMgmt.statusCacheFresh} · ${status.cache_stale} ${t.dataMgmt.statusCacheStale}`}
+            value={`${status.cache_fresh} ${t.dataMgmt.statusCacheFresh} / ${status.cache_stale} ${t.dataMgmt.statusCacheStale}`}
             sub={`${status.cache_total} ${t.dataMgmt.statusCacheTotal}`}
           />
         </div>
@@ -96,7 +97,7 @@ export default async function DataPage() {
         <details className="group rounded-lg border border-border bg-bg-elev/30 px-3 py-2 text-xs">
           <summary className="cursor-pointer list-none text-muted [&::-webkit-details-marker]:hidden">
             <CollapsibleSummary>
-              <KeyRound className="inline h-3 w-3" /> {t.dataMgmt.statusRows}
+              <KeyRound className="inline h-3 w-3" aria-hidden /> {t.dataMgmt.statusRows}
             </CollapsibleSummary>
           </summary>
           <div className="mt-2 overflow-x-auto">
@@ -126,20 +127,20 @@ export default async function DataPage() {
             reliably across browsers.
           */}
           <a href="/api/collection/export" className="btn" download>
-            <FileJson className="h-4 w-4" /> {t.dataMgmt.exportJson}
+            <FileJson className="h-4 w-4" aria-hidden /> {t.dataMgmt.exportJson}
           </a>
           <a href="/api/export/csv" className="btn" download>
-            <FileSpreadsheet className="h-4 w-4" /> {t.dataMgmt.exportCsv}
+            <FileSpreadsheet className="h-4 w-4" aria-hidden /> {t.dataMgmt.exportCsv}
           </a>
           <a href="/api/export/ics" className="btn" download>
-            <CalendarRange className="h-4 w-4" /> {t.dataMgmt.exportIcs}
+            <CalendarRange className="h-4 w-4" aria-hidden /> {t.dataMgmt.exportIcs}
           </a>
           <ExportGameListButton />
           <a href="/api/backup" className="btn" download>
-            <HardDrive className="h-4 w-4" /> {t.dataMgmt.backupDb}
+            <HardDrive className="h-4 w-4" aria-hidden /> {t.dataMgmt.backupDb}
           </a>
           <a href="/api/export/raw" className="btn" download>
-            <FileJson className="h-4 w-4" /> {t.dataMgmt.exportRawCache}
+            <FileJson className="h-4 w-4" aria-hidden /> {t.dataMgmt.exportRawCache}
           </a>
         </div>
         <p className="mt-2 text-[11px] text-muted">{t.dataMgmt.exportRawCacheHint}</p>
@@ -147,7 +148,7 @@ export default async function DataPage() {
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
-          <FileUp className="h-5 w-5 text-accent" /> {t.dataMgmt.importSectionTitle}
+          <FileUp className="h-5 w-5 text-accent" aria-hidden /> {t.dataMgmt.importSectionTitle}
         </h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.importHint}</p>
         <ImportPanel />
@@ -179,7 +180,7 @@ export default async function DataPage() {
             Steam credential CONFIG (api key + SteamID) lives in
             Settings → Integrations now. This section keeps the
             entry point + a callout link. The inline form was
-            removed in commit <this one> to fix the IA — /data
+            removed in commit <this one> to fix the IA - /data
             should be operational (status / actions), not a
             second home for settings.
           */}
@@ -217,7 +218,7 @@ export default async function DataPage() {
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
-          <Download className="h-5 w-5 text-accent" /> {t.dataMgmt.assetsSectionTitle}
+          <Download className="h-5 w-5 text-accent" aria-hidden /> {t.dataMgmt.assetsSectionTitle}
         </h2>
         <p className="mb-3 text-xs text-muted">{t.dataMgmt.assetsSectionHint}</p>
         <p className="inline-flex items-center gap-1 text-xs text-muted">

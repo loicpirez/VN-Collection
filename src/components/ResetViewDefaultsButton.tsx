@@ -4,7 +4,7 @@ import { type DensityScope, useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * "Reset view" button — clears the per-page density override AND
+ * "Reset view" button - clears the per-page density override AND
  * invokes a caller-supplied callback that wipes the page's filters,
  * sort, group, etc. The caller owns the URL-state clear because
  * every listing page builds its own search-param vocabulary.

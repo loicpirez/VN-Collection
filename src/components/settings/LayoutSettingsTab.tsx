@@ -280,8 +280,8 @@ export function LayoutSettingsTab({
  * Mirrors the per-strip "..." menu but with a flat list so the user
  * from the home page the "..." menu is gone too).
  *
- * Each toggle issues an optimistic PATCH to /api/settings — same
- * envelope shape as the per-strip menu — and broadcasts a
+ * Each toggle issues an optimistic PATCH to /api/settings - same
+ * envelope shape as the per-strip menu - and broadcasts a
  * `vn:home-layout-changed` event so live strips update without a
  * router.refresh().
  */
@@ -439,7 +439,7 @@ function SortableHomeLayoutRow({
  * registered section with show/hide + collapsed-by-default toggles
  * and a "Reset to defaults" button. Saves the whole layout in one
  * PATCH so the user's reorder (done from the VN page itself) isn't
- * clobbered by toggling visibility here — we read the current order
+ * clobbered by toggling visibility here - we read the current order
  * back and write it whole.
  */
 function VnLayoutPanel({
@@ -553,7 +553,7 @@ function VnLayoutPanel({
 /**
  * Generic collapsed-by-default accordion panel for any detail-page
  * section layout (character, staff, producer, series). Same contract
- * as VnLayoutPanel but parameterised — avoids copy-pasting.
+ * as VnLayoutPanel but parameterised - avoids copy-pasting.
  */
 function PageLayoutPanel<Id extends string>({
   title,

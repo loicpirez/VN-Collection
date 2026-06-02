@@ -28,7 +28,7 @@ import { useT } from '@/lib/i18n/client';
  * URL override: when a `?density=N` search param is present, the
  * slider reflects that value and (because the URL win-out is read
  * inside `resolveScopedDensity`) writes will simply update the
- * scoped setting — the URL param continues to override on subsequent
+ * scoped setting - the URL param continues to override on subsequent
  * reads until the user removes it. Shareable views aren't disrupted.
  */
 export function CardDensitySlider({
@@ -158,7 +158,7 @@ export function CardDensitySlider({
 
 /**
  * Slider that edits the legacy global default (`cardDensityPx`).
- * Used by the Settings → Display panel — every scope without an
+ * Used by the Settings → Display panel - every scope without an
  * explicit override falls back to this value, so dialing it gives
  * users a global baseline without forcing each surface's slider.
  *
@@ -172,7 +172,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
   const value = clampCardDensity(settings.cardDensityPx);
   return (
     // Same `max-w-full` + shrinkable internals pattern as the scoped
-    // slider above — keeps the row inside the Settings panel column on
+    // slider above - keeps the row inside the Settings panel column on
     // narrow viewports.
     <div
       className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:flex-nowrap sm:gap-2 ${className}`}
@@ -234,13 +234,13 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
  * Returns a CSS grid-template-columns string with the given density.
  * Use this in `style={{ gridTemplateColumns: ... }}` for grids on
  * client surfaces that already resolve the scoped value through
- * `resolveScopedDensity()` — pass the resolved px value, not the raw
+ * `resolveScopedDensity()` - pass the resolved px value, not the raw
  * `cardDensityPx` setting (that would leak the legacy global).
  */
 export function cardGridColumns(densityPx: number, fill: 'auto-fill' | 'auto-fit' = 'auto-fill'): string {
   const safe = clampCardDensity(densityPx);
   // `min(100%, …)` ensures the cell never exceeds the container's
-  // available width on narrow viewports — without it, a slider at
+  // available width on narrow viewports - without it, a slider at
   // 480px would force a horizontal scroll on a 360px phone.
   return `repeat(${fill}, minmax(min(100%, ${safe}px), 1fr))`;
 }

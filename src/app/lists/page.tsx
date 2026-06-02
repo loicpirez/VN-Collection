@@ -49,7 +49,7 @@ export default async function ListsPage() {
                     style={{ backgroundColor: list.color ?? '#475569' }}
                     aria-hidden
                   >
-                    <ListChecks className="h-4 w-4" />
+                    <ListChecks className="h-4 w-4" aria-hidden />
                   </span>
                   <h2 className="line-clamp-1 flex-1 text-base font-bold" title={list.name}>{list.name}</h2>
                   {!!list.pinned && <Pin className="h-3.5 w-3.5 text-accent" aria-hidden />}

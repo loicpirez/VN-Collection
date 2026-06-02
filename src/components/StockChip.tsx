@@ -60,7 +60,7 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
 
   const price = entry.best_price;
   const currencyFmt = currencyFormatter(locale);
-  // hidePrice (library card grid) — show the availability count
+  // hidePrice (library card grid) - show the availability count
   // instead of the yen amount. The full price stays in the title
   // attribute so a desktop hover still surfaces it.
   const availableLocalized = fmtNum(entry.available, locale);
@@ -69,7 +69,7 @@ export function StockChip({ vnId, hidePrice = false }: { vnId: string; hidePrice
     : (t.stock.stockChipAvailable as string).replace('{count}', availableLocalized);
   const title = (t.stock.stockChipHint as string)
     .replace('{count}', availableLocalized)
-    .replace('{price}', price != null ? ` · ${currencyFmt.format(price)}` : '');
+    .replace('{price}', price != null ? ` / ${currencyFmt.format(price)}` : '');
 
   return (
     <div

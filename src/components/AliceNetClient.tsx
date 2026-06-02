@@ -434,7 +434,7 @@ export function AliceNetClient() {
     try {
       window.localStorage.setItem(ALICENET_PREFS_KEY, JSON.stringify({ sort, group, view }));
     } catch {
-      // Quota / private-mode — ignore.
+      // Quota / private-mode - ignore.
     }
   }, [sort, group, view]);
 
@@ -1088,7 +1088,7 @@ export function AliceNetClient() {
           )}
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
             <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
-              <Search className="h-3 w-3" />
+              <Search className="h-3 w-3" aria-hidden />
               {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
             </button>
             {item.vn_id && (
@@ -1099,7 +1099,7 @@ export function AliceNetClient() {
                 className="btn btn-xs min-h-[44px] min-w-[44px] text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
                 title={t.alicenet.alicenetClearMatch}
               >
-                {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
+                {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
               </button>
             )}
           </div>
@@ -1154,7 +1154,7 @@ export function AliceNetClient() {
                 {statusBadge(item)}
                 {quickLinks(item)}
                 <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
-                  <Search className="h-3 w-3" />
+                  <Search className="h-3 w-3" aria-hidden />
                   {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
                 </button>
               </div>
@@ -1279,7 +1279,7 @@ export function AliceNetClient() {
                 className="btn btn-primary btn-sm w-full sm:w-auto"
                 title={t.alicenet.alicenetDownloadAllHint}
               >
-                <Zap className="h-3.5 w-3.5" />
+                <Zap className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetDownloadAll}
               </button>
               <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetDownloadAllHint}</p>
@@ -1293,7 +1293,7 @@ export function AliceNetClient() {
                 onClick={() => runSingleOp('downloading')}
                 className="btn btn-sm"
               >
-                <RefreshCw className="h-3.5 w-3.5" />
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetSyncStock}
               </button>
               <button
@@ -1302,7 +1302,7 @@ export function AliceNetClient() {
                 disabled={stats.unprocessed === 0}
                 className="btn btn-sm"
               >
-                <Search className="h-3.5 w-3.5" />
+                <Search className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetMatchVndbEgs}
                 {stats.unprocessed > 0 && (
                   <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unprocessed}</span>
@@ -1319,7 +1319,7 @@ export function AliceNetClient() {
                 disabled={stats.none_found === 0}
                 className="btn btn-sm btn-primary w-full sm:w-auto"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetRetryNone}
                 {stats.none_found > 0 && (
                   <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
@@ -1337,7 +1337,7 @@ export function AliceNetClient() {
                   disabled={pending.vndb_pending === 0}
                   className="btn btn-sm"
                 >
-                  <Database className="h-3.5 w-3.5" />
+                  <Database className="h-3.5 w-3.5" aria-hidden />
                   {t.alicenet.alicenetDownloadVndb}
                   {pending.vndb_pending > 0 && (
                     <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
@@ -1349,7 +1349,7 @@ export function AliceNetClient() {
                 disabled={pending.egs_pending === 0}
                 className="btn btn-sm"
               >
-                <Link2 className="h-3.5 w-3.5" />
+                <Link2 className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetResolveEgs}
                 {pending.egs_pending > 0 && (
                   <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
@@ -1366,7 +1366,7 @@ export function AliceNetClient() {
                 disabled={stats.matched === 0 || resettingMatches}
                 className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
               >
-                {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" />}
+                {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
                 {t.alicenet.alicenetResetAutoMatches}
               </button>
             </section>
@@ -1447,7 +1447,7 @@ export function AliceNetClient() {
                 className={`btn btn-sm ${showFilters || activeFilterCount > 0 ? 'border-accent text-accent' : ''}`}
                 aria-expanded={showFilters}
               >
-                <Filter className="h-3.5 w-3.5" />
+                <Filter className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetFilters}
                 {activeFilterCount > 0 && <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>}
               </button>
@@ -1458,7 +1458,7 @@ export function AliceNetClient() {
                   className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`}
                   aria-pressed={selectMode}
                 >
-                  <CheckSquare className="h-3.5 w-3.5" />
+                  <CheckSquare className="h-3.5 w-3.5" aria-hidden />
                   {selectMode ? t.alicenet.alicenetSelectExit : t.alicenet.alicenetSelect}
                 </button>
               )}
@@ -1496,7 +1496,7 @@ export function AliceNetClient() {
             </label>
             <div className="flex items-end sm:col-span-2 lg:col-span-5">
               <button type="button" onClick={resetFilters} disabled={activeFilterCount === 0} className="btn btn-sm">
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 {t.alicenet.alicenetResetFilters}
               </button>
             </div>
@@ -1510,15 +1510,15 @@ export function AliceNetClient() {
             {t.alicenet.alicenetSelectedCount.replace('{n}', String(selected.size))}
           </span>
           <button type="button" onClick={selectAllVisible} className="btn btn-sm">
-            <CheckSquare className="h-3.5 w-3.5" />
+            <CheckSquare className="h-3.5 w-3.5" aria-hidden />
             {t.alicenet.alicenetSelectAll}
           </button>
           <button type="button" onClick={selectMatchedVisible} className="btn btn-sm">
-            <Link2 className="h-3.5 w-3.5" />
+            <Link2 className="h-3.5 w-3.5" aria-hidden />
             {t.alicenet.alicenetSelectMatched}
           </button>
           <button type="button" onClick={clearSelection} className="btn btn-sm">
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" aria-hidden />
             {t.alicenet.alicenetClearSelection}
           </button>
         </div>
@@ -1544,19 +1544,19 @@ export function AliceNetClient() {
       {(filter === 'unmatched' || filter === 'none_found' || filter === 'egs_only') && (stats.none_found > 0 || stats.egs_only > 0) && (
         <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-4">
           <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <Search className="h-3.5 w-3.5" />
+            <Search className="h-3.5 w-3.5" aria-hidden />
             <span className="min-w-0 truncate">{t.alicenet.alicenetRetryNone}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('vndb-from-egs')} disabled={isBusy || stats.egs_only === 0} className="btn btn-sm justify-start">
-            <Link2 className="h-3.5 w-3.5" />
+            <Link2 className="h-3.5 w-3.5" aria-hidden />
             <span className="min-w-0 truncate">{t.alicenet.alicenetMatchVndbFromEgs}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('search-egs')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
             <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndb}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('search-egs-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
             <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndbAggressive}</span>
           </button>
         </div>
@@ -1619,7 +1619,7 @@ export function AliceNetClient() {
               {t.alicenet.alicenetSelectedCount.replace('{n}', String(selected.size))}
             </span>
             <button type="button" className="btn" onClick={clearSelection} disabled={bulkBusy}>
-              <X className="h-4 w-4" /> {t.alicenet.alicenetClearSelection}
+              <X className="h-4 w-4" aria-hidden /> {t.alicenet.alicenetClearSelection}
             </button>
             <button
               type="button"
@@ -1627,7 +1627,7 @@ export function AliceNetClient() {
               onClick={bulkClearLinks}
               disabled={bulkBusy}
             >
-              <Trash2 className="h-4 w-4" /> {t.alicenet.alicenetBulkClearLink}
+              <Trash2 className="h-4 w-4" aria-hidden /> {t.alicenet.alicenetBulkClearLink}
             </button>
           </div>
           {bulkBusy && (

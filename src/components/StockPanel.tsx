@@ -129,7 +129,7 @@ export function StockPanel({
   placeMap?: Record<string, number>;
   /**
    * Drop the outer card chrome (border / background / rounding) so the
-   * panel sits flush inside a host that already provides a card — e.g.
+   * panel sits flush inside a host that already provides a card - e.g.
    * the VN-detail `DetailSectionFrame`. Internal padding is kept.
    */
   bare?: boolean;
@@ -401,7 +401,7 @@ export function StockPanel({
   }
 
   /**
-   * Single-provider refresh — surfaced as a per-tile button so the
+   * Single-provider refresh - surfaced as a per-tile button so the
    * operator can re-check just one shop without re-running the entire
    * lineup. Same wire shape as the bulk refresh, just constrained to
    * one provider.
@@ -715,7 +715,7 @@ export function StockPanel({
   const displayDiagnostics = diagnostics.filter(
     (diag) =>
       diag.kind !== 'ok' &&
-      diag.kind !== 'partial' && // Suruga-ya "Search OK" is a success state — the tile badge already says so.
+      diag.kind !== 'partial' && // Suruga-ya "Search OK" is a success state - the tile badge already says so.
       (diag.kind !== 'not_checked' || statusByProvider.has(diag.provider)),
   );
 
@@ -1165,7 +1165,7 @@ export function StockPanel({
         <StockPhysicalLocations offers={physicalOffers} placeMap={placeMap} />
       )}
 
-      {/* R12-EROGEPRICE-UI: render the full Eroge Price bundle —
+      {/* R12-EROGEPRICE-UI: render the full Eroge Price bundle -
           multi-candidate tabs, identity card, all-time / 30-day stats,
           full price-history line chart, per-edition retailer rows,
           staff / voice actors, related games. The data is the
@@ -1363,7 +1363,7 @@ function stockSourceLabel(t: ReturnType<typeof useT>, source: string): string {
 
 /**
  * I-007: translate the slug-keyed warnings emitted by stock-classify.
- * Legacy DB rows still carry the old English wording — map them back
+ * Legacy DB rows still carry the old English wording - map them back
  * to slugs before resolving via the dict so the chip is localised
  * regardless of when the row was written.
  */
@@ -1446,7 +1446,7 @@ function providerDisplayName(providers: StockProvider[], providerId: string): st
 }
 
 /**
- * Client-side mirror of PROVIDER_HOSTS in stock.ts — used to live-preview the
+ * Client-side mirror of PROVIDER_HOSTS in stock.ts - used to live-preview the
  * detected provider while the user types a manual source URL. Server-side
  * canonicalisation still re-validates the URL via the API route.
  */
@@ -1914,7 +1914,7 @@ const OfferCard = memo(function OfferCard({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[10px] text-muted">
           {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
-          {' · '}
+          {' / '}
           {timeAgo(offer.fetched_at, t)}
           {Date.now() - offer.fetched_at > STALE_MS && (
             <span

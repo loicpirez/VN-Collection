@@ -35,7 +35,7 @@ type InlineKind = 'b' | 'i' | 'u' | 's' | 'spoiler';
 
 function sanitizeHref(raw: string): string {
   // Map VNDB-flavoured shortcuts (`c90046`, `/c90046`, `https://vndb.org/c90046`)
-  // to internal App Router routes BEFORE the scheme check — otherwise a
+  // to internal App Router routes BEFORE the scheme check - otherwise a
   // bare id would be rejected by the http/https/mailto/relative guard.
   const normalized = normalizeVndbHref(raw);
   return SAFE_URL_SCHEME.test(normalized) ? normalized : '#';
@@ -193,7 +193,7 @@ export function VndbMarkup({
 }
 
 /**
- * Plain-text strip — same parser, renders only the visible label.
+ * Plain-text strip - same parser, renders only the visible label.
  * Used by filter chips, search snippets, anything that needs a
  * BBCode-free string. All four legacy inline `stripBb` helpers
  * across the app should route through here.

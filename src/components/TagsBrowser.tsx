@@ -142,7 +142,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           if (category) list = list.filter((tag) => tag.category === category);
         } else if (isVndbBrowse) {
           if (skipTreeFetch) {
-            // Re-use SSR hierarchy — only fetch local counts.
+            // Re-use SSR hierarchy - only fetch local counts.
             const localTags = await loadLocalTags();
             const counts = new Map<string, number>();
             for (const tag of localTags) {
@@ -345,7 +345,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
   );
 }
 
-/** Tree view shown in VNDB mode with no active search/filter — parsed from https://vndb.org/g and cached locally. */
+/** Tree view shown in VNDB mode with no active search/filter - parsed from https://vndb.org/g and cached locally. */
 function VndbTreeView({ tree, localCounts, locale }: { tree: VndbTagHomeTree; localCounts: Map<string, number>; locale: Locale }) {
   const t = useT();
 
@@ -507,7 +507,7 @@ function VndbTreeSkeleton() {
   );
 }
 
-/** Flat card grid — used when search/filter is active or in local mode */
+/** Flat card grid - used when search/filter is active or in local mode */
 function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number>; locale: Locale }) {
   const t = useT();
   const buckets = useMemo(() => groupTagsByCategory(results, q), [results, q]);

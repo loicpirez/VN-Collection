@@ -24,21 +24,21 @@ export async function generateMetadata(): Promise<Metadata> {
  * states into the same "Not dumped" tab: (a) VNs with owned
  * editions where none are flagged dumped, and (b) VNs in the
  * collection that have NO owned editions at all. The latter is
- * not a dump-progress signal — it's a tracking gap — so we now
+ * not a dump-progress signal - it's a tracking gap - so we now
  * split the tabs into explicit buckets and tag (b) with a CTA that
  * routes back to the VN's "My editions" anchor.
  *
  * Tabs (URL: `?tab=`):
- *   - `all` (default) — every VN being TRACKED for dump status
+ *   - `all` (default) - every VN being TRACKED for dump status
  *     (collection.dumped=1 OR ≥1 owned edition). The "no
  *     editions" rows are explicitly excluded so the default
  *     view stops surfacing 0/0 rows.
- *   - `complete` — fully dumped (collection.dumped=1 OR every
+ *   - `complete` - fully dumped (collection.dumped=1 OR every
  *     owned edition has dumped=1).
- *   - `missing` — has ≥1 owned edition, not marked dumped.
- *   - `none` — VN in collection with NO owned editions.
+ *   - `missing` - has ≥1 owned edition, not marked dumped.
+ *   - `none` - VN in collection with NO owned editions.
  *     Hidden from the `all` tab.
- *   - `ignored` — explicitly excluded from active dump tracking.
+ *   - `ignored` - explicitly excluded from active dump tracking.
  */
 type DumpTab = 'all' | 'complete' | 'missing' | 'none' | 'ignored';
 const TABS: DumpTab[] = ['all', 'complete', 'missing', 'none', 'ignored'];
@@ -54,7 +54,7 @@ type BucketKey = Exclude<DumpTab, 'all'>;
 /**
  * Single source of truth for per-row classification. Pulled out
  * of the JSX so both the per-tab counters and the row filter
- * use the same logic — drift between the two would surface as
+ * use the same logic - drift between the two would surface as
  * "tab says 3, list shows 4".
  */
 function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
@@ -82,16 +82,16 @@ export default async function DumpedPage({
   // dump tracker straight to the layout editor.
   const onShelf = listVnIdsOnShelf();
 
-  // Pre-compute per-tab counts so the chips show "{tab} · {n}" without
+  // Pre-compute per-tab counts so the chips show "{tab} / {n}" without
   // re-filtering inside the JSX. Counts are independent of the active
-  // tab. The `all` count excludes the `none` bucket (per the spec —
+  // tab. The `all` count excludes the `none` bucket (per the spec -
   // the default view shouldn't surface 0/0 rows). Every other tab
   // shows the number of rows that match its own classification.
   const counts = entries.reduce(
     (acc, e) => {
       const c = classify(e);
       acc[c] += 1;
-      // `all` mirrors "every tracked VN" — the union of every
+      // `all` mirrors "every tracked VN" - the union of every
       // bucket except `none`.
       if (c !== 'none' && c !== 'ignored') acc.all += 1;
       return acc;
@@ -129,7 +129,7 @@ export default async function DumpedPage({
   return (
     <div className="w-full">
       <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -195,7 +195,7 @@ export default async function DumpedPage({
                   <span className="ml-1 rounded bg-bg/40 px-1 text-[10px] font-bold tabular-nums">
                     {counts[key]}
                   </span>
-                  <span className="text-[10px] opacity-70 tabular-nums">· {tabPct(key)}%</span>
+                  <span className="text-[10px] opacity-70 tabular-nums">/ {tabPct(key)}%</span>
                 </Link>
               );
             })}
@@ -237,7 +237,7 @@ export default async function DumpedPage({
                       href={noEditions ? dumpedEditionsAnchor(e.vn_id) : dumpedVnHref(e.vn_id)}
                       className="group flex gap-3 p-2"
                     >
-                      {/* Density-aware cover — the card column
+                      {/* Density-aware cover - the card column
                           scales via --card-density-px, so the cover
                           must too. Hard `h-24 w-16` previously looked
                           tiny in a wide column. */}
@@ -263,7 +263,7 @@ export default async function DumpedPage({
                         {noEditions ? (
                           /*
                            * The "no editions" state is a tracking
-                           * gap, not a dump signal — so we replace
+                           * gap, not a dump signal - so we replace
                            * the misleading "0/0" with an explicit
                            * label and a CTA that links to the VN's
                            * `#my-editions` anchor. Clicking the

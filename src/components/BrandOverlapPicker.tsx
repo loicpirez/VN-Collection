@@ -68,7 +68,7 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
         ))}
       </select>
       <span className="inline-flex items-center justify-center text-muted" aria-hidden>
-        <ArrowLeftRight className="h-3 w-3" />
+        <ArrowLeftRight className="h-3 w-3" aria-hidden />
       </span>
       <select
         className="input"

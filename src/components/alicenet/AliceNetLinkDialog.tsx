@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ExternalLink, Link2, Link2Off, Loader2, Search, X } from 'lucide-react';
-import { useDialogA11y } from '../Dialog';
+import { DialogPortal, useDialogA11y } from '../Dialog';
 import { useToast } from '../ToastProvider';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatVndbDateString } from '@/lib/locale-number';
@@ -141,23 +141,24 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
-      >
+    <DialogPortal>
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center" onClick={onClose}>
+        <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-[min(92vw,640px)] max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card"
+        >
         <header className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-base font-bold">{t.alicenet.alicenetFindMatch}</h2>
             <p className="mt-1 truncate text-[11px] text-muted" title={item.title}>{item.title}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t.common.close} className="tap-target rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white">
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </header>
 
@@ -198,10 +199,10 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
                 title={t.mapEgs.openVndb}
                 onClick={(e) => e.stopPropagation()}
               >
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3 w-3" aria-hidden />
               </a>
               <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary min-h-[44px] sm:min-h-0">
-                {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" />}
+                {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" aria-hidden />}
                 {t.mapEgs.useThis}
               </button>
             </li>
@@ -210,11 +211,12 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
           <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0">
-            {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" />}
+            {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" aria-hidden />}
             {t.alicenet.alicenetNoMatch}
           </button>
         </footer>
+        </div>
       </div>
-    </div>
+    </DialogPortal>
   );
 }

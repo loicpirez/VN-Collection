@@ -12,7 +12,7 @@ import { fmtNum } from '@/lib/locale-number';
  *   - Spoiler level (0 / 1 / 2, matches VNDB's site preference)
  *   - Hide images globally
  *   - Blur R18 imagery
- *   - NSFW threshold slider (0–2 in 0.1 steps)
+ *   - NSFW threshold slider (0-2 in 0.1 steps)
  *   - Hide sexual images outright
  *   - Show sexual traits
  *
@@ -92,7 +92,7 @@ export function SpoilerToggle() {
         >
           <header className="mb-2 flex items-baseline justify-between">
             <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
-              <ShieldAlert className="h-3 w-3" /> {t.contentControls.title}
+              <ShieldAlert className="h-3 w-3" aria-hidden /> {t.contentControls.title}
             </span>
           </header>
 
@@ -174,7 +174,7 @@ export function SpoilerToggle() {
             onClick={openFullSettings}
             className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent"
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings2 className="h-3.5 w-3.5" aria-hidden />
             {t.contentControls.openSettings}
           </button>
         </div>

@@ -14,6 +14,7 @@ import { BannerControls } from './BannerControls';
 import { BannerSourcePicker } from './BannerSourcePicker';
 import { CompareWithButton } from './CompareWithButton';
 import { CoverQuickActions } from './CoverQuickActions';
+import { CoverPickerTrigger } from './CoverPickerTrigger';
 import { CoverSourcePicker } from './CoverSourcePicker';
 import { CoverUploader } from './CoverUploader';
 import { DownloadAssetsButton } from './DownloadAssetsButton';
@@ -23,6 +24,7 @@ import { ListsPickerButton } from './ListsPickerButton';
 import { MapVnToEgsButton } from './MapVnToEgsButton';
 import { QueueButton } from './QueueButton';
 import { safeHref } from '@/lib/safe-href';
+import type { SourceChoice } from '@/lib/source-resolve';
 
 /**
  * Detail-page action toolbar.
@@ -39,11 +41,11 @@ import { safeHref } from '@/lib/safe-href';
  *   - External gates on `showExternalMenu`.
  *
  * The `tests/vn-detail-collection-gating.test.ts` greps the source
- * for those gating expressions — the const declarations below must
+ * for those gating expressions - the const declarations below must
  * keep their `const x = condition ?` shape so the pin doesn't fire.
  */
 interface Props {
-  /** Full VN row — used to derive titles, extlinks, custom banner, etc. */
+  /** Full VN row - used to derive titles, extlinks, custom banner, etc. */
   vn: CollectionItem;
   /** Whether the VN is in the local collection. Gates several controls. */
   inCollection: boolean;
@@ -53,6 +55,8 @@ interface Props {
   egsHasImage: boolean;
   /** Whether the VN has a custom banner set (gates the banner reset button). */
   hasCustomBanner: boolean;
+  /** Active VN image-source preference. */
+  imageSourcePref: SourceChoice;
 }
 
 /**
@@ -70,7 +74,7 @@ interface Props {
  *   4. Otherwise → complete.
  *
  * Synthetic / EGS-only ids (`egs_*`) bypass VNDB and always read as
- * `complete` here — the Data cluster gates them out via `!isEgsOnly`
+ * `complete` here - the Data cluster gates them out via `!isEgsOnly`
  * upstream, so the value never reaches the DownloadAssetsButton.
  */
 function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' {
@@ -92,7 +96,7 @@ const PRIMARY_ROW_CLASSES =
 const ACTION_BUTTON_CLASSES =
   'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
 
-export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage, hasCustomBanner }: Props) {
+export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage, hasCustomBanner, imageSourcePref }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
   const screenshots: Screenshot[] = vn.screenshots ?? [];
@@ -100,8 +104,24 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   const extlinks = vn.extlinks ?? [];
   const hasExtlinks = extlinks.length > 0;
   const showExternalMenu = !isEgsOnly || hasExtlinks || !!egsRow?.egs_id;
+  const coverPicker = (
+    <CoverSourcePicker
+      vnId={vn.id}
+      vndbImage={vn.image_url}
+      egsId={egsRow?.egs_id ?? null}
+      egsHasImage={egsHasImage}
+      currentCustomCover={vn.custom_cover ?? null}
+      currentImageSource={imageSourcePref}
+      currentRotation={
+        ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)
+      }
+      screenshots={screenshots}
+      releaseImages={releaseImages}
+      showTrigger={false}
+    />
+  );
 
-  // ── Cluster 1: Collection (inline only — NO dropdown) ────────────
+  // ── Cluster 1: Collection (inline only - NO dropdown) ────────────
   // The four primary buttons (favorite, wishlist heart, queue, lists)
   // sit in the first row. AnimeChip is passive and folds in next to
   // them on desktop (it's a span, not a button, and stays out of the
@@ -219,19 +239,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         role="group"
         aria-label={t.detail.actions.groupMedia}
       >
-        <CoverSourcePicker
-          vnId={vn.id}
-          vndbImage={vn.image_url}
-          egsId={egsRow?.egs_id ?? null}
-          egsHasImage={egsHasImage}
-          currentCustomCover={vn.custom_cover ?? null}
-          currentRotation={
-            ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)
-          }
-          screenshots={screenshots}
-          releaseImages={releaseImages}
-          triggerClassName={ACTION_BUTTON_CLASSES}
-        />
+        <CoverPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />
         <BannerSourcePicker
           vnId={vn.id}
           currentBanner={vn.banner_image ?? null}
@@ -256,7 +264,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   ) : null;
 
   // ── Cluster 5: Data (single dropdown) ──────────────────────────
-  // Intentionally NOT gated on collection — the operator can still
+  // Intentionally NOT gated on collection - the operator can still
   // need the VNDB metadata refresh from a search-hit landing. See
   // `tests/vn-detail-collection-gating.test.ts` for the pin.
   const data = !isEgsOnly ? (
@@ -278,7 +286,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   // ── Cluster 6: Mapping (single dropdown) ────────────────────────
   // CompareWithButton / MapVnToEgsButton / LinkToVndbButton each
   // manage their own dialog state. They set data-menu-keep-open on
-  // their trigger so ActionMenu does NOT unmount the panel on click —
+  // their trigger so ActionMenu does NOT unmount the panel on click -
   // keeping the component mounted long enough for the dialog state to
   // take effect. The dialog renders at z-[1000] on top; Escape closes
   // both the dialog and the ActionMenu in one keystroke.
@@ -321,18 +329,21 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   );
 
   return (
-    <nav
-      aria-label={t.detail.actions.ariaLabel}
-      className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-bg-elev/25 p-2"
-    >
-      {collection}
-      {tracking}
-      {external}
-      {media}
-      {data}
-      {mapping}
-      {inCollection && <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />}
-    </nav>
+    <>
+      <nav
+        aria-label={t.detail.actions.ariaLabel}
+        className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-bg-elev/25 p-2"
+      >
+        {collection}
+        {tracking}
+        {external}
+        {media}
+        {data}
+        {mapping}
+        {inCollection && <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />}
+      </nav>
+      {coverPicker}
+    </>
   );
 }
 
@@ -363,7 +374,7 @@ function ExternalLinkGridItem({ href, label }: { href: string; label: string }) 
 }
 
 /**
- * Anchor link inside the Tracking dropdown — jumps to a section
+ * Anchor link inside the Tracking dropdown - jumps to a section
  * further down the VN page so the inline row never grows beyond
  * its four primary buttons.
  */

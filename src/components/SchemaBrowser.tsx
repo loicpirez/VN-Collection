@@ -13,7 +13,7 @@ interface Props {
  * payload is a single deep object: top-level keys group enums (e.g.
  * `enums.length`, `enums.platform`, `extlinks`, `api_fields.vn`),
  * each one a dict or an array. We render the tree collapsed by
- * default — clicking a node expands it. A free-text filter highlights
+ * default - clicking a node expands it. A free-text filter highlights
  * any node whose key OR value contains the query and auto-expands the
  * path leading to it, so "platform" jumps you straight to the platform
  * codes without scrolling through 200 lines of irrelevant config.
@@ -21,7 +21,7 @@ interface Props {
 export function SchemaBrowser({ schema }: Props) {
   const t = useT();
   const [rawQuery, setRawQuery] = useState('');
-  // 150 ms debounce — VNDB's schema is large and the recursive match
+  // 150 ms debounce - VNDB's schema is large and the recursive match
   // walk runs on every keystroke. Debouncing keeps the input responsive
   // without dropping inputs the user typed.
   const [query, setQuery] = useState('');

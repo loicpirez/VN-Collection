@@ -86,8 +86,7 @@ const ReleaseRow = memo(function ReleaseRow({
           {isOwned && (
             <Check
               className="inline h-3 w-3 shrink-0 text-status-completed"
-              aria-label={t.releases.ownedYes}
-            />
+              aria-label={t.releases.ownedYes} aria-hidden />
           )}
           <Link href={`/release/${r.id}`} className="hover:text-accent">
             {r.title}
@@ -336,7 +335,7 @@ export function ReleasesSection({
   }, [refreshOwned]);
 
   // Keep the local "owned" set in sync with mutations coming from
-  // elsewhere — primarily OwnedEditionsSection removing a tile, or the
+  // elsewhere - primarily OwnedEditionsSection removing a tile, or the
   // /release/[id] page's ReleaseOwnedToggle.
   useEffect(() => {
     function onChange(e: Event) {

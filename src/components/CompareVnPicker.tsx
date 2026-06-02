@@ -29,7 +29,7 @@ export interface CompareVn {
  * In-page multi-VN picker for /compare.
  *
  * Accepts up to 4 VNs. Provides:
- *   - Thumbnail chips for each selected VN with an × remove button.
+ *   - Thumbnail chips for each selected VN with an x remove button.
  *   - A "+" add slot that expands into a debounced combobox searching
  *     local collection + VNDB in parallel.
  *   - A "Compare" button that navigates to
@@ -334,7 +334,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
                         )}
                         {(year || hit.developer) && (
                           <p className="text-[11px] text-muted">
-                            {[year, hit.developer].filter(Boolean).join(' · ')}
+                            {[year, hit.developer].filter(Boolean).join(' / ')}
                           </p>
                         )}
                       </div>

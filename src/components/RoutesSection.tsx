@@ -20,6 +20,7 @@ interface Props {
 }
 
 const ROLE_PRIORITY: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
+const ROUTES_PAGE_SIZE = 40;
 
 interface RouteRowProps {
   r: RouteRow;
@@ -103,7 +104,7 @@ const RouteRowItem = memo(function RouteRowItem({
         }`}
         title={r.completed ? t.routes.markIncomplete : t.routes.markComplete}
       >
-        {togglePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : r.completed && <Check className="h-3 w-3" />}
+        {togglePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : r.completed && <Check className="h-3 w-3" aria-hidden />}
       </button>
 
       {editing ? (
@@ -146,7 +147,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveUp}
         >
-          {moveUpPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowUp className="h-3 w-3" />}
+          {moveUpPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowUp className="h-3 w-3" aria-hidden />}
         </button>
         <button
           type="button"
@@ -155,7 +156,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white disabled:opacity-30"
           aria-label={t.routes.moveDown}
         >
-          {moveDownPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowDown className="h-3 w-3" />}
+          {moveDownPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ArrowDown className="h-3 w-3" aria-hidden />}
         </button>
         {editing ? (
           <button
@@ -164,7 +165,7 @@ const RouteRowItem = memo(function RouteRowItem({
             className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
             aria-label={t.common.cancel}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3" aria-hidden />
           </button>
         ) : (
           <button
@@ -173,7 +174,7 @@ const RouteRowItem = memo(function RouteRowItem({
             className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
             aria-label={t.common.edit}
           >
-            <Pencil className="h-3 w-3" />
+            <Pencil className="h-3 w-3" aria-hidden />
           </button>
         )}
         <button
@@ -185,7 +186,7 @@ const RouteRowItem = memo(function RouteRowItem({
           aria-label={t.routes.notesToggle}
           title={r.notes ? t.routes.notesEdit : t.routes.notesAdd}
         >
-          <StickyNote className="h-3 w-3" />
+          <StickyNote className="h-3 w-3" aria-hidden />
         </button>
         <button
           type="button"
@@ -194,7 +195,7 @@ const RouteRowItem = memo(function RouteRowItem({
           className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-status-dropped"
           aria-label={t.common.delete}
         >
-          {removePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
+          {removePending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
         </button>
       </div>
       </div>
@@ -306,7 +307,7 @@ const RouteAddForm = memo(function RouteAddForm({
         ))}
       </datalist>
       <button type="submit" className="btn btn-primary" disabled={!draft.trim() || busy}>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
         {t.routes.add}
       </button>
     </form>
@@ -328,6 +329,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const [editingName, setEditingName] = useState('');
   const [notesOpen, setNotesOpen] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ id: number; kind: 'toggle' | 'remove' | 'moveUp' | 'moveDown' | 'notes' } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +368,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     setEditingName('');
     setNotesOpen(null);
     setNotesDraft('');
+    setPage(1);
     setBusy(false);
     setPendingAction(null);
     setError(null);
@@ -377,6 +380,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       identityRef.current = null;
     };
   }, [vnId, inCollection]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(routes.length / ROUTES_PAGE_SIZE));
+    if (page > totalPages) setPage(totalPages);
+  }, [page, routes.length]);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     if (!inCollection) return;
@@ -484,6 +492,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       if (!routes) throw new Error(t.common.error);
       if (!ownsMutation(ownerVnId, controller)) return false;
       setRoutes(routes);
+      setPage(Math.max(1, Math.ceil(routes.length / ROUTES_PAGE_SIZE)));
       startTransition(() => router.refresh());
       toast.success(t.routes.added);
       return true;
@@ -679,6 +688,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   const completed = routes.filter((r) => r.completed).length;
   const total = routes.length;
   const pct = total > 0 ? (completed / total) * 100 : 0;
+  const totalPages = Math.max(1, Math.ceil(total / ROUTES_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * ROUTES_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + ROUTES_PAGE_SIZE, total);
+  const visibleRoutes = routes.slice(pageStart, pageEnd);
 
   return (
     <section className="p-4 sm:p-6">
@@ -723,12 +737,14 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
       {routes.length > 0 && (
         <ul className="mb-4 space-y-2">
-          {routes.map((r, i) => (
+          {visibleRoutes.map((r, i) => {
+            const routeIndex = pageStart + i;
+            return (
             <RouteRowItem
               key={r.id}
               r={r}
-              isFirst={i === 0}
-              isLast={i === routes.length - 1}
+              isFirst={routeIndex === 0}
+              isLast={routeIndex === routes.length - 1}
               busy={busy}
               togglePending={pendingAction?.id === r.id && pendingAction.kind === 'toggle'}
               removePending={pendingAction?.id === r.id && pendingAction.kind === 'remove'}
@@ -754,8 +770,36 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               onSaveNotes={saveNotes}
               onRemove={remove}
             />
-          ))}
+            );
+          })}
         </ul>
+      )}
+
+      {totalPages > 1 && (
+        <nav className="mb-4 flex flex-wrap items-center justify-between gap-2" aria-label={t.routes.paginationLabel}>
+          <button
+            type="button"
+            className="btn min-h-[44px] text-xs"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            {t.common.prev}
+          </button>
+          <span className="text-[10px] text-muted">
+            {t.routes.pageRange
+              .replace('{start}', String(pageStart + 1))
+              .replace('{end}', String(pageEnd))
+              .replace('{total}', String(total))}
+          </span>
+          <button
+            type="button"
+            className="btn min-h-[44px] text-xs"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            {t.common.next}
+          </button>
+        </nav>
       )}
 
       <RouteAddForm

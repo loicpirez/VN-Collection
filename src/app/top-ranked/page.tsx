@@ -57,7 +57,7 @@ export default async function TopRankedPage({
   return (
     <DensityScopeProvider scope="topRanked" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -139,9 +139,9 @@ async function TabContent({
         return <EmptyState message={t.topRanked.emptyEgs} hint={t.topRanked.emptyEgsHint} />;
       }
       // VNDB cover wins when the EGS row carries a `vndb` id and VNDB
-      // returned a poster — much higher quality than the EGS resolver
+      // returned a poster - much higher quality than the EGS resolver
       // chain. Falls back per-row to `/api/egs-cover/{id}` otherwise.
-      // IMPORTANT: do NOT filter out rows that lack a vndb_id — the
+      // IMPORTANT: do NOT filter out rows that lack a vndb_id - the
       // EGS-side feed is the canonical surface for "EGS-ranked
       // games"; rows without a known VNDB cross-link still belong
       // here and the row itself surfaces a Map-to-VNDB action.
@@ -197,7 +197,7 @@ async function TabContent({
  * a generic error block.
  */
 function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
-  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '—';
+  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '-';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
@@ -219,7 +219,7 @@ function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t:
  * which already exposed this signal.
  */
 function StaleVndbBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
-  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '—';
+  const when = fetchedAt ? fmtDate(new Date(fetchedAt), locale) : '-';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
@@ -244,7 +244,7 @@ function EmptyState({ message, hint }: { message: string; hint?: string }) {
 
 /**
  * Page-range pagination control. Shows the current rank range
- * (e.g. "Rangs 51–100") + a Previous / Next pair. URLs preserve
+ * (e.g. "Rangs 51-100") + a Previous / Next pair. URLs preserve
  * the tab so the user can navigate without losing context.
  */
 function Paginator({
@@ -451,7 +451,7 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
                 {v.rating != null && (
                   /*
-                   * VNDB rating chip — the title tooltip surfaces
+                   * VNDB rating chip - the title tooltip surfaces
                    * the method label so the reader doesn't have to
                    * remember whether the value is raw or shrunken.
                    * Star icon and `8.7` digit are unchanged; only
@@ -461,7 +461,7 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
                   <span
                     className="inline-flex items-center gap-0.5 text-accent"
                     title={t.topRanked.scoreMethodVndb}
-                    aria-label={`${fmtNum(v.rating / 10, locale, 1)} — ${t.topRanked.scoreMethodVndb}`}
+                    aria-label={`${fmtNum(v.rating / 10, locale, 1)} - ${t.topRanked.scoreMethodVndb}`}
                   >
                     <Star className="h-3 w-3 fill-accent" aria-hidden /> {fmtNum(v.rating / 10, locale, 1)}
                   </span>
@@ -474,8 +474,8 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
                 {yearOnly(v.released) && <span className="tabular-nums">{yearOnly(v.released)}</span>}
               </div>
               {v.developers.length > 0 && (
-                <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={v.developers.map((d) => d.name).join(' · ')}>
-                  {v.developers.map((d) => d.name).join(' · ')}
+                <p className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={v.developers.map((d) => d.name).join(' / ')}>
+                  {v.developers.map((d) => d.name).join(' / ')}
                 </p>
               )}
             </div>
@@ -558,13 +558,13 @@ function EgsSection({
                     <span
                       className="inline-flex items-center gap-0.5 text-accent"
                       title={t.topRanked.scoreMethodEgsRaw}
-                      aria-label={`${r.median}/100 — ${t.topRanked.scoreMethodEgsRaw}`}
+                      aria-label={`${r.median}/100 - ${t.topRanked.scoreMethodEgsRaw}`}
                     >
                       {/*
                         EGS median is stored on a 0-100 scale (raw).
                         The shrunk score lives in a sibling chip
                         below so the reader sees BOTH the raw and
-                        the ranking value at a glance — the latter
+                        the ranking value at a glance - the latter
                         is what determined the row's position in
                         the list.
                       */}
@@ -573,7 +573,7 @@ function EgsSection({
                   )}
                   {r.median != null && r.count != null && (
                     /*
-                     * Bayesian-weighted score chip — surfaces the
+                     * Bayesian-weighted score chip - surfaces the
                      * value the ORDER BY actually used for ranking.
                      * Pre-blocker the reader could only see the raw
                      * median and had to infer the shrunken score
@@ -588,7 +588,7 @@ function EgsSection({
                       aria-label={`${t.topRanked.bayesScoreShort.replace(
                         '{n}',
                         fmtNum(egsBayesianScore(r.median, r.count), locale, 0),
-                      )} — ${t.topRanked.scoreMethodEgsBayes}`}
+                      )} - ${t.topRanked.scoreMethodEgsBayes}`}
                     >
                       {t.topRanked.bayesScoreShort.replace(
                         '{n}',

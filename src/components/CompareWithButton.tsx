@@ -11,8 +11,8 @@ import { decodeCollectionCompareRow, type CollectionCompareRow } from '@/lib/col
 
 /**
  * Single-shot "Compare with…" button shown on /vn/[id]. Click → modal
- * lists every other VN in the collection with a checkbox (1–3 selectable
- * — the current VN counts as one of the four /compare can handle).
+ * lists every other VN in the collection with a checkbox (1-3 selectable
+ * - the current VN counts as one of the four /compare can handle).
  * Hitting "Compare" navigates to /compare?ids=current,picked1,picked2…
  *
  * The picker dialog uses the shared `<Dialog>` shell for ARIA/focus
@@ -171,7 +171,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
                         }`}
                         aria-hidden
                       >
-                        {isPicked && <Check className="h-3 w-3" />}
+                        {isPicked && <Check className="h-3 w-3" aria-hidden />}
                       </span>
                       <span className="min-w-0 flex-1 truncate font-bold" title={r.title}>{r.title}</span>
                       <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>

@@ -58,7 +58,7 @@ export default async function SimilarPage({
     return (
       <div className="w-full">
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
         </Link>
         <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
@@ -76,7 +76,7 @@ export default async function SimilarPage({
     return (
       <div className="w-full">
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
         </Link>
         <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
           {t.detail.notFoundTitle}
@@ -114,10 +114,10 @@ export default async function SimilarPage({
     : autoSeedTags;
 
   // Parallelize the per-seed-tag VNDB queries. Sequential awaits
-  // stacked up to 6 × VNDB RTT before the page could paint; running
+  // stacked up to 6 x VNDB RTT before the page could paint; running
   // them concurrently lets the throttle serialize them but cuts
   // perceived latency. A single tag failure (network blip) no
-  // longer takes down the whole page — collected per-tag errors
+  // longer takes down the whole page - collected per-tag errors
   // surface as a small warning banner below.
   const hits = new Map<string, SimilarHit>();
   const tagFailures: string[] = [];
@@ -148,7 +148,7 @@ export default async function SimilarPage({
       const cur = hits.get(r.id);
       if (cur) {
         cur.score += tag.rating ?? 1;
-        // Append unique — VNDB results don't double-count, but the
+        // Append unique - VNDB results don't double-count, but the
         // belt-and-braces check keeps the chip list tidy if a tag
         // appears in `seedTags` more than once for some reason.
         if (!cur.matchedTags.some((m) => m.id === tag.id)) {
@@ -185,7 +185,7 @@ export default async function SimilarPage({
   return (
     <DensityScopeProvider scope="vnSimilar" className="w-full">
       <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {seed.title}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {seed.title}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -269,7 +269,7 @@ export default async function SimilarPage({
                     <div className="mt-1 flex items-center gap-3 text-[10px] text-muted">
                       {rating && (
                         <span className="inline-flex items-center gap-0.5 text-accent">
-                          <Star className="h-3 w-3 fill-accent" /> {rating}
+                          <Star className="h-3 w-3 fill-accent" aria-hidden /> {rating}
                         </span>
                       )}
                       {year && <span>{year}</span>}

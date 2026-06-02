@@ -39,10 +39,10 @@ export function TextualSearchPanel({
   query: string;
   /**
    * 'accordion' (default): below-results collapsed accordion used
-   * when the user is browsing VNDB/EGS results — keeps the local
+   * when the user is browsing VNDB/EGS results - keeps the local
    * notes / quotes a one-click reveal that never hijacks the
    * remote results.
-   * 'standalone': /search?source=local — render expanded, show
+   * 'standalone': /search?source=local - render expanded, show
    * the empty/hero state when the query is short or zero hits
    * exist, and never collapse.
    */
@@ -137,7 +137,7 @@ export function TextualSearchPanel({
               {t.textualSearch.title}
             </span>
             {loading ? (
-              <span className="text-[10px] text-muted">· {t.common.loading}</span>
+              <span className="text-[10px] text-muted">/ {t.common.loading}</span>
             ) : (
               <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
                 {libraryHits.length + hits.length}

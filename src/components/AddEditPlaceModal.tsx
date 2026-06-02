@@ -404,7 +404,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
               inputMode="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://..."
+              placeholder={t.places.urlInputPlaceholder as string}
             />
           </div>
           <div>

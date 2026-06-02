@@ -89,13 +89,13 @@ export default async function StaffPage({
   );
 
   // Locally-known credits paint immediately. The full VNDB download streams
-  // in via <Suspense> in <StaffExtraCredits> below — that lets the user see
+  // in via <Suspense> in <StaffExtraCredits> below - that lets the user see
   // what we already have without waiting on the network roundtrip.
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
 
   // Pull richer profile fields (aliases, description, extlinks, gender)
-  // from the staff_full cache — `getStaffProfileFromCredits` only knows
+  // from the staff_full cache - `getStaffProfileFromCredits` only knows
   // about credits and gives us a single canonical name.
   const fullProfile = readStaffFullCache(id)?.profile ?? null;
   const aliases = (fullProfile?.aliases ?? []).filter((a) => !a.ismain);
@@ -119,7 +119,7 @@ export default async function StaffPage({
   return (
     <DensityScopeProvider scope="staffWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -156,7 +156,7 @@ export default async function StaffPage({
                 title={t.staff.productionCredits}
               >
                 <Users className="h-3 w-3" aria-hidden />
-                {production.length} {t.staff.vnCount} · {t.staff.productionCredits}
+                {production.length} {t.staff.vnCount} / {t.staff.productionCredits}
               </a>
               <a
                 href="#voice-credits"
@@ -164,7 +164,7 @@ export default async function StaffPage({
                 title={t.staff.voiceCredits}
               >
                 <Mic2 className="h-3 w-3" aria-hidden />
-                {voice.length} {t.staff.vnCount} · {t.staff.voiceCredits}
+                {voice.length} {t.staff.vnCount} / {t.staff.voiceCredits}
               </a>
             </div>
             {aliases.length > 0 && (
@@ -230,13 +230,13 @@ export default async function StaffPage({
               rel="noopener noreferrer"
               className="btn"
             >
-              <ExternalLink className="h-4 w-4" /> VNDB
+              <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
             </a>
           </div>
         </div>
 
         <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev p-1 text-xs">
-          <Filter className="ml-1 h-3 w-3 text-muted" />
+          <Filter className="ml-1 h-3 w-3 text-muted" aria-hidden />
           <Link
             href={`/staff/${id}`}
             className={`rounded px-2 py-1 ${!inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
@@ -280,7 +280,7 @@ export default async function StaffPage({
                     {sib.original && sib.original !== sib.name && (
                       <span className="text-[11px] text-muted">{sib.original}</span>
                     )}
-                    <span className="text-muted">·</span>
+                    <span className="text-muted">/</span>
                     <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
                       {sib.vns.map((v, i) => (
                         <span key={v.vn_id}>
@@ -301,7 +301,7 @@ export default async function StaffPage({
           node: <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.staff.voiceCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
+            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ {voice.length}</span>
           </h2>
           <PaginatedGrid
             ariaLabel={t.staff.creditsPaginationLabel}
@@ -372,7 +372,7 @@ export default async function StaffPage({
             <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Users className="h-4 w-4 text-accent" aria-hidden /> {t.staff.productionCredits}
-                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
+                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ {production.length}</span>
               </h2>
               {groupedProduction.map((g) => (
                 <div key={g.role} className="mb-6 last:mb-0">
@@ -473,7 +473,7 @@ function VnCard({
 }) {
   const year = vn.released?.slice(0, 4);
   const ratingDisplay = vn.rating != null ? fmtNum(vn.rating / 10, locale, 1) : null;
-  // VNDB id format `vN` only — egs_* synthetic ids don't have a
+  // VNDB id format `vN` only - egs_* synthetic ids don't have a
   // public VNDB page. Hide the external link in that case.
   const vndbUrl = isVndbVnId(vn.id) ? `https://vndb.org/${vn.id}` : null;
   return (

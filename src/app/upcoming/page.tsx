@@ -80,14 +80,14 @@ export default async function UpcomingPage({
   return (
     <DensityScopeProvider scope="upcoming" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-              <CalendarRange className="h-6 w-6 text-accent" /> {t.upcoming.title}
+              <CalendarRange className="h-6 w-6 text-accent" aria-hidden /> {t.upcoming.title}
             </h1>
             <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
           </div>
@@ -103,13 +103,13 @@ export default async function UpcomingPage({
           </div>
         </div>
         <nav className="mt-4 inline-flex flex-wrap gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs" aria-label={t.upcoming.tabsLabel}>
-          <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" />}>
+          <TabLink href="/upcoming" active={tab === 'collection'} icon={<LibraryIcon className="h-3.5 w-3.5" aria-hidden />}>
             {t.upcoming.tabCollection}
           </TabLink>
-          <TabLink href="/upcoming?tab=anticipated" active={tab === 'anticipated'} icon={<Flame className="h-3.5 w-3.5" />}>
+          <TabLink href="/upcoming?tab=anticipated" active={tab === 'anticipated'} icon={<Flame className="h-3.5 w-3.5" aria-hidden />}>
             {t.upcoming.tabAnticipated}
           </TabLink>
-          <TabLink href="/upcoming?tab=all" active={tab === 'all'} icon={<Globe className="h-3.5 w-3.5" />}>
+          <TabLink href="/upcoming?tab=all" active={tab === 'all'} icon={<Globe className="h-3.5 w-3.5" aria-hidden />}>
             {t.upcoming.tabAll}
           </TabLink>
         </nav>
@@ -172,7 +172,7 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
 function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
   const when = fetchedAt
     ? fmtDate(new Date(fetchedAt), locale)
-    : '—';
+    : '-';
   return (
     <div
       className="mb-4 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-[12px] text-status-on_hold"
@@ -250,7 +250,7 @@ function AnticipatedPaginator({
 }
 
 function UpcomingTabSkeleton({ tab }: { tab: Tab }) {
-  // Anticipated renders 2-per-row big cards with a 128×192 (152×224 sm+)
+  // Anticipated renders 2-per-row big cards with a 128x192 (152x224 sm+)
   // poster on the left and a wide info column on the right. Mirror that
   // shape with skeleton blocks so the layout doesn't jump when the data
   // resolves.
@@ -322,7 +322,7 @@ interface LocalVnCover {
 /**
  * VNDB's `/release` endpoint sometimes returns `vns[].image = null` for
  * upcoming entries (cover not uploaded yet). For VNs already in the
- * collection we have richer data locally — including a mirrored
+ * collection we have richer data locally - including a mirrored
  * cover. Look up every referenced VN id in one shot and overlay.
  */
 function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
@@ -404,15 +404,15 @@ function ReleasesSection({
       {Array.from(grouped.entries()).map(([month, rels]) => (
         <section key={month} className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-            {/* I-013: localize the TBA sentinel — the bucket KEY stays 'TBA'
+            {/* I-013: localize the TBA sentinel - the bucket KEY stays 'TBA'
                   so grouping works, but the display text is dict-driven. */}
-            {month === 'TBA' ? t.upcoming.bucketTba : month} · <span className="opacity-70">{rels.length}</span>
+            {month === 'TBA' ? t.upcoming.bucketTba : month} / <span className="opacity-70">{rels.length}</span>
           </h2>
           {/*
             Density-responsive grid: column min follows the slider
             (with min(100%, …) so mobile doesn't overflow). The
             inner cover scales via clamp() so it visibly grows /
-            shrinks as the user drags the slider — at the default
+            shrinks as the user drags the slider - at the default
             density (~220px) the previous floor of 80px clamped
             the cover so it looked frozen. The new formula puts
             the floor below the default value and bumps the
@@ -452,7 +452,7 @@ function ReleasesSection({
                   <div className="text-[11px] text-muted">
                     {r.producers.filter((p) => p.id).slice(0, 3).map((p, i, arr) => (
                       <Link key={p.id} href={`/producer/${p.id}`} className="hover:text-accent">
-                        {p.name}{i < arr.length - 1 ? ' · ' : ''}
+                        {p.name}{i < arr.length - 1 ? ' / ' : ''}
                       </Link>
                     ))}
                   </div>

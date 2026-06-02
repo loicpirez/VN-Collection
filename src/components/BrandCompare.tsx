@@ -246,7 +246,7 @@ function Column({
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className={`text-[10px] font-bold uppercase tracking-wider ${tone === 'egs' ? 'text-accent' : 'text-muted'}`}>
           {label}
-          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" />}
+          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
         {!empty && (
           <button

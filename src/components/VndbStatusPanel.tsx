@@ -312,8 +312,8 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 /**
  * Vote / started / finished / notes writeback for the user's VNDB
  * list entry. Mirrors `PATCH /api/vn/[id]/vndb-status` accepting any
- * subset of those fields. Vote is stored on VNDB as a 10–100 integer
- * (1 decimal place); the UI lets the user type 0–10 with one decimal
+ * subset of those fields. Vote is stored on VNDB as a 10-100 integer
+ * (1 decimal place); the UI lets the user type 0-10 with one decimal
  * to keep it intuitive. Empty string -> null (clears the field).
  */
 function UlistDetailsEditor({

@@ -427,9 +427,9 @@ export function DownloadStatusBar() {
               const failed = j.errors.length > 0 || j.cancelled === true;
               const stateIcon = finished
                 ? failed
-                  ? <AlertTriangle className="h-3 w-3 shrink-0 text-status-dropped" aria-label={j.cancelled ? t.downloadStatus.kindCancelled : t.downloadStatus.kindError} />
-                  : <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-label={t.downloadStatus.kindDone} />
-                : <CloudDownload className="h-3 w-3 shrink-0 animate-pulse text-accent" aria-label={t.downloadStatus.kindRunning} />;
+                  ? <AlertTriangle className="h-3 w-3 shrink-0 text-status-dropped" aria-label={j.cancelled ? t.downloadStatus.kindCancelled : t.downloadStatus.kindError} aria-hidden />
+                  : <CheckCircle2 className="h-3 w-3 shrink-0 text-status-completed" aria-label={t.downloadStatus.kindDone} aria-hidden />
+                : <CloudDownload className="h-3 w-3 shrink-0 animate-pulse text-accent" aria-label={t.downloadStatus.kindRunning} aria-hidden />;
               return (
                 <li key={j.id} className="rounded-md border border-border bg-bg-elev/30 p-2">
                   <div className="flex items-baseline justify-between gap-2 text-[11px]">

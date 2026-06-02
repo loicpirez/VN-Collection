@@ -73,7 +73,7 @@ function Badge({
       ) : (
         <CircleSlash className="h-3 w-3 text-muted/60" aria-hidden />
       )}
-      {sub && <span className="ml-0.5 text-[10px] font-normal text-muted">· {sub}</span>}
+      {sub && <span className="ml-0.5 text-[10px] font-normal text-muted">/ {sub}</span>}
     </span>
   );
 }

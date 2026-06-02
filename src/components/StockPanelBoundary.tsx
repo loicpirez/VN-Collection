@@ -3,7 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, ShoppingBag } from 'lucide-react';
 
 interface Props {
-  /** Fallback content factory — receives the error and a reset callback. */
+  /** Fallback content factory - receives the error and a reset callback. */
   children: ReactNode;
   /** Localised label for the heading. */
   title: string;

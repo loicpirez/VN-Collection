@@ -40,7 +40,7 @@ export interface SparklinePoint {
 export interface SparklineSeries {
   /** Series label rendered in the legend (`DLsite (DL)`, `駿河屋 (PKG)`, …). */
   label: string;
-  /** Stroke color — pick from the project palette. Falls back to accent. */
+  /** Stroke color - pick from the project palette. Falls back to accent. */
   color?: string;
   /** Ordered data points. Empty series are skipped. */
   points: SparklinePoint[];
@@ -50,7 +50,7 @@ interface Props {
   series: SparklineSeries[];
   /** Active UI locale; drives axis-tick and tooltip date formatting. */
   locale: Locale;
-  /** Visible chart bounding box. Default ≈ 800×220 with legend reserved. */
+  /** Visible chart bounding box. Default ≈ 800x220 with legend reserved. */
   width?: number;
   height?: number;
   /** When set, draws a horizontal guide at this yen value (all-time min, etc.). */
@@ -112,7 +112,7 @@ export function PriceHistoryChart({
         role="img"
         aria-label={ariaLabel}
       >
-        —
+        -
       </div>
     );
   }

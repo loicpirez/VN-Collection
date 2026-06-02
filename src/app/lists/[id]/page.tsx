@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
 const VN_QUERY_CHUNK = 500;
 
 // WeakMap-cached `CardData` projection. The row shape is custom (no
-// CollectionItem here — this query returns just the columns the card
+// CollectionItem here - this query returns just the columns the card
 // uses), so we keep the cache local rather than sharing `toCardData`.
 const listRowCache = new WeakMap<VnRow, CardData>();
 
@@ -135,7 +135,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   return (
     <DensityScopeProvider scope="lists">
       <Link href="/lists" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.lists.backToLists}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.lists.backToLists}
       </Link>
 
       <header className="mb-6 overflow-hidden rounded-2xl border border-border bg-bg-card p-5">
@@ -145,7 +145,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             style={{ backgroundColor: list.color ?? '#475569' }}
             aria-hidden
           >
-            <ListChecks className="h-6 w-6" />
+            <ListChecks className="h-6 w-6" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -158,7 +158,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {/* Density slider — controls the VN grid below. */}
+            {/* Density slider - controls the VN grid below. */}
             <CardDensitySlider scope="lists" />
             <ListMetaEditor list={list} />
           </div>

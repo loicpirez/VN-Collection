@@ -90,7 +90,7 @@ interface EgsPageData {
 /**
  * Read every EGS data source the page needs. Wrapped in try/catch so a
  * SQLite migration mismatch or a corrupted JSON column never blows up
- * the whole page — the error band renders instead and the operator can
+ * the whole page - the error band renders instead and the operator can
  * still reach the EGS sync block at the top.
  */
 function loadEgsPageData(): EgsPageData {
@@ -190,7 +190,7 @@ async function EgsPageContent() {
         href="/data"
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden"
       >
-        <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -253,7 +253,7 @@ async function EgsPageContent() {
                 className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
               >
                 {/* The whole row used to be a single Next <Link> with an
-                    external EGS <a> nested inside — invalid HTML (nested
+                    external EGS <a> nested inside - invalid HTML (nested
                     <a>) that hydrates with a React warning and made the
                     external link unreliable. Refactored: the row is a
                     plain <li>; the cover + title is one Link, the

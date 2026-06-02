@@ -6,7 +6,7 @@ import { clampCardDensity, useDisplaySettings } from '@/lib/settings/client';
  * Mirrors the user's `cardDensityPx` preference into a CSS custom property
  * on the document root. Server-rendered grids reference
  * `var(--card-density-px, 220px)` so they don't need to be client
- * components themselves — the value is reactive on the document side.
+ * components themselves - the value is reactive on the document side.
  *
  * Mount once in the root layout. No DOM output.
  */

@@ -75,7 +75,7 @@ export default async function TraitPage({
     return (
       <div className="mx-auto max-w-2xl">
         <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.traits}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.traits}
         </Link>
         <div className="rounded-2xl border border-status-dropped/40 bg-status-dropped/5 p-6">
           <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
@@ -109,7 +109,7 @@ export default async function TraitPage({
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
       <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.traits}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.traits}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -122,7 +122,7 @@ export default async function TraitPage({
             </h1>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
               <span>{fmtNum(trait.char_count, locale)} {t.traits.charCount}</span>
-              {trait.aliases.length > 0 && <span>· {trait.aliases.slice(0, 4).join(', ')}</span>}
+              {trait.aliases.length > 0 && <span>/ {trait.aliases.slice(0, 4).join(', ')}</span>}
               {trait.sexual && (
                 <span className="rounded bg-status-dropped/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-dropped">
                   R18
@@ -159,10 +159,10 @@ export default async function TraitPage({
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.traits.charactersWith} · {mineOnly ? mineCount : allCount}
+            {t.traits.charactersWith} / {mineOnly ? mineCount : allCount}
             {mineOnly && mineCount != null && (
               <span className="text-[10px] font-normal opacity-70">
-                · {mineCount} / {allCount} {t.traits.mineCountSuffix}
+                / {mineCount} / {allCount} {t.traits.mineCountSuffix}
               </span>
             )}
           </h2>
@@ -173,7 +173,7 @@ export default async function TraitPage({
                 !mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
-              {t.traits.all} · {allCount}
+              {t.traits.all} / {allCount}
             </Link>
             <Link
               href={pageHref(1, true)}
@@ -181,7 +181,7 @@ export default async function TraitPage({
                 mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
-              {t.traits.mine}{mineCount != null ? ` · ${mineCount}` : ''}
+              {t.traits.mine}{mineCount != null ? ` / ${mineCount}` : ''}
             </Link>
           </div>
         </div>

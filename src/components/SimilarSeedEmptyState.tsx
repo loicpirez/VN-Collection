@@ -11,7 +11,7 @@ import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
  * card shape but flags the chip in the error tone so the picker
  * surfaces what was broken without losing the affordance.
  *
- * Server component (no `'use client'`) — the picker itself is a
+ * Server component (no `'use client'`) - the picker itself is a
  * client component and hydrates from this static shell.
  */
 export function SimilarSeedEmptyState({

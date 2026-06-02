@@ -177,7 +177,7 @@ export function VnSourcePicker({
                 {t.stock.batchSourceLabels[hit.source]}
               </span>
               {hit.id}
-              {hit.released ? ` · ${hit.released}` : ''}
+              {hit.released ? ` / ${hit.released}` : ''}
             </span>
           </span>
           {showAddIcon && <Plus className="h-4 w-4 shrink-0 text-accent" aria-hidden />}

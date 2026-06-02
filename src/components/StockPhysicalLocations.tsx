@@ -54,7 +54,7 @@ function sortKey(a: PhysicalOffer, b: PhysicalOffer): number {
   return 0;
 }
 
-/** Pure presentational component — receives pre-filtered physical offers. */
+/** Pure presentational component - receives pre-filtered physical offers. */
 export function StockPhysicalLocations({
   offers,
   placeMap = {},
@@ -71,7 +71,7 @@ export function StockPhysicalLocations({
     [locale],
   );
 
-  // Group by branch. Branch can be null — fall back to provider label.
+  // Group by branch. Branch can be null - fall back to provider label.
   const grouped = useMemo(() => {
     const map = new Map<string, PhysicalOffer[]>();
     for (const offer of offers) {
@@ -155,7 +155,7 @@ export function StockPhysicalLocations({
                     </div>
                     <div className="shrink-0 text-right">
                       <span className="block text-xs font-black text-accent">
-                        {offer.price != null ? currency.format(offer.price) : '—'}
+                        {offer.price != null ? currency.format(offer.price) : '-'}
                       </span>
                       {offerHref && (
                         <a

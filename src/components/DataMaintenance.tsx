@@ -16,7 +16,7 @@ import {
 } from '@/lib/data-operations-client-shape';
 
 /**
- * "Maintenance" card on /data — surfaces duplicate candidates and rows whose
+ * "Maintenance" card on /data - surfaces duplicate candidates and rows whose
  * VNDB / EGS data is stale. Reads on mount, refreshes after every action.
  *
  * Both panes are read-only summaries; clean-up is one VN at a time:

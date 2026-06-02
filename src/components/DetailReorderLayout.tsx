@@ -326,7 +326,7 @@ function SortableSection({
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
-      {/* Floating edit-mode controls — don't touch the section's own chrome */}
+      {/* Floating edit-mode controls - don't touch the section's own chrome */}
       <div className="absolute right-2 top-2 z-30 flex items-center gap-1">
         {onToggleCollapsed && (
           <button

@@ -10,7 +10,7 @@
  *    platform, official-site links)
  *  - price-stats trio (all-time min, all-time max, 30-day min)
  *  - full price-history time-series as a multi-series line chart
- *    (`<PriceHistoryChart>` — one series per retailer × edition pair)
+ *    (`<PriceHistoryChart>` - one series per retailer x edition pair)
  *  - per-edition retailer tables with sale flag, condition, condition
  *    note, original price, discount rate
  *  - structured staff list (scenario / illustration / music / theme-
@@ -46,7 +46,7 @@ import { DEFAULT_PALETTE, PriceHistoryChart, type SparklineSeries } from './char
 
 interface Props {
   /**
-   * VNDB VN id (or `egs_<n>` synthetic) — needed so the "Set as
+   * VNDB VN id (or `egs_<n>` synthetic) - needed so the "Set as
    * primary" button can PATCH the persisted extras_json envelope
    * via `/api/vn/<vnId>/stock/eroge-price`. Without it the manual
    * matching UI would only update local state and silently revert
@@ -75,7 +75,7 @@ function fmtIsoDate(iso: string | null, locale: 'fr' | 'en' | 'ja'): string {
 }
 
 /**
- * Build one `SparklineSeries` per (retailer × edition) tuple from the
+ * Build one `SparklineSeries` per (retailer x edition) tuple from the
  * raw price-history array. Series sharing the same retailer but
  * different edition (DOWNLOAD vs PACKAGE) are kept separate because
  * the prices diverge wildly.
@@ -402,7 +402,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.brandSite}
               </a>
             )}
-            {/* FANZA product ids — when present, link straight to the
+            {/* FANZA product ids - when present, link straight to the
                 FANZA product page so the operator can cross-reference
                 without leaving the panel. The id format is
                 `<cid>` and FANZA's canonical URL is
@@ -430,7 +430,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               </a>
             )}
           </div>
-          {/* Genres — render as small unobtrusive chips next to the
+          {/* Genres - render as small unobtrusive chips next to the
               identity row so the operator can see at a glance whether
               eroge-price has the title classified the same way as
               their VNDB tags. */}
@@ -446,7 +446,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
               ))}
             </div>
           )}
-          {/* Description — long, but worth surfacing collapsed. */}
+          {/* Description - long, but worth surfacing collapsed. */}
           {d.description && (
             <details className="pt-2 text-[11px] text-muted">
               <summary className="cursor-pointer text-muted hover:text-accent">
@@ -934,8 +934,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                   {isPrimary && (
                     <Pin
                       className="-ml-0.5 mr-1 inline-block h-3 w-3 rounded-full bg-accent p-0.5 text-bg"
-                      aria-label={t.erogePrice.manualMatch.primaryBadge}
-                    />
+                      aria-label={t.erogePrice.manualMatch.primaryBadge} aria-hidden />
                   )}
                   <span>{c.detail.title}</span>
                   <span className="ml-1.5 text-[10px] opacity-80">

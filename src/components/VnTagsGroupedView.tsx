@@ -52,13 +52,13 @@ function levelToSpoilerMode(level: number): TagSpoilerMode {
  *
  * Child / parent tag relations are not surfaced because the VNDB
  * `/vn/{id}` payload does not include the parent/child DAG on
- * `tags{…}` — only the per-VN rating/spoiler/lie/category triple.
+ * `tags{…}` - only the per-VN rating/spoiler/lie/category triple.
  * See `lib/vndb.ts:TAG_FULL_SUB` for the exact subselection.
  */
 export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
   const t = useT();
   const { settings } = useDisplaySettings();
-  // Local UI state — neither the view mode nor the spoiler mode is
+  // Local UI state - neither the view mode nor the spoiler mode is
   // worth promoting to the URL: they're a single-card decision the
   // operator makes while reading. The global spoiler setting still
   // governs sexual / lie gating via SpoilerChip.
@@ -76,7 +76,7 @@ export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
   }, [settings.spoilerLevel]);
 
   if (!tags || tags.length === 0) return null;
-  // Tags are no longer filtered by spoiler level — they are always
+  // Tags are no longer filtered by spoiler level - they are always
   // listed and each `<SpoilerChip>` masks itself if the local
   // section threshold is below the tag's spoiler level. The toggle
   // therefore only controls how many chips render unmasked by
@@ -105,7 +105,7 @@ export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
         <ToggleChip pressed={view === 'all'} onClick={() => setView('all')}>
           {t.vnTags.viewAll}
         </ToggleChip>
-        <span className="mx-1 text-muted/40">·</span>
+        <span className="mx-1 text-muted/40">/</span>
         <span className="font-bold uppercase tracking-wider text-muted">
           {t.vnTags.spoilerLabel}
         </span>
@@ -180,7 +180,7 @@ function TagSection({
                 currentSpoilerLevel={effectiveLevel}
                 showSexual={settings.showSexualTraits}
                 href={links.tagPageHref}
-                title={`${tag.name} — ${rating} / 3`}
+                title={`${tag.name} - ${rating} / 3`}
               >
                 <span className="inline-flex items-center gap-1">
                   {tag.name}

@@ -548,7 +548,7 @@ export function SettingsButton() {
                       onClick={onSaveToken}
                       disabled={savingToken || !tokenInput.trim()}
                     >
-                      {savingToken ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />}
+                      {savingToken ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
                       {t.common.save}
                     </button>
                   </div>
@@ -590,7 +590,7 @@ export function SettingsButton() {
                           onClick={onPullStatuses}
                           disabled={pulling}
                         >
-                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" />}
+                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
                           {t.settings.vndbPullAction}
                         </button>
                       </div>

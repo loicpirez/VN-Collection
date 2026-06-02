@@ -11,7 +11,7 @@ import { decodeReadingQueueResponse } from '@/lib/tracking-client-shape';
  * Toggle button: adds / removes the VN from the user's reading queue.
  * Lives next to the download buttons on /vn/[id].
  *
- * Reads the queue once on mount to decide which state to surface — the
+ * Reads the queue once on mount to decide which state to surface - the
  * server-side render already paints the queue list elsewhere so the extra
  * round-trip is harmless and keeps this component self-contained.
  */

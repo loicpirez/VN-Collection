@@ -38,8 +38,8 @@ async function VnActivitySummary({
     case 'status': {
       const from = typeof p?.from === 'string' ? p.from : null;
       const to = typeof p?.to === 'string' ? p.to : null;
-      const fromLabel = from ? (statusLabels[from] ?? from) : '—';
-      const toLabel = to ? (statusLabels[to] ?? to) : '—';
+      const fromLabel = from ? (statusLabels[from] ?? from) : '-';
+      const toLabel = to ? (statusLabels[to] ?? to) : '-';
       return (
         <span>
           <span className="text-muted">{fromLabel}</span>
@@ -51,8 +51,8 @@ async function VnActivitySummary({
     case 'rating': {
       const from = typeof p?.from === 'number' ? p.from : null;
       const to = typeof p?.to === 'number' ? p.to : null;
-      const fromStr = from != null ? String(from) : '—';
-      const toStr = to != null ? String(to) : '—';
+      const fromStr = from != null ? String(from) : '-';
+      const toStr = to != null ? String(to) : '-';
       return (
         <span>
           <span className="text-muted">{fromStr}</span>
@@ -93,11 +93,11 @@ async function VnActivitySummary({
     }
     case 'started': {
       const to = typeof p?.to === 'string' ? p.to : null;
-      return <span className="text-accent">{to ?? '—'}</span>;
+      return <span className="text-accent">{to ?? '-'}</span>;
     }
     case 'finished': {
       const to = typeof p?.to === 'string' ? p.to : null;
-      return <span className="text-accent">{to ?? '—'}</span>;
+      return <span className="text-accent">{to ?? '-'}</span>;
     }
     case 'note': {
       const len = typeof p?.length === 'number' ? p.length : 0;
@@ -322,10 +322,10 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                             <p className="mt-0.5 text-[11px] text-muted">
                               {href ? (
                                 <Link href={href} className="hover:text-accent transition-colors">
-                                  {row.entity}{row.entity_id ? ` · ${row.entity_id}` : ''}
+                                  {row.entity}{row.entity_id ? ` / ${row.entity_id}` : ''}
                                 </Link>
                               ) : (
-                                <span>{row.entity}{row.entity_id ? ` · ${row.entity_id}` : ''}</span>
+                                <span>{row.entity}{row.entity_id ? ` / ${row.entity_id}` : ''}</span>
                               )}
                             </p>
                           )}

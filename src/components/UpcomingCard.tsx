@@ -11,16 +11,16 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  * Shared card used by every tab on `/upcoming` (collection / all / anticipated).
  *
  * Every tab MUST mount this so the affordance set is consistent:
- *   1. Open VNDB detail — internal `/vn/<id>` when the id is `v\d+`, OR
+ *   1. Open VNDB detail - internal `/vn/<id>` when the id is `v\d+`, OR
  *      an external `https://vndb.org/<id>` chip when only the EGS row
  *      knows the VNDB id.
- *   2. Open local detail — same `/vn/<id>` link, surfaced when the VN is
+ *   2. Open local detail - same `/vn/<id>` link, surfaced when the VN is
  *      in the operator's `collection` (the `inCollection` prop). Visually
  *      promotes the card so the operator can spot already-tracked entries.
- *   3. Add-to-collection — one-click POST `/api/collection/<id>` with
+ *   3. Add-to-collection - one-click POST `/api/collection/<id>` with
  *      `{ status: 'planning' }`. Hidden when there is no resolvable VNDB
- *      id yet (EGS row with no mapping) — the operator must Map first.
- *   4. Match / Map to VNDB — surfaces `<MapEgsToVndbButton>` when the row
+ *      id yet (EGS row with no mapping) - the operator must Map first.
+ *   4. Match / Map to VNDB - surfaces `<MapEgsToVndbButton>` when the row
  *      is EGS-only (no `vndbId`), so a misrouted EGS entry can be pinned
  *      to the right VNDB id without leaving the page.
  *
@@ -34,7 +34,7 @@ export interface UpcomingCardData {
   id: string;
   /** VNDB id when known (either the row id itself, or a mapped id). */
   vndbId: string | null;
-  /** Optional EGS numeric id — present on rows sourced from the EGS
+  /** Optional EGS numeric id - present on rows sourced from the EGS
    *  anticipated feed. Used to drive the Map-to-VNDB button. */
   egsId: number | null;
   title: string;
@@ -61,7 +61,7 @@ export function UpcomingCard({
   t,
 }: {
   data: UpcomingCardData;
-  /** Per-tab metadata strip — producers chip row, badges, EGS stats, …. */
+  /** Per-tab metadata strip - producers chip row, badges, EGS stats, …. */
   meta?: React.ReactNode;
   locale: Locale;
   t: Dictionary;

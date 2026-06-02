@@ -12,7 +12,7 @@ import { ChevronDown } from 'lucide-react';
  *   - Outside-click closes (document mousedown).
  *   - Escape closes.
  *   - Tab/Shift+Tab off the last/first focusable element wraps inside
- *     the panel — a single keystroke can never trap the user in an
+ *     the panel - a single keystroke can never trap the user in an
  *     invisible loop because the trigger itself is rendered alongside.
  *   - On open, focus shifts to the first focusable child so keyboard
  *     users land inside the panel without an extra Tab.
@@ -29,7 +29,7 @@ import { ChevronDown } from 'lucide-react';
  *
  * The component intentionally renders the panel as a sibling of the
  * trigger inside an `inline-block` wrapper with `position: relative`
- * — anchoring to the wrapper rather than the button itself lets
+ * - anchoring to the wrapper rather than the button itself lets
  * consumers position the trigger absolutely (e.g. the media-tile
  * kebab in the top-right corner) without breaking the popover math.
  */
@@ -170,7 +170,7 @@ export function ActionMenu({
   // Measure-and-flip on open + on scroll / resize while open. We
   // measure against the trigger button itself (not its parent) because
   // the panel is anchored via `top-full` / `bottom-full` on the same
-  // relative wrapper that wraps the button — the trigger's bounding
+  // relative wrapper that wraps the button - the trigger's bounding
   // rect IS the anchor.
   useEffect(() => {
     if (!open) {

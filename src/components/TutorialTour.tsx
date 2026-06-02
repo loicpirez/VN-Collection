@@ -9,7 +9,7 @@ const STORAGE_KEY = 'vn_tour_completed_v1';
 interface Step {
   /** Page to navigate to before showing the step. */
   route: string;
-  /** Title i18n key suffix — see dictionaries.ts `tour.steps.*`. */
+  /** Title i18n key suffix - see dictionaries.ts `tour.steps.*`. */
   key: string;
 }
 
@@ -115,7 +115,7 @@ export function TutorialTour() {
   const titleKey = `step_${cur.key}_title` as keyof typeof t.tour.steps;
   const bodyKey = `step_${cur.key}_body` as keyof typeof t.tour.steps;
 
-  // Non-modal dialog — the tour panel coexists with the page content
+  // Non-modal dialog - the tour panel coexists with the page content
   // and shouldn't trap focus. Screen readers should still announce
   // it as a dialog with an accessible name so users hear the title
   // and step count when it appears.
@@ -156,7 +156,7 @@ export function TutorialTour() {
           </button>
           <button type="button" onClick={next} className="btn btn-primary min-h-[44px] text-xs sm:min-h-0">
             {step + 1 === total ? t.tour.finish : t.tour.next}
-            <ArrowRight className="h-3 w-3" />
+            <ArrowRight className="h-3 w-3" aria-hidden />
           </button>
         </div>
       </div>
@@ -164,7 +164,7 @@ export function TutorialTour() {
   );
 }
 
-/** Public helper — anything can dispatch this event to restart the tour. */
+/** Public helper - anything can dispatch this event to restart the tour. */
 export function startTour() {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(STORAGE_KEY);

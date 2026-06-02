@@ -259,7 +259,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           {selectedIds.length} {t.bulkEdit.selected}
         </span>
         <button type="button" className="btn" onClick={onClear} disabled={busy}>
-          <X className="h-4 w-4" /> {t.bulkEdit.cancel}
+          <X className="h-4 w-4" aria-hidden /> {t.bulkEdit.cancel}
         </button>
 
         <Selector<Status>
@@ -270,21 +270,21 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           disabled={busy}
         />
         <Selector<Location>
-          icon={<MapPin className="h-3.5 w-3.5" />}
+          icon={<MapPin className="h-3.5 w-3.5" aria-hidden />}
           label={t.bulkEdit.setLocation}
           options={LOCATIONS.map((l) => ({ value: l, label: t.locations[l] }))}
           onSelect={(v) => applyField({ kind: 'location', value: v })}
           disabled={busy}
         />
         <Selector<EditionType>
-          icon={<Package className="h-3.5 w-3.5" />}
+          icon={<Package className="h-3.5 w-3.5" aria-hidden />}
           label={t.bulkEdit.setEdition}
           options={EDITION_TYPES.map((e) => ({ value: e, label: t.editions[e] }))}
           onSelect={(v) => applyField({ kind: 'edition_type', value: v })}
           disabled={busy}
         />
         <Selector<BoxType>
-          icon={<Package className="h-3.5 w-3.5" />}
+          icon={<Package className="h-3.5 w-3.5" aria-hidden />}
           label={t.bulkEdit.setBox}
           options={BOX_TYPES.map((b) => ({ value: b, label: t.boxTypes[b] }))}
           onSelect={(v) => applyField({ kind: 'box_type', value: v })}
@@ -319,7 +319,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           disabled={busy || !canCompare}
           title={canCompare ? t.bulkEdit.compare : t.bulkEdit.compareHint}
         >
-          <GitCompare className="h-4 w-4" /> {t.bulkEdit.compare}
+          <GitCompare className="h-4 w-4" aria-hidden /> {t.bulkEdit.compare}
         </button>
 
         <button
@@ -328,7 +328,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           onClick={applyDelete}
           disabled={busy}
         >
-          <Trash2 className="h-4 w-4" /> {t.bulkEdit.deleteAll}
+          <Trash2 className="h-4 w-4" aria-hidden /> {t.bulkEdit.deleteAll}
         </button>
       </div>
 

@@ -154,22 +154,22 @@ function displayTitleForVn(vn: CollectionItem): string {
  * Wrapped with React.cache so `generateMetadata` and the page
  * body share one fetch per request. Without this, the metadata
  * pre-pass would fall back to the raw VN id ("v12345") whenever
- * the user opened a VN that wasn't yet in the local `vn` table —
+ * the user opened a VN that wasn't yet in the local `vn` table -
  * notably any VNDB-linked entry surfaced from an external feed
  * (EGS top-ranked map links, recommendations of non-collection
  * VNs, etc.). Opening such a link used to render
- *   <title>v12345 · VN Collection</title>
- * while the page body itself showed the correct title — manual QA
+ *   <title>v12345 / VN Collection</title>
+ * while the page body itself showed the correct title - manual QA
  * flagged this as the "vn(id) - VN Collection" bug.
  *
- * The function never auto-adds the VN to the collection —
+ * The function never auto-adds the VN to the collection -
  * `upsertVn` writes to the `vn` cache table only. Membership in
  * `collection` stays under explicit operator control.
  */
 const loadVn = cache(
   async (id: string): Promise<{ vn: CollectionItem | null; error: string | null }> => {
     const cached = getCollectionItem(id);
-    // EGS-only synthetic VNs aren't on VNDB — always serve from cache.
+    // EGS-only synthetic VNs aren't on VNDB - always serve from cache.
     if (isEgsOnly(id)) {
       return { vn: cached, error: null };
     }
@@ -226,7 +226,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   })();
   // Next gives us URL-encoded dynamic params (e.g. `egs%3A894`); decode once
   // so the rest of the page doesn't care. Legacy `egs:NNNN` form is still
-  // accepted here — the startup migration converts them to `egs_NNNN`.
+  // accepted here - the startup migration converts them to `egs_NNNN`.
   const candidateId = decodeURIComponent(rawId).replace(/^egs:/, 'egs_');
   if (!isValidVnId(candidateId)) notFound();
   const id = normalizeVnId(candidateId);
@@ -239,7 +239,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     return (
       <div className="mx-auto max-w-2xl">
         {/*
-          Back link — mobile-only. Desktop has the navbar; rendering
+          Back link - mobile-only. Desktop has the navbar; rendering
           a wide back row above the hero wasted vertical space on
           every detail page. `md:hidden` collapses the entire
           element at md+ so no margin / padding / border is reserved.
@@ -257,7 +257,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           <h1 className="mb-2 text-xl font-bold text-status-dropped">{t.detail.notFoundTitle}</h1>
           <p className="text-sm text-muted">{t.detail.notFoundBody.replace('{id}', id)}</p>
           {error && (
-            // Surface a generic line — full upstream message is sent to the
+            // Surface a generic line - full upstream message is sent to the
             // server log (where the operator can grep it) rather than dumped
             // verbatim into the page (which can leak stack traces). See
             <p className="mt-3 text-xs text-status-dropped/80">{t.common.error}</p>
@@ -295,7 +295,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     });
   }
   const status = (vn.status as Status | undefined) ?? null;
-  // Per-field source preference (VNDB / EGS / Custom) — pulled per-VN, defaults to Auto.
+  // Per-field source preference (VNDB / EGS / Custom) - pulled per-VN, defaults to Auto.
   const egsRow = getEgsForVn(vn.id);
   const vndbRating = vn.rating ?? null;
   const egsRating = egsRow?.median ?? null;
@@ -352,7 +352,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         sexual={vn.image_sexual}
       />
       {/*
-        Back link — mobile-only. See the not-found branch above
+        Back link - mobile-only. See the not-found branch above
         for the rationale. Desktop has the navbar; no back chip
         is rendered there.
       */}
@@ -484,12 +484,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                           {tr.latin && tr.latin !== tr.title && (
                             <span className="ml-1 text-muted">({tr.latin})</span>
                           )}
-                          {!tr.official && <span className="ml-1 text-[10px] text-muted">· {t.titles.unofficial}</span>}
+                          {!tr.official && <span className="ml-1 text-[10px] text-muted">/ {t.titles.unofficial}</span>}
                           {tr.main && (
                             <Star
                               className="ml-1 inline h-2.5 w-2.5 fill-accent text-accent"
-                              aria-label={t.titles.main}
-                            />
+                              aria-label={t.titles.main} aria-hidden />
                           )}
                         </li>
                       ))}
@@ -594,7 +593,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       {fmtMinutes(vn.length_minutes, locale, t)}
                       {vn.length_votes != null && vn.length_votes > 0 && (
                         <span className="ml-2 text-xs font-normal text-muted">
-                          · {vn.length_votes} {t.detail.lengthVotes}
+                          / {vn.length_votes} {t.detail.lengthVotes}
                         </span>
                       )}
                     </>
@@ -620,7 +619,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   <dt className="label">{t.detail.platforms}</dt>
                   {/*
                     Each platform code links to `/search?platforms=<code>`.
-                    Previously the row was a dead comma-joined string —
+                    Previously the row was a dead comma-joined string -
                     the acceptance gate flagged that metadata had to be
                     actionable everywhere it appears. Same chip styling
                     as `<LangList>` for visual consistency.
@@ -681,7 +680,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 const allAspects = aspectDisplay.aspects.length > 0
                   ? aspectDisplay.aspects
                       .map((k) => t.aspect.keys[k as keyof typeof t.aspect.keys] ?? k)
-                      .join(' · ')
+                      .join(' / ')
                   : t.aspect.keys.unknown;
                 return (
                   <div className="col-span-2 sm:col-span-3">
@@ -698,11 +697,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       </a>
                       {aspectDisplay.width != null && aspectDisplay.height != null && (
                         <span className="text-xs font-mono text-muted">
-                          · {aspectDisplay.width}×{aspectDisplay.height}
+                          / {aspectDisplay.width}x{aspectDisplay.height}
                         </span>
                       )}
                       {/*
-                        Secondary chip — links to the Library
+                        Secondary chip - links to the Library
                         pre-filtered by this aspect key. The
                         primary anchor (above) jumps to the
                         override editor on the same page; this
@@ -772,13 +771,13 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {location !== 'unknown' && (
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1">
-                    <MapPin className="h-3 w-3 text-accent" /> {t.locations[location]}
+                    <MapPin className="h-3 w-3 text-accent" aria-hidden /> {t.locations[location]}
                   </span>
                 )}
                 {editionType !== 'none' && (
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1">
-                    <Package className="h-3 w-3 text-accent" /> {t.editions[editionType]}
-                    {vn.edition_label && <span className="text-muted">· {vn.edition_label}</span>}
+                    <Package className="h-3 w-3 text-accent" aria-hidden /> {t.editions[editionType]}
+                    {vn.edition_label && <span className="text-muted">/ {vn.edition_label}</span>}
                   </span>
                 )}
                 {boxType !== 'none' && (
@@ -786,7 +785,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1"
                     title={t.form.boxType}
                   >
-                    <Box className="h-3 w-3 text-accent" /> {t.boxTypes[boxType]}
+                    <Box className="h-3 w-3 text-accent" aria-hidden /> {t.boxTypes[boxType]}
                   </span>
                 )}
                 {(vn.physical_location ?? []).map((place) => (
@@ -796,7 +795,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 transition-colors hover:border-accent hover:text-accent"
                     title={t.form.physicalLocation}
                   >
-                    <Home className="h-3 w-3 text-accent" /> {place}
+                    <Home className="h-3 w-3 text-accent" aria-hidden /> {place}
                   </Link>
                 ))}
                 {(vn.series ?? []).map((s) => (
@@ -805,7 +804,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   </Link>
                 ))}
                 {/*
-                  Dumped chip — links to `/?dumped=1` so the user can
+                  Dumped chip - links to `/?dumped=1` so the user can
                   jump back to every VN flagged dumped from the detail
                   view. Renders only when the dumped flag is set; the
                   inverse state is conveyed by the chip's absence
@@ -845,7 +844,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               themselves stay implicit to avoid doubling the row
               height.
             */}
-            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} egsHasImage={egsPosterHas} hasCustomBanner={customBanner} />
+            <VnDetailActionsBar vn={vn} inCollection={inCol} egsRow={egsRow} egsHasImage={egsPosterHas} hasCustomBanner={customBanner} imageSourcePref={imagePref} />
             {inCol && (
               <SmartStatusHint
                 vnId={vn.id}
@@ -899,7 +898,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
       </div>
 
       {/*
-        Customizable sections — order, visibility, and "collapsed by
+        Customizable sections - order, visibility, and "collapsed by
         default" are user-controlled via `<VnDetailLayout>`. The main
         identity card above is intentionally fixed; only the blocks
         below participate in the layout system.
@@ -907,7 +906,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         Each entry's `node` is built lazily-here so a hidden section
         still never mounts (the layout host filters by visible before
         rendering). For `inCol`-only sections we omit them entirely
-        when the VN isn't in the collection — those ids simply don't
+        when the VN isn't in the collection - those ids simply don't
         appear in the host's `sections` map and are skipped.
       */}
       {(() => {
@@ -922,7 +921,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         }
         if (inCol) {
           // Only mount the suggestion section when the detector has
-          // something to offer — otherwise the section frame would
+          // something to offer - otherwise the section frame would
           // render an empty collapsible card for a card that used to
           // vanish entirely.
           const seriesSuggestion = detectSeriesForVn(vn.id);

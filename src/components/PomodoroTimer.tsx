@@ -71,7 +71,7 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
         clearInterval(id);
         // Clear the ref too so subsequent code can't accidentally see
         // a stale id from a previous interval that was already torn
-        // down — the original code left `tickRef.current` pointing at
+        // down - the original code left `tickRef.current` pointing at
         // a dead timer until the next start.
         if (tickRef.current === id) tickRef.current = null;
       };

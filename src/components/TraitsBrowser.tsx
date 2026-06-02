@@ -144,7 +144,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           className={`btn ${onlyMine ? 'btn-primary' : ''}`}
           title={t.library.filterMineHint}
         >
-          <Library className="h-4 w-4" />
+          <Library className="h-4 w-4" aria-hidden />
           {t.library.filterMine}
         </button>
         <CardDensitySlider scope="traitsList" />

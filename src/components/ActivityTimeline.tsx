@@ -106,7 +106,7 @@ interface Props {
 /**
  * Per-VN journal. The server hydrates `initial` so the section is non-empty
  * on first paint; the component then owns the optimistic state for adds /
- * deletes and a single refetch on demand. No polling — the assumption is
+ * deletes and a single refetch on demand. No polling - the assumption is
  * that the user is the only writer.
  */
 export function ActivityTimeline({ vnId, initial }: Props) {
@@ -123,7 +123,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
 
-  // Sync from server props when the underlying VN changes — keeps detail-page
+  // Sync from server props when the underlying VN changes - keeps detail-page
   // navigation between VNs in the same session honest.
   useEffect(() => {
     mutationAbortRef.current?.abort();

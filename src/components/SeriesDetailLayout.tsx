@@ -52,12 +52,12 @@ interface Props {
 /**
  * Host for the customizable region of `/series/[id]`. Mirrors the
  * shape of `<VnDetailLayout>` so the operator gets the same
- * "Edit layout" affordance — drag to reorder, hide / collapse per
+ * "Edit layout" affordance - drag to reorder, hide / collapse per
  * section, persistence via `PATCH /api/settings`.
  *
  * The hero card (banner / cover / name / description) is wrapped here
  * as the `hero` section so the entire page is reorderable. Hiding
- * the hero is allowed — useful for the dense "works only" view some
+ * the hero is allowed - useful for the dense "works only" view some
  * collectors prefer.
  */
 export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Props) {
@@ -206,7 +206,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
     }));
   }
 
-  // i18n labels — fall back to the canonical id when a translation is missing
+  // i18n labels - fall back to the canonical id when a translation is missing
   // (the FR / EN / JA bundles all carry `seriesLayout.sectionLabels` but the
   // defensive fallback keeps an out-of-sync dictionary from blanking labels).
   const layoutDict = t.seriesLayout;

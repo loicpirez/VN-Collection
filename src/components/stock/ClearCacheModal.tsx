@@ -1,7 +1,7 @@
 'use client';
 import { useId, useRef } from 'react';
 import type { useT } from '@/lib/i18n/client';
-import { useDialogA11y } from '../Dialog';
+import { DialogPortal, useDialogA11y } from '../Dialog';
 
 type TDict = ReturnType<typeof useT>;
 
@@ -24,19 +24,23 @@ export function ClearCacheModal({
   const panelRef = useRef<HTMLDivElement | null>(null);
   useDialogA11y({ open: true, onClose: onCancel, panelRef });
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
-    >
-      <div className="absolute inset-0 bg-black/60" aria-hidden />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="relative w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl outline-none"
-      >
+    <DialogPortal>
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label={t.common.close as string}
+          tabIndex={-1}
+          className="absolute inset-0 cursor-default bg-black/60"
+          onClick={onCancel}
+        />
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          className="relative w-full max-w-sm rounded-xl border border-border bg-bg-card p-4 shadow-xl outline-none"
+        >
         <h2 id={titleId} className="text-sm font-bold text-white">
           {t.stock.clearCache as string}
         </h2>
@@ -57,7 +61,8 @@ export function ClearCacheModal({
             {t.stock.clearCache as string}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </DialogPortal>
   );
 }

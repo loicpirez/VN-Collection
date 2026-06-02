@@ -18,7 +18,7 @@ import { readApiError } from '@/lib/api-error-read';
  * via `PATCH /api/settings`. Stays in sync with sibling subscribers via
  * a `vn:home-layout-changed` CustomEvent.
  *
- * Returns optimistic local state — the UI updates the instant the user
+ * Returns optimistic local state - the UI updates the instant the user
  * clicks; if the network call fails we revert and surface a toast.
  */
 export function useHomeSection(id: HomeSectionId, initialState?: HomeSectionState) {
@@ -145,7 +145,7 @@ interface ControlsProps {
   busy: boolean;
   onCollapseToggle: () => void;
   onHide: () => void;
-  /** Optional destructive action — e.g. "Clear recently-viewed history". */
+  /** Optional destructive action - e.g. "Clear recently-viewed history". */
   onClearData?: () => void;
   /** Label for the clear menu entry; falls back to the generic key. */
   clearLabel?: string;
@@ -153,7 +153,7 @@ interface ControlsProps {
    * Human-readable section name appended to the chevron + menu aria-
    * labels. Without it, four sibling strips ("Recently viewed",
    * "Reading queue", "Anniversary", "Library") render four identical
-   * "Réduire" / "Options de la section" announcements — screen-reader
+   * "Réduire" / "Options de la section" announcements - screen-reader
    * users cannot tell which strip they're on. Provide the section
    * title here.
    */
@@ -236,13 +236,13 @@ export function HomeSectionControls({
         // `sectionLabel`, fall back to the generic phrases so the
         // component is still safe to mount from older call sites.
         const collapseLabel = sectionLabel
-          ? `${t.homeSections.collapse} — ${sectionLabel}`
+          ? `${t.homeSections.collapse} - ${sectionLabel}`
           : t.homeSections.collapse;
         const expandLabel = sectionLabel
-          ? `${t.homeSections.expand} — ${sectionLabel}`
+          ? `${t.homeSections.expand} - ${sectionLabel}`
           : t.homeSections.expand;
         const optionsLabel = sectionLabel
-          ? `${t.homeSections.menuLabel} — ${sectionLabel}`
+          ? `${t.homeSections.menuLabel} - ${sectionLabel}`
           : t.homeSections.menuLabel;
         return (
           <>

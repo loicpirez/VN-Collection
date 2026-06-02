@@ -10,7 +10,7 @@ interface ToastEntry {
   id: number;
   kind: ToastKind;
   message: string;
-  /** ms — defaults to 3500 (success/info) or 6000 (error). 0 = sticky. */
+  /** ms - defaults to 3500 (success/info) or 6000 (error). 0 = sticky. */
   duration?: number;
 }
 
@@ -21,7 +21,7 @@ interface ToastApi {
   info: (message: string, duration?: number) => void;
   /**
    * Yellow-tone toast used for "operation succeeded but the data
-   * is stale" situations — e.g. a refresh that fell back to the
+   * is stale" situations - e.g. a refresh that fell back to the
    * cache because VNDB was unreachable. Distinct from `error` so
    * the user doesn't read it as a hard failure.
    */
@@ -138,7 +138,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => v
         className="tap-target ml-1 inline-flex shrink-0 items-center justify-center rounded p-0.5 text-muted hover:text-white"
         aria-label={t.common.dismiss}
       >
-        <X className="h-3 w-3" />
+        <X className="h-3 w-3" aria-hidden />
       </button>
     </div>
   );

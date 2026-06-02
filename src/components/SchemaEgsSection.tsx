@@ -6,7 +6,7 @@ import { fmtDate } from '@/lib/locale-number';
 
 /**
  * EGS section block for `/schema`. Mirrors the visual shape of the
- * existing VNDB schema renderer — a heading, a short subtitle, and a
+ * existing VNDB schema renderer - a heading, a short subtitle, and a
  * tile grid of one card per table with row count + last fetched
  * timestamp. A small "Stale-while-error" badge appears when the EGS
  * cover-resolver cache currently holds at least one stale fallback.
@@ -93,7 +93,7 @@ export async function SchemaEgsSection() {
               {summary.egsUsernameSet ? (
                 <><Check className="inline h-3.5 w-3.5 text-status-completed" aria-hidden /><span className="sr-only">{dict.set}</span></>
               ) : (
-                <span className="text-muted" aria-label={dict.notSet}>—</span>
+                <span className="text-muted" aria-label={dict.notSet}>-</span>
               )}
             </div>
           </li>

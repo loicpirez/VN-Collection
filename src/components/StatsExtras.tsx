@@ -10,7 +10,7 @@ import { formatMinutes } from '@/lib/format';
  *
  *   - Score distribution vs VNDB (10-point bins).
  *   - Best ROI ranking (user_rating / playtime).
- *   - Genre evolution — stacked bars of your top tags by completion year.
+ *   - Genre evolution - stacked bars of your top tags by completion year.
  *
  * All three depend on having ≥ 5 user-rated, completed entries before they
  * become useful; if the collection is too small we render a quiet hint
@@ -37,7 +37,7 @@ export async function StatsExtras() {
     <>
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
-          <Star className="h-5 w-5 text-accent" /> {t.statsExtras.histogramTitle}
+          <Star className="h-5 w-5 text-accent" aria-hidden /> {t.statsExtras.histogramTitle}
         </h2>
         <p className="mb-4 text-xs text-muted">{t.statsExtras.histogramHint}</p>
         <div className="flex items-end gap-1">
@@ -47,12 +47,12 @@ export async function StatsExtras() {
                 <div
                   className="w-1/2 rounded-t bg-accent"
                   style={{ height: `${(b.mine / histMax) * 100}%` }}
-                  title={`${b.bucket} · ${b.mine}`}
+                  title={`${b.bucket} / ${b.mine}`}
                 />
                 <div
                   className="w-1/2 rounded-t bg-muted"
                   style={{ height: `${(b.vndb / histMax) * 100}%` }}
-                  title={`${b.bucket} · VNDB ${b.vndb}`}
+                  title={`${b.bucket} / VNDB ${b.vndb}`}
                 />
               </div>
               <span className="text-[10px] text-muted">{b.bucket}</span>
@@ -72,7 +72,7 @@ export async function StatsExtras() {
       {roi.length >= 1 && (
         <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
-            <Award className="h-5 w-5 text-accent" /> {t.statsExtras.roiTitle}
+            <Award className="h-5 w-5 text-accent" aria-hidden /> {t.statsExtras.roiTitle}
           </h2>
           <p className="mb-4 text-xs text-muted">{t.statsExtras.roiHint}</p>
           <ol className="space-y-1.5 text-sm">
@@ -85,9 +85,9 @@ export async function StatsExtras() {
                 <span className="text-[11px] text-muted">
                   <span className="text-accent">{fmtNum(r.user_rating / 10, locale, 1)}</span>
                   <span className="mx-1 opacity-50">/</span>
-                  <Clock className="mr-0.5 inline-block h-3 w-3" />
+                  <Clock className="mr-0.5 inline-block h-3 w-3" aria-hidden />
                   {/* I-021: localized playtime via shared formatMinutes */}
-                  <span>{formatMinutes(r.playtime_minutes, locale, t.year, { fallback: '—', emptyValue: 'strict_positive' })}</span>
+                  <span>{formatMinutes(r.playtime_minutes, locale, t.year, { fallback: '-', emptyValue: 'strict_positive' })}</span>
                 </span>
               </li>
             ))}
@@ -98,7 +98,7 @@ export async function StatsExtras() {
       {years.length > 0 && (
         <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-bold">
-            <Layers className="h-5 w-5 text-accent" /> {t.statsExtras.genreTitle}
+            <Layers className="h-5 w-5 text-accent" aria-hidden /> {t.statsExtras.genreTitle}
           </h2>
           <p className="mb-4 text-xs text-muted">{t.statsExtras.genreHint}</p>
           <div className="space-y-1.5">
@@ -118,7 +118,7 @@ export async function StatsExtras() {
                         <div
                           key={tag}
                           style={{ width: `${w}%`, background: `hsl(${hue}, 50%, 45%)` }}
-                          title={`${tag} · ${n}`}
+                          title={`${tag} / ${n}`}
                         />
                       );
                     })}

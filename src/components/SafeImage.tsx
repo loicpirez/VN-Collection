@@ -20,7 +20,7 @@ export interface SafeImageProps {
    */
   priority?: boolean;
   /**
-   * Rotation in degrees clockwise. Only 0/90/180/270 are honoured —
+   * Rotation in degrees clockwise. Only 0/90/180/270 are honoured -
    * other values fall back to 0. For 90/270 rotations the image is
    * rotated AND scaled by the container's aspect ratio. Cover mode fills
    * and clips on the long axis; contain mode keeps the complete image.
@@ -42,7 +42,7 @@ function publicLocal(rel: string | null | undefined): string | null {
  *   3. Lazy loading via IntersectionObserver. Native `loading="lazy"`
  *      ships in every modern browser but breaks subtly on grids inside
  *      overflow-scroll containers, transformed parents, and SSR/hydration
- *      mismatches — symptom: image stays blank while the user scrolls past.
+ *      mismatches - symptom: image stays blank while the user scrolls past.
  *      We replace it with a hand-rolled observer that triggers when the
  *      element comes within 500 px of the viewport, then sets `src`
  *      directly so the browser fetches eagerly with a known intent.
@@ -101,7 +101,7 @@ export function SafeImage({
   const loadedUrlsRef = useRef<Set<string>>(new Set());
   // Track the container's rendered size so 90/270 rotations can scale
   // up to fill the box. The state is only "live" when rotation is
-  // 90/270 — keeps the ResizeObserver out of the hot path for the
+  // 90/270 - keeps the ResizeObserver out of the hot path for the
   // 99% of images that aren't rotated.
   const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
   const rotationActive = rotation === 90 || rotation === 270;
@@ -255,7 +255,7 @@ export function SafeImage({
           <ShieldAlert className="h-6 w-6 text-accent" aria-hidden />
           <span className="text-xs font-bold uppercase tracking-wider">{t.settings.r18Blurred}</span>
           <span className="inline-flex items-center gap-1 text-[11px] opacity-80">
-            <Eye className="h-3 w-3" /> {t.settings.clickToReveal}
+            <Eye className="h-3 w-3" aria-hidden /> {t.settings.clickToReveal}
           </span>
         </button>
       )}

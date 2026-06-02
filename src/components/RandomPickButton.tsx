@@ -14,7 +14,7 @@ interface Props {
  * via the caller passing the already-filtered list. Navigates straight to
  * the picked VN's detail page so the user can start reading immediately.
  *
- * Disabled when no candidates remain — surfacing the empty state visually
+ * Disabled when no candidates remain - surfacing the empty state visually
  * is more useful than a no-op click.
  */
 export function RandomPickButton({ candidates }: Props) {
@@ -25,7 +25,7 @@ export function RandomPickButton({ candidates }: Props) {
   function pick() {
     if (candidates.length === 0) return;
     const choice = candidates[Math.floor(Math.random() * candidates.length)];
-    toast.success(`${t.library.randomPick.picked} — ${choice.title}`);
+    toast.success(`${t.library.randomPick.picked} - ${choice.title}`);
     router.push(`/vn/${choice.id}`);
   }
 
@@ -41,7 +41,7 @@ export function RandomPickButton({ candidates }: Props) {
           : `${t.library.randomPick.title} (${candidates.length})`
       }
     >
-      <Dices className="h-4 w-4" />
+      <Dices className="h-4 w-4" aria-hidden />
       {t.library.randomPick.cta}
     </button>
   );

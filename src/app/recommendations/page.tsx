@@ -33,7 +33,7 @@ import { decodePersistedProducerSummaries } from '@/lib/vn-persisted-json-shape'
 /**
  * Pull the minimum metadata the seed chip needs (title + alttitle + the
  * first developer + cover thumbnail). Returns `null` when the id is
- * unknown to the local DB — the caller treats that as an
+ * unknown to the local DB - the caller treats that as an
  * "invalid seed" condition (the operator can still see the chip with
  * an error explanation and re-pick).
  */
@@ -147,7 +147,7 @@ export default async function RecommendationsPage({
     : undefined;
   // Seed chip data is loaded synchronously from SQLite so the picker
   // can render the cover + title on first paint. `null` here means the
-  // id passed validation but the local DB has no row — surfaced as
+  // id passed validation but the local DB has no row - surfaced as
   // "invalid seed" so the picker shows an error chip.
   const seedChip: SeedChipData | null = seedVnId ? loadSeedChip(seedVnId) : null;
   const similarView =
@@ -197,7 +197,7 @@ export default async function RecommendationsPage({
   return (
     <DensityScopeProvider scope="recommendations" className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -569,7 +569,7 @@ async function ResultsPanel({
  *   - Active owned/wishlist filter chips.
  *   - Mode label.
  * Renders nothing when there's nothing to explain (custom-tags branch,
- * similar-to-vn branch — both have their own explainer already).
+ * similar-to-vn branch - both have their own explainer already).
  */
 function RecommendExplanationPanel({
   mode,
@@ -711,8 +711,8 @@ function ResultsGrid({
       {results.map((r) => {
         const year = r.released?.slice(0, 4);
         const rating = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : null;
-        const ratingForReason = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : '—';
-        const votesForReason = r.votecount != null ? fmtNum(r.votecount, locale) : '—';
+        const ratingForReason = r.rating != null ? fmtNum(r.rating / 10, locale, 1) : '-';
+        const votesForReason = r.votecount != null ? fmtNum(r.votecount, locale) : '-';
         // Dedup matched tags before slicing so two seeds that both
         // matched the same tag don't double up.
         const seenTagIds = new Set<string>();
@@ -792,7 +792,7 @@ function ResultsGrid({
                       {t.recommend.whyCardLabel}
                     </p>
                     <div className="mt-0.5 flex flex-wrap gap-0.5">
-                      {/* Only the human-readable tag name shows — the
+                      {/* Only the human-readable tag name shows - the
                           raw `gNNN` id stays in `title` for power users
                           + automation. Matches the picker convention. */}
                       {uniqueMatched.slice(0, 4).map((mt) => (

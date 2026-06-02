@@ -13,7 +13,7 @@ import { readApiError } from '@/lib/api-error-read';
  * full router.refresh().
  *
  * `detail.vnId` lets a strip filter out events for VNs it doesn't care
- * about. `detail.releaseId` is informative — useful for optimistic
+ * about. `detail.releaseId` is informative - useful for optimistic
  * highlights but not required for the refetch path.
  */
 export const OWNED_EDITIONS_EVENT = 'vn:owned-editions-changed';
@@ -121,7 +121,7 @@ export function ReleaseOwnedToggle({
       setOwned(nowOwned);
       toast.success(nowOwned ? t.toast.added : t.toast.removed);
       // Broadcast so OwnedEditionsSection (and any future listener) refetches
-      // immediately instead of waiting on router.refresh() — which would re-run
+      // immediately instead of waiting on router.refresh() - which would re-run
       // the entire server tree for a single per-edition toggle.
       window.dispatchEvent(
         new CustomEvent<OwnedEditionsChangedDetail>(OWNED_EDITIONS_EVENT, {

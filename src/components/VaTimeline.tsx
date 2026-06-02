@@ -34,7 +34,7 @@ export async function VaTimeline({ sid }: { sid: string }) {
   return (
     <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h3 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <Activity className="h-4 w-4 text-accent" /> {t.staff.timeline.title}
+        <Activity className="h-4 w-4 text-accent" aria-hidden /> {t.staff.timeline.title}
       </h3>
       <p className="mb-4 text-[11px] text-muted">{t.staff.timeline.hint}</p>
       <ScrollFadeRight
@@ -49,7 +49,7 @@ export async function VaTimeline({ sid }: { sid: string }) {
             <div
               key={b.year}
               className="flex w-7 shrink-0 flex-col items-center gap-0.5"
-              title={`${b.year} · ${b.total} ${t.staff.timeline.creditsSuffix} · ${b.inCollection} ${t.staff.timeline.ownedSuffix}`}
+              title={`${b.year} / ${b.total} ${t.staff.timeline.creditsSuffix} / ${b.inCollection} ${t.staff.timeline.ownedSuffix}`}
             >
               <div className="relative flex h-24 w-full items-end overflow-hidden rounded-sm border border-border bg-bg-elev/40">
                 {b.total > 0 && (

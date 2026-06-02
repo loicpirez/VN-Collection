@@ -13,7 +13,7 @@ import { readApiError } from '@/lib/api-error-read';
  * to the existing /api/collection/import endpoint (JSON merge) or to
  * /api/backup/restore for .db replacements.
  *
- * Picks the route by inspecting the file extension — no MIME sniffing,
+ * Picks the route by inspecting the file extension - no MIME sniffing,
  * matches how the existing ImportPanel branches.
  */
 export function DropImport() {
@@ -112,7 +112,7 @@ export function DropImport() {
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-bg/80 backdrop-blur">
       <div className="rounded-2xl border-2 border-dashed border-accent bg-bg-card px-8 py-6 text-center">
-        <UploadCloud className="mx-auto h-10 w-10 text-accent" />
+        <UploadCloud className="mx-auto h-10 w-10 text-accent" aria-hidden />
         <h2 className="mt-2 text-lg font-bold">{busy ? t.dropImport.importing : t.dropImport.title}</h2>
         <p className="mt-1 text-xs text-muted">{t.dropImport.hint}</p>
       </div>

@@ -87,7 +87,7 @@ export function MoreFilters({
               title={t.library.moreFilters.cycleHint}
             >
               <span className="inline-flex items-center justify-center" aria-hidden>
-                {tone === 'yes' ? <Check className="h-3 w-3" /> : tone === 'no' ? <X className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                {tone === 'yes' ? <Check className="h-3 w-3" aria-hidden /> : tone === 'no' ? <X className="h-3 w-3" aria-hidden /> : <Circle className="h-3 w-3" aria-hidden />}
               </span>
               {label}
             </button>

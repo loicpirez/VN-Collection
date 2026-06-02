@@ -41,13 +41,13 @@ export default async function YearPage({
   return (
     <div className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div>
           <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-            <Award className="h-6 w-6 text-accent" /> {t.year.title.replace('{year}', String(year))}
+            <Award className="h-6 w-6 text-accent" aria-hidden /> {t.year.title.replace('{year}', String(year))}
           </h1>
           <p className="mt-1 text-sm text-muted">{t.year.subtitle}</p>
         </div>
@@ -73,16 +73,16 @@ export default async function YearPage({
       </header>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <Stat label={t.year.completed} value={String(review.completed)} icon={<Sparkles className="h-4 w-4" />} />
+        <Stat label={t.year.completed} value={String(review.completed)} icon={<Sparkles className="h-4 w-4" aria-hidden />} />
         <Stat
           label={t.year.hours}
           value={`${review.hours}${t.year.hoursUnit}`}
-          icon={<Clock className="h-4 w-4" />}
+          icon={<Clock className="h-4 w-4" aria-hidden />}
         />
         <Stat
           label={t.year.avgRating}
-          value={review.avgUserRating != null ? fmtNum(review.avgUserRating / 10, locale, 1) : '—'}
-          icon={<Star className="h-4 w-4" />}
+          value={review.avgUserRating != null ? fmtNum(review.avgUserRating / 10, locale, 1) : '-'}
+          icon={<Star className="h-4 w-4" aria-hidden />}
         />
       </div>
 

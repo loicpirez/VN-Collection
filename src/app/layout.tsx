@@ -28,14 +28,14 @@ import { HeaderSpaceFrame, PageSpaceFrame } from '@/components/PageSpaceFrame';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
-  // Per-page titles use the `%s` template — child routes export their
+  // Per-page titles use the `%s` template - child routes export their
   // own metadata with a short string, the template wraps it. e.g.
   // a VN detail page exports the VN's title, browser tab shows
-  // "<title> · VN Collection". Pages that don't set metadata fall
+  // "<title> / VN Collection". Pages that don't set metadata fall
   // back to the default ("VN Collection") via the `default` slot.
   return {
     title: {
-      template: `%s · ${dict.app.title}`,
+      template: `%s / ${dict.app.title}`,
       default: dict.app.title,
     },
     description: dict.app.tagline,
@@ -63,7 +63,7 @@ const BASIC_AUTH_URL_SCRUB_SCRIPT = `
 
 /**
  * Read the display-settings cookie set by the client provider. Lets us
- * server-render images already hidden / blurred when the user opted in —
+ * server-render images already hidden / blurred when the user opted in -
  * fixes the "image flashes before hiding" gap between SSR and hydration.
  * Returns `undefined` (the provider uses its DEFAULTS) when the cookie is
  * absent or unparseable.
@@ -75,7 +75,7 @@ async function readInitialDisplaySettings(): Promise<Partial<DisplaySettings> | 
   try {
     return sanitizeDisplaySettings(JSON.parse(decodeURIComponent(raw)));
   } catch {
-    // ignore — malformed cookie
+    // ignore - malformed cookie
   }
   return undefined;
 }

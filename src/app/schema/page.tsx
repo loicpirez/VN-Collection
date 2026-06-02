@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Browser for VNDB's `/schema` endpoint. VNDB exposes a single big JSON
- * blob with every enum / lookup table the API depends on — language
+ * blob with every enum / lookup table the API depends on - language
  * codes, platforms, release types, staff roles, content tags, length
  * grades, devstatus values, extlink definitions, and so on. We always
  * fetched it for cache freshness; this page finally renders it so the
@@ -40,7 +40,7 @@ export default async function SchemaPage() {
   return (
     <div className="w-full">
       <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -52,7 +52,7 @@ export default async function SchemaPage() {
             <p className="mt-1 text-sm text-muted">{t.schemaPage.pageSubtitle}</p>
           </div>
           {/*
-            Refresh button — previously the page copy claimed
+            Refresh button - previously the page copy claimed
             "click Refresh on this page to renew" but the button
             was never mounted. Either the copy was a lie or the
             button got removed in a refactor; the user-visible
@@ -69,7 +69,7 @@ export default async function SchemaPage() {
 
       <SchemaLocalSection />
 
-      {/* EGS mirrored-data section — rendered above the VNDB browser so
+      {/* EGS mirrored-data section - rendered above the VNDB browser so
           cache freshness and manual mappings are visible without
           pretending the counts are the remote EGS schema itself. */}
       <SchemaEgsSection />

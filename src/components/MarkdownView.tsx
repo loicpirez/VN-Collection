@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 
 /**
  * Heavy markdown renderer extracted into its own module so
- * `MarkdownNotes` can `next/dynamic` it — the bundle for
+ * `MarkdownNotes` can `next/dynamic` it - the bundle for
  * `react-markdown` + `remark-gfm` only ships when the user opens
  * the preview tab.
  */

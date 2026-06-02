@@ -24,7 +24,7 @@ export interface EnrichedRelation extends VnRelation {
 }
 
 // WeakMap-cached projection so the same row always yields the same
-// `CardData` reference — keeps `React.memo(VnCard)` from re-rendering
+// `CardData` reference - keeps `React.memo(VnCard)` from re-rendering
 // every card when the section's open/close state toggles.
 const relationCache = new WeakMap<EnrichedRelation, CardData>();
 
@@ -63,7 +63,7 @@ const RelationCard = memo(function RelationCard({
 }) {
   const badge = useMemo(
     () => ({
-      label: r.relation_official ? label : `${label} · ${unofficial}`,
+      label: r.relation_official ? label : `${label} / ${unofficial}`,
       tone: (r.relation_official ? 'accent' : 'muted') as 'accent' | 'muted',
     }),
     [r.relation_official, label, unofficial],
@@ -103,7 +103,7 @@ export function RelationsSection({ relations }: Props) {
             <h3 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted">
               <GitMerge className="h-3 w-3 text-accent" aria-hidden />
               {label}
-              <span className="opacity-70">· {rels.length}</span>
+              <span className="opacity-70">/ {rels.length}</span>
             </h3>
             <div
               className="grid gap-4"

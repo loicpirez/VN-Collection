@@ -54,7 +54,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
           {t.year.heatmap.title.replace('{year}', String(year))}
         </h3>
         <span className="text-[11px] text-muted">
-          {total} {t.year.heatmap.entries} · {active} {t.year.heatmap.activeDays}
+          {total} {t.year.heatmap.entries} / {active} {t.year.heatmap.activeDays}
         </span>
       </div>
       <ScrollFadeRight
@@ -71,7 +71,7 @@ export async function ActivityHeatmap({ year }: { year: number }) {
                   <div
                     key={d.day}
                     className={`${CELL} rounded-sm ${tones[level(d.count)]}`}
-                    title={`${d.day} · ${d.count}`}
+                    title={`${d.day} / ${d.count}`}
                   />
                 ) : (
                   <div key={`${wkKey}-pad${j}`} className={CELL} />

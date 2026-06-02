@@ -35,11 +35,11 @@ interface Props {
 }
 
 function fmtScore10(score: number | null | undefined, locale: Locale): string {
-  return score == null ? '—' : fmtNum(score / 10, locale, 1);
+  return score == null ? '-' : fmtNum(score / 10, locale, 1);
 }
 
 function fmtScore100(score: number | null | undefined): string {
-  return score == null ? '—' : String(Math.round(score));
+  return score == null ? '-' : String(Math.round(score));
 }
 
 export function ScoreSection({
@@ -65,7 +65,7 @@ export function ScoreSection({
           {fmtScore10(unifiedRating, locale)}
         </span>
         <span className="text-sm text-muted">{ratingOf10}</span>
-        <span className="text-[11px] text-muted/70">· {unifiedRatingSource}</span>
+        <span className="text-[11px] text-muted/70">/ {unifiedRatingSource}</span>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}

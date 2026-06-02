@@ -79,7 +79,7 @@ export function TagInput({
               className="-mr-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-status-dropped hover:text-bg"
               aria-label={t.tagInput.removeTag.replace('{v}', v)}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3" aria-hidden />
             </button>
           </span>
         ))}

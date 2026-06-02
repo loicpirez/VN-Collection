@@ -7,13 +7,13 @@ import type { HomeSectionState } from '@/lib/home-section-layout';
 /**
  * Library is split across the home page into two independently
  * reorderable / hideable / collapsible sections:
- *   - `library-controls` — chips/search/filters/sort/group/density/actions
- *   - `library-grid`     — the actual VN cards
+ *   - `library-controls` - chips/search/filters/sort/group/density/actions
+ *   - `library-grid`     - the actual VN cards
  *
  * Each section owns its own `HomeSectionControls` chevron + menu so
  * the user can hide one without losing the other. URL state
  * (filters, sort, group, density) is shared because both halves
- * derive from useSearchParams — changing a filter in the controls
+ * derive from useSearchParams - changing a filter in the controls
  * section immediately updates the grid section.
  *
  * The two LibraryClient instances coalesce identical collection
@@ -74,7 +74,7 @@ export function HomeLibraryGridSection({
   );
   if (isHidden) return null;
   return (
-    // mt-3 (was mt-4) — sits directly under the controls section,
+    // mt-3 (was mt-4) - sits directly under the controls section,
     // forming a visually-cohesive Library block. The eyebrow h2 +
     // duplicate chevron+menu have been removed so the toolbar and
     // grid look like one product surface. The grid still gets its
@@ -107,7 +107,7 @@ function GridSectionInner({
   const t = useT();
   return (
     <section aria-label={t.homeLayout.sectionLabels['library-grid']}>
-      {/* Discrete inline controls — top-right, dim by default,
+      {/* Discrete inline controls - top-right, dim by default,
           full opacity on hover. No banner heading: the controls-
           section heading above already says "Ma bibliothèque". */}
       <div className="mb-2 flex items-center justify-end opacity-60 transition-opacity hover:opacity-100">

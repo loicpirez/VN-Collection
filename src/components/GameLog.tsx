@@ -29,7 +29,7 @@ interface Props {
 
 /**
  * Per-VN free-form journal. Each entry is a timestamped note
- * (route progress, plot beats, …) — separate from the activity
+ * (route progress, plot beats, …) - separate from the activity
  * log which tracks state changes. Lives next to the Pomodoro
  * timer on the detail page and can attach the live session length to
  * a new entry in one click.

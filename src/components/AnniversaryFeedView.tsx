@@ -18,7 +18,7 @@ export interface AnniversaryEntry {
 
 interface Props {
   title: string;
-  /** "{n}" placeholder template — substituted client-side per entry. */
+  /** "{n}" placeholder template - substituted client-side per entry. */
   yearsAgoTemplate: string;
   entries: AnniversaryEntry[];
   initialState?: HomeSectionState;
@@ -50,7 +50,7 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
         <h3 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-accent">
           <CakeSlice className="h-3.5 w-3.5" aria-hidden /> {title}
           {entries.length > 0 && (
-            <span className="text-[10px] font-normal text-accent/80">· {entries.length}</span>
+            <span className="text-[10px] font-normal text-accent/80">/ {entries.length}</span>
           )}
         </h3>
         <HomeSectionControls
@@ -62,7 +62,7 @@ export function AnniversaryFeedView({ title, yearsAgoTemplate, entries, initialS
         />
       </div>
       {/*
-        emptyHint is intentionally unused now — the early return
+        emptyHint is intentionally unused now - the early return
         above skips the section entirely when there are no
         anniversaries, so this template branch only renders the
         populated list. Keep the prop in the signature so the

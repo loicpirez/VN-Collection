@@ -16,7 +16,7 @@ const VN_QUERY_CHUNK = 500;
 
 /**
  * Home-page strip listing the VNs the user has explicitly queued (distinct
- * from the "Planning" status — Planning is intent, Queue is order). Hidden
+ * from the "Planning" status - Planning is intent, Queue is order). Hidden
  * when empty so it doesn't take vertical space on fresh installs, or when
  * the user has hidden the section via the per-strip menu.
  *

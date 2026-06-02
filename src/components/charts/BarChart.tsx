@@ -15,7 +15,7 @@ interface Props {
 
 export function HBarChart({ data, formatValue, locale, maxWidthPct = 100, emptyMessage, barClassName = 'bg-accent' }: Props) {
   if (data.length === 0) {
-    // No hardcoded default — every caller passes i18n copy. When the
+    // No hardcoded default - every caller passes i18n copy. When the
     // caller forgets, render nothing instead of a stray French word.
     return emptyMessage ? <p className="py-6 text-center text-xs text-muted">{emptyMessage}</p> : null;
   }
@@ -99,7 +99,7 @@ export function VBarChart({
       {data.map((d, i) => {
         const h = max > 0 ? (d.value / max) * height : 0;
         const formatted = formatValue ? formatValue(d.value) : fmtNum(d.value, locale);
-        const tooltip = d.tooltip ?? `${d.label} · ${formatted}`;
+        const tooltip = d.tooltip ?? `${d.label} / ${formatted}`;
         const inner = (
           <div
             className={`relative flex w-full flex-col items-center justify-end ${
@@ -143,7 +143,7 @@ export function DonutChart({
   thickness = 18,
 }: {
   /**
-   * Optional per-slice `href` makes each legend row a `<Link>` —
+   * Optional per-slice `href` makes each legend row a `<Link>` -
    * used by the stats page status donut to route to
    * `/?status=<status>` and "drill in" from the visualisation.
    * Slices without `href` render as plain rows (e.g. an "unknown"
@@ -203,7 +203,7 @@ export function DonutChart({
                 <Link
                   href={d.href}
                   className="flex flex-1 items-center rounded px-1 py-0.5 hover:bg-bg-elev/40 focus-visible:bg-bg-elev/40"
-                  title={`${d.label} · ${d.value}`}
+                  title={`${d.label} / ${d.value}`}
                 >
                   {row}
                 </Link>

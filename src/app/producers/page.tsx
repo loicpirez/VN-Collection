@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * (joined on `vn.publishers`). VNDB models these as two distinct
  * roles attached to releases, so a publisher-only studio
  * (Studio X, Studio Y, Studio Z…) only ever appears under the
- * publisher tab — they never developed any of the VNs they ship.
+ * publisher tab - they never developed any of the VNs they ship.
  */
 export default async function ProducersPage({
   searchParams,
@@ -52,15 +52,15 @@ export default async function ProducersPage({
       </header>
 
       <div className="mb-4 flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-border bg-bg-card p-1 text-sm sm:inline-flex sm:flex-nowrap">
-        <TabLink active={role === 'developer'} href="/producers" icon={<Wrench className="h-3.5 w-3.5" />}>
-          {t.producers.tabDevelopers} · <span className="font-bold tabular-nums">{devStats.length}</span>
+        <TabLink active={role === 'developer'} href="/producers" icon={<Wrench className="h-3.5 w-3.5" aria-hidden />}>
+          {t.producers.tabDevelopers} / <span className="font-bold tabular-nums">{devStats.length}</span>
         </TabLink>
         <TabLink
           active={role === 'publisher'}
           href="/producers?role=publisher"
-          icon={<Package className="h-3.5 w-3.5" />}
+          icon={<Package className="h-3.5 w-3.5" aria-hidden />}
         >
-          {t.producers.tabPublishers} · <span className="font-bold tabular-nums">{pubStats.length}</span>
+          {t.producers.tabPublishers} / <span className="font-bold tabular-nums">{pubStats.length}</span>
         </TabLink>
       </div>
 
@@ -76,7 +76,7 @@ export default async function ProducersPage({
             </p>
           )}
           <Link href="/" className="btn">
-            <Download className="h-4 w-4" />
+            <Download className="h-4 w-4" aria-hidden />
             {t.producers.emptyCta}
           </Link>
         </div>
@@ -144,8 +144,8 @@ function ProducerTable({
           </thead>
           <tbody>
             {producers.map((p, i) => {
-              const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
-              const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
+              const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '-';
+              const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '-';
               return (
                 <tr key={p.id} className="border-t border-border hover:bg-bg-elev/30">
                   <td className="px-3 py-3 align-middle sm:px-4">
@@ -205,8 +205,8 @@ function ProducerCard({
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
-  const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '—';
-  const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '—';
+  const displayUserAvg = p.avg_user_rating != null ? fmtNum(p.avg_user_rating / 10, locale, 1) : '-';
+  const displayAvg = p.avg_rating != null ? fmtNum(p.avg_rating / 10, locale, 1) : '-';
   return (
     <li className="rounded-xl border border-border bg-bg-card p-3">
       <div className="flex items-center gap-3">

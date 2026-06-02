@@ -51,7 +51,7 @@ export interface SeedChipData {
  *      (`scroll: false`), so the page re-renders the results panel
  *      under the new seed without losing the scroll position.
  *
- * The picker never owns the seed state — `?seed=` is the single source
+ * The picker never owns the seed state - `?seed=` is the single source
  * of truth. This keeps deep-links shareable and lets the server-side
  * page render a stable initial HTML pass.
  */

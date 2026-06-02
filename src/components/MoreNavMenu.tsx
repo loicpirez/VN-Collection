@@ -49,7 +49,7 @@ interface NavItem {
   icon: LucideIcon;
   /**
    * Optional href matcher for active state. Defaults to startsWith(href)
-   * — used by Library since its href "/" would otherwise match every
+   * - used by Library since its href "/" would otherwise match every
    * route. When set, the link is active only when the pathname is
    * exactly this value.
    */
@@ -60,7 +60,7 @@ interface NavItem {
  * Top-level navigation. Built as a grouped, responsive layout:
  *
  *   ▸ Mobile (< md): single hamburger → right-slide sheet, grouped flat list.
- *   ▸ md – lg (768 – 1023): icon-only primary links + grouped dropdowns
+ *   ▸ md - lg (768 - 1023): icon-only primary links + grouped dropdowns
  *     identified by icon + chevron. Tooltips and aria-labels preserve a11y.
  *     Keeps FR labels (Bibliothèque, Personnages, Rechercher) from
  *     overflowing the header on the most-used breakpoint.
@@ -68,7 +68,7 @@ interface NavItem {
  *
  * Active route gets an accent background plus `aria-current="page"` so
  * screen readers and the visual layer agree. The "More" catch-all bin
- * is gone — every item lives in a named category.
+ * is gone - every item lives in a named category.
  */
 export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: boolean }) {
   const t = useT();
@@ -78,10 +78,10 @@ export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: bool
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   // i18n labels live here so they update under the same render cycle as the
-  // rest of the layout — duplicating into a static const would force a full
+  // rest of the layout - duplicating into a static const would force a full
   // reload to translate.
   // Primary nav: kept TIGHT so the French labels fit at lg. We dropped
-  // /lists out of primary into Discover — wishlist + search are the
+  // /lists out of primary into Discover - wishlist + search are the
   // truly daily-use entries, and the FR string "Liste de souhaits"
   // is already a wide label so we avoid stacking another similarly-
   // named entry next to it. Lists are one extra click away in
@@ -113,9 +113,9 @@ export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: bool
   ];
 
   // /shelf used to share the Library icon, which was visually
-  // identical to the home link — replaced with LayoutGrid (a more
+  // identical to the home link - replaced with LayoutGrid (a more
   // shelf-like grid metaphor). /egs used to share Sparkles with
-  // /traits — Gamepad2 disambiguates it as a games database.
+  // /traits - Gamepad2 disambiguates it as a games database.
   const insights: NavItem[] = [
     { href: '/brand-overlap', label: t.nav.brandOverlap, icon: GitMerge },
     { href: '/stats', label: t.nav.stats, icon: BarChart3 },
@@ -134,7 +134,7 @@ export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: bool
     ...(alicenetEnabled ? [{ href: '/alicenet', label: t.nav.alicenet, icon: ShoppingBag }] : []),
   ];
 
-  // Active when any item in the group matches the current route — the
+  // Active when any item in the group matches the current route - the
   // dropdown trigger lights up so the user knows roughly where they are
   // even though the destination is inside a collapsed menu.
   const groupActive = (items: NavItem[]) =>
@@ -228,7 +228,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
       <item.icon className="h-4 w-4" aria-hidden />
       {/* Text label is hidden md→2xl-1 (768-1535px) and only shows
           at 2xl (1536px+). Earlier breakpoints (lg, xl) overflowed
-          on realistic laptop widths (1366×768 = ~1280-1300px) with
+          on realistic laptop widths (1366x768 = ~1280-1300px) with
           French labels like "Bibliothèque" / "Rechercher" /
           "Découvrir" / "Données & Stats" + the right-side controls
           (Spoiler / Settings / Language). The aria-label + title
@@ -463,5 +463,5 @@ function MobileSheet({
   );
 }
 
-/** Kept for backwards compatibility — re-exported as the same component. */
+/** Kept for backwards compatibility - re-exported as the same component. */
 export { GroupedNav as MoreNavMenu };

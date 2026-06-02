@@ -586,7 +586,7 @@ export function WishlistClient() {
           <Heart className="mx-auto mb-4 h-12 w-12 text-muted" aria-hidden />
           <p className="mb-4 text-muted">{t.wishlist.empty}</p>
           <Link href="/search" className="btn btn-primary">
-            <Search className="h-4 w-4" />
+            <Search className="h-4 w-4" aria-hidden />
             {t.wishlist.emptyCta}
           </Link>
         </div>
@@ -857,7 +857,7 @@ export function WishlistClient() {
                   disabled={deleting}
                   className="btn btn-danger btn-xs"
                 >
-                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" />}
+                  {deleting ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
                   {t.wishlist.deleteSelected}
                 </button>
                 <button

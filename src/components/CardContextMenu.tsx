@@ -21,7 +21,7 @@ interface Props {
    * right-click without confusing it with the developer side.
    */
   publisher: { id?: string; name: string } | null;
-  /** Screen-space anchor (clientX/clientY) — the menu places itself relative. */
+  /** Screen-space anchor (clientX/clientY) - the menu places itself relative. */
   anchor: { x: number; y: number };
   onClose: () => void;
   onChange?: () => void;
@@ -31,7 +31,7 @@ interface Props {
  * Right-click / long-press contextual menu attached to a library card. Lives
  * in a portal-free fixed-positioned div that auto-closes on outside click,
  * Escape, or any successful action. All actions hit existing PATCH routes
- * — no new server surface.
+ * - no new server surface.
  */
 export function CardContextMenu({ vnId, status, favorite, developer, publisher, anchor, onClose, onChange }: Props) {
   const t = useT();
@@ -81,7 +81,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         onClose();
         return;
       }
-      // Arrow-key navigation through `role="menuitem"` siblings —
+      // Arrow-key navigation through `role="menuitem"` siblings -
       // ARIA menu pattern. Tab still moves normally.
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
       const items = Array.from(
@@ -201,7 +201,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         disabled={!!busy}
         onClick={() => {
           // Compute next once and reuse for both the optimistic UI
-          // and the request body — the old version read favLocal
+          // and the request body - the old version read favLocal
           // inside setFavLocal then again in patch(), which works by
           // coincidence today but desyncs under React 19 concurrent
           // batching.

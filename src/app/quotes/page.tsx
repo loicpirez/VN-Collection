@@ -38,12 +38,12 @@ export default async function QuotesPage({
   return (
     <div className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Quote className="h-6 w-6 text-accent" /> {t.quotesPage.title}
+          <Quote className="h-6 w-6 text-accent" aria-hidden /> {t.quotesPage.title}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.quotesPage.subtitle}</p>
         <form action="/quotes" className="mt-3 flex max-w-md items-center gap-2">
@@ -97,7 +97,7 @@ export default async function QuotesPage({
                       ) : it.character_name ? (
                         <span className="font-semibold text-white/85">{it.character_name}</span>
                       ) : null}
-                      {it.character_name && ' · '}
+                      {it.character_name && ' / '}
                       <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
                     </span>
                   </span>

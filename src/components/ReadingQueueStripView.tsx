@@ -38,7 +38,7 @@ export function ReadingQueueStripView({ title, entries, initialState }: Props) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-muted">
           <ListOrdered className="h-3.5 w-3.5 text-accent" aria-hidden /> {title}
-          <span className="text-[10px] font-normal text-muted">· {entries.length}</span>
+          <span className="text-[10px] font-normal text-muted">/ {entries.length}</span>
         </h3>
         <HomeSectionControls
           state={state}

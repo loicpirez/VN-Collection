@@ -69,7 +69,7 @@ const CharacterCard = memo(function CharacterCard({
           <div className="truncate text-xs text-muted" title={c.original}>{c.original}</div>
         )}
         {meta.length > 0 && (
-          <div className="mt-1 text-[11px] text-muted">{meta.join(' · ')}</div>
+          <div className="mt-1 text-[11px] text-muted">{meta.join(' / ')}</div>
         )}
         {c.traits.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -126,7 +126,7 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
   useEffect(() => {
     if (fetchedForRef.current === vnId) return;
     fetchedForRef.current = vnId;
-    // AbortController instead of an `alive` flag — cancels the
+    // AbortController instead of an `alive` flag - cancels the
     // pending fetch when the user navigates away mid-load instead of
     // letting the response complete and accumulate ghost state on
     // unmounted components (the "opening many VN pages crashes"

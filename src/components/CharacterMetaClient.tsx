@@ -58,7 +58,7 @@ export function CharacterMetaClient({ char }: Props) {
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
             <p className="text-[10px] text-muted">
               {t.spoiler.title}: {level === 0 ? t.spoiler.lvl0 : level === 1 ? t.spoiler.lvl1 : t.spoiler.lvl2}
-              {!showSexual && ` · ${t.spoiler.hideSexual}`}
+              {!showSexual && ` / ${t.spoiler.hideSexual}`}
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -102,7 +102,7 @@ function InlineSpoilerReveal({
   }, [autoReveal]);
   if (!value) return null;
   const persistRevealed = localRevealed ?? autoReveal;
-  // Transient reveal — hover/focus shows the actual readable value.
+  // Transient reveal - hover/focus shows the actual readable value.
   // Persistent reveal sticks until the user explicitly hides.
   const effectiveRevealed = persistRevealed || hovered || focused;
   return (
@@ -127,7 +127,7 @@ function InlineSpoilerReveal({
           data-spoiler-state={effectiveRevealed ? 'transient' : 'hidden'}
           title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
         >
-          <EyeOff className="h-3 w-3" />
+          <EyeOff className="h-3 w-3" aria-hidden />
           <span>{effectiveRevealed ? value : t.spoiler.markupSummary}</span>
         </button>
       )}
@@ -139,7 +139,7 @@ function InlineSpoilerReveal({
           className="ml-1 text-muted/70 hover:text-muted"
           aria-label={t.spoiler.hideOne}
         >
-          <Eye className="h-3 w-3" />
+          <Eye className="h-3 w-3" aria-hidden />
         </button>
       )}
     </p>

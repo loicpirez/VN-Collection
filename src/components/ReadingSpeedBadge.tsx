@@ -10,14 +10,14 @@ interface Props {
 }
 
 /**
- * "VNDB: 16h · EGS: 12h · You: ~14h (×0.88)" — folds the three reference
+ * "VNDB: 16h / EGS: 12h / You: ~14h (x0.88)" - folds the three reference
  * times into one compact row. Hidden entirely when neither side has a value
- * (the parent already shows "—" in that case).
+ * (the parent already shows "-" in that case).
  */
 export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const fmt = (m: number | null | undefined): string =>
-    formatMinutes(m, locale, t.year, { fallback: '—' });
+    formatMinutes(m, locale, t.year, { fallback: '-' });
   const profile = getReadingSpeedProfile();
   const predicted = predictReadingMinutes(vndbLength, egsLength, profile);
   if (vndbLength == null && egsLength == null) return null;
@@ -39,7 +39,7 @@ export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
           {t.readingSpeed.you}: <span className="font-semibold text-accent">≈ {fmt(predicted)}</span>
           {multiplier != null && (
             <span className="ml-1 opacity-70">
-              ×{multiplier.toLocaleString(BCP47[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              x{multiplier.toLocaleString(BCP47[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
         </span>

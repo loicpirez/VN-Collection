@@ -66,7 +66,7 @@ function bucketKey(e: ShelfEntry): string {
 }
 
 function fmtMoneyLocale(amount: number | null, currency: string | null, locale: Locale): string {
-  if (amount == null) return '—';
+  if (amount == null) return '-';
   const bcp47 = BCP47[locale];
   if (currency && /^[A-Z]{3}$/i.test(currency)) {
     try {
@@ -75,7 +75,7 @@ function fmtMoneyLocale(amount: number | null, currency: string | null, locale: 
         currency: currency.toUpperCase(),
       }).format(amount);
     } catch {
-      // Bad currency code — fall through to manual format.
+      // Bad currency code - fall through to manual format.
     }
   }
   const cur = currency || '';
@@ -123,7 +123,7 @@ export default async function ShelfPage({
     const n = Math.floor(Number(shelfRaw));
     return Number.isFinite(n) && n >= 1 ? n : 1;
   })();
-  // Resolve effective display prefs for the active shelf once here —
+  // Resolve effective display prefs for the active shelf once here -
   // used both by ShelfSpatialView (defaultOrientation, displayRowOrientations)
   // and by ShelfReadOnlyControls (initialPrefs). Reading from two separate
   // blocks in the JSX below would duplicate the DB calls.
@@ -237,14 +237,14 @@ export default async function ShelfPage({
   return (
     <DensityScopeProvider scope="shelf" className="w-full">
       <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-              <Library className="h-6 w-6 text-accent" /> {t.shelf.title}
+              <Library className="h-6 w-6 text-accent" aria-hidden /> {t.shelf.title}
             </h1>
             <p className="mt-1 text-sm text-muted">{t.shelf.subtitle}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
@@ -252,17 +252,17 @@ export default async function ShelfPage({
                 {items.length} {t.shelf.editionsCount}
               </span>
               <span>
-                · {itemBuckets.size} {t.shelf.uniqueVnCount}
+                / {itemBuckets.size} {t.shelf.uniqueVnCount}
               </span>
               {Object.entries(totals).map(([cur, total]) => (
                 <span key={cur} className="inline-flex items-center gap-1">
-                  <Coins className="h-3 w-3 text-accent" /> {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
+                  <Coins className="h-3 w-3 text-accent" aria-hidden /> {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
                 </span>
               ))}
             </div>
           </div>
           {/*
-            Density slider — controls release / item-view row cards.
+            Density slider - controls release / item-view row cards.
             Spatial / layout views own their own placement geometry
             and ignore the slider, but it's harmless when irrelevant
             and mounting it consistently keeps the header layout
@@ -334,28 +334,28 @@ export default async function ShelfPage({
             <TabLink
               href="/shelf"
               active={view === 'spatial'}
-              icon={<Eye className="h-3.5 w-3.5" />}
+              icon={<Eye className="h-3.5 w-3.5" aria-hidden />}
             >
               {t.shelf.viewSpatial}
             </TabLink>
             <TabLink
               href="/shelf?view=release"
               active={view === 'release'}
-              icon={<Package className="h-3.5 w-3.5" />}
+              icon={<Package className="h-3.5 w-3.5" aria-hidden />}
             >
               {t.shelf.viewRelease}
             </TabLink>
             <TabLink
               href="/shelf?view=item"
               active={view === 'item'}
-              icon={<Layers className="h-3.5 w-3.5" />}
+              icon={<Layers className="h-3.5 w-3.5" aria-hidden />}
             >
               {t.shelf.viewItem}
             </TabLink>
             <TabLink
               href="/shelf?view=layout"
               active={view === 'layout'}
-              icon={<LayoutGrid className="h-3.5 w-3.5" />}
+              icon={<LayoutGrid className="h-3.5 w-3.5" aria-hidden />}
             >
               {t.shelf.viewLayout}
             </TabLink>
@@ -364,7 +364,7 @@ export default async function ShelfPage({
           {/* `.shelf-view-root` is the anchor that ShelfReadOnlyControls
               writes CSS variables onto. Spatial / release / item views
               all live underneath it so the same knobs apply. The
-              layout editor opts out — it owns its own placement
+              layout editor opts out - it owns its own placement
               geometry. */}
           {view === 'spatial' && (
             <div className="shelf-view-root">
@@ -437,7 +437,7 @@ export default async function ShelfPage({
                       {list.length}
                       {Object.entries(subtotals).map(([cur, total]) => (
                         <span key={cur} className="ml-1">
-                          · {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
+                          / {fmtMoneyLocale(total, cur === '?' ? null : cur, locale)}
                         </span>
                       ))}
                     </span>
@@ -474,7 +474,7 @@ export default async function ShelfPage({
                               {e.vn_title}
                             </p>
                             {/*
-                              Release-level title — when the cached
+                              Release-level title - when the cached
                               `release_meta_cache` row populated
                               `rel_title` and it differs from the
                               VN title (the common case for
@@ -496,15 +496,15 @@ export default async function ShelfPage({
                                 see "Étage 2 / Rangée 3 / Étagère gauche"
                                 even when grouped by "Étage 2". */}
                             {e.physical_location.length > 1 && (
-                              <p title={e.physical_location.slice(1).join(' · ')} className="line-clamp-1 text-[10px] text-muted/80">
-                                {e.physical_location.slice(1).join(' · ')}
+                              <p title={e.physical_location.slice(1).join(' / ')} className="line-clamp-1 text-[10px] text-muted/80">
+                                {e.physical_location.slice(1).join(' / ')}
                               </p>
                             )}
                             {/*
                               Platform + language chips. Prefer the
                               release-level data (rel_*) when present
-                              — they describe the exact edition the
-                              user shelved — falling back to the VN
+                              - they describe the exact edition the
+                              user shelved - falling back to the VN
                               aggregate so synthetic / unharvested
                               rows still surface something useful.
                             */}
@@ -512,7 +512,7 @@ export default async function ShelfPage({
                               // Owned-edition-first chip rendering. If the
                               // operator pinned a specific `owned_platform`
                               // on this edition, show ONLY that platform as
-                              // the primary chip — never let the release's
+                              // the primary chip - never let the release's
                               // generic [win, psp, ps2] aggregate override
                               // the explicit ownership. The release-level
                               // multi-platform list still renders as a
@@ -586,7 +586,7 @@ export default async function ShelfPage({
                                 </span>
                               )}
                               {/*
-                                Acquired-date stamp — surfaces the
+                                Acquired-date stamp - surfaces the
                                 provenance the user already enters in
                                 the My Editions form. Plain ISO is
                                 fine on the card (the picker writes
@@ -600,7 +600,7 @@ export default async function ShelfPage({
                               )}
                               {e.dumped && (
                                 <span className="inline-flex items-center gap-0.5 text-status-completed">
-                                  <ArrowDown className="h-2.5 w-2.5" /> {t.shelf.dumped}
+                                  <ArrowDown className="h-2.5 w-2.5" aria-hidden /> {t.shelf.dumped}
                                 </span>
                               )}
                               {e.release_id.startsWith('synthetic:') && (
@@ -637,7 +637,7 @@ export default async function ShelfPage({
           {view === 'item' && (
             <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
               <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-                {t.shelf.viewItem} · {itemBuckets.size}
+                {t.shelf.viewItem} / {itemBuckets.size}
               </h2>
               <ul
                 className="grid gap-3"
@@ -685,8 +685,8 @@ export default async function ShelfPage({
                             {t.shelf.editionsForVn.replace('{n}', String(b.editions.length))}
                           </p>
                           {b.locations.size > 0 && (
-                            <p title={Array.from(b.locations).join(' · ')} className="mt-1 line-clamp-2 text-[11px] text-muted/80">
-                              {Array.from(b.locations).join(' · ')}
+                            <p title={Array.from(b.locations).join(' / ')} className="mt-1 line-clamp-2 text-[11px] text-muted/80">
+                              {Array.from(b.locations).join(' / ')}
                             </p>
                           )}
                           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted">
@@ -697,7 +697,7 @@ export default async function ShelfPage({
                             ))}
                             {b.anyDumped && (
                               <span className="inline-flex items-center gap-0.5 text-status-completed">
-                                <ArrowDown className="h-2.5 w-2.5" /> {t.shelf.dumped}
+                                <ArrowDown className="h-2.5 w-2.5" aria-hidden /> {t.shelf.dumped}
                               </span>
                             )}
                           </div>

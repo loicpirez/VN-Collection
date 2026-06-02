@@ -27,7 +27,7 @@ import {
  *
  * @param children  Content to place in the scrollable viewport.
  * @param className Extra classes forwarded to the scroll container (do
- *                  NOT include `overflow-x-auto` — the component sets it).
+ *                  NOT include `overflow-x-auto` - the component sets it).
  * @param rest      Any other `<div>` props forwarded verbatim.
  */
 export function ScrollFadeRight({

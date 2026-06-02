@@ -15,14 +15,14 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
  * quotes / relations) only know their item count after the data
  * resolves, yet the count badge belongs in the section header which
  * the frame now owns. A child calls `useSectionCount(n)` to surface
- * its count as the `· n` badge next to the frame title; calling it
+ * its count as the `/ n` badge next to the frame title; calling it
  * with `null` clears the badge. No-op outside a frame.
  */
 const SectionCountContext = createContext<((count: number | null) => void) | null>(null);
 
 /**
  * Report a section's item count to the enclosing `DetailSectionFrame`
- * so it renders as the muted `· n` badge beside the title. Pass `null`
+ * so it renders as the muted `/ n` badge beside the title. Pass `null`
  * (e.g. while loading or on error) to clear the badge.
  */
 export function useSectionCount(count: number | null): void {
@@ -53,13 +53,13 @@ function readPersisted(id: string, fallback: boolean): boolean {
     if (raw === '1') return true;
     if (raw === '0') return false;
   } catch {
-    // localStorage unavailable (private mode / SSR) — fall through.
+    // localStorage unavailable (private mode / SSR) - fall through.
   }
   return fallback;
 }
 
 interface Props {
-  /** Section id — drives the persistence key and the `#section-<id>` anchor handled by the host. */
+  /** Section id - drives the persistence key and the `#section-<id>` anchor handled by the host. */
   id: string;
   /**
    * Header title. Empty string renders a header bar with only the
@@ -165,7 +165,7 @@ export function DetailSectionFrame({
           {hasTitle && (
             <h2 className="inline-flex min-w-0 items-baseline gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <span className="truncate">{title}</span>
-              {count != null && <span className="shrink-0 font-normal lowercase tracking-normal opacity-70">· {count}</span>}
+              {count != null && <span className="shrink-0 font-normal lowercase tracking-normal opacity-70">/ {count}</span>}
             </h2>
           )}
         </button>

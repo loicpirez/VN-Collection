@@ -234,7 +234,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     ref.current?.releasePointerCapture?.(e.pointerId);
   }
   // Keyboard equivalent of pointer-drag focal-point adjustment
-  // (WCAG 2.1.1 — Keyboard). Arrow keys nudge 1% per press; Shift+
+  // (WCAG 2.1.1 - Keyboard). Arrow keys nudge 1% per press; Shift+
   // Arrow nudges 10% per press; PageUp/PageDown jump 25%; Home/End
   // jump to the edges along the X axis.
   function onKeyDown(e: React.KeyboardEvent) {

@@ -41,7 +41,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-muted">
           <Clock className="h-3.5 w-3.5 text-accent" aria-hidden /> {t.recently.title}
-          <span className="text-[10px] font-normal opacity-70">· {items.length}</span>
+          <span className="text-[10px] font-normal opacity-70">/ {items.length}</span>
         </h2>
         <HomeSectionControls
           state={state}

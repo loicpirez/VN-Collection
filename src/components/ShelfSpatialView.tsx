@@ -21,14 +21,14 @@ const SHELF_TRACK_WIDTH = 'max(var(--shelf-cell-w-px, 120px), var(--shelf-front-
  * Read-only spatial visualization of ONE shelf at a time.
  *
  * Renders the active `shelf_unit` (selected via `?shelf=<index>` on
- * `/shelf`, 1-indexed) as a visual grid (cols × rows) with the
+ * `/shelf`, 1-indexed) as a visual grid (cols x rows) with the
  * editor's same Top Display / Bottom Display / Between Rows
- * structure, but without ANY mutation control — no drag, no resize,
+ * structure, but without ANY mutation control - no drag, no resize,
  * no rename, no add, no delete. Empty cells are dimmed but not
  * dashed-bordered so the page reads as a poster instead of an editor.
  *
  * The view used to stack every shelf vertically on a single long
- * page. The user wants a "vitrine" experience — one shelf, then
+ * page. The user wants a "vitrine" experience - one shelf, then
  * Previous/Next to switch. The carousel-style controls live above
  * the rendered shelf and surface "X / Y" so the user knows where
  * they are.
@@ -57,7 +57,7 @@ export async function ShelfSpatialView({
   defaultOrientation?: 'portrait' | 'landscape';
   /**
    * Per-display-zone orientation overrides keyed by `afterRow` string
-   * (e.g. `'0'` = top display, `'1'` = between rows 1–2, etc.).
+   * (e.g. `'0'` = top display, `'1'` = between rows 1-2, etc.).
    * Populated from `?dr0=landscape&dr1=portrait` URL params.
    */
   displayRowOrientations?: Record<string, 'portrait' | 'landscape'>;
@@ -190,13 +190,13 @@ function ShelfBlock({
             {shelf.name || t.shelfSpatial.untitled}
           </h2>
           <p className="mt-1 text-[11px] text-muted">
-            {shelf.cols} × {shelf.rows} ·{' '}
+            {shelf.cols} x {shelf.rows} /{' '}
             {t.shelfSpatial.filledCount
               .replace('{filled}', String(filledCells))
               .replace('{total}', String(totalCells))}
             {hasDisplayRows && (
               <>
-                {' · '}
+                {' / '}
                 <Layers className="mx-0.5 inline h-3 w-3 text-accent-blue" aria-hidden />
                 {t.shelfSpatial.displayCount.replace('{n}', String(filledDisplays))}
               </>
@@ -374,7 +374,7 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
         height: 'var(--shelf-cell-h-px, 180px)',
         padding: 'var(--shelf-card-pad, 0px)',
       }}
-      title={`${slot.vn_title}${slot.edition_label ? ` · ${slot.edition_label}` : ''}`}
+      title={`${slot.vn_title}${slot.edition_label ? ` / ${slot.edition_label}` : ''}`}
       aria-label={slot.vn_title}
     >
       <div className="relative h-full w-full">
@@ -420,7 +420,7 @@ function DisplayCard({
         width: 'var(--shelf-front-size-px, 140px)',
         aspectRatio: 'var(--row-display-aspect, 2/3)',
       }}
-      title={`${entry.vn_title}${entry.edition_label ? ` · ${entry.edition_label}` : ''}`}
+      title={`${entry.vn_title}${entry.edition_label ? ` / ${entry.edition_label}` : ''}`}
       aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.vn_title}`}
     >
       <div className="relative h-full w-full">

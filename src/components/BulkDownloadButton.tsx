@@ -101,7 +101,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
    * for each. The assets endpoint already runs `materializeReleaseMetaForVn`
    * server-side after the asset fetch completes, so the shelf popover /
    * owned-editions surfaces pick up freshly-derived per-edition platform
-   * metadata once the bulk pass finishes — no extra client roundtrip
+   * metadata once the bulk pass finishes - no extra client roundtrip
    * needed. `full=true` adds `?refresh=true` to also re-fetch VNDB.
    */
   function ownsRun(token: number): boolean {
@@ -304,7 +304,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
           aria-expanded={pickerOpen}
           aria-controls={menuId}
         >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" />}
+          {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
           {running ? `${done}/${total}` : (label ?? t.bulk.cta)}
         </button>
         {pickerOpen && !running && (
@@ -323,7 +323,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
-                <CloudDownload className="h-3.5 w-3.5 text-accent" />
+                <CloudDownload className="h-3.5 w-3.5 text-accent" aria-hidden />
                 {t.bulk.missing}
               </span>
               <span className="text-[10px] text-muted">{t.bulk.missingHint}</span>
@@ -335,7 +335,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
               className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
-                <RefreshCw className="h-3.5 w-3.5 text-accent" />
+                <RefreshCw className="h-3.5 w-3.5 text-accent" aria-hidden />
                 {t.bulk.full}
               </span>
               <span className="text-[10px] text-muted">{t.bulk.fullHint}</span>
@@ -351,7 +351,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                 className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
               >
                 <span className="inline-flex items-center gap-1 font-bold">
-                  <CheckSquare className="h-3.5 w-3.5 text-accent" />
+                  <CheckSquare className="h-3.5 w-3.5 text-accent" aria-hidden />
                   {t.bulk.selective}
                 </span>
                 <span className="text-[10px] text-muted">{t.bulk.selectiveHint}</span>
@@ -390,14 +390,14 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-bold uppercase tracking-widest text-muted">
-                {running ? `${t.bulk.runningTitle} · ${activeMode === 'full' ? t.bulk.full : t.bulk.missing}` : aborted ? t.bulk.abortedTitle : finished ? t.bulk.doneTitle : t.common.error}
+                {running ? `${t.bulk.runningTitle} / ${activeMode === 'full' ? t.bulk.full : t.bulk.missing}` : aborted ? t.bulk.abortedTitle : finished ? t.bulk.doneTitle : t.common.error}
               </div>
               {currentTitle && running && (
                 <div className="mt-1 truncate text-xs text-white/80" title={currentTitle}>{currentTitle}</div>
               )}
               {!running && (
                 <div className="mt-1 text-xs text-muted">
-                  {done}/{total} · {failures.length > 0 ? `${failures.length} ${t.bulk.failures}` : t.bulk.allOk}
+                  {done}/{total} / {failures.length > 0 ? `${failures.length} ${t.bulk.failures}` : t.bulk.allOk}
                 </div>
               )}
             </div>
@@ -417,7 +417,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                   className="tap-target inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
                   aria-label={t.common.close}
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
               )}
             </div>
@@ -456,7 +456,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
                 onClick={retryFailed}
                 className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-bold text-accent hover:bg-accent/20 sm:min-h-0"
               >
-                <RotateCcw className="h-3 w-3" />
+                <RotateCcw className="h-3 w-3" aria-hidden />
                 {t.bulk.retryFailed.replace('{n}', String(failures.length))}
               </button>
               <details className="group mt-2">

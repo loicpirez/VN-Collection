@@ -45,7 +45,7 @@ export function QuoteFooter() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Load only when the user actually hovers — never on page load.
+  // Load only when the user actually hovers - never on page load.
   useEffect(() => {
     if (hovered && !fetchedRef.current) {
       fetchedRef.current = true;
@@ -121,7 +121,7 @@ export function QuoteFooter() {
                 <p className="line-clamp-2 whitespace-pre-wrap text-xs leading-snug">“{quote.quote}”</p>
                 <footer className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] not-italic text-muted">
                   {quote.character && (
-                    // Smaller 20×20 avatar — the footer collapses to
+                    // Smaller 20x20 avatar - the footer collapses to
                     // a single line on hover so the portrait stays
                     // proportional to the body text. UserCircle
                     // fallback kicks in when no local portrait was
@@ -130,14 +130,14 @@ export function QuoteFooter() {
                   )}
                   {quote.character && quote.character.id ? (
                     <Link href={`/character/${quote.character.id}`} className="hover:text-accent">
-                      — {quote.character.name}
+                      - {quote.character.name}
                     </Link>
                   ) : quote.character ? (
-                    <span>— {quote.character.name}</span>
+                    <span>- {quote.character.name}</span>
                   ) : null}
                   {quote.vn && (
                     <>
-                      {quote.character && ' · '}
+                      {quote.character && ' / '}
                       <Link href={`/vn/${quote.vn.id}`} className="hover:text-accent">
                         {quote.vn.title}
                       </Link>

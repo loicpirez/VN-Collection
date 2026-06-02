@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const release = await getRelease(id.toLowerCase()).catch(() => null);
   const name = release?.title ?? id;
-  return { title: `${name} — ${t.releases.section}` };
+  return { title: `${name} - ${t.releases.section}` };
 }
 
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
@@ -34,7 +34,7 @@ const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> 
 function fmtRes(r: VndbRelease['resolution']): string | null {
   if (r == null) return null;
   if (typeof r === 'string') return r;
-  return `${r[0]}×${r[1]}`;
+  return `${r[0]}x${r[1]}`;
 }
 
 const TYPE_LABEL: Record<string, 'pkgfront' | 'pkgback' | 'pkgcontent' | 'pkgside' | 'pkgmed' | 'dig'> = {
@@ -119,11 +119,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
     <div className="w-full">
       {firstVnId ? (
         <Link href={`/vn/${firstVnId}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-          <ArrowLeft className="h-4 w-4" /> {t.releases.backToVn}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.releases.backToVn}
         </Link>
       ) : (
         <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-          <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
         </Link>
       )}
 
@@ -158,7 +158,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.languages.length > 0 && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">
-                <Languages className="mr-1 inline h-3 w-3" />
+                <Languages className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.detail.languages}
               </dt>
               <dd className="flex flex-wrap items-baseline gap-1.5 text-sm font-semibold">
@@ -174,7 +174,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.platforms.length > 0 && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">
-                <Globe className="mr-1 inline h-3 w-3" />
+                <Globe className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.detail.platforms}
               </dt>
               <dd className="font-semibold">{release.platforms.map(platformLabel).join(', ')}</dd>
@@ -183,7 +183,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.minage != null && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">
-                <Shield className="mr-1 inline h-3 w-3" />
+                <Shield className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.releases.ageRating}
               </dt>
               <dd className="font-semibold">{release.minage}+</dd>
@@ -192,7 +192,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {voicedKey && (
             <div>
               <dt className="text-[11px] uppercase tracking-wider text-muted">
-                <Mic2 className="mr-1 inline h-3 w-3" />
+                <Mic2 className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.releases.voicedLabel}
               </dt>
               <dd className="font-semibold">{t.releases[voicedKey]}</dd>
@@ -213,11 +213,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           {release.media.length > 0 && (
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-muted">
-                <Package className="mr-1 inline h-3 w-3" />
+                <Package className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.releases.media}
               </dt>
               <dd className="font-semibold">
-                {release.media.map((m) => `${m.medium}${m.qty > 1 ? `×${m.qty}` : ''}`).join(', ')}
+                {release.media.map((m) => `${m.medium}${m.qty > 1 ? `x${m.qty}` : ''}`).join(', ')}
               </dd>
             </div>
           )}
@@ -306,7 +306,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-muted hover:border-accent hover:text-accent"
                 >
-                  <ExternalLink className="h-3 w-3" /> {l.label}
+                  <ExternalLink className="h-3 w-3" aria-hidden /> {l.label}
                 </a>
               );
             })}
@@ -348,7 +348,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
         {release.images.length === 0 ? (
           parentCover && (parentCover.url || parentCover.localPath) ? (
-            // No release-level images — fall back to the parent VN
+            // No release-level images - fall back to the parent VN
             // cover so the user gets a visual anchor instead of a
             // blank "no visuals" line. Marked explicitly as the VN's
             // cover so they know it isn't the release's own art.
@@ -387,7 +387,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                     <SafeImage
                       src={img.url}
                       sexual={img.sexual ?? null}
-                      alt={`${release.title} — ${t.media[typeKey]}`}
+                      alt={`${release.title} - ${t.media[typeKey]}`}
                       className="h-full w-full"
                       fit="contain"
                     />

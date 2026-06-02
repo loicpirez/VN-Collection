@@ -933,7 +933,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           onClick={() => setParam('order', order === 'asc' ? 'desc' : 'asc')}
           aria-label={order === 'asc' ? t.library.sortAsc : t.library.sortDesc}
         >
-          {order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+          {order === 'asc' ? <ArrowUp className="h-4 w-4" aria-hidden /> : <ArrowDown className="h-4 w-4" aria-hidden />}
         </button>
         <button
           type="button"
@@ -942,7 +942,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           aria-label={sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           title={t.library.customSortHint}
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-4 w-4" aria-hidden />
           <span>
             {sort === 'custom' ? t.library.customSortExit : t.library.customSortEnter}
           </span>
@@ -1004,7 +1004,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           aria-label={settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
           title={t.library.denseToggle}
         >
-          <LayoutGrid className="h-4 w-4" />
+          <LayoutGrid className="h-4 w-4" aria-hidden />
           <span>
             {settings.denseLibrary ? t.library.denseOn : t.library.denseOff}
           </span>
@@ -1030,7 +1030,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
             aria-label={selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
             title={t.bulkEdit.toggleSelectMode}
           >
-            <CheckSquare className="h-4 w-4" />
+            <CheckSquare className="h-4 w-4" aria-hidden />
             <span>
               {selectMode ? t.bulkEdit.exitSelectMode : t.bulkEdit.selectMode}
             </span>
@@ -1557,7 +1557,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           </p>
           {pagination.page === 1 && (
             <Link href="/search" className="btn btn-primary">
-              <Search className="h-4 w-4" /> {t.library.empty.cta}
+              <Search className="h-4 w-4" aria-hidden /> {t.library.empty.cta}
             </Link>
           )}
         </div>

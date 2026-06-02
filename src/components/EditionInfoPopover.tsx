@@ -78,7 +78,7 @@ export interface EditionInfoPopoverData {
  * Behavior contract (lifted from the original pool-item popover; the
  * manual QA flagged a brief mis-position flash when collision detection
  * ran AFTER the popover painted):
- *   1. Open state is internal — parent only provides data.
+ *   1. Open state is internal - parent only provides data.
  *   2. Default placement: below + left.
  *   3. On open, requestAnimationFrame measures the popover height /
  *      width against the anchor's bounding rect; flips vertical when
@@ -261,7 +261,7 @@ export function EditionInfoTrigger({
   }
   const isSynthetic = data.release_id.startsWith('synthetic:');
   const ariaLabel = ariaLabelOverride ?? t.shelfLayout.poolItemDetails;
-  // Hover-reveal opacity class — when groupHoverHidden, parents
+  // Hover-reveal opacity class - when groupHoverHidden, parents
   // pass their own group scope (e.g. `group/slot`, `group/display`)
   // so the button only fades in on direct hover, not on adjacent
   // tiles. Falls back to always-visible for the pool variant where
@@ -322,13 +322,13 @@ export function EditionInfoTrigger({
               <span className="font-mono">{data.release_id}</span>
             </div>
             {/*
-              Platform row — every branch funnels through the shared
+              Platform row - every branch funnels through the shared
               `derivePlatformDisplay` so the priority chain matches
               every other owned-edition surface (OwnedEditionsSection,
               ShelfLayoutEditor pool / slot / display tiles, server
               cards on /shelf). The shared helper guarantees the
               aggregate VN platforms list is NEVER rendered as
-              "the owned platform" — the failure mode manual QA
+              "the owned platform" - the failure mode manual QA
               flagged previously.
             */}
             {(() => {
@@ -420,7 +420,7 @@ export function EditionInfoTrigger({
                     </div>
                   );
                 case 'unknown':
-                  // Synthetic edition — no remote release to refresh.
+                  // Synthetic edition - no remote release to refresh.
                   // Render the bare label so the row stays visible
                   // (downstream surfaces still expect a platform line).
                   return (
@@ -436,7 +436,7 @@ export function EditionInfoTrigger({
               is multi-platform, show a secondary line listing every
               platform of the release so the wider coverage stays
               visible without being confused with the owned-platform
-              pin. Spec: "Cette sortie existe aussi sur : WIN · PS4 …".
+              pin. Spec: "Cette sortie existe aussi sur : WIN / PS4 …".
             */}
             {data.owned_platform && data.rel_platforms.length > 1 && (() => {
               const ownedPlatform = data.owned_platform;

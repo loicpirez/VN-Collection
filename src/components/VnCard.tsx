@@ -40,7 +40,7 @@ export interface CardData {
   developers?: { id?: string; name: string }[];
   /**
    * Publishers credited on this VN's releases (deduped). Distinct
-   * from developers per VNDB's data model — surfaced as a separate
+   * from developers per VNDB's data model - surfaced as a separate
    * chip so the user sees who DEVELOPED vs who PUBLISHED. Only
    * publishers that are not also developers are rendered, to keep
    * the chip useful (a self-publishing studio is already named in
@@ -52,7 +52,7 @@ export interface CardData {
   /** ErogameScape median user playtime in minutes, when available. */
   egs_playtime_minutes?: number | null;
   /**
-   * True when the VN has a `relation === 'orig'` entry — VNDB's way of saying
+   * True when the VN has a `relation === 'orig'` entry - VNDB's way of saying
    * "X is my original game", which only ever appears on fan discs.
    */
   isFanDisc?: boolean;
@@ -73,7 +73,7 @@ interface VnCardProps {
   badge?: { label: string; tone?: 'accent' | 'muted' };
   /** When set, renders a hover-only "remove from wishlist" button. */
   onRemoveFromWishlist?: () => void | Promise<void>;
-  /** True while this card's wishlist removal is in flight — disables the control and swaps the icon for a spinner. */
+  /** True while this card's wishlist removal is in flight - disables the control and swaps the icon for a spinner. */
   removingFromWishlist?: boolean;
 }
 
@@ -82,7 +82,7 @@ export const VnCard = memo(VnCardImpl);
 /**
  * Inner implementation. Exported as `VnCard` (memoized) above so the
  * library grid (200+ cards) doesn't re-render every tile when a
- * single parent state ticks — every keystroke in the filter input
+ * single parent state ticks - every keystroke in the filter input
  * used to trigger a full grid pass.
  *
  * Memo equality is React.memo's default (referential per-prop). The
@@ -156,7 +156,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     };
   }, [data.id]);
 
-  // Swallow the click that follows a fired long-press — otherwise the
+  // Swallow the click that follows a fired long-press - otherwise the
   // outer <Link> navigates away the moment the menu opens.
   function onClickCapture(e: React.MouseEvent) {
     if (longPressFired.current) {
@@ -240,20 +240,18 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           }`}
           aria-hidden
         >
-          <Check className="h-3 w-3" />
+          <Check className="h-3 w-3" aria-hidden />
         </span>
       )}
       {selectable && data.favorite && (
         <Star
           aria-label={t.form.favorite}
-          className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
-        />
+          className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" aria-hidden />
       )}
       {data.inReadingQueue && (
         <BookMarked
           aria-label={t.library.moreFilters.inReadingQueue}
-          className="absolute bottom-2 left-2 z-10 h-4 w-4 fill-accent/80 text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
-        />
+          className="absolute bottom-2 left-2 z-10 h-4 w-4 fill-accent/80 text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" aria-hidden />
       )}
       {!selectable && (data.status || data.inCollectionBadge || data.favorite) && (
         <FavoriteToggleButton
@@ -325,7 +323,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           title={t.form.add}
         >
           <span className="inline-flex h-3 w-3 items-center justify-center">
-            {adding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" />}
+            {adding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
           </span>
           {t.cardAdd}
         </button>
@@ -353,7 +351,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           {egsScore != null && (
             <span
               className="inline-flex items-center gap-0.5 text-accent/80"
-              title={`${t.egs.section} · ${t.egs.median}: ${egsScore}/100`}
+              title={`${t.egs.section} / ${t.egs.median}: ${egsScore}/100`}
             >
               <Sparkles className="h-3 w-3" aria-hidden /> {egsScore}
             </span>
@@ -373,7 +371,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           {/* Library card grid: no stock chip at all. Per-card the
               chip competed visually with rating / playtime / aspect
               chips and the precise availability info isn't actionable
-              from the grid — the user opens the VN page when they
+              from the grid - the user opens the VN page when they
               actually want to buy something. The full StockPanel is
               there, plus the /stock lookup page. */}
         </div>
@@ -385,7 +383,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
                 myPlaytime ? `${t.playtime.mine}: ${myPlaytime}` : null,
                 vndbLength ? `${t.playtime.vndb}: ${vndbLength}` : null,
                 egsPlaytime ? `${t.playtime.egs}: ${egsPlaytime}` : null,
-              ].filter(Boolean).join(' · ')}
+              ].filter(Boolean).join(' / ')}
             >
               <Clock className="h-3 w-3" aria-hidden />
               {allPlaytime}
@@ -417,7 +415,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         )}
         {data.developers && data.developers.length > 0 && (() => {
           // Show only the primary developer name with a "+N" suffix
-          // when there are more — comma-joining the whole list got
+          // when there are more - comma-joining the whole list got
           // truncated to the first ~6 visible characters on dense
           // grids, which was useless (a clipped studio name or worse).
           const names = data.developers.map((d) => d.name).filter(Boolean);
@@ -437,7 +435,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           );
         })()}
         {(() => {
-          // Publishers that are ALSO developers are dropped — they're
+          // Publishers that are ALSO developers are dropped - they're
           // already represented in the developer chip above. Showing
           // them twice would just waste a row on every self-published
           // studio. Dedup normalises trim + case because VNDB

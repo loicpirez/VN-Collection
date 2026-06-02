@@ -28,14 +28,14 @@ export default async function TagsPage({ searchParams }: PageProps) {
 
   // Pre-fetch the scraped tag hierarchy on the server so the VNDB mode
   // can render without an extra client-side round-trip. Wrapped in
-  // try/catch so a scraping failure does not crash the page — the
+  // try/catch so a scraping failure does not crash the page - the
   // client will fall back to fetching via /api/tags/web-tree instead.
   let initialTree: VndbTagHomeTree | null = null;
   try {
     const result = await getVndbTagHomeTree();
     initialTree = result.data ?? null;
   } catch {
-    // Scraping unavailable — client-side fetch will handle it.
+    // Scraping unavailable - client-side fetch will handle it.
     initialTree = null;
   }
 

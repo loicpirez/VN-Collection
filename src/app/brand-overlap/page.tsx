@@ -55,12 +55,12 @@ export default async function BrandOverlapPage({
   return (
     <div className="w-full">
       <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.library}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Users className="h-6 w-6 text-accent" /> {t.brandOverlap.title}
+          <Users className="h-6 w-6 text-accent" aria-hidden /> {t.brandOverlap.title}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.brandOverlap.subtitle}</p>
         <BrandOverlapPicker initialA={a} initialB={b} />
@@ -86,7 +86,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
           <Link href={`/producer/${a}`} className="font-bold text-accent hover:underline">
             {result.a?.name ?? a}
           </Link>
-          {' · '}
+          {' / '}
           <Link href={`/producer/${b}`} className="font-bold text-accent hover:underline">
             {result.b?.name ?? b}
           </Link>
@@ -125,7 +125,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
             <Link href={`/producer/${a}`} className="hover:text-accent">
               {result.a?.name ?? a}
             </Link>
-            {' · '}
+            {' / '}
             <Link href={`/producer/${b}`} className="hover:text-accent">
               {result.b?.name ?? b}
             </Link>
@@ -163,7 +163,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
                           {c.title}
                         </Link>
                         {c.roles.length > 0 && (
-                          <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
+                          <span className="ml-1 text-muted">/ {formatRoles(c.roles, t)}</span>
                         )}
                       </li>
                     ))}
@@ -186,7 +186,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
                           {c.title}
                         </Link>
                         {c.roles.length > 0 && (
-                          <span className="ml-1 text-muted">· {formatRoles(c.roles, t)}</span>
+                          <span className="ml-1 text-muted">/ {formatRoles(c.roles, t)}</span>
                         )}
                       </li>
                     ))}

@@ -14,9 +14,9 @@ import { readApiError } from '@/lib/api-error-read';
  * CTA that POSTs to `/api/collection/<id>` and refreshes the page.
  * Used in conjunction with the action-bar regrouping that disables
  * Collection-only actions while keeping Data / Mapping / External
- * actions enabled — see `VnDetailActionsBar.tsx`.
+ * actions enabled - see `VnDetailActionsBar.tsx`.
  *
- * The banner is intentionally minimal — it sits ABOVE the hero
+ * The banner is intentionally minimal - it sits ABOVE the hero
  * banner and reads like a contextual hint, not a modal. Dismissing
  * it isn't possible: the banner reflects DB state, so the only way
  * to make it disappear is to add the VN.

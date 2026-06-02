@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ExternalLink, Link2, Loader2, Search, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
@@ -172,17 +172,18 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
         <Link2 className="h-4 w-4" aria-hidden /> {t.linkVndb.cta}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { if (!mutationRef.current) setOpen(false); }}>
-          <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-h-[80vh] w-[min(92vw,640px)] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:p-5"
-          >
+        <DialogPortal>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center" onClick={() => { if (!mutationRef.current) setOpen(false); }}>
+            <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              tabIndex={-1}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-h-[80vh] w-[min(92vw,640px)] overflow-y-auto rounded-2xl border border-border bg-bg-card p-4 shadow-card outline-none sm:p-5"
+            >
             <header className="mb-3 flex items-baseline justify-between gap-3">
               <div>
                 <h2 id={titleId} className="text-base font-bold">{t.linkVndb.title}</h2>
@@ -254,8 +255,9 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
                 </li>
               ))}
             </ul>
+            </div>
           </div>
-        </div>
+        </DialogPortal>
       )}
     </>
   );

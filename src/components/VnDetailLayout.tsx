@@ -56,7 +56,7 @@ interface Props {
  * commit on "Save"; "Reset" wipes the config back to defaults.
  *
  * The main identity card (title / cover / synopsis / media) is NOT
- * in here — those live above the host on /vn/[id]/page.tsx and are
+ * in here - those live above the host on /vn/[id]/page.tsx and are
  * intentionally not user-reorderable.
  *
  * Every visible section renders inside a shared `DetailSectionFrame`
@@ -72,7 +72,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
 
   const [layout, setLayout] = useState<VnDetailLayoutV1>(initialLayout);
   const [editMode, setEditMode] = useState(false);
-  // Working copy while editing — committed on "Save", discarded on "Cancel".
+  // Working copy while editing - committed on "Save", discarded on "Cancel".
   const [draft, setDraft] = useState<VnDetailLayoutV1>(initialLayout);
   const [saving, setSaving] = useState(false);
   const identityRef = useRef<string | null>(vnId);
@@ -137,7 +137,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
 
   // Edit mode shows ALL applicable sections (even hidden ones) so the
   // user can re-show them. Non-applicable sections (no node) are
-  // still skipped — there's nothing to surface.
+  // still skipped - there's nothing to surface.
   const editIds = useMemo(
     () => active.order.filter((id) => sectionMap.has(id)),
     [active.order, sectionMap],
@@ -232,7 +232,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
 
   return (
     <>
-      {/* Edit-layout toolbar — anchored above the customizable area.
+      {/* Edit-layout toolbar - anchored above the customizable area.
           Sits outside the dnd context so its buttons never become
           drag targets themselves. */}
       <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">

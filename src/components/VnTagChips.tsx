@@ -23,13 +23,13 @@ interface Tag {
  *
  * The section now also exposes a "Spoil me" toggle which raises the
  * effective spoiler level for THIS section only. The toggle never
- * lowers the level — the global "Hide all" intent always wins for
+ * lowers the level - the global "Hide all" intent always wins for
  * surfaces the user hasn't explicitly opted into.
  */
 export function VnTagChips({ tags, max = 16, perSectionOverride }: { tags: Tag[]; max?: number; perSectionOverride?: 0 | 1 | 2 | null }) {
   const t = useT();
   const { settings } = useDisplaySettings();
-  // Per-section local override — the URL `?spoil=…` flag seeds it,
+  // Per-section local override - the URL `?spoil=…` flag seeds it,
   // but the user can also flip it inline via the "Spoil me" / "Hide
   // all" button. The local override never persists across reloads.
   const [localOverride, setLocalOverride] = useState<0 | 1 | 2 | null>(perSectionOverride ?? null);

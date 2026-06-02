@@ -30,7 +30,7 @@ const DEFAULT_ORDER: Record<SortKey, SortOrder> = {
 
 /**
  * Optional filter context passed in by callers that already know what the
- * user is looking at — typically the library page, where the user's
+ * user is looking at - typically the library page, where the user's
  * current URL filters narrow the candidate list before they pick. When
  * omitted, the picker shows the full collection (legacy /data behaviour).
  */
@@ -68,7 +68,7 @@ interface Props {
  * download, which bypasses the global auto-fan-out toggle.
  *
  * Rate-control is handled by lib/vndb-throttle.ts (1 req/s + per-request
- * Retry-After + soft 3-in-60s circuit) — picking 200 VNs is safe, it
+ * Retry-After + soft 3-in-60s circuit) - picking 200 VNs is safe, it
  * just takes longer to drain through the queue.
  *
  * Two render contexts:
@@ -116,7 +116,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
       // Build query string from defaultFilters; /api/collection validates
       // each param, so we don't filter here. `sort=title` keeps the
       // initial order deterministic regardless of the saved library
-      // sort — they re-sort client-side below if needed.
+      // sort - they re-sort client-side below if needed.
       const params = new URLSearchParams({ sort: 'title' });
       if (defaultFilters) {
         for (const [k, v] of Object.entries(defaultFilters)) {
@@ -328,7 +328,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           title={sortOrder === 'asc' ? t.selectiveFullDownload.orderAsc : t.selectiveFullDownload.orderDesc}
           aria-label={sortOrder === 'asc' ? t.selectiveFullDownload.orderAsc : t.selectiveFullDownload.orderDesc}
         >
-          {sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+          {sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" aria-hidden /> : <ArrowDown className="h-3 w-3" aria-hidden />}
         </button>
         <button type="button" className="btn" onClick={selectAllFiltered} disabled={loading || filtered.length === 0}>
           {t.selectiveFullDownload.selectAll}
@@ -348,7 +348,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
           onClick={submit}
           disabled={submitting || picked.size === 0}
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" />}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CloudDownload className="h-4 w-4" aria-hidden />}
           {t.selectiveFullDownload.runOnSelected.replace('{n}', String(picked.size))}
         </button>
       </div>
@@ -379,7 +379,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
                         isPicked ? 'border-accent bg-accent text-bg' : 'border-border'
                       }`}
                     >
-                      {isPicked && <Check className="h-3 w-3" />}
+                      {isPicked && <Check className="h-3 w-3" aria-hidden />}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-bold" title={r.title}>{r.title}</span>
                     <span className="shrink-0 font-mono text-[10px] text-muted">{r.id}</span>

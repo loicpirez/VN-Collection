@@ -130,7 +130,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       setReleases(releases);
     } catch (e) {
       if ((e as Error).name === 'AbortError' || signal.aborted) return;
-      // ignore — section is optional
+      // ignore - section is optional
     } finally {
       if (reloadAbortRef.current === controller) {
         reloadAbortRef.current = null;
@@ -143,7 +143,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   // navigates here with `?edit_release=<release_id>` so we open the
   // matching row in editor mode straight away. Without this, the
   // user lands on a collapsed summary and has to find + click the
-  // pencil icon themselves — the popover's "Choisir la plateforme"
+  // pencil icon themselves - the popover's "Choisir la plateforme"
   // action would feel half-done.
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -217,10 +217,10 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
 
   // Synthetic release id for entries that don't have a VNDB release.
   // Covers two cases:
-  //   1. EGS-only VNs (`egs_NNN`) — VNDB knows nothing, so the
+  //   1. EGS-only VNs (`egs_NNN`) - VNDB knows nothing, so the
   //      releases list is permanently empty and the user could
   //      never shelve them. We surface a single "EGS edition" slot.
-  //   2. VNDB VNs whose release data hasn't been downloaded yet —
+  //   2. VNDB VNs whose release data hasn't been downloaded yet -
   //      same UX: a generic "Edition principale" placeholder so
   //      the user can still record where they physically store it.
   const syntheticReleaseId = `synthetic:${vnId}`;
@@ -367,7 +367,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
           className="btn"
           title={t.inventory.addEdition}
         >
-          <Plus className="h-4 w-4" /> {t.inventory.addEdition}
+          <Plus className="h-4 w-4" aria-hidden /> {t.inventory.addEdition}
         </button>
       </header>
 
@@ -417,7 +417,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         {/* Synthetic release ids have no VNDB
-                            /release/[id] target — render the title
+                            /release/[id] target - render the title
                             as plain text and skip the info link. */}
                         {edition.release_id.startsWith('synthetic:') ? (
                           <div className="line-clamp-2 text-sm font-bold" title={t.inventory.syntheticTitle}>
@@ -453,7 +453,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                             className="tap-target inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-bg-elev hover:text-white"
                             title={t.releases.viewDetails}
                           >
-                            <Info className="h-3.5 w-3.5" />
+                            <Info className="h-3.5 w-3.5" aria-hidden />
                           </Link>
                         )}
                         <button
@@ -464,7 +464,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                           }`}
                           title={t.common.edit}
                         >
-                          {isEditing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                          {isEditing ? <X className="h-3.5 w-3.5" aria-hidden /> : <Pencil className="h-3.5 w-3.5" aria-hidden />}
                         </button>
                         <button
                           type="button"
@@ -476,7 +476,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                           {pendingAction?.releaseId === edition.release_id && pendingAction.kind === 'remove' ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                           ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
                           )}
                         </button>
                       </div>
@@ -522,7 +522,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
   return (
     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] sm:grid-cols-3">
       {edition.edition_label && (
-        <Field icon={<Sparkles className="h-3 w-3" />} label={t.form.editionLabel} value={edition.edition_label} />
+        <Field icon={<Sparkles className="h-3 w-3" aria-hidden />} label={t.form.editionLabel} value={edition.edition_label} />
       )}
       {(() => {
         switch (platformState.kind) {
@@ -530,7 +530,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
           case 'release-single':
             return (
               <Field
-                icon={<Tag className="h-3 w-3" />}
+                icon={<Tag className="h-3 w-3" aria-hidden />}
                 label={t.form.ownedPlatform}
                 value={platformLabel(platformState.platform)}
                 title={platformState.platform}
@@ -538,11 +538,11 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
             );
           case 'choose':
             // Warn the user that this multi-platform release has no
-            // physical-SKU pick yet — until they choose one in the
+            // physical-SKU pick yet - until they choose one in the
             // editor, every consuming surface will say "choose".
             return (
               <Field
-                icon={<Tag className="h-3 w-3" />}
+                icon={<Tag className="h-3 w-3" aria-hidden />}
                 label={t.form.ownedPlatform}
                 value={t.shelfLayout.platformChooseLabel}
                 valueClassName="text-status-on_hold"
@@ -550,37 +550,37 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
             );
           case 'metadata-missing':
           case 'unknown':
-            // Render nothing — the summary stays compact when no
+            // Render nothing - the summary stays compact when no
             // platform info is available. The editor below is where
             // the user can refresh or input it.
             return null;
         }
       })()}
       {edition.location !== 'unknown' && (
-        <Field icon={<Home className="h-3 w-3" />} label={t.form.location} value={t.locations[edition.location]} />
+        <Field icon={<Home className="h-3 w-3" aria-hidden />} label={t.form.location} value={t.locations[edition.location]} />
       )}
       {edition.box_type !== 'none' && (
-        <Field icon={<Box className="h-3 w-3" />} label={t.form.boxType} value={t.boxTypes[edition.box_type]} />
+        <Field icon={<Box className="h-3 w-3" aria-hidden />} label={t.form.boxType} value={t.boxTypes[edition.box_type]} />
       )}
       {conditionLabel && (
-        <Field icon={<Tag className="h-3 w-3" />} label={t.inventory.condition} value={conditionLabel} />
+        <Field icon={<Tag className="h-3 w-3" aria-hidden />} label={t.inventory.condition} value={conditionLabel} />
       )}
       {price && (
-        <Field icon={<Coins className="h-3 w-3" />} label={t.inventory.pricePaid} value={price} />
+        <Field icon={<Coins className="h-3 w-3" aria-hidden />} label={t.inventory.pricePaid} value={price} />
       )}
       {edition.acquired_date && (
-        <Field icon={<CalendarDays className="h-3 w-3" />} label={t.inventory.acquired} value={formatIsoDateString(edition.acquired_date, locale)} />
+        <Field icon={<CalendarDays className="h-3 w-3" aria-hidden />} label={t.inventory.acquired} value={formatIsoDateString(edition.acquired_date, locale)} />
       )}
       {edition.purchase_place && (
-        <Field icon={<MapPin className="h-3 w-3" />} label={t.inventory.purchasePlace} value={edition.purchase_place} />
+        <Field icon={<MapPin className="h-3 w-3" aria-hidden />} label={t.inventory.purchasePlace} value={edition.purchase_place} />
       )}
       {edition.dumped && (
-        <Field icon={<HardDriveDownload className="h-3 w-3" />} label={t.form.dumped} value={t.common.yes} valueClassName="text-accent" />
+        <Field icon={<HardDriveDownload className="h-3 w-3" aria-hidden />} label={t.form.dumped} value={t.common.yes} valueClassName="text-accent" />
       )}
       {edition.physical_location.length > 0 && (
         <div className="col-span-2 sm:col-span-3">
           <div className="mb-0.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
-            <MapPin className="h-3 w-3" />
+            <MapPin className="h-3 w-3" aria-hidden />
             {t.form.physicalLocation}
           </div>
           {/*
@@ -614,17 +614,17 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
             <Package className="h-3 w-3" aria-hidden /> {edition.shelf.name}
             <span className="rounded bg-bg/40 px-1 text-[9px] font-bold tabular-nums">
               {edition.shelf.kind === 'cell'
-                ? `${t.shelfLayout.rowLabel.replace('{n}', String(edition.shelf.row + 1))}·${t.shelfLayout.colLabel.replace('{n}', String(edition.shelf.col + 1))}`
-                : `${t.shelfLayout.frontDisplay} · ${edition.shelf.position + 1}`}
+                ? `${t.shelfLayout.rowLabel.replace('{n}', String(edition.shelf.row + 1))}/${t.shelfLayout.colLabel.replace('{n}', String(edition.shelf.col + 1))}`
+                : `${t.shelfLayout.frontDisplay} / ${edition.shelf.position + 1}`}
             </span>
           </Link>
         </div>
       )}
       {edition.aspect?.aspect_key && edition.aspect.aspect_key !== 'unknown' && (
         <Field
-          icon={<Info className="h-3 w-3" />}
+          icon={<Info className="h-3 w-3" aria-hidden />}
           label={t.aspect.label}
-          value={`${edition.aspect.width && edition.aspect.height ? `${edition.aspect.width}×${edition.aspect.height} · ` : ''}${t.aspect.keys[edition.aspect.aspect_key]} (${edition.aspect.source === 'manual' ? t.aspect.manual : t.aspect.vndb})`}
+          value={`${edition.aspect.width && edition.aspect.height ? `${edition.aspect.width}x${edition.aspect.height} / ` : ''}${t.aspect.keys[edition.aspect.aspect_key]} (${edition.aspect.source === 'manual' ? t.aspect.manual : t.aspect.vndb})`}
         />
       )}
       {edition.notes && (
@@ -811,7 +811,7 @@ function EditionEditor({
       <label className="flex flex-col gap-1">
         <span className="label">{t.inventory.condition}</span>
         <select className="input" value={condition} onChange={(e) => setCondition(e.target.value)}>
-          <option value="">—</option>
+          <option value="">-</option>
           {CONDITIONS.map((c) => (
             <option key={c.value} value={c.value}>{t.inventory.conditions[c.key]}</option>
           ))}
@@ -877,7 +877,7 @@ function EditionEditor({
           <p className="mt-0.5 text-[11px] text-muted">
             {edition.aspect?.source === 'vndb' && edition.aspect.width && edition.aspect.height
               ? t.aspect.vndbDetected
-                  .replace('{resolution}', `${edition.aspect.width}×${edition.aspect.height}`)
+                  .replace('{resolution}', `${edition.aspect.width}x${edition.aspect.height}`)
                   .replace('{aspect}', t.aspect.keys[edition.aspect.aspect_key])
               : t.aspect.overrideHint}
           </p>
@@ -946,7 +946,7 @@ function EditionEditor({
           {t.common.cancel}
         </button>
         <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" />} {t.common.save}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />} {t.common.save}
         </button>
       </div>
     </div>
@@ -956,7 +956,7 @@ function EditionEditor({
 function fmtRes(r: VndbRelease['resolution']): string | null {
   if (r == null) return null;
   if (typeof r === 'string') return r;
-  return `${r[0]}×${r[1]}`;
+  return `${r[0]}x${r[1]}`;
 }
 
 const EDITION_PICKER_PAGE_SIZE = 40;
@@ -967,7 +967,7 @@ const EDITION_PICKER_PAGE_SIZE = 40;
  * cover (falling back to the parent VN cover), title + alttitle,
  * release date, languages with MTL flag, platforms, dev / pub,
  * resolution, and the official / patch / freeware / uncensored / ero
- * flags. A debounced search + filter chips narrow the list — there's
+ * flags. A debounced search + filter chips narrow the list - there's
  * no arbitrary "first 30" cap.
  *
  * The synthetic "Main edition" tile is still shown when no real VNDB
@@ -1261,9 +1261,9 @@ function EditionPicker({
                   {res && <span>{res}</span>}
                 </div>
                 {(dev || pub) && (
-                  <div className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={[dev, pub].filter(Boolean).join(' · ')}>
+                  <div className="mt-0.5 line-clamp-1 text-[10px] text-muted" title={[dev, pub].filter(Boolean).join(' / ')}>
                     {dev && <b className="text-white/80">{dev}</b>}
-                    {dev && pub && ' · '}
+                    {dev && pub && ' / '}
                     {pub}
                   </div>
                 )}

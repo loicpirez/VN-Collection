@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Globe-icon chip for a VNDB language code. Replaces the previous
- * Regional Indicator emoji rendering — the emoji set was inconsistent
+ * Regional Indicator emoji rendering - the emoji set was inconsistent
  * across platforms and forced an arbitrary language→country mapping
  * (e.g. "en" → 🇬🇧 disenfranchised every other English-speaking
  * country, "zh" → 🇨🇳 dropped Hong Kong/Taiwan), and emoji was a
@@ -34,13 +34,13 @@ export function LangFlag({ lang, withCode = false, className = '' }: Props) {
 /**
  * Clickable list of language chips. Each chip is a `<Link>` to
  * `/search?langs=<code>` so the metadata row doubles as a discovery
- * surface — clicking "JA" on a VN detail page reveals every other VN
+ * surface - clicking "JA" on a VN detail page reveals every other VN
  * with a Japanese release. Used on `/vn/[id]` and `/compare`. Neither
  * caller wraps these in an outer `<a>`, so the nested-anchor footgun
  * is avoided.
  *
  * Set `clickable={false}` if a future caller embeds inside another
- * link — the chips fall back to plain `<span>` rendering.
+ * link - the chips fall back to plain `<span>` rendering.
  */
 export function LangList({
   langs,

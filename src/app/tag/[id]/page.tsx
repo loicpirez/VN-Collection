@@ -27,11 +27,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const dict = await getDict();
   const tagInfo = await getTag(id.toLowerCase()).catch(() => null);
   const baseTitle = tagInfo?.name ?? id;
-  return { title: `${baseTitle} — ${dict.nav.tags}` };
+  return { title: `${baseTitle} - ${dict.nav.tags}` };
 }
 
 /**
- * `/tag/[id]` — rich tag landing page.
+ * `/tag/[id]` - rich tag landing page.
  *
  * - Header surfaces the VNDB-side tag metadata (name, category,
  *   description, aliases, vn_count).
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
  *
  * Tag id format is `g\d+`; anything else 404s. Falls back to the
  * "Explorer sur VNDB" empty-state CTA from Blocker 10 when the
- * Library returns zero — never a dead end.
+ * Library returns zero - never a dead end.
  */
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -77,12 +77,12 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   return (
     <DensityScopeProvider scope="tagPage" className="w-full">
       <Link href="/tags" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.tags}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.tags}
       </Link>
 
       <header className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         {/*
-          `getTag` awaits a VNDB API call — isolate it so the page
+          `getTag` awaits a VNDB API call - isolate it so the page
           shell (count, tabs, action buttons) streams before VNDB
           responds. loading.tsx covers the initial navigation;
           this Suspense handles the intra-page streaming.
@@ -100,7 +100,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         </p>
 
         {/*
-          R5-156: navigates between URL states — plain `<nav>` +
+          R5-156: navigates between URL states - plain `<nav>` +
           `aria-current="page"`. No `role="tablist"` /
           `role="tab"` without matching `role="tabpanel"`.
         */}
@@ -155,7 +155,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
 
       {/*
         R5-228: the VNDB hierarchy block belongs to the VNDB tab.
-        Render it inside the `tab === 'vndb'` branch only — the
+        Render it inside the `tab === 'vndb'` branch only - the
         previous unconditional render bled VNDB hierarchy chips into
         the Local tab, making the IA misleading. The Local tab is
         now exclusively about the operator's collection matches.
@@ -252,7 +252,7 @@ async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<Retu
         )}
       </div>
       {tagInfo?.aliases && tagInfo.aliases.length > 0 && (
-        <div className="mt-2 text-xs text-muted">{tagInfo.aliases.join(' · ')}</div>
+        <div className="mt-2 text-xs text-muted">{tagInfo.aliases.join(' / ')}</div>
       )}
       {tagInfo?.description && (
         <div className="mt-3 text-xs text-white/80">
