@@ -28,6 +28,10 @@ export interface EgsSuggestion {
   egs_score: number | null;
   egs_finish_date: string | null;
   egs_start_date: string | null;
+  /** Local started_date already in collection (null = unset). */
+  local_started_date: string | null;
+  /** Local finished_date already in collection (null = unset). */
+  local_finished_date: string | null;
 }
 
 /**
@@ -114,6 +118,8 @@ export async function computeEgsSuggestions(): Promise<{
       egs_score: r.tokuten,
       egs_finish_date: r.finish_date,
       egs_start_date: r.start_date,
+      local_started_date: localItem.started_date,
+      local_finished_date: localItem.finished_date,
     });
   }
 
@@ -144,8 +150,8 @@ export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: n
     if (s.egs_score != null && s.egs_score > 0 && s.local_rating == null) {
       patch.user_rating = s.egs_score;
     }
-    if (s.egs_start_date) patch.started_date = s.egs_start_date;
-    if (s.egs_finish_date) patch.finished_date = s.egs_finish_date;
+    if (s.egs_start_date && !s.local_started_date) patch.started_date = s.egs_start_date;
+    if (s.egs_finish_date && !s.local_finished_date) patch.finished_date = s.egs_finish_date;
     if (Object.keys(patch).length === 0) {
       tickJob(job.id);
       continue;

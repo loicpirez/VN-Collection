@@ -103,8 +103,8 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 }
 
 function parsePositiveInt(raw: string | undefined, { max }: { max: number }): number | null {
-  if (raw == null || raw === '') return null;
-  const n = Number.parseInt(raw, 10);
+  if (raw == null || raw === '' || !/^\d+$/.test(raw)) return null;
+  const n = Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > max) return null;
   return n;
 }

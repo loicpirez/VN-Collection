@@ -57,7 +57,7 @@ export interface VndbVnSummary {
 /** VNDB release row used to recover publisher-side producer credits. */
 export interface VndbReleaseRow {
   id: string;
-  vns: { id: string; title?: string; released?: string | null; rating?: number | null; image?: VndbVnSummary['image'] }[];
+  vns: VndbVnSummary[];
   producers: { id: string; developer: boolean; publisher: boolean; name?: string | null }[];
 }
 
@@ -236,7 +236,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
     if (!role.publisher) continue;
     for (const v of rel.vns ?? []) {
       if (!v?.id || pubMap.has(v.id)) continue;
-      pubMap.set(v.id, summarize(v as VndbVnSummary));
+      pubMap.set(v.id, summarize(v));
     }
   }
 

@@ -16,6 +16,8 @@ export interface EgsSyncClientSuggestion {
   egs_score: number | null;
   egs_finish_date: string | null;
   egs_start_date: string | null;
+  local_started_date: string | null;
+  local_finished_date: string | null;
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -54,7 +56,9 @@ function decodeSuggestion(value: unknown): EgsSyncClientSuggestion | null {
     !isNullableFiniteNumber(row.local_rating) ||
     !isNullableFiniteNumber(row.egs_score) ||
     !isNullableIsoDate(row.egs_finish_date) ||
-    !isNullableIsoDate(row.egs_start_date)
+    !isNullableIsoDate(row.egs_start_date) ||
+    !isNullableIsoDate(row.local_started_date) ||
+    !isNullableIsoDate(row.local_finished_date)
   ) {
     return null;
   }
@@ -69,6 +73,8 @@ function decodeSuggestion(value: unknown): EgsSyncClientSuggestion | null {
     egs_score: row.egs_score,
     egs_finish_date: row.egs_finish_date,
     egs_start_date: row.egs_start_date,
+    local_started_date: row.local_started_date,
+    local_finished_date: row.local_finished_date,
   };
 }
 

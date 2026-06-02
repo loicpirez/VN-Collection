@@ -24,6 +24,8 @@ describe('operation client response decoders', () => {
         egs_score: 80,
         egs_finish_date: '2026-06-01',
         egs_start_date: null,
+        local_started_date: null,
+        local_finished_date: null,
       }],
     })?.suggestions[0]?.vn_id).toBe('v90017');
     expect(decodeEgsSyncPreview({ ok: true, needsConfig: false, suggestions: [{ vn_id: 'bad' }] })).toBeNull();
