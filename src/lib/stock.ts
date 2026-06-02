@@ -1376,29 +1376,29 @@ function parsePriceFromBlock(block: string): number | null {
 }
 
 function offerFromListBlock(
-  provider: StockProviderId,
   url: string,
   target: StockTarget,
   rawHref: string,
   rawTitle: string,
   priceBlock: string,
   stockBlock: string,
-  options: { condition?: string | null; location?: string | null; edition?: string | null } = {},
+  options: { condition?: string | null; location: string; edition?: string | null },
 ): ParsedOffer | null {
   const title = stripTags(rawTitle);
   if (!title || isSearchPagePseudoTitle(title) || !targetMatchesTitle(target, title)) return null;
   const offerUrl = absUrl(url, rawHref);
   const stockText = stripTags(stockBlock);
+  const availability = availabilityFromText(stockBlock || priceBlock);
   return {
     provider_offer_id: targetIdFromUrl(offerUrl),
     title,
     url: offerUrl,
     price: parsePriceFromBlock(priceBlock),
-    availability: availabilityFromText(stockBlock || priceBlock) === 'unknown' && priceBlock ? 'in_stock' : availabilityFromText(stockBlock || priceBlock),
+    availability: availability === 'unknown' && priceBlock ? 'in_stock' : availability,
     availability_label: stockText || null,
     condition: options.condition ?? null,
     edition_label: options.edition ?? (/特典|限定|初回|DX|BOX/i.test(title) ? 'edition_bonus' : null),
-    location_label: options.location ?? providerLabel(provider),
+    location_label: options.location,
     source_release_id: target.releaseId,
     jan: target.jan,
   };
@@ -1412,7 +1412,7 @@ function parseAnimateList(html: string, url: string, target: StockTarget): Parse
     const price = /<p class=["']price["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
     const stock = /<p class=["']stock["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
     if (!a?.[1] || !a[2]) continue;
-    const offer = offerFromListBlock('animate', url, target, a[1], a[2], price, stock, { location: 'Animate' });
+    const offer = offerFromListBlock(url, target, a[1], a[2], price, stock, { location: 'Animate' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1426,7 +1426,7 @@ function parseEbtenList(html: string, url: string, target: StockTarget): ParsedO
     const price = /<div class=["'][^"']*js-enhanced-ecommerce-goods-price[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["']stock["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     if (!a?.[1] || !a[2]) continue;
-    const offer = offerFromListBlock('ebten', url, target, a[1], a[2], price, stock, { location: 'ebten' });
+    const offer = offerFromListBlock(url, target, a[1], a[2], price, stock, { location: 'ebten' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1440,7 +1440,7 @@ function parseGetchuList(html: string, url: string, target: StockTarget): Parsed
     const price = /特典付き価格[\s\S]*?<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? /<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? '';
     const stock = block.includes('<!--予約-->') ? '予約受付中' : block;
     if (!a?.[1] || !a[2]) continue;
-    const offer = offerFromListBlock('getchu', url, target, a[1], a[2], price, stock, { location: 'Getchu' });
+    const offer = offerFromListBlock(url, target, a[1], a[2], price, stock, { location: 'Getchu' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1455,7 +1455,7 @@ function parseGamersList(html: string, url: string, target: StockTarget): Parsed
     const price = /<p class=["']price["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
     const stock = /<p class=["']sell["'][^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ?? '';
     if (!href || !title) continue;
-    const offer = offerFromListBlock('gamers', url, target, href, title, price, stock, { location: 'Gamers' });
+    const offer = offerFromListBlock(url, target, href, title, price, stock, { location: 'Gamers' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1472,7 +1472,7 @@ function parseGeoList(html: string, url: string, target: StockTarget): ParsedOff
     const stock = /<span class=["'][^"']*labelNow[^"']*["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const condition = /<span class=["'][^"']*labelSituation[^"']*["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? null;
     if (!href || !title) continue;
-    const offer = offerFromListBlock('geo', url, target, href, title, price, stock, { condition: condition ? stripTags(condition) : null, location: 'GEO' });
+    const offer = offerFromListBlock(url, target, href, title, price, stock, { condition: condition ? stripTags(condition) : null, location: 'GEO' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1486,7 +1486,7 @@ function parseYodobashiList(provider: 'yodobashi', html: string, url: string, ta
     const price = /<span class=["']productPrice["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stock = /<span class=["'](?:green|red)["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? /<div class=["'](?:soldout|yoyaku)["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
     if (!href?.[1] || !href[2] || !href[1].includes('/product/')) continue;
-    const offer = offerFromListBlock(provider, url, target, href[1], href[2], price, stock, { location: providerLabel(provider) });
+    const offer = offerFromListBlock(url, target, href[1], href[2], price, stock, { location: providerLabel(provider) });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1504,7 +1504,7 @@ function parseJoshinList(html: string, url: string, target: StockTarget): Parsed
     if (!a?.[1] || !a[2]) continue;
     const price = /<div class=["']search_container_price["'][\s\S]*?<div class=["']price["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ?? '';
     const stock = /<div class=["']search_container_stock["'][^>]*>([\s\S]*?)<\/div><div class=["']search_container_review["']/i.exec(block)?.[1] ?? '';
-    const offer = offerFromListBlock('joshin', url, target, a[1], a[2], price, stock, { location: 'Joshin' });
+    const offer = offerFromListBlock(url, target, a[1], a[2], price, stock, { location: 'Joshin' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1524,7 +1524,7 @@ function parseAmazonList(html: string, url: string, target: StockTarget): Parsed
     const price = /<span class=["']a-offscreen["'][^>]*>([\s\S]*?)<\/span>/i.exec(block)?.[1] ?? '';
     const stock = /発売予定|予約|無料配送/.test(block) ? '予約受付中' : block;
     if (!title || isSearchPagePseudoTitle(stripTags(title))) continue;
-    const offer = offerFromListBlock('amazon_jp', url, target, href, title, price, stock, { location: 'Amazon JP' });
+    const offer = offerFromListBlock(url, target, href, title, price, stock, { location: 'Amazon JP' });
     if (offer) offers.push({ ...offer, provider_offer_id: asin, product_id: asin, page_kind: 'detail' });
   }
   return offers;
@@ -1573,7 +1573,7 @@ function parseYahooList(html: string, url: string, target: StockTarget): ParsedO
     const beaconPrice = /(?:^|;)prc:(\d+)/.exec(beacon)?.[1];
     const price = beaconPrice ? `${beaconPrice}円` : m[4]!;
     const stock = /text:([^;]+)/.exec(beacon)?.[1] ?? (/予約/.test(m[0]) ? '予約' : '');
-    const offer = offerFromListBlock('asakusa_mach', url, target, href, title, price, stock, { location: 'Yahoo Shopping' });
+    const offer = offerFromListBlock(url, target, href, title, price, stock, { location: 'Yahoo Shopping' });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1583,7 +1583,7 @@ function parseMakeshopList(provider: StockProviderId, html: string, url: string,
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']innerBox["'][\s\S]*?<p class=["']name["']>\s*<a href=([^>\s]+)[^>]*>([\s\S]*?)<\/a><\/p>[\s\S]*?<p class=["']price["']>\s*([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/li>/gi)) {
     const href = m[1]!.replace(/^["']|["']$/g, '');
-    const offer = offerFromListBlock(provider, url, target, href, m[2]!, m[3]!, m[0], { location: providerLabel(provider) });
+    const offer = offerFromListBlock(url, target, href, m[2]!, m[3]!, m[0], { location: providerLabel(provider) });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -1633,12 +1633,13 @@ export function parseGenericProviderPage(provider: StockProviderId, html: string
       const priceText = stripTags(m[3]!);
       if (!title || isSearchPagePseudoTitle(title) || !targetMatchesTitle(target, title)) continue;
       const offerUrl = absUrl(url, rawHref);
+      const availability = availabilityFromText(m[0]);
       offers.push({
         provider_offer_id: targetIdFromUrl(offerUrl),
         title,
         url: offerUrl,
         price: parsePriceYen(priceText),
-        availability: availabilityFromText(m[0]) === 'out_of_stock' ? 'out_of_stock' : availabilityFromText(m[0]) === 'unknown' ? 'unknown' : 'in_stock',
+        availability: availability === 'out_of_stock' ? 'out_of_stock' : availability === 'unknown' ? 'unknown' : 'in_stock',
         availability_label: null,
         condition: null,
         edition_label: /特典|限定|初回|DX|BOX/i.test(title) ? 'edition_bonus' : null,
