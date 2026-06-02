@@ -26,9 +26,15 @@ describe('VNDB VN-search row decoder', () => {
     });
   });
 
+  it('accepts developers without a producer id (the search route omits it)', () => {
+    expect(decodeVndbSearchRow({ ...SEARCH_ROW, developers: [{ name: 'Studio' }] })).toMatchObject({
+      developers: [{ name: 'Studio' }],
+    });
+  });
+
   it('rejects malformed search rows', () => {
     expect(decodeVndbSearchRow({ ...SEARCH_ROW, languages: [4] })).toBeNull();
-    expect(decodeVndbSearchRow({ ...SEARCH_ROW, developers: [{ id: 'bad', name: 'Studio' }] })).toBeNull();
+    expect(decodeVndbSearchRow({ ...SEARCH_ROW, developers: [{ id: 'p1' }] })).toBeNull();
     expect(decodeVndbSearchRow({ ...SEARCH_ROW, image: { url: 'x' } })).toBeNull();
   });
 

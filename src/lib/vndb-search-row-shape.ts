@@ -69,7 +69,7 @@ function decodeDevelopers(value: unknown): { name: string }[] | null {
   const out: { name: string }[] = [];
   for (const item of value) {
     const row = asJsonRecord(item);
-    if (!row || !isString(row.id) || !/^p\d+$/i.test(row.id) || !isString(row.name)) return null;
+    if (!row || !isString(row.name)) return null;
     out.push({ name: row.name });
   }
   return out;
