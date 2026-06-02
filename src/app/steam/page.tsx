@@ -55,7 +55,11 @@ export default function SteamSyncPage() {
   const [assignQuery, setAssignQuery] = useState<Record<number, string>>({});
   const [assignMatches, setAssignMatches] = useState<Record<number, CollectionFindMatch[]>>({});
   const assignSequenceRef = useRef<Record<number, number>>({});
+  const assignAbortRefs = useRef<Record<number, AbortController>>({});
   const refreshAbortRef = useRef<AbortController | null>(null);
+  const mutationAbortRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const [applying, setApplying] = useState(false);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
@@ -67,6 +71,7 @@ export default function SteamSyncPage() {
     refreshAbortRef.current = ctrl;
     setSuggestionsLoading(true);
     setUnlinkedLoading(true);
+    setLinksLoading(true);
     try {
       const [sync, lib, ls] = await Promise.all([
         fetch('/api/steam/sync', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).then(decodeSteamSyncPreview),
@@ -101,14 +106,40 @@ export default function SteamSyncPage() {
       if (!ctrl.signal.aborted) {
         setSuggestionsLoading(false);
         setUnlinkedLoading(false);
+        setLinksLoading(false);
       }
     }
   }, [t.common.error]);
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
-    return () => refreshAbortRef.current?.abort();
+    return () => {
+      mountedRef.current = false;
+      refreshAbortRef.current?.abort();
+      mutationAbortRef.current?.abort();
+      for (const controller of Object.values(assignAbortRefs.current)) controller.abort();
+      assignAbortRefs.current = {};
+    };
   }, [refresh]);
+
+  function beginMutation(): AbortController | null {
+    if (mutationInFlightRef.current) return null;
+    const controller = new AbortController();
+    mutationInFlightRef.current = true;
+    mutationAbortRef.current = controller;
+    return controller;
+  }
+
+  function ownsMutation(controller: AbortController): boolean {
+    return mountedRef.current && mutationAbortRef.current === controller && !controller.signal.aborted;
+  }
+
+  function finishMutation(controller: AbortController): void {
+    if (mutationAbortRef.current !== controller) return;
+    mutationAbortRef.current = null;
+    mutationInFlightRef.current = false;
+  }
 
   function togglePick(id: string) {
     setPicks((cur) => {
@@ -123,78 +154,107 @@ export default function SteamSyncPage() {
       .filter((s) => picks.has(s.vn_id))
       .map((s) => ({ vn_id: s.vn_id, playtime_minutes: s.steam_minutes }));
     if (applies.length === 0) return;
+    const controller = beginMutation();
+    if (!controller) return;
     setApplying(true);
     try {
       const r = await fetch('/api/steam/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applies }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const applied = decodeSteamAppliedCount(await r.json());
       if (applied === null) throw new Error(t.common.error);
+      if (!ownsMutation(controller)) return;
       toast.success(t.steam.applied.replace('{n}', String(applied)));
       await refresh();
     } catch (e) {
+      if (!ownsMutation(controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setApplying(false);
+      if (ownsMutation(controller)) setApplying(false);
+      finishMutation(controller);
     }
   }
 
   async function searchAssign(appid: number, query: string) {
     setAssignQuery((s) => ({ ...s, [appid]: query }));
+    assignAbortRefs.current[appid]?.abort();
+    delete assignAbortRefs.current[appid];
     const sequence = (assignSequenceRef.current[appid] ?? 0) + 1;
     assignSequenceRef.current[appid] = sequence;
     if (query.trim().length < 1) {
       setAssignMatches((s) => ({ ...s, [appid]: [] }));
       return;
     }
+    const controller = new AbortController();
+    assignAbortRefs.current[appid] = controller;
     try {
-      const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+      const r = await fetch(`/api/collection/find?q=${encodeURIComponent(query)}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const matches = decodeCollectionFindMatches(await r.json());
       if (!matches) throw new Error(t.common.error);
-      if (assignSequenceRef.current[appid] !== sequence) return;
+      if (!mountedRef.current || controller.signal.aborted || assignAbortRefs.current[appid] !== controller || assignSequenceRef.current[appid] !== sequence) return;
       setAssignMatches((s) => ({ ...s, [appid]: matches }));
     } catch (e) {
-      if (assignSequenceRef.current[appid] !== sequence) return;
+      if (!mountedRef.current || controller.signal.aborted || assignAbortRefs.current[appid] !== controller || assignSequenceRef.current[appid] !== sequence) return;
       setAssignMatches((s) => ({ ...s, [appid]: [] }));
       toast.error((e as Error).message || t.common.error);
+    } finally {
+      if (assignAbortRefs.current[appid] === controller) delete assignAbortRefs.current[appid];
     }
   }
 
   async function link(appid: number, name: string, vnId: string) {
+    const controller = beginMutation();
+    if (!controller) return;
     setLinkingKey(`${appid}:${vnId}`);
     try {
       const r = await fetch('/api/steam/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vn_id: vnId, appid, steam_name: name }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(controller)) return;
       toast.success(t.steam.linked);
       await refresh();
     } catch (e) {
+      if (!ownsMutation(controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setLinkingKey(null);
+      if (ownsMutation(controller)) setLinkingKey(null);
+      finishMutation(controller);
     }
   }
 
   async function unlink(vnId: string) {
+    const controller = beginMutation();
+    if (!controller) return;
     const ok = await confirm({ message: t.steam.unlinkConfirm, tone: 'danger' });
-    if (!ok) return;
+    if (!ok || !ownsMutation(controller)) {
+      finishMutation(controller);
+      return;
+    }
     setUnlinkingId(vnId);
     try {
-      const r = await fetch(`/api/steam/link?vn_id=${vnId}`, { method: 'DELETE' });
+      const r = await fetch(`/api/steam/link?vn_id=${vnId}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!ownsMutation(controller)) return;
       toast.success(t.steam.unlinked);
       await refresh();
     } catch (e) {
+      if (!ownsMutation(controller)) return;
       toast.error((e as Error).message);
     } finally {
-      setUnlinkingId(null);
+      if (ownsMutation(controller)) setUnlinkingId(null);
+      finishMutation(controller);
     }
   }
 
@@ -206,12 +266,12 @@ export default function SteamSyncPage() {
   return (
     <div className="w-full">
       <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
-        <ArrowLeft className="h-4 w-4" /> {t.nav.data}
+        <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Gamepad2 className="h-6 w-6 text-accent" /> {t.steam.title}
+          <Gamepad2 className="h-6 w-6 text-accent" aria-hidden /> {t.steam.title}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.steam.subtitle}</p>
       </header>
@@ -250,7 +310,7 @@ export default function SteamSyncPage() {
                 return (
                   <li key={s.vn_id}>
                     {/*
-                      Was a <li onClick> with no keyboard handler — Tab
+                      Was a <li onClick> with no keyboard handler - Tab
                       couldn't reach the toggle, screen readers had no
                       announcement. Now the entire row is a real
                       <button> with role-appropriate aria-pressed.
@@ -269,12 +329,12 @@ export default function SteamSyncPage() {
                           picked ? 'border-accent bg-accent text-bg' : 'border-border'
                         }`}
                       >
-                        {picked && <Check className="h-3 w-3" />}
+                        {picked && <Check className="h-3 w-3" aria-hidden />}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-1 text-sm font-bold" title={s.vn_title}>{s.vn_title}</p>
-                        <p className="line-clamp-1 text-[11px] text-muted" title={`${s.steam_name} · ${t.steam.appidLabel} ${s.steam_appid}`}>
-                          {s.steam_name} · {t.steam.appidLabel} {s.steam_appid}
+                        <p className="line-clamp-1 text-[11px] text-muted" title={`${s.steam_name} / ${t.steam.appidLabel} ${s.steam_appid}`}>
+                          {s.steam_name} / {t.steam.appidLabel} {s.steam_appid}
                         </p>
                       </div>
                       <span className="shrink-0 text-right text-[11px]">
@@ -292,7 +352,7 @@ export default function SteamSyncPage() {
             </ul>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
               <span>
-                {picks.size} {t.steam.selected} · +{fmt(totalPickedMinutes)}
+                {picks.size} {t.steam.selected} / +{fmt(totalPickedMinutes)}
               </span>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setPicks(new Set())} className="btn">
@@ -304,7 +364,7 @@ export default function SteamSyncPage() {
                   disabled={applying || picks.size === 0}
                   className="btn btn-primary"
                 >
-                  {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" />}
+                  {applying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
                   {t.steam.apply.replace('{n}', String(picks.size))}
                 </button>
               </div>
@@ -323,7 +383,7 @@ export default function SteamSyncPage() {
       {!linksLoading && links.length > 0 && (
         <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.steam.linksTitle} <span className="ml-1 text-[10px] font-normal">· {links.length}</span>
+            {t.steam.linksTitle} <span className="ml-1 text-[10px] font-normal">/ {links.length}</span>
           </h2>
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {links.map((l) => (
@@ -350,11 +410,11 @@ export default function SteamSyncPage() {
                   type="button"
                   onClick={() => unlink(l.vn_id)}
                   disabled={unlinkingId === l.vn_id}
-                  className="rounded text-muted hover:text-status-dropped disabled:opacity-50"
+                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
                   aria-label={t.steam.unlink}
                   title={t.steam.unlink}
                 >
-                  {unlinkingId === l.vn_id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" />}
+                  {unlinkingId === l.vn_id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
               </li>
             ))}
@@ -382,12 +442,12 @@ export default function SteamSyncPage() {
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="min-w-0 flex-1">
                     <span className="font-bold">{g.name}</span>
-                    <span className="ml-2 text-[10px] text-muted">{t.steam.appidLabel} {g.appid} · {fmt(g.minutes)}</span>
+                    <span className="ml-2 text-[10px] text-muted">{t.steam.appidLabel} {g.appid} / {fmt(g.minutes)}</span>
                   </span>
                 </div>
                 <div className="mt-2 flex items-start gap-2">
-                  <div className="flex items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 flex-1">
-                    <Search className="h-3 w-3 text-muted" />
+                  <div className="flex min-h-[44px] flex-1 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 sm:min-h-0">
+                    <Search className="h-3 w-3 text-muted" aria-hidden />
                     <input
                       type="search"
                       inputMode="search"
@@ -408,7 +468,7 @@ export default function SteamSyncPage() {
                           type="button"
                           onClick={() => link(g.appid, g.name, m.id)}
                           disabled={linkingKey !== null}
-                          className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev disabled:opacity-50"
+                          className="block min-h-[44px] w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev disabled:opacity-50 sm:min-h-0"
                         >
                           {linkingKey === `${g.appid}:${m.id}` && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />}
                           <span className="font-bold">{m.title}</span>
