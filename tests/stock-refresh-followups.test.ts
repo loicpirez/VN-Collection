@@ -138,6 +138,7 @@ describe('refreshStockForVn — Hgame1 search page + detail', () => {
     const searchHtml = `<html><body>
       <a href="/item/4900000011111.html">てすとげーむ 初回版</a>
       <a href="/item/4900000022222.html">unrelated bundle</a>
+      <a href="/item/4900000033333.html">missing detail</a>
     </body></html>`;
     const detailHtml = (title: string) => `<html><body>
       <h1>${title}</h1>
@@ -149,6 +150,7 @@ describe('refreshStockForVn — Hgame1 search page + detail', () => {
       if (/msearch\.cgi/.test(url)) return Promise.resolve(htmlResponse(searchHtml));
       if (/4900000011111\.html/.test(url)) return Promise.resolve(htmlResponse(detailHtml('てすとげーむ 初回版')));
       if (/4900000022222\.html/.test(url)) return Promise.resolve(htmlResponse(detailHtml('unrelated bundle')));
+      if (/4900000033333\.html/.test(url)) return Promise.resolve(htmlResponse('<p>missing title</p>'));
       return Promise.resolve(htmlResponse('<html></html>'));
     });
 
@@ -199,6 +201,8 @@ describe('refreshStockForVn — Melonbooks search page to detail', () => {
 
     const searchHtml = `<html><body>
       <a href="/detail/detail.php?product_id=950555">てすとげーむ 通常版</a>
+      <a href="/detail/detail.php?product_id=950556">missing detail</a>
+      <a href="/detail/detail.php?product_id=950557">unrelated detail</a>
       <a href="/category/list.php?genre=vn">facet (ignored)</a>
     </body></html>`;
     const detailHtml = `<h1 class="page-header">てすとげーむ 通常版</h1>
@@ -208,6 +212,8 @@ describe('refreshStockForVn — Melonbooks search page to detail', () => {
     fetchMock.mockImplementation((url: string) => {
       if (/\/search\/search\.php/.test(url)) return Promise.resolve(htmlResponse(searchHtml));
       if (/product_id=950555/.test(url)) return Promise.resolve(htmlResponse(detailHtml));
+      if (/product_id=950556/.test(url)) return Promise.resolve(htmlResponse('<p>missing title</p>'));
+      if (/product_id=950557/.test(url)) return Promise.resolve(htmlResponse('<h1 class="page-header">unrelated</h1>'));
       return Promise.resolve(htmlResponse('<html></html>'));
     });
 
@@ -253,6 +259,46 @@ describe('refreshStockForVn — Trader search list + detail', () => {
     });
     // The detail fetch upgraded the list offer's source to direct.
     expect(offers[0].source).toBe('direct');
+  });
+
+  it('sorts in-stock Trader rows first and caps detail-page follow-ups', async () => {
+    seedVn({ title: 'TestGame', alttitle: 'TestGame' });
+    releasesMock.mockResolvedValue([]);
+    const rows = Array.from({ length: 12 }, (_, index) => {
+      const id = String(710000 + index);
+      const soldOut = index % 3 === 0;
+      return `<li><a href="detail.html?id=${id}&amp;page=1"><img alt="TestGame ${index}">
+        ${soldOut ? '<p class="soldout">sold out</p>' : '<p class="price"><em>3,800</em></p>'}</a></li>`;
+    }).join('');
+    const listHtml = `<ul>${rows}</ul>`;
+    let detailCalls = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (/detail\.html/.test(url)) {
+        detailCalls += 1;
+        return Promise.resolve(htmlResponse('<h1>TestGame detail</h1><p class="price"><em>3,800</em></p>'));
+      }
+      return Promise.resolve(htmlResponse(listHtml));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['trader']);
+
+    expect(snapshot.offers.filter((offer) => offer.provider === 'trader')).toHaveLength(12);
+    expect(detailCalls).toBe(10);
+  });
+
+  it('stops Trader iteration when cancelled after a search response', async () => {
+    seedVn({ title: 'TestGame', alttitle: 'TestGame' });
+    releasesMock.mockResolvedValue([]);
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(htmlResponse('<li><a href="detail.html?id=720000"><img alt="TestGame"></a></li>'));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['trader'], controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(snapshot.offers.filter((offer) => offer.provider === 'trader')).toHaveLength(0);
   });
 });
 

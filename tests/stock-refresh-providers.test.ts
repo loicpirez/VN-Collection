@@ -39,8 +39,10 @@ import {
   db,
   getErogePriceStockExtras,
   listVnStockProviderStatuses,
+  replaceVnStockProviderSnapshot,
   setAppSetting,
   upsertVn,
+  type VnStockOfferInput,
 } from '@/lib/db';
 
 const VN_ID = 'v95200';
@@ -76,6 +78,43 @@ afterEach(() => {
 
 function statusFor(provider: string) {
   return listVnStockProviderStatuses(VN_ID).find((s) => s.provider === provider);
+}
+
+function cachedSurugayaOffer(): VnStockOfferInput {
+  return {
+    vn_id: VN_ID,
+    provider: 'surugaya',
+    provider_offer_id: 'cached',
+    source: 'search',
+    title: 'てすとげーむ',
+    url: 'https://www.suruga-ya.jp/product/detail/950399',
+    price: 3000,
+    currency: 'JPY',
+    availability: 'in_stock',
+    availability_label: null,
+    condition: 'used',
+    edition_label: null,
+    location_label: 'Suruga-ya',
+    location_branch: null,
+    source_release_id: null,
+    jan: null,
+    fetched_at: 1,
+    error: null,
+    content_kind: 'game_package',
+    platform: null,
+    edition_kind: null,
+    series_relation: 'exact_game',
+    match_confidence: 'high',
+    match_score: 90,
+    match_warnings_json: null,
+    marketplace_price: null,
+    marketplace_count: null,
+    list_price: null,
+    category: null,
+    store_code: null,
+    product_id: '950399',
+    page_kind: 'detail',
+  };
 }
 
 const EP_ID = 90011;
@@ -187,6 +226,73 @@ describe('refreshStockForVn — eroge_price bundle conversion', () => {
     expect(statusFor('eroge_price')?.status).toBe('no_results');
   });
 
+  it('retries an eroge_price API error and then succeeds', async () => {
+    vi.useFakeTimers();
+    seedVn();
+    let searchCalls = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url === buildErogePriceApiSearchUrl('Test Game')) {
+        searchCalls += 1;
+        if (searchCalls === 1) return Promise.resolve(jsonResponse({ error: 'busy' }));
+      }
+      return Promise.resolve(routeErogePrice(url));
+    });
+
+    const promise = refreshStockForVn(VN_ID, ['eroge_price']);
+    await vi.advanceTimersByTimeAsync(11_000);
+    const snapshot = await promise;
+
+    expect(searchCalls).toBeGreaterThanOrEqual(2);
+    expect(snapshot.offers.some((offer) => offer.provider === 'eroge_price')).toBe(true);
+  });
+
+  it('records invalid JSON after exhausting eroge_price retries', async () => {
+    vi.useFakeTimers();
+    seedVn('', 'AA');
+    fetchMock.mockImplementation(() => Promise.resolve(htmlResponse('<html>blocked</html>')));
+
+    const promise = refreshStockForVn(VN_ID, ['eroge_price']);
+    await vi.advanceTimersByTimeAsync(25_000);
+    await promise;
+
+    expect(statusFor('eroge_price')?.message).toMatch(/invalid JSON/);
+  });
+
+  it('records API errors after exhausting eroge_price retries', async () => {
+    vi.useFakeTimers();
+    seedVn('', 'AA');
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ error: null })));
+
+    const promise = refreshStockForVn(VN_ID, ['eroge_price']);
+    await vi.advanceTimersByTimeAsync(25_000);
+    await promise;
+
+    expect(statusFor('eroge_price')?.message).toMatch(/unknown/);
+  });
+
+  it('reuses a persisted eroge_price manual pin on the next refresh', async () => {
+    seedVn();
+    fetchMock.mockImplementation((url: string) => Promise.resolve(routeErogePrice(url)));
+
+    await refreshStockForVn(VN_ID, ['eroge_price']);
+    await refreshStockForVn(VN_ID, ['eroge_price']);
+
+    expect(getErogePriceStockExtras(VN_ID)?.selectedEpId).toBe(EP_ID);
+  });
+
+  it('stops eroge_price query iteration when cancelled between searches', async () => {
+    seedVn();
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(jsonResponse({ games: [], pagination: { page: 1, limit: 0, total: 0 } }));
+    });
+
+    await refreshStockForVn(VN_ID, ['eroge_price'], controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('skips eroge_price entirely when the VN has neither title nor alttitle', async () => {
     seedVn('', null);
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ games: [] })));
@@ -235,5 +341,36 @@ describe('refreshStockForVn — surugaya card shaping', () => {
     const status = statusFor('surugaya');
     expect(status?.status).toBe('protected');
     expect(status?.blocked_kind).toBe('search_page');
+  });
+
+  it('preserves cached Suruga-ya offers when a later refresh is protected', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'surugaya', [cachedSurugayaOffer()], {
+      status: 'ok',
+      message: null,
+      fetched_at: 1,
+      offer_count: 1,
+    });
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(htmlResponse('<title>Attention Required</title><script>__cf_chl_abc=1</script>')),
+    );
+
+    const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
+
+    expect(snapshot.offers.some((offer) => offer.provider_offer_id === 'cached')).toBe(true);
+    expect(statusFor('surugaya')).toMatchObject({ status: 'protected', offer_count: 1, cached_offers_available: 1 });
+  });
+
+  it('ignores a protected Suruga-ya follow-up page while keeping page-one cards', async () => {
+    seedVn();
+    const firstPage = `<p class="search_count">1-24件 / 50件</p>
+      <a href="/product/detail/950398">てすとげーむ 通常版</a><p>中古：￥3,000</p>`;
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(htmlResponse(url.includes('page=2') ? '<script>__cf_chl_next=1</script>' : firstPage)),
+    );
+
+    const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
+
+    expect(snapshot.offers.some((offer) => offer.provider_offer_id === '950398')).toBe(true);
   });
 });

@@ -83,6 +83,11 @@ describe('Unoya and Melonbooks parser edges', () => {
     expect(links).toEqual(['https://www.hgame1.com/item/abc.html']);
   });
 
+  it('maps Unoya fallback sold-out text without a stock code', () => {
+    expect(parseHgame1Detail('<title>sample</title><p>out of stock</p>', 'https://www.hgame1.com/item/x.html', { ...TARGET, jan: null }))
+      .toMatchObject({ availability: 'out_of_stock' });
+  });
+
   it('handles Melonbooks missing titles, fallback status text, and fallback identities', () => {
     expect(parseMelonbooksDetail('<p>nothing</p>', 'https://www.melonbooks.co.jp/detail/detail.php', TARGET)).toBeNull();
     expect(parseMelonbooksDetail('<title>sample</title><p>在庫あり 2,200円</p>', 'https://www.melonbooks.co.jp/detail/detail.php', { ...TARGET, jan: null }))
@@ -99,6 +104,11 @@ describe('Mandarake and WonderGOO parser edges', () => {
       .toMatchObject({ provider_offer_id: 'https://order.mandarake.co.jp/order/list', title: 'sample item' });
     expect(parseMandarakeDetail('<h1>sample item</h1>', 'https://order.mandarake.co.jp/order/detailPage/item?itemcode=lower', TARGET))
       .toMatchObject({ provider_offer_id: 'lower' });
+  });
+
+  it('parses a plain yen suffix on WonderGOO pages', () => {
+    expect(parseWondergooDetail('<h1>sample plain</h1><p>1200円</p>', 'https://www.wonder.co.jp/item', TARGET))
+      .toMatchObject({ price: 1200 });
   });
 
   it('covers WonderGOO missing title, meta title, URL identity, and plain edition branches', () => {
@@ -119,6 +129,16 @@ describe('Trader parser edges', () => {
     const offers = parseTraderChukoSmartphoneList(html, 'https://www.chuko-tsuhan.com/smartphone/list.html', { ...TARGET, jan: null });
     expect(offers.map((offer) => offer.availability)).toEqual(['unknown', 'in_stock', 'in_stock', 'in_stock']);
     expect(offers.map((offer) => offer.edition_label)).toEqual([null, 'complete_limited', 'deluxe_edition', 'bundle']);
+  });
+
+  it('uses paragraph titles and marks list-card sold-out state', () => {
+    const offers = parseTraderChukoSmartphoneList(
+      `<li><a href="detail.html?id=5"><p>sample paragraph</p><p class="soldout">売り切れ</p></a></li>`,
+      'https://www.chuko-tsuhan.com/smartphone/list.html',
+      { ...TARGET, jan: null },
+    );
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ title: 'sample paragraph', price: null, availability: 'out_of_stock' });
   });
 
   it('covers detail null-title, reverse meta attributes, reverse hidden price input, fallback availability, and malformed URL', () => {
@@ -164,6 +184,64 @@ describe('generic provider parser edges', () => {
     expect(gamers).toHaveLength(1);
   });
 
+  it('skips structurally incomplete provider cards', () => {
+    expect(parseGenericProviderPage('animate', '<li><div class="item_list_class"></div></li>', 'https://www.animate-onlineshop.jp/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('ebten', '<dl class="block-thumbnail-t--goods"></dl>', 'https://store.kadokawa.co.jp/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('getchu', '<li><div class="content_block"></div></li>', 'https://www.getchu.com/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('gamers', '<li class="list_product"></li>', 'https://www.gamers.co.jp/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('geo', '<li></li>', 'https://ec.geo-online.co.jp/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('yodobashi', '<div class="productListTile"><!-- /pListBlock -->', 'https://www.yodobashi.com/list', TARGET)).toEqual([]);
+    expect(parseGenericProviderPage('joshin', '<div class="search_container_name"></div>', 'https://joshinweb.jp/list', TARGET)).toEqual([]);
+  });
+
+  it('maps fallback pattern availability and full-width titles', () => {
+    const out = parseGenericProviderPage(
+      'animate',
+      `<li class="item"><a href="/p/1"><img alt="ｓａｍｐｌｅ sold"></a><span>out of stock</span><span class="price">1,000円</span></li>`,
+      'https://www.animate-onlineshop.jp/list',
+      TARGET,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ availability: 'out_of_stock', edition_label: null });
+    const unknown = parseGenericProviderPage(
+      'gamers',
+      `<li class="item"><a href="/p/2"><span class="name">sample pending</span></a><span>2,000円</span></li>`,
+      'https://www.gamers.co.jp/list',
+      TARGET,
+    );
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0]).toMatchObject({ availability: 'unknown' });
+  });
+
+  it('parses Yahoo Shopping beacon prices and reservation fallback', () => {
+    const offers = parseGenericProviderPage(
+      'asakusa_mach',
+      `<a href="/item/1" data-beacon="tname:sample yahoo;prc:2500"><span class="ItemTitle">sample yahoo</span><span class="ItemPrice_ItemPrice">3,000円</span>予約</a>
+       <a href="/item/2" data-beacon="tname:sample second;text:販売中"><span class="ItemTitle">sample second</span><span class="ItemPrice_ItemPrice">4,000円</span></a>`,
+      'https://shopping.yahoo.co.jp/search/sample',
+      TARGET,
+    );
+    expect(offers).toHaveLength(2);
+    expect(offers[0]).toMatchObject({ price: 2500, availability: 'in_stock' });
+    expect(offers[1]).toMatchObject({ price: 4000, availability: 'in_stock' });
+  });
+
+  it('parses Amazon search result cards and skips pseudo titles', () => {
+    const offers = parseGenericProviderPage(
+      'amazon_jp',
+      `<div role="listitem" data-asin="B000JF6UD2" data-component-type="s-search-result">
+         <h2 aria-label="sample amazon"></h2><a href="/dp/B000JF6UD2">x</a><span class="a-offscreen">1,000円</span>予約
+       </div>
+       <div role="listitem" data-asin="B000JF6UD3" data-component-type="s-search-result">
+         <h2 aria-label="1件の結果"></h2><a href="/dp/B000JF6UD3">x</a><span class="a-offscreen">2,000円</span>
+       </div>`,
+      'https://www.amazon.co.jp/s?k=sample',
+      TARGET,
+    );
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ provider_offer_id: 'B000JF6UD2', price: 1000, availability: 'in_stock' });
+  });
+
   it('parses MakeShop tiles and skips unrelated matches', () => {
     const html = `<li><div class="innerBox"><p class="name"><a href=/shop/item1>sample box</a></p><p class="price">3,000円</p></div></li>
       <li><div class="innerBox"><p class="name"><a href=/shop/item2>unrelated</a></p><p class="price">4,000円</p></div></li>`;
@@ -202,5 +280,13 @@ describe('Eroge Price and Suruga-ya parser edges', () => {
     expect(result.cards[0]).toMatchObject({ title: 'sample fallback title', condition: 'new', officialAvailability: 'in_stock', listPrice: null });
     expect(result.cards[0].badges).toEqual(['新入荷', '値下げ', '予約']);
     expect(result.cards[1]).toMatchObject({ primaryPrice: null, officialAvailability: 'in_stock' });
+  });
+
+  it('skips untitled Suruga cards and maps rank B stock', () => {
+    const html = `<a href="/product/detail/1"></a>
+      <a href="/product/detail/2">sample ranked</a><span>中古：￥3,000 ランクB</span>`;
+    const result = parseSurugayaSearch(html);
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]).toMatchObject({ productId: '2', condition: 'used_rank_b' });
   });
 });

@@ -22,11 +22,11 @@ vi.mock('@/lib/proxy-fetch', () => ({
   runStockFetchDirect: runDirectMock,
 }));
 
-const { releasesMock } = vi.hoisted(() => ({ releasesMock: vi.fn() }));
+const { getVnMock, releasesMock } = vi.hoisted(() => ({ getVnMock: vi.fn(), releasesMock: vi.fn() }));
 
 vi.mock('@/lib/vndb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vndb')>();
-  return { ...actual, getReleasesForVn: releasesMock, getVn: async () => null };
+  return { ...actual, getReleasesForVn: releasesMock, getVn: getVnMock };
 });
 
 const { proxiedMock } = vi.hoisted(() => ({ proxiedMock: vi.fn(() => false) }));
@@ -39,6 +39,7 @@ vi.mock('@/lib/proxy-config', async (importOriginal) => {
 import { refreshStockForVn } from '@/lib/stock';
 import {
   db,
+  getCollectionItem,
   listVnStockProviderStatuses,
   setAppSetting,
   upsertStockSource,
@@ -131,6 +132,8 @@ beforeEach(() => {
   fetchMock.mockReset();
   releasesMock.mockReset();
   releasesMock.mockResolvedValue([]);
+  getVnMock.mockReset();
+  getVnMock.mockResolvedValue(null);
   runDirectMock.mockClear();
   runDirectMock.mockImplementation(<T,>(fn: () => Promise<T>) => fn());
   proxiedMock.mockReset();
@@ -148,6 +151,15 @@ function statusFor(provider: string) {
 describe('refreshStockForVn — VN resolution', () => {
   it('throws when the VN cannot be loaded', async () => {
     await expect(refreshStockForVn('v99990000', ['wondergoo'])).rejects.toThrow('VN not found');
+  });
+
+  it('hydrates a missing VNDB VN before refreshing it', async () => {
+    getVnMock.mockResolvedValue({ id: VN_ID, title: '', alttitle: null });
+
+    await refreshStockForVn(VN_ID, ['wondergoo']);
+
+    expect(getVnMock).toHaveBeenCalledWith(VN_ID);
+    expect(getCollectionItem(VN_ID)?.id).toBe(VN_ID);
   });
 });
 
@@ -329,6 +341,141 @@ describe('refreshStockForVn — manual source', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(manualUrl);
   });
+
+  it('ignores stale manual providers that are outside the canonical list', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'legacy_shop', url: 'https://example.test/item' });
+
+    await refreshStockForVn(VN_ID, ['wondergoo']);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(statusFor('wondergoo')?.status).toBe('skipped');
+  });
+
+  it('canonicalizes a manual Amazon product URL', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'amazon_jp', url: 'https://www.amazon.co.jp/gp/product/B000JF6UD2?ref_=fixture' });
+    respondWith('<span id="productTitle">Test Game</span><span class="a-offscreen">1,800円</span><div id="availability">在庫あり</div>');
+
+    const snapshot = await refreshStockForVn(VN_ID, ['amazon_jp']);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://www.amazon.co.jp/dp/B000JF6UD2');
+    expect(snapshot.offers[0]).toMatchObject({ provider: 'amazon_jp', product_id: 'B000JF6UD2' });
+  });
+
+  it('builds JAN-derived Sofmap and Unoya targets from release metadata', async () => {
+    seedVn({ title: '', alttitle: null });
+    releasesMock.mockResolvedValue([
+      { ...melonbooksRelease(), extlinks: [], gtin: '4900000000000' },
+    ]);
+    respondWith('<html></html>');
+
+    await refreshStockForVn(VN_ID, ['sofmap', 'hgame1']);
+
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes('new_jan=4900000000000'))).toBe(true);
+    expect(urls.some((url) => url.includes('/item/4900000000000.html'))).toBe(true);
+  });
+
+  it('parses a JAN-derived Unoya detail target', async () => {
+    seedVn({ title: '', alttitle: null });
+    releasesMock.mockResolvedValue([
+      { ...melonbooksRelease(), extlinks: [], gtin: '4900000000000' },
+    ]);
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/item/4900000000000.html')) {
+        return Promise.resolve(htmlResponse('<h1>Test Game</h1><input name="price" value="1800"><p>在庫あり</p>'));
+      }
+      return Promise.resolve(htmlResponse(''));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['hgame1']);
+
+    expect(snapshot.offers.some((offer) => offer.provider === 'hgame1')).toBe(true);
+  });
+
+  it('skips invalid release GTIN values for JAN-search providers', async () => {
+    seedVn({ title: '', alttitle: null });
+    releasesMock.mockResolvedValue([
+      { ...melonbooksRelease(), extlinks: [], gtin: 'invalid' },
+    ]);
+
+    await refreshStockForVn(VN_ID, ['animate']);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(statusFor('animate')?.status).toBe('skipped');
+  });
+
+  it('deduplicates a manual URL that is already present on a release', async () => {
+    seedVn({ title: '', alttitle: null });
+    const url = 'https://www.melonbooks.co.jp/detail/detail.php?product_id=950001';
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    upsertStockSource({ vn_id: VN_ID, provider: 'melonbooks', url });
+    respondWith(melonbooksDetailHtml('Test Game', 1800));
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not duplicate Sofmap adult-bypass parameters', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'sofmap', url: 'https://a.sofmap.com/product_detail.aspx?sku=950012&aac=on' });
+    respondWith('<h1>Test Game</h1>');
+
+    await refreshStockForVn(VN_ID, ['sofmap']);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://a.sofmap.com/product_detail.aspx?sku=950012&aac=on');
+  });
+
+  it('parses a direct Mandarake release target', async () => {
+    seedVn({ title: '', alttitle: null });
+    releasesMock.mockResolvedValue([
+      {
+        ...melonbooksRelease(),
+        extlinks: [{ url: 'https://order.mandarake.co.jp/order/detailPage/item?itemCode=950013', label: 'Mandarake', name: 'Mandarake' }],
+      },
+    ]);
+    respondWith('<h1>Test Game</h1><p>1,800円</p><p>在庫あり</p>');
+
+    const snapshot = await refreshStockForVn(VN_ID, ['mandarake']);
+
+    expect(snapshot.offers.some((offer) => offer.provider_offer_id === '950013')).toBe(true);
+  });
+
+  it('follows a Sofmap wrapper page to product-list parts', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'sofmap', url: 'https://a.sofmap.com/search_result.aspx?keyword=fixture' });
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('product_list_parts.aspx')) {
+        return Promise.resolve(htmlResponse(`<ul id="change_style_list"><li>
+          <a href="https://a.sofmap.com/product_detail.aspx?sku=950010" class="itemimg">x</a>
+          <a href="https://a.sofmap.com/product_detail.aspx?sku=950010" class="product_name">Test Game</a>
+          <span class="stock">在庫あり</span>
+        </li></ul>`));
+      }
+      return Promise.resolve(htmlResponse('<a href="/product_list_parts.aspx?keyword=fixture">parts</a>'));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['sofmap']);
+
+    expect(snapshot.offers.some((offer) => offer.provider_offer_id === '950010')).toBe(true);
+  });
+
+  it('follows Sofmap detail links from a wrapper page', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'sofmap', url: 'https://a.sofmap.com/search_result.aspx?keyword=fixture' });
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('product_detail')) {
+        return Promise.resolve(htmlResponse('<h1>Test Game</h1><table><tr><th>在庫</th><td>在庫あり</td></tr></table>'));
+      }
+      return Promise.resolve(htmlResponse('<a href="/product_detail.aspx?sku=950011">detail</a>'));
+    });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['sofmap']);
+
+    expect(snapshot.offers.some((offer) => offer.provider_offer_id === '950011')).toBe(true);
+  });
 });
 
 describe('refreshStockForVn — fetch deadline', () => {
@@ -366,6 +513,15 @@ describe('refreshStockForVn — fetch boundaries', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(statusFor('melonbooks')?.message).toMatch(/Blocked stock URL/);
+  });
+
+  it('labels a malformed blocked manual source as an invalid host', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({ vn_id: VN_ID, provider: 'melonbooks', url: 'not a url' });
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')?.message).toMatch(/invalid host/);
   });
 
   it('retries transient network failures and records the final error', async () => {
@@ -446,6 +602,25 @@ describe('refreshStockForVn — fetch boundaries', () => {
         start(controller) {
           controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1));
           controller.close();
+        },
+      })),
+    );
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(statusFor('melonbooks')?.message).toMatch(/response exceeded/);
+  });
+
+  it('handles a rejected stream cancellation while enforcing the body cap', async () => {
+    seedVn();
+    releasesMock.mockResolvedValue([melonbooksRelease()]);
+    fetchMock.mockResolvedValue(
+      new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1));
+        },
+        cancel() {
+          return Promise.reject(new Error('cancel failed'));
         },
       })),
     );
