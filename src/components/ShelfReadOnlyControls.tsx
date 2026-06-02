@@ -377,10 +377,7 @@ export function ShelfReadOnlyControls({
           role="region"
           aria-label={dict.title}
           aria-busy={saving}
-          // `max-w-[calc(100vw-2rem)]` caps the panel on tiny viewports so
-          // it cannot overflow off-screen even when its trigger sits flush
-          // against the right edge of a 360 px phone.
-          className="absolute right-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-card p-3 shadow-card"
+          className="absolute right-0 top-full z-30 mt-2 max-h-[calc(100vh-6rem)] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-border bg-bg-card p-3 shadow-card"
         >
           <header className="mb-2 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{dict.title}</h3>

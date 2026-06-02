@@ -122,6 +122,11 @@ export function Dialog({
   if (!open) return null;
   if (typeof document === 'undefined') return null;
 
+  const panelClasses = panelClassName ?? 'p-4 sm:p-6';
+  const heightCap = /\bmax-h-/.test(panelClasses)
+    ? ''
+    : 'max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)] overflow-y-auto ';
+
   return createPortal(
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6">
       <div
@@ -138,9 +143,7 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`relative w-full max-w-2xl rounded-2xl border border-border bg-bg-card shadow-card outline-none ${
-          panelClassName ?? 'p-4 sm:p-6'
-        }`}
+        className={`relative w-full max-w-2xl rounded-2xl border border-border bg-bg-card shadow-card outline-none ${heightCap}${panelClasses}`}
       >
         <h2
           id={titleId}

@@ -59,7 +59,14 @@
     @apply text-xs text-muted font-medium;
   }
   .chip {
-    @apply px-3 py-1.5 rounded-full text-xs font-semibold border border-border bg-bg-card text-muted hover:text-white transition-colors cursor-pointer;
+    @apply relative px-3 py-1.5 rounded-full text-xs font-semibold border border-border bg-bg-card text-muted hover:text-white transition-colors cursor-pointer;
+  }
+  .chip::after {
+    content: '';
+    position: absolute;
+    inset: -8px -2px;
+    border-radius: 9999px;
+    pointer-events: auto;
   }
   .chip-active {
     @apply bg-accent border-accent text-bg hover:text-bg;

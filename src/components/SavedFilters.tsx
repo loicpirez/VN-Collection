@@ -1,7 +1,25 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Bookmark, BookmarkPlus, ChevronDown, Filter as FilterIcon, Loader2, Pin, X } from 'lucide-react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Bookmark, BookmarkPlus, ChevronDown, Filter as FilterIcon, GripVertical, Loader2, Pin, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 
@@ -200,6 +218,54 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
     }
   }
 
+  async function reorder(orderedIds: number[], previous: Filter[]) {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    const controller = new AbortController();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = controller;
+    setBusy('reorder');
+    try {
+      const r = await fetch('/api/saved-filters', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: orderedIds }),
+        signal: controller.signal,
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+    } catch (e) {
+      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      setFilters(previous);
+      toast.error((e as Error).message);
+    } finally {
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationRef.current = false;
+        if (mountedRef.current) setBusy(null);
+      }
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragEnd(e: DragEndEvent) {
+    if (mutationRef.current) return;
+    const { active: from, over } = e;
+    if (!over || from.id === over.id) return;
+    const oldIdx = filters.findIndex((f) => f.id === from.id);
+    const newIdx = filters.findIndex((f) => f.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const previous = filters;
+    const next = arrayMove(filters, oldIdx, newIdx);
+    setFilters(next);
+    void reorder(next.map((f) => f.id), previous);
+  }
+
   const currentKey = currentParamsKey();
   const active = filters.find((f) => f.params === currentKey) ?? null;
 
@@ -266,38 +332,27 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
               </button>
             </div>
           ) : (
-            <ul className="mb-2 space-y-0.5">
-              {filters.map((f) => {
-                const isActive = f.params === currentKey;
-                return (
-                  <li key={f.id} className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <SortableContext items={filters.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                <ul className="mb-2 max-h-[min(50vh,16rem)] space-y-0.5 overflow-y-auto">
+                  {filters.map((f) => (
+                    <PresetRow
+                      key={f.id}
+                      filter={f}
+                      isActive={f.params === currentKey}
+                      busy={busy}
+                      dragHandleLabel={t.savedFilters.reorderHandle}
+                      deleteLabel={t.common.delete}
+                      onNavigate={() => {
                         router.push(`/?${f.params}`);
                         setOpen(false);
                       }}
-                      className={`flex min-h-[44px] flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-bg-elev sm:min-h-0 ${
-                        isActive ? 'text-accent' : 'text-white/85'
-                      }`}
-                      title={f.name}
-                    >
-                      <Pin className="h-3 w-3 shrink-0" aria-hidden />
-                      <span className="truncate">{f.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(f.id)}
-                      disabled={busy != null}
-                      aria-label={t.common.delete}
-                      className="tap-target-tight rounded text-muted hover:text-status-dropped"
-                    >
-                      {busy === `del-${f.id}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                      onDelete={() => remove(f.id)}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
           )}
           {!nameOpen ? (
             <button
@@ -334,5 +389,72 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
         </div>
       )}
     </div>
+  );
+}
+
+function PresetRow({
+  filter,
+  isActive,
+  busy,
+  dragHandleLabel,
+  deleteLabel,
+  onNavigate,
+  onDelete,
+}: {
+  filter: Filter;
+  isActive: boolean;
+  busy: string | null;
+  dragHandleLabel: string;
+  deleteLabel: string;
+  onNavigate: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: filter.id,
+    disabled: busy != null,
+    transition: { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-1 rounded-md ${isDragging ? 'bg-bg-elev shadow-card' : ''}`}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={dragHandleLabel}
+        title={dragHandleLabel}
+        disabled={busy != null}
+        className="inline-flex h-11 w-7 shrink-0 cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing sm:h-8"
+      >
+        <GripVertical className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onNavigate}
+        className={`flex min-h-[44px] flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-bg-elev sm:min-h-0 ${
+          isActive ? 'text-accent' : 'text-white/85'
+        }`}
+        title={filter.name}
+      >
+        <Pin className="h-3 w-3 shrink-0" aria-hidden />
+        <span className="truncate">{filter.name}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={busy != null}
+        aria-label={deleteLabel}
+        className="tap-target-tight rounded text-muted hover:text-status-dropped"
+      >
+        {busy === `del-${filter.id}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
+      </button>
+    </li>
   );
 }

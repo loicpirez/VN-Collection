@@ -168,7 +168,7 @@ export function KeyboardShortcuts() {
     <Dialog
       open={help}
       onClose={() => setHelp(false)}
-      panelClassName="w-[min(92vw,480px)] p-4 sm:p-6"
+      panelClassName="w-[min(92vw,480px)] max-h-[85vh] overflow-y-auto p-4 sm:p-6"
       title={
         <span className="inline-flex items-center gap-2">
           <Keyboard className="h-5 w-5 text-accent" aria-hidden /> {t.shortcuts.title}
