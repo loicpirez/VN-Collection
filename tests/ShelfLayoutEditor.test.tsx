@@ -205,6 +205,34 @@ describe('ShelfLayoutEditor', () => {
     expect(screen.getByPlaceholderText(/Nom \(ex/)).toBeTruthy();
   });
 
+  it('cancels shelf creation with Escape, clears the name, then creates with Enter', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/shelves' && init?.method === 'POST') return json({ shelf: bareUnit({ id: 8, name: 'Keyboard Shelf' }) });
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail) return json({ shelf: bareUnit({ id: Number(detail[1]), name: `Shelf ${detail[1]}` }), slots: [], displays: [] });
+      return json({ shelves: [unit()] });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nouvelle étagère' }));
+    const input = screen.getByPlaceholderText(/Nom \(ex/);
+    fireEvent.change(input, { target: { value: 'Draft' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText(/Nom \(ex/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nouvelle étagère' }));
+    const reopened = screen.getByPlaceholderText(/Nom \(ex/) as HTMLInputElement;
+    expect(reopened.value).toBe('');
+    fireEvent.change(reopened, { target: { value: 'Keyboard Shelf' } });
+    fireEvent.keyDown(reopened, { key: 'Enter' });
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Keyboard Shelf/ })).toBeTruthy());
+    const post = fetchMock.mock.calls.find(([url, init]) => url === '/api/shelves' && init?.method === 'POST');
+    expect(post).toBeTruthy();
+  });
+
   it('pages to the next shelf with the carousel buttons', async () => {
     const shelves = [unit({ id: 1, name: 'Studio X' }), unit({ id: 2, name: 'Studio W' })];
     global.fetch = defaultFetch(shelves) as unknown as typeof fetch;
@@ -231,6 +259,37 @@ describe('ShelfLayoutEditor', () => {
     await waitFor(() =>
       expect(screen.getByRole('tab', { name: /Studio X/ }).getAttribute('aria-selected')).toBe('true'),
     );
+  });
+
+  it('pages shelves with the tablist keyboard model', async () => {
+    const shelves = [
+      unit({ id: 1, name: 'Studio X' }),
+      unit({ id: 2, name: 'Studio W' }),
+      unit({ id: 3, name: 'Studio V' }),
+    ];
+    global.fetch = defaultFetch(shelves) as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={shelves} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    const tablist = screen.getByRole('tablist');
+
+    fireEvent.keyDown(tablist, { key: 'End' });
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Studio V/ }).getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(tablist, { key: 'Home' });
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Studio X/ }).getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Studio W/ }).getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Studio X/ }).getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(tablist, { key: 'Tab' });
+    expect(screen.getByRole('tab', { name: /Studio X/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('switches the active shelf by clicking a tab', async () => {
@@ -264,6 +323,49 @@ describe('ShelfLayoutEditor', () => {
     });
   });
 
+  it('refreshes the pool and warns when resizing evicts editions', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/shelves?pool=1') {
+        return json({
+          shelves: [unit({ rows: 1, placed_count: 0 })],
+          unplaced: [poolEntry({ vn_id: 'v90009', release_id: 'r90009', vn_title: 'Evicted Edition' })],
+        });
+      }
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail && init?.method === 'PATCH') {
+        return json({
+          shelf: bareUnit({ rows: 1 }),
+          slots: [],
+          evicted: [{ vn_id: 'v90009', release_id: 'r90009' }],
+        });
+      }
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ shelves: [unit()] });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit({ rows: 2 })]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer une ligne' }));
+    await waitFor(() => expect(document.body.textContent).toContain('1 édition(s) évincée(s)'));
+    await waitFor(() => expect(screen.getAllByText('Evicted Edition').length).toBeGreaterThan(0));
+  });
+
+  it('toasts when resizing fails', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail && init?.method === 'PATCH') return json({ error: 'resize-failed' }, 500);
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ shelves: [unit()] });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter une ligne' }));
+    await waitFor(() => expect(document.body.textContent).toContain('resize-failed'));
+  });
+
   it('renames the active shelf through the prompt dialog', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -285,6 +387,42 @@ describe('ShelfLayoutEditor', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /Renamed Shelf/ })).toBeTruthy());
   });
 
+  it('does not PATCH when shelf rename is cancelled', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /^Renommer$/ }));
+    const promptDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(promptDialog).getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+  });
+
+  it('toasts when shelf rename fails', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail && init?.method === 'PATCH') return json({ error: 'rename-failed' }, 500);
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /^Renommer$/ }));
+    const promptDialog = await screen.findByRole('dialog');
+    const promptInput = within(promptDialog).getByRole('textbox');
+    fireEvent.change(promptInput, { target: { value: 'Broken Rename' } });
+    fireEvent.click(within(promptDialog).getByRole('button', { name: 'Renommer' }));
+    await waitFor(() => expect(document.body.textContent).toContain('rename-failed'));
+  });
+
   it('deletes the active shelf after confirmation', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -302,6 +440,40 @@ describe('ShelfLayoutEditor', () => {
     const confirmModal = await screen.findByRole('alertdialog');
     fireEvent.click(within(confirmModal).getByRole('button', { name: 'Supprimer' }));
     await waitFor(() => expect(screen.queryByRole('tab', { name: /Studio X/ })).toBeNull());
+  });
+
+  it('does not DELETE when shelf deletion is cancelled', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /^Supprimer$/ }));
+    const confirmModal = await screen.findByRole('alertdialog');
+    fireEvent.click(within(confirmModal).getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+  });
+
+  it('toasts when shelf deletion fails', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail && init?.method === 'DELETE') return json({ error: 'delete-failed' }, 500);
+      if (detail) return json({ shelf: bareUnit(), slots: [], displays: [] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /^Supprimer$/ }));
+    const confirmModal = await screen.findByRole('alertdialog');
+    fireEvent.click(within(confirmModal).getByRole('button', { name: 'Supprimer' }));
+    await waitFor(() => expect(document.body.textContent).toContain('delete-failed'));
   });
 
   it('toggles the front-display visibility button', async () => {
