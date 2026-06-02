@@ -141,7 +141,7 @@ describe('PlaceVnBrowser', () => {
     expect(screen.queryByText('Canvas')).toBeNull();
 
     fireEvent.change(screen.getByLabelText(t.places.groupLabel as string), { target: { value: 'provider' } });
-    expect(screen.getByText('Giga')).toBeTruthy();
+    expect(screen.getAllByText('Giga').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText(t.places.groupLabel as string), { target: { value: 'year' } });
     expect(screen.getByText('2020')).toBeTruthy();
 
@@ -158,7 +158,7 @@ describe('PlaceVnBrowser', () => {
     localStorage.setItem('vncoll.place-vn-browser.prefs.v1', JSON.stringify({ sort: 'price_desc', group: 'provider', view: 'list' }));
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Aikiss')).toBeTruthy());
-    expect(screen.getByText('Giga')).toBeTruthy();
+    expect(screen.getAllByText('Giga').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText(t.places.sortLabel as string), { target: { value: 'price_asc' } });
     expect(screen.getByText('Canvas')).toBeTruthy();
     fireEvent.change(screen.getByLabelText(t.places.sortLabel as string), { target: { value: 'fresh' } });
