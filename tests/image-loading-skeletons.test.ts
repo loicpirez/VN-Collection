@@ -77,6 +77,14 @@ describe('HeroBanner — loading skeleton lifecycle', () => {
     expect(heroBannerSource).toContain('{!bannerLoaded && (');
     expect(heroBannerSource).not.toContain("bannerLoaded ? 'opacity-0' : 'opacity-100'");
   });
+
+  it('replaces the banner pulse with a stable fallback after image errors', () => {
+    expect(heroBannerSource).toContain('const [bannerErrored, setBannerErrored] = useState(false);');
+    expect(heroBannerSource).toContain('setBannerErrored(false);');
+    expect(heroBannerSource).toContain('onError={() => setBannerErrored(true)}');
+    expect(heroBannerSource).toContain('{liveSrc && !bannerErrored ? (');
+    expect(heroBannerSource).toContain('<ImageOff');
+  });
 });
 
 describe('ProducerLogo — uses LoadingImage when logo_path is set', () => {

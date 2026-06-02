@@ -38,6 +38,20 @@ describe('R5-179 — yarn qa is DOM QA gated on .qa', () => {
     expect(QA_SH).toMatch(/curl\b/);
     expect(QA_SH).toMatch(/grep -P\b|grep -E\b/);
   });
+
+  it('keeps fetch failures in the parent shell and never concatenates fallback status codes', () => {
+    expect(QA_SH).toContain('FETCH_HTML_RESULT=""');
+    expect(QA_SH).toContain('if fetch_html "/vn/$IN_VN"; then');
+    expect(QA_SH).not.toMatch(/\$\(\s*fetch_html/);
+    expect(QA_SH).not.toContain('|| echo "000"');
+    expect(QA_SH).toContain('code="${code:-000}"');
+    expect(QA_SH).toContain('SETTINGS_CODE="${SETTINGS_CODE:-000}"');
+  });
+
+  it('treats optional cached staff gender as fixture-dependent DOM', () => {
+    expect(QA_SH).toContain('GENDER_CHIP_HITS=$(count_pattern "$STAFF_HTML"');
+    expect(QA_SH).toContain('gender chip absent (no gender in cached VNDB payload)');
+  });
 });
 
 describe('R5-180 — yarn qa:interactions is real Playwright', () => {

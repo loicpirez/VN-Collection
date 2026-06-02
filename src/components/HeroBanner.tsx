@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Crosshair, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
+import { Check, Crosshair, ImageOff, Loader2, RotateCcw, RotateCw, ShieldAlert, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useToast } from './ToastProvider';
@@ -57,6 +57,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const [liveSrc, setLiveSrc] = useState<string | null>(src);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [bannerLoaded, setBannerLoaded] = useState(false);
+  const [bannerErrored, setBannerErrored] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const draggingRef = useRef(false);
@@ -95,6 +96,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   }, [vnId, src, initialRotation]);
   useEffect(() => {
     setBannerLoaded(false);
+    setBannerErrored(false);
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
       setBannerLoaded(true);
@@ -398,7 +400,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         editing ? 'cursor-crosshair touch-none focus:outline focus:outline-2 focus:outline-accent' : ''
       }`}
     >
-      {liveSrc ? (
+      {liveSrc && !bannerErrored ? (
         <>
           {!bannerLoaded && (
             <div
@@ -434,6 +436,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               ...coverRotatedStyle,
             }}
             onLoad={() => setBannerLoaded(true)}
+            onError={() => setBannerErrored(true)}
           />
           {!customBanner && bannerLoaded && !editing && !shouldBlurR18 && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -448,7 +451,9 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           )}
         </>
       ) : (
-        <div className="pointer-events-none h-full w-full bg-gradient-to-b from-bg-elev to-bg-card" />
+        <div className="pointer-events-none flex h-full w-full items-center justify-center bg-gradient-to-b from-bg-elev to-bg-card text-muted/60">
+          <ImageOff className="h-8 w-8" aria-hidden />
+        </div>
       )}
 
       {shouldBlurR18 && !editing && (

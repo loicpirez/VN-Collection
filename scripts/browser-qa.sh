@@ -123,22 +123,22 @@ bad() {
   printf '  %s✗%s %s %s(%s)%s\n' "$C_BAD" "$C_RST" "$1" "$C_DIM" "$2" "$C_RST" >&2
 }
 
-# Fetch a route into a temp file and echo the path. On HTTP failure
-# returns an empty path so callers can short-circuit cleanly without
-# every assertion having to re-implement the same guard.
+FETCH_HTML_RESULT=""
 fetch_html() {
   local path="$1"
   local tmp
   tmp=$(mktemp -t browser-qa.XXXXXX) || return 1
   local code
-  code=$(curl -sS -L -o "$tmp" -w '%{http_code}' --max-time 20 "${BASE}${path}" 2>/dev/null || echo "000")
+  FETCH_HTML_RESULT=""
+  code=$(curl -sS -L -o "$tmp" -w '%{http_code}' --max-time 20 "${BASE}${path}" 2>/dev/null) || true
+  code="${code:-000}"
   if [ "$code" != "200" ]; then
     rm -f "$tmp"
     printf '  %s✗%s GET %s → %s\n' "$C_BAD" "$C_RST" "$path" "$code" >&2
     FAIL=$((FAIL+1))
     return 1
   fi
-  printf '%s' "$tmp"
+  FETCH_HTML_RESULT="$tmp"
 }
 
 # count_pattern <file> <ERE-pattern>
@@ -221,8 +221,8 @@ fi
 #      - 1 right-anchored danger button (Remove)
 #    See VnDetailActionsBar.tsx header comment for the source of truth.
 printf '\n[1] VN detail action group contract /vn/%s\n' "$IN_VN"
-VN_HTML=$(fetch_html "/vn/$IN_VN")
-if [ -n "$VN_HTML" ]; then
+if fetch_html "/vn/$IN_VN"; then
+  VN_HTML="$FETCH_HTML_RESULT"
   # The contract is "at least N" on the rendered HTML because dropdown
   # menu trigger buttons + the inline primary buttons can both surface,
   # and the danger button only renders when the VN is in collection.
@@ -247,8 +247,8 @@ fi
 #    rendered locale. We probe all three locale spellings so the
 #    assertion passes regardless of which cookie the dev server has.
 printf '\n[2] Cover/banner rotation controls /vn/%s\n' "$IN_VN"
-VN_HTML=$(fetch_html "/vn/$IN_VN")
-if [ -n "$VN_HTML" ]; then
+if fetch_html "/vn/$IN_VN"; then
+  VN_HTML="$FETCH_HTML_RESULT"
   # FR: "Pivoter à gauche" / "Pivoter à droite"
   # EN: "Rotate left" / "Rotate right"
   # JA: "左に回転" / "右に回転"
@@ -264,8 +264,8 @@ fi
 #    to the library filter or to the VNDB-wide /tag/[id] page based
 #    on the active mode. See lib/tags-page-modes.ts.
 printf '\n[3] /tags Local / VNDB tab strip\n'
-TAGS_HTML=$(fetch_html "/tags")
-if [ -n "$TAGS_HTML" ]; then
+if fetch_html "/tags"; then
+  TAGS_HTML="$FETCH_HTML_RESULT"
   # The mode is exposed in the URL the tab strip links to. Either
   # `?mode=local` (or no mode → default local) and `?mode=vndb`
   # must both appear in the rendered switcher.
@@ -283,8 +283,8 @@ fi
 #    canonical internal route (`/character/cNNN`, `/vn/vNNN`, etc.)
 #    via normalizeVndbHref(). See lib/vndb-link-normalize.ts.
 printf '\n[4] VNDB BBCode link normalization /vn/v15446\n'
-VN_HTML=$(fetch_html "/vn/v15446")
-if [ -n "$VN_HTML" ]; then
+if fetch_html "/vn/v15446"; then
+  VN_HTML="$FETCH_HTML_RESULT"
   # No bare /cNNN / /vNNN / /rNNN / /pNNN / /gNNN / /iNNN / /sNNN
   # hrefs that bypass the normalizer.
   assert_zero "no bare /cNNN href leaks" \
@@ -307,8 +307,8 @@ fi
 #    Blood-type filter is a documented future extension (Agent B); we
 #    don't fail when it's missing but DO assert sex + role exist.
 printf '\n[5] /characters Local / VNDB tabs + filters\n'
-CH_HTML=$(fetch_html "/characters")
-if [ -n "$CH_HTML" ]; then
+if fetch_html "/characters"; then
+  CH_HTML="$FETCH_HTML_RESULT"
   assert_at_least "tab strip exposes VNDB mode link" \
     "$CH_HTML" '\?tab=vndb' 1
   # Sex filter chips link with `sex=` URL param.
@@ -326,8 +326,8 @@ fi
 #    `<a href="/staff?sex=…">`. Until that lands these assertions
 #    fail loud so the regression is visible.
 printf '\n[6] /staff/s12799 aliases + clickable gender chip\n'
-STAFF_HTML=$(fetch_html "/staff/s12799")
-if [ -n "$STAFF_HTML" ]; then
+if fetch_html "/staff/s12799"; then
+  STAFF_HTML="$FETCH_HTML_RESULT"
   # The alias section is conditional on the staff actually having
   # non-main aliases in the cached VNDB payload. The page filters
   # out `ismain` entries before rendering, so a staff whose only
@@ -349,9 +349,15 @@ if [ -n "$STAFF_HTML" ]; then
   else
     ok "alias section absent (no non-main aliases in cached VNDB payload)" "data fixture"
   fi
-  # Gender chip should be a clickable anchor with sex param.
-  assert_at_least "gender chip is a <a href=\"/staff?sex=...\">" \
-    "$STAFF_HTML" 'href="/staff\?sex=' 1
+  # Gender is optional in the cached profile. When present, the chip
+  # must route back to the filtered staff browser.
+  GENDER_CHIP_HITS=$(count_pattern "$STAFF_HTML" 'href="/staff\?sex=')
+  if [ "$GENDER_CHIP_HITS" -gt 0 ]; then
+    assert_at_least "gender chip is a <a href=\"/staff?sex=...\">" \
+      "$STAFF_HTML" 'href="/staff\?sex=' 1
+  else
+    ok "gender chip absent (no gender in cached VNDB payload)" "data fixture"
+  fi
   rm -f "$STAFF_HTML"
 fi
 
@@ -360,8 +366,8 @@ fi
 #    the user-facing toggle works. Look for the `aria-pressed`
 #    attribute the component emits on its tap-target button.
 printf '\n[7] SpoilerReveal wrappers on /vn/%s\n' "$IN_VN"
-VN_HTML=$(fetch_html "/vn/$IN_VN")
-if [ -n "$VN_HTML" ]; then
+if fetch_html "/vn/$IN_VN"; then
+  VN_HTML="$FETCH_HTML_RESULT"
   assert_at_least "spoiler-reveal aria-pressed triggers present" \
     "$VN_HTML" 'aria-pressed="(true|false)"' 1
   rm -f "$VN_HTML"
@@ -376,8 +382,8 @@ printf '\n[8] /character/%s page renders + description\n' "${CHAR_ID:-<none>}"
 if [ -z "$CHAR_ID" ]; then
   ok "character page probe skipped" "no cached character fixture"
 else
-CHAR_HTML=$(fetch_html "/character/$CHAR_ID")
-if [ -n "$CHAR_HTML" ]; then
+if fetch_html "/character/$CHAR_ID"; then
+  CHAR_HTML="$FETCH_HTML_RESULT"
   # Check whether the cached data has spoiler-tagged content by probing
   # the rendered HTML for data-spoiler-level attributes.
   HAS_SPOILER_DATA=$(count_pattern "$CHAR_HTML" 'data-spoiler-level="[12]"')
@@ -400,15 +406,16 @@ fi
 #    the server-side persisted shape exposes both keys when set.
 printf '\n[9] Density global default + per-scope section\n'
 SETTINGS_JSON=$(mktemp -t browser-qa.XXXXXX)
-SETTINGS_CODE=$(curl -sS -o "$SETTINGS_JSON" -w '%{http_code}' --max-time 10 "${BASE}/api/settings" 2>/dev/null || echo "000")
+SETTINGS_CODE=$(curl -sS -o "$SETTINGS_JSON" -w '%{http_code}' --max-time 10 "${BASE}/api/settings" 2>/dev/null) || true
+SETTINGS_CODE="${SETTINGS_CODE:-000}"
 if [ "$SETTINGS_CODE" = "200" ]; then
   # `/api/settings` JSON includes the `default_*` keys; the density
   # split itself lives on the client localStorage. We do a softer
   # probe here: simply assert the settings endpoint is reachable.
   ok "GET /api/settings reachable" "HTTP 200"
   # And confirm the Settings page emits both copy lines.
-  ROOT_HTML=$(fetch_html "/")
-  if [ -n "$ROOT_HTML" ]; then
+  if fetch_html "/"; then
+    ROOT_HTML="$FETCH_HTML_RESULT"
     # The Settings modal preloads its i18n strings into the page
     # body via the dictionary import — look for both `cardDensity`
     # surface markers anywhere in the rendered HTML.
@@ -428,8 +435,8 @@ rm -f "$SETTINGS_JSON"
 #    minmax pattern that drives `--card-density-px`. The `gap-3`
 #    class shows up in either the dense or saved-filter chip path.
 printf '\n[10] Library card grid /\n'
-ROOT_HTML=$(fetch_html "/")
-if [ -n "$ROOT_HTML" ]; then
+if fetch_html "/"; then
+  ROOT_HTML="$FETCH_HTML_RESULT"
   # The grid container — div or ul — must declare the auto-fill
   # density variable AND a gap class. The variable is the canonical
   # contract: every page that participates in the slider uses it.

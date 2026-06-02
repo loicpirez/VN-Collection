@@ -51,6 +51,16 @@ export const viewport: Viewport = {
   themeColor: '#0b1220',
 };
 
+const BASIC_AUTH_URL_SCRUB_SCRIPT = `
+(() => {
+  const current = new URL(window.location.href);
+  if (!current.username && !current.password) return;
+  current.username = '';
+  current.password = '';
+  window.history.replaceState(null, '', current.href);
+})();
+`;
+
 /**
  * Read the display-settings cookie set by the client provider. Lets us
  * server-render images already hidden / blurred when the user opted in —
@@ -85,6 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} style={{ ['--card-density-px' as never]: `${seedDensity}px` }}>
       <body className="min-h-screen bg-bg text-white">
+        <script dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }} />
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider initial={initialSettings}>
             <CardDensityVarSetter />
