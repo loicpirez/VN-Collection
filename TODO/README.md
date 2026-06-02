@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 236 tracked tasks. Statuses must be updated only
+place. The reports below contain 395 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -15,16 +15,16 @@ Each task uses the same five-column format:
 | Category | Report | Tracked tasks |
 | --- | --- | ---: |
 | Security | [security-report-tasks.md](security-report-tasks.md) | 34 |
-| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 40 |
-| Features | [features-report-tasks.md](features-report-tasks.md) | 7 |
-| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 25 |
-| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 10 |
-| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 15 |
-| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 14 |
-| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 8 |
-| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 66 |
-| Testing | [testing-report-tasks.md](testing-report-tasks.md) | 9 |
-| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 8 |
+| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 109 |
+| Features | [features-report-tasks.md](features-report-tasks.md) | 8 |
+| Performance | [performance-report-tasks.md](performance-report-tasks.md) | 32 |
+| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 13 |
+| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 33 |
+| Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 45 |
+| i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 34 |
+| Typing | [typing-report-tasks.md](typing-report-tasks.md) | 67 |
+| Testing | [testing-report-tasks.md](testing-report-tasks.md) | 11 |
+| Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 9 |
 
 ## Status vocabulary
 
@@ -222,9 +222,52 @@ library route: VNDB relation summaries legitimately omit publisher arrays. The c
 now normalizes that optional source field for rendering while rejecting malformed
 arrays when present.
 
+The collection-card boundary follow-up also preserves the durable dump-ignore flag
+through strict client decoding instead of silently dropping it.
+
+The QA-harness audit fixes route-fetch accounting so `yarn qa` can no longer print
+failures from discarded subshells while exiting successfully, and it no longer reports
+concatenated fallback status values such as `200000`. Staff-detail DOM probing now also
+respects optional cached gender while retaining its source-level clickability contract.
+
+The download-status SSE follow-up keeps initial snapshot delivery and proxy keep-alives,
+while making teardown idempotent when a browser disconnect causes `enqueue()` to throw.
+That path now releases both the interval and pub/sub listener immediately.
+
+The hero-artwork audit closes the last permanent-shimmer path on VN banners: failed image
+requests now transition from the loading skeleton to a stable no-image fallback and reset
+cleanly when a replacement source is selected.
+
+The wishlist scale follow-up adds URL-backed card pagination after filtering and sorting.
+Grouped rendering now mounts at most 60 cards per page while bulk download keeps its
+complete filtered scope.
+
+The staff-detail scale follow-up applies a reusable localized paginator to local and
+streamed credit grids. Prolific staff and seiyuu pages now mount at most 60 image-heavy
+credit cards per grid while keeping every result reachable.
+
+The shared detail-grid follow-up applies that same bounded rendering contract to dump
+tracking, custom lists, series, and producer-role credits.
+
+The place-stock scale follow-up paginates sorted shop inventory before grouping so a
+large linked store no longer mounts its complete image-card inventory at once.
+
+The Basic Auth robustness follow-up removes embedded URL credentials synchronously
+before hydration so browser-side relative requests remain valid behind authenticated
+reverse proxies.
+
+The character-detail scale follow-up bounds same-name sibling images and VN appearance
+covers with the shared localized paginator.
+
+The physical-shop registry follow-up windows filtered cards, rows, and unassigned
+branches with localized pagination controls.
+
+The trait-detail follow-up replaces its first-page-only character gallery with VNDB
+server paging and a complete chunked collection-only query.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 379
+- `DONE_WITH_DIFF`: 392
 - `VERIFIED_EXISTING`: 3
 - `TODO`: 0
 
