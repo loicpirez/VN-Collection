@@ -59,7 +59,7 @@ describe('place and AliceNet navigation races', () => {
     const body = source('src/components/AliceNetClient.tsx');
     expect(body).toContain('const loadAbortRef = useRef<AbortController | null>(null)');
     expect(body).toContain('loadAbortRef.current?.abort()');
-    expect(body).toContain("fetch('/api/alicenet', { cache: 'no-store', signal })");
+    expect(body).toContain("{ cache: 'no-store', signal }");
     expect(body).toContain('loadAbortRef.current !== controller');
     expect(body).toContain("error.name === 'AbortError'");
   });

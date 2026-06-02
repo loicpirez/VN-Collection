@@ -50,12 +50,27 @@ export interface AliceNetPendingCounts {
   egs_pending: number;
 }
 
-/** Full AliceNet stock-browser response. */
+/** Paging window returned with each AliceNet stock page. */
+export interface AliceNetPageMeta {
+  offset: number;
+  limit: number;
+  total: number;
+  has_more: boolean;
+}
+
+/** First AliceNet stock-browser page: items plus header counters and paging window. */
 export interface AliceNetClientSnapshot {
   items: AliceNetClientItem[];
   stats: AliceNetClientStats;
   pending: AliceNetPendingCounts;
   last_fetch: number | null;
+  page?: AliceNetPageMeta;
+}
+
+/** A follow-up AliceNet stock page: items plus the paging window only. */
+export interface AliceNetClientPage {
+  items: AliceNetClientItem[];
+  page: AliceNetPageMeta;
 }
 
 /** Result returned after synchronizing the AliceNet source page. */
@@ -205,6 +220,21 @@ function decodePendingCounts(value: unknown): AliceNetPendingCounts | null {
     : null;
 }
 
+function isBoolean(value: unknown): value is boolean {
+  return value === true || value === false;
+}
+
+function decodeAliceNetPageMeta(value: unknown): AliceNetPageMeta | null {
+  const record = asJsonRecord(value);
+  return record &&
+    isIntegerAtLeast(record.offset, 0) &&
+    isIntegerAtLeast(record.limit, 1) &&
+    isIntegerAtLeast(record.total, 0) &&
+    isBoolean(record.has_more)
+    ? { offset: record.offset, limit: record.limit, total: record.total, has_more: record.has_more }
+    : null;
+}
+
 /**
  * Decode the AliceNet stock-browser payload before replacing client state.
  *
@@ -216,9 +246,25 @@ export function decodeAliceNetClientSnapshot(value: unknown): AliceNetClientSnap
   const items = decodeArray(record?.items, decodeAliceNetItem);
   const stats = decodeAliceNetStats(record?.stats);
   const pending = decodePendingCounts(record?.pending);
-  return items && stats && pending && isNullableFiniteNumber(record?.last_fetch)
-    ? { items, stats, pending, last_fetch: record.last_fetch }
-    : null;
+  if (!items || !stats || !pending || !isNullableFiniteNumber(record?.last_fetch)) return null;
+  if (record.page === undefined) {
+    return { items, stats, pending, last_fetch: record.last_fetch };
+  }
+  const page = decodeAliceNetPageMeta(record.page);
+  return page ? { items, stats, pending, last_fetch: record.last_fetch, page } : null;
+}
+
+/**
+ * Decode a follow-up AliceNet stock page (items plus paging window only).
+ *
+ * @param value Parsed local API payload.
+ * @returns Safe page, or `null` for malformed input.
+ */
+export function decodeAliceNetStockPage(value: unknown): AliceNetClientPage | null {
+  const record = asJsonRecord(value);
+  const items = decodeArray(record?.items, decodeAliceNetItem);
+  const page = decodeAliceNetPageMeta(record?.page);
+  return items && page ? { items, page } : null;
 }
 
 /**

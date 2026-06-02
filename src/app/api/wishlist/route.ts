@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
-import { getEgsForVns, isInCollectionMany } from '@/lib/db';
+import { getEgsSummariesForVns, isInCollectionMany } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     //
     const ids = result.map((e) => e.id);
     const ownedSet = isInCollectionMany(ids);
-    const egsMap = getEgsForVns(ids);
+    const egsMap = getEgsSummariesForVns(ids);
     const items = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },

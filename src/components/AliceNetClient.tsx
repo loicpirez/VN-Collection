@@ -69,6 +69,7 @@ import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
 import {
   decodeAliceNetClientSnapshot,
   decodeAliceNetLoopResult,
+  decodeAliceNetStockPage,
   decodeAliceNetStockSyncResult,
   type AliceNetPendingCounts,
 } from '@/lib/alicenet-client-shape';
@@ -392,13 +393,26 @@ export function AliceNetClient() {
     try {
       const r = await fetch('/api/alicenet', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = decodeAliceNetClientSnapshot(await r.json());
-      if (!d) throw new Error(t.common.error);
+      const first = decodeAliceNetClientSnapshot(await r.json());
+      if (!first) throw new Error(t.common.error);
       if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
-      setItems(d.items);
-      setStats(d.stats);
-      setPending(d.pending);
-      setLastFetch(d.last_fetch);
+      const accumulated = [...first.items];
+      let next = first.page;
+      while (next?.has_more && !signal.aborted) {
+        const offset = next.offset + next.limit;
+        const pr = await fetch(`/api/alicenet?offset=${offset}&limit=${next.limit}`, { cache: 'no-store', signal });
+        if (!pr.ok) throw new Error(await readApiError(pr, t.common.error));
+        const pageResult = decodeAliceNetStockPage(await pr.json());
+        if (!pageResult) throw new Error(t.common.error);
+        if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
+        accumulated.push(...pageResult.items);
+        next = pageResult.page;
+      }
+      if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
+      setItems(accumulated);
+      setStats(first.stats);
+      setPending(first.pending);
+      setLastFetch(first.last_fetch);
     } catch (error) {
       if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
       toast.error(error instanceof Error ? error.message : t.common.error);

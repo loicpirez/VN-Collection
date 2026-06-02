@@ -1322,9 +1322,9 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_alicenet_no_vndb
       ON alicenet_stock(last_matched_at, code)
       WHERE vn_match_source = 'none' AND vn_id IS NULL;
-    -- R5-PERF-017: listAliceNetStock orders the whole table by title
-    -- (ORDER BY k.title, binary collation). Without this the page
-    -- list does a full scan + sort on every load.
+    -- R5-PERF-017: listAliceNetStockPage orders by title (ORDER BY
+    -- k.title, binary collation) and pages with LIMIT/OFFSET. Without
+    -- this index each page does a full scan + sort.
     CREATE INDEX IF NOT EXISTS idx_alicenet_title
       ON alicenet_stock(title);
     -- R5-PERF-018: listAliceNetItemsForEgsResolve filters the EGS-resolve
@@ -2538,6 +2538,44 @@ export function getEgsForVns(vnIds: string[]): Map<string, EgsRow> {
 }
 
 /**
+ * Slim per-VN EGS scalar set the library grid and wishlist render. Excludes
+ * `raw_json` and every other heavy column so paging the collection (up to 500
+ * rows) and the authenticated wishlist never deserialize a blob both callers
+ * discard. Mirrors the `CARDS_VN_COLUMNS` / `FULL_NO_RAW_VN_COLUMNS` pattern.
+ */
+export interface EgsSummaryRow {
+  vn_id: string;
+  egs_id: number | null;
+  median: number | null;
+  average: number | null;
+  count: number | null;
+  playtime_median_minutes: number | null;
+  source: 'extlink' | 'search' | 'manual' | null;
+  okazu: number | null;
+  erogame: number | null;
+}
+
+/**
+ * Bulk-fetch the slim EGS summary for many VN ids. Returns only the scalar
+ * fields the library grid and wishlist read; missing rows are simply absent
+ * from the map.
+ */
+export function getEgsSummariesForVns(vnIds: string[]): Map<string, EgsSummaryRow> {
+  const out = new Map<string, EgsSummaryRow>();
+  if (vnIds.length === 0) return out;
+  const CHUNK = 500;
+  for (let i = 0; i < vnIds.length; i += CHUNK) {
+    const chunk = vnIds.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT vn_id, egs_id, median, average, count, playtime_median_minutes, source, okazu, erogame FROM egs_game WHERE vn_id IN (${placeholders})`)
+      .all(...chunk) as EgsSummaryRow[];
+    for (const r of rows) out.set(r.vn_id, r);
+  }
+  return out;
+}
+
+/**
  * Insert or replace the `egs_game` row for one VN. `fetched_at` is stamped
  * here so callers don't need to thread the timestamp through.
  */
@@ -2917,6 +2955,7 @@ export function migrateVnId(fromId: string, toId: string): void {
   });
   tx();
   invalidateAggregateStats();
+  invalidateProducerStats();
 }
 
 /** Stamp a VN row with the `egs_only` flag (used for EGS-sourced synthetic entries). */
@@ -3202,6 +3241,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
     );
     rebuildVnPlaceIndex(vnId);
     invalidateAggregateStats();
+    invalidateProducerStats();
   })();
 }
 
@@ -3322,6 +3362,7 @@ export async function maybePushStatusToVndb(vnId: string, status: Status | null 
 export function updateCollection(vnId: string, fields: CollectionPatch): void {
   updateCollectionTx(vnId, fields);
   invalidateAggregateStats();
+  invalidateProducerStats();
 }
 
 export interface ActivityEntry {
@@ -3547,6 +3588,7 @@ export function removeFromCollection(vnId: string): void {
     db.prepare('DELETE FROM user_list_vn WHERE vn_id = ?').run(vnId);
   })();
   invalidateAggregateStats();
+  invalidateProducerStats();
 }
 
 /** Predicate: does the operator own this VN? */
@@ -4327,7 +4369,7 @@ export function listCollection({
     .all(...params) as DbRow[];
   const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
   const ids = items.map((i) => i.id);
-  const egsMap = getEgsForVns(ids);
+  const egsMap = getEgsSummariesForVns(ids);
   const seriesMap = listSeriesForVnsMany(ids);
   const aspectMap = listAspectKeysForVns(ids);
   // Batch-fetch the merged place index so `group=place` and
@@ -8070,6 +8112,7 @@ export function upsertProducer(p: ProducerPayload): void {
     extlinks: JSON.stringify(p.extlinks ?? []),
     fetched_at: Date.now(),
   });
+  invalidateProducerStats();
 }
 
 /** Read one producer by id, or `null` when not yet mirrored locally. */
@@ -8081,13 +8124,10 @@ export function getProducer(id: string): ProducerRow | null {
 /** Set or clear the user-uploaded logo path for one producer. */
 export function setProducerLogo(id: string, logoPath: string | null): void {
   db.prepare('UPDATE producer SET logo_path = ? WHERE id = ?').run(logoPath, id);
+  invalidateProducerStats();
 }
 
-/**
- * Aggregate per-developer rankings across the collection (count of credited
- * VNs, average rating, …). Used by the `/producers` Developers tab.
- */
-export function listProducerStats(): ProducerStat[] {
+function computeProducerStats(): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8120,19 +8160,7 @@ export function listProducerStats(): ProducerStat[] {
   }));
 }
 
-/**
- * Symmetric to `listProducerStats` but indexed on `vn.publishers` (the
- * deduped publisher list set by `setVnPublishers` after walking each
- * release's `producers[]`). Publishers that never also developed the
- * VN are surfaced here even when they're absent from `vn.developers`,
- * so a publisher-only studio (Studio X, Studio Y, …) is rankable.
- */
-/**
- * Aggregate per-publisher rankings across the collection. Reads from the
- * release-derived `vn.publishers` column, so publishers absent from
- * `vn.developers` (localisation houses, etc.) still rank.
- */
-export function listPublisherStats(): ProducerStat[] {
+function computePublisherStats(): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8163,6 +8191,45 @@ export function listPublisherStats(): ProducerStat[] {
     avg_user_rating: r.avg_user_rating,
     avg_rating: r.avg_rating,
   }));
+}
+
+let producerStatsCache: { at: number; data: ProducerStat[] } | null = null;
+let publisherStatsCache: { at: number; data: ProducerStat[] } | null = null;
+const PRODUCER_STATS_TTL_MS = 30_000;
+
+/**
+ * Aggregate per-developer rankings across the collection (count of credited
+ * VNs, average rating, …). Used by the `/producers` Developers tab. Cached
+ * in-process for `PRODUCER_STATS_TTL_MS`.
+ */
+export function listProducerStats(): ProducerStat[] {
+  if (producerStatsCache && Date.now() - producerStatsCache.at < PRODUCER_STATS_TTL_MS) {
+    return producerStatsCache.data;
+  }
+  const data = computeProducerStats();
+  producerStatsCache = { at: Date.now(), data };
+  return data;
+}
+
+/**
+ * Aggregate per-publisher rankings across the collection. Reads from the
+ * release-derived `vn.publishers` column, so publishers absent from
+ * `vn.developers` (localisation houses, etc.) still rank. Cached in-process
+ * for `PRODUCER_STATS_TTL_MS`.
+ */
+export function listPublisherStats(): ProducerStat[] {
+  if (publisherStatsCache && Date.now() - publisherStatsCache.at < PRODUCER_STATS_TTL_MS) {
+    return publisherStatsCache.data;
+  }
+  const data = computePublisherStats();
+  publisherStatsCache = { at: Date.now(), data };
+  return data;
+}
+
+/** Drop the in-process producer/publisher ranking caches. Called by collection and producer writers. */
+export function invalidateProducerStats(): void {
+  producerStatsCache = null;
+  publisherStatsCache = null;
 }
 
 // Series
@@ -9192,6 +9259,7 @@ export function importData(payload: CollectionExportPayload): ImportSummary {
   });
   trx();
   invalidateAggregateStats();
+  invalidateProducerStats();
   return summary;
 }
 
@@ -9821,10 +9889,22 @@ export function upsertAliceNetStock(
 }
 
 /**
- * Every AliceNet stock row joined with the operator's collection
- * (so the UI can flag "already owned") and VN cover data (for `SafeImage`).
+ * One bounded page of AliceNet stock rows joined with the operator's
+ * collection (so the UI can flag "already owned") and VN cover data (for
+ * `SafeImage`). Ordered by title (served by `idx_alicenet_title`). The
+ * `LIMIT`/`OFFSET` window keeps any single request from serializing the
+ * whole table (including the per-row `vn_candidates` JSON blob) at once;
+ * the client accumulates pages until the server reports no more rows.
+ *
+ * @param limit Maximum rows to return (clamp at the call site).
+ * @param offset Zero-based row offset for the page.
  */
-export function listAliceNetStock(): (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[] {
+export function listAliceNetStockPage(
+  limit: number,
+  offset: number,
+): (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[] {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(1000, Math.floor(limit)) : 1000;
+  const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.min(10_000_000, Math.floor(offset)) : 0;
   return db.prepare(`
     SELECT k.*,
            CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
@@ -9836,7 +9916,19 @@ export function listAliceNetStock(): (AliceNetStockRow & { in_collection: number
     LEFT   JOIN collection c ON c.vn_id = k.vn_id
     LEFT   JOIN vn          v ON v.id    = k.vn_id
     ORDER  BY k.title
-  `).all() as (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[];
+    LIMIT  ? OFFSET ?
+  `).all(safeLimit, safeOffset) as (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[];
+}
+
+/**
+ * Distinct non-null VN ids matched to any AliceNet row. Light single-column
+ * scan used by the `/api/alicenet` header to count "in wishlist" against the
+ * live VNDB wishlist set without serializing the whole table per page.
+ */
+export function listAliceNetMatchedVnIds(): string[] {
+  return (db
+    .prepare(`SELECT DISTINCT vn_id FROM alicenet_stock WHERE vn_id IS NOT NULL`)
+    .all() as { vn_id: string }[]).map((r) => r.vn_id);
 }
 
 /**
@@ -10100,6 +10192,11 @@ export function setAliceNetEgsLink(
     now,
     code,
   );
+}
+
+/** Total AliceNet stock row count. Drives `has_more` for the paged list endpoint. */
+export function countAliceNetStockTotal(): number {
+  return (db.prepare(`SELECT COUNT(*) AS n FROM alicenet_stock`).get() as { n: number }).n ?? 0;
 }
 
 /**
