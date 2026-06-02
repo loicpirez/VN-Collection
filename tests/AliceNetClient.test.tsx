@@ -268,6 +268,115 @@ describe('AliceNetClient', () => {
     expect(await screen.findByText(/3 processed, 2 matched/)).toBeInTheDocument();
   });
 
+  it('runs the full download-all pipeline in order', async () => {
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') calls.push(u);
+      if (u === '/api/alicenet/fetch') return json({ count: 2, added: 1, updated: 1, removed: 1, fetched_at: 1700000002 });
+      if (
+        u === '/api/alicenet/match-next' ||
+        u === '/api/alicenet/match-vndb-from-egs' ||
+        u === '/api/alicenet/download-vndb' ||
+        u === '/api/alicenet/resolve-egs'
+      ) {
+        return json({ processed: 1, matched: 1, remaining: 0 });
+      }
+      return json(snapshot({
+        items: [VNDB_ITEM, EGS_ITEM],
+        stats: { matched: 2, vndb_matched: 1, egs_only: 1, unprocessed: 1, none_found: 1 },
+        pending: { vndb_pending: 1, egs_pending: 1 },
+      }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Download all' }));
+    await waitFor(() => expect(calls).toContain('/api/alicenet/resolve-egs'));
+    expect(calls).toEqual([
+      '/api/alicenet/fetch',
+      '/api/alicenet/match-next',
+      '/api/alicenet/match-next',
+      '/api/alicenet/match-vndb-from-egs',
+      '/api/alicenet/download-vndb',
+      '/api/alicenet/resolve-egs',
+    ]);
+  });
+
+  it('stops an active operation through the progress toolbar', async () => {
+    let aborted = false;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            aborted = true;
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      }
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    await waitFor(() => expect(aborted).toBe(true));
+  });
+
+  it('runs recovery and data operation variants from visible controls', async () => {
+    const endpoints: string[] = [];
+    const noneItem = makeItem({
+      code: '001-000010-001',
+      title: 'No Result Title',
+      vn_match_source: 'none',
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') endpoints.push(u);
+      if (
+        u === '/api/alicenet/match-next' ||
+        u === '/api/alicenet/match-vndb-from-egs' ||
+        u === '/api/alicenet/search-egs-no-vndb' ||
+        u === '/api/alicenet/download-vndb' ||
+        u === '/api/alicenet/resolve-egs'
+      ) {
+        return json({ processed: 1, matched: 1, remaining: 0 });
+      }
+      return json(snapshot({
+        items: [EGS_ITEM, noneItem],
+        stats: { total: 2, matched: 1, egs_only: 1, unmatched: 1, none_found: 1 },
+        pending: { vndb_pending: 1, egs_pending: 1 },
+      }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Egs Title Three');
+    await user.click(screen.getAllByRole('button', { name: /Recover no-result rows/ })[0]);
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-next'));
+    await user.click(screen.getByRole('button', { name: /Download VNDB data/ }));
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/download-vndb'));
+    await user.click(screen.getByRole('button', { name: /Resolve EGS via VNDB/ }));
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/resolve-egs'));
+    await user.click(within(tabsGroup()).getByRole('button', { name: /No VNDB result/ }));
+    await user.click(screen.getByRole('button', { name: /VNDB from EGS/ }));
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-vndb-from-egs'));
+    await user.click(screen.getByRole('button', { name: /^Search on EGS$/ }));
+    await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(0));
+    await user.click(screen.getByRole('button', { name: /Search on EGS \(aggressive filter\)/ }));
+    await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(1));
+  });
+
+  it('renders operation errors as the last-run summary', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'match-loop-failed' }, 500);
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1, unprocessed: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
+    expect(await screen.findAllByText(/match-loop-failed/)).toHaveLength(2);
+  });
+
   it('resets auto matches after confirmation', async () => {
     let resetCalled = false;
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -333,6 +442,69 @@ describe('AliceNetClient', () => {
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(deletes).toContain('/api/alicenet/001-000002-001/link'));
+  });
+
+  it('selects only matched rows and clears that selection', async () => {
+    global.fetch = vi.fn(async () =>
+      json(snapshot({ items: [VNDB_ITEM, EGS_ITEM], stats: { total: 2, matched: 2, vndb_matched: 1, egs_only: 1 } })),
+    );
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select VNDB-linked' }));
+    expect(screen.getAllByText('1 selected').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Select Matched Title Two' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Select Egs Title Three' })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getAllByRole('button', { name: 'Clear selection' })[0]);
+    await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
+  });
+
+  it('filters by producer and price, then resets filters', async () => {
+    const cheap = makeItem({ code: '001-000011-001', title: 'Cheap Brand Title', sale_price: '¥1,000', egs_brand: 'Budget Brand' });
+    global.fetch = vi.fn(async () =>
+      json(snapshot({
+        items: [VNDB_ITEM, EGS_ITEM, cheap],
+        stats: { total: 3, matched: 2, vndb_matched: 1, egs_only: 1 },
+      })),
+    );
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.selectOptions(screen.getByLabelText('Producer'), 'p90001');
+    await waitFor(() => expect(screen.queryByText('Egs Title Three')).toBeNull());
+    expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Producer'), '');
+    await user.type(screen.getByLabelText('Max price'), '2000');
+    await waitFor(() => expect(screen.queryByText('Matched Title Two')).toBeNull());
+    expect(screen.getByText('Cheap Brand Title')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    await waitFor(() => expect(screen.getByText('Matched Title Two')).toBeInTheDocument());
+    expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
+  });
+
+  it('persists view preferences and restores them on the next mount', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    const first = renderClient();
+    await screen.findByText('Matched Title Two');
+    await first.user.click(screen.getByRole('button', { name: 'List' }));
+    await waitFor(() => expect(window.localStorage.getItem('vncoll.alicenet.prefs.v1')).toContain('"view":"list"'));
+    first.unmount();
+
+    renderClient();
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent');
+  });
+
+  it('renders the virtual-scroll notice for large card lists', async () => {
+    const many = Array.from({ length: 100 }, (_, index) =>
+      makeItem({
+        code: `001-${String(index + 20).padStart(6, '0')}-001`,
+        title: `Bulk Title ${index + 1}`,
+      }),
+    );
+    global.fetch = vi.fn(async () => json(snapshot({ items: many, stats: { total: many.length } })));
+    renderClient();
+    expect(await screen.findByText(/100 items - virtual scroll active/)).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('[data-virtualized-alicenet-grid="true"]')).not.toBeNull());
   });
 
   it('remaps via a candidate chip', async () => {

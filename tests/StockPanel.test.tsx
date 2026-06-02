@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { StockPanel } from '@/components/StockPanel';
-import type { StockOfferDto, StockProviderDto, StockSnapshotDto, StockStatusDto } from '@/lib/stock-api-types';
+import type { StockOfferDto, StockProviderDto, StockSnapshotDto, StockSourceDto, StockStatusDto } from '@/lib/stock-api-types';
 import { dictionaries, DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
 
 const refreshMock = vi.fn();
@@ -96,6 +96,20 @@ function status(over: Partial<StockStatusDto> = {}): StockStatusDto {
     blocked_kind: null,
     fresh_offers_found: 1,
     cached_offers_available: 0,
+    ...over,
+  };
+}
+
+function source(over: Partial<StockSourceDto> = {}): StockSourceDto {
+  return {
+    id: 1,
+    vn_id: 'v90001',
+    release_id: null,
+    provider: 'surugaya',
+    url: 'https://www.suruga-ya.jp/product/detail/1',
+    product_id: '145000001',
+    created_at: Date.now(),
+    updated_at: Date.now(),
     ...over,
   };
 }
@@ -201,6 +215,34 @@ describe('StockPanel', () => {
     });
   });
 
+  it('shows an error alert when the initial load payload is malformed', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith('/stock/aliases')) return json({ aliases: [] });
+      if (u.endsWith('/stock')) return json({ offers: [] });
+      return json({});
+    });
+    renderWithProviders(<StockPanel vnId="v90001" />);
+    await waitFor(() => {
+      const alert = screen.getByRole('alert');
+      expect((alert.textContent ?? '').includes(t.common.error as string)).toBe(true);
+    });
+  });
+
+  it('selects the physical provider group from provider setup', async () => {
+    const snap = snapshot({
+      providers: [
+        provider({ id: 'physical_shop', label: 'Physical Shop', physical: true, physicalStockMode: 'exact_online', confirmedPhysicalUsable: true }),
+        provider({ id: 'online_shop', label: 'Online Shop' }),
+      ],
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+    fireEvent.click(screen.getByRole('button', { name: t.stock.groupPhysical as string }));
+    expect(screen.getByRole('button', { name: t.stock.checkPhysical as string })).toBeTruthy();
+  });
+
   it('renders the post-check empty state when there are no offers but statuses exist', async () => {
     global.fetch = routeFetch();
     renderWithProviders(
@@ -268,6 +310,49 @@ describe('StockPanel', () => {
     // Selecting "all" restores the null selection.
     fireEvent.click(screen.getByRole('button', { name: t.stock.providersAll as string }));
     expect(screen.getByRole('button', { name: t.stock.providersAll as string }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('renders provider capability and disabled/cached badge variants', async () => {
+    const snap = snapshot({
+      offers: [],
+      providers: [
+        provider({
+          id: 'cached',
+          label: 'Cached Inventory',
+          kind: 'cached',
+          resultCapability: 'cached_offers',
+        }),
+        provider({
+          id: 'jan_shop',
+          label: 'JAN Shop',
+          lookupCapabilities: ['jan_lookup'],
+          resultCapability: 'structured_prices',
+          supportLevel: 'limited',
+        }),
+        provider({
+          id: 'manual_shop',
+          label: 'Manual Shop',
+          supportLevel: 'manual_only',
+        }),
+        provider({
+          id: 'disabled_shop',
+          label: 'Disabled Shop',
+          disabled: true,
+        }),
+      ],
+      statuses: [],
+      summary: { total: 0, available: 0, best_price: null, related_available: 0, needs_review: 0, rejected: 0, last_refresh: null },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+
+    expect(screen.getByText(t.stock.providerCapabilities.cached_offers as string)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Cached Inventory:/ }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.janLookup as string)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.limited as string)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.manualOnly as string)).length).toBeGreaterThan(0);
+    expect(screen.getByText(t.stock.providerDisabled as string)).toBeTruthy();
   });
 
   it('runs a bulk refresh, POSTs per provider, and calls router.refresh', async () => {
@@ -370,6 +455,24 @@ describe('StockPanel', () => {
     await waitFor(() => expect(screen.getByText(t.stock.cacheClearedToast as string)).toBeTruthy());
   });
 
+  it('cancels clear-cache and then surfaces a clear-cache error', async () => {
+    const onDelete = vi.fn(() => json({ error: 'Clear failed' }, 500));
+    global.fetch = routeFetch({ onDelete });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
+    let dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.cancel as string }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(onDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
+    dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: t.stock.clearCache as string }));
+    await waitFor(() => expect(onDelete).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes('Clear failed'))).toBe(true));
+  });
+
   it('renders the lazy ErogePricePanel when an eroge_price status carries extras', async () => {
     const extrasJson = JSON.stringify({
       schemaVersion: 1,
@@ -428,6 +531,8 @@ describe('StockPanel', () => {
     expect((next as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(next);
     expect((within(nav).getByRole('button', { name: t.stock.previousPage as string }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(within(nav).getByRole('button', { name: t.stock.previousPage as string }));
+    expect((within(nav).getByRole('button', { name: t.stock.previousPage as string }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('stops an in-flight refresh when the stop button is pressed', async () => {
@@ -447,5 +552,267 @@ describe('StockPanel', () => {
     // After stop, the Stop control disappears (refreshing reset to false).
     await waitFor(() => expect(screen.queryByRole('button', { name: t.stock.stop as string })).toBeNull());
     releasePost(json(snapshot()));
+  });
+
+  it('renders provider diagnostics groups, blocked retry selection, and technical details', async () => {
+    const snap = snapshot({
+      offers: [],
+      providers: [
+        provider({ id: 'geo', label: 'Geo Shop' }),
+        provider({ id: 'parser_shop', label: 'Parser Shop' }),
+        provider({ id: 'wondergoo', label: 'WonderGOO', physical: true, physicalStockMode: 'store_locator_only' }),
+        provider({ id: 'nores', label: 'No Result Shop' }),
+        provider({ id: 'notchecked', label: 'Not Checked Shop' }),
+      ],
+      statuses: [
+        status({ provider: 'geo', status: 'error', message: 'HTTP 403 blocked', offer_count: 0, fresh_offers_found: 0 }),
+        status({ provider: 'parser_shop', status: 'error', message: 'invalid html parser', offer_count: 0, fresh_offers_found: 0 }),
+        status({ provider: 'wondergoo', status: 'skipped', message: 'missing source data', offer_count: 0, fresh_offers_found: 0 }),
+        status({ provider: 'nores', status: 'ok', message: null, offer_count: 0, fresh_offers_found: 0 }),
+      ],
+      summary: { total: 0, available: 0, best_price: null, related_available: 0, needs_review: 0, rejected: 0, last_refresh: Date.now() },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+
+    await waitFor(() => expect(screen.getByText(t.stock.providerDiagnostics.groupBlocked as string)).toBeTruthy());
+    expect(screen.getByText(t.stock.providerDiagnostics.groupAttention as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.providerDiagnostics.groupSkipped as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.providerDiagnostics.groupNoResults as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.providerDiagnostics.geoBlockedMessage as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.providerDiagnostics.parserErrorMessage as string)).toBeTruthy();
+
+    fireEvent.click(screen.getByText(t.stock.providerDiagnostics.technicalDetails as string));
+    expect(screen.getByText('Geo Shop: HTTP 403 blocked')).toBeTruthy();
+    expect(screen.getByText('Parser Shop: invalid html parser')).toBeTruthy();
+
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+    const blocked = screen.getByRole('button', { name: (t.stock.groupBlockedRetry as string).replace('{count}', '2') });
+    fireEvent.click(blocked);
+    const geoButton = screen.getByRole('button', { name: /Geo Shop:/ });
+    expect(geoButton.getAttribute('aria-pressed')).toBe('true');
+    const notChecked = screen.getByRole('button', { name: (t.stock.groupNotCheckedSelect as string).replace('{count}', '1') });
+    fireEvent.click(notChecked);
+    expect(screen.getByRole('button', { name: /Not Checked Shop:/ }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('renders manual source rows and deletes one after confirmation', async () => {
+    const withSources = snapshot({
+      sources: [
+        source(),
+        source({ id: 2, provider: 'unknown_provider', url: 'javascript:alert(1)', product_id: null }),
+      ],
+    });
+    const afterDelete = snapshot({ sources: [] });
+    const sourceDelete = vi.fn(() => json(afterDelete));
+    global.fetch = routeFetch({ snapshot: withSources, sourceDelete });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={withSources} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    await waitFor(() => expect(screen.getByText('145000001')).toBeTruthy());
+    expect(screen.getByText('unknown_provider')).toBeTruthy();
+    expect(screen.getByText('javascript:alert(1)')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: `${t.stock.manualSourceDelete}: Studio X Shop` }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm as string }));
+    await waitFor(() => expect(sourceDelete).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(t.stock.manualSourceDeletedToast as string)).toBeTruthy());
+  });
+
+  it('cancels manual source deletion and surfaces delete failures', async () => {
+    const withSources = snapshot({ sources: [source()] });
+    const sourceDelete = vi.fn(() => json({ error: 'Delete failed' }, 500));
+    global.fetch = routeFetch({ snapshot: withSources, sourceDelete });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={withSources} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    const deleteButton = await screen.findByRole('button', { name: `${t.stock.manualSourceDelete}: Studio X Shop` });
+    fireEvent.click(deleteButton);
+    fireEvent.click(await screen.findByRole('button', { name: t.common.cancel as string }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(sourceDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: `${t.stock.manualSourceDelete}: Studio X Shop` }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm as string }));
+    await waitFor(() => expect(sourceDelete).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes('Delete failed'))).toBe(true));
+  });
+
+  it('shows and clears alias mutation errors without losing returned aliases', async () => {
+    const aliasPost = vi.fn(() => json({ aliases: ['Server Alias'], error: 'Alias failed' }, 400));
+    global.fetch = routeFetch({ aliasPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    const input = await screen.findByLabelText(t.stock.aliasPlaceholder as string);
+    fireEvent.change(input, { target: { value: 'Bad Alias' } });
+    const aliasForm = input.closest('form') as HTMLFormElement;
+    fireEvent.click(within(aliasForm).getByRole('button', { name: t.stock.aliasAdd as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes('Alias failed'))).toBe(true));
+    expect(screen.getByText('Server Alias')).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: 'Better Alias' } });
+    await waitFor(() => expect(input.getAttribute('aria-invalid')).toBeNull());
+  });
+
+  it('shows source mutation errors, previews known providers, and clears the error on edit', async () => {
+    const snap = snapshot({
+      providers: [provider(), provider({ id: 'melonbooks', label: 'Melonbooks' })],
+    });
+    const sourcePost = vi.fn(() => json({ error: 'Unsupported custom source' }, 400));
+    global.fetch = routeFetch({ snapshot: snap, sourcePost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    const input = await screen.findByLabelText(t.stock.manualSourcePlaceholder as string);
+    fireEvent.change(input, { target: { value: 'https://www.melonbooks.co.jp/detail/detail.php?product_id=1' } });
+    expect(screen.getByText((t.stock.manualSourceDetected as string).replace('{provider}', 'Melonbooks'))).toBeTruthy();
+    const sourceForm = input.closest('form') as HTMLFormElement;
+    fireEvent.click(within(sourceForm).getByRole('button', { name: t.stock.manualSourceAdd as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes('Unsupported custom source'))).toBe(true));
+
+    fireEvent.change(input, { target: { value: 'https://example.com/item' } });
+    await waitFor(() => expect(input.getAttribute('aria-invalid')).toBeNull());
+    expect(screen.queryByText((t.stock.manualSourceDetected as string).replace('{provider}', 'Melonbooks'))).toBeNull();
+  });
+
+  it('surfaces single-provider refresh errors', async () => {
+    const onPost = vi.fn(() => json({ error: 'Shop down' }, 503));
+    global.fetch = routeFetch({ onPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+    fireEvent.click(screen.getByRole('button', { name: (t.stock.refreshOnlyProvider as string).replace('{provider}', 'Studio X Shop') }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Shop down'));
+  });
+
+  it('falls back to a fresh GET when clear-cache returns no snapshot', async () => {
+    const reloaded = snapshot({ offers: [offer({ title: 'Reloaded offer', provider_offer_id: 'reloaded' })] });
+    const onDelete = vi.fn(() => json({}));
+    global.fetch = routeFetch({ snapshot: reloaded, onDelete });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot({ offers: [offer({ title: 'Before clear' })] })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: t.stock.clearCache as string }));
+    await waitFor(() => expect(onDelete).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('Reloaded offer')).toBeTruthy());
+  });
+
+  it('renders classified offer groups and translated offer metadata', async () => {
+    localStorage.setItem('stock:ui:offers:v1', JSON.stringify({ game: true }));
+    const oldTime = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    const offers: StockOfferDto[] = [
+      offer({
+        provider_offer_id: 'game',
+        title: 'Game offer',
+        source: 'direct',
+        availability_label: 'Marketplace: ¥1,234',
+        condition: 'Used (Rank B)',
+        edition_label: 'Limited edition',
+        location_branch: 'Branch Alpha',
+        location_label: 'Online stock',
+        jan: '4989061101573',
+        marketplace_price: 1800,
+        marketplace_count: 2,
+        list_price: 3000,
+        match_warnings_json: JSON.stringify(['bonus-only item', 'novel_title']),
+        fetched_at: oldTime,
+      }),
+      offer({
+        provider_offer_id: 'mystery',
+        title: 'Mystery source offer',
+        source: 'unknown_source',
+        availability_label: 'Several',
+      }),
+      offer({
+        provider_offer_id: 'review',
+        title: 'Needs review offer',
+        price: null,
+        source: 'search',
+        match_confidence: 'medium',
+      }),
+      offer({
+        provider_offer_id: 'series',
+        title: 'Series offer',
+        source: 'manual',
+        series_relation: 'sequel_or_pack',
+      }),
+      offer({
+        provider_offer_id: 'related',
+        title: 'Soundtrack offer',
+        content_kind: 'soundtrack',
+      }),
+      offer({
+        provider_offer_id: 'related-media',
+        title: 'Related media offer',
+        content_kind: 'related_media',
+      }),
+      offer({
+        provider_offer_id: 'related-goods',
+        title: 'Goods offer',
+        series_relation: 'related_goods',
+      }),
+      offer({
+        provider_offer_id: 'rejected',
+        title: 'Rejected offer',
+        availability: 'out_of_stock',
+        match_confidence: 'low',
+      }),
+      offer({
+        provider_offer_id: 'weak',
+        title: 'Weak offer',
+        match_confidence: 'reject',
+      }),
+    ];
+    const snap = snapshot({
+      offers,
+      summary: { total: 9, available: 2, best_price: 1980, related_available: 3, needs_review: 1, rejected: 2, last_refresh: Date.now() },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} placeMap={{ 'Branch Alpha': 42 }} />);
+
+    const gameExpand = screen.getByRole('button', {
+      name: (t.stock.groupExpandLabel as string).replace('{group}', t.stock.groupGame as string).replace('{count}', '3'),
+    });
+    fireEvent.click(gameExpand);
+    expect(screen.getByText('Game offer')).toBeTruthy();
+    expect(screen.getByText('Mystery source offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.availabilityLabels.several as string)).toBeTruthy();
+    expect(screen.getByText((t.stock.source as string).replace('{source}', 'unknown_source'), { exact: false })).toBeTruthy();
+    expect(screen.getByText('Related media offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.relatedMusic as string)).toBeTruthy();
+    expect(screen.getAllByText((content) => content.includes('Marketplace') && content.includes('1') && content.includes('234')).length).toBeGreaterThan(0);
+    expect(screen.getByText(t.stock.conditionLabels.used_rank_b as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.editionLabels.limited_edition as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.matchWarnings.bonus_only_item as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.matchWarnings.novel_title as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.staleHint as string)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Branch Alpha/ }).getAttribute('href')).toBe('/places/42');
+
+    const groupCounts = new Map<string, string>([
+      [t.stock.groupNeedsReview as string, '1'],
+      [t.stock.groupSameSeries as string, '1'],
+      [t.stock.groupRelated as string, '2'],
+      [t.stock.groupRejected as string, '2'],
+    ]);
+    for (const [group, count] of groupCounts) {
+      fireEvent.click(screen.getByRole('button', {
+        name: (t.stock.groupExpandLabel as string).replace('{group}', group).replace('{count}', count),
+      }));
+    }
+    expect(screen.getByText('Needs review offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.noPriceShort as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.searchOnly as string)).toBeTruthy();
+    expect(screen.getByText('Series offer')).toBeTruthy();
+    expect(screen.getByText((t.stock.source as string).replace('{source}', t.stock.sourceLabels.manual as string), { exact: false })).toBeTruthy();
+    expect(screen.getByText('Soundtrack offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.soundtrack as string)).toBeTruthy();
+    expect(screen.getByText('Goods offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.relatedGoods as string)).toBeTruthy();
+    expect(screen.getByText('Rejected offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.outOfStock as string)).toBeTruthy();
+    expect(screen.getByText('Weak offer')).toBeTruthy();
+    expect(screen.getByText(t.stock.notCountedReasons.weakMatch as string)).toBeTruthy();
   });
 });
