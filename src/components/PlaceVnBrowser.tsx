@@ -557,7 +557,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 className={`btn btn-sm ${showFilters || activeFilterCount > 0 ? 'border-accent text-accent' : ''}`}
                 aria-expanded={showFilters}
               >
-                <Filter className="h-3.5 w-3.5" />
+                <Filter className="h-3.5 w-3.5" aria-hidden />
                 {t.places.filtersLabel as string}
                 {activeFilterCount > 0 && (
                   <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>
@@ -610,7 +610,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 disabled={activeFilterCount === 0}
                 className="btn btn-sm"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 {t.places.resetFilters as string}
               </button>
             </div>

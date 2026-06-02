@@ -160,6 +160,26 @@ describe('character detail pagination', () => {
   });
 });
 
+describe('VN route journal pagination', () => {
+  const routes = source('src/components/RoutesSection.tsx');
+
+  it('windows interactive route rows while preserving complete-list reorder boundaries', () => {
+    expect(routes).toContain('const ROUTES_PAGE_SIZE = 40');
+    expect(routes).toContain('const visibleRoutes = routes.slice(pageStart, pageEnd)');
+    expect(routes).toContain('visibleRoutes.map((r, i)');
+    expect(routes).toContain('routeIndex === 0');
+    expect(routes).toContain('routeIndex === routes.length - 1');
+    expect(routes).not.toContain('{routes.map((r, i)');
+  });
+
+  it('exposes localized route-journal page navigation', () => {
+    expect(routes).toContain('t.routes.paginationLabel');
+    expect(routes).toContain('t.routes.pageRange');
+    expect(routes).toContain('t.common.prev');
+    expect(routes).toContain('t.common.next');
+  });
+});
+
 describe('long list pagination translations', () => {
   const dictionaries = source('src/lib/i18n/dictionaries.ts');
 

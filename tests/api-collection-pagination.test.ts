@@ -108,4 +108,21 @@ describe('GET /api/collection pagination', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'invalid filter' });
   });
+
+  it.each([
+    'sort=sideways',
+    'order=sideways',
+    'dumped=true',
+    'series=1.5',
+    'series=-1',
+    'yearMin=20.5',
+    'yearMax=nope',
+    'yearMin=2025&yearMax=2024',
+    'ratingMin=90&ratingMax=10',
+    'playtimeMin=2&playtimeMax=1',
+  ])('rejects malformed or contradictory collection filters: %s', async (query) => {
+    const response = await GET(request(query));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid filter' });
+  });
 });

@@ -65,6 +65,13 @@ function parseOptionalBoolean(raw: string | null): boolean | undefined | null {
   return null;
 }
 
+function parseOptionalSafeInteger(raw: string | null, min: number, max: number): number | undefined | null {
+  if (raw == null || raw === '') return undefined;
+  if (!/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+}
+
 /**
  * 30-second in-process cache for the full-collection `vn_id` scan that
  * feeds aspect materialization. The scan result is the complete set of
@@ -120,6 +127,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const playtimeMinHours = parseOptionalNumber(sp.get('playtimeMin'), 0, 100_000);
   const playtimeMaxHours = parseOptionalNumber(sp.get('playtimeMax'), 0, 100_000);
   const nsfwThreshold = parseOptionalNumber(sp.get('nsfwThreshold'), 0, 2);
+  const series = parseOptionalSafeInteger(seriesRaw, 1, 2_147_483_647);
+  const yearMin = parseOptionalSafeInteger(yearMinRaw, 1, 9999);
+  const yearMax = parseOptionalSafeInteger(yearMaxRaw, 1, 9999);
+  const dumped = parseOptionalBoolean(dumpedRaw);
   const booleanFilters = {
     onlyEgsOnly: parseOptionalBoolean(sp.get('only_egs_only')),
     matchVndb: parseOptionalBoolean(sp.get('match_vndb')),
@@ -170,18 +181,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     playtimeMinHours === null ||
     playtimeMaxHours === null ||
     nsfwThreshold === null ||
+    series === null ||
+    yearMin === null ||
+    yearMax === null ||
+    dumped === null ||
+    !VALID_SORTS.includes(sortRaw as NonNullable<ListOptions['sort']>) ||
+    (orderRaw !== 'asc' && orderRaw !== 'desc') ||
+    (ratingMin != null && ratingMax != null && ratingMin > ratingMax) ||
+    (playtimeMinHours != null && playtimeMaxHours != null && playtimeMinHours > playtimeMaxHours) ||
+    (yearMin != null && yearMax != null && yearMin > yearMax) ||
     Object.values(booleanFilters).some((value) => value === null)
   ) {
     return NextResponse.json({ error: 'invalid filter' }, { status: 400 });
   }
-  const sort = (VALID_SORTS as string[]).includes(sortRaw)
-    ? (sortRaw as ListOptions['sort'])
-    : 'updated_at';
-  const order: 'asc' | 'desc' = orderRaw === 'asc' ? 'asc' : 'desc';
-  const series = seriesRaw ? Number(seriesRaw) : undefined;
-
-  const yearMin = yearMinRaw ? Number(yearMinRaw) : undefined;
-  const yearMax = yearMaxRaw ? Number(yearMaxRaw) : undefined;
+  const sort = sortRaw as ListOptions['sort'];
+  const order: 'asc' | 'desc' = orderRaw;
 
   // Aspect-ratio filtering/grouping needs every collection VN to
   // carry SOME aspect signal — the SQL filter EXISTS chain in
@@ -195,7 +209,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // small INSERT batch on first run). For non-aspect requests we
   // skip the work entirely.
   try {
-    const requestsAspect = aspectValid.length > 0 || sp.get('group') === 'aspect';
+    const requestsAspect = aspectValid.length > 0;
     if (requestsAspect) {
       const allVnIds = getCachedCollectionVnIds();
       // STEP 1: pull aspect from cached VNDB release payloads (per
@@ -225,13 +239,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       q,
       producer: producer || undefined,
       publisher: publisher || undefined,
-      series: series && Number.isFinite(series) ? series : undefined,
+      series,
       tag: tag || undefined,
       place: place || undefined,
       edition: edition && isValidEditionType(edition) ? edition : undefined,
-      yearMin: yearMin && Number.isFinite(yearMin) ? yearMin : undefined,
-      yearMax: yearMax && Number.isFinite(yearMax) ? yearMax : undefined,
-      dumped: dumpedRaw === '1' ? true : dumpedRaw === '0' ? false : undefined,
+      yearMin,
+      yearMax,
+      dumped,
       ratingMin,
       ratingMax,
       playtimeMinHours,

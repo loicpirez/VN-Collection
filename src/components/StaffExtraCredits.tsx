@@ -11,7 +11,7 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 /**
- * "More credits (outside your collection)" — the VNDB-sourced list of VNs
+ * "More credits (outside your collection)" - the VNDB-sourced list of VNs
  * this staff/VA appears in. This component performs the network fetch when
  * the cache is empty; wrap it in <Suspense fallback={<StaffExtraCreditsSkeleton/>}>
  * so the staff page paints with the locally-known credits first and the
@@ -54,7 +54,7 @@ export async function StaffExtraCredits({
       <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <CloudDownload className="h-4 w-4 text-accent" aria-hidden /> {t.staff.extraTitle}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">
-          · {extraProduction.length + extraVoice.length}
+          / {extraProduction.length + extraVoice.length}
         </span>
       </h2>
       <p className="mb-4 text-[11px] text-muted">{t.staff.extraSubtitle}</p>
@@ -109,7 +109,7 @@ export async function StaffExtraCredits({
                   locale={locale}
                 >
                   <div className="mt-1 text-[10px] text-muted">
-                    {c.roles.map((r) => roleLabel(r.role, t.staff)).join(' · ')}
+                    {c.roles.map((r) => roleLabel(r.role, t.staff)).join(' / ')}
                   </div>
                 </ExternalVnCard>
               </li>

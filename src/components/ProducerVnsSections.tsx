@@ -70,7 +70,7 @@ export async function ProducerVnsSections({
             fell back to the cache because the live VNDB call threw.
             The counts above can still be wrong, so we flag it
             visually next to the summary line. The refresh button
-            below is the user's only recourse — clicking it busts
+            below is the user's only recourse - clicking it busts
             the cache and re-tries upstream.
           */}
           {data.stale && (
@@ -119,7 +119,7 @@ export async function ProducerVnsSections({
       )}
 
       {/*
-        Hide an empty role section when the other side has data — a
+        Hide an empty role section when the other side has data - a
         publisher-only studio shouldn't ship a heavy "As developer"
         empty frame, and vice versa. When BOTH are empty we still
         render the developer section as a single empty state so the
@@ -243,7 +243,7 @@ function RoleSection({
                     title={t.producerVns.ownedLabel}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-md border border-status-completed/60 bg-status-completed/15 text-status-completed"
                   >
-                    <Check className="h-3.5 w-3.5" />
+                    <Check className="h-3.5 w-3.5" aria-hidden />
                   </span>
                 ) : (
                   <AddMissingVnButton vnId={v.id} />
