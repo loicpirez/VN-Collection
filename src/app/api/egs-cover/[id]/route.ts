@@ -165,6 +165,16 @@ function shopUrl(raw: EgsCoverRawRow): string | null {
   return null;
 }
 
+function isProxyImageTargetAllowed(target: string, origin: string): boolean {
+  return target.startsWith('/api/files/')
+    || target.startsWith(`${origin}/api/files/`)
+    || isAllowedTarget(target);
+}
+
+function isLocalOrRelativeTarget(target: string, origin: string): boolean {
+  return target.startsWith('/') || target.startsWith(`${origin}/`);
+}
+
 /**
  * Stream the resolved image content back to the caller instead of
  * 302-redirecting. Shop CDNs (Suruga-ya, DMM, DLsite, Gyutto) live
@@ -246,22 +256,26 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const cacheKey = `egs:cover-resolved:${egsId}`;
   const cached = readCached(cacheKey);
   if (cached === null) return new NextResponse(null, { status: 404 });
-  if (typeof cached === 'string' && cached.length > 0) {
+  if (
+    typeof cached === 'string'
+    && cached.length > 0
+    && (isLocalOrRelativeTarget(cached, origin) || isProxyImageTargetAllowed(cached, origin))
+  ) {
     return proxyImage(cached, origin);
   }
 
   const raw = await readRawWithFallback(egsId);
 
-  // 1) Curated EGS banner — trust it.
+  // 1) Curated EGS banner.
   const banner = (raw.banner_url ?? '').trim();
-  if (/^https?:\/\//i.test(banner)) {
+  if (banner && isProxyImageTargetAllowed(banner, origin)) {
     writeCached(cacheKey, banner, CACHE_TTL_MS);
     return proxyImage(banner, origin);
   }
 
   // 2) VNDB cover via linked vn_id.
   const vndbUrl = vndbCoverFor(raw.vn_id, origin);
-  if (vndbUrl) {
+  if (vndbUrl && isProxyImageTargetAllowed(vndbUrl, origin)) {
     writeCached(cacheKey, vndbUrl, CACHE_TTL_MS);
     return proxyImage(vndbUrl, origin);
   }

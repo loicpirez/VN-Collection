@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { decodeEgsCoverRawJson } from '@/lib/egs-cover-raw';
+import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,10 @@ export interface CoverCandidate {
 }
 
 const EGS_BASE = 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki';
+
+function canRenderCandidateUrl(url: string): boolean {
+  return url.startsWith('/api/files/') || isAllowedHttpTarget(url);
+}
 
 /**
  * List EVERY candidate cover source EGS knows about for this game,
@@ -45,8 +50,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const out: CoverCandidate[] = [];
 
-  if (raw.banner_url && /^https?:\/\//i.test(raw.banner_url.trim())) {
-    out.push({ source: 'banner', url: raw.banner_url.trim(), label: 'EGS banner' });
+  const banner = raw.banner_url?.trim() ?? '';
+  if (banner && canRenderCandidateUrl(banner)) {
+    out.push({ source: 'banner', url: banner, label: 'EGS banner' });
   }
 
   if (raw.vn_id && isVndbVnId(raw.vn_id)) {
@@ -54,7 +60,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
       .get(raw.vn_id) as { image_url: string | null; local_image: string | null } | undefined;
     const cdn = vn?.local_image ? `/api/files/${vn.local_image}` : vn?.image_url ?? null;
-    if (cdn) out.push({ source: 'vndb', url: cdn, label: `VNDB ${raw.vn_id}` });
+    if (cdn && canRenderCandidateUrl(cdn)) {
+      out.push({ source: 'vndb', url: cdn, label: `VNDB ${raw.vn_id}` });
+    }
   }
 
   // EGS's own image.php — usually exists but not always; the UI
