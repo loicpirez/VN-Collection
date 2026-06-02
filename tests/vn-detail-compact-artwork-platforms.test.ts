@@ -13,6 +13,19 @@ describe('VN detail compact artwork and platform disclosure', () => {
     expect(body).toContain('<span className="hidden sm:inline">{t.coverPicker.open}</span>');
   });
 
+  it('keeps one resident cover-picker owner mounted outside the collapsible media menu', () => {
+    const actions = source('src/components/VnDetailActionsBar.tsx');
+    const picker = source('src/components/CoverSourcePicker.tsx');
+    const trigger = source('src/components/CoverPickerTrigger.tsx');
+
+    expect(actions).toContain('const coverPicker = (');
+    expect(actions).toContain('showTrigger={false}');
+    expect(actions).toContain('<CoverPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />');
+    expect(actions).toContain('{coverPicker}');
+    expect(picker).toContain('{showTrigger && (');
+    expect(trigger).toContain("window.dispatchEvent(new CustomEvent('vn:open-cover-picker', { detail: { vnId } }))");
+  });
+
   it('exposes truncated platform names through hover, focus, and tap disclosure', () => {
     const body = source('src/app/vn/[id]/page.tsx');
     expect(body).toContain('const hiddenPlatforms = vn.platforms.slice(10)');

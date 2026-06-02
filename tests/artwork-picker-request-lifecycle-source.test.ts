@@ -29,8 +29,9 @@ describe('banner picker and gallery promotion request lifecycle', () => {
 
   it('uses ASCII shared metadata separators and URL placeholders', () => {
     expect(BANNER_PICKER).toContain("label: `${localizedType} / ${img.release_title}`");
-    expect(BANNER_PICKER).toContain('placeholder="https://example.com/image.jpg"');
+    expect(BANNER_PICKER).toContain('placeholder={t.coverPicker.urlPlaceholder}');
     expect(BANNER_PICKER).toContain('{t.coverPicker.galleryLabel} / {galleryItems.length}');
+    expect(BANNER_PICKER).toContain('aria-pressed={isCurrent}');
     expect(GALLERY).toContain("alt: `${localizedType} / ${img.release_title}`");
     expect(GALLERY).toContain("{visible[active].dims![0]}x{visible[active].dims![1]}");
     expect(GALLERY).toContain("{visible[active].caption && ` / ${visible[active].caption}`}");

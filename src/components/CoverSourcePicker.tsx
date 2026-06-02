@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, RotateCw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -17,22 +17,25 @@ import {
   decodeUploadedCoverPath,
   type EgsCoverCandidate,
 } from '@/lib/image-source-client-shape';
+import type { SourceChoice } from '@/lib/source-resolve';
 interface Props {
   vnId: string;
-  /** VNDB's default image URL — clicking "use VNDB" clears any override. */
+  /** VNDB's default image URL - clicking "use VNDB" clears any override. */
   vndbImage: string | null;
-  /** EGS numeric id — when set, the EGS tab points to /api/egs-cover/<id>. */
+  /** EGS numeric id - when set, the EGS tab points to /api/egs-cover/<id>. */
   egsId: number | null;
   /** Whether the resolved EGS poster actually carries an image. The EGS tab stays disabled when an egsId is present but no image resolved. */
   egsHasImage: boolean;
-  /** Current custom cover string (path / URL) — drives the "current" visual marker. */
+  /** Current custom cover string (path / URL) - drives the "current" visual marker. */
   currentCustomCover: string | null;
+  /** Active image source preference - keeps source-tab actions honest when EGS is active without a custom cover. */
+  currentImageSource: SourceChoice;
   /**
    * Current cover rotation in degrees (0/90/180/270). The picker
    * surfaces dedicated rotate-left / rotate-right / reset buttons
    * inside the modal so the user doesn't have to dismiss the
    * picker to find the inline buttons on `<CoverHero>`. Stays
-   * orthogonal to the source-tab selection — rotating doesn't
+   * orthogonal to the source-tab selection - rotating doesn't
    * change which cover (VNDB / EGS / custom) is active.
    */
   currentRotation?: 0 | 90 | 180 | 270;
@@ -40,6 +43,8 @@ interface Props {
   releaseImages: ReleaseImage[];
   /** Optional classes for the visible trigger button. */
   triggerClassName?: string;
+  /** Whether to render the inline trigger in addition to the resident dialog owner. */
+  showTrigger?: boolean;
 }
 
 type Tab = 'vndb' | 'egs' | 'custom';
@@ -48,9 +53,9 @@ type Tab = 'vndb' | 'egs' | 'custom';
  * Centralized cover-source picker that lets the user pick the cover for
  * a VN from one of three categorical sources:
  *
- *   1. VNDB — revert to the default image VNDB serves for this VN.
- *   2. EGS  — use ErogameScape's cover, resolved via /api/egs-cover/[id].
- *   3. Custom — file upload, paste a URL, or pick from images already
+ *   1. VNDB - revert to the default image VNDB serves for this VN.
+ *   2. EGS  - use ErogameScape's cover, resolved via /api/egs-cover/[id].
+ *   3. Custom - file upload, paste a URL, or pick from images already
  *       attached to this VN (screenshots + per-release art).
  *
  * Opens as a modal so the picker doesn't fight for room with the rest
@@ -64,10 +69,12 @@ export function CoverSourcePicker({
   egsId,
   egsHasImage,
   currentCustomCover,
+  currentImageSource,
   currentRotation = 0,
   screenshots,
   releaseImages,
   triggerClassName = 'btn',
+  showTrigger = true,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -161,7 +168,7 @@ export function CoverSourcePicker({
    * Storing a new custom_cover only changes the displayed hero when the
    * user's `source_pref.image` resolves to the custom column. If the user
    * "pick a custom" path here ALSO flips `source_pref.image` to 'custom'
-   * — picking a new cover should obviously promote it to active. This
+   * - picking a new cover should obviously promote it to active. This
    * was the "selecting new cover doesn't do anything" bug.
    */
   async function pinCustomPref(ownerVnId: string, signal: AbortSignal): Promise<void> {
@@ -328,7 +335,7 @@ export function CoverSourcePicker({
       await pinCustomPref(ownerVnId, controller.signal);
       if (!ownsMutation(ownerVnId, controller)) return;
       // The cover route returns the new storage path; surface it so
-      // listeners can repaint immediately. The path is local — the
+      // listeners can repaint immediately. The path is local - the
       // remote URL is `null` since this came from an upload.
       dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: cover });
       toast.success(t.toast.coverSaved);
@@ -367,31 +374,34 @@ export function CoverSourcePicker({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={triggerClassName}
-        title={t.coverPicker.openTitle}
-        data-menu-keep-open=""
-      >
-        <ImagePlus className="h-4 w-4" />
-        {t.coverPicker.open}
-      </button>
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setOpen(false)}
+      {showTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={triggerClassName}
+          title={t.coverPicker.openTitle}
+          data-menu-keep-open=""
         >
-          <div className="absolute inset-0 bg-black/80" aria-hidden />
+          <ImagePlus className="h-4 w-4" aria-hidden />
+          {t.coverPicker.open}
+        </button>
+      )}
+      {open && (
+        <DialogPortal>
           <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            tabIndex={-1}
-            className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            onClick={() => setOpen(false)}
           >
+            <div className="absolute inset-0 bg-black/80" aria-hidden />
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              tabIndex={-1}
+              className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
+              onClick={(e) => e.stopPropagation()}
+            >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 id={titleId} className="text-base font-bold">{t.coverPicker.title}</h2>
               <button
@@ -400,11 +410,11 @@ export function CoverSourcePicker({
                 className="tap-target rounded-md text-muted hover:bg-bg-elev hover:text-white"
                 aria-label={t.common.close}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
             {/*
-              Rotation row — orthogonal to the source tabs. Surfaces
+              Rotation row - orthogonal to the source tabs. Surfaces
               the same rotate-left / rotate-right / reset triplet
               that lives on `<CoverHero>` so the user can adjust
               without dismissing the modal. Reads the current
@@ -417,7 +427,7 @@ export function CoverSourcePicker({
                   {t.coverActions.rotationLabel}
                 </span>
                 <span className="min-w-[2.5rem] rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-center text-[11px] font-bold tabular-nums text-accent">
-                  {rotation} deg
+                  {t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1">
@@ -461,9 +471,9 @@ export function CoverSourcePicker({
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                 e.preventDefault();
-                const tabs = ['custom', 'vndb', 'egs'] as const;
+                const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb'] : ['custom', 'vndb', 'egs'];
                 const tabIdMap = { custom: customTabId, vndb: vndbTabId, egs: egsTabId };
-                const idx = tabs.indexOf(tab as typeof tabs[number]);
+                const idx = tabs.indexOf(tab);
                 const next = e.key === 'ArrowRight' ? tabs[(idx + 1) % tabs.length] : tabs[(idx - 1 + tabs.length) % tabs.length];
                 setTab(next);
                 document.getElementById(tabIdMap[next])?.focus();
@@ -508,13 +518,13 @@ export function CoverSourcePicker({
                       <button
                         type="button"
                         onClick={resetToVndb}
-                        disabled={busy || !currentCustomCover}
+                        disabled={busy || !vndbImage || currentImageSource === 'vndb'}
                         className="btn btn-primary"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}
                         {t.coverPicker.useVndb}
                       </button>
-                      {!currentCustomCover && (
+                      {currentImageSource === 'vndb' && (
                         <p className="mt-2 text-[11px] text-muted">{t.coverPicker.alreadyUsing}</p>
                       )}
                     </div>
@@ -559,7 +569,7 @@ export function CoverSourcePicker({
                       disabled={busy}
                       className="btn"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" aria-hidden />}
                       {t.coverPicker.chooseFile}
                     </button>
                   </div>
@@ -574,7 +584,7 @@ export function CoverSourcePicker({
                         inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
-                        placeholder="https://example.com/image.jpg"
+                        placeholder={t.coverPicker.urlPlaceholder}
                         aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[160px] sm:min-w-[200px]"
                       />
@@ -584,7 +594,7 @@ export function CoverSourcePicker({
                         disabled={busy || urlValue.trim().length === 0}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" aria-hidden />}
                         {t.coverPicker.applyUrl}
                       </button>
                     </div>
@@ -606,6 +616,7 @@ export function CoverSourcePicker({
                               type="button"
                               onClick={() => applySource(it.source, it.value)}
                               disabled={busy}
+                              aria-pressed={isCurrent}
                               className={`group relative aspect-[2/3] overflow-hidden rounded-md border bg-bg-elev transition-colors ${
                                 isCurrent ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'
                               }`}
@@ -621,7 +632,7 @@ export function CoverSourcePicker({
                               />
                               {isCurrent && (
                                 <span className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-bg">
-                                  <Check className="h-3 w-3" />
+                                  <Check className="h-3 w-3" aria-hidden />
                                 </span>
                               )}
                             </button>
@@ -633,8 +644,9 @@ export function CoverSourcePicker({
                 </section>
               )}
             </div>
+            </div>
           </div>
-        </div>
+        </DialogPortal>
       )}
     </>
   );
@@ -698,7 +710,7 @@ function mediaTypeLabel(rawType: string, t: ReturnType<typeof useT>): string {
 }
 
 function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
-  // Default to the Custom tab — the modal exists primarily so users can
+  // Default to the Custom tab - the modal exists primarily so users can
   // upload their own image, paste a URL, or pick from the in-VN gallery.
   // Reverting to VNDB or switching to EGS is a one-click affordance from
   // any tab. Earlier versions opened on whichever source was currently
@@ -708,14 +720,14 @@ function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
 }
 
 /**
- * Side-by-side grid of EVERY cover source EGS knows about — banner,
+ * Side-by-side grid of EVERY cover source EGS knows about - banner,
  * linked VNDB cover, EGS image.php, plus shop URLs (Suruga-ya / DMM /
  * DLsite / Gyutto). Each tile is clickable; the user picks the one
  * they like and we pin it as a custom URL so it survives subsequent
  * EGS refreshes (which otherwise re-run the priority fallback).
  *
  * The default-resolver path (which auto-picks per priority order)
- * is preserved as a separate "Use EGS auto" button at the bottom —
+ * is preserved as a separate "Use EGS auto" button at the bottom -
  * for users who don't want to pick manually.
  */
 function EgsCandidateGrid({

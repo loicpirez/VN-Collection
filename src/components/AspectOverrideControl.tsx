@@ -26,7 +26,7 @@ export function AspectOverrideControl({
   /**
    * SSR-pre-derived aspect, passed from the VN page so the control
    * paints the right value on first frame instead of flashing
-   * "Auto · unknown" while the client fetch is in flight.
+   * "Auto / unknown" while the client fetch is in flight.
    */
   initialDerived?: AspectKey;
   initialOverride?: { aspect_key: AspectKey; note: string | null } | null;

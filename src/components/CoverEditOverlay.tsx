@@ -6,10 +6,10 @@ import { useT } from '@/lib/i18n/client';
  * Small always-tappable "Change cover" button rendered on top of the
  * cover image itself. Dispatches the `vn:open-cover-picker` custom
  * event so the CoverSourcePicker modal (which lives further down the
- * page) opens straight to the **Custom** tab — the upload entry-point.
+ * page) opens straight to the **Custom** tab - the upload entry-point.
  *
  * Visible on desktop only on hover; fully tap-target on touch devices
- * (per mobile/tablet parity rule — no `hidden sm:inline` traps).
+ * (per mobile/tablet parity rule - no `hidden sm:inline` traps).
  */
 export function CoverEditOverlay({ vnId }: { vnId: string }) {
   const t = useT();

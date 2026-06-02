@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, useTransition } from 'react'
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
@@ -13,7 +13,7 @@ import { readApiError } from '@/lib/api-error-read';
 import { decodeUploadedBannerPath } from '@/lib/image-source-client-shape';
 interface Props {
   vnId: string;
-  /** Current custom banner path/URL — null when none is set. */
+  /** Current custom banner path/URL - null when none is set. */
   currentBanner: string | null;
   /** VN cover (used as the "default" backdrop). */
   coverRemote: string | null;
@@ -30,12 +30,12 @@ type Tab = 'default' | 'custom';
 /**
  * Banner-source picker mirroring CoverSourcePicker, with two tabs:
  *
- *   1. **Default** — clear the custom banner and leave the hero without
+ *   1. **Default** - clear the custom banner and leave the hero without
  *      a banner backdrop.
- *   2. **Custom** — file upload, paste a URL, *or* pick from any image
+ *   2. **Custom** - file upload, paste a URL, *or* pick from any image
  *      already attached to the VN (screenshots + per-release art).
  *
- * Sits next to the existing BannerControls / SetBannerButton — those
+ * Sits next to the existing BannerControls / SetBannerButton - those
  * remain the minimal inline path; this modal is the rich UX.
  */
 export function BannerSourcePicker({
@@ -52,7 +52,7 @@ export function BannerSourcePicker({
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  // Default to Custom — the picker exists mostly so users can upload /
+  // Default to Custom - the picker exists mostly so users can upload /
   // paste / pick from gallery. Resetting to default is a single click
   // from the Custom tab anyway.
   const [tab, setTab] = useState<Tab>('custom');
@@ -124,7 +124,7 @@ export function BannerSourcePicker({
       if (!ownsMutation(ownerVnId, controller)) return;
       // Broadcast for the HeroBanner mounted above us. `cover` is a
       // server-resolved source (the route picks the right path from
-      // the row), so we don't have a precise newSrc/newLocal here —
+      // the row), so we don't have a precise newSrc/newLocal here -
       // fire null/null and let the router.refresh deliver the
       // truth on the next paint. For `url`/`screenshot`/`release`/
       // `path` we DO have `value`, so listeners can repaint instantly.
@@ -231,24 +231,25 @@ export function BannerSourcePicker({
         title={t.bannerPicker.openTitle}
         data-menu-keep-open=""
       >
-        <ImageIcon className="h-4 w-4" />
+        <ImageIcon className="h-4 w-4" aria-hidden />
         {t.bannerPicker.open}
       </button>
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div className="absolute inset-0 bg-black/80" aria-hidden />
+        <DialogPortal>
           <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            tabIndex={-1}
-            className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            onClick={() => setOpen(false)}
           >
+            <div className="absolute inset-0 bg-black/80" aria-hidden />
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              tabIndex={-1}
+              className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card outline-none"
+              onClick={(e) => e.stopPropagation()}
+            >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 id={titleId} className="text-base font-bold">{t.bannerPicker.title}</h2>
               <button
@@ -257,7 +258,7 @@ export function BannerSourcePicker({
                 className="tap-target rounded-md text-muted hover:bg-bg-elev hover:text-white"
                 aria-label={t.common.close}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </header>
             <nav
@@ -304,7 +305,7 @@ export function BannerSourcePicker({
                         disabled={busy || !currentBanner}
                         className="btn btn-primary"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}
                         {t.bannerPicker.useDefault}
                       </button>
                       <button
@@ -313,7 +314,7 @@ export function BannerSourcePicker({
                         disabled={busy}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImageIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImageIcon className="h-4 w-4" aria-hidden />}
                         {t.bannerPicker.useCover}
                       </button>
                       {!currentBanner && (
@@ -346,7 +347,7 @@ export function BannerSourcePicker({
                       disabled={busy}
                       className="btn"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" aria-hidden />}
                       {t.coverPicker.chooseFile}
                     </button>
                   </div>
@@ -361,7 +362,7 @@ export function BannerSourcePicker({
                         inputMode="url"
                         value={urlValue}
                         onChange={(e) => setUrlValue(e.target.value)}
-                        placeholder="https://example.com/image.jpg"
+                        placeholder={t.coverPicker.urlPlaceholder}
                         aria-label={t.coverPicker.urlLabel}
                         className="input flex-1 min-w-[160px] sm:min-w-[200px]"
                       />
@@ -371,7 +372,7 @@ export function BannerSourcePicker({
                         disabled={busy || urlValue.trim().length === 0}
                         className="btn"
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" />}
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LinkIcon className="h-4 w-4" aria-hidden />}
                         {t.coverPicker.applyUrl}
                       </button>
                     </div>
@@ -393,6 +394,7 @@ export function BannerSourcePicker({
                               type="button"
                               onClick={() => applySource(it.source, it.value)}
                               disabled={busy}
+                              aria-pressed={isCurrent}
                               className={`group relative ${it.aspect} overflow-hidden rounded-md border bg-bg-elev transition-colors ${
                                 isCurrent ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'
                               }`}
@@ -408,7 +410,7 @@ export function BannerSourcePicker({
                               />
                               {isCurrent && (
                                 <span className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-bg">
-                                  <Check className="h-3 w-3" />
+                                  <Check className="h-3 w-3" aria-hidden />
                                 </span>
                               )}
                             </button>
@@ -420,8 +422,9 @@ export function BannerSourcePicker({
                 </section>
               )}
             </div>
+            </div>
           </div>
-        </div>
+        </DialogPortal>
       )}
     </>
   );

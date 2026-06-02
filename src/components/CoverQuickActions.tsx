@@ -40,15 +40,15 @@ interface WishlistState {
  *
  * Two independent concerns:
  *
- *   1. Local collection — "Add to collection" / "Remove from collection".
+ *   1. Local collection - "Add to collection" / "Remove from collection".
  *      Persisted in SQLite via /api/collection/[id].
  *
- *   2. VNDB wishlist — heart toggle that adds/removes VNDB ulist label 5.
+ *   2. VNDB wishlist - heart toggle that adds/removes VNDB ulist label 5.
  *      Persisted on VNDB via /api/wishlist/[id]. Never touches the local
  *      `collection` table.
  *
  * The previous build conflated "local status === planning" with "on VNDB
- * wishlist" and used DELETE /api/collection/[id] to clear the wishlist —
+ * wishlist" and used DELETE /api/collection/[id] to clear the wishlist -
  * which wiped owned editions, notes, and metadata. Fixing that data-loss
  * bug is the whole point of this rewrite. The two states are now driven
  * independently: the wishlist state is fetched from VNDB on mount and

@@ -66,7 +66,7 @@ function pickColumn(
 }
 
 /**
- * Image variant of FieldCompare — three-way picker over the VNDB cover,
+ * Image variant of FieldCompare - three-way picker over the VNDB cover,
  * the EGS cover and the user's custom cover (vn.custom_cover). When any
  * two of the three are populated the user can flip between them; the
  * custom column only renders when there's actually a custom set, while
@@ -181,7 +181,7 @@ export function CoverCompare({
           alt={alt}
           sexual={sexual}
           // Persisted cover rotation. Compare-mode column thumbnails
-          // below stay un-rotated on purpose — the user is comparing
+          // below stay un-rotated on purpose - the user is comparing
           // raw candidates, not the resolved active view.
           rotation={rotation}
           className={imageClassName}
@@ -329,7 +329,7 @@ function CoverColumn({
       <div className="mb-1 flex items-center justify-between gap-1 text-[10px]">
         <span className={`font-bold uppercase tracking-wider ${toneClass}`}>
           {label}
-          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" />}
+          {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
         {!empty && (
           <button

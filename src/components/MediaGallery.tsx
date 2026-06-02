@@ -13,7 +13,7 @@ import {
   RotateCw,
   X,
 } from 'lucide-react';
-import { useDialogA11y } from './Dialog';
+import { DialogPortal, useDialogA11y } from './Dialog';
 import {
   MEDIA_MENU_MAX_WIDTH_REM,
   MEDIA_MENU_MIN_WIDTH_REM,
@@ -169,7 +169,7 @@ export function MediaGallery({
   return (
     <div aria-label={t.media.section}>
       {/*
-        The chip row is a single-selection filter — `role="tablist"`
+        The chip row is a single-selection filter - `role="tablist"`
         with `aria-pressed` on each chip is the closest WAI-ARIA
         pattern for a chip filter that doesn't switch underlying
         documents (no need for `tabpanel`). SR users used to hear
@@ -214,15 +214,16 @@ export function MediaGallery({
       </div>
 
       {active != null && visible[active] && (
-        <div
-          ref={lightboxRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={lightboxTitleId}
-          aria-describedby={lightboxDescId}
-          tabIndex={-1}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
-        >
+        <DialogPortal>
+          <div
+            ref={lightboxRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={lightboxTitleId}
+            aria-describedby={lightboxDescId}
+            tabIndex={-1}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 outline-none"
+          >
           {/* Sibling backdrop so the close-on-click target is the
               backdrop element itself, not the dialog. Previously a
               parent `onClick={close}` fired for any nested click that
@@ -244,7 +245,7 @@ export function MediaGallery({
             onClick={(e) => { e.stopPropagation(); close(); }}
             aria-label={t.common.close}
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden />
           </button>
           {visible.length > 1 && (
             <>
@@ -254,7 +255,7 @@ export function MediaGallery({
                 onClick={(e) => { e.stopPropagation(); prev(); }}
                 aria-label={t.common.prev}
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-5 w-5" aria-hidden />
               </button>
               <button
                 type="button"
@@ -262,7 +263,7 @@ export function MediaGallery({
                 onClick={(e) => { e.stopPropagation(); next(); }}
                 aria-label={t.common.next}
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
             </>
           )}
@@ -285,7 +286,8 @@ export function MediaGallery({
               {visible[active].caption && ` / ${visible[active].caption}`}
             </div>
           </div>
-        </div>
+          </div>
+        </DialogPortal>
       )}
     </div>
   );
@@ -293,7 +295,7 @@ export function MediaGallery({
 
 /**
  * Single thumbnail in the media grid. The image itself is now the
- * primary click target — clicking opens the lightbox; the
+ * primary click target - clicking opens the lightbox; the
  * "Set as cover" / "Set as banner" / "Open original" affordances are
  * collapsed into a kebab menu anchored to the top-right corner.
  *
@@ -309,7 +311,7 @@ export function MediaGallery({
  *     the tile receives focus).
  *   - Touch / small viewports (`< md`): kebab is always visible so
  *     touch users always have a target.
- *   - Tap target is 32×32 minimum (h-8 w-8 = 2rem) to clear the
+ *   - Tap target is 32x32 minimum (h-8 w-8 = 2rem) to clear the
  *     WCAG 2.5.5 + Material touch-size recommendation.
  */
 const MediaTile = memo(function MediaTile({
@@ -328,7 +330,7 @@ const MediaTile = memo(function MediaTile({
   // Prefer the local path so the banner survives offline / cache misses.
   const bannerValue = item.local || item.url;
   // Per-image rotation preview state. This is intentionally NOT persisted
-  // — the rotation is meant as a preview for the operator to evaluate a
+  // - the rotation is meant as a preview for the operator to evaluate a
   // candidate cover/banner orientation before committing. Once the
   // image is promoted via "Set as cover" / "Set as banner", the
   // persisted rotation flag is re-evaluated through the dedicated
@@ -360,7 +362,7 @@ const MediaTile = memo(function MediaTile({
         }}
         className="h-full w-full cursor-pointer"
         title={item.caption ?? item.alt}
-        aria-label={item.caption ? `${t.media.openLightbox} — ${item.caption}` : item.alt ? `${t.media.openLightbox} — ${item.alt}` : t.media.openLightbox}
+        aria-label={item.caption ? `${t.media.openLightbox} - ${item.caption}` : item.alt ? `${t.media.openLightbox} - ${item.alt}` : t.media.openLightbox}
       >
         <SafeImage
           src={item.thumbnail || item.url}
@@ -384,7 +386,7 @@ const MediaTile = memo(function MediaTile({
       />
       {item.dims && item.dims[0] > 0 && item.dims[1] > 0 && (
         <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-white backdrop-blur-sm">
-          {item.dims[0]}×{item.dims[1]}
+          {item.dims[0]}x{item.dims[1]}
         </span>
       )}
       {item.caption && (
@@ -544,7 +546,7 @@ function TileKebab({
     first?.focus({ preventScroll: true });
   }, [open, placed]);
 
-  // Collision detection — mirrors EditionInfoPopover. Measure the
+  // Collision detection - mirrors EditionInfoPopover. Measure the
   // tile (the trigger's offsetParent) instead of the small kebab
   // button so the popover never spills below the tile boundary.
   useEffect(() => {
@@ -566,7 +568,7 @@ function TileKebab({
       const spaceAbove = rect.top;
       const vertical: 'below' | 'above' =
         spaceBelow < popH + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
-      // Kebab sits in the top-right corner — default to opening
+      // Kebab sits in the top-right corner - default to opening
       // left so the menu doesn't spill off the right edge. Use a
       // 12rem viewport-edge threshold (matching the menu's
       // min-width) rather than the live menu width so the flip
@@ -652,7 +654,7 @@ function TileKebab({
         aria-haspopup="menu"
         aria-label={t.media.actionsMenu}
         title={t.media.actionsMenu}
-        // 32×32 minimum on touch. `opacity-100` on small viewports
+        // 32x32 minimum on touch. `opacity-100` on small viewports
         // keeps the affordance always visible for touch users;
         // hover/focus reveals it on desktop only. focus-visible
         // forces the kebab to appear the moment a keyboard user
@@ -769,7 +771,7 @@ function TileKebab({
  * still doesn't fit at the 18rem cap) and routes `longLabel` to
  * `aria-label` + `title` so the full text remains discoverable on
  * hover / by assistive tech. The button itself is `tabIndex={-1}`
- * — focus arrives through the roving keyboard handler so a single
+ * - focus arrives through the roving keyboard handler so a single
  * Tab into the menu doesn't slide back out the bottom.
  */
 function MenuItem({

@@ -135,7 +135,7 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
           title={t.cover.hint}
           data-menu-keep-open=""
         >
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ImagePlus className="h-3 w-3" />}
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <ImagePlus className="h-3 w-3" aria-hidden />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
         {error && <p role="alert" className="text-[10px] text-status-dropped">{error}</p>}
@@ -150,12 +150,12 @@ export function CoverUploader({ vnId, hasCustom, variant = 'card' }: Props) {
       {hiddenInput}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={() => inputRef.current?.click()} disabled={busy || pending}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImagePlus className="h-4 w-4" aria-hidden />}
           {busy ? t.cover.uploading : t.cover.uploadCta}
         </button>
         {hasCustom && (
           <button type="button" className="btn btn-danger" onClick={remove} disabled={busy || pending}>
-            <ImageMinus className="h-4 w-4" /> {t.cover.remove}
+            <ImageMinus className="h-4 w-4" aria-hidden /> {t.cover.remove}
           </button>
         )}
       </div>

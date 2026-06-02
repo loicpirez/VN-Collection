@@ -15,11 +15,11 @@ interface Props {
   initialLocal: string | null;
   /** Sexual flag from `vn.image_sexual`. */
   sexual: number | null;
-  /** VN title — used as the SafeImage `alt`. */
+  /** VN title - used as the SafeImage `alt`. */
   alt: string;
   /** Persisted rotation. */
   initialRotation?: 0 | 90 | 180 | 270;
-  /** True when the user is in collection — controls the rotation overlay
+  /** True when the user is in collection - controls the rotation overlay
    *  visibility (matches CoverEditOverlay's existing gate). */
   inCollection: boolean;
   /** Extra classes for the SafeImage wrapper (aspect ratio, rounding). */
@@ -85,7 +85,7 @@ export function CoverHero({
       if (detail.newLocal != null) setLocal(detail.newLocal);
       if (detail.newSrc != null) setRemote(detail.newSrc);
       if (detail.newLocal === null && detail.newSrc === null) {
-        // Explicit reset to default — let the next refresh deliver.
+        // Explicit reset to default - let the next refresh deliver.
         setLocal(null);
         setRemote(null);
       }

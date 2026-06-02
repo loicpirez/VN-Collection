@@ -30,9 +30,19 @@ describe('cover source picker request lifecycle', () => {
 
   it('uses ASCII shared metadata and degree labels', () => {
     expect(PICKER).toContain("label: `${mediaTypeLabel(img.type, t)} / ${img.release_title}`");
-    expect(PICKER).toContain('placeholder="https://example.com/image.jpg"');
+    expect(PICKER).toContain('placeholder={t.coverPicker.urlPlaceholder}');
     expect(PICKER).toContain('{t.coverPicker.galleryLabel} / {galleryItems.length}');
-    expect(PICKER).toContain('{rotation} deg');
+    expect(PICKER).toContain("t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))");
     expect(ROTATION).toContain("t.coverActions.rotationDegrees.replace('{rotation}', String(rotation))");
+  });
+
+  it('keeps disabled EGS tabs out of keyboard navigation and exposes gallery selection semantics', () => {
+    expect(PICKER).toContain("const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb'] : ['custom', 'vndb', 'egs']");
+    expect(PICKER).toContain('aria-pressed={isCurrent}');
+  });
+
+  it('switches back to VNDB based on the active source preference rather than custom-cover presence', () => {
+    expect(PICKER).toContain("disabled={busy || !vndbImage || currentImageSource === 'vndb'}");
+    expect(PICKER).toContain("currentImageSource === 'vndb'");
   });
 });
