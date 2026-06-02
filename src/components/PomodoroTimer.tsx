@@ -69,11 +69,7 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
       tickRef.current = id;
       return () => {
         clearInterval(id);
-        // Clear the ref too so subsequent code can't accidentally see
-        // a stale id from a previous interval that was already torn
-        // down - the original code left `tickRef.current` pointing at
-        // a dead timer until the next start.
-        if (tickRef.current === id) tickRef.current = null;
+        tickRef.current = null;
       };
     }
   }, [startedAt, pausedAt]);
@@ -101,11 +97,9 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
   function pause() {
     setPausedAt(Date.now());
   }
-  function resume() {
-    if (pausedAt != null) {
-      setPausedMs((p) => p + (Date.now() - pausedAt));
-      setPausedAt(null);
-    }
+  function resume(resumeAt: number) {
+    setPausedMs((p) => p + (Date.now() - resumeAt));
+    setPausedAt(null);
   }
   function reset() {
     setStartedAt(null);
@@ -118,7 +112,6 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
     const ownerVnId = vnId;
     const ownerCurrentMinutes = currentMinutes;
     const min = Math.round(elapsedSec / 60);
-    if (min <= 0) return;
     inFlightRef.current = true;
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -206,7 +199,7 @@ export function PomodoroTimer({ vnId, currentMinutes, onElapsedChange }: Props) 
             <Pause className="h-3 w-3" aria-hidden /> {t.pomodoro.pause}
           </button>
         ) : (
-          <button type="button" onClick={resume} className="btn btn-primary text-xs">
+          <button type="button" onClick={() => resume(pausedAt)} className="btn btn-primary text-xs">
             <Play className="h-3 w-3" aria-hidden /> {t.pomodoro.resume}
           </button>
         )}

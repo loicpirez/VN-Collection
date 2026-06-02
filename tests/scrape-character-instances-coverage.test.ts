@@ -40,8 +40,9 @@ function characterPage(opts: {
   instances?: Array<{ cid: string; name: string; vid: string; vtitle: string }>;
   voiced?: Array<{ sid: string; sname: string; vid: string; vtitle: string }>;
   malformedInstanceRow?: boolean;
+  malformedVoicedRow?: boolean;
 } = {}): string {
-  const { instances = [], voiced = [], malformedInstanceRow = false } = opts;
+  const { instances = [], voiced = [], malformedInstanceRow = false, malformedVoicedRow = false } = opts;
   const instRows = instances
     .map((i) => `<tr><td><a href="/${i.cid}">${i.name}</a> in <a href="/${i.vid}">${i.vtitle}</a></td></tr>`)
     .join('');
@@ -49,12 +50,13 @@ function characterPage(opts: {
   const voicedRows = voiced
     .map((v) => `<tr><td><a href="/${v.sid}">${v.sname}</a> for <a href="/${v.vid}">${v.vtitle}</a></td></tr>`)
     .join('');
+  const voicedNoise = malformedVoicedRow ? `<tr><td>no links here</td></tr>` : '';
   return [
     `<html><body>`,
     instances.length || malformedInstanceRow
       ? `<h1>Instances</h1><table class="charlist">${instRows}${noise}</table>`
       : '',
-    voiced.length ? `<h2>Voiced by</h2><table>${voicedRows}</table><h1>Next</h1>` : '',
+    voiced.length || malformedVoicedRow ? `<h2>Voiced by</h2><table>${voicedRows}${voicedNoise}</table><h1>Next</h1>` : '',
     `</body></html>`,
   ].join('');
 }
@@ -90,6 +92,7 @@ describe('scrapeCharacterInfo', () => {
       ],
       voiced: [{ sid: 's200', sname: 'Seiyuu X', vid: 'v10', vtitle: 'VN Ten' }],
       malformedInstanceRow: true,
+      malformedVoicedRow: true,
     }));
     const info = await scrapeCharacterInfo('c100');
     expect(info).not.toBeNull();
@@ -134,6 +137,13 @@ describe('readScrapedCharacterInfo', () => {
     expect(readScrapedCharacterInfo('c500')).toBeNull();
   });
 
+  it('returns null when a cached voice row omits its note', () => {
+    const now = Date.now();
+    db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_character:c502', ?, NULL, NULL, ?, ?)`)
+      .run(JSON.stringify({ cid: 'c502', instances: [], voiced_by: [{ sid: 's1', staff_name: 'Voice', vn_id: 'v1', vn_title: 'VN' }] }), now, now + 86_400_000);
+    expect(readScrapedCharacterInfo('c502')).toBeNull();
+  });
+
   it('returns null when the cached body is unparseable JSON', () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_character:c501', '{broken', NULL, NULL, ?, ?)`)
@@ -176,6 +186,13 @@ describe('scrapeCharactersForVn fan-out', () => {
     const res = await scrapeCharactersForVn('v52');
     expect(res.scanned).toBe(2);
     expect(res.downloaded).toBe(1);
+  });
+
+  it('continues when one character page is unavailable', async () => {
+    seedVn('v54');
+    db.prepare(`INSERT INTO vn_va_credit (vn_id, sid, c_id, c_name, va_name) VALUES ('v54', 's1', 'c702', 'A', 'VA')`).run();
+    mockFetchHtml.mockResolvedValue(null);
+    await expect(scrapeCharactersForVn('v54')).resolves.toEqual({ scanned: 1, downloaded: 0 });
   });
 
   it('skips fresh cache entries unless force is set', async () => {

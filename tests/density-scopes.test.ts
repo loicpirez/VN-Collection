@@ -15,8 +15,10 @@ import {
   CARD_DENSITY_MIN,
   clampCardDensity,
   DENSITY_SCOPES,
+  isExplicit,
   migrateLegacyCardDensity,
   resolveScopedDensity,
+  resolveTitles,
   type DisplaySettings,
 } from '@/lib/settings/client';
 
@@ -62,6 +64,7 @@ describe('resolveScopedDensity', () => {
     });
     expect(resolveScopedDensity(settings, 'library', '180')).toBe(180);
     expect(resolveScopedDensity(settings, 'recommendations', '300')).toBe(300);
+    expect(resolveScopedDensity(settings, 'recommendations', 280)).toBe(280);
   });
 
   it('URL override is clamped to the supported range', () => {
@@ -76,6 +79,10 @@ describe('resolveScopedDensity', () => {
     // Empty string treated as absent so a `?density=` toggle clears.
     expect(resolveScopedDensity(settings, 'library', '')).toBe(320);
     expect(resolveScopedDensity(settings, 'library', null)).toBe(320);
+  });
+
+  it('uses the project default when persisted density values are unusable', () => {
+    expect(resolveScopedDensity({ density: {}, cardDensityPx: Number.NaN }, 'library')).toBe(CARD_DENSITY_DEFAULT);
   });
 
   it('resets cleanly when the scoped override is deleted', () => {
@@ -97,6 +104,24 @@ describe('resolveScopedDensity', () => {
     expect(DENSITY_SCOPES).toContain('wishlist');
     expect(DENSITY_SCOPES).toContain('staffWorks');
     expect(DENSITY_SCOPES.length).toBeGreaterThanOrEqual(16);
+  });
+});
+
+describe('resolveTitles', () => {
+  it('keeps or swaps title pairs according to the native-title preference', () => {
+    expect(resolveTitles('Main', null, false)).toEqual({ main: 'Main', sub: null });
+    expect(resolveTitles('Main', 'Alt', false)).toEqual({ main: 'Main', sub: 'Alt' });
+    expect(resolveTitles('Main', 'Main', true)).toEqual({ main: 'Main', sub: null });
+    expect(resolveTitles('Main', 'Alt', true)).toEqual({ main: 'Alt', sub: 'Main' });
+  });
+});
+
+describe('isExplicit', () => {
+  it('treats missing values as safe and compares present values to the threshold', () => {
+    expect(isExplicit(null, 1.5)).toBe(false);
+    expect(isExplicit(undefined, 1.5)).toBe(false);
+    expect(isExplicit(1, 1.5)).toBe(false);
+    expect(isExplicit(1.5, 1.5)).toBe(true);
   });
 });
 

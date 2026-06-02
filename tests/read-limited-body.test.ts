@@ -25,8 +25,9 @@ const ONE_KB = 1024;
 function streamingReq(
   count: number,
   chunkBytes: number,
+  rejectCancellation = false,
 ): { req: Request; cancel: ReturnType<typeof vi.fn> } {
-  const cancel = vi.fn(() => Promise.resolve());
+  const cancel = vi.fn(() => rejectCancellation ? Promise.reject(new Error('cancel failed')) : Promise.resolve());
   let emitted = 0;
   const stream = new ReadableStream<Uint8Array>({
     pull(controller) {
@@ -81,6 +82,20 @@ describe('readBodyWithLimit (R5-SEC-008)', () => {
     await expect(readBodyWithLimit(oversize, ONE_KB)).rejects.toBeInstanceOf(
       PayloadTooLargeError,
     );
+  });
+
+  it('returns the arrayBuffer fallback when req.body is null and within the cap', async () => {
+    const withinCap = new Request('http://localhost/test', {
+      method: 'POST',
+      body: new Uint8Array(ONE_KB),
+    });
+    Object.defineProperty(withinCap, 'body', { value: null, configurable: true });
+    await expect(readBodyWithLimit(withinCap, 2 * ONE_KB)).resolves.toHaveLength(ONE_KB);
+  });
+
+  it('preserves the payload error when reader cancellation rejects', async () => {
+    const { req } = streamingReq(10, ONE_KB, true);
+    await expect(readBodyWithLimit(req, ONE_KB)).rejects.toBeInstanceOf(PayloadTooLargeError);
   });
 });
 

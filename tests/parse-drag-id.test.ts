@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDisplayCellId, parseDragId } from '@/lib/drag-id';
+import { parseCellId, parseDisplayCellId, parseDragId } from '@/lib/drag-id';
 
 /**
  * Test the parser the way `<ShelfLayoutEditor>` actually uses it —
@@ -72,9 +72,33 @@ describe('parseDragId', () => {
     expect(parseDragId('slot|v123|r456|3|1.5|0')).toBeNull();
   });
 
+  it('rejects drag ids with missing identifiers and malformed display coordinates', () => {
+    expect(parseDragId('pool||r456')).toBeNull();
+    expect(parseDragId('slot|v123||3|0|0')).toBeNull();
+    expect(parseDragId('display|v123|r456|3|0')).toBeNull();
+    expect(parseDragId('display||r456|3|0|0')).toBeNull();
+    expect(parseDragId('display|v123|r456|3|0.5|0')).toBeNull();
+  });
+
   it('rejects unknown prefixes', () => {
     expect(parseDragId('cell|7|0|0')).toBeNull();
     expect(parseDragId('random|stuff')).toBeNull();
+  });
+});
+
+describe('parseCellId', () => {
+  it('parses shelf-cell drop targets', () => {
+    expect(parseCellId('cell|7|3|1')).toEqual({
+      shelf_id: 7,
+      row: 3,
+      col: 1,
+    });
+  });
+
+  it('rejects malformed shelf-cell drop targets', () => {
+    expect(parseCellId('display-cell|7|3|1')).toBeNull();
+    expect(parseCellId('cell|7|3')).toBeNull();
+    expect(parseCellId('cell|7|x|1')).toBeNull();
   });
 });
 

@@ -47,6 +47,15 @@ describe('isPrivateIpv6 — categorical buckets', () => {
     expect(isPrivateIpv6('FD::')).toBe(true);
   });
 
+  it('returns true for reserved IPv6 ranges and mapped private IPv4', () => {
+    expect(isPrivateIpv6('fec0::1')).toBe(true);
+    expect(isPrivateIpv6('ff00::1')).toBe(true);
+    expect(isPrivateIpv6('2001:db8::1')).toBe(true);
+    expect(isPrivateIpv6('64:ff9b::1')).toBe(true);
+    expect(isPrivateIpv6('::ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateIpv6('::ffff:8.8.8.8')).toBe(false);
+  });
+
   it('returns false for public IPv6 addresses', () => {
     expect(isPrivateIpv6('2001:4860:4860::8888')).toBe(false);
     expect(isPrivateIpv6('2606:4700:4700::1111')).toBe(false);

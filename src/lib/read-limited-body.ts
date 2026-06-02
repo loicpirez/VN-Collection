@@ -47,7 +47,6 @@ export async function readBodyWithLimit(req: Request, maxBytes: number): Promise
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!value) continue;
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel('payload too large').catch(() => undefined);

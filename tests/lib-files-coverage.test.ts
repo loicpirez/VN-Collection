@@ -31,6 +31,10 @@ const mSafeFetch = vi.mocked(safeFetch);
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const GIF_BYTES = new Uint8Array([0x47, 0x49, 0x46, 0x38]);
+const WEBP_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+const BMP_BYTES = new Uint8Array([0x42, 0x4d]);
+const AVIF_BYTES = new Uint8Array([0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]);
 
 function fileFromBytes(bytes: Uint8Array, type: string, name = 'upload'): File {
   return new File([bytes as BlobPart], name, { type });
@@ -94,6 +98,18 @@ describe('readStored', () => {
     expect(await readStored(`${STORAGE_DIRS.vnCover}/does-not-exist.png`)).toBeNull();
     expect(await readStored('../../etc/passwd')).toBeNull();
   });
+
+  it.each([
+    ['read-fixture.jpg', 'image/jpeg'],
+    ['read-fixture.webp', 'image/webp'],
+    ['read-fixture.gif', 'image/gif'],
+    ['read-fixture.svg', 'image/svg+xml'],
+  ])('recognizes the %s extension', async (name, expected) => {
+    const dir = `${STORAGE_ROOT}/${STORAGE_DIRS.vnCover}`;
+    await mkdir(dir, { recursive: true });
+    await writeFile(`${dir}/${name}`, Buffer.from('x'));
+    expect((await readStored(`${STORAGE_DIRS.vnCover}/${name}`))?.contentType).toBe(expected);
+  });
 });
 
 describe('saveUpload', () => {
@@ -110,6 +126,24 @@ describe('saveUpload', () => {
     await expect(
       saveUpload('vnCover', fileFromBytes(html, 'image/png', 'fake.png'), 'cover-hint'),
     ).rejects.toBeInstanceOf(UnsupportedFileType);
+  });
+
+  it('records a null declared type when an untyped upload is not a raster image', async () => {
+    const html = new TextEncoder().encode('<html></html>');
+    await expect(
+      saveUpload('vnCover', fileFromBytes(html, '', 'fake'), 'cover-hint'),
+    ).rejects.toMatchObject({ providedType: null });
+  });
+
+  it.each([
+    [GIF_BYTES, '.gif'],
+    [WEBP_BYTES, '.webp'],
+    [BMP_BYTES, '.bmp'],
+    [AVIF_BYTES, '.avif'],
+  ])('stores each supported raster signature with a truthful extension', async (bytes, extension) => {
+    await expect(saveUpload('vnCover', fileFromBytes(bytes, '', 'upload'), '')).resolves.toMatch(
+      new RegExp(`file-[0-9a-f]{8}\\${extension}$`),
+    );
   });
 });
 
@@ -174,5 +208,62 @@ describe('downloadToBucket — guard branches', () => {
     await expect(
       downloadToBucket('https://cdn.vndb.org/cv/oneshot.png', 'vnImage', 'oneshot'),
     ).resolves.toMatch(/\.png$/);
+  });
+
+  it('rejects an oversized one-shot arrayBuffer without a Content-Length header', async () => {
+    const res = new Response(new Uint8Array(21 * 1024 * 1024), { status: 200 });
+    Object.defineProperty(res, 'body', { get: () => null });
+    mSafeFetch.mockResolvedValue(res);
+    await expect(
+      downloadToBucket('https://cdn.vndb.org/cv/oneshot-big.png', 'vnImage', 'oneshot-big'),
+    ).rejects.toThrow(/streaming cap/);
+  });
+
+  it('preserves the cap error when streaming-body cancellation rejects', async () => {
+    const chunk = new Uint8Array(21 * 1024 * 1024);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        return Promise.reject(new Error('cancel failed'));
+      },
+    });
+    mSafeFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+    await expect(
+      downloadToBucket('https://cdn.vndb.org/cv/cancel.png', 'vnImage', 'cancel'),
+    ).rejects.toThrow(/streaming cap/);
+  });
+
+  it('aborts a fetch that exceeds the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      mSafeFetch.mockImplementation(async (_url, init) => {
+        await new Promise<void>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+        throw new Error('unreachable');
+      });
+      const pending = expect(
+        downloadToBucket('https://cdn.vndb.org/cv/slow.png', 'vnImage', 'slow'),
+      ).rejects.toThrow('aborted');
+      await vi.advanceTimersByTimeAsync(15_000);
+      await pending;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('storage root default', () => {
+  it('falls back to the workspace storage path when the override is blank', async () => {
+    try {
+      vi.stubEnv('STORAGE_ROOT', '');
+      vi.resetModules();
+      const fresh = await import('@/lib/files');
+      expect(fresh.STORAGE_ROOT).toBe(`${process.cwd()}/data/storage`);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -163,6 +163,12 @@ describe('scrapeTagDagForVn fan-out', () => {
     expect(res.downloaded).toBe(1);
   });
 
+  it('continues when one tag scrape returns no page', async () => {
+    seedVnWithTags('v67', [{ id: 'g502' }]);
+    mockFetchHtml.mockResolvedValue(null);
+    expect(await scrapeTagDagForVn('v67')).toEqual({ scanned: 1, downloaded: 0 });
+  });
+
   it('skips fresh cache entries unless force is set', async () => {
     seedVnWithTags('v65', [{ id: 'g600' }]);
     const fresh = { gid: 'g600', parents: [], children: [], fetched_at: Date.now() };

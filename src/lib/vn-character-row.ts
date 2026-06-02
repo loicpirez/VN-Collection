@@ -101,6 +101,8 @@ function mapCharacterRow(value: unknown): VnCharacterRow | null {
   };
 }
 
+function mapCharacterRows(value: unknown[]): VnCharacterRow[];
+function mapCharacterRows(value: unknown): VnCharacterRow[] | null;
 function mapCharacterRows(value: unknown): VnCharacterRow[] | null {
   return Array.isArray(value)
     ? value.flatMap((character) => mapCharacterRow(character) ?? [])
@@ -115,7 +117,7 @@ function mapCharacterRows(value: unknown): VnCharacterRow[] | null {
  */
 export function readVnCharacterRows(payload: unknown): VnCharacterRow[] {
   if (!isRecord(payload) || !Array.isArray(payload.characters)) return [];
-  return mapCharacterRows(payload.characters) ?? [];
+  return mapCharacterRows(payload.characters);
 }
 
 /**

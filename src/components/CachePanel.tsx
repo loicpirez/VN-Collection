@@ -36,7 +36,6 @@ export function CachePanel() {
   const clearAbortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
-    if (!mountedRef.current) return;
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
@@ -51,7 +50,6 @@ export function CachePanel() {
       setError(null);
     } catch (e) {
       if (signal.aborted || (e as Error).name === 'AbortError') return;
-      if (!mountedRef.current || loadAbortRef.current !== controller) return;
       setError((e as Error).message);
     }
   }, [t.common.error]);
@@ -92,7 +90,7 @@ export function CachePanel() {
       if (clearAbortRef.current === controller) {
         clearAbortRef.current = null;
         clearInFlightRef.current = false;
-        if (mountedRef.current) setClearing(false);
+        setClearing(false);
       }
     }
   }

@@ -119,7 +119,7 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
 
     const aProd: BrandOverlapEntry['aCredits'] = [];
     const bProd: BrandOverlapEntry['bCredits'] = [];
-    for (const c of payload.productionCredits ?? []) {
+    for (const c of payload.productionCredits) {
       const inA = setA.has(c.id);
       const inB = setB.has(c.id);
       if (!inA && !inB) continue;
@@ -131,7 +131,7 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
     let aVa = false, bVa = false;
     const aVaList: BrandOverlapEntry['aCredits'] = [];
     const bVaList: BrandOverlapEntry['bCredits'] = [];
-    for (const c of payload.vaCredits ?? []) {
+    for (const c of payload.vaCredits) {
       const inA = setA.has(c.id);
       const inB = setB.has(c.id);
       if (!inA && !inB) continue;

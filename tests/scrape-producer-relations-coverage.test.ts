@@ -158,6 +158,12 @@ describe('scrapeProducersForVn fan-out', () => {
     expect(res.downloaded).toBe(1);
   });
 
+  it('continues when one producer page is unavailable', async () => {
+    seedVnWithDevs('v76', [{ id: 'p502' }]);
+    mockFetchHtml.mockResolvedValue(null);
+    await expect(scrapeProducersForVn('v76')).resolves.toEqual({ scanned: 1, downloaded: 0 });
+  });
+
   it('skips fresh cache entries unless force is set', async () => {
     seedVnWithDevs('v75', [{ id: 'p600' }]);
     const fresh = { pid: 'p600', relations: [], fetched_at: Date.now() };

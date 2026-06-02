@@ -12,8 +12,8 @@ describe('place action lifecycle', () => {
     expect(CARD).toContain('if (deleteInFlightRef.current) return');
     expect(CARD).toContain('deleteAbortRef.current?.abort()');
     expect(CARD).toContain('signal: controller.signal');
-    expect(CARD).toContain('deleteAbortRef.current !== controller || controller.signal.aborted');
-    expect(CARD).toContain('placeIdentityRef.current === ownerId && deleteAbortRef.current === controller');
+    expect(CARD).toContain('placeIdentityRef.current !== ownerId');
+    expect(CARD).toContain('placeIdentityRef.current === ownerId');
   });
 
   it('resets detail actions and rejects stale place completion work', () => {

@@ -52,6 +52,10 @@ describe('createSectionLayoutModule — generic factory contract', () => {
     expect(out.order).toEqual(['c', 'a', 'b']);
   });
 
+  it('validate drops non-string order entries', () => {
+    expect(mod.validate({ order: [4, 'b'] }).order).toEqual(['b', 'a', 'c']);
+  });
+
   it('validate appends missing-canonical ids to the end', () => {
     const out = mod.validate({ order: ['b'] });
     expect(out.order).toEqual(['b', 'a', 'c']);

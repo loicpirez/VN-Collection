@@ -89,6 +89,12 @@ describe('home_section_layout_v1 validator', () => {
     expect(libs.length).toBe(1);
   });
 
+  it('drops non-string order values and avoids duplicate migrated ids', () => {
+    const out = validateHomeSectionLayoutV1({ order: [4, 'library-controls', 'library'] });
+    expect(out.order.filter((id) => id === 'library-controls')).toHaveLength(1);
+    expect(out.order.filter((id) => id === 'library-grid')).toHaveLength(1);
+  });
+
   it('only an explicit false hides a section (typo-safe)', () => {
     const out = validateHomeSectionLayoutV1({
       sections: {
@@ -111,5 +117,6 @@ describe('home_section_layout_v1 validator', () => {
     });
     const round = parseHomeSectionLayoutV1(JSON.stringify(original));
     expect(round).toEqual(original);
+    expect(parseHomeSectionLayoutV1(JSON.stringify(original))).toBe(round);
   });
 });

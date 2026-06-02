@@ -84,11 +84,18 @@ describe('place client response adapters', () => {
 
   it('rejects malformed payloads before client state replacement', () => {
     expect(decodePlacesResponse({ places: [{ ...place, lat: 91 }], known_places: [] })).toBeNull();
+    expect(decodePlacesResponse({ places: [{ ...place, id: 0 }], known_places: [] })).toBeNull();
+    expect(decodePlacesResponse({ places: [{ ...place, lat: null, lng: 135.2 }], known_places: [] })).toBeNull();
+    expect(decodePlacesResponse({ places: [{ ...place, kind: 'chain' }], known_places: [] })?.places[0]?.kind).toBe('chain');
+    expect(decodePlacesResponse({ places: [{ ...place, kind: 'storage' }], known_places: [] })?.places[0]?.kind).toBe('storage');
     expect(decodeKnownPlacesResponse({ known_places: [4] })).toBeNull();
     expect(decodeUnassignedBranchesResponse({ branches: null })).toBeNull();
     expect(decodeOtherPlaceBranchesResponse({ branches: [{ provider_label: 'Branch', place_id: 0, place_name: 'Shop' }] })).toBeNull();
+    expect(decodeOtherPlaceBranchesResponse({ branches: null })).toBeNull();
     expect(decodePlaceProviderMapResponse({ map: { Branch: '1' } })).toBeNull();
+    expect(decodePlaceProviderMapResponse({ map: null })).toBeNull();
     expect(decodeCreatePlaceResponse({ id: 0 })).toBeNull();
     expect(decodePlaceStockResponse({ vns: [{ ...stockVn, offers: [{ ...offer, vn_id: 'bad' }] }], stats })).toBeNull();
+    expect(decodePlaceStockResponse({ vns: [stockVn], stats: { ...stats, total: -1 } })).toBeNull();
   });
 });

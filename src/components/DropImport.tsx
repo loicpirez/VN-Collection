@@ -88,7 +88,7 @@ export function DropImport() {
         if (uploadCtrlRef.current === ctrl) {
           uploadCtrlRef.current = null;
           uploadInFlightRef.current = false;
-          if (mountedRef.current) setBusy(false);
+          setBusy(false);
         }
       }
     }
@@ -101,6 +101,7 @@ export function DropImport() {
       mountedRef.current = false;
       uploadInFlightRef.current = false;
       uploadCtrlRef.current?.abort();
+      uploadCtrlRef.current = null;
       document.removeEventListener('dragenter', onEnter);
       document.removeEventListener('dragleave', onLeave);
       document.removeEventListener('dragover', onOver);

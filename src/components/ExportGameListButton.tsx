@@ -57,7 +57,7 @@ export function ExportGameListButton() {
       if (exportAbortRef.current === controller) {
         exportAbortRef.current = null;
         exportInFlightRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        setBusy(false);
       }
     }
   }

@@ -15,6 +15,7 @@ describe('owned-release shelf identity parsing', () => {
 
   it('rejects malformed VN ids and mismatched synthetic releases', () => {
     expect(parseOwnedReleaseIdentity('../etc/passwd', 'r1').ok).toBe(false);
+    expect(parseOwnedReleaseIdentity('v123', '')).toEqual({ ok: false, error: 'invalid release_id' });
     expect(parseOwnedReleaseIdentity('v123', 'synthetic:v456').ok).toBe(false);
   });
 });

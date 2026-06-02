@@ -107,4 +107,14 @@ describe('ProducerLogo — uses LoadingImage when logo_path is set', () => {
     );
     expect(html).not.toContain('data-loading-image-skeleton');
   });
+
+  it('renders the fallback icon when a producer name has no initials', () => {
+    const html = renderToStaticMarkup(
+      createElement(ProducerLogo, {
+        producer: { name: '   ', logo_path: null },
+        size: 48,
+      }),
+    );
+    expect(html).toContain('lucide-building2');
+  });
 });

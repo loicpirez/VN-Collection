@@ -70,6 +70,20 @@ describe('shelf client response adapters', () => {
       rel_has_ero: false,
     };
     expect(decodeShelfListResponse({ shelves: [{ ...shelf, placed_count: 0 }], unplaced: [entry] })?.unplaced).toHaveLength(1);
+    expect(decodeShelfListResponse({ shelves: [{ ...shelf, placed_count: 0 }] })).toEqual({
+      shelves: [{ ...shelf, placed_count: 0 }],
+    });
+    expect(decodeShelfListResponse({
+      shelves: [{ ...shelf, placed_count: 0 }],
+      unplaced: [{
+        ...entry,
+        condition: 'used',
+        vn_image_sexual: 1,
+        rel_image_sexual: 1,
+        price_paid: 1000,
+        rel_minage: 18,
+      }],
+    })?.unplaced?.[0]?.price_paid).toBe(1000);
     expect(decodeShelfCreateResponse({ shelf })?.shelf.id).toBe(1);
     expect(decodeShelfSlotsResponse({ slots: [{ ...item, shelf_id: 1, row: 0, col: 0 }] })?.slots).toHaveLength(1);
     expect(decodeShelfResizeResponse({
@@ -84,6 +98,28 @@ describe('shelf client response adapters', () => {
     expect(decodeShelfListResponse({ shelves: [{ ...shelf, placed_count: -1 }] })).toBeNull();
     expect(decodeShelfCreateResponse({ shelf: null })).toBeNull();
     expect(decodeShelfSlotsResponse({ slots: [{ ...item, shelf_id: 1, row: -1, col: 0 }] })).toBeNull();
+    expect(decodeShelfSlotsResponse({ slots: [{ ...item, vn_id: 'bad', shelf_id: 1, row: 0, col: 0 }] })).toBeNull();
+    expect(decodeShelfSlotsResponse({ slots: [{ ...item, physical_location: [4], shelf_id: 1, row: 0, col: 0 }] })).toBeNull();
+    expect(decodeShelfDetailResponse({
+      shelf,
+      slots: [],
+      displays: [{ ...item, shelf_id: 1, after_row: 0, position: 0, placed_at: Number.NaN }],
+    })).toBeNull();
+    expect(decodeShelfListResponse({
+      shelves: [{ ...shelf, placed_count: 0 }],
+      unplaced: [{
+        ...item,
+        notes: 4,
+        location: 'unknown',
+        added_at: 3,
+        rel_minage: null,
+        rel_patch: false,
+        rel_freeware: false,
+        rel_official: true,
+        rel_has_ero: false,
+      }],
+    })).toBeNull();
     expect(decodeShelfResizeResponse({ shelf, slots: [], evicted: [{ vn_id: 'bad', release_id: 'r90001' }] })).toBeNull();
+    expect(decodeShelfResizeResponse({ shelf, slots: [], evicted: [null] })).toBeNull();
   });
 });

@@ -58,4 +58,41 @@ describe('VN index migration JSON decoders', () => {
     expect(decodeStaffCreditIndexPayload(JSON.stringify({ productionCredits: {}, vaCredits: [] }))).toBeNull();
     expect(decodeStaffCreditIndexPayload(JSON.stringify({ productionCredits: [] }))).toBeNull();
   });
+
+  it('handles absent, malformed, and sparse historical rows', () => {
+    expect(decodeMigratableStringValues(null)).toEqual([]);
+    expect(decodeMigratableStringValues('[')).toBeNull();
+    expect(decodeMigratableStaffCredits(JSON.stringify([
+      { id: 'S90002', name: 'Sparse staff' },
+      { id: 'S90003', name: 'Detailed staff', note: 'Credit note', original: 'Original name' },
+    ]))).toEqual([
+      { id: 's90002', aid: null, eid: null, role: '', note: null, name: 'Sparse staff', original: null, lang: null },
+      { id: 's90003', aid: null, eid: null, role: '', note: 'Credit note', name: 'Detailed staff', original: 'Original name', lang: null },
+    ]);
+    expect(decodeMigratableVaCredits(JSON.stringify([
+      {
+        note: 'Lead',
+        character: { id: 'C90002', name: 'Character', original: 'Original', image: null },
+        staff: { id: 'S90002', aid: null, name: 'Staff', original: 'Original staff', lang: null },
+      },
+      {
+        character: { id: 'C90003', name: 'Sparse character' },
+        staff: { id: 'S90003', name: 'Sparse staff' },
+      },
+    ]))).toEqual([
+      {
+        note: 'Lead',
+        character: { id: 'c90002', name: 'Character', original: 'Original', imageUrl: null },
+        staff: { id: 's90002', aid: null, name: 'Staff', original: 'Original staff', lang: null },
+      },
+      {
+        note: null,
+        character: { id: 'c90003', name: 'Sparse character', original: null, imageUrl: null },
+        staff: { id: 's90003', aid: null, name: 'Sparse staff', original: null, lang: null },
+      },
+    ]);
+    expect(decodeMigratableTagIndexRows(JSON.stringify([
+      { id: 'G90002', name: 'Named' },
+    ]))).toEqual([{ id: 'g90002', name: 'Named', spoiler: 0, category: null }]);
+  });
 });

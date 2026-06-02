@@ -26,6 +26,11 @@ afterAll(() => {
 });
 
 describe('compare page shared seiyuu matching', () => {
+  it('returns no shared credits when fewer than two distinct VNs are compared', () => {
+    expect(findSharedVasForVns([])).toEqual([]);
+    expect(findSharedVasForVns(['v9600', 'v9600'])).toEqual([]);
+  });
+
   it('groups a shared seiyuu by VN and character instead of flattening by first characters only', () => {
     upsertVn({
       id: 'v9600',
@@ -92,5 +97,32 @@ describe('compare page shared seiyuu matching', () => {
     const credits = listStaffVaCredits('s9602');
     expect(credits).toHaveLength(1);
     expect(credits[0].characters.map((c) => c.note)).toEqual(['first route', 'second route']);
+  });
+
+  it('sorts multiple shared actors by character count and then by name', () => {
+    upsertVn({
+      id: 'v9610',
+      title: 'fixture D',
+      va: [
+        { note: null, character: { id: 'c9610', name: 'heroine D', original: null }, staff: { id: 's9610', aid: 1, name: 'voice C', original: null, lang: 'ja' } },
+        { note: null, character: { id: 'c9611', name: 'heroine E', original: null }, staff: { id: 's9610', aid: 1, name: 'voice C', original: null, lang: 'ja' } },
+        { note: null, character: { id: 'c9612', name: 'heroine F', original: null }, staff: { id: 's9611', aid: 1, name: 'voice A', original: null, lang: 'ja' } },
+        { note: null, character: { id: 'c9613', name: 'heroine G', original: null }, staff: { id: 's9612', aid: 1, name: 'voice B', original: null, lang: 'ja' } },
+      ],
+    });
+    upsertVn({
+      id: 'v9611',
+      title: 'fixture E',
+      va: [
+        { note: null, character: { id: 'c9614', name: 'heroine H', original: null }, staff: { id: 's9610', aid: 1, name: 'voice C', original: null, lang: 'ja' } },
+        { note: null, character: { id: 'c9615', name: 'heroine I', original: null }, staff: { id: 's9611', aid: 1, name: 'voice A', original: null, lang: 'ja' } },
+        { note: null, character: { id: 'c9616', name: 'heroine J', original: null }, staff: { id: 's9612', aid: 1, name: 'voice B', original: null, lang: 'ja' } },
+      ],
+    });
+    expect(findSharedVasForVns(['v9610', 'v9611']).map((row) => row.sid)).toEqual([
+      's9610',
+      's9611',
+      's9612',
+    ]);
   });
 });

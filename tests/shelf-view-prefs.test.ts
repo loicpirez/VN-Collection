@@ -83,6 +83,23 @@ describe('validateShelfViewPrefsV1', () => {
     const back = parseShelfViewPrefsV1(JSON.stringify(prefs));
     expect(back).toEqual(prefs);
   });
+
+  it('keeps valid display-row orientations and drops malformed entries', () => {
+    expect(validateShelfViewPrefsV1({
+      displayOrientation: 'landscape',
+      displayRowOrientations: {
+        '0': 'portrait',
+        '1': 'landscape',
+        '2': 'invalid',
+      },
+    })).toMatchObject({
+      displayOrientation: 'landscape',
+      displayRowOrientations: {
+      '0': 'portrait',
+      '1': 'landscape',
+      },
+    });
+  });
 });
 
 describe('shelfViewPrefsCssVars', () => {
@@ -137,6 +154,26 @@ describe('shelfViewPrefsCssVars', () => {
       'data-shelf-compact': 'on',
       'data-shelf-text-density': 'lg',
       'data-shelf-fit': 'cover',
+    });
+  });
+
+  it('renders compact text and per-row orientation alternatives', () => {
+    const css = shelfViewPrefsCssVars({
+      ...defaultShelfViewPrefsV1(),
+      textDensity: 'sm',
+      displayOrientation: 'landscape',
+      displayRowOrientations: { '0': 'portrait', '1': 'landscape' },
+    });
+    expect(css['--shelf-label-font-px']).toBe('9px');
+    expect(css['--display-aspect-ratio']).toBe('3/2');
+    expect(css['--display-aspect-row-0']).toBe('2/3');
+    expect(css['--display-aspect-row-1']).toBe('3/2');
+  });
+
+  it('renders enabled labels and regular padding from default data attributes', () => {
+    expect(shelfViewPrefsDataAttrs(defaultShelfViewPrefsV1())).toMatchObject({
+      'data-shelf-labels': 'on',
+      'data-shelf-compact': 'off',
     });
   });
 });

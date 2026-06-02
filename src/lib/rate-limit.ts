@@ -46,10 +46,9 @@ export interface RateLimitOptions {
  * milliseconds until the window resets, suitable for a `Retry-After` header
  * (which the caller rounds up to whole seconds).
  */
-export interface RateLimitResult {
-  ok: boolean;
-  retryAfterMs?: number;
-}
+export type RateLimitResult =
+  | { ok: true }
+  | { ok: false; retryAfterMs: number };
 
 function pruneExpired(now: number, windowMs: number): void {
   for (const [key, state] of buckets) {

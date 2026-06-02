@@ -27,8 +27,12 @@ function freshnessInfo(updatedAt: number): { label: string; stale: boolean } {
 }
 
 function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
-  const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
-  return (t.places as Record<string, unknown>)[key] as string ?? kind;
+  const labels: Record<PlaceWithLinks['kind'], string> = {
+    shop: t.places.kindShop,
+    chain: t.places.kindChain,
+    storage: t.places.kindStorage,
+  };
+  return labels[kind];
 }
 
 export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
@@ -62,21 +66,20 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
     deleteInFlightRef.current = true;
     const ownerId = place.id;
     const controller = new AbortController();
-    deleteAbortRef.current?.abort();
     deleteAbortRef.current = controller;
     setDeleting(true);
     try {
       const ok = await confirm({ message: t.places.deleteConfirm as string, tone: 'danger' });
-      if (!ok || placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
+      if (!ok || placeIdentityRef.current !== ownerId) return;
       const r = await fetch(`/api/places/${place.id}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
-      if (placeIdentityRef.current !== ownerId || deleteAbortRef.current !== controller || controller.signal.aborted) return;
+      if (placeIdentityRef.current !== ownerId) return;
       toast.success(t.places.deleteSuccess as string);
       onDelete(place);
     } catch (e) {
-      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller && !controller.signal.aborted) toast.error((e as Error).message);
+      if (placeIdentityRef.current === ownerId) toast.error((e as Error).message);
     } finally {
-      if (placeIdentityRef.current === ownerId && deleteAbortRef.current === controller) {
+      if (placeIdentityRef.current === ownerId) {
         deleteAbortRef.current = null;
         deleteInFlightRef.current = false;
         setDeleting(false);

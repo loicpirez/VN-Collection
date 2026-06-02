@@ -12,7 +12,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { allowedTargetMock } = vi.hoisted(() => ({
+  allowedTargetMock: vi.fn(() => true),
+}));
+
 vi.mock('@/lib/safe-fetch', () => ({ safeFetch: vi.fn() }));
+vi.mock('@/lib/url-allowlist', () => ({ isAllowedHttpTarget: allowedTargetMock }));
 vi.mock('@/lib/vndb-cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vndb-cache')>();
   return { ...actual, cachedFetch: vi.fn() };
@@ -70,6 +75,8 @@ beforeEach(() => {
   clear();
   mSafeFetch.mockReset();
   mCachedFetch.mockReset();
+  allowedTargetMock.mockReset();
+  allowedTargetMock.mockReturnValue(true);
   // Default: the auto-detect release walk returns nothing so suggestion
   // tests exercise only persisted links unless they opt into a payload.
   mCachedFetch.mockResolvedValue({ data: { results: [] } } as never);
@@ -114,6 +121,14 @@ describe('fetchOwnedGames', () => {
     // The key must be passed as a query param, never leaked back to the caller.
     const calledUrl = mSafeFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain('key=fake-test-steam-key-not-real');
+  });
+
+  it('blocks the request when the generated target fails the SSRF allowlist', async () => {
+    setAppSetting('steam_api_key', 'fake-test-steam-key-not-real');
+    setAppSetting('steam_id', '76500000000000001');
+    allowedTargetMock.mockReturnValue(false);
+    await expect(fetchOwnedGames()).rejects.toThrow(/host not on SSRF allowlist/);
+    expect(mSafeFetch).not.toHaveBeenCalled();
   });
 
   it('scrubs the API key from a thrown network error', async () => {
@@ -208,6 +223,33 @@ describe('computeSteamSuggestions', () => {
     const out = await computeSteamSuggestions([{ appid: 42, name: 'Persisted SE', minutes: 90 }]);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ vn_id: 'v90121', delta: 90 });
+  });
+
+  it('ignores release rows without Steam links and preserves the first match for duplicate VN links', async () => {
+    seedVn('v90122', 'Duplicate');
+    seedCollection('v90122', 0);
+    mCachedFetch.mockResolvedValue({
+      data: {
+        results: [
+          { title: 'No Steam', extlinks: [{ url: 'https://example.com', name: 'website' }], vns: [{ id: 'v90122' }] },
+          { title: 'First', extlinks: [{ url: 'x', name: 'steam', id: 41 }], vns: [{ id: 'v90122' }] },
+          { title: 'Second', extlinks: [{ url: 'x', name: 'steam', id: 42 }], vns: [{ id: 'v90122' }] },
+        ],
+      },
+    } as never);
+    const out = await computeSteamSuggestions([
+      { appid: 41, name: 'First Steam Game', minutes: 90 },
+      { appid: 42, name: 'Second Steam Game', minutes: 120 },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ steam_appid: 41, steam_name: 'First Steam Game' });
+  });
+
+  it('skips a persisted link when the VN is no longer in the collection', async () => {
+    seedVn('v90123', 'Not collected');
+    setSteamLink({ vnId: 'v90123', appid: 43, steamName: 'Not collected', source: 'manual' });
+    const out = await computeSteamSuggestions([{ appid: 43, name: 'Not collected', minutes: 90 }]);
+    expect(out).toEqual([]);
   });
 });
 

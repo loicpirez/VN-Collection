@@ -16,7 +16,7 @@
  *      `(await *.json()).error` shape either.
  */
 import { describe, expect, it } from 'vitest';
-import { readApiError } from '@/lib/api-error-read';
+import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -59,6 +59,22 @@ describe('readApiError — R5-147 behaviour', () => {
     expect(await readApiError(r2, 'fallback')).toBe('fallback');
     const r3 = new Response(JSON.stringify({ error: null }), { status: 500 });
     expect(await readApiError(r3, 'fallback')).toBe('fallback');
+  });
+});
+
+describe('readApiErrorLocalized', () => {
+  const messages = { vndb_unavailable: 'Localized unavailable' };
+
+  it('maps a known response code to the localized message', async () => {
+    const response = new Response(JSON.stringify({ code: 'vndb_unavailable' }), { status: 503 });
+    expect(await readApiErrorLocalized(response, messages, 'fallback')).toBe('Localized unavailable');
+  });
+
+  it('falls back for missing, unknown, empty, or malformed codes', async () => {
+    expect(await readApiErrorLocalized(new Response('{}'), messages, 'fallback')).toBe('fallback');
+    expect(await readApiErrorLocalized(new Response(JSON.stringify({ code: 'unknown' })), messages, 'fallback')).toBe('fallback');
+    expect(await readApiErrorLocalized(new Response(JSON.stringify({ code: '' })), messages, 'fallback')).toBe('fallback');
+    expect(await readApiErrorLocalized(new Response('not-json'), messages, 'fallback')).toBe('fallback');
   });
 });
 

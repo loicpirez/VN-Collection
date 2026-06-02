@@ -498,10 +498,8 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
         signals: [],
       };
       vns.set(vnId, info);
-    } else if (rating != null && rating > info.rating) {
-      info.rating = rating;
     }
-    if (!info.signals.includes(signal)) info.signals.push(signal);
+    info.signals.push(signal);
   }
 
   for (const e of events) touch(e.vnId, e.signal, e.rating);
@@ -602,14 +600,10 @@ function deriveSeedsFromUnion(
 }
 
 function getVnTitle(vnId: string): string | null {
-  try {
-    const row = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
-      | { title: string | null }
-      | undefined;
-    return row?.title ?? null;
-  } catch {
-    return null;
-  }
+  const row = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
+    | { title: string | null }
+    | undefined;
+  return row?.title ?? null;
 }
 
 /**
@@ -788,8 +782,6 @@ async function runRecommendForSeeds(
     staffCount?: Map<string, number>;
   },
 ): Promise<Recommendation[]> {
-  if (seeds.length === 0) return [];
-
   // Mode-specific upstream vote floor. `highly-rated` restricts to
   // popular titles (≥100 votes). `hidden-gems` uses a low floor (≥5)
   // to catch genuinely obscure VNs before the post-fetch votecount

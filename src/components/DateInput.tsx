@@ -3,7 +3,6 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47 } from '@/lib/locale-number';
-import type { Locale } from '@/lib/i18n/dictionaries';
 
 interface Props {
   value: string;
@@ -33,7 +32,7 @@ function startOfMonth(d: Date): Date {
 export function DateInput({ value, onChange, className = '', ariaLabel }: Props) {
   const t = useT();
   const locale = useLocale();
-  const tag = BCP47[locale as Locale] ?? 'fr-FR';
+  const tag = BCP47[locale];
   const id = useId();
 
   const [open, setOpen] = useState(false);
@@ -43,22 +42,21 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
 
-  // Close on outside click + Escape
   useEffect(() => {
     if (!open) return;
+    const wrapper = wrapperRef.current!;
+    const popup = popupRef.current!;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!wrapper.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
       if (e.key === 'Tab') {
         const focusables = Array.from(
-          popupRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [],
+          popup.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
         );
-        if (focusables.length === 0) return;
-        const first = focusables.at(0);
-        const last = focusables.at(-1);
-        if (!first || !last) return;
+        const first = focusables[0]!;
+        const last = focusables.at(-1)!;
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();
@@ -76,18 +74,15 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
     };
   }, [open]);
 
-  // Focus restoration: when the picker closes after being open, return
-  // focus to the trigger so keyboard users land back where they started.
   useEffect(() => {
     if (open) {
       wasOpenRef.current = true;
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
-      triggerRef.current?.focus({ preventScroll: true });
+      triggerRef.current!.focus({ preventScroll: true });
     }
   }, [open]);
 
-  // When value changes externally, snap the view to that month.
   useEffect(() => {
     const parsed = parseIso(value);
     if (parsed) setView(startOfMonth(parsed));
@@ -96,29 +91,17 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
   const formatted = useMemo(() => {
     const d = parseIso(value);
     if (!d) return '';
-    try {
-      return new Intl.DateTimeFormat(tag, { dateStyle: 'long' }).format(d);
-    } catch {
-      return value;
-    }
+    return new Intl.DateTimeFormat(tag, { dateStyle: 'long' }).format(d);
   }, [value, tag]);
 
   const monthLabel = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric' }).format(view);
-    } catch {
-      return `${view.getFullYear()}-${pad(view.getMonth() + 1)}`;
-    }
+    return new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric' }).format(view);
   }, [view, tag]);
 
   const weekdayHeaders = useMemo(() => {
-    // Build 7 weekday labels starting from the locale's first day of week.
-    // We don't have Intl.Locale.weekInfo on all engines, so we just use Monday
-    // for fr/ja and Sunday for en.
     const first = locale === 'en' ? 0 : 1;
     const labels: string[] = [];
     const fmt = new Intl.DateTimeFormat(tag, { weekday: 'narrow' });
-    // Pick a known week (Sun 2024-01-07 = day 0)
     const ref = new Date(2024, 0, 7);
     for (let i = 0; i < 7; i++) {
       const d = new Date(ref);
@@ -170,13 +153,6 @@ export function DateInput({ value, onChange, className = '', ariaLabel }: Props)
 
   return (
     <div ref={wrapperRef} className="relative flex flex-col gap-1">
-      {/*
-        Trigger + clear used to be a <span role="button"> nested
-        inside the outer <button>. Nested interactives are invalid
-        HTML and a11y trees ignore the inner one. Now: an outer
-        flex row with the picker button on the left and (when a
-        value is set) a real sibling <button> on the right.
-      */}
       <div className={`inline-flex items-center justify-between gap-2 ${className || 'input'}`}>
         <button
           ref={triggerRef}

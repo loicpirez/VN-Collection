@@ -85,7 +85,7 @@ export function findSharedVasForVns(vnIds: string[]): SharedVa[] {
     .map(([sid, bucket]) => {
       const creditsByVn = uniqueIds.map((vn_id) => ({
         vn_id,
-        characters: Array.from(bucket.byVn.get(vn_id)?.values() ?? []),
+        characters: Array.from(bucket.byVn.get(vn_id)!.values()),
       }));
       const totalCharacters = creditsByVn.reduce((sum, credit) => sum + credit.characters.length, 0);
       return {

@@ -63,7 +63,6 @@ export function decodeRecentlyViewedEntries(value: unknown): RecentEntry[] {
 }
 
 function readStorage(): RecentEntry[] {
-  if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw || raw.length > MAX_STORAGE_BYTES) return [];
@@ -74,7 +73,6 @@ function readStorage(): RecentEntry[] {
 }
 
 function writeStorage(items: RecentEntry[]): void {
-  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_ITEMS)));
   } catch {

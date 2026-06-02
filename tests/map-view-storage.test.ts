@@ -29,6 +29,11 @@ describe('map view storage', () => {
     expect(readSavedMapView()).toEqual({ lat: 35.6, lng: 139.7, zoom: 20 });
   });
 
+  it('returns null when no viewport has been persisted yet', () => {
+    setupStorage();
+    expect(readSavedMapView()).toBeNull();
+  });
+
   it('rejects malformed, non-finite, and out-of-range persisted values', () => {
     const state = setupStorage('{');
     expect(readSavedMapView()).toBeNull();

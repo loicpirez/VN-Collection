@@ -33,13 +33,35 @@ describe('organizer client response adapters', () => {
       },
     })?.name).toBe('Fixture');
     expect(decodeSeriesImagePath({ path: 'series/4-cover.webp' })).toBe('series/4-cover.webp');
+    expect(decodeCreatedOrganizerUserList({ list: { ...LIST, color: '#fff', pinned: 1 } })).toEqual({
+      ...LIST,
+      color: '#fff',
+      pinned: 1,
+    });
+    expect(decodeCreatedSeriesRow({
+      series: {
+        id: 5,
+        name: 'Fixture',
+        description: 'Description',
+        cover_path: 'series/5-cover.webp',
+        banner_path: 'series/5-banner.webp',
+        created_at: 1,
+        updated_at: 2,
+      },
+    })?.banner_path).toBe('series/5-banner.webp');
   });
 
   it('rejects malformed organizer payloads', () => {
+    expect(decodeOrganizerUserLists({ lists: Array(2_001).fill(LIST) })).toBeNull();
     expect(decodeOrganizerUserLists({ lists: [{ ...LIST, pinned: 2 }] })).toBeNull();
+    expect(decodeOrganizerSavedFilters({ filters: Array(501).fill(null) })).toBeNull();
     expect(decodeOrganizerSavedFilters({ filters: [{ id: 0 }] })).toBeNull();
     expect(decodeCreatedSeriesId({ series: { id: 0 } })).toBeNull();
     expect(decodeCreatedSeriesRow({ series: { id: 4 } })).toBeNull();
     expect(decodeSeriesImagePath({ path: '../secret' })).toBeNull();
+    expect(decodeSeriesImagePath({ path: '' })).toBeNull();
+    expect(decodeSeriesImagePath({ path: 'a'.repeat(201) })).toBeNull();
+    expect(decodeSeriesImagePath({ path: 'series/\0cover.webp' })).toBeNull();
+    expect(decodeSeriesImagePath({ path: 'series/cover image.webp' })).toBeNull();
   });
 });

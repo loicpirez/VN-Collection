@@ -116,7 +116,7 @@ async function paginatePost<T>(
       { ttlMs, decode },
     );
     if (r.stale) stale = true;
-    out.push(...(r.data.results ?? []));
+    out.push(...r.data.results);
     if (!r.data.more) break;
   }
   return { rows: out, stale };
@@ -234,7 +234,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
     if (!role) continue;
     if (role.name && !nameFromUpstream) nameFromUpstream = role.name;
     if (!role.publisher) continue;
-    for (const v of rel.vns ?? []) {
+    for (const v of rel.vns) {
       if (!v?.id || pubMap.has(v.id)) continue;
       pubMap.set(v.id, summarize(v));
     }

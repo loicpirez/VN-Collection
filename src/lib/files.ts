@@ -129,7 +129,6 @@ async function readBodyWithCap(res: Response, maxBytes: number): Promise<Buffer 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!value) continue;
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel('cap exceeded').catch(() => undefined);
@@ -143,15 +142,19 @@ async function readBodyWithCap(res: Response, maxBytes: number): Promise<Buffer 
   return Buffer.concat(chunks);
 }
 
-function extFromContentType(ct: string | null): string {
-  if (!ct) return '.bin';
-  if (ct.includes('jpeg') || ct.includes('jpg')) return '.jpg';
-  if (ct.includes('png')) return '.png';
-  if (ct.includes('webp')) return '.webp';
-  if (ct.includes('gif')) return '.gif';
-  if (ct.includes('bmp')) return '.bmp';
-  if (ct.includes('avif')) return '.avif';
-  return '.bin';
+const IMAGE_EXTENSIONS = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/avif': '.avif',
+} as const;
+
+type ImageMime = keyof typeof IMAGE_EXTENSIONS;
+
+function extFromContentType(ct: ImageMime): string {
+  return IMAGE_EXTENSIONS[ct];
 }
 
 function guessContentType(absPath: string): string {
@@ -222,7 +225,7 @@ export async function downloadToBucket(
  * canonical MIME type plus the leading bytes that uniquely
  * identify the format.
  */
-const IMAGE_MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
+const IMAGE_MAGIC_BYTES: Array<{ mime: ImageMime; bytes: number[]; offset?: number }> = [
   { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
   { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
   { mime: 'image/gif', bytes: [0x47, 0x49, 0x46, 0x38] },
@@ -233,7 +236,7 @@ const IMAGE_MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number 
   { mime: 'image/avif', bytes: [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66], offset: 4 },
 ];
 
-function detectImageMime(buf: Buffer): string | null {
+function detectImageMime(buf: Buffer): ImageMime | null {
   for (const sig of IMAGE_MAGIC_BYTES) {
     const offset = sig.offset ?? 0;
     if (buf.length < offset + sig.bytes.length) continue;

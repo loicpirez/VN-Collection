@@ -84,6 +84,10 @@ describe('seed-picker-url helpers', () => {
       expect(next.toString()).toBe(current.toString());
     });
 
+    it('accepts absent params', () => {
+      expect(clearSeed(null).toString()).toBe('');
+    });
+
     it('never mutates the input', () => {
       const current = new URLSearchParams('seed=v90017&mode=similar-to-vn');
       clearSeed(current);

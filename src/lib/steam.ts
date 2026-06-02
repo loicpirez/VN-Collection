@@ -161,7 +161,7 @@ async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: numb
         if (m) appid = Number(m[1]);
       }
       if (!appid) continue;
-      for (const v of rel.vns ?? []) {
+      for (const v of rel.vns) {
         // Keep the first appid we find per VN. A VN with multiple Steam
         // releases (e.g. dual-language) gets matched to the first hit;
         // that's acceptable since playtime aggregates across releases on
@@ -199,7 +199,7 @@ export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Prom
 
   // Pull title + current playtime for every linked VN in one query.
   const ids = links.map((l) => l.vn_id);
-  const rows: Array<{ vn_id: string; vn_title: string; current: number | null }> = [];
+  const rows: Array<{ vn_id: string; vn_title: string; current: number }> = [];
   const CHUNK = 500;
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
@@ -214,7 +214,7 @@ export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Prom
         .all(...chunk) as typeof rows),
     );
   }
-  const titles = new Map(rows.map((r) => [r.vn_id, { title: r.vn_title, current: r.current ?? 0 }]));
+  const titles = new Map(rows.map((r) => [r.vn_id, { title: r.vn_title, current: r.current }]));
 
   const out: SteamSuggestion[] = [];
   for (const link of links) {

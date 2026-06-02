@@ -30,6 +30,10 @@ describe('sanitizeErrorMessage', () => {
     expect(out).not.toContain('token=abc');
   });
 
+  it('replaces malformed URL runs with a placeholder', () => {
+    expect(sanitizeErrorMessage('GET http://% failed')).toBe('GET [url] failed');
+  });
+
   it('redacts a Bearer token', () => {
     const out = sanitizeErrorMessage(new Error('auth rejected: Bearer abc123def456ghi789'));
     expect(out).toContain('[REDACTED_TOKEN]');
@@ -94,5 +98,13 @@ describe('loggedApiError', () => {
     const body = loggedApiError('plain failure', 'ctx');
     expect(String(spy.mock.calls[0][0])).toContain('plain failure');
     expect(body.error).toBe('plain failure');
+  });
+
+  it('falls back to the message when an Error has no stack', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = new Error('stackless failure');
+    Object.defineProperty(error, 'stack', { value: undefined });
+    loggedApiError(error, 'ctx');
+    expect(String(spy.mock.calls[0][0])).toContain('stackless failure');
   });
 });

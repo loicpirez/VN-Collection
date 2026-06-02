@@ -51,11 +51,22 @@ describe('settings server client response decoders', () => {
     expect(decoded?.default_sort).toBe('updated_at');
     expect(decoded?.sofmap_proxy_config).toEqual(proxy);
     expect(decoded?.stock_disabled_providers).toEqual(['sofmap']);
+    expect(decodeServerSettingsResponse({
+      ...settingsPayload(),
+      vndb_proxy_config: { ...proxy, port: 1080 },
+      stock_disabled_providers: ['sofmap', 'sofmap'],
+    })?.vndb_proxy_config.port).toBe(1080);
+    expect(decodeServerSettingsResponse({
+      ...settingsPayload(),
+      random_quote_source: 'mine',
+    })?.random_quote_source).toBe('mine');
   });
 
   it('rejects malformed credential and proxy rows', () => {
     expect(decodeServerSettingsResponse({ ...settingsPayload(), steam_api_key: { hasKey: 'yes' } })).toBeNull();
     expect(decodeServerSettingsResponse({ ...settingsPayload(), sofmap_proxy_config: { ...proxy, port: 0 } })).toBeNull();
+    expect(decodeServerSettingsResponse({ ...settingsPayload(), stock_disabled_providers: ['bad'] })).toBeNull();
+    expect(decodeServerSettingsResponse({ ...settingsPayload(), stock_disabled_providers: null })).toBeNull();
   });
 
   it('decodes VNDB pull status diffs and rejects malformed VN ids', () => {
@@ -71,7 +82,29 @@ describe('settings server client response decoders', () => {
     expect(decodeVndbPullStatusResult(payload)?.changes[0]?.vn_id).toBe('v90017');
     expect(decodeVndbPullStatusResult({
       ...payload,
+      needsAuth: true,
+      message: 'authorization required',
+      changes: [{ vn_id: 'V90017', title: 'Title', from: 'playing', to: 'completed' }],
+    })).toMatchObject({
+      needsAuth: true,
+      message: 'authorization required',
+      changes: [{ from: 'playing', to: 'completed' }],
+    });
+    expect(decodeVndbPullStatusResult({
+      ...payload,
+      changes: Array(10_001).fill(null),
+    })).toBeNull();
+    expect(decodeVndbPullStatusResult({
+      ...payload,
+      unmatched: Array(21).fill(null),
+    })).toBeNull();
+    expect(decodeVndbPullStatusResult({
+      ...payload,
       unmatched: [{ vn_id: 'bad', status: 'completed' }],
+    })).toBeNull();
+    expect(decodeVndbPullStatusResult({
+      ...payload,
+      changes: [{ vn_id: 'bad', title: 'Title', from: null, to: 'planning' }],
     })).toBeNull();
   });
 });

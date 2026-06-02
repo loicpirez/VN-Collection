@@ -79,11 +79,10 @@ function trimVolumeMarker(s: string): string {
     .trim();
 }
 
-function longestCommonPrefix(titles: string[]): string {
-  if (titles.length === 0) return '';
-  let prefix = titles[0];
-  for (let i = 1; i < titles.length; i++) {
-    while (titles[i].indexOf(prefix) !== 0) {
+function longestCommonPrefix(first: string, rest: string[]): string {
+  let prefix = first;
+  for (const title of rest) {
+    while (title.indexOf(prefix) !== 0) {
       prefix = prefix.slice(0, -1);
       if (!prefix) return '';
     }
@@ -146,8 +145,7 @@ export function detectSeriesForVn(vnId: string): SeriesSuggestion | null {
 
   if (existing.length === 0 && relatedInCollection.length === 0) return null;
 
-  const titles = [seedRow.title, ...relatedInCollection.map((r) => r.title)];
-  let suggested = longestCommonPrefix(titles);
+  let suggested = longestCommonPrefix(seedRow.title, relatedInCollection.map((r) => r.title));
   if (!suggested || suggested.length < 3) suggested = trimVolumeMarker(seedRow.title);
   if (!suggested) suggested = seedRow.title;
 

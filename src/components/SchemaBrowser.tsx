@@ -97,7 +97,7 @@ function walkSchema(v: unknown, path: string, filter: string, out: Set<string>):
   if (v === null || v === undefined) return false;
   if (typeof v !== 'object') {
     if (matchesScalar(v, filter)) {
-      if (path) out.add(path);
+      out.add(path);
       return true;
     }
     return false;
@@ -155,21 +155,19 @@ const Node = memo(function NodeInner({
   // Outside filtering, depth-0 nodes are still collapsed by default
   // and the user toggles them.
   const inMatchTree = hasFilter && visiblePaths?.has(path);
-  const open = openLocal || !!inMatchTree;
 
   // When a filter goes from non-empty back to empty, promote the
   // filter-driven open state into the local toggle so the user
   const prevHadFilter = useRef(hasFilter);
+  const prevInMatchTree = useRef(!!inMatchTree);
+  const open = openLocal || !!inMatchTree || (prevHadFilter.current && !hasFilter && prevInMatchTree.current);
   useEffect(() => {
-    if (prevHadFilter.current && !hasFilter && inMatchTree && !openLocal) {
+    if (prevHadFilter.current && !hasFilter && prevInMatchTree.current && !openLocal) {
       setOpenLocal(true);
     }
     prevHadFilter.current = hasFilter;
-    // inMatchTree is derived from `hasFilter` + `visiblePaths`; the
-    // intent is "react when the filter clears", not when the tree
-    // contents shift, so we only depend on hasFilter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFilter]);
+    prevInMatchTree.current = !!inMatchTree;
+  }, [hasFilter, inMatchTree, openLocal]);
 
   if (hasFilter && !inMatchTree) return null;
 
@@ -257,4 +255,3 @@ function highlight(s: string, q: string): React.ReactNode {
     </>
   );
 }
-

@@ -6,7 +6,7 @@
  * default, so we stub the minimal browser globals needed before
  * importing the module under test.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Minimal localStorage shim — covers getItem / setItem / removeItem.
 class FakeLocalStorage {
@@ -56,6 +56,7 @@ async function loadModule(): Promise<typeof import('@/lib/recentlyViewed')> {
 
 describe('recentlyViewed — recordRecentlyViewed / clearRecentlyViewed', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     fakeLocalStorage.clear();
   });
 
@@ -161,6 +162,52 @@ describe('recentlyViewed — recordRecentlyViewed / clearRecentlyViewed', () => 
       sexual: 0,
       viewedAt: 1,
     }]);
+  });
+
+  it('rejects each malformed persisted field shape', async () => {
+    const { decodeRecentlyViewedEntries } = await loadModule();
+    const base = {
+      id: 'v90053',
+      title: 'Valid',
+      poster: 'poster.jpg',
+      localPoster: 'local.jpg',
+      sexual: null,
+      viewedAt: 1,
+    };
+    expect(decodeRecentlyViewedEntries({ malformed: true })).toEqual([]);
+    expect(decodeRecentlyViewedEntries([
+      null,
+      { ...base, id: 1 },
+      { ...base, title: '   ' },
+      { ...base, poster: 1 },
+      { ...base, localPoster: 1 },
+      { ...base, sexual: '0' },
+      { ...base, sexual: Number.NaN },
+      { ...base, viewedAt: '1' },
+      { ...base, viewedAt: Number.NaN },
+      { ...base, viewedAt: -1 },
+      base,
+    ])).toEqual([base]);
+  });
+
+  it('replaces oversized storage and tolerates quota failures', async () => {
+    const { recordRecentlyViewed } = await loadModule();
+    fakeLocalStorage.setItem(STORAGE_KEY, 'x'.repeat(100_001));
+    recordRecentlyViewed({ id: 'v90054', title: 'Recovered', poster: null, localPoster: null, sexual: 0 });
+    expect(fakeLocalStorage.getItem(STORAGE_KEY)).toContain('v90054');
+
+    vi.spyOn(fakeLocalStorage, 'setItem').mockImplementationOnce(() => {
+      throw new Error('quota');
+    });
+    expect(() => {
+      recordRecentlyViewed({ id: 'v90055', title: 'Discarded', poster: null, localPoster: null, sexual: 0 });
+    }).not.toThrow();
+  });
+
+  it('does not persist a malformed new entry', async () => {
+    const { recordRecentlyViewed } = await loadModule();
+    recordRecentlyViewed({ id: 'invalid', title: 'Rejected', poster: null, localPoster: null, sexual: 0 });
+    expect(fakeLocalStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it('caps decoded storage rows to the rendered strip limit', async () => {

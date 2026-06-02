@@ -32,6 +32,7 @@ describe('validateShelfDisplayOverridesV1', () => {
     expect(validateShelfDisplayOverridesV1(undefined)).toEqual(defaultShelfDisplayOverridesV1());
     expect(validateShelfDisplayOverridesV1(42)).toEqual(defaultShelfDisplayOverridesV1());
     expect(validateShelfDisplayOverridesV1([])).toEqual(defaultShelfDisplayOverridesV1());
+    expect(validateShelfDisplayOverridesV1({ shelves: null })).toEqual(defaultShelfDisplayOverridesV1());
   });
 
   it('accepts a legacy flat ShelfViewPrefsV1 payload as the global', () => {
@@ -50,6 +51,9 @@ describe('validateShelfDisplayOverridesV1', () => {
         '1': { cellWidthPx: 180 },
         '2': {}, // empty → dropped
         bogus: { irrelevant: 99 } as never, // no known keys → dropped
+        '': { cellWidthPx: 180 },
+        '3': null,
+        '4': [],
       },
     });
     expect(Object.keys(out.shelves).sort()).toEqual(['1']);
@@ -66,6 +70,29 @@ describe('validateShelfDisplayOverridesV1', () => {
     expect(out.shelves['1'].textDensity).toBeUndefined();
   });
 
+  it('keeps supported per-shelf enum, boolean, and orientation values', () => {
+    const out = validateShelfDisplayOverridesV1({
+      shelves: {
+        '1': {
+          fitMode: 'contain',
+          textDensity: 'sm',
+          showLabels: false,
+          compact: true,
+          displayOrientation: 'landscape',
+          displayRowOrientations: { '0': 'portrait', '1': 'landscape', '2': 'bad' },
+        },
+      },
+    });
+    expect(out.shelves['1']).toEqual({
+      fitMode: 'contain',
+      textDensity: 'sm',
+      showLabels: false,
+      compact: true,
+      displayOrientation: 'landscape',
+      displayRowOrientations: { '0': 'portrait', '1': 'landscape' },
+    });
+  });
+
   it('parses round-trip JSON safely', () => {
     const parsed = parseShelfDisplayOverridesV1(
       JSON.stringify({ global: { cellWidthPx: 200 }, shelves: { '7': { coverScale: 1.4 } } }),
@@ -76,6 +103,7 @@ describe('validateShelfDisplayOverridesV1', () => {
 
   it('returns defaults when the JSON is malformed', () => {
     expect(parseShelfDisplayOverridesV1('not json')).toEqual(defaultShelfDisplayOverridesV1());
+    expect(parseShelfDisplayOverridesV1(null)).toEqual(defaultShelfDisplayOverridesV1());
   });
 });
 

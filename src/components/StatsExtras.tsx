@@ -112,7 +112,7 @@ export async function StatsExtras() {
                     {tagOrder.map((tag, idx) => {
                       const n = m.get(tag) ?? 0;
                       if (n === 0) return null;
-                      const w = total > 0 ? (n / total) * 100 : 0;
+                      const w = (n / total) * 100;
                       const hue = (idx * 71) % 360;
                       return (
                         <div

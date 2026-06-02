@@ -146,6 +146,8 @@ describe('isPrivateIpv4', () => {
     expect(isPrivateIpv4('198.51.100.1')).toBe(true);
     expect(isPrivateIpv4('203.0.113.1')).toBe(true);
     expect(isPrivateIpv4('198.18.0.1')).toBe(true);
+    expect(isPrivateIpv4('198.19.0.1')).toBe(true);
+    expect(isPrivateIpv4('192.0.0.1')).toBe(true);
     expect(isPrivateIpv4('224.0.0.1')).toBe(true);
     expect(isPrivateIpv4('255.255.255.255')).toBe(true);
   });

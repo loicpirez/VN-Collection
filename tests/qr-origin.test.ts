@@ -33,4 +33,12 @@ describe('qrOriginFromHeaders', () => {
       host: '/bad',
     })).toBe('http://localhost:3000');
   });
+
+  it('falls back when URL parsing rejects an authority-shaped host', () => {
+    expect(qrOriginFromHeaders({
+      forwardedProto: 'https',
+      forwardedHost: ':3000',
+      host: 'localhost:3000',
+    })).toBe('https://localhost:3000');
+  });
 });

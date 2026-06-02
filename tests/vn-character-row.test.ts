@@ -45,6 +45,34 @@ describe('VN character row adapter', () => {
     expect(readVnCharacterRows({ characters: [{ id: 'c1' }, { name: 'Missing id' }] })).toEqual([]);
   });
 
+  it('normalizes sparse VN images, role variants, and trait defaults', () => {
+    const rows = readVnCharacterRows({
+      characters: [{
+        id: 'c2',
+        name: 'Character',
+        image: { url: 'https://example.com/c2.jpg', dims: [320, null], sexual: null, violence: null },
+        birthday: [4, null],
+        gender: ['f', 'm'],
+        vns: [
+          { id: 'v1', role: 'primary', image: { url: 'https://example.com/v1.jpg', thumbnail: null, sexual: null } },
+          { id: 'v2', role: 'side' },
+          { id: 'v3', role: 'appears' },
+        ],
+        traits: [{ id: 'i2' }],
+      }],
+    });
+    expect(rows[0]).toMatchObject({
+      birthday: null,
+      gender: ['f', 'm'],
+      vns: [
+        { id: 'v1', role: 'primary', image: { url: 'https://example.com/v1.jpg' } },
+        { id: 'v2', role: 'side' },
+        { id: 'v3', role: 'appears' },
+      ],
+      traits: [{ id: 'i2', name: '', group_name: '', spoiler: 0, sexual: false }],
+    });
+  });
+
   it('decodes direct VNDB cache envelopes and rejects malformed containers', () => {
     expect(decodeVndbCharacterCacheResponse({
       results: [{ id: 'c2', name: 'Cached character', traits: [] }],
@@ -53,5 +81,11 @@ describe('VN character row adapter', () => {
     });
     expect(decodeVndbCharacterCacheResponse({ results: {} })).toBeNull();
     expect(decodeVndbCharacterCacheResponse(null)).toBeNull();
+  });
+
+  it('defaults absent traits to an empty list', () => {
+    expect(readVnCharacterRows({
+      characters: [{ id: 'c3', name: 'Character' }],
+    })[0]?.traits).toEqual([]);
   });
 });

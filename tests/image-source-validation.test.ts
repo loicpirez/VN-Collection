@@ -25,8 +25,13 @@ describe('isValidImageSourceValue', () => {
   });
 
   it('rejects traversal, encoded traversal, scheme smuggling, and off-allowlist hosts', () => {
+    expect(isValidImageSourceValue('')).toBe(false);
+    expect(isValidImageSourceValue(' cover/custom.jpg')).toBe(false);
     expect(isValidImageSourceValue('../private.jpg')).toBe(false);
     expect(isValidImageSourceValue('%252e%252e/private.jpg')).toBe(false);
+    expect(isValidImageSourceValue('%')).toBe(false);
+    expect(isValidImageSourceValue('cover\\custom.jpg')).toBe(false);
+    expect(isValidImageSourceValue('cover/%00custom.jpg')).toBe(false);
     expect(isValidImageSourceValue('//evil.example.com/private.jpg')).toBe(false);
     expect(isValidImageSourceValue('javascript:alert(1)')).toBe(false);
     expect(isValidImageSourceValue('https://evil.example.com/private.jpg')).toBe(false);

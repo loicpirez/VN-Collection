@@ -355,7 +355,7 @@ async function fetchShopText(url: string, init: RequestInit & { encoding?: strin
         : null;
     let res: Response;
     try {
-      const host = sourceHost(url) || '';
+      const host = sourceHost(url);
       res = await stockProviderFetch(url, {
         redirect: 'follow',
         cache: 'no-store',
@@ -436,7 +436,7 @@ function uniqTargets(targets: StockTarget[]): StockTarget[] {
   return out;
 }
 
-function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn?: CollectionItem | null, extraTerms: string[] = []): StockTarget[] {
+function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn: CollectionItem, extraTerms: string[] = []): StockTarget[] {
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
@@ -469,28 +469,26 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
       });
     }
   }
-  if (vn) {
-    for (const query of titleQueriesForProvider(vn, provider, extraTerms)) {
-      const buildSearchUrl = TITLE_SEARCH_URLS[provider];
-      if (!buildSearchUrl) continue;
-      if (provider === 'amazon_jp') {
-        for (const searchTerm of amazonSearchTerms(query)) {
-          targets.push({ url: buildSearchUrl(searchTerm), releaseId: null, jan: null, query, source: 'search' });
-        }
-      } else {
-        targets.push({ url: buildSearchUrl(query), releaseId: null, jan: null, query, source: 'search' });
+  for (const query of titleQueriesForProvider(vn, provider, extraTerms)) {
+    const buildSearchUrl = TITLE_SEARCH_URLS[provider];
+    if (!buildSearchUrl) continue;
+    if (provider === 'amazon_jp') {
+      for (const searchTerm of amazonSearchTerms(query)) {
+        targets.push({ url: buildSearchUrl(searchTerm), releaseId: null, jan: null, query, source: 'search' });
       }
+    } else {
+      targets.push({ url: buildSearchUrl(query), releaseId: null, jan: null, query, source: 'search' });
     }
-    // JAN-based search: when a release has a GTIN and the provider supports a
-    // keyword search URL, also query by JAN. JAN searches typically return
-    // very high-confidence matches because the code is unique per package.
-    if (JAN_SEARCH_PROVIDERS.has(provider)) {
-      const buildSearchUrl = TITLE_SEARCH_URLS[provider]!;
-      for (const release of releases) {
-        const jan = janFromRelease(release);
-        if (!jan) continue;
-        targets.push({ url: buildSearchUrl(jan), releaseId: release.id, jan, query: jan, source: 'search' });
-      }
+  }
+  // JAN-based search: when a release has a GTIN and the provider supports a
+  // keyword search URL, also query by JAN. JAN searches typically return
+  // very high-confidence matches because the code is unique per package.
+  if (JAN_SEARCH_PROVIDERS.has(provider)) {
+    const buildSearchUrl = TITLE_SEARCH_URLS[provider]!;
+    for (const release of releases) {
+      const jan = janFromRelease(release);
+      if (!jan) continue;
+      targets.push({ url: buildSearchUrl(jan), releaseId: release.id, jan, query: jan, source: 'search' });
     }
   }
   return uniqTargets(targets);
@@ -499,12 +497,12 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
 function allTargetsForProvider(
   releases: VndbRelease[],
   provider: StockProviderId,
-  vn: CollectionItem | null,
+  vn: CollectionItem,
   discovered: Map<StockProviderId, StockTarget[]> = new Map(),
   extraTerms: string[] = [],
 ): StockTarget[] {
-  const sourceRank = (source?: StockTarget['source']): number =>
-    source === 'direct' || source === 'manual' ? 0 : source === 'search' ? 2 : 1;
+  const sourceRank = (source: StockTarget['source']): number =>
+    source === 'direct' || source === 'manual' ? 0 : 2;
   const targets = uniqTargets([
     ...releaseTargetsForProvider(releases, provider, vn, extraTerms),
     ...(discovered.get(provider) ?? []),
@@ -1571,9 +1569,9 @@ function parseYahooList(html: string, url: string, target: StockTarget): ParsedO
   for (const m of html.matchAll(/<a\s+href=["']([^"']+)["'][^>]+data-beacon=["']([^"']*?tname:[^"']+?)["'][^>]*>[\s\S]*?<span class=["'][^"']*ItemTitle[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?<span class=["'][^"']*ItemPrice_ItemPrice[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)) {
     const href = m[1]!;
     const beacon = decodeEntities(m[2]!);
-    const title = m[3] ?? /(?:^|;)tname:([^;]+)/.exec(beacon)?.[1] ?? '';
+    const title = m[3]!;
     const beaconPrice = /(?:^|;)prc:(\d+)/.exec(beacon)?.[1];
-    const price = beaconPrice ? `${beaconPrice}円` : (m[4] ?? '');
+    const price = beaconPrice ? `${beaconPrice}円` : m[4]!;
     const stock = /text:([^;]+)/.exec(beacon)?.[1] ?? (/予約/.test(m[0]) ? '予約' : '');
     const offer = offerFromListBlock('asakusa_mach', url, target, href, title, price, stock, { location: 'Yahoo Shopping' });
     if (offer) offers.push(offer);
@@ -1585,7 +1583,7 @@ function parseMakeshopList(provider: StockProviderId, html: string, url: string,
   const offers: ParsedOffer[] = [];
   for (const m of html.matchAll(/<li>\s*<div class=["']innerBox["'][\s\S]*?<p class=["']name["']>\s*<a href=([^>\s]+)[^>]*>([\s\S]*?)<\/a><\/p>[\s\S]*?<p class=["']price["']>\s*([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/li>/gi)) {
     const href = m[1]!.replace(/^["']|["']$/g, '');
-    const offer = offerFromListBlock(provider, url, target, href, m[2] ?? '', m[3] ?? '', m[0], { location: providerLabel(provider) });
+    const offer = offerFromListBlock(provider, url, target, href, m[2]!, m[3]!, m[0], { location: providerLabel(provider) });
     if (offer) offers.push(offer);
   }
   return offers;
@@ -2189,7 +2187,7 @@ export function parseSurugayaSearch(html: string): SurugayaSearchResult {
     const pid = m[3];
     if (!seenIds.has(pid)) {
       seenIds.add(pid);
-      uniqueLinks.push({ pos: m.index, pageKind: m[2] as 'detail' | 'other', productId: pid, queryStr: m[4] ?? '' });
+      uniqueLinks.push({ pos: m.index, pageKind: m[2] as 'detail' | 'other', productId: pid, queryStr: m[4]! });
     }
   }
 
@@ -2569,7 +2567,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   };
   if (activeProviders.length === 0 || signal?.aborted) {
     for (let _pi = 0; _pi < providers.length; _pi++) {
-      onProviderProgress?.(providers[_pi], _pi + 1, providers.length);
+      onProviderProgress?.(providers[_pi]!, _pi + 1, providers.length);
     }
     return getStockForVn(vnId);
   }

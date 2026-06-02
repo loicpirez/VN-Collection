@@ -20,7 +20,7 @@ export function tooManyRequests(
 ): NextResponse | null {
   const result = rateLimit(`${route}:${clientIp(req)}`, opts);
   if (result.ok) return null;
-  const retryAfterSec = Math.max(1, Math.ceil((result.retryAfterMs ?? opts.windowMs) / 1000));
+  const retryAfterSec = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
   return NextResponse.json(
     { error: 'rate limit exceeded' },
     { status: 429, headers: { 'Retry-After': String(retryAfterSec) } },

@@ -46,6 +46,19 @@ describe('picker client response adapters', () => {
       thumbnail: 'https://example.invalid/full.jpg',
       localThumbnail: 'vn/thumb.jpg',
     });
+    expect(decodeLocalVnSourcePickerResults({
+      matches: [{
+        id: 'v90002',
+        title: 'Local sparse',
+        image_url: null,
+        image_thumb: null,
+        local_image: 'vn/full.jpg',
+        local_image_thumb: null,
+      }],
+    })?.[0]).toMatchObject({
+      thumbnail: null,
+      localThumbnail: 'vn/full.jpg',
+    });
     expect(decodeVndbSourcePickerResults({ results: [VNDB_ROW] })?.[0]?.id).toBe('v90001');
     expect(decodeEgsSourcePickerResults({
       candidates: [{ id: 90001, gamename: 'EGS', gamename_furigana: null, median: null, count: null, sellday: null }],
@@ -62,6 +75,11 @@ describe('picker client response adapters', () => {
     expect(decodeTagPickerResults({ tags: [{ id: 'bad' }] })).toBeNull();
     expect(decodeProducerPickerResults({ producers: [{ id: 'bad' }] })).toBeNull();
     expect(decodeLocalVnSourcePickerResults({ matches: [{ id: 'bad' }] })).toBeNull();
+    expect(decodeTagPickerResults({ tags: Array(2_001).fill(null) })).toBeNull();
+    expect(decodeProducerPickerResults({ producers: Array(2_001).fill(null) })).toBeNull();
+    expect(decodeLocalVnSourcePickerResults({ matches: Array(2_001).fill(null) })).toBeNull();
+    expect(decodeVndbSourcePickerResults({ results: [{ id: 'bad' }] })).toBeNull();
+    expect(decodeEgsSourcePickerResults({ candidates: [{ id: 'bad' }] })).toBeNull();
     expect(decodeProducerRefreshSummary({ developers: '1' })).toBeNull();
   });
 });

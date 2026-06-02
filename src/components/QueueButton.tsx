@@ -79,7 +79,6 @@ export function QueueButton({ vnId }: { vnId: string }) {
         if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         setQueued(true);
       }
-      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       router.refresh();
     } catch (e) {

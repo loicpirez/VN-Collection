@@ -87,6 +87,15 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     expect(res?.status).toBe(403);
   });
 
+  it('X-Forwarded-For without X-Proxy-Secret is denied when a secret is configured', () => {
+    process.env.ALLOW_TRUSTED_PROXY = '1';
+    process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
+    const res = requireLocalhostOrToken(
+      makeExternalReq({ 'x-forwarded-for': '127.0.0.1' }),
+    );
+    expect(res?.status).toBe(403);
+  });
+
   it('X-Forwarded-For with correct X-Proxy-Secret is allowed', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
@@ -123,5 +132,16 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(403);
+  });
+
+  it('accepts the loopback 127 subnet with a correct proxy secret', () => {
+    process.env.ALLOW_TRUSTED_PROXY = '1';
+    process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
+    expect(requireLocalhostOrToken(
+      makeExternalReq({
+        'x-forwarded-for': '127.0.0.2',
+        'x-proxy-secret': TEST_SECRET,
+      }),
+    )).toBeNull();
   });
 });

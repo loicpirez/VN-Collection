@@ -79,7 +79,7 @@ export function FieldCompare({
   const resolved = resolveField(vndb, egs, optimistic);
   const vndbHas = !!vndb && vndb.trim().length > 0;
   const egsHas = !!egs && egs.trim().length > 0;
-  const canCompare = !forceCollapsed && (vndbHas || egsHas) && (egsHas || egsLinked);
+  const canCompare = !forceCollapsed && (egsHas || egsLinked);
 
   async function persist(next: SourceChoice) {
     if (mutationInFlightRef.current) return;
@@ -203,7 +203,7 @@ export function FieldCompare({
                 className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
                 title={t.compare.setDefault}
               >
-                {saving || pending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <PinIcon className="h-3 w-3" aria-hidden />}
+                <PinIcon className="h-3 w-3" aria-hidden />
                 {t.compare.setDefault}
               </button>
             )}

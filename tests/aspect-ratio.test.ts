@@ -65,7 +65,9 @@ describe('aspect ratio helpers', () => {
     expect(parseResolutionValue([1920, 1080])).toEqual({ width: 1920, height: 1080 });
     expect(parseResolutionValue('1280×720')).toEqual({ width: 1280, height: 720 });
     expect(parseResolutionValue('800x600')).toEqual({ width: 800, height: 600 });
+    expect(parseResolutionValue([0, 600])).toBeNull();
     expect(parseResolutionValue('unknown')).toBeNull();
+    expect(parseResolutionValue(null)).toBeNull();
   });
 });
 

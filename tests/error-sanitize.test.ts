@@ -70,6 +70,10 @@ describe('sanitizeUnknownError', () => {
     expect(sanitizeUnknownError({ foo: 'bar' })).toBe('unknown error');
   });
 
+  it('stringifies non-object thrown values', () => {
+    expect(sanitizeUnknownError(42)).toBe('42');
+  });
+
   it('falls through the sanitizer pipeline (URL + token redaction)', () => {
     const e = new Error('proxy failed at http://u:p@h.example.com:1080/ with key ABCDEF0123456789abcdef0123456789xx');
     const out = sanitizeUnknownError(e);

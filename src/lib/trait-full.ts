@@ -2,7 +2,7 @@ import 'server-only';
 import { db, getAppSetting } from './db';
 import { getTrait, type VndbTrait } from './vndb';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
-import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { parseJsonRecord } from './json-shape';
 import { decodeCharacterFullPayload } from './character-full';
 import { decodeVndbTrait } from './vndb-profile-row-shape';
 
@@ -90,8 +90,7 @@ export async function downloadFullTraitsForVn(vnId: string, opts: { force?: bool
       for (const r of rows) {
         const parsed = decodeCharacterFullPayload(r.body, 0);
         for (const value of parsed?.profile?.traits ?? []) {
-          const trait = asJsonRecord(value);
-          if (typeof trait?.id === 'string' && /^i\d+$/i.test(trait.id)) ids.add(trait.id);
+          ids.add(value.id);
         }
       }
     }

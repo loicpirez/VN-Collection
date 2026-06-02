@@ -343,8 +343,8 @@ export function migrateLegacyCardDensity(
   const merged: DisplaySettings = {
     ...DEFAULTS,
     ...safe,
-    density: { ...(safe.density ?? {}) },
-    pageSpace: { ...(safe.pageSpace ?? {}) },
+    density: { ...safe.density },
+    pageSpace: { ...safe.pageSpace },
   };
   if (
     !alreadyMigrated &&
@@ -412,7 +412,7 @@ export function DisplaySettingsProvider({
       // Mirror to a cookie so the server can pre-hydrate on next navigation
       // and avoid the "image flashes before hiding" issue.
       const value = encodeURIComponent(JSON.stringify(settings));
-      const secureFlag = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+      const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
       document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax${secureFlag}`;
     } catch {
       // ignore

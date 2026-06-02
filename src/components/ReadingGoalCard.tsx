@@ -73,7 +73,7 @@ export function ReadingGoalCard({ year }: Props) {
       saveAbortRef.current?.abort();
       saveAbortRef.current = null;
       saveInFlightRef.current = false;
-      if (identityRef.current === ownerYear) identityRef.current = null;
+      identityRef.current = null;
     };
   }, [year, t.common.error]);
 

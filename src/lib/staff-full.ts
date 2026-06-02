@@ -191,12 +191,8 @@ function writeStaffFullCache(sid: string, payload: StaffFullPayload): void {
     `).run(key(sid), JSON.stringify(payload), now, now + TTL_MS);
     db.prepare('DELETE FROM staff_credit_index WHERE sid = ?').run(sid);
     const ins = db.prepare('INSERT OR IGNORE INTO staff_credit_index (sid, vn_id, is_va) VALUES (?, ?, ?)');
-    for (const c of payload.productionCredits ?? []) {
-      if (c.id) ins.run(sid, c.id, 0);
-    }
-    for (const c of payload.vaCredits ?? []) {
-      if (c.id) ins.run(sid, c.id, 1);
-    }
+    for (const c of payload.productionCredits) ins.run(sid, c.id, 0);
+    for (const c of payload.vaCredits) ins.run(sid, c.id, 1);
   });
   txn();
 }

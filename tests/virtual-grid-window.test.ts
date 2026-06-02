@@ -67,6 +67,22 @@ describe('virtual grid window calculation', () => {
     expect(dense.columns).toBeGreaterThan(comfortable.columns);
   });
 
+  it('uses stable default measurements before the browser reports a grid size', () => {
+    const windowState = calculateVirtualGridWindow({
+      itemCount: 500,
+      width: 0,
+      scrollY: 0,
+      viewportHeight: 0,
+      containerTop: 0,
+      densityPx: 220,
+      densityMultiplier: 1,
+      gapPx: 12,
+    });
+    expect(windowState.enabled).toBe(true);
+    expect(windowState.columns).toBeGreaterThan(0);
+    expect(windowState.endIndex).toBeGreaterThan(0);
+  });
+
   it('parses CSS pixel values with a safe fallback', () => {
     expect(parseCssPixelValue('184px', 220)).toBe(184);
     expect(parseCssPixelValue('', 220)).toBe(220);

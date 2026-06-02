@@ -14,16 +14,6 @@ function normalizedHost(raw: string | null): string | null {
   if (!candidate || candidate.length > 320 || /[/\\?#@]/.test(candidate)) return null;
   try {
     const parsed = new URL(`http://${candidate}`);
-    if (
-      !parsed.hostname
-      || parsed.username
-      || parsed.password
-      || parsed.pathname !== '/'
-      || parsed.search
-      || parsed.hash
-    ) {
-      return null;
-    }
     return parsed.host;
   } catch {
     return null;

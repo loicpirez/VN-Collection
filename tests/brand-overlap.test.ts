@@ -133,6 +133,17 @@ function seedStaffFull(
   });
 }
 
+function seedStaffBody(sid: string, body: string): void {
+  putCacheRow({
+    cache_key: `staff_full:${sid.toLowerCase()}`,
+    body,
+    etag: null,
+    last_modified: null,
+    fetched_at: Date.now(),
+    expires_at: Date.now() + 3_600_000,
+  });
+}
+
 function resetState(): void {
   db.exec(`DELETE FROM staff_credit_index; DELETE FROM vndb_cache;`);
 }
@@ -239,6 +250,53 @@ describe('findBrandStaffOverlap', () => {
     expect(result.entries[0].isVa).toBe(true);
     expect(result.entries[0].aCredits[0].roles[0]).toBe('va:Heroine A');
     expect(result.entries[0].bCredits[0].roles[0]).toBe('va:Heroine B, Heroine C');
+  });
+
+  it('skips malformed and profile-less cache rows', async () => {
+    fetchProducerCompletionMock.mockImplementation(async (id: string) =>
+      id === BRAND_A ? completion(['v71210'], 1) : completion(['v71211'], 1),
+    );
+    for (const sid of ['s72210', 's72211']) {
+      seedCreditIndex(sid, 'v71210');
+      seedCreditIndex(sid, 'v71211');
+    }
+    seedStaffBody('s72210', '{');
+    seedStaffBody('s72211', JSON.stringify({
+      profile: null,
+      productionCredits: [],
+      vaCredits: [],
+    }));
+
+    const result = await findBrandStaffOverlap(BRAND_A, BRAND_B);
+
+    expect(result.entries).toEqual([]);
+  });
+
+  it('ignores unrelated credits and labels an empty-character voice credit as VA', async () => {
+    fetchProducerCompletionMock.mockImplementation(async (id: string) =>
+      id === BRAND_A ? completion(['v71220'], 1) : completion(['v71221'], 1),
+    );
+    seedCreditIndex('s72220', 'v71220');
+    seedCreditIndex('s72220', 'v71221');
+    seedStaffFull(
+      's72220',
+      'Mixed Staff',
+      null,
+      [
+        { id: 'v71220', roles: ['scenario'] },
+        { id: 'v71221', roles: ['scenario'] },
+        { id: 'v79999', roles: ['art'] },
+      ],
+      [
+        { id: 'v71221', characters: [] },
+        { id: 'v79998', characters: ['Unrelated'] },
+      ],
+    );
+
+    const result = await findBrandStaffOverlap(BRAND_A, BRAND_B);
+
+    expect(result.entries[0].isVa).toBe(true);
+    expect(result.entries[0].bCredits.map((credit) => credit.roles)).toContainEqual(['va']);
   });
 
   it('excludes a staff member who only has credits on one side', async () => {

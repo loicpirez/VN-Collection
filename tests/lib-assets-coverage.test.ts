@@ -159,6 +159,19 @@ describe('ensureLocalImagesForVn — cover + thumbnail', () => {
     expect(mSetLocalImagePaths).not.toHaveBeenCalled();
   });
 
+  it('keeps the existing thumbnail path when its refresh download throws', async () => {
+    mGetItem.mockReturnValue(
+      baseItem({ image_thumb: 'https://cdn.vndb.org/cv/a-t.jpg', local_image_thumb: 'vn/old-thumb.jpg' }),
+    );
+    mFileExists.mockResolvedValue(false);
+    mDownload.mockRejectedValue(new Error('boom'));
+
+    const result = await ensureLocalImagesForVn('v90001');
+
+    expect(result.posterThumb).toBe('vn/old-thumb.jpg');
+    expect(mSetLocalImagePaths).not.toHaveBeenCalled();
+  });
+
   it('skips re-downloading the cover when a local copy already exists on disk', async () => {
     mGetItem.mockReturnValue(
       baseItem({ image_url: 'https://cdn.vndb.org/cv/a.jpg', local_image: 'vn/have.jpg' }),
@@ -288,6 +301,73 @@ describe('ensureLocalImagesForVn — release images + publisher aggregation', ()
 
     expect(result.releaseImages[0].local).toBe('vn-sc/cached.jpg');
     expect(mDownload).not.toHaveBeenCalled();
+  });
+
+  it('mirrors a release thumbnail alongside its full package image', async () => {
+    mGetItem.mockReturnValue(baseItem());
+    mGetReleases.mockResolvedValue([
+      {
+        id: 'r1',
+        title: 'Rel A',
+        vns: [{ id: 'v90001' }],
+        producers: [],
+        images: [{
+          id: 'ri1',
+          type: 'pkgfront',
+          url: 'https://cdn.vndb.org/cv/r1.jpg',
+          thumbnail: 'https://cdn.vndb.org/cv/r1-t.jpg',
+        }],
+      },
+    ] as never);
+    mFileExists.mockResolvedValue(false);
+    mDownload.mockImplementation(async (_url, _bucket, hint) => `vn-sc/${hint}.jpg`);
+
+    const result = await ensureLocalImagesForVn('v90001');
+
+    expect(result.releaseImages[0].local_thumb).toBe('vn-sc/v90001-rel-pkgfront-0-thumb.jpg');
+  });
+
+  it('refreshes a stale locally stored release thumbnail', async () => {
+    mGetItem.mockReturnValue(
+      baseItem({
+        release_images: [{
+          id: 'ri1',
+          release_id: 'r1',
+          release_title: 'Rel A',
+          type: 'pkgfront',
+          url: 'https://cdn.vndb.org/cv/r1.jpg',
+          local: 'vn-sc/r1.jpg',
+          local_thumb: 'vn-sc/r1-t-old.jpg',
+        }],
+      }),
+    );
+    mGetReleases.mockResolvedValue([
+      {
+        id: 'r1',
+        title: 'Rel A',
+        vns: [{ id: 'v90001' }],
+        producers: [],
+        images: [{
+          id: 'ri1',
+          type: 'pkgfront',
+          url: 'https://cdn.vndb.org/cv/r1.jpg',
+          thumbnail: 'https://cdn.vndb.org/cv/r1-t.jpg',
+        }],
+      },
+    ] as never);
+    mFileExists.mockImplementation(async (path) => path === 'vn-sc/r1.jpg');
+    mDownload.mockImplementation(async (_url, _bucket, hint) => `vn-sc/${hint}.jpg`);
+
+    const result = await ensureLocalImagesForVn('v90001');
+
+    expect(result.releaseImages[0].local_thumb).toBe('vn-sc/v90001-rel-pkgfront-0-thumb.jpg');
+  });
+
+  it('uses an empty prior release-image list if the VN disappears during the release refresh', async () => {
+    mGetItem.mockReturnValueOnce(baseItem()).mockReturnValue(null);
+    mGetReleases.mockResolvedValue([]);
+
+    await expect(ensureLocalImagesForVn('v90001')).resolves.toMatchObject({ releaseImages: [] });
   });
 
   it('returns no release images and never wipes publishers when the release fetch throws', async () => {

@@ -26,9 +26,13 @@
  */
 export interface QuoteAvatarSource {
   character_id?: string | null;
+  /** Flat character name from SQL quote rows. */
+  character_name?: string | null;
   character_local_image?: string | null;
   character?: {
     id: string;
+    /** Nested character name from VNDB quote payloads. */
+    name?: string;
     image?: { local_path?: string | null } | null;
   } | null;
   /**

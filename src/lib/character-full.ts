@@ -72,7 +72,7 @@ function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): vo
     db.prepare('DELETE FROM character_vn_index WHERE character_id = ?').run(cid);
     const vnIds = new Set<string>();
     for (const v of payload.profile?.vns ?? []) {
-      if (v.id) vnIds.add(v.id);
+      vnIds.add(v.id);
     }
     const ins = db.prepare('INSERT OR IGNORE INTO character_vn_index (character_id, vn_id) VALUES (?, ?)');
     for (const vn of vnIds) ins.run(cid, vn);

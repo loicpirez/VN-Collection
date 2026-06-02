@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currencyFormatter, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, yearOnly } from '@/lib/locale-number';
+import { currencyFormatter, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, isoCalendarDay, yearOnly } from '@/lib/locale-number';
 
 describe('locale date formatting', () => {
   it('formats VNDB partial dates without inventing missing precision', () => {
@@ -12,6 +12,14 @@ describe('locale date formatting', () => {
     expect(formatIsoDateString('2020-05-21', 'fr')).toContain('2020');
     expect(formatIsoDateString('2020-05-21', 'ja')).toContain('2020');
     expect(formatIsoDateString('2020-05-21', 'en')).toBe('May 21, 2020');
+  });
+
+  it('formats a calendar day and preserves malformed or absent date input', () => {
+    expect(isoCalendarDay(new Date(Date.UTC(2020, 4, 21, 12, 30)), 'en')).toBe('2020-05-21');
+    expect(formatVndbDateString(null, 'en')).toBe('—');
+    expect(formatVndbDateString('not-a-date', 'en')).toBe('not-a-date');
+    expect(formatIsoDateString(undefined, 'en')).toBe('—');
+    expect(formatIsoDateString('not-a-date', 'en')).toBe('not-a-date');
   });
 
   it('formats numbers with locale-specific separators', () => {

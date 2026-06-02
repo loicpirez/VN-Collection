@@ -330,7 +330,7 @@ export function validateShelfDisplayOverridesV1(input: unknown): ShelfDisplayOve
       : {};
   const shelves: Record<string, Partial<ShelfViewPrefsV1>> = {};
   for (const [shelfId, raw] of Object.entries(rawShelves)) {
-    if (!shelfId || typeof shelfId !== 'string') continue;
+    if (!shelfId) continue;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const partial = pickPartialShelfPrefs(raw as Record<string, unknown>);
     // Drop empty partials so a "reset to global" PATCH that sent

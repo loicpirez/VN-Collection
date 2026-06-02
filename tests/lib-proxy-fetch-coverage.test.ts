@@ -27,12 +27,16 @@ vi.mock('@/lib/proxy-config', () => ({
 }));
 
 interface QueuedResponse {
-  statusCode: number;
-  headers: Record<string, string | string[]>;
+  statusCode?: number;
+  headers: Record<string, string | string[] | undefined>;
   body?: Buffer | null;
+  chunks?: Buffer[];
+  responseError?: Error;
+  postChunksError?: Error;
+  waitForAbort?: boolean;
 }
 interface CapturedRequest {
-  options: { method?: string; path?: string; headers?: Record<string, string> };
+  options: { method?: string; path?: string; headers?: Record<string, string>; port?: number; servername?: string };
 }
 
 const captured: CapturedRequest[] = [];
@@ -40,7 +44,7 @@ const responseQueue: QueuedResponse[] = [];
 
 function fakeRequest(
   options: CapturedRequest['options'],
-  cb: (res: EventEmitter & { statusCode: number; headers: Record<string, string | string[]> }) => void,
+  cb: (res: EventEmitter & { statusCode?: number; headers: Record<string, string | string[] | undefined> }) => void,
 ) {
   const queued = responseQueue.shift() ?? { statusCode: 200, headers: {}, body: null };
   captured.push({ options });
@@ -49,15 +53,25 @@ function fakeRequest(
   req.destroy = () => {};
   req.end = () => {
     const res = new EventEmitter() as EventEmitter & {
-      statusCode: number;
-      headers: Record<string, string | string[]>;
+      statusCode?: number;
+      headers: Record<string, string | string[] | undefined>;
       destroy: () => void;
     };
     res.statusCode = queued.statusCode;
     res.headers = queued.headers;
     res.destroy = () => {};
     cb(res);
-    if (queued.body && queued.body.length > 0) res.emit('data', queued.body);
+    if (queued.responseError) {
+      res.emit('error', queued.responseError);
+      return;
+    }
+    if (queued.chunks) {
+      for (const chunk of queued.chunks) res.emit('data', chunk);
+    } else if (queued.body && queued.body.length > 0) {
+      res.emit('data', queued.body);
+    }
+    if (queued.postChunksError) res.emit('error', queued.postChunksError);
+    if (queued.waitForAbort) return;
     res.emit('end');
   };
   return req;
@@ -216,6 +230,52 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
     expect(await res.text()).toBe('hello-deflate');
   });
 
+  it('inflates a raw-deflate encoded body after the wrapped inflate attempt fails', async () => {
+    responseQueue.push({
+      statusCode: 200,
+      headers: { 'content-encoding': 'deflate' },
+      body: zlib.deflateRawSync(Buffer.from('hello-raw-deflate')),
+    });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+    expect(await res.text()).toBe('hello-raw-deflate');
+  });
+
+  it('falls back to the raw body when a declared compression format is malformed', async () => {
+    responseQueue.push({
+      statusCode: 200,
+      headers: { 'content-encoding': 'gzip' },
+      body: Buffer.from('not-gzip'),
+    });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+    expect(await res.text()).toBe('not-gzip');
+  });
+
+  it('decompresses zstd when the runtime supports it and passes zstd bytes through otherwise', async () => {
+    const compress = zlib.zstdCompressSync;
+    if (typeof compress === 'function') {
+      responseQueue.push({
+        statusCode: 200,
+        headers: { 'content-encoding': 'zstd' },
+        body: compress(Buffer.from('hello-zstd')),
+      });
+      const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+      const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+      expect(await res.text()).toBe('hello-zstd');
+    }
+    const original = zlib.zstdDecompressSync;
+    Object.defineProperty(zlib, 'zstdDecompressSync', { configurable: true, value: undefined });
+    try {
+      responseQueue.push({ statusCode: 200, headers: { 'content-encoding': 'zstd' }, body: Buffer.from('plain-zstd') });
+      const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+      const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+      expect(await res.text()).toBe('plain-zstd');
+    } finally {
+      Object.defineProperty(zlib, 'zstdDecompressSync', { configurable: true, value: original });
+    }
+  });
+
   it('passes an identity body through unchanged and preserves array + scalar headers', async () => {
     responseQueue.push({
       statusCode: 200,
@@ -288,6 +348,27 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
     ).rejects.toThrow(/exceeded 52428800 bytes/);
   });
 
+  it('ignores chunks and response errors emitted after the hard cap aborts the response', async () => {
+    responseQueue.push({
+      statusCode: 200,
+      headers: {},
+      chunks: [Buffer.alloc(50 * 1024 * 1024 + 1), Buffer.from('ignored')],
+      postChunksError: new Error('ignored after abort'),
+    });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent())),
+    ).rejects.toThrow(/exceeded 52428800 bytes/);
+  });
+
+  it('rejects a response-stream error before the response completes', async () => {
+    responseQueue.push({ statusCode: 200, headers: {}, responseError: new Error('stream failed') });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent())),
+    ).rejects.toThrow(/stream failed/);
+  });
+
   it('rejects with an AbortError when the AbortSignal is already aborted', async () => {
     const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
     await expect(
@@ -298,5 +379,56 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
         createProxyHopResolver(new Agent()),
       ),
     ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('rejects with an AbortError when the AbortSignal fires during the request', async () => {
+    responseQueue.push({ statusCode: 200, headers: {}, waitForAbort: true });
+    const controller = new AbortController();
+    const { nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const request = nodeAgentFetch(
+      'https://api.vndb.org/x',
+      { signal: controller.signal },
+      new Agent(),
+    );
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('uses explicit ports, the HTTP requester, SNI metadata, array locations, and nullable headers', async () => {
+    responseQueue.push({ statusCode: 302, headers: { location: ['https://api.vndb.org:444/after'], 'x-empty': undefined } });
+    responseQueue.push({ statusCode: 200, headers: { 'x-empty': undefined }, body: Buffer.from('done') });
+    const agent = new Agent();
+    const { nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const res = await nodeAgentFetch(
+      'http://api.vndb.org:8080/start',
+      {},
+      undefined,
+      async () => ({ agent, servername: 'api.vndb.org' }),
+    );
+    expect(await res.text()).toBe('done');
+    expect(captured[0].options.port).toBe(8080);
+    expect(captured[1].options.port).toBe(444);
+    expect(captured[1].options.servername).toBe('api.vndb.org');
+  });
+
+  it('defaults an HTTP request to port 80', async () => {
+    responseQueue.push({ statusCode: 200, headers: {}, body: Buffer.from('done') });
+    const { nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const res = await nodeAgentFetch('http://api.vndb.org/start', {}, new Agent());
+    expect(await res.text()).toBe('done');
+    expect(captured[0].options.port).toBe(80);
+  });
+
+  it('rejects when neither a static agent nor a hop resolver supplies an agent', async () => {
+    const { nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    await expect(nodeAgentFetch('https://api.vndb.org/x', {}, undefined)).rejects.toThrow(/no agent resolved/);
+  });
+
+  it('surfaces an absent raw status code as an invalid synthesized Response', async () => {
+    responseQueue.push({ statusCode: undefined, headers: {}, body: Buffer.from('body') });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    await expect(
+      nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent())),
+    ).rejects.toThrow();
   });
 });

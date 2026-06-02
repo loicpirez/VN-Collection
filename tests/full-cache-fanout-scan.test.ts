@@ -266,6 +266,12 @@ describe('downloadScreenshotReleasesForVn', () => {
     expect(r.downloaded).toBe(1);
     expect(readReleaseFullCache('r90503')).not.toBeNull();
   });
+
+  it('does not count screenshot releases missing upstream', async () => {
+    seedVn(VN, { raw: JSON.stringify({ screenshots: [{ release: { id: 'r90504' } }] }) });
+    getReleaseMock.mockResolvedValue(null);
+    await expect(downloadScreenshotReleasesForVn(VN, { force: true })).resolves.toEqual({ scanned: 1, downloaded: 0 });
+  });
 });
 
 describe('downloadFullReleasesForVn', () => {
@@ -288,6 +294,13 @@ describe('downloadFullReleasesForVn', () => {
     expect(r).toEqual({ scanned: 2, downloaded: 2 });
     expect(readReleaseFullCache('r90510')).not.toBeNull();
     expect(readReleaseFullCache('r90511')).not.toBeNull();
+  });
+
+  it('skips releases already fresh in the cache', async () => {
+    seedVn(VN);
+    writeCacheRow('release_full:r90512', JSON.stringify({ release: release('r90512'), fetched_at: NOW }), NOW);
+    getReleasesForVnMock.mockResolvedValue([release('r90512')]);
+    await expect(downloadFullReleasesForVn(VN, { force: true })).resolves.toEqual({ scanned: 1, downloaded: 0 });
   });
 });
 
@@ -476,6 +489,13 @@ describe('downloadFullTraitsForVn', () => {
     await expect(downloadFullTraitsForVn(VN, { force: true })).resolves.toEqual({ scanned: 0, downloaded: 0 });
   });
 
+  it('returns zero when an indexed character has no cached profile', async () => {
+    seedVn(VN);
+    db.prepare(`INSERT INTO character_vn_index (character_id, vn_id) VALUES ('c90523', ?)`).run(VN);
+    writeCacheRow('char_full:c90523', JSON.stringify({ profile: null, fetched_at: NOW }), NOW);
+    await expect(downloadFullTraitsForVn(VN, { force: true })).resolves.toEqual({ scanned: 0, downloaded: 0 });
+  });
+
   it('returns scanned=traits, downloaded=0 when every referenced trait is already fresh', async () => {
     seedVn(VN);
     db.prepare(`INSERT INTO character_vn_index (character_id, vn_id) VALUES ('c90522', ?)`).run(VN);
@@ -554,6 +574,12 @@ describe('downloadFullRelationsForVn', () => {
     const r = await downloadFullRelationsForVn(VN, { force: true });
     expect(r.scanned).toBe(2);
     expect(r.downloaded).toBe(1);
+  });
+
+  it('does not count related VNs missing upstream', async () => {
+    seedVn(VN, { raw: JSON.stringify({ relations: [{ id: 'v90534' }] }) });
+    getVnMock.mockResolvedValue(null);
+    await expect(downloadFullRelationsForVn(VN, { force: true })).resolves.toEqual({ scanned: 1, downloaded: 0 });
   });
 });
 

@@ -72,6 +72,13 @@ describe('buildArchiveName', () => {
       buildArchiveName(src({ title: 'x', alttitle: 'タイトル', released: '2020', developers: [{ name: '  ' }, { name: 'Real' }] })),
     ).toBe('Real - タイトル (2020)');
   });
+
+  it('accepts a missing publisher list and skips blank publisher entries', () => {
+    expect(buildArchiveName(src({ title: 'Solo', publishers: undefined }))).toBe('Solo');
+    expect(
+      buildArchiveName(src({ title: 'P', publishers: [{ name: '  ' }, { name: 'PubCo' }] })),
+    ).toBe('PubCo - P');
+  });
 });
 
 describe('compareArchiveSource', () => {

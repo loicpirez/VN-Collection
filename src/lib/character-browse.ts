@@ -297,7 +297,7 @@ export function sortCharacters(
     let cmp = 0;
     switch (params.sort) {
       case 'name':
-        cmp = (a.name ?? '').localeCompare(b.name ?? '');
+        cmp = a.name.localeCompare(b.name);
         break;
       case 'height':
         cmp = nullableNumberCompare(a.height, b.height);
@@ -308,11 +308,6 @@ export function sortCharacters(
       case 'birthday':
         cmp = nullableNumberCompare(birthdayMonth(a), birthdayMonth(b));
         break;
-      default: {
-        const _exhaustive: never = params.sort;
-        void _exhaustive;
-        break;
-      }
     }
     if (cmp === 0) cmp = a.id.localeCompare(b.id);
     return params.reverse ? -cmp : cmp;
@@ -344,7 +339,7 @@ export function groupCharacters(
     if (groupBy === 'blood') key = (c.blood_type ?? 'unknown').toLowerCase();
     else if (groupBy === 'birthMonth') key = String(birthdayMonth(c) ?? 'unknown');
     else if (groupBy === 'sex') key = c.sex?.[0] ?? 'unknown';
-    else if (groupBy === 'role') key = c.vns?.[0]?.role ?? 'unknown';
+    else key = c.vns?.[0]?.role ?? 'unknown';
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(c);
   }

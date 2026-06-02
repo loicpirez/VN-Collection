@@ -74,6 +74,10 @@ describe('validateIsoDate', () => {
     expect(validateIsoDate('not-a-date').ok).toBe(false);
   });
 
+  it('rejects a blank date string', () => {
+    expect(validateIsoDate('   ').ok).toBe(false);
+  });
+
   it('rejects a boolean', () => {
     expect(validateIsoDate(true).ok).toBe(false);
   });

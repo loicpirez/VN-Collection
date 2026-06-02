@@ -49,4 +49,12 @@ describe('auth-gate — 0.0.0.0 is not loopback (R5-130)', () => {
     expect(result).not.toBeNull();
     expect(result!.status).toBe(403);
   });
+
+  it('allows an external request with the configured admin header token', () => {
+    process.env.VN_ADMIN_TOKEN = 'shared-secret';
+    const req = new NextRequest('http://93.184.216.34/api/settings', {
+      headers: { 'x-admin-token': 'shared-secret' },
+    });
+    expect(requireLocalhostOrToken(req)).toBeNull();
+  });
 });

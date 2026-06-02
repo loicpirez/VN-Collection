@@ -25,6 +25,7 @@ describe('rateLimit fixed-window counter', () => {
     rateLimit('block', { ...OPTS, now: 200 });
     const fourth = rateLimit('block', { ...OPTS, now: 300 });
     expect(fourth.ok).toBe(false);
+    if (fourth.ok) throw new Error('expected a blocked request');
     expect(fourth.retryAfterMs).toBe(700);
   });
 
@@ -32,9 +33,11 @@ describe('rateLimit fixed-window counter', () => {
     for (const now of [0, 10, 20]) rateLimit('flood', { ...OPTS, now });
     const blocked = rateLimit('flood', { ...OPTS, now: 500 });
     expect(blocked.ok).toBe(false);
+    if (blocked.ok) throw new Error('expected a blocked request');
     expect(blocked.retryAfterMs).toBe(500);
     const stillBlocked = rateLimit('flood', { ...OPTS, now: 900 });
     expect(stillBlocked.ok).toBe(false);
+    if (stillBlocked.ok) throw new Error('expected a blocked request');
     expect(stillBlocked.retryAfterMs).toBe(100);
   });
 
@@ -50,6 +53,19 @@ describe('rateLimit fixed-window counter', () => {
     expect(rateLimit('iso-a', { ...OPTS, now: 3 }).ok).toBe(false);
     expect(rateLimit('iso-b', { ...OPTS, now: 3 }).ok).toBe(true);
   });
+
+  it('uses the real clock when no injected timestamp is supplied', () => {
+    expect(rateLimit('real-clock', OPTS).ok).toBe(true);
+  });
+
+  it('prunes elapsed buckets while preserving live windows', () => {
+    for (let index = 0; index < 1024; index++) {
+      rateLimit(`expired-${index}`, { limit: 1, windowMs: 100, now: 0 });
+    }
+    rateLimit('still-live', { limit: 2, windowMs: 100, now: 950 });
+    expect(rateLimit('prune-trigger', { limit: 1, windowMs: 100, now: 1000 }).ok).toBe(true);
+    expect(rateLimit('still-live', { limit: 2, windowMs: 100, now: 1000 }).ok).toBe(true);
+  });
 });
 
 describe('clientIp keying helper', () => {
@@ -63,6 +79,13 @@ describe('clientIp keying helper', () => {
   it('falls back to the URL host when no forwarded header is set', () => {
     const req = new Request('http://127.0.0.1/api/search');
     expect(clientIp(req)).toBe('127.0.0.1');
+  });
+
+  it('uses unknown for an empty or malformed URL host', () => {
+    expect(clientIp(new Request('file:///tmp/test'))).toBe('unknown');
+    const req = new Request('http://localhost/test');
+    Object.defineProperty(req, 'url', { value: 'not a url' });
+    expect(clientIp(req)).toBe('unknown');
   });
 });
 

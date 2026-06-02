@@ -51,9 +51,9 @@ export function isoCalendarDay(date: Date, locale: Locale): string {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(date);
-  const get = (type: Intl.DateTimeFormatPartTypes): string =>
-    parts.find((p) => p.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const dateParts: Intl.DateTimeFormatPartTypes[] = ['year', 'month', 'day'];
+  return dateParts.map((type) => values.get(type)).join('-');
 }
 
 /** Format a VNDB partial date without inventing missing precision. */

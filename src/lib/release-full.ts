@@ -130,15 +130,10 @@ export async function downloadFullReleasesForVn(vnId: string, opts: { force?: bo
   const job = startJob('vn-fetch', jobLabel('releases_for_vn', `Releases for ${vnId}`, { vnId }), stale.length, vnId);
   let downloaded = 0;
   for (const r of stale) {
-    try {
-      const payload: ReleaseFullPayload = { release: r, fetched_at: now };
-      writeReleaseFullCache(r.id, payload);
-      downloaded += 1;
-    } catch (e) {
-      recordError(job.id, r.id, (e as Error).message);
-    } finally {
-      tickJob(job.id);
-    }
+    const payload: ReleaseFullPayload = { release: r, fetched_at: now };
+    writeReleaseFullCache(r.id, payload);
+    downloaded += 1;
+    tickJob(job.id);
   }
   finishJob(job.id);
   return { scanned: releases.length, downloaded };

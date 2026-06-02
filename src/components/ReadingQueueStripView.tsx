@@ -92,6 +92,8 @@ export function ReadingQueueStripView({
   useEffect(
     () => () => {
       abortRef.current?.abort();
+      abortRef.current = null;
+      savingRef.current = false;
     },
     [],
   );
@@ -104,7 +106,6 @@ export function ReadingQueueStripView({
 
   async function persist(next: ReadingQueueEntry[], previous: ReadingQueueEntry[]) {
     const controller = new AbortController();
-    abortRef.current?.abort();
     abortRef.current = controller;
     savingRef.current = true;
     setSaving(true);
