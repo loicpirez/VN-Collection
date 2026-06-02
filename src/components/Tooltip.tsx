@@ -14,18 +14,18 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
  * style. This primitive renders the tooltip as a positioned span next
  * to the trigger so it's accessible and styleable.
  *
- * Usage (illustrative — real call sites pass t.section.key strings):
+ * Usage (illustrative - real call sites pass t.section.key strings):
  *   <Tooltip content={t.media.openLightbox}>
  *     <button aria-label={t.media.openLightbox} className="…">
  *       <Maximize2 className="h-4 w-4" />
  *     </button>
  *   </Tooltip>
  *
- * Adoption is opt-in per call site — callers can keep using `title=`
+ * Adoption is opt-in per call site - callers can keep using `title=`
  * on places where the descriptor is purely cosmetic.
  */
 export interface TooltipProps {
-  /** Tooltip text content. Plain strings only — no markup. */
+  /** Tooltip text content. Plain strings only - no markup. */
   content: string;
   /** Element to attach the tooltip to. Must accept ref + accept aria-describedby. */
   children: ReactNode;
@@ -47,7 +47,7 @@ export function Tooltip({ content, children, side = 'top', disabled = false }: T
   const tooltipId = useId();
   const wrapperRef = useRef<HTMLSpanElement>(null);
 
-  // Escape dismisses the tooltip — covers the WCAG dismissible
+  // Escape dismisses the tooltip - covers the WCAG dismissible
   // requirement for content that overlays other UI.
   useEffect(() => {
     if (!open) return;
@@ -74,7 +74,7 @@ export function Tooltip({ content, children, side = 'top', disabled = false }: T
         the trigger; that's the cleanest pattern but requires React's
         Children.map machinery which adds bundle size. Most call sites
         already give the trigger its own `aria-label`, and the tooltip
-        body just visually reinforces it — duplicating the content via
+        body just visually reinforces it - duplicating the content via
         aria-hidden when the visual is shown is fine.
       */}
       {children}

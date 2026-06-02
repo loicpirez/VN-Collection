@@ -26,7 +26,7 @@ import {
  *
  * Card-level overlays (`<ListsPickerButton>` "Add to list", favourite
  * hover, status quick actions) used to render inline inside the
- * `.card { overflow: hidden }` wrapper — every dropdown that grew
+ * `.card { overflow: hidden }` wrapper - every dropdown that grew
  * taller than the cover area got clipped at the bottom edge of its
  * VN card. This component is the canonical fix; every card-level
  * overlay should route through it.
@@ -59,7 +59,7 @@ interface PortalPopoverProps {
   onClose: () => void;
   /** Ref to the element the panel is anchored to (usually the trigger button). */
   triggerRef: RefObject<HTMLElement | null>;
-  /** Accessible label for the panel — used as the `aria-label`. */
+  /** Accessible label for the panel - used as the `aria-label`. */
   label: string;
   /** Optional fixed DOM id for the panel so triggers can wire `aria-controls`. */
   panelId?: string;
@@ -92,7 +92,7 @@ export function PortalPopover({
     visibility: 'hidden',
   });
 
-  // SSR guard — `createPortal(…, document.body)` can only run after
+  // SSR guard - `createPortal(…, document.body)` can only run after
   // the first browser render. The panel is hidden offscreen until the
   // post-mount measure runs so users never see the un-placed frame.
   useEffect(() => setMounted(true), []);
@@ -228,7 +228,7 @@ export function PortalPopover({
       document.removeEventListener('keydown', onKey);
       window.cancelAnimationFrame(raf);
       // Return focus to whatever owned it before the popover opened
-      // — usually the trigger. Use `preventScroll` so a long card
+      // - usually the trigger. Use `preventScroll` so a long card
       // grid doesn't jump while focus restores.
       previouslyFocused?.focus?.({ preventScroll: true });
     };

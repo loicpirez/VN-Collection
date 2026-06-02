@@ -14,9 +14,9 @@ interface DialogProps {
   panelClassName?: string;
   /** Hide the rendered title bar (still attached via aria-labelledby). */
   hideTitleVisually?: boolean;
-  /** Disable the ESC-to-close handler — for confirmation flows. */
+  /** Disable the ESC-to-close handler - for confirmation flows. */
   disableEscape?: boolean;
-  /** Disable backdrop click-to-close — same use case. */
+  /** Disable backdrop click-to-close - same use case. */
   disableBackdropClose?: boolean;
   children: ReactNode;
 }
@@ -161,8 +161,19 @@ export function Dialog({
 }
 
 /**
+ * Renders custom dialog layouts at the shared root overlay layer.
+ *
+ * @param children - Custom dialog overlay markup.
+ * @returns A body-level portal when the browser document is available.
+ */
+export function DialogPortal({ children }: { children: ReactNode }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+}
+
+/**
  * Hook variant for callers that don't want the full `<Dialog>` shell
- * (typically because their panel layout is too specific — image
+ * (typically because their panel layout is too specific - image
  * lightbox, side sheet, etc.). The hook handles:
  *   • body-scroll lock while `open`
  *   • ESC-to-close (window keydown)
@@ -185,7 +196,7 @@ export function useDialogA11y({
   disableEscape?: boolean;
 }): void {
   const restoreFocusTo = useRef<HTMLElement | null>(null);
-  // Same trick as <Dialog> — keep the effect dependency list small
+  // Same trick as <Dialog> - keep the effect dependency list small
   // so an unstable `onClose` reference doesn't tear down the trap.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;

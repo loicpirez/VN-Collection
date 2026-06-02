@@ -19,7 +19,7 @@ export type ConfirmTone = 'default' | 'danger';
 interface ConfirmOptions {
   /** Optional title above the message. */
   title?: string;
-  /** Main body — supports newlines. */
+  /** Main body - supports newlines. */
   message: string;
   /** Confirm button label; defaults to t.common.confirm. */
   confirmLabel?: string;
