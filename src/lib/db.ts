@@ -9833,6 +9833,8 @@ export interface AliceNetStockRow {
   vn_image_sexual: number | null;
 }
 
+export type AliceNetStockRowWithEgs = AliceNetStockRow & { egs_id: number };
+
 /**
  * Full-sync the AliceNet stock table: upsert every incoming row,
  * delete rows whose code is absent from the snapshot (sold items).
@@ -10021,7 +10023,7 @@ export function countAliceNetNoVndbResult(retryBefore?: number): number {
 }
 
 /** AliceNet rows with an EGS match but still no VNDB match — second-pass retry queue. */
-export function listAliceNetNoVndbWithEgs(limit: number, retryBefore?: number): AliceNetStockRow[] {
+export function listAliceNetNoVndbWithEgs(limit: number, retryBefore?: number): AliceNetStockRowWithEgs[] {
   const retryWindow = retryWindowClause(retryBefore);
   return db
     .prepare(
@@ -10030,7 +10032,7 @@ export function listAliceNetNoVndbWithEgs(limit: number, retryBefore?: number): 
        ORDER BY COALESCE(last_matched_at, 0), code
        LIMIT ?`,
     )
-    .all(...retryWindow.params, limit) as AliceNetStockRow[];
+    .all(...retryWindow.params, limit) as AliceNetStockRowWithEgs[];
 }
 
 /** Count of `listAliceNetNoVndbWithEgs` rows. */

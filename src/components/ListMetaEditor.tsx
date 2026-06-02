@@ -62,7 +62,6 @@ export function ListMetaEditor({ list }: { list: List }) {
   function startMutation() {
     if (mutationInFlightRef.current) return null;
     const controller = new AbortController();
-    mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
     mutationInFlightRef.current = true;
     setBusy(true);
@@ -73,11 +72,11 @@ export function ListMetaEditor({ list }: { list: List }) {
     return identityRef.current === ownerListId && mutationAbortRef.current === controller && !controller.signal.aborted;
   }
 
-  function finishMutation(ownerListId: number, controller: AbortController) {
+  function finishMutation(controller: AbortController) {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (identityRef.current === ownerListId) setBusy(false);
+    setBusy(false);
   }
 
   async function patch(payload: Record<string, unknown>, ownerListId = list.id, controller = startMutation()) {
@@ -98,7 +97,7 @@ export function ListMetaEditor({ list }: { list: List }) {
       toast.error((e as Error).message);
       return false;
     } finally {
-      finishMutation(ownerListId, controller);
+      finishMutation(controller);
     }
   }
 
@@ -109,7 +108,7 @@ export function ListMetaEditor({ list }: { list: List }) {
       description: description.trim() || null,
       color,
     }, ownerListId);
-    if (saved && identityRef.current === ownerListId) setOpen(false);
+    if (saved) setOpen(false);
   }
 
   async function destroy() {
@@ -127,7 +126,7 @@ export function ListMetaEditor({ list }: { list: List }) {
       if (!ownsMutation(ownerListId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      finishMutation(ownerListId, controller);
+      finishMutation(controller);
     }
   }
 

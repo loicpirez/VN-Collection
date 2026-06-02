@@ -51,10 +51,6 @@ function isOptionalStringArray(value: unknown): boolean {
   return value === undefined || isBoundedStringArray(value);
 }
 
-function isOptionalRecord(value: unknown): boolean {
-  return value === undefined || value === null || asJsonRecord(value) !== null;
-}
-
 function isProducerCredit(value: unknown): boolean {
   const row = asJsonRecord(value);
   return row !== null

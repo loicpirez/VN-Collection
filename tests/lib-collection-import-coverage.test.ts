@@ -155,6 +155,17 @@ describe('decodeCollectionImportPayload — vn rows', () => {
   it('rejects a raw with an out-of-range devstatus', () => {
     expectError(payload({ vns: [{ id: 'v1', title: 't', raw: { devstatus: 9 }, fetched_at: NOW }] }), 'vns[0].raw has an invalid shape');
   });
+
+  it('accepts every supported raw tag category variant', () => {
+    const tags = [
+      { id: 'g1', name: 'Missing', rating: 1, spoiler: 0 },
+      { id: 'g2', name: 'Null', rating: 1, spoiler: 0, category: null },
+      { id: 'g3', name: 'Erotic', rating: 1, spoiler: 0, category: 'ero' },
+      { id: 'g4', name: 'Technical', rating: 1, spoiler: 0, category: 'tech' },
+    ];
+    const out = decodeCollectionImportPayload(payload({ vns: [{ id: 'v1', title: 't', raw: { tags }, fetched_at: NOW }] }));
+    expect(out.ok).toBe(true);
+  });
 });
 
 describe('decodeCollectionImportPayload — collection field bounds', () => {

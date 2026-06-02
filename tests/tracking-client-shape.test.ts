@@ -15,6 +15,7 @@ describe('tracking client response decoders', () => {
     })).toEqual({
       entries: [{ vn_id: 'v90017', position: 1, added_at: 10 }],
     });
+    expect(decodeReadingQueueResponse({ entries: Array(1_001).fill(null) })).toBeNull();
     expect(decodeReadingQueueResponse({ entries: [{ vn_id: 'bad', position: 1, added_at: 10 }] })).toBeNull();
   });
 
@@ -32,6 +33,7 @@ describe('tracking client response decoders', () => {
     });
     expect(decodeReadingGoalMutationResponse({ goal })).toEqual(goal);
     expect(decodeReadingGoalMutationResponse({ goal: { ...goal, target: 1_001 } })).toBeNull();
+    expect(decodeReadingGoalResponse({ year: -1, goal: null, finished: 0 })).toBeNull();
   });
 
   it('decodes game-log and activity mutation rows', () => {
@@ -47,6 +49,17 @@ describe('tracking client response decoders', () => {
       },
     })?.vn_id).toBe('v90017');
     expect(decodeGameLogEntryResponse({ entry: { id: 1 } })).toBeNull();
+    expect(decodeGameLogEntryResponse({
+      entry: {
+        id: 2,
+        vn_id: 'v90017',
+        note: 'note',
+        logged_at: 10,
+        session_minutes: null,
+        created_at: 10,
+        updated_at: 10,
+      },
+    })?.session_minutes).toBeNull();
     expect(decodeActivityEntryResponse({
       entry: {
         id: 2,
@@ -56,6 +69,15 @@ describe('tracking client response decoders', () => {
         occurred_at: 10,
       },
     })?.kind).toBe('manual');
+    expect(decodeActivityEntryResponse({
+      entry: {
+        id: 3,
+        vn_id: 'v90017',
+        kind: 'status',
+        payload: null,
+        occurred_at: 10,
+      },
+    })?.payload).toBeNull();
     expect(decodeActivityEntryResponse({
       entry: {
         id: 2,
@@ -80,6 +102,10 @@ describe('tracking client response decoders', () => {
       updated_at: 10,
     };
     expect(decodeRoutesResponse({ routes: [route] })?.[0]?.vn_id).toBe('v90017');
+    expect(decodeRoutesResponse({
+      routes: [{ ...route, completed_date: null, notes: 'note' }],
+    })?.[0]?.notes).toBe('note');
+    expect(decodeRoutesResponse({ routes: Array(1_001).fill(route) })).toBeNull();
     expect(decodeRoutesResponse({ routes: [{ ...route, completed_date: '01/06/2026' }] })).toBeNull();
   });
 });

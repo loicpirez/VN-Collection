@@ -83,4 +83,19 @@ describe('fetchAllCollectionItems', () => {
     await expect(fetchAllCollectionItems(new URLSearchParams(), decodeIdRow))
       .rejects.toThrow('collection request failed');
   });
+
+  it('rejects pagination that never reaches a final page', async () => {
+    const fetchSpy = vi.fn().mockImplementation((input: string) => {
+      const page = Number(new URL(input, 'http://localhost').searchParams.get('page'));
+      return Promise.resolve(jsonResponse({
+        items: [],
+        pagination: { page, page_size: 500, returned: 0, has_more: true },
+      }));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(fetchAllCollectionItems(new URLSearchParams(), decodeIdRow))
+      .rejects.toThrow('collection pagination exceeded its safety bound');
+    expect(fetchSpy).toHaveBeenCalledTimes(20_000);
+  });
 });

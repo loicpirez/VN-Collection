@@ -74,7 +74,7 @@ export function DataMaintenance() {
 
   useEffect(() => {
     mountedRef.current = true;
-    load().catch(() => {});
+    void load();
     return () => {
       mountedRef.current = false;
       refreshingRef.current = null;
@@ -87,25 +87,22 @@ export function DataMaintenance() {
     if (refreshingRef.current) return;
     const controller = new AbortController();
     refreshingRef.current = id;
-    refreshAbortRef.current?.abort();
     refreshAbortRef.current = controller;
     setRefreshing(id);
     try {
       const r = await fetch(`/api/collection/${id}/assets?refresh=true`, { method: 'POST', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (!mountedRef.current || refreshAbortRef.current !== controller || controller.signal.aborted) return;
+      if (!mountedRef.current || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       router.refresh();
       void load();
     } catch (e) {
-      if (!mountedRef.current || refreshAbortRef.current !== controller || controller.signal.aborted) return;
+      if (!mountedRef.current || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      if (refreshAbortRef.current === controller) {
-        refreshAbortRef.current = null;
-        refreshingRef.current = null;
-        if (mountedRef.current) setRefreshing(null);
-      }
+      refreshAbortRef.current = null;
+      refreshingRef.current = null;
+      if (mountedRef.current) setRefreshing(null);
     }
   }
 

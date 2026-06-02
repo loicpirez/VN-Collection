@@ -73,7 +73,7 @@ export function CreateListForm() {
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         inFlightRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        setBusy(false);
       }
     }
   }

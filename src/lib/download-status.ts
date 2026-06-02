@@ -211,8 +211,7 @@ export function subscribeStatus(listener: Listener): () => void {
   // running over a stale Set is more expensive than a dropped tab
   // missing one beat.
   if (listeners.size >= MAX_LISTENERS) {
-    const oldest = listeners.values().next().value;
-    if (oldest) listeners.delete(oldest);
+    listeners.delete(listeners.values().next().value!);
   }
   listeners.add(listener);
   return () => {
@@ -237,11 +236,10 @@ function gc(): void {
   if (jobs.size > MAX_LIVE_JOBS) {
     // Oldest finished first.
     const finished = Array.from(jobs.values())
-      .filter((j) => j.finished_at != null)
-      .sort((a, b) => (a.finished_at ?? 0) - (b.finished_at ?? 0));
+      .filter((j): j is DownloadJob & { finished_at: number } => j.finished_at != null)
+      .sort((a, b) => a.finished_at - b.finished_at);
     while (jobs.size > MAX_LIVE_JOBS && finished.length > 0) {
-      const oldest = finished.shift();
-      if (oldest) jobs.delete(oldest.id);
+      jobs.delete(finished.shift()!.id);
     }
   }
 }

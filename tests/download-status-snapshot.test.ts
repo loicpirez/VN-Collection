@@ -52,4 +52,63 @@ describe('decodeDownloadStatusSnapshot', () => {
     expect(decodeDownloadStatusSnapshot({ throttle: { active: -1, queued: 0 }, jobs: [] })).toBeNull();
     expect(decodeDownloadStatusSnapshot({ throttle: { active: 0, queued: 0 }, jobs: null })).toBeNull();
   });
+
+  it('normalizes optional throttle, label, item, and interruption metadata', () => {
+    expect(decodeDownloadStatusSnapshot({
+      throttle: { active: 0, queued: 0, recent429s: 1, circuitOpen: true },
+      jobs: [{
+        id: 'job-2',
+        kind: 'staff',
+        vn_id: 'v90001',
+        vn_title: 'Title',
+        label: 'Staff',
+        label_code: 'staff',
+        label_params: { total: 2, name: 'Title' },
+        total: 2,
+        done: 1,
+        current_item: 's90001',
+        current_item_code: 'staff',
+        current_item_params: null,
+        current_item_name: 'Staff member',
+        errors: [],
+        started_at: 10,
+        finished_at: 20,
+        cancelled: false,
+        interrupted: true,
+      }],
+    })).toMatchObject({
+      throttle: { recent429s: 1, circuitOpen: true },
+      jobs: [{
+        vn_title: 'Title',
+        label_code: 'staff',
+        label_params: { total: 2, name: 'Title' },
+        current_item_code: 'staff',
+        current_item_params: null,
+        current_item_name: 'Staff member',
+        cancelled: false,
+        interrupted: true,
+      }],
+    });
+  });
+
+  it('omits jobs with malformed optional parameter maps', () => {
+    const base = {
+      id: 'job-3',
+      kind: 'staff',
+      vn_id: null,
+      label: 'Staff',
+      total: 1,
+      done: 0,
+      errors: [],
+      started_at: 10,
+      finished_at: null,
+    };
+    expect(decodeDownloadStatusSnapshot({
+      throttle: { active: 0, queued: 0 },
+      jobs: [
+        { ...base, label_params: 'bad' },
+        { ...base, current_item_params: { value: Number.NaN } },
+      ],
+    })?.jobs).toEqual([]);
+  });
 });

@@ -82,7 +82,7 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
   // to serve concurrent requests, and a VN with 30 screenshots used
   // to be the dominant latency on import because each fileExists +
   // downloadToBucket pair awaited the previous one sequentially.
-  const shots = item.screenshots ?? [];
+  const shots = item.screenshots;
   const CONCURRENCY = 4;
   let mutated = false;
   const next: Screenshot[] = new Array(shots.length);
@@ -214,7 +214,7 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
   if (!releases) return [];
 
   const existing = getCollectionItem(vnId)?.release_images ?? [];
-  const existingByKey = new Map(existing.map((img) => [`${img.release_id}:${img.id ?? img.url}`, img]));
+  const existingByKey = new Map(existing.map((img) => [`${img.release_id}:${img.id}`, img]));
 
   // Aggregate publishers across every release of this VN. VNDB only
   // exposes producer roles at the release level (`release.producers[]`
@@ -226,7 +226,7 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
   const seenPub = new Set<string>();
   for (const release of releases) {
     if (release.vns.findIndex((v) => v.id === vnId) === -1) continue;
-    for (const p of release.producers ?? []) {
+    for (const p of release.producers) {
       if (!p.publisher || !p.id || !p.name) continue;
       if (seenPub.has(p.id)) continue;
       seenPub.add(p.id);
@@ -239,8 +239,8 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
   let idx = 0;
   for (const release of releases) {
     if (release.vns.findIndex((v) => v.id === vnId) === -1) continue;
-    for (const img of release.images ?? []) {
-      const key = `${release.id}:${img.id ?? img.url}`;
+    for (const img of release.images) {
+      const key = `${release.id}:${img.id}`;
       const prev = existingByKey.get(key);
       const base: ReleaseImage = {
         id: img.id,

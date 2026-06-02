@@ -7,6 +7,7 @@ import {
   batchGetVnTitles,
 } from './db';
 import { STOCK_PROVIDER_LABELS, type StockProviderId } from './stock-provider-constants';
+import { isVndbVnId } from './vn-id-shape';
 
 export interface EnrichedJob extends DownloadJob {
   vn_title: string | null;
@@ -34,10 +35,10 @@ export function enrichJobs(jobs: DownloadJob[]): EnrichedJob[] {
     if (j.vn_id) vnIds.add(j.vn_id);
     const ci = j.current_item;
     if (ci) {
-      if (ci.startsWith('v')) vnIds.add(ci);
-      else if (ci.startsWith('p')) producerIds.add(ci);
-      else if (ci.startsWith('s')) staffIds.add(ci);
-      else if (ci.startsWith('c')) charIds.add(ci);
+      if (isVndbVnId(ci)) vnIds.add(ci);
+      else if (/^p\d+$/.test(ci)) producerIds.add(ci);
+      else if (/^s\d+$/.test(ci)) staffIds.add(ci);
+      else if (/^c\d+$/.test(ci)) charIds.add(ci);
     }
   }
 
@@ -50,10 +51,10 @@ export function enrichJobs(jobs: DownloadJob[]): EnrichedJob[] {
     const ci = j.current_item ?? null;
     let current_item_name: string | null = null;
     if (ci) {
-      if (ci.startsWith('v')) current_item_name = vnTitles.get(ci) ?? null;
-      else if (ci.startsWith('p')) current_item_name = producerNames.get(ci) ?? null;
-      else if (ci.startsWith('s')) current_item_name = staffNames.get(ci) ?? null;
-      else if (ci.startsWith('c')) current_item_name = charNames.get(ci) ?? null;
+      if (isVndbVnId(ci)) current_item_name = vnTitles.get(ci) ?? null;
+      else if (/^p\d+$/.test(ci)) current_item_name = producerNames.get(ci) ?? null;
+      else if (/^s\d+$/.test(ci)) current_item_name = staffNames.get(ci) ?? null;
+      else if (/^c\d+$/.test(ci)) current_item_name = charNames.get(ci) ?? null;
       else if (ci in STOCK_PROVIDER_LABELS) current_item_name = STOCK_PROVIDER_LABELS[ci as StockProviderId];
     }
     return {

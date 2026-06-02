@@ -3,6 +3,10 @@ import {
   bumpStatus,
   cancelJob,
   finishJob,
+  getJob,
+  isJobCancelled,
+  isJobCurrentItemCode,
+  isJobLabelCode,
   jobCurrentItem,
   jobLabel,
   listJobs,
@@ -133,6 +137,64 @@ describe('download-status pub/sub', () => {
       current_item_code: null,
       current_item_params: null,
     });
+  });
+
+  it('validates persisted label and current-item codes', () => {
+    expect(isJobLabelCode('global_refresh')).toBe(true);
+    expect(isJobLabelCode('bad-code')).toBe(false);
+    expect(isJobCurrentItemCode('refresh_egs_top_ranked')).toBe(true);
+    expect(isJobCurrentItemCode('bad-code')).toBe(false);
+  });
+
+  it('keeps label params and clears absent current-item params', () => {
+    const job = startJob('cache-refresh', jobLabel('global_refresh', 'Global refresh', { count: 2 }), 2);
+    setJobCurrent(job.id, jobCurrentItem('refresh_vndb_stats', 'VNDB stats'));
+    expect(getJob(job.id)).toMatchObject({
+      label_params: { count: 2 },
+      current_item_code: 'refresh_vndb_stats',
+      current_item_params: null,
+    });
+  });
+
+  it('treats missing job lifecycle mutations as no-ops', () => {
+    expect(() => tickJob('missing-job')).not.toThrow();
+    expect(() => setJobCurrent('missing-job', 'ignored')).not.toThrow();
+    expect(() => recordError('missing-job', 'item', 'ignored')).not.toThrow();
+    expect(() => finishJob('missing-job')).not.toThrow();
+    expect(getJob('missing-job')).toBeNull();
+  });
+
+  it('tracks cancellation until finalization and supports cancelling a missing job', () => {
+    const job = startJob('stock-batch', 'cancel state', 1);
+    expect(isJobCancelled(job.id)).toBe(false);
+    cancelJob(job.id);
+    expect(isJobCancelled(job.id)).toBe(true);
+    finishJob(job.id, { complete: false });
+    expect(isJobCancelled(job.id)).toBe(false);
+
+    cancelJob('missing-cancelled-job');
+    expect(isJobCancelled('missing-cancelled-job')).toBe(true);
+  });
+
+  it('garbage-collects finished jobs older than one hour', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1);
+    const old = startJob('staff', 'old', 1);
+    finishJob(old.id);
+    now.mockReturnValue(3_600_002);
+    startJob('staff', 'gc trigger', 1);
+    expect(getJob(old.id)).toBeNull();
+  });
+
+  it('bounds the live job map by trimming the oldest finished entries', () => {
+    const created: string[] = [];
+    for (let index = 0; index < 205; index += 1) {
+      const job = startJob('staff', `bounded-${index}`, 1);
+      created.push(job.id);
+      finishJob(job.id);
+    }
+    startJob('staff', 'bounded-trigger', 1);
+    expect(getJob(created[0])).toBeNull();
+    expect(getJob(created[created.length - 1])).not.toBeNull();
   });
 
   it('evicts the oldest listener when the cap is exceeded', async () => {

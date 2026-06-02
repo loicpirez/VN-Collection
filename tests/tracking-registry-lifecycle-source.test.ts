@@ -30,7 +30,7 @@ describe('tracking and series registry lifecycle', () => {
     expect(SERIES).toContain('if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return');
     expect(SERIES).toContain('mutationAbortRef.current !== controller || controller.signal.aborted');
     expect(SERIES).toContain('signal: controller.signal');
-    expect(SERIES).toContain('if (mountedRef.current) setBusy(null)');
+    expect(SERIES).toContain('if (mutationAbortRef.current === controller)');
   });
 
   it('reserves series deletion before awaiting confirmation', () => {

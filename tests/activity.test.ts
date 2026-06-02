@@ -33,6 +33,24 @@ describe('user activity', () => {
     expect(listActivityKinds()).toEqual(['settings.update']);
   });
 
+  it('queries the unfiltered feed and applies text and time filters', () => {
+    const occurredAt = Date.now();
+    recordActivity({
+      kind: 'filter.fixture',
+      entityId: 'v-filter-fixture',
+      label: 'needle%_\\',
+      payload: { visible: 'needle%_\\' },
+    });
+    const rows = listUserActivity({
+      q: 'needle%_\\',
+      from: occurredAt - 1000,
+      to: occurredAt + 1000,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].entity).toBeNull();
+    expect(listUserActivity()).toHaveLength(1);
+  });
+
   it('records the round-4-followup mutation kinds end-to-end', () => {
     // VNDB writeback
     recordActivity({

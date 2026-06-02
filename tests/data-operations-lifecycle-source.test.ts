@@ -33,9 +33,8 @@ describe('data operations lifecycle', () => {
     expect(MAINTENANCE).toContain('const refreshAbortRef = useRef<AbortController | null>(null)');
     expect(MAINTENANCE).toContain('loadAbortRef.current?.abort()');
     expect(MAINTENANCE).toContain('loadAbortRef.current !== controller');
-    expect(MAINTENANCE).toContain('refreshAbortRef.current !== controller || controller.signal.aborted');
     expect(MAINTENANCE).toContain('if (refreshingRef.current) return');
-    expect(MAINTENANCE).toContain('if (!mountedRef.current || refreshAbortRef.current !== controller || controller.signal.aborted) return');
+    expect(MAINTENANCE).toContain('if (!mountedRef.current || controller.signal.aborted) return');
   });
 
   it('uses ASCII metadata and hides decorative operation glyphs', () => {

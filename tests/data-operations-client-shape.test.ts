@@ -58,7 +58,10 @@ describe('data operations client response adapters', () => {
   });
 
   it('rejects malformed maintenance and operation payloads', () => {
+    expect(decodeMaintenanceDuplicateGroups({ groups: Array(20_001).fill(null) })).toBeNull();
+    expect(decodeMaintenanceDuplicateGroups({ groups: [{ prefix: 'x', ids: Array(20_001).fill('v90001') }] })).toBeNull();
     expect(decodeMaintenanceDuplicateGroups({ groups: [{ prefix: 'x', ids: ['bad'] }] })).toBeNull();
+    expect(decodeMaintenanceStaleVns({ rows: Array(201).fill(null) })).toBeNull();
     expect(decodeMaintenanceStaleVns({ rows: [{ id: 'v1' }] })).toBeNull();
     expect(decodeJsonImportSummary({
       ok: true,
@@ -73,6 +76,14 @@ describe('data operations client response adapters', () => {
     expect(decodeDbRestoreSummary({
       ok: true,
       summary: { tables: [{ name: 'vn', rows_replaced: 1.5 }], skipped: [] },
+    })).toBeNull();
+    expect(decodeDbRestoreSummary({
+      ok: true,
+      summary: { tables: [], skipped: [{ name: 'cache', reason: 4 }] },
+    })).toBeNull();
+    expect(decodeDbRestoreSummary({
+      ok: true,
+      summary: { tables: [], skipped: Array(10_001).fill(null) },
     })).toBeNull();
   });
 });

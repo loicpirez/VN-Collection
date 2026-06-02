@@ -138,6 +138,19 @@ describe('enrichJobs', () => {
     }
   });
 
+  it('maps stock-provider current items and leaves missing names null', () => {
+    const out = enrichJobs([
+      baseJob({ current_item: 'sofmap' }),
+      baseJob({ id: 'j2', current_item: 'p99999' }),
+      baseJob({ id: 'j3', current_item: 's99999' }),
+      baseJob({ id: 'j4', current_item: 'c99999' }),
+      baseJob({ id: 'j5', vn_id: 'v99999' }),
+    ]);
+    expect(out[0].current_item_name).toBe('Sofmap / Recole');
+    expect(out.slice(1).map((row) => row.current_item_name)).toEqual([null, null, null, null]);
+    expect(out[4].vn_title).toBeNull();
+  });
+
   it('passes through every other DownloadJob field unchanged', () => {
     seedVn('v90500', 'Pass-through title');
     const input = baseJob({

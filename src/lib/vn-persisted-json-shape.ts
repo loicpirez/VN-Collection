@@ -37,10 +37,6 @@ function isOptionalFiniteNumber(value: unknown): boolean {
   return value === undefined || isFiniteNumber(value);
 }
 
-function isOptionalNullableFiniteNumber(value: unknown): boolean {
-  return value === undefined || isNullableFiniteNumber(value);
-}
-
 function isOptionalBoolean(value: unknown): boolean {
   return value === undefined || typeof value === 'boolean';
 }

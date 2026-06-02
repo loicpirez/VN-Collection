@@ -67,12 +67,20 @@ export function ListReorderGrid({
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const controller = abortRef.current;
+    abortRef.current = null;
+    savingRef.current = false;
+    controller?.abort();
+    setSaving(false);
     setOrder(items);
-  }, [items]);
+  }, [listId, items]);
 
   useEffect(
     () => () => {
-      abortRef.current?.abort();
+      const controller = abortRef.current;
+      abortRef.current = null;
+      savingRef.current = false;
+      controller?.abort();
     },
     [],
   );
@@ -85,7 +93,6 @@ export function ListReorderGrid({
 
   async function persist(next: ListReorderItem[], previous: ListReorderItem[]) {
     const controller = new AbortController();
-    abortRef.current?.abort();
     abortRef.current = controller;
     savingRef.current = true;
     setSaving(true);

@@ -43,7 +43,6 @@ export function ListCardActions({ list }: { list: List }) {
   function startMutation() {
     if (mutationInFlightRef.current) return null;
     const controller = new AbortController();
-    mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
     mutationInFlightRef.current = true;
     setBusy(true);
@@ -54,14 +53,12 @@ export function ListCardActions({ list }: { list: List }) {
     return identityRef.current === ownerListId && mutationAbortRef.current === controller && !controller.signal.aborted;
   }
 
-  function finishMutation(ownerListId: number, controller: AbortController) {
+  function finishMutation(controller: AbortController) {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (identityRef.current === ownerListId) {
-      setBusy(false);
-      setOpen(false);
-    }
+    setBusy(false);
+    setOpen(false);
   }
 
   async function patch(payload: Record<string, unknown>, ownerListId = list.id, controller = startMutation()) {
@@ -80,7 +77,7 @@ export function ListCardActions({ list }: { list: List }) {
       if (!ownsMutation(ownerListId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      finishMutation(ownerListId, controller);
+      finishMutation(controller);
     }
   }
 
@@ -98,7 +95,7 @@ export function ListCardActions({ list }: { list: List }) {
       if (next === null || !next || next === list.name) return;
       await patch({ name: next }, ownerListId, controller);
     } finally {
-      finishMutation(ownerListId, controller);
+      finishMutation(controller);
     }
   }
 
@@ -121,7 +118,7 @@ export function ListCardActions({ list }: { list: List }) {
       if (!ownsMutation(ownerListId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      finishMutation(ownerListId, controller);
+      finishMutation(controller);
     }
   }
 

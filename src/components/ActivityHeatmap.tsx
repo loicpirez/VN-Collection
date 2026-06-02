@@ -63,8 +63,8 @@ export async function ActivityHeatmap({ year }: { year: number }) {
         role="img"
         aria-label={t.year.heatmap.title.replace('{year}', String(year))}
       >
-        {weeks.map((wk, i) => {
-          const wkKey = wk.find(Boolean)?.day ?? `pad-w${i}`;
+        {weeks.map((wk) => {
+          const wkKey = wk.find(Boolean)!.day;
           return (
             <div key={wkKey} className={`flex flex-col ${GAP}`}>
               {wk.map((d, j) =>
