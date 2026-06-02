@@ -17,7 +17,7 @@ export interface AliceNetCandidate {
   id: string;
   title: string;
   alttitle: string | null;
-  aliases?: string[];
+  aliases: string[];
   released: string | null;
 }
 
@@ -221,7 +221,7 @@ function knownTitleDialectVariants(value: string): string[] {
 
   if (/花鐘カナデグラム/i.test(t)) {
     const chapter = /花鐘カナデグラム\s*(?:chapter\.?)?\s*(\d+)\s*(.*)$/iu.exec(t.replace(/\s+/g, ' '));
-    if (chapter?.[1]) out.push(tidySpaces(`花鐘カナデ＊グラム Chapter:${chapter[1]} ${chapter[2] ?? ''}`));
+    if (chapter?.[1]) out.push(tidySpaces(`花鐘カナデ＊グラム Chapter:${chapter[1]} ${chapter[2]}`));
   }
 
   if (/メイキングラヴァーズ|メイキングラバーズ/i.test(t)) {
@@ -443,7 +443,7 @@ function candidateTextValues(candidate: AliceNetCandidate): string[] {
   return [
     candidate.title,
     candidate.alttitle,
-    ...(candidate.aliases ?? []),
+    ...candidate.aliases,
   ].filter((value): value is string => Boolean(value));
 }
 
@@ -488,13 +488,12 @@ function hasCandidateTextMatch(candidate: AliceNetCandidate, query: string): boo
 }
 
 function isSafeAutoCandidate(
-  candidate: AliceNetCandidate | null,
+  candidate: AliceNetCandidate,
   score: number,
   query: string,
   releaseDate: string | null,
   primaryQuery: string,
 ): candidate is AliceNetCandidate {
-  if (!candidate) return false;
   const q = comparableTitle(query);
   const primary = comparableTitle(primaryQuery);
   const exactRelease = Boolean(releaseDate && candidate.released === releaseDate);
@@ -515,14 +514,13 @@ function isSafeAutoCandidate(
   // too broad: "ティンクル" should not auto-link a 2023 item to Twinkle Crusaders.
   // If the query covers less than half of the cleaned shop title, require
   // release-date support before accepting it.
-  const coverage = primary ? q.length / primary.length : 1;
+  const coverage = q.length / primary.length;
   if (coverage < 0.5 && !closeRelease) return false;
 
   return closeRelease || exactTitle || score >= 55;
 }
 
-function egsMeta(game: EgsGame | null | undefined): Parameters<typeof setAliceNetEgsLink>[3] | undefined {
-  if (!game) return undefined;
+function egsMeta(game: EgsGame): Parameters<typeof setAliceNetEgsLink>[3] {
   return {
     title: game.gamename,
     brand: game.brand_name,
@@ -546,12 +544,11 @@ function egsCandidateScore(candidate: EgsCandidate, query: string, releaseDate: 
   return score;
 }
 
-function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query: string, releaseDate: string | null): candidate is EgsCandidate {
-  if (!candidate) return false;
+function isSafeEgsCandidate(candidate: EgsCandidate, score: number, query: string, releaseDate: string | null): candidate is EgsCandidate {
   const q = comparableTitle(query);
   const title = comparableTitle(candidate.gamename);
   const furigana = comparableTitle(candidate.gamename_furigana);
-  if (!q || !title) return false;
+  if (!title) return false;
   const textMatch = title.includes(q)
     || q.includes(title)
     || Boolean(furigana && (furigana.includes(q) || q.includes(furigana)))
@@ -570,7 +567,7 @@ function isSafeEgsCandidate(candidate: EgsCandidate | null, score: number, query
 async function searchAliceNetEgsCandidate(item: AliceNetStockRow): Promise<{ game: EgsGame | null; query: string | null }> {
   const queries = buildAliceNetTitleSearchQueries(item.title).slice(0, MAX_ALICENET_EGS_AUTO_QUERIES);
   const releaseDate = normalizeReleaseDate(item.release_date);
-  let lastQuery = queries[0] ?? null;
+  let lastQuery = queries[0]!;
 
   for (const query of queries) {
     lastQuery = query;
@@ -589,7 +586,7 @@ async function searchAliceNetEgsCandidate(item: AliceNetStockRow): Promise<{ gam
       if (!best || score > best.score) best = { candidate, score };
     }
 
-    if (!isSafeEgsCandidate(best?.candidate ?? null, best?.score ?? 0, query, releaseDate)) continue;
+    if (!isSafeEgsCandidate(best!.candidate, best!.score, query, releaseDate)) continue;
     let game: EgsGame | null = null;
     try {
       game = await fetchEgsGame(best!.candidate.id);
@@ -611,11 +608,11 @@ async function searchAliceNetVndbCandidates(item: AliceNetStockRow): Promise<{
   const releaseDate = normalizeReleaseDate(item.release_date);
   if (queries.length === 0) return { top: null, candidatesJson: null, query: null };
 
-  let lastQuery = queries[0] ?? null;
+  let lastQuery = queries[0]!;
   for (const query of queries) {
     lastQuery = query;
     const vnResult = await searchVn(query, { results: 5 });
-    const candidates: AliceNetCandidate[] = (vnResult.results ?? []).slice(0, 5).map((v) => ({
+    const candidates: AliceNetCandidate[] = vnResult.results.slice(0, 5).map((v) => ({
       id: v.id,
       title: v.title,
       alttitle: v.alttitle,
@@ -627,7 +624,7 @@ async function searchAliceNetVndbCandidates(item: AliceNetStockRow): Promise<{
     }));
     if (candidates.length === 0) continue;
     const picked = pickBestCandidate(candidates, query, releaseDate);
-    const top = isSafeAutoCandidate(picked?.candidate ?? null, picked?.score ?? 0, query, releaseDate, queries[0] ?? query)
+    const top = isSafeAutoCandidate(picked!.candidate, picked!.score, query, releaseDate, queries[0]!)
       ? picked!.candidate
       : null;
     if (!top) continue;
@@ -706,7 +703,6 @@ export async function fetchAliceNetHtml(): Promise<string> {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    if (!value) continue;
     total += value.byteLength;
     if (total > MAX_ALICENET_BYTES) {
       await reader.cancel('cap exceeded').catch(() => undefined);
@@ -782,7 +778,7 @@ export async function matchNextAliceNetItems(
           vnResult.top.id,
           'auto',
           vnResult.candidatesJson,
-          vnResult.query ?? primaryQuery,
+          vnResult.query!,
         );
         matched++;
         continue;
@@ -794,17 +790,17 @@ export async function matchNextAliceNetItems(
         matched++;
         const vndbRaw = egsResult.game.raw?.vndb?.trim() ?? '';
         if (isVndbVnId(vndbRaw)) {
-          setAliceNetVnLink(item.code, vndbRaw, 'auto', null, egsResult.query ?? primaryQuery);
+          setAliceNetVnLink(item.code, vndbRaw, 'auto', null, egsResult.query!);
         } else {
-          setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+          setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
         }
         continue;
       }
-      setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query ?? egsResult.query ?? primaryQuery);
+      setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
       continue;
     }
     let itemMatched = false;
-    const [vndbResult, egsResult] = await Promise.allSettled([
+    const [vndbResult] = await Promise.allSettled([
       searchAliceNetVndbCandidates(item)
         .then((vnResult) => {
           if (vnResult.top) itemMatched = true;
@@ -822,11 +818,9 @@ export async function matchNextAliceNetItems(
             itemMatched = true;
             setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
           }
-        })
-        .catch(() => {}),
+        }),
     ]);
     if (vndbResult.status === 'rejected') throw vndbResult.reason;
-    if (egsResult.status === 'rejected') throw egsResult.reason;
     if (itemMatched) matched++;
   }
   return {
@@ -861,8 +855,7 @@ export async function matchVndbFromEgsForAliceNet(
   const items = listAliceNetNoVndbWithEgs(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
-    let egsId = item.egs_id;
-    if (egsId == null) continue;
+    const egsId = item.egs_id;
     // Read the EGS row's curated `vndb` column.
     try {
       const game = await fetchEgsGame(egsId);
@@ -955,18 +948,13 @@ export async function searchEgsForAliceNetNoVndb(
     if (!primary) continue;
     const queries = aggressive ? [] : [primary];
     let found = false;
-    try {
-      if (aggressive) {
-        const r = await searchAliceNetEgsCandidate(item);
-        if (r.game) {
-          setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
-          matched++;
-          found = true;
-        }
+    if (aggressive) {
+      const r = await searchAliceNetEgsCandidate(item);
+      if (r.game) {
+        setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+        matched++;
+        found = true;
       }
-    } catch (err) {
-      // Stop the batch instead of spinning over the same first rows forever.
-      throw err;
     }
     for (const q of queries) {
       try {

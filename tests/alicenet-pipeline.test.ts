@@ -186,6 +186,16 @@ describe('parseAliceNetHtml', () => {
     expect(rows[0].jan).toBeNull();
     expect(rows[0].release_date).toBeNull();
   });
+
+  it('recognizes each supported header spelling and skips a blank product code', () => {
+    for (const header of ['ｺｰﾄﾞ', 'code', 'Ａ']) {
+      const html = `
+        <tr><td>${header}</td><td>Title</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>333-444444-555</td><td>Product</td><td></td><td></td><td></td><td></td></tr>`;
+      expect(parseAliceNetHtml(html)).toHaveLength(1);
+    }
+    expect(parseAliceNetHtml('<tr><td></td><td>Blank code</td><td></td><td></td><td></td><td></td></tr>')).toEqual([]);
+  });
 });
 
 describe('fetchAliceNetHtml', () => {
@@ -213,6 +223,22 @@ describe('fetchAliceNetHtml', () => {
   it('throws when the upstream body is absent', async () => {
     providerFetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     await expect(fetchAliceNetHtml()).rejects.toThrow(/empty body/);
+  });
+
+  it('cancels and rejects a streamed response that grows past the cap', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(8 * 1024 * 1024 + 1));
+      },
+      cancel() {
+        cancelled = true;
+        return Promise.reject(new Error('synthetic cancellation failure'));
+      },
+    });
+    providerFetchMock.mockResolvedValue(new Response(body, { status: 200 }));
+    await expect(fetchAliceNetHtml()).rejects.toThrow(/exceeded/);
+    expect(cancelled).toBe(true);
   });
 });
 
@@ -288,6 +314,228 @@ describe('matchNextAliceNetItems — fresh pass', () => {
     searchVnMock.mockRejectedValue(new Error('vndb upstream down'));
     await expect(matchNextAliceNetItems(5, false)).rejects.toThrow(/vndb upstream down/);
   });
+
+  it('ranks aliases, localized titles, volume markers, and fandisc markers', async () => {
+    seedRow({ code: '111-000000-006', title: 'Synthetic Vol.2 FD', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [
+        vnHit({ id: 'v95060', title: 'Unrelated title', released: '2010-01-01' }),
+        vnHit({
+          id: 'v95061',
+          title: 'Synthetic Vol02 Fan Disc',
+          alttitle: 'Synthetic Volume02 Fandisc',
+          aliases: ['Synthetic Vol.2 FD'],
+          titles: [
+            { lang: 'ja', title: 'Localized title', latin: null, official: true, main: true },
+            { lang: 'en', title: 'Synthetic Volume02 Fandisc', latin: 'Synthetic Vol.2 FD', official: true, main: false },
+          ],
+          released: '2020-02-03',
+        }),
+      ],
+      more: false,
+    });
+    const result = await matchNextAliceNetItems(5, false);
+    expect(result.matched).toBe(1);
+    expect(getAliceNetStockItem('111-000000-006')?.vn_id).toBe('v95061');
+  });
+
+  it('accepts a short exact title only when a nearby release date corroborates it', async () => {
+    seedRow({ code: '111-000000-007', title: '短編物', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({ id: 'v95062', title: '短編物', released: '2020-02-04' })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('accepts a short contained title when its score and nearby date corroborate it', async () => {
+    seedRow({ code: '111-000000-014', title: '短編物', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({ id: 'v95065', title: '短編物追加', released: '2020-02-04' })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('accepts a long contained VNDB title on score alone', async () => {
+    seedRow({ code: '111-000000-015', title: 'LongQuery' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({ id: 'v95066', title: 'LongQuery Extra' })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('rejects an under-half fallback query without date support and accepts it with a nearby date', async () => {
+    const title = 'シンセティックタイトル とても長い長い長い追加説明テキスト';
+    searchVnMock.mockImplementation(async (query: string) => ({
+      results: query === 'シンセティックタイトル'
+        ? [vnHit({ id: 'v95067', title: 'シンセティックタイトル' })]
+        : [],
+      more: false,
+    }));
+    seedRow({ code: '111-000000-016', title });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(0);
+
+    resetTable();
+    searchVnMock.mockImplementation(async (query: string) => ({
+      results: query === 'シンセティックタイトル'
+        ? [vnHit({ id: 'v95068', title: 'シンセティックタイトル', released: '2020-02-04' })]
+        : [],
+      more: false,
+    }));
+    seedRow({ code: '111-000000-017', title, release_date: '2020/02/03' });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('maps VNDB hits whose optional aliases and localized titles are absent', async () => {
+    seedRow({ code: '111-000000-018', title: 'Optional arrays' });
+    const { aliases, titles, ...hit } = vnHit({ id: 'v95069', title: 'Optional arrays' });
+    expect(aliases).toEqual([]);
+    expect(titles).toEqual([]);
+    searchVnMock.mockResolvedValue({ results: [hit], more: false });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('scores a volume alias even when neither displayed VNDB title contains the volume marker', async () => {
+    seedRow({ code: '111-000000-026', title: 'Volume alias Vol.3', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({
+        id: 'v95070',
+        title: 'Volume alias',
+        alttitle: 'Alternate volume alias',
+        aliases: ['Volume alias Vol.3'],
+        released: '2020-02-03',
+      })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('keeps the first VNDB candidate when a later candidate scores lower', async () => {
+    seedRow({ code: '111-000000-027', title: 'First candidate', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [
+        vnHit({ id: 'v95071', title: 'First candidate', released: '2020-02-03' }),
+        vnHit({ id: 'v95072', title: 'First candidate extra' }),
+      ],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+    expect(getAliceNetStockItem('111-000000-027')?.vn_id).toBe('v95071');
+  });
+
+  it('accepts an exact text match when the shop date is malformed', async () => {
+    seedRow({ code: '111-000000-008', title: 'Malformed Date Title', release_date: 'not-a-date' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({ id: 'v95063', title: 'Malformed Date Title', released: '2020-02-04' })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('accepts exact text while treating a malformed candidate date as non-comparable', async () => {
+    seedRow({ code: '111-000000-009', title: 'Malformed Candidate Date', release_date: '2020/02/03' });
+    searchVnMock.mockResolvedValue({
+      results: [vnHit({ id: 'v95064', title: 'Malformed Candidate Date', released: 'invalid-date' })],
+      more: false,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+  });
+
+  it('keeps unsafe EGS candidates unlinked and tolerates EGS upstream failures', async () => {
+    seedRows(
+      { code: '111-000000-010', title: 'Empty EGS title', release_date: '2020/02/03' },
+      { code: '111-000000-011', title: 'EGS candidate failure', release_date: '2020/02/03' },
+      { code: '111-000000-012', title: 'EGS game failure', release_date: '2020/02/03' },
+    );
+    searchEgsCandidatesMock
+      .mockResolvedValueOnce([egsCandidate({ id: 8800040, gamename: '' })])
+      .mockRejectedValueOnce(new Error('candidate form down'))
+      .mockResolvedValueOnce([egsCandidate({ id: 8800041, gamename: 'EGS game failure', sellday: '2020-02-03' })]);
+    fetchEgsGameMock.mockRejectedValueOnce(new Error('game form down'));
+    const result = await matchNextAliceNetItems(5, false);
+    expect(result.processed).toBe(3);
+    expect(result.matched).toBe(0);
+  });
+
+  it('scores an EGS furigana and popularity match before persisting its metadata', async () => {
+    seedRow({ code: '111-000000-013', title: 'かなタイトルロング', release_date: '2020/02/03' });
+    searchEgsCandidatesMock.mockResolvedValue([
+      egsCandidate({
+        id: 8800042,
+        gamename: 'Roman title',
+        gamename_furigana: 'かなタイトルロング追加',
+        count: 999,
+        sellday: '2020-02-03',
+      }),
+    ]);
+    fetchEgsGameMock.mockResolvedValue({
+      ...egsGame({ id: 8800042, gamename: 'Roman title', sellday: '2020-02-03' }),
+      raw: undefined,
+    });
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+    expect(getAliceNetStockItem('111-000000-013')?.egs_id).toBe(8800042);
+  });
+
+  it('uses later EGS candidates only when they outrank the current best candidate', async () => {
+    seedRow({ code: '111-000000-019', title: 'EGS ranked title', release_date: '2020/02/03' });
+    searchEgsCandidatesMock.mockResolvedValue([
+      egsCandidate({ id: 8800043, gamename: 'EGS ranked title', sellday: '2020-02-03' }),
+      egsCandidate({ id: 8800044, gamename: 'EGS ranked title extra' }),
+      egsCandidate({ id: 8800045, gamename: 'EGS ranked title', sellday: '2020-02-03', count: 9999 }),
+    ]);
+    fetchEgsGameMock.mockResolvedValue(egsGame({ id: 8800045, gamename: 'EGS ranked title' }));
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(1);
+    expect(fetchEgsGameMock).toHaveBeenCalledWith(8800045);
+  });
+
+  it('accepts EGS candidate fallbacks for exact dates, short titles, prefixes, and score-only matches', async () => {
+    seedRows(
+      { code: '111-000000-020', title: 'Date fallback', release_date: '2020/02/03' },
+      { code: '111-000000-021', title: 'abc', release_date: '2020/02/03' },
+      { code: '111-000000-022', title: 'abcdefghijklmnop' },
+      { code: '111-000000-023', title: 'Score only title' },
+    );
+    searchEgsCandidatesMock.mockImplementation(async (query: string) => {
+      if (query === 'Date fallback') return [egsCandidate({ id: 8800046, gamename: 'Unrelated', sellday: '2020-02-03' })];
+      if (query === 'abc') return [egsCandidate({ id: 8800047, gamename: 'abc', sellday: '2020-02-04' })];
+      if (query === 'abcdefghijklmnop') {
+        return [egsCandidate({ id: 8800048, gamename: 'Unrelated', gamename_furigana: 'abcdefghijklYYYY', count: 9999 })];
+      }
+      if (query === 'Score only title') return [egsCandidate({ id: 8800049, gamename: 'Score only title extra' })];
+      return [];
+    });
+    fetchEgsGameMock.mockImplementation(async (id: number) => egsGame({ id }));
+    expect((await matchNextAliceNetItems(10, false)).matched).toBe(4);
+  });
+
+  it('continues EGS probing when a safe candidate has no game row', async () => {
+    seedRow({ code: '111-000000-024', title: 'Missing EGS game' });
+    searchEgsCandidatesMock.mockResolvedValue([
+      egsCandidate({ id: 8800050, gamename: 'Missing EGS game' }),
+    ]);
+    fetchEgsGameMock.mockResolvedValue(null);
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(0);
+    expect(fetchEgsGameMock).toHaveBeenCalled();
+  });
+
+  it('rejects a non-empty EGS title that has neither text nor release support', async () => {
+    seedRow({ code: '111-000000-028', title: 'Unsupported EGS title' });
+    searchEgsCandidatesMock.mockResolvedValue([
+      egsCandidate({ id: 8800051, gamename: 'Completely unrelated' }),
+    ]);
+    expect((await matchNextAliceNetItems(5, false)).matched).toBe(0);
+    expect(fetchEgsGameMock).not.toHaveBeenCalled();
+  });
+
+  it('marks a normalized-empty fresh title as none without querying upstream', async () => {
+    seedRow({ code: '111-000000-025', title: '(中古品)' });
+    const result = await matchNextAliceNetItems(5, false);
+    expect(result.processed).toBe(1);
+    expect(searchVnMock).not.toHaveBeenCalled();
+    expect(searchEgsCandidatesMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('matchNextAliceNetItems — retryNone pass', () => {
@@ -334,6 +582,15 @@ describe('matchNextAliceNetItems — retryNone pass', () => {
     expect(result.matched).toBe(1);
     expect(getAliceNetStockItem('222-000000-003')?.vn_id).toBe('v50011');
   });
+
+  it('keeps an item queued as none when both retry sources miss', async () => {
+    seedRow({ code: '222-000000-004', title: 'リトライミス' });
+    setAliceNetVnLink('222-000000-004', null, 'none');
+    const result = await matchNextAliceNetItems(5, true);
+    expect(result.processed).toBe(1);
+    expect(result.matched).toBe(0);
+    expect(getAliceNetStockItem('222-000000-004')?.vn_match_source).toBe('none');
+  });
 });
 
 describe('matchVndbFromEgsForAliceNet', () => {
@@ -368,6 +625,34 @@ describe('matchVndbFromEgsForAliceNet', () => {
     expect(result.matched).toBe(0);
     expect(getAliceNetStockItem('333-000000-003')?.vn_id).toBeNull();
   });
+
+  it('records a null EGS lookup and preserves a manual EGS source when metadata refresh succeeds', async () => {
+    seedRows(
+      { code: '333-000000-004', title: 'Null EGS game' },
+      { code: '333-000000-005', title: 'Manual EGS source' },
+    );
+    setAliceNetVnLink('333-000000-004', null, 'none');
+    setAliceNetEgsLink('333-000000-004', 8800013, 'auto');
+    setAliceNetVnLink('333-000000-005', null, 'none');
+    setAliceNetEgsLink('333-000000-005', 8800014, 'manual');
+    fetchEgsGameMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(egsGame({ id: 8800014, raw: {} }));
+    const result = await matchVndbFromEgsForAliceNet(50);
+    expect(result.processed).toBe(2);
+    expect(result.matched).toBe(0);
+    expect(getAliceNetStockItem('333-000000-005')?.egs_match_source).toBe('manual');
+  });
+
+  it('defaults a missing persisted EGS source to auto while refreshing metadata', async () => {
+    seedRow({ code: '333-000000-006', title: 'Missing EGS source' });
+    setAliceNetVnLink('333-000000-006', null, 'none');
+    setAliceNetEgsLink('333-000000-006', 8800015, 'auto');
+    db.prepare('UPDATE alicenet_stock SET egs_match_source = NULL WHERE code = ?').run('333-000000-006');
+    fetchEgsGameMock.mockResolvedValue(egsGame({ id: 8800015, raw: {} }));
+    await matchVndbFromEgsForAliceNet(50);
+    expect(getAliceNetStockItem('333-000000-006')?.egs_match_source).toBe('auto');
+  });
 });
 
 describe('retryVndbForAliceNetAggressive', () => {
@@ -388,6 +673,15 @@ describe('retryVndbForAliceNetAggressive', () => {
     setAliceNetVnLink('444-000000-002', null, 'none');
     searchVnMock.mockRejectedValue(new Error('throttle exhausted'));
     await expect(retryVndbForAliceNetAggressive(20)).rejects.toThrow(/throttle exhausted/);
+  });
+
+  it('keeps a cleanup-empty title in the none queue without searching upstream', async () => {
+    seedRow({ code: '444-000000-003', title: '(中古品)' });
+    setAliceNetVnLink('444-000000-003', null, 'none');
+    const result = await retryVndbForAliceNetAggressive(20);
+    expect(result.processed).toBe(1);
+    expect(result.matched).toBe(0);
+    expect(searchVnMock).not.toHaveBeenCalled();
   });
 });
 
@@ -421,6 +715,30 @@ describe('searchEgsForAliceNetNoVndb', () => {
     const result = await searchEgsForAliceNetNoVndb(50, false);
     expect(result.matched).toBe(0);
     expect(getAliceNetStockItem('555-000000-003')?.vn_match_source).toBe('none');
+  });
+
+  it('skips a cleanup-empty title without querying EGS', async () => {
+    seedRow({ code: '555-000000-004', title: '(中古品)' });
+    setAliceNetVnLink('555-000000-004', null, 'none');
+    const result = await searchEgsForAliceNetNoVndb(50, false);
+    expect(result.processed).toBe(1);
+    expect(result.matched).toBe(0);
+    expect(searchEgsByNameMock).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a standard EGS lookup failure to stop the batch', async () => {
+    seedRow({ code: '555-000000-005', title: 'Standard EGS failure' });
+    setAliceNetVnLink('555-000000-005', null, 'none');
+    searchEgsByNameMock.mockRejectedValue(new Error('standard EGS down'));
+    await expect(searchEgsForAliceNetNoVndb(50, false)).rejects.toThrow(/standard EGS down/);
+  });
+
+  it('keeps an aggressive EGS miss in the none queue', async () => {
+    seedRow({ code: '555-000000-006', title: 'Aggressive EGS miss' });
+    setAliceNetVnLink('555-000000-006', null, 'none');
+    const result = await searchEgsForAliceNetNoVndb(50, true);
+    expect(result.processed).toBe(1);
+    expect(result.matched).toBe(0);
   });
 });
 

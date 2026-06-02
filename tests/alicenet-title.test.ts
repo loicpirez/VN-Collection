@@ -88,4 +88,47 @@ describe('AliceNet title cleanup', () => {
     expect(buildAliceNetTitleSearchQueries('(中古品) 神聖昴燐エストランジェ　オナホール同梱版'))
       .toContain('神聖昂燐エストランジェ');
   });
+
+  it('covers storefront-specific title aliases and chapter spellings', () => {
+    expect(buildAliceNetTitleSearchQueries('(中古品) 花鐘カナデグラム chapter2 続編'))
+      .toContain('花鐘カナデ＊グラム Chapter:2 続編');
+    expect(buildAliceNetTitleSearchQueries('(中古品) 花鐘カナデグラム 続編'))
+      .not.toContain('花鐘カナデ＊グラム Chapter: 続編');
+    expect(buildAliceNetTitleSearchQueries('(中古品) メイキングラヴァーズ'))
+      .toContain('Making * Lovers');
+    expect(buildAliceNetTitleSearchQueries("(中古品) Amenity'sLifeFD"))
+      .toContain("Amenity's Life MiniFanDisc");
+    expect(buildAliceNetTitleSearchQueries('(中古品) ＰｉａキャロットＧ．Ｐ．'))
+      .toContain('Pia Carrot G.P.');
+    expect(buildAliceNetTitleSearchQueries('(中古品) ＬＯＷな妹に迫られています'))
+      .toContain('LOWな妹');
+    expect(buildAliceNetTitleSearchQueries('(中古品) 黒山羊　くろやぎ'))
+      .toContain('黒山羊');
+    expect(buildAliceNetTitleSearchQueries('(中古品) 催淫キーワード'))
+      .toContain('Saiin Haramase Keyword');
+  });
+
+  it('splits numbered packs and ignores unusably short pack fragments', () => {
+    expect(buildAliceNetTitleSearchQueries('(中古品) シンセティック１＋２パック'))
+      .toEqual(expect.arrayContaining(['シンセティック1', 'シンセティック2']));
+    const short = buildAliceNetTitleSearchQueries('ab+cd');
+    expect(short).not.toContain('ab');
+    expect(short).not.toContain('cd');
+  });
+
+  it('returns no search probes when cleanup removes the whole title', () => {
+    expect(buildAliceNetTitleSearchQueries('(中古品)')).toEqual([]);
+  });
+
+  it('retains an exact long storefront title without expanding it into more probes', () => {
+    const queries = buildAliceNetTitleSearchQueries(`(中古品) ${'長'.repeat(90)}`);
+    expect(queries).toEqual(['長'.repeat(90)]);
+  });
+
+  it('keeps the empty-tail White Angel spelling and mixed leading probes stable', () => {
+    expect(buildAliceNetTitleSearchQueries('(中古品) WhiteAngelFanDisc'))
+      .toContain('White Angel Fan Disc');
+    expect(buildAliceNetTitleSearchQueries('ab cdef ghij'))
+      .toContain('ab cdef');
+  });
 });
