@@ -27,3 +27,45 @@ export async function readApiError(r: Response, fallback: string): Promise<strin
   }
   return fallback;
 }
+
+/**
+ * Stable machine-readable error codes emitted by the API routes that
+ * surface user-reachable failures (see the `code` slot on
+ * `ApiErrorBody`). Clients map these to localized dictionary strings so
+ * the same failure reads in the active UI locale instead of leaking the
+ * route's verbatim English `error` text into a toast.
+ */
+export type KnownApiErrorCode =
+  | 'vndb_token_required'
+  | 'vndb_unavailable'
+  | 'steam_sync_failed'
+  | 'steam_not_configured'
+  | 'egs_game_not_found';
+
+/**
+ * Localized companion to {@link readApiError}. Reads the response's
+ * machine-readable `code`; when it matches one of the supplied
+ * `messages`, returns that localized string. Any unrecognized code,
+ * missing code, or unparseable body yields the caller-supplied
+ * (already localized) `fallback`. The server's raw English `error`
+ * string is intentionally never surfaced, so fr/ja toasts stay in
+ * locale.
+ */
+export async function readApiErrorLocalized(
+  r: Response,
+  messages: Partial<Record<KnownApiErrorCode, string>>,
+  fallback: string,
+): Promise<string> {
+  try {
+    const body = (await r.json()) as { code?: unknown };
+    if (typeof body.code === 'string' && body.code.length > 0) {
+      const localized = messages[body.code as KnownApiErrorCode];
+      if (typeof localized === 'string' && localized.length > 0) {
+        return localized;
+      }
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}

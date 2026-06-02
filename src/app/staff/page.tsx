@@ -240,9 +240,9 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
               href={chipHref({ lang: lang === l ? null : l })}
               className={lang === l ? 'chip chip-active' : 'chip'}
               aria-pressed={lang === l}
-              title={languageDisplayName(l)}
+              title={languageDisplayName(l, locale)}
             >
-              {languageDisplayName(l)}
+              {languageDisplayName(l, locale)}
             </Link>
           ))}
           {(role || lang || vn) && (
@@ -311,7 +311,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
                     <p className="line-clamp-1 text-xs text-muted" title={s.original}>{s.original}</p>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted/80">
-                    {s.lang && <Chip>{languageDisplayName(s.lang)}</Chip>}
+                    {s.lang && <Chip>{languageDisplayName(s.lang, locale)}</Chip>}
                     {s.gender && (
                       <Chip>
                         {s.gender === 'm' ? t.staff.genderM : s.gender === 'f' ? t.staff.genderF : s.gender}

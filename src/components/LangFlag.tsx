@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { Globe } from 'lucide-react';
 import { languageDisplayName } from '@/lib/language-names';
+import type { Locale } from '@/lib/i18n/dictionaries';
 
 interface Props {
   lang: string;
   /** When true, append the language code after the icon. */
   withCode?: boolean;
   className?: string;
+  /** Active UI locale used to localize the tooltip language name. */
+  locale?: Locale;
 }
 
 /**
@@ -20,8 +23,8 @@ interface Props {
  * The full localised name is supplied via `title` so a hover still
  * answers "ja → Japanese" without giving up the compact code chip.
  */
-export function LangFlag({ lang, withCode = false, className = '' }: Props) {
-  const displayName = languageDisplayName(lang);
+export function LangFlag({ lang, withCode = false, className = '', locale }: Props) {
+  const displayName = languageDisplayName(lang, locale);
   const tooltip = displayName || lang.toUpperCase();
   return (
     <span className={className} title={tooltip} aria-label={tooltip}>
@@ -45,21 +48,25 @@ export function LangFlag({ lang, withCode = false, className = '' }: Props) {
 export function LangList({
   langs,
   clickable = true,
+  locale,
 }: {
   langs: string[];
   clickable?: boolean;
+  /** Active UI locale used to localize chip names and tooltips. */
+  locale?: Locale;
 }) {
   if (!langs || langs.length === 0) return null;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {langs.map((l) => {
-        const displayName = languageDisplayName(l) || l.toUpperCase();
+        const displayName = languageDisplayName(l, locale) || l.toUpperCase();
         if (!clickable) {
           return (
             <LangFlag
               key={l}
               lang={l}
               withCode
+              locale={locale}
               className="inline-flex items-center gap-0.5 text-xs"
             />
           );

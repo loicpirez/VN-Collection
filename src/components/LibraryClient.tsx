@@ -611,10 +611,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     return () => ctrl.abort();
   }, [urlTag, toast, t.common.error]);
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setError(null);
+  const collectionQueryParams = useMemo(() => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (producer) params.set('producer', producer);
@@ -653,6 +650,14 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (settings.hideSexual || urlIsNsfw) params.set('nsfwThreshold', String(settings.nsfwThreshold));
     params.set('sort', sort);
     params.set('order', order);
+    return params;
+  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, urlRatingMin, urlRatingMax, urlPlaytimeMin, urlPlaytimeMax, urlOnlyEgsOnly, urlMatchVndb, urlMatchEgs, urlFanDisc, urlHasNotes, urlHasCustomCover, urlHasBanner, urlIsFavorite, urlHasReleased, urlIsNsfw, urlIsNukige, urlInReadingQueue, urlInList, settings.hideSexual, settings.nsfwThreshold, sort, order]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams(collectionQueryParams);
     params.set('page', String(urlPage));
     const request = requestCollection(`/api/collection?${params}`, t.common.error);
     request.promise
@@ -673,9 +678,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       alive = false;
       request.release();
     };
-    // join the multi-select aspect set for a stable string identity
-    // so changing 4:3 <-> 16:9 re-fetches.
-  }, [status, producer, publisher, seriesId, urlTag, urlPlace, urlEdition, urlYearMin, urlYearMax, urlDumped, urlAspectSet.join(','), urlQ, urlRatingMin, urlRatingMax, urlPlaytimeMin, urlPlaytimeMax, urlOnlyEgsOnly, urlMatchVndb, urlMatchEgs, urlFanDisc, urlHasNotes, urlHasCustomCover, urlHasBanner, urlIsFavorite, urlHasReleased, urlIsNsfw, urlIsNukige, urlInReadingQueue, urlInList, settings.hideSexual, settings.nsfwThreshold, urlPage, sort, order, refreshKey, t.common.error]);
+  }, [collectionQueryParams, urlPage, refreshKey, t.common.error]);
 
   function clearAll() {
     // SearchInput re-syncs draft from urlQ on URL change, so clearing
@@ -1037,7 +1040,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           </button>
         )}
         {visibleItems.length > 0 && (
-          <RandomPickButton candidates={randomPickCandidates} />
+          <RandomPickButton candidates={randomPickCandidates} queryParams={collectionQueryParams} />
         )}
         {stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
       </div>

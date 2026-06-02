@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     const r = await patchUlistEntry(vnId, patch);
-    if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+    if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     try {
       recordActivity({
         kind: 'vndb-status.update',
@@ -139,7 +139,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const vnId = id.toLowerCase();
   try {
     const r = await deleteUlistEntry(vnId);
-    if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+    if ('needsAuth' in r) return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     try {
       recordActivity({
         kind: 'vndb-status.remove',

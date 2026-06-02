@@ -501,7 +501,7 @@ export function WishlistClient() {
       switch (group) {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
-        case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0]) : t.wishlist.groupUnknown; break;
+        case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0], locale) : t.wishlist.groupUnknown; break;
         case 'platform': key = it.vn.platforms[0] ? platformLabel(it.vn.platforms[0]) : t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
         default: key = '';
@@ -516,7 +516,7 @@ export function WishlistClient() {
         return collator.compare(a, b);
       })
       .map(([key, items]) => ({ key, items }));
-  }, [pageItems, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator]);
+  }, [pageItems, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator, locale]);
 
   const removeOne = useCallback(
     async (id: string) => {
@@ -694,7 +694,7 @@ export function WishlistClient() {
                 >
                   <option value="">{t.wishlist.filterByLanguage}</option>
                   {availableLanguages.map((l) => (
-                    <option key={l} value={l}>{languageDisplayName(l)}</option>
+                    <option key={l} value={l}>{languageDisplayName(l, locale)}</option>
                   ))}
                 </select>
               )}

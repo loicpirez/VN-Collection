@@ -524,12 +524,15 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                               {t.charactersSearch.sex[primarySex as CharacterSex] ?? primarySex}
                             </span>
                           )}
-                          {c.age != null && <span>{c.age}y</span>}
-                          {c.height != null && <span>{c.height}cm</span>}
+                          {c.age != null && <span>{t.charactersSearch.ageSuffix.replace('{n}', String(c.age))}</span>}
+                          {c.height != null && <span>{t.charactersSearch.heightSuffix.replace('{n}', String(c.height))}</span>}
                           {c.blood_type && <span className="uppercase">{c.blood_type}</span>}
                         </div>
                         <p className="text-[10px] text-muted/70">
-                          {c.vns?.length ?? 0} VN{(c.vns?.length ?? 0) > 1 ? 's' : ''}
+                          {((c.vns?.length ?? 0) === 1
+                            ? t.charactersSearch.vnCountSingular
+                            : t.charactersSearch.vnCount
+                          ).replace('{n}', String(c.vns?.length ?? 0))}
                         </p>
                       </Link>
                     </li>

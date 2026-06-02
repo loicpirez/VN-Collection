@@ -12,9 +12,25 @@ import { ErrorAlert } from './ErrorAlert';
 import { EGS_CHANGED_EVENT, type EgsChangedDetail } from './EgsPanel';
 import { fmtNum } from '@/lib/locale-number';
 
-import { readApiError } from '@/lib/api-error-read';
+import { readApiErrorLocalized, type KnownApiErrorCode } from '@/lib/api-error-read';
 import { decodeVndbStatusClientState, type VndbStatusClientState } from '@/lib/vndb-ui-client-shape';
 import type { VndbUlistEntryDetail } from '@/lib/vndb';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+
+/**
+ * Maps the API routes' stable error codes to the active locale's
+ * dictionary strings so a failed VNDB list mutation surfaces a
+ * localized toast instead of the route's verbatim English text.
+ */
+function apiErrorMessages(t: Dictionary): Partial<Record<KnownApiErrorCode, string>> {
+  return {
+    vndb_token_required: t.apiErrors.vndbTokenRequired,
+    vndb_unavailable: t.apiErrors.vndbUnavailable,
+    steam_sync_failed: t.apiErrors.steamSyncFailed,
+    steam_not_configured: t.apiErrors.steamNotConfigured,
+    egs_game_not_found: t.apiErrors.egsGameNotFound,
+  };
+}
 
 /**
  * Shows the user's VNDB ulist labels for this VN (Wishlist / Playing /
@@ -73,7 +89,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     if (showLoading) setLoading(true);
     try {
       const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal: controller.signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       const d = decodeVndbStatusClientState(await r.json());
       if (!d) throw new Error(t.common.error);
       if (controller.signal.aborted || loadAbortRef.current !== controller) return false;
@@ -187,7 +203,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         body: JSON.stringify(has ? { labels_unset: [labelId] } : { labels_set: [labelId] }),
         signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.saved);
       await load();
@@ -215,7 +231,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         method: 'DELETE',
         signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.removed);
       await load();
@@ -408,7 +424,7 @@ function UlistDetailsEditor({
         body: JSON.stringify(patch),
         signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       if (controller.signal.aborted || !mountedRef.current || identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
       toast.success(t.toast.saved);
       dirty.current = false;

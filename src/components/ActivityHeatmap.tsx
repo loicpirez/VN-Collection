@@ -1,5 +1,6 @@
 import { activityHeatmap, type DailyCount } from '@/lib/db';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { formatIsoDateString } from '@/lib/locale-number';
 import { ScrollFadeRight } from './ScrollFadeRight';
 
 const CELL = 'h-[10px] w-[10px]';
@@ -12,7 +13,7 @@ const GAP = 'gap-[3px]';
  * of quiet ones.
  */
 export async function ActivityHeatmap({ year }: { year: number }) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const data = activityHeatmap(year);
   const byDay = new Map<string, number>(data.map((d) => [d.day, d.count]));
 
@@ -71,7 +72,9 @@ export async function ActivityHeatmap({ year }: { year: number }) {
                   <div
                     key={d.day}
                     className={`${CELL} rounded-sm ${tones[level(d.count)]}`}
-                    title={`${d.day} / ${d.count}`}
+                    title={t.year.heatmap.cellTooltip
+                      .replace('{date}', formatIsoDateString(d.day, locale))
+                      .replace('{count}', String(d.count))}
                   />
                 ) : (
                   <div key={`${wkKey}-pad${j}`} className={CELL} />

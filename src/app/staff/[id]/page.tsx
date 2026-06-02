@@ -137,7 +137,7 @@ export default async function StaffPage({
                   title={profile.lang}
                 >
                   <Globe className="h-3 w-3" aria-hidden />
-                  {languageDisplayName(profile.lang)}
+                  {languageDisplayName(profile.lang, locale)}
                 </Link>
               )}
               {gender && (

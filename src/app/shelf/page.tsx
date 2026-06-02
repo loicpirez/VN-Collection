@@ -554,7 +554,7 @@ export default async function ShelfPage({
                                         key={`l-${l}`}
                                         className="rounded bg-bg px-1 py-0.5 text-muted"
                                       >
-                                        {languageDisplayName(l)}
+                                        {languageDisplayName(l, locale)}
                                       </span>
                                     ))}
                                   </div>

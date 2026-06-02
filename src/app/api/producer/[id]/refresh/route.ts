@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // outages and the user mistook the empty result for the truth.
   if (result.upstreamFailed) {
     return NextResponse.json(
-      { ok: false, error: 'VNDB unavailable', upstreamFailed: true },
+      { ok: false, error: 'VNDB unavailable', upstreamFailed: true, code: 'vndb_unavailable' },
       { status: 502 },
     );
   }

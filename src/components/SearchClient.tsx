@@ -33,6 +33,14 @@ type SearchSource = 'vndb' | 'egs' | 'local';
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
 const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d'];
 
+type AdvSort = '' | 'searchrank' | 'rating' | 'votecount' | 'released' | 'title';
+const ADV_SORTS: readonly Exclude<AdvSort, ''>[] = ['searchrank', 'rating', 'votecount', 'released', 'title'];
+
+/** Natural descending default for a given sort field, matching the route. */
+function defaultReverseForSort(sort: Exclude<AdvSort, ''>): boolean {
+  return sort !== 'searchrank';
+}
+
 interface AdvParams {
   langs: string[];
   platforms: string[];
@@ -44,6 +52,8 @@ interface AdvParams {
   hasScreenshot: boolean;
   hasReview: boolean;
   hasAnime: boolean;
+  sort: AdvSort;
+  reverse: boolean;
 }
 
 const DEFAULT_ADV: AdvParams = {
@@ -57,6 +67,8 @@ const DEFAULT_ADV: AdvParams = {
   hasScreenshot: false,
   hasReview: false,
   hasAnime: false,
+  sort: '',
+  reverse: false,
 };
 
 function readAdvFromUrl(sp: URLSearchParams): AdvParams {
@@ -67,6 +79,8 @@ function readAdvFromUrl(sp: URLSearchParams): AdvParams {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   };
+  const rawSort = sp.get('sort') ?? '';
+  const sort: AdvSort = (ADV_SORTS as readonly string[]).includes(rawSort) ? (rawSort as AdvSort) : '';
   return {
     langs: csv('langs'),
     platforms: csv('platforms'),
@@ -78,6 +92,8 @@ function readAdvFromUrl(sp: URLSearchParams): AdvParams {
     hasScreenshot: sp.get('hasScreenshot') === '1',
     hasReview: sp.get('hasReview') === '1',
     hasAnime: sp.get('hasAnime') === '1',
+    sort,
+    reverse: sort !== '' ? sp.get('reverse') === '1' : false,
   };
 }
 
@@ -99,7 +115,8 @@ function isAdvActive(adv: AdvParams): boolean {
     !!adv.ratingMin ||
     adv.hasScreenshot ||
     adv.hasReview ||
-    adv.hasAnime
+    adv.hasAnime ||
+    adv.sort !== ''
   );
 }
 
@@ -201,6 +218,10 @@ export function SearchClient() {
       if (nextAdv.hasScreenshot) sp.set('hasScreenshot', '1');
       if (nextAdv.hasReview) sp.set('hasReview', '1');
       if (nextAdv.hasAnime) sp.set('hasAnime', '1');
+      if (nextAdv.sort) {
+        sp.set('sort', nextAdv.sort);
+        if (nextAdv.reverse) sp.set('reverse', '1');
+      }
       const qs = sp.toString();
       ownedUrlKeysRef.current.add(qs);
       if (ownedUrlKeysRef.current.size > 20) {
@@ -379,6 +400,8 @@ export function SearchClient() {
         hasScreenshot: adv.hasScreenshot || undefined,
         hasReview: adv.hasReview || undefined,
         hasAnime: adv.hasAnime || undefined,
+        sort: adv.sort || undefined,
+        reverse: adv.sort ? adv.reverse : undefined,
       };
       const r = await fetch('/api/search/advanced', {
         method: 'POST',
@@ -508,9 +531,10 @@ export function SearchClient() {
             <SlidersHorizontal className="h-4 w-4" aria-hidden />
             {t.search.advanced}
             {advActive && (
-              <Circle
-                className="h-2 w-2 fill-current opacity-80"
-                aria-label={t.search.advancedActive} aria-hidden />
+              <>
+                <Circle className="h-2 w-2 fill-current opacity-80" aria-hidden />
+                <span className="sr-only">{t.search.advancedActive}</span>
+              </>
             )}
             {advOpen ? <ChevronUp className="h-3 w-3" aria-hidden /> : <ChevronDown className="h-3 w-3" aria-hidden />}
           </button>
@@ -541,7 +565,7 @@ export function SearchClient() {
                     className={`chip ${adv.langs.includes(l) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, langs: toggle(s.langs, l) }))}
                   >
-                    {languageDisplayName(l)}
+                    {languageDisplayName(l, locale)}
                   </button>
                 ))}
               </div>
@@ -661,6 +685,39 @@ export function SearchClient() {
                 />
                 {t.search.hasAnime}
               </label>
+            </div>
+            <div>
+              <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.sortField}</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="adv-sort">{t.search.sortField}</label>
+                <select
+                  id="adv-sort"
+                  value={adv.sort}
+                  onChange={(e) => {
+                    const next = e.target.value as AdvSort;
+                    setAdv((s) => ({
+                      ...s,
+                      sort: next,
+                      reverse: next === '' ? false : defaultReverseForSort(next),
+                    }));
+                  }}
+                  className="input min-h-[44px]"
+                >
+                  <option value="">{t.search.sortDefault}</option>
+                  {ADV_SORTS.filter((s) => s !== 'searchrank').map((s) => (
+                    <option key={s} value={s}>{t.search.sortOptions[s]}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  aria-pressed={adv.reverse}
+                  disabled={adv.sort === ''}
+                  className={`chip ${adv.reverse ? 'chip-active' : ''} disabled:opacity-40`}
+                  onClick={() => setAdv((s) => ({ ...s, reverse: !s.reverse }))}
+                >
+                  {t.search.sortReverse}
+                </button>
+              </div>
             </div>
           </div>
         </div>

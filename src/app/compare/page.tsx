@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
 import { db, getCollectionItem } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -99,6 +99,9 @@ export default async function ComparePage({
     .map((id) => getCollectionItem(id))
     .filter((v): v is NonNullable<typeof v> => v != null);
 
+  const resolvedIds = new Set(items.map((it) => it.id));
+  const droppedIds = ids.filter((id) => !resolvedIds.has(id));
+
   // Pre-compute shared sets for highlight columns.
   const tagSets = items.map((it) => new Set((it.tags ?? []).map((t) => t.id)));
   const sharedTagIds = intersection(tagSets);
@@ -158,6 +161,22 @@ export default async function ComparePage({
           <GitCompare className="h-6 w-6 text-accent" aria-hidden /> {t.compareView.title}
         </h1>
         <CompareVnPicker initialVns={pickerInitialVns} />
+        {droppedIds.length > 0 && (
+          <p
+            role="status"
+            className="mt-3 flex items-start gap-2 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs text-status-on_hold"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              {(droppedIds.length === 1
+                ? t.compareView.droppedNoticeSingular
+                : t.compareView.droppedNotice
+              ).replace('{n}', String(droppedIds.length))}
+              {' '}
+              {droppedIds.join(', ')}
+            </span>
+          </p>
+        )}
       </header>
 
       {items.length >= 2 && (
@@ -173,7 +192,7 @@ export default async function ComparePage({
           <div className="grid gap-3 text-xs sm:grid-cols-2">
             <SharedFacet
               label={t.compareView.shared.languages}
-              values={Array.from(sharedLangs).map((l) => languageDisplayName(l))}
+              values={Array.from(sharedLangs).map((l) => languageDisplayName(l, locale))}
             />
             <SharedFacet
               label={t.compareView.shared.platforms}
@@ -316,7 +335,7 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.languages} />
             {items.map((it) => (
               <div key={`langs-${it.id}`} className="bg-bg-card p-3 text-xs">
-                <LangList langs={it.languages ?? []} />
+                <LangList langs={it.languages ?? []} locale={locale} />
               </div>
             ))}
 

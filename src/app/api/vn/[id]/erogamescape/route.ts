@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const game = await linkEgsToVn(id, egsId);
     if (!game) {
-      return NextResponse.json({ error: 'EGS game not found' }, { status: 404 });
+      return NextResponse.json({ error: 'EGS game not found', code: 'egs_game_not_found' }, { status: 404 });
     }
     try {
       recordActivity({
