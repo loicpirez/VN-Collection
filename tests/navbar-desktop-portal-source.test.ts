@@ -16,6 +16,14 @@ describe('desktop grouped navigation portal', () => {
     expect(source).toContain("window.addEventListener('scroll', updateMenuPosition, true)");
   });
 
+  it('flips a category menu above its trigger before introducing an internal scroller', () => {
+    expect(source).toContain('const naturalHeight = items.length * 44 + 8');
+    expect(source).toContain('const fitsBelow = belowTop + renderedHeight <= window.innerHeight - gutter');
+    expect(source).toContain('top: fitsBelow ? belowTop : aboveTop');
+    expect(source).toContain("overflowY: menuPosition.scrollable ? 'auto' : 'visible'");
+    expect(source).not.toContain('w-56 overflow-y-auto');
+  });
+
   it('keeps keyboard focus and outside-click handling bound to the portaled menu', () => {
     expect(source).toContain("menuRef.current?.querySelector<HTMLElement>('[role=\"menuitem\"]')");
     expect(source).toContain("menuRef.current?.querySelectorAll<HTMLElement>('[role=\"menuitem\"]')");

@@ -255,7 +255,7 @@ function NavGroup({
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
+  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8, maxHeight: 0, scrollable: false });
   const menuId = useId();
 
   function updateMenuPosition() {
@@ -263,9 +263,17 @@ function NavGroup({
     if (!rect) return;
     const gutter = 8;
     const width = 224;
+    const naturalHeight = items.length * 44 + 8;
+    const maxHeight = Math.max(44, window.innerHeight - gutter * 2);
+    const renderedHeight = Math.min(naturalHeight, maxHeight);
+    const belowTop = rect.bottom + 4;
+    const aboveTop = Math.max(gutter, rect.top - renderedHeight - 4);
+    const fitsBelow = belowTop + renderedHeight <= window.innerHeight - gutter;
     setMenuPosition({
       left: Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter)),
-      top: rect.bottom + 4,
+      top: fitsBelow ? belowTop : aboveTop,
+      maxHeight,
+      scrollable: naturalHeight > maxHeight,
     });
   }
 
@@ -343,11 +351,12 @@ function NavGroup({
           id={menuId}
           role="menu"
           aria-label={label}
-          className="fixed z-[1100] w-56 overflow-y-auto rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+          className="fixed z-[1100] w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
           style={{
             left: menuPosition.left,
             top: menuPosition.top,
-            maxHeight: `calc(100vh - ${menuPosition.top + 8}px)`,
+            maxHeight: menuPosition.maxHeight,
+            overflowY: menuPosition.scrollable ? 'auto' : 'visible',
           }}
         >
           {items.map((item) => {
