@@ -149,6 +149,7 @@ export function isPersistedRelations(value: unknown): value is VnRelation[] {
       isPersistedStringArray(row.languages) &&
       isPersistedStringArray(row.platforms) &&
       isArrayOf(row.developers, isRelationDeveloper) &&
+      (row.publishers === undefined || isArrayOf(row.publishers, isRelationDeveloper)) &&
       isNullableString(row.image_url) &&
       isNullableString(row.image_thumb) &&
       isNullableFiniteNumber(row.image_sexual) &&

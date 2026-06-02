@@ -48,6 +48,24 @@ describe('persisted VN JSON column guards', () => {
     expect(isPersistedTags([{ id: 'g90001', name: 'Tag', rating: '3', spoiler: 0 }])).toBe(false);
     expect(isPersistedScreenshots([{ url: 'x', thumbnail: 'y', release: { id: 'bad' } }])).toBe(false);
     expect(isPersistedRelations([{ id: 'v90002', title: 'Related' }])).toBe(false);
+    expect(isPersistedRelations([{
+      id: 'v90002',
+      title: 'Related',
+      alttitle: null,
+      released: null,
+      rating: null,
+      votecount: null,
+      length_minutes: null,
+      languages: [],
+      platforms: [],
+      developers: [],
+      publishers: [{ id: 'bad', name: 'Publisher' }],
+      image_url: null,
+      image_thumb: null,
+      image_sexual: null,
+      relation: 'seq',
+      relation_official: true,
+    }])).toBe(false);
     expect(isPersistedTitles([{ lang: 'ja', title: 'Fixture' }])).toBe(false);
     expect(isPersistedEditions([{ eid: 1, lang: null, name: 'Edition' }])).toBe(false);
     expect(isPersistedStaff([{ id: 's90001', name: 'Staff' }])).toBe(false);
