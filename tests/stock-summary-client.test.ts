@@ -1,6 +1,8 @@
 /**
  * Coalescing logic for the StockChip lazy-fetch path. Uses a stubbed
- * global fetch to avoid hitting a server during tests.
+ * global fetch to avoid hitting a server during tests, and fake timers
+ * so the COALESCE_MS window is driven deterministically rather than
+ * waited on with a real setTimeout (TESTA-017).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -8,6 +10,8 @@ import {
   decodeStockSummaryResponse,
   subscribeStockSummary,
 } from '@/lib/stock-summary-client';
+
+const COALESCE_MS = 60;
 
 function setupFetchMock(response: Record<string, { available: number; best_price: number | null }>) {
   return vi.fn().mockResolvedValue({
@@ -17,11 +21,14 @@ function setupFetchMock(response: Record<string, { available: number; best_price
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
   _resetStockSummaryClient();
 });
 
 afterEach(() => {
+  _resetStockSummaryClient();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('subscribeStockSummary', () => {
@@ -43,8 +50,7 @@ describe('subscribeStockSummary', () => {
     subscribeStockSummary('v1', (v) => seen.push({ vn: 'v1', value: v }));
     subscribeStockSummary('v2', (v) => seen.push({ vn: 'v2', value: v }));
     subscribeStockSummary('v3', (v) => seen.push({ vn: 'v3', value: v }));
-    // Wait for coalesce window + microtasks
-    await new Promise((r) => setTimeout(r, 120));
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = fetchMock.mock.calls[0]?.[0] as string;
     expect(url).toMatch(/ids=v1[,%]/);
@@ -59,11 +65,10 @@ describe('subscribeStockSummary', () => {
     const fetchMock = setupFetchMock({ v1: { available: 2, best_price: 500 } });
     (globalThis as { fetch: unknown }).fetch = fetchMock;
     subscribeStockSummary('v1', () => {});
-    await new Promise((r) => setTimeout(r, 120));
-    // Second subscriber should NOT trigger another fetch.
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
     let lateCalled: { available: number; best_price: number | null } | null | undefined;
     subscribeStockSummary('v1', (v) => { lateCalled = v; });
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(lateCalled).toEqual({ available: 2, best_price: 500 });
   });
@@ -75,7 +80,7 @@ describe('subscribeStockSummary', () => {
     let v2: unknown = undefined;
     subscribeStockSummary('v1', (v) => { v1 = v; });
     subscribeStockSummary('v2', (v) => { v2 = v; });
-    await new Promise((r) => setTimeout(r, 120));
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
     expect(v1).toBeNull();
     expect(v2).toBeNull();
   });
@@ -86,7 +91,7 @@ describe('subscribeStockSummary', () => {
     const calls: unknown[] = [];
     const unsub = subscribeStockSummary('v1', (v) => calls.push(v));
     unsub();
-    await new Promise((r) => setTimeout(r, 120));
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
     expect(calls).toHaveLength(0);
   });
 });

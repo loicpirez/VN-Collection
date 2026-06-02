@@ -5,10 +5,13 @@
  * NEW-TCO-003  — tests for game-log note length.
  * NEW-TCO-004  — tests for lists field length.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
+import { addToCollection, db, upsertVn } from '@/lib/db';
 
 const MAX_NOTE = 10000;
+const GAME_LOG_VN = 'v1';
+const GAME_LOG_NOTE_DB_CAP = 8000;
 const MAX_NAME = 200;
 const MAX_DESC = 2000;
 const MAX_COLOR = 64;
@@ -23,26 +26,38 @@ function localReq(path: string, method: string, body: unknown): NextRequest {
 }
 
 describe('seca-input-length-caps — game-log note length cap', () => {
+  beforeEach(() => {
+    db.prepare('DELETE FROM vn_game_log WHERE vn_id = ?').run(GAME_LOG_VN);
+    db.prepare('DELETE FROM collection WHERE vn_id = ?').run(GAME_LOG_VN);
+    db.prepare('DELETE FROM vn WHERE id = ?').run(GAME_LOG_VN);
+    upsertVn({ id: GAME_LOG_VN, title: 'Heroine A' });
+    addToCollection(GAME_LOG_VN, { status: 'playing' });
+  });
+
+  afterEach(() => {
+    db.prepare('DELETE FROM vn_game_log WHERE vn_id = ?').run(GAME_LOG_VN);
+    db.prepare('DELETE FROM collection WHERE vn_id = ?').run(GAME_LOG_VN);
+    db.prepare('DELETE FROM vn WHERE id = ?').run(GAME_LOG_VN);
+  });
+
   it('POST rejects note longer than 10000 chars with 400', async () => {
     const { POST } = await import('@/app/api/collection/[id]/game-log/route');
     const note = 'x'.repeat(MAX_NOTE + 1);
-    const req = localReq('/api/collection/v1/game-log', 'POST', { note });
-    const res = await POST(req, { params: Promise.resolve({ id: 'v1' }) });
+    const req = localReq(`/api/collection/${GAME_LOG_VN}/game-log`, 'POST', { note });
+    const res = await POST(req, { params: Promise.resolve({ id: GAME_LOG_VN }) });
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
     expect(body.error).toContain('10000');
   });
 
-  it('POST accepts note at exactly 10000 chars (no rejection)', async () => {
+  it('POST accepts a 10000-char note (200) and persists it at the 8000-char DB cap', async () => {
     const { POST } = await import('@/app/api/collection/[id]/game-log/route');
     const note = 'y'.repeat(MAX_NOTE);
-    const req = localReq('/api/collection/v1/game-log', 'POST', { note });
-    const res = await POST(req, { params: Promise.resolve({ id: 'v1' }) });
-    expect([400, 404]).toContain(res.status);
-    if (res.status === 400) {
-      const body = await res.json() as { error: string };
-      expect(body.error).not.toContain('10000');
-    }
+    const req = localReq(`/api/collection/${GAME_LOG_VN}/game-log`, 'POST', { note });
+    const res = await POST(req, { params: Promise.resolve({ id: GAME_LOG_VN }) });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { entry: { note: string } };
+    expect(body.entry.note).toHaveLength(GAME_LOG_NOTE_DB_CAP);
   });
 });
 

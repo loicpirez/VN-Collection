@@ -1,9 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST, DELETE } from '@/app/api/vn/[id]/stock/route';
 
 vi.mock('@/lib/vndb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vndb')>();
   return { ...actual, getVn: async () => null };
+});
+
+const { refreshStockForVnMock } = vi.hoisted(() => ({ refreshStockForVnMock: vi.fn() }));
+
+vi.mock('@/lib/stock', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/stock')>();
+  return { ...actual, refreshStockForVn: refreshStockForVnMock };
 });
 
 function makeReq(method: string, body?: unknown) {
@@ -32,25 +39,41 @@ describe('GET /api/vn/[id]/stock', () => {
 });
 
 describe('POST /api/vn/[id]/stock', () => {
+  beforeEach(() => {
+    refreshStockForVnMock.mockReset();
+  });
+
+  afterEach(() => {
+    refreshStockForVnMock.mockReset();
+  });
+
   it('400 on invalid vn id', async () => {
     const res = await POST(makeReq('POST', {}) as never, { params: Promise.resolve({ id: 'bad' }) });
     expect(res.status).toBe(400);
   });
 
-  it('does not leak raw error details to client', async () => {
-    // VN that doesn't exist → 404 with generic message.
+  it('404 with {error:"vn not found"} when refresh throws VN-not-found', async () => {
+    refreshStockForVnMock.mockRejectedValue(new Error('VN not found'));
     const res = await POST(
       makeReq('POST', { providers: ['eroge_price'] }) as never,
       { params: Promise.resolve({ id: 'v99999999' }) },
     );
-    // VN-not-found returns 404; other errors return 500 with generic message.
-    expect([404, 500]).toContain(res.status);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'vn not found' });
+  });
+
+  it('500 on a generic refresh failure without leaking raw error details', async () => {
+    refreshStockForVnMock.mockRejectedValue(new Error('upstream socket reset'));
+    const res = await POST(
+      makeReq('POST', { providers: ['eroge_price'] }) as never,
+      { params: Promise.resolve({ id: 'v99999999' }) },
+    );
+    expect(res.status).toBe(500);
     const body = await res.json();
-    expect(typeof body.error).toBe('string');
-    // Internal stack traces / file paths must never reach the client.
-    expect(body.error).not.toMatch(/\/Users\//);
-    expect(body.error).not.toMatch(/node_modules/);
-    expect(body.error).not.toMatch(/at [A-Z]/);
+    expect(body.error).toBe('stock refresh failed');
+    expect(body.detail).not.toMatch(/\/Users\//);
+    expect(body.detail).not.toMatch(/node_modules/);
+    expect(body.detail).not.toMatch(/at [A-Z]/);
   });
 });
 
