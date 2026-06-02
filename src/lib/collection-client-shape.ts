@@ -161,7 +161,7 @@ function decodeRelation(value: unknown): VnRelation | null {
       ? { name: producer.name }
       : { id: producer.id.toLowerCase(), name: producer.name };
   });
-  const publishers = decodeArray(row?.publishers, (value) => {
+  const publishers = row?.publishers === undefined ? [] : decodeArray(row.publishers, (value) => {
     const producer = asJsonRecord(value);
     if (!producer || !isString(producer.name) || !(producer.id === undefined || isString(producer.id))) return null;
     return producer.id === undefined

@@ -65,6 +65,32 @@ describe('collection client response adapters', () => {
     expect(decoded?.stats.total).toBe(1);
   });
 
+  it('normalizes VNDB relation summaries that do not expose publishers', () => {
+    const relation = {
+      id: 'v90002',
+      title: 'Related',
+      alttitle: null,
+      released: null,
+      rating: null,
+      votecount: null,
+      length_minutes: null,
+      languages: [],
+      platforms: [],
+      developers: [],
+      image_url: null,
+      image_thumb: null,
+      image_sexual: null,
+      relation: 'seq',
+      relation_official: true,
+    };
+    const decoded = decodeLibraryCollectionResponse({
+      items: [{ ...card, relations: [relation] }],
+      stats: { total: 1, byStatus: [{ status: 'planning', n: 1 }], playtime_minutes: 0 },
+      pagination,
+    });
+    expect(decoded?.items[0]?.relations[0]?.publishers).toEqual([]);
+  });
+
   it('rejects malformed card rows and page metadata', () => {
     expect(decodeCollectionCardItem({ ...card, cover_rotation: 45 })).toBeNull();
     expect(decodeCollectionCardItem({ ...card, tags: [{ id: 'bad' }] })).toBeNull();
