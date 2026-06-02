@@ -17,11 +17,13 @@ import { ListRemoveVn } from '@/components/ListRemoveVn';
 import { ListAddVnForm } from '@/components/ListAddVnForm';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
-import type { Status } from '@/lib/types';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
+import type { Status } from '@/lib/types';
+import { ListReorderGrid, StubCard, type ListReorderItem } from '@/components/ListReorderGrid';
 
 export const dynamic = 'force-dynamic';
 const VN_QUERY_CHUNK = 500;
+const LIST_REORDER_MAX = 60;
 
 // WeakMap-cached `CardData` projection. The row shape is custom (no
 // CollectionItem here - this query returns just the columns the card
@@ -131,6 +133,18 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const queueIds = getReadingQueueVnIds();
   const rows = loadCards(items, queueIds);
   const listCounts = countListMembershipsByVn();
+  const reorderItems: ListReorderItem[] = items.map((it) => {
+    const row = rows.get(it.vn_id);
+    if (!row) return { vn_id: it.vn_id, card: null };
+    return {
+      vn_id: it.vn_id,
+      card: listCardData(row, parseDevelopers(row.developers), parseDevelopers(row.publishers), listCounts.get(it.vn_id) ?? 0),
+    };
+  });
+  const gridClassName = 'grid gap-5';
+  const gridStyle = {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+  };
 
   return (
     <DensityScopeProvider scope="lists">
@@ -173,46 +187,27 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
         <div className="rounded-xl border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {t.lists.detailEmpty}
         </div>
+      ) : reorderItems.length <= LIST_REORDER_MAX ? (
+        <ListReorderGrid
+          listId={list.id}
+          items={reorderItems}
+          className={gridClassName}
+          style={gridStyle}
+          reorderHint={t.lists.reorderHint}
+          reorderKeyboardHint={t.lists.reorderKeyboardHint}
+          errorLabel={t.common.error}
+        />
       ) : (
-        <PaginatedGrid
-          ariaLabel={list.name}
-          resetKey={`list:${list.id}`}
-          className="grid gap-5"
-          style={{
-            gridTemplateColumns:
-              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
-          }}
-        >
-          {items.map((it) => {
-            const row = rows.get(it.vn_id);
-            const developers = parseDevelopers(row?.developers ?? null);
-            const publishers = parseDevelopers(row?.publishers ?? null);
-            return (
-              <li key={it.vn_id} className="group relative">
-                <ListRemoveVn listId={list.id} vnId={it.vn_id} />
-                {row ? (
-                  <VnCard data={listCardData(row, developers, publishers, listCounts.get(it.vn_id) ?? 0)} />
-                ) : (
-                  <StubCard vnId={it.vn_id} />
-                )}
-              </li>
-            );
-          })}
+        <PaginatedGrid ariaLabel={list.name} resetKey={`list:${list.id}`} className={gridClassName} style={gridStyle}>
+          {reorderItems.map((it) => (
+            <li key={it.vn_id} className="group relative">
+              <ListRemoveVn listId={list.id} vnId={it.vn_id} />
+              {it.card ? <VnCard data={it.card} /> : <StubCard vnId={it.vn_id} />}
+            </li>
+          ))}
         </PaginatedGrid>
       )}
     </DensityScopeProvider>
-  );
-}
-
-function StubCard({ vnId }: { vnId: string }) {
-  return (
-    <Link
-      href={`/vn/${vnId}`}
-      className="group relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-bg-elev/30 p-4 text-center text-muted hover:border-accent hover:text-white"
-    >
-      <ListChecks className="h-6 w-6" aria-hidden />
-      <span className="font-mono text-xs">{vnId}</span>
-    </Link>
   );
 }
 
