@@ -18,6 +18,7 @@ import { ListAddVnForm } from '@/components/ListAddVnForm';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import type { Status } from '@/lib/types';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 export const dynamic = 'force-dynamic';
 const VN_QUERY_CHUNK = 500;
@@ -173,9 +174,10 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           {t.lists.detailEmpty}
         </div>
       ) : (
-        <ul
+        <PaginatedGrid
+          ariaLabel={list.name}
+          resetKey={`list:${list.id}`}
           className="grid gap-5"
-          aria-label={list.name}
           style={{
             gridTemplateColumns:
               'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
@@ -196,7 +198,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               </li>
             );
           })}
-        </ul>
+        </PaginatedGrid>
       )}
     </DensityScopeProvider>
   );

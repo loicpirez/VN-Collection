@@ -8,6 +8,7 @@ import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 /**
  * "More credits (outside your collection)" — the VNDB-sourced list of VNs
@@ -51,7 +52,7 @@ export async function StaffExtraCredits({
   return (
     <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-        <CloudDownload className="h-4 w-4 text-accent" /> {t.staff.extraTitle}
+        <CloudDownload className="h-4 w-4 text-accent" aria-hidden /> {t.staff.extraTitle}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">
           · {extraProduction.length + extraVoice.length}
         </span>
@@ -60,7 +61,12 @@ export async function StaffExtraCredits({
       {extraVoice.length > 0 && (
         <div className="mb-6">
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.voiceCredits}</h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
+          <PaginatedGrid
+            ariaLabel={t.staff.creditsPaginationLabel}
+            resetKey={`${sid}:extra-voice`}
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+          >
             {extraVoice.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard
@@ -82,13 +88,18 @@ export async function StaffExtraCredits({
                 </ExternalVnCard>
               </li>
             ))}
-          </ul>
+          </PaginatedGrid>
         </div>
       )}
       {extraProduction.length > 0 && (
         <div>
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.productionCredits}</h3>
-          <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
+          <PaginatedGrid
+            ariaLabel={t.staff.creditsPaginationLabel}
+            resetKey={`${sid}:extra-production`}
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+          >
             {extraProduction.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard
@@ -103,7 +114,7 @@ export async function StaffExtraCredits({
                 </ExternalVnCard>
               </li>
             ))}
-          </ul>
+          </PaginatedGrid>
         </div>
       )}
     </section>
@@ -174,7 +185,7 @@ function ExternalVnCard({
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
           {ratingDisplay && (
             <span className="inline-flex items-center gap-0.5 text-accent">
-              <Star className="h-3 w-3 fill-accent" /> {ratingDisplay}
+              <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
             </span>
           )}
           {year && <span>{year}</span>}

@@ -15,6 +15,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeriesDetailLayout } from '@/components/SeriesDetailLayout';
 import { parseSeriesDetailLayoutV1, type SeriesSectionId } from '@/lib/series-detail-layout';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,7 +103,9 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           <p>{t.series.emptyDetail}</p>
         </div>
       ) : (
-        <div
+        <PaginatedGrid
+          ariaLabel={series.name}
+          resetKey={`series:${series.id}`}
           className="grid gap-5"
           style={{
             gridTemplateColumns:
@@ -110,12 +113,12 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           }}
         >
           {items.map((it) => (
-            <div key={it.id} className="group relative">
+            <li key={it.id} className="group relative">
               <SeriesRemoveVn seriesId={series.id} vnId={it.id} />
               <VnCard data={toCardData(it)} />
-            </div>
+            </li>
           ))}
-        </div>
+        </PaginatedGrid>
       )}
     </div>
   );

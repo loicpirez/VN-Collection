@@ -6,6 +6,7 @@ import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import { ProducerRefreshButton } from './ProducerRefreshButton';
+import { PaginatedGrid } from './PaginatedGrid';
 
 /**
  * Renders BOTH "developed by" and "published by" credits for a producer
@@ -169,7 +170,7 @@ function RoleSection({
     <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted">
-          {icon === 'dev' ? <Wrench className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+          {icon === 'dev' ? <Wrench className="h-4 w-4" aria-hidden /> : <Package className="h-4 w-4" aria-hidden />}
           {title}
         </h3>
         <span className="text-xs text-muted">
@@ -183,7 +184,9 @@ function RoleSection({
       {vns.length === 0 ? (
         <p className="text-xs text-muted/80">{emptyMessage}</p>
       ) : (
-        <ul
+        <PaginatedGrid
+          ariaLabel={title}
+          resetKey={title}
           className="grid gap-2"
           style={{
             // Density-aware grid (was hard `minmax(220px, 1fr)`).
@@ -248,7 +251,7 @@ function RoleSection({
               </div>
             </li>
           ))}
-        </ul>
+        </PaginatedGrid>
       )}
     </div>
   );

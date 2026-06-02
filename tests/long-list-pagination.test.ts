@@ -76,6 +76,90 @@ describe('physical stock branch pagination', () => {
   });
 });
 
+describe('wishlist card pagination', () => {
+  const wishlist = source('src/components/WishlistClient.tsx');
+
+  it('windows sorted wishlist rows before grouping and card rendering', () => {
+    expect(wishlist).toContain('const WISHLIST_PAGE_SIZE = 60');
+    expect(wishlist).toContain('const pageItems = useMemo(');
+    expect(wishlist).toContain('() => sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE)');
+    expect(wishlist).toContain("if (group === 'none') return [{ key: '', items: pageItems }]");
+    expect(wishlist).toContain('for (const it of pageItems)');
+  });
+
+  it('exposes URL-backed localized page navigation for long wishlists', () => {
+    expect(wishlist).toContain("const requestedPage = readPageFromUrl(search?.get('page') ?? null)");
+    expect(wishlist).toContain("if (key !== 'page') sp.delete('page')");
+    expect(wishlist).toContain('aria-label={t.wishlist.paginationLabel}');
+    expect(wishlist).toContain('{t.wishlist.previousPage}');
+    expect(wishlist).toContain('{t.wishlist.nextPage}');
+  });
+});
+
+describe('staff credit pagination', () => {
+  const grid = source('src/components/PaginatedGrid.tsx');
+  const detail = source('src/app/staff/[id]/page.tsx');
+  const extra = source('src/components/StaffExtraCredits.tsx');
+
+  it('bounds staff grids while keeping rows reachable', () => {
+    expect(grid).toContain('pageSize = 60');
+    expect(grid).toContain('const visibleItems = items.slice(pageStart, pageStart + pageSize)');
+    expect(detail).toContain('resetKey={`${id}:voice`}');
+    expect(detail).toContain('resetKey={`${id}:production:${g.role}`}');
+    expect(extra).toContain('resetKey={`${sid}:extra-voice`}');
+    expect(extra).toContain('resetKey={`${sid}:extra-production`}');
+  });
+});
+
+describe('shared detail-card pagination', () => {
+  const dumped = source('src/app/dumped/page.tsx');
+  const lists = source('src/app/lists/[id]/page.tsx');
+  const series = source('src/app/series/[id]/page.tsx');
+  const producer = source('src/components/ProducerVnsSections.tsx');
+
+  it('bounds other image-heavy detail grids with the shared paginator', () => {
+    expect(dumped).toContain('resetKey={tab}');
+    expect(lists).toContain('resetKey={`list:${list.id}`}');
+    expect(series).toContain('resetKey={`series:${series.id}`}');
+    expect(producer).toContain('resetKey={title}');
+  });
+});
+
+describe('place stock VN pagination', () => {
+  const browser = source('src/components/PlaceVnBrowser.tsx');
+
+  it('windows sorted place-stock rows before grouping and rendering', () => {
+    expect(browser).toContain('const PLACE_VN_PAGE_SIZE = 60');
+    expect(browser).toContain('() => sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE)');
+    expect(browser).toContain("if (group === 'none') return [{ key: '', items: pageItems }]");
+    expect(browser).toContain('for (const vn of pageItems)');
+    expect(browser).toContain('t.places.vnPaginationLabel');
+  });
+});
+
+describe('place registry pagination', () => {
+  const browser = source('src/components/PlaceBrowser.tsx');
+
+  it('windows filtered places and unassigned branches before rendering', () => {
+    expect(browser).toContain('const PLACE_REGISTRY_PAGE_SIZE = 60');
+    expect(browser).toContain('const visiblePlaces = filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
+    expect(browser).toContain('const visibleUnassigned = filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
+    expect(browser).toContain('visiblePlaces.map((place)');
+    expect(browser).toContain('visibleUnassigned.map((branch)');
+    expect(browser).toContain('t.places.registryPaginationLabel');
+  });
+});
+
+describe('character detail pagination', () => {
+  const detail = source('src/app/character/[id]/page.tsx');
+
+  it('bounds image-heavy sibling and VN appearance grids', () => {
+    expect(detail).toContain("import { PaginatedGrid } from '@/components/PaginatedGrid'");
+    expect(detail).toContain('resetKey={`${id}:siblings`}');
+    expect(detail).toContain('resetKey={`${id}:appears-in`}');
+  });
+});
+
 describe('long list pagination translations', () => {
   const dictionaries = source('src/lib/i18n/dictionaries.ts');
 
@@ -86,5 +170,9 @@ describe('long list pagination translations', () => {
     expect(dictionaries.match(/batchQueuePaginationLabel:/g)).toHaveLength(3);
     expect(dictionaries.match(/batchQueueCapacity:/g)).toHaveLength(3);
     expect(dictionaries.match(/physicalPaginationLabel:/g)).toHaveLength(3);
+    expect(dictionaries.match(/paginationLabel: '.*[Ww]ishlist|paginationLabel: 'ウィッシュリスト/g)).toHaveLength(3);
+    expect(dictionaries.match(/creditsPaginationLabel:/g)).toHaveLength(3);
+    expect(dictionaries.match(/vnPaginationLabel:/g)).toHaveLength(3);
+    expect(dictionaries.match(/registryPaginationLabel:/g)).toHaveLength(3);
   });
 });

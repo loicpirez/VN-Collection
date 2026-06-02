@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CheckSquare, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { CheckSquare, ChevronLeft, ChevronRight, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
@@ -41,6 +41,12 @@ const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_d
 const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'platform', 'status'];
 
 const Q_DEBOUNCE_MS = 300;
+const WISHLIST_PAGE_SIZE = 60;
+
+function readPageFromUrl(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
 
 function selectionKey(values: Iterable<string>): string {
   return Array.from(values).sort().join('|');
@@ -183,6 +189,7 @@ export function WishlistClient() {
       replaceParams((sp) => {
         if (value) sp.set(key, value);
         else sp.delete(key);
+        if (key !== 'page') sp.delete('page');
       });
     },
     [replaceParams],
@@ -203,6 +210,7 @@ export function WishlistClient() {
   const urlSort = search?.get('sort') ?? null;
   const urlGroup = search?.get('group') ?? null;
   const urlHideOwned = search?.get('hideOwned');
+  const requestedPage = readPageFromUrl(search?.get('page') ?? null);
   const sort = readSortFromUrl(urlSort, 'added_desc');
   const group = readGroupFromUrl(urlGroup, 'none');
   const hideOwned = urlHideOwned != null ? urlHideOwned !== '0' : true;
@@ -422,6 +430,7 @@ export function WishlistClient() {
       sp.delete('ratingMax');
       sp.delete('yearMin');
       sp.delete('yearMax');
+      sp.delete('page');
     });
   }
 
@@ -476,11 +485,18 @@ export function WishlistClient() {
     });
     return arr;
   }, [filtered, sort, collator]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / WISHLIST_PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const pageStart = (page - 1) * WISHLIST_PAGE_SIZE;
+  const pageItems = useMemo(
+    () => sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE),
+    [pageStart, sorted],
+  );
 
   const grouped = useMemo<{ key: string; items: WishlistClientItem[] }[]>(() => {
-    if (group === 'none') return [{ key: '', items: sorted }];
+    if (group === 'none') return [{ key: '', items: pageItems }];
     const buckets = new Map<string, WishlistClientItem[]>();
-    for (const it of sorted) {
+    for (const it of pageItems) {
       let key: string;
       switch (group) {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
@@ -500,7 +516,7 @@ export function WishlistClient() {
         return collator.compare(a, b);
       })
       .map(([key, items]) => ({ key, items }));
-  }, [sorted, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator]);
+  }, [pageItems, group, t.wishlist.groupUnknown, t.wishlist.groupOwned, t.wishlist.groupTodo, collator]);
 
   const removeOne = useCallback(
     async (id: string) => {
@@ -764,33 +780,69 @@ export function WishlistClient() {
             </div>
           </div>
 
-          {grouped.map((g) => (
-            <section key={g.key || 'all'} className="mb-6">
-              {g.key && (
-                <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
-                  {g.key} <span className="ml-1 opacity-70">/ {g.items.length}</span>
-                </h2>
-              )}
-              <div
-                className="grid gap-3"
-                style={wishlistGridStyle}
+          {filtered.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted">{t.wishlist.filterEmpty}</p>
+          ) : (
+            grouped.map((g) => (
+              <section key={g.key || 'all'} className="mb-6">
+                {g.key && (
+                  <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+                    {g.key} <span className="ml-1 opacity-70">/ {g.items.length}</span>
+                  </h2>
+                )}
+                <div
+                  className="grid gap-3"
+                  style={wishlistGridStyle}
+                >
+                  {g.items.map((it) => (
+                    <MemoWishlistCard
+                      key={it.id}
+                      id={it.vn.id}
+                      data={wishlistCardData(it)}
+                      selectable={selectMode}
+                      selected={selected.has(it.vn.id)}
+                      removing={removingId === it.vn.id}
+                      onSelect={toggleSelected}
+                      onAdded={handleAdded}
+                      onRemove={removeOne}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))
+          )}
+
+          {totalPages > 1 && (
+            <nav
+              className="mb-6 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4"
+              aria-label={t.wishlist.paginationLabel}
+            >
+              <button
+                type="button"
+                className="btn min-h-[44px]"
+                disabled={page <= 1}
+                onClick={() => setParam('page', page > 2 ? String(page - 1) : null)}
               >
-                {g.items.map((it) => (
-                  <MemoWishlistCard
-                    key={it.id}
-                    id={it.vn.id}
-                    data={wishlistCardData(it)}
-                    selectable={selectMode}
-                    selected={selected.has(it.vn.id)}
-                    removing={removingId === it.vn.id}
-                    onSelect={toggleSelected}
-                    onAdded={handleAdded}
-                    onRemove={removeOne}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                {t.wishlist.previousPage}
+              </button>
+              <span className="text-xs text-muted">
+                {t.wishlist.pageRange
+                  .replace('{start}', String(pageStart + 1))
+                  .replace('{end}', String(Math.min(sorted.length, pageStart + WISHLIST_PAGE_SIZE)))
+                  .replace('{total}', String(sorted.length))}
+              </span>
+              <button
+                type="button"
+                className="btn min-h-[44px]"
+                disabled={page >= totalPages}
+                onClick={() => setParam('page', String(page + 1))}
+              >
+                {t.wishlist.nextPage}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </nav>
+          )}
 
           {selectMode && selected.size > 0 && (
             <div

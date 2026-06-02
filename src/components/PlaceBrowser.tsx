@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, Clock, Edit2, Filter, Globe, Grid3X3, Link2, Link2Off, List, MapPin, PackageCheck, Plus, RotateCcw, Search } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { AlertCircle, ChevronLeft, ChevronRight, Clock, Edit2, Filter, Globe, Grid3X3, Link2, Link2Off, List, MapPin, PackageCheck, Plus, RotateCcw, Search } from 'lucide-react';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
@@ -16,9 +16,11 @@ import { DensityScopeProvider } from './DensityScopeProvider';
 import { safeHref } from '@/lib/safe-href';
 import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
 import { decodePlacesResponse, decodeUnassignedBranchesResponse } from '@/lib/place-client-shape';
+import { fmtNum } from '@/lib/locale-number';
 
 const STALE_MS = 86_400_000 * 7;
 const PREFS_KEY = 'vncoll.places.prefs.v1';
+const PLACE_REGISTRY_PAGE_SIZE = 60;
 
 type Tab = 'all' | 'linked' | 'unlinked' | 'unassigned';
 type SortKey = 'name' | 'stock' | 'fresh';
@@ -53,6 +55,7 @@ function freshnessStale(updatedAt: number): boolean {
 
 export function PlaceBrowser() {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const [places, setPlaces] = useState<PlaceWithLinks[]>([]);
   const [unassigned, setUnassigned] = useState<string[]>([]);
@@ -66,6 +69,7 @@ export function PlaceBrowser() {
   const [kindFilter, setKindFilter] = useState('');
   const [gpsFilter, setGpsFilter] = useState<GpsFilter>('all');
   const [hideStale, setHideStale] = useState(false);
+  const [page, setPage] = useState(1);
   const [editTarget, setEditTarget] = useState<PlaceWithLinks | null | 'new'>(null);
   const [assignTarget, setAssignTarget] = useState<PlaceWithLinks | null>(null);
   const [assignBranchTarget, setAssignBranchTarget] = useState<string | null>(null);
@@ -193,6 +197,20 @@ export function PlaceBrowser() {
     if (!q) return unassigned;
     return unassigned.filter((b) => b.toLowerCase().includes(q));
   }, [unassigned, q]);
+  const registryTotal = tab === 'unassigned' ? filteredUnassigned.length : filtered.length;
+  const totalPages = Math.max(1, Math.ceil(registryTotal / PLACE_REGISTRY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PLACE_REGISTRY_PAGE_SIZE;
+  const visiblePlaces = filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
+  const visibleUnassigned = filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tab, sort, q, kindFilter, gpsFilter, hideStale]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const showStatsSkeleton = loading && places.length === 0;
 
@@ -565,7 +583,7 @@ export function PlaceBrowser() {
           </div>
         ) : (
           <ul className="space-y-2">
-            {filteredUnassigned.map((branch) => (
+            {visibleUnassigned.map((branch) => (
               <li
                 key={branch}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-card px-4 py-3"
@@ -592,7 +610,7 @@ export function PlaceBrowser() {
           className="grid gap-3"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }}
         >
-          {filtered.map((place) => (
+          {visiblePlaces.map((place) => (
             <PlaceCard
               key={place.id}
               place={place}
@@ -604,8 +622,36 @@ export function PlaceBrowser() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {filtered.map(renderPlaceRow)}
+          {visiblePlaces.map(renderPlaceRow)}
         </ul>
+      )}
+
+      {!loading && !loadError && registryTotal > PLACE_REGISTRY_PAGE_SIZE && (
+        <nav className="mt-4 flex flex-wrap items-center justify-between gap-2" aria-label={t.places.registryPaginationLabel as string}>
+          <button
+            type="button"
+            className="btn min-h-[44px]"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+            {t.common.prev}
+          </button>
+          <span className="text-xs text-muted">
+            {fmtNum(pageStart + 1, locale)}-{fmtNum(Math.min(registryTotal, pageStart + PLACE_REGISTRY_PAGE_SIZE), locale)}
+            {' / '}
+            {fmtNum(registryTotal, locale)}
+          </span>
+          <button
+            type="button"
+            className="btn min-h-[44px]"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            {t.common.next}
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        </nav>
       )}
 
       {editTarget !== null && (

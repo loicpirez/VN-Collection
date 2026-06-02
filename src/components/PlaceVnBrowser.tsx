@@ -5,6 +5,8 @@ import {
   BookHeart,
   Building2,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Filter,
   Grid3X3,
@@ -18,7 +20,7 @@ import {
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { currencyFormatter, formatVndbDateString } from '@/lib/locale-number';
+import { currencyFormatter, fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import type { PlaceOfferRow, PlaceVnRow } from '@/lib/db';
@@ -36,6 +38,7 @@ type ViewMode = 'cards' | 'list';
 const SORTS = ['name', 'price_asc', 'price_desc', 'fresh'] as const satisfies readonly SortKey[];
 const GROUPS = ['none', 'provider', 'year'] as const satisfies readonly GroupKey[];
 const PREFS_KEY = 'vncoll.place-vn-browser.prefs.v1';
+const PLACE_VN_PAGE_SIZE = 60;
 const EMPTY_STATS: PlaceStockStats = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 };
 
 function isSort(v: unknown): v is SortKey { return (SORTS as readonly unknown[]).includes(v); }
@@ -78,6 +81,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   const [priceMax, setPriceMax] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   const currency = useMemo(
     () => currencyFormatter(locale),
@@ -176,10 +180,26 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     });
   }, [filtered, sort]);
 
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PLACE_VN_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PLACE_VN_PAGE_SIZE;
+  const pageItems = useMemo(
+    () => sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE),
+    [sorted, pageStart],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, sort, group, providerFilter, priceMin, priceMax, search]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   const grouped = useMemo<{ key: string; items: PlaceVn[] }[]>(() => {
-    if (group === 'none') return [{ key: '', items: sorted }];
+    if (group === 'none') return [{ key: '', items: pageItems }];
     const buckets = new Map<string, PlaceVn[]>();
-    for (const vn of sorted) {
+    for (const vn of pageItems) {
       let key = '';
       if (group === 'provider') {
         key = parseDevs(vn.developers)[0]?.name || (t.wishlist.groupUnknown as string);
@@ -193,7 +213,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     return Array.from(buckets.entries())
       .sort(([a], [b]) => (group === 'year' ? b.localeCompare(a) : a.localeCompare(b)))
       .map(([key, items]) => ({ key, items }));
-  }, [sorted, group, t.wishlist.groupUnknown]);
+  }, [pageItems, group, t.wishlist.groupUnknown]);
 
   const showStatsSkeleton = loading && items.length === 0;
 
@@ -649,6 +669,33 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               )}
             </section>
           ))}
+          {totalPages > 1 && (
+            <nav className="flex flex-wrap items-center justify-between gap-2" aria-label={t.places.vnPaginationLabel as string}>
+              <button
+                type="button"
+                className="btn min-h-[44px]"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                {t.common.prev as string}
+              </button>
+              <span className="text-xs text-muted">
+                {fmtNum(pageStart + 1, locale)}-{fmtNum(Math.min(sorted.length, pageStart + PLACE_VN_PAGE_SIZE), locale)}
+                {' / '}
+                {fmtNum(sorted.length, locale)}
+              </span>
+              <button
+                type="button"
+                className="btn min-h-[44px]"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              >
+                {t.common.next as string}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </nav>
+          )}
         </div>
       )}
     </DensityScopeProvider>

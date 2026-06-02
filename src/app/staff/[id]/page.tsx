@@ -18,6 +18,7 @@ import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
 import { VndbMarkup } from '@/components/VndbMarkup';
@@ -265,7 +266,7 @@ export default async function StaffPage({
           node: (
             <section className="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5">
               <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
-                <Users className="h-4 w-4" /> {t.staff.siblingsTitle}
+                <Users className="h-4 w-4" aria-hidden /> {t.staff.siblingsTitle}
               </h2>
               <p className="mb-3 text-[11px] text-muted">{t.staff.siblingsHint}</p>
               <ul className="space-y-1.5 text-xs">
@@ -299,10 +300,12 @@ export default async function StaffPage({
           label: sectionLabels['voice-credits'],
           node: <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Mic2 className="h-4 w-4 text-accent" /> {t.staff.voiceCredits}
+            <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.staff.voiceCredits}
             <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {voice.length}</span>
           </h2>
-          <ul
+          <PaginatedGrid
+            ariaLabel={t.staff.creditsPaginationLabel}
+            resetKey={`${id}:voice`}
             className="grid gap-3"
             style={{
               // Density-aware: voice cards carry a fair amount of
@@ -359,7 +362,7 @@ export default async function StaffPage({
                 </VnCard>
               </li>
             ))}
-          </ul>
+          </PaginatedGrid>
         </section>,
         });
         if (groupedProduction.length > 0) staffSections.push({
@@ -368,7 +371,7 @@ export default async function StaffPage({
           node: (
             <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-                <Users className="h-4 w-4 text-accent" /> {t.staff.productionCredits}
+                <Users className="h-4 w-4 text-accent" aria-hidden /> {t.staff.productionCredits}
                 <span className="text-[11px] font-normal lowercase tracking-normal text-muted">· {production.length}</span>
               </h2>
               {groupedProduction.map((g) => (
@@ -376,13 +379,18 @@ export default async function StaffPage({
                   <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
                     {t.staff[ROLE_KEY[g.role]]}
                   </h3>
-                  <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
+                  <PaginatedGrid
+                    ariaLabel={t.staff.creditsPaginationLabel}
+                    resetKey={`${id}:production:${g.role}`}
+                    className="grid gap-3"
+                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+                  >
                     {g.credits.map((credit) => (
                       <li key={credit.vn.id}>
                         <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} locale={locale} />
                       </li>
                     ))}
-                  </ul>
+                  </PaginatedGrid>
                 </div>
               ))}
             </section>
@@ -521,7 +529,7 @@ function VnCard({
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
           {ratingDisplay && (
             <span className="inline-flex items-center gap-0.5 text-accent">
-              <Star className="h-3 w-3 fill-accent" /> {ratingDisplay}
+              <Star className="h-3 w-3 fill-accent" aria-hidden /> {ratingDisplay}
             </span>
           )}
           {year && (

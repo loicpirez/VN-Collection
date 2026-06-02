@@ -15,6 +15,7 @@ import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 import { dedupAppearances } from '@/lib/character-appearances';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 import {
   CHARACTER_DETAIL_LAYOUT_EVENT,
   CHARACTER_DETAIL_SETTINGS_KEY,
@@ -217,7 +218,9 @@ export default async function CharacterPage({
                 <Users className="h-4 w-4" /> {t.characters.sameName}
               </h2>
               <p className="mb-3 text-[11px] text-muted">{t.characters.sameNameHint}</p>
-              <ul
+              <PaginatedGrid
+                ariaLabel={t.characters.sameName}
+                resetKey={`${id}:siblings`}
                 className="grid gap-3"
                 style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
               >
@@ -253,7 +256,7 @@ export default async function CharacterPage({
                     </Link>
                   </li>
                 ))}
-              </ul>
+              </PaginatedGrid>
             </section>
           ),
         });
@@ -325,7 +328,12 @@ export default async function CharacterPage({
               <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Mic2 className="h-4 w-4 text-accent" /> {t.characters.alsoVoicedBy}
               </h2>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
+              <PaginatedGrid
+                ariaLabel={t.characters.appearsIn}
+                resetKey={`${id}:appears-in`}
+                className="grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+              >
                 {vas.map((va) => (
                   <li key={va.sid}>
                     <Link href={`/staff/${va.sid}`} className="block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent">
@@ -344,7 +352,7 @@ export default async function CharacterPage({
                     </Link>
                   </li>
                 ))}
-              </ul>
+              </PaginatedGrid>
             </section>
           ),
         });

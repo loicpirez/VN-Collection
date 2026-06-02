@@ -10,6 +10,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { dumpedShelfHref, dumpedVnHref, dumpedEditionsAnchor } from '@/lib/dumped-links';
 import { DumpIgnoreButton } from '@/components/DumpIgnoreButton';
+import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -208,7 +209,9 @@ export default async function DumpedPage({
               {t.dumped.tabEmpty}
             </p>
           ) : (
-            <ul
+            <PaginatedGrid
+              ariaLabel={t.dumped.pageTitle}
+              resetKey={tab}
               className="grid gap-3"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
             >
@@ -312,7 +315,7 @@ export default async function DumpedPage({
                   </li>
                 );
               })}
-            </ul>
+            </PaginatedGrid>
           )}
         </DensityScopeProvider>
       )}

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Check, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
-import { getCharactersForTrait, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
+import { getCharactersForTraitInVns, getCharactersForTraitPage, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
 import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
@@ -29,28 +29,44 @@ import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 
 export const dynamic = 'force-dynamic';
 
+const TRAIT_CHARACTER_PAGE_SIZE = 60;
 
 export default async function TraitPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mine?: string }>;
+  searchParams: Promise<{ mine?: string; page?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
   const mineOnly = sp.mine === '1';
+  const parsedPage = Number(sp.page);
+  const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   if (!/^i\d+$/i.test(id)) notFound();
   const t = await getDict();
   const locale = await getLocale();
   let trait: VndbTrait | null = null;
   let characters: VndbCharacter[] = [];
+  let mineCount: number | null = null;
+  let hasMore = false;
   let error: string | null = null;
+  const ownedVnIds = new Set(listInCollectionVnIds());
   try {
-    [trait, characters] = await Promise.all([
-      getTrait(id),
-      getCharactersForTrait(id, { results: 60 }),
-    ]);
+    trait = await getTrait(id);
+    if (trait) {
+      if (mineOnly) {
+        const mine = await getCharactersForTraitInVns(id, Array.from(ownedVnIds));
+        mineCount = mine.length;
+        const pageStart = (page - 1) * TRAIT_CHARACTER_PAGE_SIZE;
+        characters = mine.slice(pageStart, pageStart + TRAIT_CHARACTER_PAGE_SIZE);
+        hasMore = pageStart + TRAIT_CHARACTER_PAGE_SIZE < mine.length;
+      } else {
+        const response = await getCharactersForTraitPage(id, { results: TRAIT_CHARACTER_PAGE_SIZE, page });
+        characters = response.results;
+        hasMore = response.more;
+      }
+    }
   } catch (e) {
     error = (e as Error).message;
   }
@@ -79,13 +95,16 @@ export default async function TraitPage({
     );
   }
 
-  const ownedVnIds = new Set(listInCollectionVnIds());
-  const allCount = characters.length;
-  const mineCount = characters.filter((c) => c.vns.some((v) => ownedVnIds.has(v.id))).length;
-  const visible = mineOnly
-    ? characters.filter((c) => c.vns.some((v) => ownedVnIds.has(v.id)))
-    : characters;
+  const allCount = trait.char_count;
+  const visible = characters;
   const localPaths = getCharacterImages(visible.map((c) => c.id));
+  const pageHref = (nextPage: number, mine: boolean): string => {
+    const query = new URLSearchParams();
+    if (mine) query.set('mine', '1');
+    if (nextPage > 1) query.set('page', String(nextPage));
+    const suffix = query.toString();
+    return `/trait/${id}${suffix ? `?${suffix}` : ''}`;
+  };
 
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
@@ -140,8 +159,8 @@ export default async function TraitPage({
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.traits.charactersWith} · {visible.length}
-            {mineOnly && (
+            {t.traits.charactersWith} · {mineOnly ? mineCount : allCount}
+            {mineOnly && mineCount != null && (
               <span className="text-[10px] font-normal opacity-70">
                 · {mineCount} / {allCount} {t.traits.mineCountSuffix}
               </span>
@@ -149,7 +168,7 @@ export default async function TraitPage({
           </h2>
           <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
             <Link
-              href={`/trait/${id}`}
+              href={pageHref(1, false)}
               className={`rounded px-2 py-1 transition-colors ${
                 !mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
@@ -157,12 +176,12 @@ export default async function TraitPage({
               {t.traits.all} · {allCount}
             </Link>
             <Link
-              href={`/trait/${id}?mine=1`}
+              href={pageHref(1, true)}
               className={`rounded px-2 py-1 transition-colors ${
                 mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
-              {t.traits.mine} · {mineCount}
+              {t.traits.mine}{mineCount != null ? ` · ${mineCount}` : ''}
             </Link>
           </div>
         </div>
@@ -227,6 +246,23 @@ export default async function TraitPage({
               );
             })}
           </ul>
+        )}
+        {(page > 1 || hasMore) && (
+          <nav className="mt-4 flex flex-wrap items-center justify-between gap-2" aria-label={t.traits.paginationLabel}>
+            {page > 1 ? (
+              <Link href={pageHref(page - 1, mineOnly)} className="btn min-h-[44px]">
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                {t.common.prev}
+              </Link>
+            ) : <span />}
+            <span className="text-xs text-muted">{fmtNum(page, locale)}</span>
+            {hasMore ? (
+              <Link href={pageHref(page + 1, mineOnly)} className="btn min-h-[44px]">
+                {t.common.next}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Link>
+            ) : <span />}
+          </nav>
         )}
       </section>
     </DensityScopeProvider>
