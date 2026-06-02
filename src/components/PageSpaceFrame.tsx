@@ -20,7 +20,7 @@ import { useDisplaySettings } from '@/lib/settings/client';
  * @returns Content wrapped in a responsive page-spacing shell.
  */
 export function PageSpaceFrame({ children, className }: { children: ReactNode; className?: string }) {
-  const pathname = usePathname() ?? '/';
+  const pathname = usePathname();
   const scope = resolvePageSpaceScope(pathname);
   const { settings } = useDisplaySettings();
   const preset = hasPageSpaceOverride(settings, scope)
@@ -51,7 +51,7 @@ export function PageSpaceFrame({ children, className }: { children: ReactNode; c
  * @returns Header content wrapped in a responsive spacing shell.
  */
 export function HeaderSpaceFrame({ children, className }: { children: ReactNode; className?: string }) {
-  const pathname = usePathname() ?? '/';
+  const pathname = usePathname();
   const { settings } = useDisplaySettings();
   const scope = settings.headerFollowsPageSpace ? resolvePageSpaceScope(pathname) : 'library';
   const preset = settings.headerFollowsPageSpace ? resolvePageSpacePreset(settings, scope) : 'standard';

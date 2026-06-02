@@ -109,15 +109,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const api = useMemo<ConfirmApi>(() => ({ confirm, prompt }), [confirm, prompt]);
   const current = queue[0] ?? null;
 
-  function closeConfirm(ok: boolean) {
-    if (!current || current.kind !== 'confirm') return;
-    current.resolve(ok);
+  function closeConfirm(entry: Extract<QueuedEntry, { kind: 'confirm' }>, ok: boolean) {
+    entry.resolve(ok);
     setQueue((prev) => prev.slice(1));
   }
 
-  function closePrompt(value: string | null) {
-    if (!current || current.kind !== 'prompt') return;
-    current.resolve(value);
+  function closePrompt(entry: Extract<QueuedEntry, { kind: 'prompt' }>, value: string | null) {
+    entry.resolve(value);
     setQueue((prev) => prev.slice(1));
   }
 
@@ -128,9 +126,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         current &&
         createPortal(
           current.kind === 'confirm' ? (
-            <ConfirmDialog key={current.id} entry={current} onClose={closeConfirm} />
+            <ConfirmDialog key={current.id} entry={current} onClose={(ok) => closeConfirm(current, ok)} />
           ) : (
-            <PromptDialog key={current.id} entry={current} onClose={closePrompt} />
+            <PromptDialog key={current.id} entry={current} onClose={(value) => closePrompt(current, value)} />
           ),
           document.body,
         )}
@@ -175,7 +173,6 @@ function ConfirmDialog({
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
-        if (focusables.length === 0) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
         if (e.shiftKey && document.activeElement === first) {
@@ -253,7 +250,7 @@ function ConfirmDialog({
         {needsTyping && (
           <div className="px-4 pb-3">
             <label id={typeHintId} className="block text-xs text-muted">
-              {t.common.confirmTypeHint.replace('{token}', entry.requireTyping ?? '')}
+              {t.common.confirmTypeHint.replace('{token}', entry.requireTyping!)}
             </label>
             <input
               autoFocus
@@ -325,7 +322,6 @@ function PromptDialog({
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
-        if (focusables.length === 0) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
         if (e.shiftKey && document.activeElement === first) {

@@ -68,14 +68,14 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
         signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      if (identityRef.current !== ownerVnId) return;
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (e) {
-      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || (e instanceof Error && e.name === 'AbortError')) return;
+      if (identityRef.current !== ownerVnId || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
+      if (identityRef.current === ownerVnId) {
         mutationAbortRef.current = null;
         mutationInFlightRef.current = false;
         setBusy(false);

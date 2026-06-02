@@ -65,26 +65,25 @@ export function Dialog({
   // pre-open trigger as the focused element.
   useLayoutEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     restoreFocusTo.current = document.activeElement as HTMLElement | null;
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
+    const panel = panelRef.current!;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     const focusables = () =>
       Array.from(
-        panelRef.current?.querySelectorAll<HTMLElement>(
+        panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
+        ),
       ).filter((el) => !el.hasAttribute('inert'));
 
     // Move focus into the panel.
-    const initial = focusables()[0] ?? panelRef.current;
-    initial?.focus({ preventScroll: true });
+    const initial = focusables()[0] ?? panel;
+    initial.focus({ preventScroll: true });
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !disableEscape) {
@@ -209,13 +208,11 @@ export function useDialogA11y({
   // the consumer flipped `open` to true.
   useLayoutEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     restoreFocusTo.current = document.activeElement as HTMLElement | null;
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 

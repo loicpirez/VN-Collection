@@ -24,8 +24,7 @@ interface Props {
  * answers "ja → Japanese" without giving up the compact code chip.
  */
 export function LangFlag({ lang, withCode = false, className = '', locale }: Props) {
-  const displayName = languageDisplayName(lang, locale);
-  const tooltip = displayName || lang.toUpperCase();
+  const tooltip = languageDisplayName(lang, locale);
   return (
     <span className={className} title={tooltip} aria-label={tooltip}>
       <Globe className="h-3 w-3" aria-hidden />
@@ -59,7 +58,7 @@ export function LangList({
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {langs.map((l) => {
-        const displayName = languageDisplayName(l, locale) || l.toUpperCase();
+        const displayName = languageDisplayName(l, locale);
         if (!clickable) {
           return (
             <LangFlag

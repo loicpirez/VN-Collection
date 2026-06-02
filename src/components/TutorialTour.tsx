@@ -51,7 +51,6 @@ export function TutorialTour() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     const done = window.localStorage.getItem(STORAGE_KEY);
     function onStart() {
       setStep(0);
@@ -79,9 +78,7 @@ export function TutorialTour() {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
       setActive(false);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_KEY, '1');
-      }
+      window.localStorage.setItem(STORAGE_KEY, '1');
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -92,17 +89,15 @@ export function TutorialTour() {
     panelRef.current?.focus({ preventScroll: true });
   }, [active, step]);
 
-  function close(remember = true) {
+  function close() {
     setActive(false);
-    if (remember && typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEY, '1');
-    }
+    window.localStorage.setItem(STORAGE_KEY, '1');
   }
 
   function next() {
     const upcoming = step + 1;
     if (upcoming >= STEPS.length) {
-      close(true);
+      close();
       return;
     }
     setStep(upcoming);
@@ -139,7 +134,7 @@ export function TutorialTour() {
         </span>
         <button
           type="button"
-          onClick={() => close(true)}
+          onClick={close}
           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
           aria-label={t.common.close}
         >
@@ -151,7 +146,7 @@ export function TutorialTour() {
       <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
         <span>{step + 1} / {total}</span>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => close(true)} className="btn min-h-[44px] text-xs sm:min-h-0">
+          <button type="button" onClick={close} className="btn min-h-[44px] text-xs sm:min-h-0">
             {t.tour.skip}
           </button>
           <button type="button" onClick={next} className="btn btn-primary min-h-[44px] text-xs sm:min-h-0">
@@ -166,8 +161,6 @@ export function TutorialTour() {
 
 /** Public helper - anything can dispatch this event to restart the tour. */
 export function startTour() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(STORAGE_KEY);
-    window.dispatchEvent(new Event('vn-tour:start'));
-  }
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new Event('vn-tour:start'));
 }

@@ -30,7 +30,7 @@ export function ResetViewDefaultsButton({
 
   const handleClick = () => {
     if (settings.density?.[scope] != null) {
-      const next = { ...(settings.density ?? {}) };
+      const next = { ...settings.density };
       delete next[scope];
       set('density', next);
     }

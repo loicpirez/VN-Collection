@@ -45,8 +45,7 @@ export function ScrollFadeRight({
   }, []);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const el = ref.current!;
     update();
     el.addEventListener('scroll', update, { passive: true });
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;

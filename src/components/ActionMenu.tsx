@@ -81,28 +81,24 @@ export function ActionMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  // Stash the element focused at open time so we can restore on close.
   const restoreFocusTo = useRef<HTMLElement | null>(null);
 
-  // Outside-click + Escape close + Tab focus trap.
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     restoreFocusTo.current = document.activeElement as HTMLElement | null;
+    const trigger = triggerRef.current!;
+    const panel = panelRef.current!;
     function onDoc(e: MouseEvent) {
       const target = e.target as Node;
-      if (
-        !triggerRef.current?.contains(target) &&
-        !panelRef.current?.contains(target)
-      ) {
+      if (!trigger.contains(target) && !panel.contains(target)) {
         setOpen(false);
       }
     }
     function focusables(): HTMLElement[] {
       return Array.from(
-        panelRef.current?.querySelectorAll<HTMLElement>(
+        panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
+        ),
       ).filter((el) => !el.hasAttribute('inert'));
     }
     function onKey(e: KeyboardEvent) {
@@ -113,19 +109,21 @@ export function ActionMenu({
       }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
         const items = Array.from(
-          panelRef.current?.querySelectorAll<HTMLElement>(
+          panel.querySelectorAll<HTMLElement>(
             '[role="menuitem"], [role="menuitemcheckbox"]',
-          ) ?? [],
+          ),
         ).filter((el) => !el.hasAttribute('disabled'));
         if (items.length === 0) return;
         const currentIndex = items.indexOf(document.activeElement as HTMLElement);
-        let nextIndex = currentIndex;
-        if (e.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
-        else if (e.key === 'ArrowUp') nextIndex = (currentIndex - 1 + items.length) % items.length;
-        else if (e.key === 'Home') nextIndex = 0;
-        else if (e.key === 'End') nextIndex = items.length - 1;
+        const nextIndex = e.key === 'ArrowDown'
+          ? (currentIndex + 1) % items.length
+          : e.key === 'ArrowUp'
+            ? (currentIndex - 1 + items.length) % items.length
+            : e.key === 'Home'
+              ? 0
+              : items.length - 1;
         e.preventDefault();
-        items[nextIndex]?.focus({ preventScroll: true });
+        items[nextIndex]!.focus({ preventScroll: true });
         return;
       }
       if (e.key !== 'Tab') return;
@@ -143,8 +141,6 @@ export function ActionMenu({
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
-    // Shift focus into the panel on the next paint so the menu body is
-    // measured and focusables are mounted.
     const raf = requestAnimationFrame(() => {
       focusables()[0]?.focus({ preventScroll: true });
     });
@@ -152,35 +148,23 @@ export function ActionMenu({
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
       cancelAnimationFrame(raf);
-      // Restore focus to the trigger so keyboard users land back where
-      // they invoked the menu. Skip when focus already moved to a
-      // different surface (e.g. the user clicked a menu item that
-      // navigated away).
       const active = document.activeElement as HTMLElement | null;
       if (
         restoreFocusTo.current === triggerRef.current ||
-        active === document.body ||
-        active === null
+        active === document.body
       ) {
         triggerRef.current?.focus({ preventScroll: true });
       }
     };
   }, [open]);
 
-  // Measure-and-flip on open + on scroll / resize while open. We
-  // measure against the trigger button itself (not its parent) because
-  // the panel is anchored via `top-full` / `bottom-full` on the same
-  // relative wrapper that wraps the button - the trigger's bounding
-  // rect IS the anchor.
   useEffect(() => {
     if (!open) {
       setPlaced(false);
       return;
     }
-    if (typeof window === 'undefined') return;
-    const trigger = triggerRef.current;
-    const panel = panelRef.current;
-    if (!trigger || !panel) return;
+    const trigger = triggerRef.current!;
+    const panel = panelRef.current!;
     const compute = () => {
       const rect = trigger.getBoundingClientRect();
       const popHeight = panel.offsetHeight;
@@ -191,8 +175,6 @@ export function ActionMenu({
       const spaceAbove = rect.top;
       const vertical: 'below' | 'above' =
         spaceBelow < popHeight + 12 && spaceAbove > spaceBelow ? 'above' : 'below';
-      // Use the trigger's right edge for right-aligned placement so
-      // the panel doesn't spill off-screen on narrow viewports.
       const spaceRight = viewportW - rect.left;
       const horizontal: 'left' | 'right' = spaceRight < popWidth + 12 ? 'right' : 'left';
       setPlacement({ vertical, horizontal });
@@ -239,20 +221,12 @@ export function ActionMenu({
           role="menu"
           aria-label={label}
           onPointerDown={stop}
-          // CSS positioning is anchored on the trigger button itself.
-          // The outer `<span>` wraps both so `absolute` resolves
-          // against the trigger's offset parent.
           className={`absolute z-40 ${
             placement.vertical === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
           } ${placement.horizontal === 'right' ? 'right-0' : 'left-0'} ${
             placed ? 'visible opacity-100' : 'invisible opacity-0'
           } ${menuClassName}`}
           onClick={(e) => {
-            // Close on item activation. Items typically render as a
-            // <Link> or <button>; either way the navigation/handler
-            // runs first because the click bubbles up to us.
-            // Buttons that should keep the menu open (e.g. inline
-            // toggles) can stop propagation themselves.
             const target = e.target as HTMLElement;
             if (target.closest('[data-menu-keep-open]')) return;
             if (target.closest('a, button')) setOpen(false);

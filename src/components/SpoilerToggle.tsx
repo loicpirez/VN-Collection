@@ -29,12 +29,13 @@ export function SpoilerToggle() {
   const { settings, set } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverId = useId();
 
   useEffect(() => {
     if (!open) return;
-    const firstFocusable = popRef.current?.querySelector<HTMLElement>(
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
     );
     firstFocusable?.focus({ preventScroll: true });
@@ -63,7 +64,6 @@ export function SpoilerToggle() {
 
   function openFullSettings() {
     setOpen(false);
-    if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent('vn:open-settings'));
   }
 
@@ -85,6 +85,7 @@ export function SpoilerToggle() {
       </button>
       {open && (
         <div
+          ref={panelRef}
           id={popoverId}
           className="absolute right-0 top-full z-40 mt-1 w-[min(95vw,20rem)] rounded-lg border border-border bg-bg-card p-3 shadow-card"
           role="region"

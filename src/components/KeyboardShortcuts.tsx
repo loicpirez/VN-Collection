@@ -49,23 +49,21 @@ export function KeyboardShortcuts() {
   const year = new Date().getFullYear();
   const globalRows = globalShortcutRows(t);
   const routeRows = routeShortcutRows(t, year);
-  const scopedSections = pageShortcutSections(t).filter((section) => {
-    if (section.label === t.shortcuts.vnPage) return isVnPage;
-    if (section.label === t.shortcuts.libPage) return isLibrary;
-    if (section.label === t.shortcuts.tagsPage) return isTagsPage;
-    return false;
-  });
+  const visibleSectionLabels = new Set([
+    ...(isVnPage ? [t.shortcuts.vnPage] : []),
+    ...(isLibrary ? [t.shortcuts.libPage] : []),
+    ...(isTagsPage ? [t.shortcuts.tagsPage] : []),
+  ]);
+  const scopedSections = pageShortcutSections(t).filter((section) => visibleSectionLabels.has(section.label));
 
   useEffect(() => {
-    let armed = false;
     let timer: NodeJS.Timeout | null = null;
 
     function inEditable(target: EventTarget | null): boolean {
-      const el = target as HTMLElement | null;
-      if (!el) return false;
-      const tag = el.tagName;
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-      if ((el as HTMLElement).isContentEditable) return true;
+      if (target.isContentEditable) return true;
       return false;
     }
 
@@ -142,9 +140,9 @@ export function KeyboardShortcuts() {
         }
       }
 
-      if (armed) {
-        armed = false;
-        if (timer) { clearTimeout(timer); timer = null; }
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
         const route = routeForShortcutKey(e.key, new Date().getFullYear());
         if (route) {
           e.preventDefault();
@@ -153,8 +151,7 @@ export function KeyboardShortcuts() {
         return;
       }
       if (e.key === 'g') {
-        armed = true;
-        timer = setTimeout(() => { armed = false; }, 1200);
+        timer = setTimeout(() => { timer = null; }, 1200);
       }
     }
     window.addEventListener('keydown', onKey);

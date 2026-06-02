@@ -98,7 +98,6 @@ export function PortalPopover({
   useEffect(() => setMounted(true), []);
 
   const reposition = useCallback(() => {
-    if (typeof window === 'undefined') return;
     const trigger = triggerRef.current;
     const panel = panelRef.current;
     if (!trigger || !panel) return;
@@ -143,18 +142,14 @@ export function PortalPopover({
   useLayoutEffect(() => {
     if (!open) return;
     // Measure on the next frame so the panel children have settled.
-    const raf =
-      typeof window === 'undefined'
-        ? 0
-        : window.requestAnimationFrame(() => reposition());
+    const raf = window.requestAnimationFrame(() => reposition());
     return () => {
-      if (typeof window !== 'undefined') window.cancelAnimationFrame(raf);
+      window.cancelAnimationFrame(raf);
     };
   }, [open, reposition, children]);
 
   useEffect(() => {
     if (!open) return;
-    if (typeof window === 'undefined') return;
     const onScroll = () => reposition();
     const onResize = () => reposition();
     window.addEventListener('scroll', onScroll, { passive: true, capture: true });
@@ -170,10 +165,8 @@ export function PortalPopover({
   // close fires before any internal click handler steals the event.
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     function onDoc(e: MouseEvent) {
-      const target = e.target as Node | null;
-      if (!target) return;
+      const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (triggerRef.current?.contains(target)) return;
       onClose();
@@ -187,13 +180,10 @@ export function PortalPopover({
   // grid while the popover is open.
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     function focusables(): HTMLElement[] {
-      const panel = panelRef.current;
-      if (!panel) return [];
       return Array.from(
-        panel.querySelectorAll<HTMLElement>(
+        panelRef.current!.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       ).filter((el) => !el.hasAttribute('inert'));
