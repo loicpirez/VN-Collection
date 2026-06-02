@@ -47,7 +47,8 @@ The optional shop map is private by default. It does not mount the external
 tile layer or enable address search until you allow external map services in
 the map UI. Enabling it loads tiles from CARTO. Address searches send the
 entered query to Nominatim (OpenStreetMap); saved collection rows are not sent
-as a bulk payload.
+as a bulk payload. The explanation can be collapsed after review without
+changing the opt-in state.
 
 ---
 

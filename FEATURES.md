@@ -731,8 +731,10 @@ mounted and address geocoding controls stay disabled. With consent:
   application locale.
 
 The choice is stored locally under `vncoll.map.external-network.v1` and can be
-revoked from the same control. Saved collection places are never uploaded as a
-bulk payload.
+revoked from the same control. The explanatory notice can be collapsed
+independently under `vncoll.map.privacy-notice-dismissed.v1`; a compact labelled
+button remains available to reopen it. Saved collection places are never
+uploaded as a bulk payload.
 
 ## Generic VN stock and price lookup
 
@@ -1054,7 +1056,9 @@ The right edge carries the closed-eye content-controls hub, the
 language switcher and the settings gear — all three remain visible
 at every screen width. On screens narrower than `md` the rest of the
 nav collapses into a single hamburger sheet that lists every
-destination grouped by category.
+destination grouped by category. Desktop category menus measure their natural
+height and flip above the trigger when needed; they scroll internally only when
+the menu itself is taller than the usable viewport.
 
 ### Tutorial tour ✅
 First-time visitors get a 14-step guided pass over the major surfaces:
@@ -1521,10 +1525,11 @@ controls still apply.
 ### Cover / banner rotation ✅
 Per-VN `cover_rotation` and `banner_rotation` columns (0 / 90 /
 180 / 270, normalised via `normalizeRotation()`). Rotate-left /
-rotate-right buttons sit on `HeroBanner` and `CoverHero` in the
-same hover-revealed action group as the focal-point adjust
-button; a "reset rotation" affordance appears when the value
-drifts from 0. `<SafeImage rotation={…}>` applies a scaled
+rotate-right buttons sit on `HeroBanner` and in the cover source picker.
+Desktop artwork retains hover-revealed quick actions. Compact viewports expose
+one 44 px edit entry at rest, then show the heavier controls only after the
+operator intentionally enters edit mode; a "reset rotation" affordance appears
+when the value drifts from 0. `<SafeImage rotation={…}>` applies a scaled
 `transform: rotate(<deg>)` measured by a ResizeObserver so 90 /
 270 rotations fill the box without overflow. PATCH endpoints
 extend the existing `/api/collection/[id]/cover` and `/banner`

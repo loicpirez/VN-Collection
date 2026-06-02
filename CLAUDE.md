@@ -969,6 +969,9 @@ GAMECITY, AmiAmi, and Neowing intentionally remain `search_leads` with
 requests. Consent is local-only under `vncoll.map.external-network.v1`.
 `MapPageClient` does not mount `MapCanvas` until consent is enabled, and
 `AddEditPlaceModal` disables Nominatim search until the same consent exists.
+The explanatory notice can collapse independently under
+`vncoll.map.privacy-notice-dismissed.v1`; collapsing it must never change
+consent, and a compact labelled reopen control remains visible.
 
 When enabled:
 - `MapCanvas` loads CARTO tiles.
@@ -1449,10 +1452,12 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   with a ResizeObserver-measured container so 90/270 rotations
   fill the box. `buildRotationStyle()` is exported for unit tests.
 - `HeroBanner` carries inline rotate-left / rotate-right buttons in
-  the same hover-revealed action group as the existing focal-point
-  adjust button. `CoverHero` exposes the same controls on the VN
-  cover image, plus a "reset rotation" affordance when the value
-  drifts from 0.
+  the same hover-revealed desktop action group as the existing focal-point
+  adjust button. Compact viewports show one 44 px edit entry at rest and expose
+  the heavier controls only after edit mode opens.
+- `CoverHero` exposes one compact edit trigger on the VN cover image. The cover
+  source picker owns rotate-left / rotate-right / reset on compact viewports;
+  the poster overlay remains available as a desktop quick action only.
 - i18n keys live under `t.coverActions.{rotate, rotateLeft,
   rotateRight, resetRotation, rotationLabel}`.
 
@@ -1771,6 +1776,9 @@ Primary nav slot is reserved for the 3 daily-use entries —
 Library, Wishlist, Search. /lists lives in the Discover menu.
 Anything else goes in a NavGroup. Don't add a fifth primary
 without measuring the FR overflow at xl-1.
+Desktop NavGroup menus portal to `document.body`, clamp horizontally, and flip
+above the trigger when the natural menu height does not fit below. Internal
+scrolling is reserved for menus taller than the usable viewport.
 
 Mobile sheet (`<MobileSheet>`) duplicates every entry so mobile
 users still see Lists prominently in the Primary group.

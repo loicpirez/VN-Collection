@@ -113,15 +113,17 @@ Default sections:
    **List-membership chips** appear right under the title — one chip
    per list the VN belongs to, colored by the list, click to open
    the list, X to remove.
-2. **Cover & banner**: tap the **Change cover** pill on the cover
-   image itself (or the matching pill in the action bar) to open
+2. **Cover & banner**: tap the cover edit icon on compact screens or the
+   **Change cover** pill on wider screens on the cover image itself (or the
+   matching pill in the action bar) to open
    the source picker — opens to the Custom tab so the upload /
    URL / in-VN gallery picker is on screen immediately. Same for
    the banner via the **Change banner** picker (Custom by default).
-   Each image carries inline **rotate-left** / **rotate-right**
-   buttons in the same hover-revealed action group as the focal-
-   point adjust; a "reset rotation" affordance appears when the
-   value drifts from 0. Rotation is persisted per-VN
+   Wider screens keep inline **rotate-left** / **rotate-right** quick actions
+   in the same hover-revealed group as focal-point adjust. Compact screens keep
+   the artwork clear until the edit icon is pressed, then expose the same
+   operations; a "reset rotation" affordance appears when the value drifts
+   from 0. Rotation is persisted per-VN
    (`cover_rotation` / `banner_rotation` columns, 0 / 90 / 180 /
    270). Cover and banner mutations broadcast through a typed
    CustomEvent so every surface that's showing the same VN

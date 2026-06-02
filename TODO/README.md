@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 395 tracked tasks. Statuses must be updated only
+place. The reports below contain 401 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -15,11 +15,11 @@ Each task uses the same five-column format:
 | Category | Report | Tracked tasks |
 | --- | --- | ---: |
 | Security | [security-report-tasks.md](security-report-tasks.md) | 34 |
-| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 109 |
+| Bugs | [bugs-report-tasks.md](bugs-report-tasks.md) | 111 |
 | Features | [features-report-tasks.md](features-report-tasks.md) | 8 |
 | Performance | [performance-report-tasks.md](performance-report-tasks.md) | 32 |
-| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 13 |
-| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 33 |
+| UI / UX | [uiux-report-tasks.md](uiux-report-tasks.md) | 15 |
+| Responsive | [responsive-report-tasks.md](responsive-report-tasks.md) | 35 |
 | Accessibility | [accessibility-report-tasks.md](accessibility-report-tasks.md) | 45 |
 | i18n | [i18n-report-tasks.md](i18n-report-tasks.md) | 34 |
 | Typing | [typing-report-tasks.md](typing-report-tasks.md) | 67 |
@@ -265,9 +265,15 @@ branches with localized pagination controls.
 The trait-detail follow-up replaces its first-page-only character gallery with VNDB
 server paging and a complete chunked collection-only query.
 
+The compact-detail and map-layer follow-up reduces mobile artwork overlays to one
+intentional edit entry, adds hover/focus/tap disclosure for truncated platform lists,
+flips desktop navbar menus before introducing internal scroll, makes the map privacy
+notice independently collapsible, isolates Leaflet below modal layers, and gives
+per-page density controls a stable non-overlapping settings grid.
+
 Current status:
 
-- `DONE_WITH_DIFF`: 392
+- `DONE_WITH_DIFF`: 398
 - `VERIFIED_EXISTING`: 3
 - `TODO`: 0
 
