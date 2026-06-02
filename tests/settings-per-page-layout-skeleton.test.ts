@@ -22,4 +22,10 @@ describe('Settings per-page layout panel', () => {
     expect(SOURCE).toContain('disabled={savingToken || !tokenInput.trim()}');
     expect(SOURCE).toContain('savingToken ? <Loader2');
   });
+
+  it('reserves a stable density track so sliders cannot overlap spacing presets', () => {
+    expect(SOURCE).toContain('xl:grid-cols-[minmax(8rem,0.7fr)_minmax(20rem,1.3fr)_minmax(20rem,1fr)]');
+    expect(SOURCE).toContain('grid w-full max-w-[20rem] grid-cols-[44px_minmax(4rem,1fr)_44px_2.5rem_44px]');
+    expect(SOURCE).toContain('h-1.5 min-w-0 w-full cursor-pointer accent-accent');
+  });
 });

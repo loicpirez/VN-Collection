@@ -862,7 +862,7 @@ function PerPageLayoutPanel() {
           return (
             <li
               key={scope}
-              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] xl:grid-cols-[minmax(8rem,0.8fr)_minmax(18rem,1.4fr)_minmax(9rem,0.8fr)]"
+              className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 text-[11px] xl:grid-cols-[minmax(8rem,0.7fr)_minmax(20rem,1.3fr)_minmax(20rem,1fr)]"
             >
               <div className="min-w-0">
                 <span className={spaceOverridden ? 'block text-white' : 'block text-muted'}>
@@ -915,7 +915,7 @@ function PerPageLayoutPanel() {
                     return (
                       <span
                         key={densityScope}
-                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
+                        className={`grid w-full max-w-[20rem] grid-cols-[44px_minmax(4rem,1fr)_44px_2.5rem_44px] items-center gap-1 rounded-md border px-2 py-1 ${
                           overridden ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-elev/40'
                         }`}
                         title={overridden ? t.settings.densityReset : t.settings.followsDefault}
@@ -936,7 +936,7 @@ function PerPageLayoutPanel() {
                           value={resolved}
                           onChange={(e) => setScopeDensity(densityScope, Number(e.target.value))}
                           aria-label={t.cardDensity.label}
-                          className="h-1.5 w-20 cursor-pointer accent-accent"
+                          className="h-1.5 min-w-0 w-full cursor-pointer accent-accent"
                         />
                         <button
                           type="button"
