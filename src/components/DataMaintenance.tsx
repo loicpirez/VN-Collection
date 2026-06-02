@@ -6,6 +6,7 @@ import { AlertTriangle, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { SkeletonRows } from './Skeleton';
+import { ErrorAlert } from './ErrorAlert';
 
 import { readApiError } from '@/lib/api-error-read';
 import {
@@ -14,6 +15,8 @@ import {
   type MaintenanceDuplicateGroup,
   type MaintenanceStaleVn,
 } from '@/lib/data-operations-client-shape';
+
+const STALE_PREVIEW_LIMIT = 50;
 
 /**
  * "Maintenance" card on /data - surfaces duplicate candidates and rows whose
@@ -31,7 +34,9 @@ export function DataMaintenance() {
   const [dups, setDups] = useState<MaintenanceDuplicateGroup[]>([]);
   const [stale, setStale] = useState<MaintenanceStaleVn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [showAllStale, setShowAllStale] = useState(false);
   const mountedRef = useRef(true);
   const loadAbortRef = useRef<AbortController | null>(null);
   const refreshAbortRef = useRef<AbortController | null>(null);
@@ -58,9 +63,10 @@ export function DataMaintenance() {
       if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
       setDups(groups);
       setStale(rows);
+      setError(null);
     } catch (e) {
-      if ((e as DOMException)?.name === 'AbortError' || !mountedRef.current) return;
-      console.error('[DataMaintenance] load error:', (e as Error).message);
+      if ((e as DOMException)?.name === 'AbortError' || !mountedRef.current || loadAbortRef.current !== controller) return;
+      setError((e as Error).message || t.common.error);
     } finally {
       if (!signal.aborted && mountedRef.current && loadAbortRef.current === controller) setLoading(false);
     }
@@ -115,6 +121,14 @@ export function DataMaintenance() {
           <SkeletonRows count={3} withThumb={false} />
           <SkeletonRows count={3} withThumb={false} />
         </div>
+      ) : error ? (
+        <ErrorAlert title={t.common.error}>
+          {error}
+          <button type="button" onClick={() => void load()} className="btn btn-sm mt-2">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            {t.common.retry}
+          </button>
+        </ErrorAlert>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -151,7 +165,7 @@ export function DataMaintenance() {
               <p className="text-xs text-muted">{t.maintenance.staleEmpty}</p>
             ) : (
               <ul className="max-h-72 space-y-1 overflow-y-auto text-xs">
-                {stale.slice(0, 50).map((s) => (
+                {(showAllStale ? stale : stale.slice(0, STALE_PREVIEW_LIMIT)).map((s) => (
                   <li key={s.id} className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-bg-elev/40 p-2">
                     <span className="min-w-0">
                       <Link href={`/vn/${s.id}`} className="inline-flex min-h-[44px] items-center truncate font-semibold hover:text-accent sm:min-h-0" title={s.title}>{s.title}</Link>
@@ -171,6 +185,17 @@ export function DataMaintenance() {
                   </li>
                 ))}
               </ul>
+            )}
+            {stale.length > STALE_PREVIEW_LIMIT && (
+              <button
+                type="button"
+                onClick={() => setShowAllStale((v) => !v)}
+                className="btn btn-xs mt-3"
+              >
+                {showAllStale
+                  ? t.steam.showLess
+                  : `${t.steam.showAll} (${stale.length - STALE_PREVIEW_LIMIT})`}
+              </button>
             )}
           </div>
         </div>

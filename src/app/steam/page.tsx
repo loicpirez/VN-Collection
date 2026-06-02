@@ -44,7 +44,7 @@ export default function SteamSyncPage() {
   const [showAllUnlinked, setShowAllUnlinked] = useState(false);
 
   // Unlinked Steam games (for the manual mapper)
-  const [unlinkedLoading, setUnlinkedLoading] = useState(false);
+  const [unlinkedLoading, setUnlinkedLoading] = useState(true);
   const [unlinked, setUnlinked] = useState<UnlinkedSteamGame[]>([]);
 
   // Currently-stored links (auto + manual)

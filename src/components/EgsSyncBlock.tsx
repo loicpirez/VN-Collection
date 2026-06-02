@@ -15,6 +15,8 @@ import {
   type EgsSyncClientSuggestion as Suggestion,
 } from '@/lib/operation-client-shape';
 
+const SUGGESTIONS_PREVIEW_LIMIT = 60;
+
 /**
  * EGS playtime + score sync. Symmetric to the Steam suggestions section:
  *   - "Username" input → POST /api/settings { egs_username }
@@ -36,6 +38,7 @@ export function EgsSyncBlock() {
   const [applying, setApplying] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [picks, setPicks] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
   const [needsConfig, setNeedsConfig] = useState(false);
   const [configLoading, setConfigLoading] = useState(true);
   const mountedRef = useRef(true);
@@ -125,6 +128,7 @@ export function EgsSyncBlock() {
       setNeedsConfig(data.needsConfig);
       setSuggestions(data.suggestions);
       setPicks(new Set(data.suggestions.map((s) => s.vn_id)));
+      setShowAll(false);
     } catch (e) {
       if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
@@ -158,6 +162,7 @@ export function EgsSyncBlock() {
       toast.success(`${t.egsSync.appliedSummary} (${applied})`);
       setSuggestions([]);
       setPicks(new Set());
+      setShowAll(false);
     } catch (e) {
       if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
@@ -240,7 +245,7 @@ export function EgsSyncBlock() {
       )}
       {suggestions.length > 0 && (
         <ul className="space-y-1.5">
-          {suggestions.map((s) => {
+          {(showAll ? suggestions : suggestions.slice(0, SUGGESTIONS_PREVIEW_LIMIT)).map((s) => {
             const picked = picks.has(s.vn_id);
             return (
               <li key={s.vn_id}>
@@ -298,6 +303,17 @@ export function EgsSyncBlock() {
             );
           })}
         </ul>
+      )}
+      {suggestions.length > SUGGESTIONS_PREVIEW_LIMIT && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="btn btn-xs"
+        >
+          {showAll
+            ? t.steam.showLess
+            : `${t.steam.showAll} (${suggestions.length - SUGGESTIONS_PREVIEW_LIMIT})`}
+        </button>
       )}
     </div>
   );
