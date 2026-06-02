@@ -40,7 +40,7 @@ function relationCardData(r: EnrichedRelation): CardData {
     rating: r.rating,
     length_minutes: r.length_minutes,
     developers: r.developers,
-    publishers: r.publishers,
+    publishers: r.publishers ?? [],
     inCollectionBadge: r.in_collection,
   };
   relationCache.set(r, data);
