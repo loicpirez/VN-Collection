@@ -103,15 +103,15 @@ export default async function ComparePage({
   const droppedIds = ids.filter((id) => !resolvedIds.has(id));
 
   // Pre-compute shared sets for highlight columns.
-  const tagSets = items.map((it) => new Set((it.tags ?? []).map((t) => t.id)));
+  const tagSets = items.map((it) => new Set(it.tags.map((t) => t.id)));
   const sharedTagIds = intersection(tagSets);
-  const langSets = items.map((it) => new Set(it.languages ?? []));
+  const langSets = items.map((it) => new Set(it.languages));
   const sharedLangs = intersection(langSets);
-  const platSets = items.map((it) => new Set(it.platforms ?? []));
+  const platSets = items.map((it) => new Set(it.platforms));
   const sharedPlats = intersection(platSets);
-  const devSets = items.map((it) => new Set((it.developers ?? []).map((d) => d.name)));
+  const devSets = items.map((it) => new Set(it.developers.map((d) => d.name)));
   const sharedDevs = intersection(devSets);
-  const staffSets = items.map((it) => new Set((it.staff ?? []).map((s) => s.id)));
+  const staffSets = items.map((it) => new Set(it.staff.map((s) => s.id)));
   const sharedStaffIds = intersection(staffSets);
 
   // Map shared staff ids → display data (name + role for the first VN that has them).
@@ -335,14 +335,14 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.languages} />
             {items.map((it) => (
               <div key={`langs-${it.id}`} className="bg-bg-card p-3 text-xs">
-                <LangList langs={it.languages ?? []} locale={locale} />
+                <LangList langs={it.languages} locale={locale} />
               </div>
             ))}
 
             <CellHead label={t.compareView.row.platforms} />
             {items.map((it) => (
               <div key={`plats-${it.id}`} className="bg-bg-card p-3 text-xs">
-                {(it.platforms ?? []).map((p) => (
+                {it.platforms.map((p) => (
                   <span
                     key={p}
                     className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
@@ -359,7 +359,7 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.developers} />
             {items.map((it) => (
               <div key={`devs-${it.id}`} className="bg-bg-card p-3 text-xs">
-                {(it.developers ?? []).map((d, i) => {
+                {it.developers.map((d, i) => {
                   const cls = `mr-1 inline-block rounded px-1.5 py-0.5 ${
                     sharedDevs.has(d.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
                   }`;
@@ -378,7 +378,7 @@ export default async function ComparePage({
             {items.map((it) => (
               <div key={`tags-${it.id}`} className="bg-bg-card p-3 text-xs">
                 <div className="flex flex-wrap gap-1">
-                  {(it.tags ?? [])
+                  {it.tags
                     .filter((tg) => tg.spoiler === 0)
                     .slice(0, 14)
                     .map((tg) => (
@@ -399,7 +399,7 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.staff} />
             {items.map((it) => (
               <div key={`staff-${it.id}`} className="bg-bg-card p-3 text-[11px]">
-                {(it.staff ?? [])
+                {it.staff
                   .slice(0, 8)
                   .map((s, i) => (
                     <Link
@@ -418,7 +418,7 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.seiyuu} />
             {items.map((it) => {
               const uniqueVas = Array.from(
-                new Map((it.va ?? []).map((v) => [`${v.staff.id}|${v.character.id}|${v.note ?? ''}`, v])).values(),
+                new Map(it.va.map((v) => [`${v.staff.id}|${v.character.id}|${v.note ?? ''}`, v])).values(),
               );
               const vas = uniqueVas
                 .sort((a, b) => Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id)))

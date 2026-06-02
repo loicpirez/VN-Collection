@@ -123,6 +123,10 @@ describe('parseCharacterBrowseParams — strict integer ranges (rejected)', () =
     expect(parseCharacterBrowseParams({ waistMin: '201' }).waistMin).toBeNull();
   });
 
+  it('rejects a digit-only value too large for a finite JavaScript number', () => {
+    expect(parseCharacterBrowseParams({ ageMin: '9'.repeat(400) }).ageMin).toBeNull();
+  });
+
   it('reads the first entry when a range param is array-valued', () => {
     expect(parseCharacterBrowseParams({ ageMin: ['25', '99'] }).ageMin).toBe(25);
     // First entry malformed → rejected even if a later entry would parse.
@@ -228,6 +232,14 @@ describe('sortCharacters', () => {
     expect(sortCharacters(tied, { sort: 'name', reverse: false }).map((c) => c.id)).toEqual([
       'c90021',
       'c90022',
+    ]);
+  });
+
+  it('breaks ties on the character id when both numeric values are null', () => {
+    const tied = [char('c90024', { height: null }), char('c90023', { height: null })];
+    expect(sortCharacters(tied, { sort: 'height', reverse: false }).map((c) => c.id)).toEqual([
+      'c90023',
+      'c90024',
     ]);
   });
 });

@@ -395,13 +395,11 @@ function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]
   // VNDB's hosted thumbnail). Same trick the /upcoming page uses.
   const ids = rows.map((r) => r.id);
   const placeholders = ids.map(() => '?').join(',');
-  const localRows = ids.length > 0
-    ? (db
-        .prepare(
-          `SELECT id, local_image, local_image_thumb FROM vn WHERE id IN (${placeholders})`,
-        )
-        .all(...ids) as Array<{ id: string; local_image: string | null; local_image_thumb: string | null }>)
-    : [];
+  const localRows = db
+    .prepare(
+      `SELECT id, local_image, local_image_thumb FROM vn WHERE id IN (${placeholders})`,
+    )
+    .all(...ids) as Array<{ id: string; local_image: string | null; local_image_thumb: string | null }>;
   const locals = new Map(
     localRows.map((r) => [r.id, r.local_image || r.local_image_thumb || null] as const),
   );

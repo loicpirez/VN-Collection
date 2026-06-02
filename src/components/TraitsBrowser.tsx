@@ -63,15 +63,15 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
   const locale = useLocale();
   const search = useSearchParams();
   const router = useRouter();
-  const q = search?.get('q') ?? '';
-  const onlyMine = search?.get('mine') === '1';
+  const q = search.get('q') ?? '';
+  const onlyMine = search.get('mine') === '1';
   const [results, setResults] = useState<VndbTrait[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const setParam = useCallback(
     (key: string, value: string | null) => {
-      const next = new URLSearchParams(search?.toString() ?? '');
+      const next = new URLSearchParams(search.toString());
       if (value) next.set(key, value);
       else next.delete(key);
       const qs = next.toString();

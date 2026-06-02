@@ -109,7 +109,6 @@ export function TagInput({
               key={s}
               type="button"
               onMouseDown={(e) => {
-                // mousedown so it fires before the input's onBlur
                 e.preventDefault();
                 commit(s);
               }}

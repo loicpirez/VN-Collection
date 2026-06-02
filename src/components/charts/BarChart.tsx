@@ -97,7 +97,7 @@ export function VBarChart({
       }}
     >
       {data.map((d, i) => {
-        const h = max > 0 ? (d.value / max) * height : 0;
+        const h = (d.value / max) * height;
         const formatted = formatValue ? formatValue(d.value) : fmtNum(d.value, locale);
         const tooltip = d.tooltip ?? `${d.label} / ${formatted}`;
         const inner = (

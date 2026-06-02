@@ -35,6 +35,12 @@ describe('parseStaffSearchParams', () => {
     expect(parseStaffSearchParams({ tab: 'unknown' }).tab).toBe('local');
   });
 
+  it('reads the first array value and the VN-count sort', () => {
+    const r = parseStaffSearchParams({ tab: ['vndb', 'local'], sort: 'vn_count' });
+    expect(r.tab).toBe('vndb');
+    expect(r.sort).toBe('vn_count');
+  });
+
   it('accepts only the canonical staff roles', () => {
     for (const role of ['scenario', 'art', 'music', 'songs', 'director', 'translator']) {
       expect(parseStaffSearchParams({ role }).role).toBe(role);

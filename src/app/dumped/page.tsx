@@ -59,7 +59,7 @@ type BucketKey = Exclude<DumpTab, 'all'>;
  */
 function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
   if (e.dumped_ignored) return 'ignored';
-  if (e.collection_dumped) return 'complete';
+  if (e.collection_dumped || (e.total_editions > 0 && e.dumped_editions >= e.total_editions)) return 'complete';
   if (e.total_editions === 0) return 'none';
   return 'missing';
 }

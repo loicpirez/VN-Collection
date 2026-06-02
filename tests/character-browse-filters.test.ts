@@ -134,6 +134,14 @@ describe('filterCharacters', () => {
     expect(r.map((c) => c.id)).toEqual(['c2']);
   });
 
+  it('drops missing blood types when a blood chip is active', () => {
+    const r = filterCharacters(
+      [char('c4'), char('c5', { blood_type: 'A' })],
+      parseCharacterBrowseParams({ blood: 'a' }),
+    );
+    expect(r.map((c) => c.id)).toEqual(['c5']);
+  });
+
   it('hasImage=1 keeps only characters with an image url', () => {
     const r = filterCharacters(list, parseCharacterBrowseParams({ hasImage: '1' }));
     expect(r.map((c) => c.id)).toEqual(['c3']);
@@ -167,6 +175,34 @@ describe('filterCharacters', () => {
     ];
     const r = filterCharacters(heightList, parseCharacterBrowseParams({ heightMin: '150', heightMax: '170' }));
     expect(r.map((c) => c.id)).toEqual(['c21']);
+  });
+
+  it('filters birthday month, waist maximum, and hips minimum together', () => {
+    const measurementList: VndbCharacter[] = [
+      char('c30', { birthday: [4, 1], waist: 60, hips: 90 }),
+      char('c31', { birthday: [5, 1], waist: 60, hips: 90 }),
+      char('c32', { birthday: [4, 1], waist: null, hips: 90 }),
+      char('c33', { birthday: [4, 1], waist: 70, hips: 90 }),
+      char('c34', { birthday: [4, 1], waist: 60, hips: null }),
+      char('c35', { birthday: [4, 1], waist: 60, hips: 80 }),
+    ];
+    const r = filterCharacters(
+      measurementList,
+      parseCharacterBrowseParams({ birthMonth: '4', waistMax: '65', hipsMin: '85' }),
+    );
+    expect(r.map((c) => c.id)).toEqual(['c30']);
+  });
+
+  it('filters voice presence and seiyuu language independently', () => {
+    const voiceList: VndbCharacter[] = [
+      char('c40'),
+      char('c41', { voice_languages: [] }),
+      char('c42', { voice_languages: ['ja'] }),
+      char('c43', { voice_languages: ['en'] }),
+    ];
+    expect(filterCharacters(voiceList, parseCharacterBrowseParams({ hasVoice: '1' })).map((c) => c.id)).toEqual(['c42', 'c43']);
+    expect(filterCharacters(voiceList, parseCharacterBrowseParams({ hasVoice: '0' })).map((c) => c.id)).toEqual(['c40', 'c41']);
+    expect(filterCharacters(voiceList, parseCharacterBrowseParams({ vaLang: 'JA' })).map((c) => c.id)).toEqual(['c42']);
   });
 });
 
@@ -206,7 +242,15 @@ describe('hasActiveCharacterFilter', () => {
     ['vaLang', { vaLang: 'ja' }],
     ['birthMonth', { birthMonth: '4' }],
     ['ageMin', { ageMin: '18' }],
+    ['ageMax', { ageMax: '30' }],
+    ['heightMin', { heightMin: '150' }],
     ['heightMax', { heightMax: '160' }],
+    ['bustMin', { bustMin: '80' }],
+    ['bustMax', { bustMax: '95' }],
+    ['waistMin', { waistMin: '55' }],
+    ['waistMax', { waistMax: '65' }],
+    ['hipsMin', { hipsMin: '85' }],
+    ['hipsMax', { hipsMax: '95' }],
   ])('flags %s as an active filter', (_label, patch) => {
     expect(hasActiveCharacterFilter(parseCharacterBrowseParams(patch as Record<string, string>))).toBe(true);
   });
@@ -247,5 +291,40 @@ describe('characterBrowseHref', () => {
   it('preserves the active query when toggling a chip', () => {
     const base = parseCharacterBrowseParams({ q: 'placeholder', sex: 'f' });
     expect(characterBrowseHref(base, { sex: null })).toBe('/characters?q=placeholder');
+  });
+
+  it('serializes every non-default URL field and applies a string patch', () => {
+    const base = parseCharacterBrowseParams({
+      tab: 'combined',
+      q: 'before',
+      sex: 'f',
+      role: 'main',
+      bloodType: 'ab',
+      vaLang: 'ja',
+      hasVoice: '1',
+      hasImage: '0',
+      birthMonth: '4',
+      ageMin: '18',
+      ageMax: '30',
+      heightMin: '150',
+      heightMax: '180',
+      bustMin: '80',
+      bustMax: '95',
+      waistMin: '55',
+      waistMax: '65',
+      hipsMin: '85',
+      hipsMax: '100',
+      sort: 'birthday',
+      reverse: '1',
+      groupBy: 'role',
+    });
+    const href = characterBrowseHref(base, { q: 'after' });
+    expect(href).toContain('tab=combined');
+    expect(href).toContain('q=after');
+    expect(href).toContain('birthMonth=4');
+    expect(href).toContain('heightMax=180');
+    expect(href).toContain('bustMax=95');
+    expect(href).toContain('hipsMax=100');
+    expect(href).toContain('groupBy=role');
   });
 });

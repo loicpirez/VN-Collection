@@ -98,4 +98,140 @@ describe('browse client response adapters', () => {
       source_url: 'https://vndb.org/g',
     })).toBeNull();
   });
+
+  it('decodes optional flat and hierarchy fields when they are omitted or null', () => {
+    expect(decodeTraitsResponse({ traits: [{ ...trait, group_id: null }] })?.[0]?.group_id).toBeNull();
+    expect(decodeTagHomeTreeResponse({
+      data: {
+        groups: [{
+          id: 'g10',
+          label: 'Group',
+          href: '/tag/g10?tab=vndb',
+          moreCount: 2,
+          children: [{
+            id: 'g11',
+            name: 'Child',
+            href: '/tag/g11?tab=vndb',
+            moreCount: null,
+            children: [{ id: 'g12', name: 'Grandchild', href: '/tag/g12?tab=vndb' }],
+          }],
+        }],
+        recentlyAdded: [],
+        popular: [],
+      },
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g',
+    })).toEqual({
+      data: {
+        groups: [{
+          id: 'g10',
+          label: 'Group',
+          href: '/tag/g10?tab=vndb',
+          moreCount: 2,
+          children: [{
+            id: 'g11',
+            name: 'Child',
+            href: '/tag/g11?tab=vndb',
+            moreCount: null,
+            children: [{ id: 'g12', name: 'Grandchild', href: '/tag/g12?tab=vndb' }],
+          }],
+        }],
+        recentlyAdded: [],
+        popular: [],
+      },
+      warning: null,
+    });
+  });
+
+  it('accepts every textual source and rejects malformed textual envelopes', () => {
+    expect(decodeTextualSearchHits({
+      hits: [
+        { vn_id: 'v90002', title: 'Fixture', source: 'custom_description', snippet: 'Description' },
+        { vn_id: 'egs_90003', title: 'Fixture', source: 'quote', snippet: 'Quote' },
+      ],
+    })).toHaveLength(2);
+    expect(decodeTextualSearchHits({ hits: null })).toBeNull();
+    expect(decodeTextualSearchHits({ hits: Array.from({ length: 51 }, () => null) })).toBeNull();
+    expect(decodeTextualSearchHits({ hits: [{ vn_id: 'v90002', title: 'Fixture', source: 'bad', snippet: 'x' }] })).toBeNull();
+  });
+
+  it('rejects malformed and oversized flat arrays', () => {
+    expect(decodeTagsResponse({ tags: null })).toBeNull();
+    expect(decodeTraitsResponse({ traits: null })).toBeNull();
+    expect(decodeTagsResponse({ tags: Array.from({ length: 201 }, () => tag) })).toBeNull();
+    expect(decodeTraitsResponse({ traits: Array.from({ length: 201 }, () => trait) })).toBeNull();
+    expect(decodeTagsResponse({ tags: [{ ...tag, aliases: null }] })).toBeNull();
+  });
+
+  it('rejects malformed hierarchy envelopes and invalid nested children', () => {
+    expect(decodeTagHomeTreeResponse(null)).toBeNull();
+    expect(decodeTagHomeTreeResponse({
+      data: {
+        groups: [{
+          id: 'g20',
+          label: 'Group',
+          href: '/tag/g20?tab=vndb',
+          children: [{
+            id: 'g21',
+            name: 'Child',
+            href: '/tag/g21?tab=vndb',
+            children: [{ id: 'bad', name: 'Bad', href: '/tag/bad?tab=vndb' }],
+          }],
+        }],
+        recentlyAdded: [],
+        popular: [],
+      },
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g',
+    })).toBeNull();
+  });
+
+  it('rejects hierarchy nodes deeper than the supported recursive budget', () => {
+    let nested: Record<string, unknown> = { id: 'g39', name: 'Deep', href: '/tag/g39?tab=vndb' };
+    for (let id = 38; id >= 30; id -= 1) {
+      nested = { id: `g${id}`, name: 'Deep', href: `/tag/g${id}?tab=vndb`, children: [nested] };
+    }
+    expect(decodeTagHomeTreeResponse({
+      data: {
+        groups: [{ id: 'g29', label: 'Group', href: '/tag/g29?tab=vndb', children: [nested] }],
+        recentlyAdded: [],
+        popular: [],
+      },
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g',
+    })).toBeNull();
+  });
+
+  it('rejects hierarchy lists that exceed the shared row budget', () => {
+    const rows = Array.from({ length: 10_001 }, (_, index) => ({
+      id: `g${40_000 + index}`,
+      name: 'Row',
+      href: `/tag/g${40_000 + index}?tab=vndb`,
+    }));
+    expect(decodeTagHomeTreeResponse({
+      data: { groups: [], recentlyAdded: rows, popular: [] },
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g',
+    })).toBeNull();
+  });
+
+  it('rejects malformed recently-added and popular hierarchy rows', () => {
+    const base = {
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g',
+    };
+    expect(decodeTagHomeTreeResponse({
+      ...base,
+      data: { groups: [], recentlyAdded: [{ id: 'bad', name: 'Bad', href: '/bad' }], popular: [] },
+    })).toBeNull();
+    expect(decodeTagHomeTreeResponse({
+      ...base,
+      data: { groups: [], recentlyAdded: [], popular: [{ id: 'bad', name: 'Bad', href: '/bad' }] },
+    })).toBeNull();
+  });
 });

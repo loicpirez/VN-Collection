@@ -98,9 +98,9 @@ export default async function SimilarPage({
   // ADV, Romance, etc.) are demoted in favour of distinctive ones.
   // Take top 10 candidates first, then apply penalty and re-sort to
   // pick the 6 most distinctive seeds (not just the 6 most popular).
-  const autoSeedTags = (seed.tags ?? [])
+  const autoSeedTags = seed.tags
     .filter((tg) => tg.spoiler === 0 && tg.category !== 'ero')
-    .map((tg) => ({ ...tg, _effective: applyGenericPenalty(tg.id, tg.rating ?? 1) }))
+    .map((tg) => ({ ...tg, _effective: applyGenericPenalty(tg.id, tg.rating) }))
     .sort((a, b) => b._effective - a._effective)
     .slice(0, 6);
 
@@ -108,7 +108,7 @@ export default async function SimilarPage({
   // VN's tag list when possible (so chips render the real name);
   // otherwise fall back to the id itself.
   const allSeedNames = new Map<string, { id: string; name: string; rating?: number }>();
-  for (const tg of seed.tags ?? []) allSeedNames.set(tg.id, { id: tg.id, name: tg.name, rating: tg.rating ?? undefined });
+  for (const tg of seed.tags) allSeedNames.set(tg.id, { id: tg.id, name: tg.name, rating: tg.rating });
   const seedTags = usingCustomSeeds
     ? customTagIds.map((id) => allSeedNames.get(id) ?? { id, name: id })
     : autoSeedTags;

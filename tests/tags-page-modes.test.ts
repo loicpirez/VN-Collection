@@ -36,6 +36,11 @@ describe('parseTagPageParams', () => {
   it('reads tab=vndb', () => {
     expect(parseTagPageParams({ tab: 'vndb' }).tab).toBe('vndb');
   });
+
+  it('falls back from malformed pages and preserves later pages', () => {
+    expect(parseTagPageParams({ page: 'bad' }).page).toBe(1);
+    expect(parseTagPageParams({ page: '3.8' }).page).toBe(3);
+  });
 });
 
 describe('tagChipHref', () => {
@@ -79,5 +84,9 @@ describe('tagPageTabHref', () => {
 
   it('lowercases the id so the tab URL stays canonical', () => {
     expect(tagPageTabHref('G42', 'local')).toBe('/tag/g42');
+  });
+
+  it('includes later VNDB page numbers', () => {
+    expect(tagPageTabHref('g42', 'vndb', 3)).toBe('/tag/g42?tab=vndb&page=3');
   });
 });

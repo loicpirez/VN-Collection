@@ -65,8 +65,7 @@ function bucketKey(e: ShelfEntry): string {
   return e.physical_location[0];
 }
 
-function fmtMoneyLocale(amount: number | null, currency: string | null, locale: Locale): string {
-  if (amount == null) return '-';
+function fmtMoneyLocale(amount: number, currency: string | null, locale: Locale): string {
   const bcp47 = BCP47[locale];
   if (currency && /^[A-Z]{3}$/i.test(currency)) {
     try {
@@ -177,7 +176,7 @@ export default async function ShelfPage({
     vn_image_url: string | null;
     vn_local_image_thumb: string | null;
     vn_image_sexual: number | null;
-    editions: ShelfEntry[];
+    editions: [ShelfEntry, ...ShelfEntry[]];
     locations: Set<string>;
     totalByCurrency: Record<string, number>;
     anyDumped: boolean;
@@ -193,14 +192,16 @@ export default async function ShelfPage({
         vn_image_url: e.vn_image_url,
         vn_local_image_thumb: e.vn_local_image_thumb,
         vn_image_sexual: e.vn_image_sexual,
-        editions: [],
+        editions: [e],
         locations: new Set(),
         totalByCurrency: {},
         anyDumped: false,
       };
       itemBuckets.set(e.vn_id, b);
     }
-    b.editions.push(e);
+    else {
+      b.editions.push(e);
+    }
     for (const loc of e.physical_location) b.locations.add(loc);
     if (e.price_paid != null) {
       const cur = e.currency || '?';
@@ -405,7 +406,7 @@ export default async function ShelfPage({
                   <ShelfSpatialView
                     activeShelf={activeShelfNum}
                     defaultOrientation={spatialPrefs.prefs.displayOrientation}
-                    displayRowOrientations={spatialPrefs.prefs.displayRowOrientations ?? {}}
+                    displayRowOrientations={spatialPrefs.prefs.displayRowOrientations}
                     controlsSlot={fsControls}
                   />
                 );
@@ -649,13 +650,7 @@ export default async function ShelfPage({
                     const coverEdition =
                       b.editions.find((ed) => ed.rel_image_url || ed.rel_image_thumb || ed.rel_local_image_thumb) ??
                       b.editions[0];
-                    const artwork = coverEdition
-                      ? shelfArtwork(coverEdition)
-                      : {
-                          src: b.vn_image_url || b.vn_image_thumb,
-                          localSrc: b.vn_local_image_thumb,
-                          sexual: b.vn_image_sexual,
-                        };
+                    const artwork = shelfArtwork(coverEdition);
                     return (
                       <li key={b.vn_id}>
                       <Link

@@ -44,7 +44,7 @@ function egsSourceLabel(source: string | null, t: Awaited<ReturnType<typeof getD
     case '':
       return t.egs.sourceNone;
     default:
-      return source ?? '';
+      return source;
   }
 }
 

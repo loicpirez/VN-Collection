@@ -81,7 +81,6 @@ export function TagPicker({
   const pickedIds = new Set(tags.map((t) => t.id));
 
   function add(tag: TagSummary) {
-    if (pickedIds.has(tag.id)) return;
     onChange([...tags, tag]);
     setQuery('');
     setHits([]);

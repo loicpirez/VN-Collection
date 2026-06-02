@@ -57,6 +57,7 @@ function loadSeedChip(vnId: string): SeedChipData | null {
     | undefined;
   if (!row || !row.title) return null;
   const developer = decodePersistedProducerSummaries(row.developers)[0]?.name ?? null;
+  const imageUrl = row.image_url || row.image_thumb;
   return {
     id: row.id,
     title: row.title,
@@ -64,10 +65,10 @@ function loadSeedChip(vnId: string): SeedChipData | null {
     released: row.released,
     developer,
     image:
-      row.image_url || row.image_thumb
+      imageUrl
         ? {
             url: row.image_url ?? '',
-            thumbnail: row.image_thumb ?? row.image_url ?? '',
+            thumbnail: row.image_thumb ?? imageUrl,
             sexual: row.image_sexual,
           }
         : null,
@@ -844,7 +845,5 @@ function renderReason(
         .replace('{rating}', ratingForReason);
     case 'similar-to-vn':
       return matchedCount > 0 ? reasons.similarToVn.replace('{n}', String(matchedCount)) : null;
-    default:
-      return null;
   }
 }

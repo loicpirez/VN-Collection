@@ -62,6 +62,10 @@ describe('groupTagsByCategory', () => {
     expect(buckets).toEqual([{ category: 'cont', tags: [fixture[0]] }]);
   });
 
+  it('searches tags that omit aliases', () => {
+    expect(groupTagsByCategory([{ id: 'g9007', name: 'plain-name', category: 'cont' }], 'plain')).toHaveLength(1);
+  });
+
   it('collapses null / unknown categories into `other`', () => {
     const buckets = groupTagsByCategory(fixture);
     const other = buckets.find((b) => b.category === 'other');

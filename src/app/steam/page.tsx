@@ -90,8 +90,8 @@ export default function SteamSyncPage() {
         setSuggestionsError(null);
         setSuggestionsErrorCode(null);
       } else {
-        setSuggestionsError(sync.error ?? t.common.error);
-        setSuggestionsErrorCode(typeof sync.code === 'string' ? sync.code : null);
+        setSuggestionsError(sync.error);
+        setSuggestionsErrorCode(sync.code);
       }
       setUnlinked(lib.ok ? lib.games : []);
       if (!lib.ok && sync.ok) setSuggestionsError(lib.error);
@@ -136,7 +136,6 @@ export default function SteamSyncPage() {
   }
 
   function finishMutation(controller: AbortController): void {
-    if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
   }
@@ -153,7 +152,6 @@ export default function SteamSyncPage() {
     const applies = suggestions
       .filter((s) => picks.has(s.vn_id))
       .map((s) => ({ vn_id: s.vn_id, playtime_minutes: s.steam_minutes }));
-    if (applies.length === 0) return;
     const controller = beginMutation();
     if (!controller) return;
     setApplying(true);
