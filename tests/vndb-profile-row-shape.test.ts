@@ -112,4 +112,49 @@ describe('VNDB compact profile row decoders', () => {
       char_count: 1,
     })).toBeNull();
   });
+
+  it('covers optional extlink ids, null trait groups, and nested-array rejection', () => {
+    expect(decodeVndbProducer({
+      id: 'p90081',
+      name: 'Studio',
+      original: null,
+      aliases: [],
+      lang: null,
+      type: null,
+      description: null,
+      extlinks: [{ url: 'https://example.invalid/profile', label: 'Site', name: 'site' }],
+    })?.extlinks).toEqual([{ url: 'https://example.invalid/profile', label: 'Site', name: 'site' }]);
+    expect(decodeVndbTrait({
+      id: 'i90081',
+      name: 'Trait',
+      aliases: [],
+      description: null,
+      searchable: true,
+      applicable: true,
+      sexual: false,
+      group_id: null,
+      group_name: null,
+      char_count: 1,
+    })?.group_id).toBeNull();
+    expect(decodeVndbProducer({
+      id: 'p90081',
+      name: 'Studio',
+      original: null,
+      aliases: [4],
+      lang: null,
+      type: null,
+      description: null,
+      extlinks: [],
+    })).toBeNull();
+    expect(decodeVndbProducer({
+      id: 'p90081',
+      name: 'Studio',
+      original: null,
+      aliases: new Array(5001).fill('Alias'),
+      lang: null,
+      type: null,
+      description: null,
+      extlinks: [],
+    })).toBeNull();
+  });
 });

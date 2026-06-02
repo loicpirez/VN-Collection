@@ -36,6 +36,17 @@ describe('VNDB VN-search row decoder', () => {
     expect(decodeVndbSearchRow({ ...SEARCH_ROW, languages: [4] })).toBeNull();
     expect(decodeVndbSearchRow({ ...SEARCH_ROW, developers: [{ id: 'p1' }] })).toBeNull();
     expect(decodeVndbSearchRow({ ...SEARCH_ROW, image: { url: 'x' } })).toBeNull();
+    expect(decodeVndbSearchRow({ ...SEARCH_ROW, titles: {} })).toBeNull();
+    expect(decodeVndbSearchRow({ ...SEARCH_ROW, titles: [{ lang: 'ja' }] })).toBeNull();
+    expect(decodeVndbSearchRow({ ...SEARCH_ROW, developers: {} })).toBeNull();
+  });
+
+  it('accepts omitted optional metadata and a null image', () => {
+    const { aliases: _aliases, titles: _titles, ...withoutOptionalRows } = SEARCH_ROW;
+    expect(decodeVndbSearchRow({ ...withoutOptionalRows, image: null })).toMatchObject({
+      id: 'v90061',
+      image: null,
+    });
   });
 
   it('normalizes cover-only rows and rejects malformed images', () => {
@@ -47,5 +58,13 @@ describe('VNDB VN-search row decoder', () => {
       image: { url: 'https://example.invalid/cover.jpg', thumbnail: 'https://example.invalid/thumb.jpg', sexual: 0 },
     });
     expect(decodeVndbCoverRow({ id: 'v90061', image: { url: 4 } })).toBeNull();
+    expect(decodeVndbCoverRow({ id: 'bad', image: null })).toBeNull();
+    expect(decodeVndbCoverRow({ id: 'v90061', image: null })).toEqual({ id: 'v90061', image: null });
+    expect(decodeVndbCoverRow({ id: 'v90061', image: { url: 'x' } })).toEqual({
+      id: 'v90061',
+      image: { url: 'x' },
+    });
+    expect(decodeVndbCoverRow({ id: 'v90061', image: { url: 'x', thumbnail: 4 } })).toBeNull();
+    expect(decodeVndbCoverRow({ id: 'v90061', image: { url: 'x', sexual: Number.NaN } })).toBeNull();
   });
 });

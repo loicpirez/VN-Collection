@@ -142,6 +142,25 @@ describe('expired cache + 304 revalidation', () => {
     // Expiry was bumped into the future.
     expect(getCacheRow(key)!.expires_at).toBeGreaterThan(Date.now());
   });
+
+  it('sends If-Modified-Since and rejects a corrupt cached body on the 304 path', async () => {
+    const key = cacheKey('POST /vn', 'POST', { k: 8 });
+    const past = Date.now() - 10_000;
+    putCacheRow({
+      cache_key: key,
+      body: '{bad',
+      etag: null,
+      last_modified: 'Wed, 01 Jan 2025 00:00:00 GMT',
+      fetched_at: past,
+      expires_at: past + 1,
+    });
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 304 }));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: JSON.stringify({ k: 8 }), __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail }),
+    ).rejects.toThrow(/corrupt cache body/);
+    const sentHeaders = new Headers((providerFetchMock.mock.calls[0][1] as RequestInit).headers);
+    expect(sentHeaders.get('If-Modified-Since')).toBe('Wed, 01 Jan 2025 00:00:00 GMT');
+  });
 });
 
 describe('stale-while-error fallback', () => {
@@ -168,6 +187,23 @@ describe('stale-while-error fallback', () => {
     providerFetchMock.mockRejectedValueOnce(new Error('network down'));
     const init = { method: 'POST', body: JSON.stringify({ s: 2 }), __pathTag: 'POST /vn' };
     await expect(cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail })).rejects.toThrow(/network down/);
+  });
+
+  it('re-throws the upstream failure when the stale cached row is corrupt', async () => {
+    const key = cacheKey('POST /vn', 'POST', { s: 3 });
+    const past = Date.now() - 10_000;
+    putCacheRow({
+      cache_key: key,
+      body: '{bad',
+      etag: null,
+      last_modified: null,
+      fetched_at: past,
+      expires_at: past + 1,
+    });
+    providerFetchMock.mockRejectedValueOnce(new Error('network down'));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: JSON.stringify({ s: 3 }), __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail }),
+    ).rejects.toThrow(/network down/);
   });
 });
 
@@ -251,6 +287,44 @@ describe('error branches', () => {
       cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: '{}', __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
     ).rejects.toThrow(/exceeded/);
   });
+
+  it('rejects a streamed response that exceeds the byte cap and tolerates a cancel failure', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(32 * 1024 * 1024 + 1));
+      },
+      cancel() {
+        throw new Error('cancel failed');
+      },
+    });
+    providerFetchMock.mockResolvedValueOnce(new Response(stream, { status: 200 }));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: '{}', __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
+    ).rejects.toThrow(/exceeded/);
+  });
+
+  it('treats a missing response body as an empty JSON object', async () => {
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
+    await expect(
+      cachedFetch(`${PRIMARY}/stats`, { __pathTag: 'GET /stats' }, { ttlMs: TTL.stats }),
+    ).resolves.toMatchObject({ data: {}, status: 200 });
+  });
+
+  it('skips an empty streamed chunk before decoding the response', async () => {
+    const reader = {
+      read: vi.fn()
+        .mockResolvedValueOnce({ done: false, value: undefined })
+        .mockResolvedValueOnce({ done: false, value: new TextEncoder().encode('{}') })
+        .mockResolvedValueOnce({ done: true, value: undefined }),
+      cancel: vi.fn(),
+    };
+    const response = new Response('{}', { status: 200 });
+    Object.defineProperty(response, 'body', { value: { getReader: () => reader } });
+    providerFetchMock.mockResolvedValueOnce(response);
+    await expect(
+      cachedFetch(`${PRIMARY}/stats`, { __pathTag: 'GET /stats:empty-chunk' }, { ttlMs: TTL.stats }),
+    ).resolves.toMatchObject({ data: {}, status: 200 });
+  });
 });
 
 describe('mirror fallback', () => {
@@ -285,6 +359,70 @@ describe('mirror fallback', () => {
     ).rejects.toThrow(/primary 503/);
     // Only the primary was attempted — no mirror retry on the authed path.
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the default mirror URL and trims trailing slashes from configured mirrors', async () => {
+    setAppSetting('vndb_backup_enabled', '1');
+    providerFetchMock
+      .mockRejectedValueOnce(new Error('primary 503'))
+      .mockResolvedValueOnce(jsonResponse({ ok: 1 }));
+    await cachedFetch(`${PRIMARY}/vn`, { __pathTag: 'GET /vn:default-mirror' }, { ttlMs: TTL.vnDetail });
+    expect(String(providerFetchMock.mock.calls[1][0])).toBe('https://api.yorhel.org/kana/vn');
+
+    clearCache();
+    providerFetchMock.mockReset();
+    setAppSetting('vndb_backup_url', 'https://api.yorhel.org/kana///');
+    providerFetchMock
+      .mockRejectedValueOnce(new Error('primary 503'))
+      .mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    await cachedFetch(`${PRIMARY}/stats`, { __pathTag: 'GET /stats:trimmed-mirror' }, { ttlMs: TTL.stats });
+    expect(String(providerFetchMock.mock.calls[1][0])).toBe('https://api.yorhel.org/kana/stats');
+  });
+
+  it('suppresses mirror retry for non-primary URLs, disallowed mirrors, and failed mirror DNS validation', async () => {
+    setAppSetting('vndb_backup_enabled', '1');
+    providerFetchMock.mockRejectedValueOnce(new Error('mirror direct failure'));
+    await expect(
+      cachedFetch('https://api.yorhel.org/kana/vn', { __pathTag: 'GET /mirror-direct' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
+    ).rejects.toThrow(/mirror direct failure/);
+
+    setAppSetting('vndb_backup_url', 'http://127.0.0.1/kana');
+    providerFetchMock.mockRejectedValueOnce(new Error('disallowed mirror'));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { __pathTag: 'GET /vn:disallowed-mirror' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
+    ).rejects.toThrow(/disallowed mirror/);
+
+    setAppSetting('vndb_backup_url', 'https://api.yorhel.org/kana');
+    assertNoRebindMock.mockRejectedValueOnce(new Error('private address'));
+    providerFetchMock.mockRejectedValueOnce(new Error('dns rejected mirror'));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { __pathTag: 'GET /vn:dns-rejected-mirror' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
+    ).rejects.toThrow(/dns rejected mirror/);
+  });
+
+  it('surfaces the primary error when the mirror retry also fails', async () => {
+    setAppSetting('vndb_backup_enabled', '1');
+    providerFetchMock
+      .mockRejectedValueOnce(new Error('primary reason'))
+      .mockRejectedValueOnce(new Error('mirror reason'));
+    await expect(
+      cachedFetch(`${PRIMARY}/vn`, { __pathTag: 'GET /vn:double-failure' }, { ttlMs: TTL.vnDetail, staleWhileError: false }),
+    ).rejects.toThrow(/primary reason/);
+  });
+});
+
+describe('cache key defaults and body parsing', () => {
+  it('uses the URL pathname and GET method defaults', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 1 }));
+    await cachedFetch(`${PRIMARY}/stats`, {}, { ttlMs: TTL.stats });
+    expect(readCachedJson('GET', '/kana/stats', undefined, passthrough)).toEqual({ ok: 1 });
+  });
+
+  it('accepts non-string and malformed-string request bodies in cache keys', async () => {
+    providerFetchMock.mockImplementation(async () => jsonResponse({ ok: 1 }));
+    await cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: new URLSearchParams('a=1'), __pathTag: 'POST /vn:params' }, { ttlMs: TTL.vnDetail });
+    await cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: '{bad', __pathTag: 'POST /vn:bad-json' }, { ttlMs: TTL.vnDetail });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

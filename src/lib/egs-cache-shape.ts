@@ -34,10 +34,6 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function isNullableFiniteNumber(value: unknown): value is number | null {
-  return value === null || isFiniteNumber(value);
-}
-
 function isNonNegativeNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0;
 }

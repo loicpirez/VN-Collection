@@ -43,6 +43,11 @@ describe('EGS cover payload decoding', () => {
     });
   });
 
+  it('falls back to the legacy VNDB id and tolerates an absent JSON payload', () => {
+    expect(decodeEgsCoverRaw({ vndb_id: 'v990003' }).vn_id).toBe('v990003');
+    expect(decodeEgsCoverRawJson(null).vn_id).toBeNull();
+  });
+
   it('distinguishes cached URLs, negative cache entries, and malformed cache payloads', () => {
     expect(decodeCachedEgsCoverUrl({ url: 'https://example.invalid/cover.jpg' })).toBe(
       'https://example.invalid/cover.jpg',

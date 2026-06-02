@@ -77,6 +77,12 @@ describe('EGS cache shape decoders', () => {
     expect(decodeEgsGame({ ...game(), raw: { genre: 42 } })).toBeNull();
     expect(decodeEgsRawColumnMap([])).toBeUndefined();
     expect(decodeEgsRawColumnMap({ genre: 42 })).toBeUndefined();
+    expect(decodeEgsRawColumnMap(Object.fromEntries(
+      Array.from({ length: 513 }, (_, index) => [`field-${index}`, null]),
+    ))).toBeUndefined();
+    const { raw, ...withoutRaw } = game();
+    expect(raw).toBeDefined();
+    expect(decodeEgsGame(withoutRaw)).toEqual(withoutRaw);
   });
 
   it('decodes candidate and review arrays', () => {
@@ -107,6 +113,8 @@ describe('EGS cache shape decoders', () => {
     expect(decodeEgsCandidates([{ id: '900004' }])).toBeNull();
     expect(decodeEgsUserReviews([{ egs_id: 900005, gamename: 'Synthetic', tokuten: Number.NaN }])).toBeNull();
     expect(decodeEgsAnticipatedRows(new Array(2001).fill(anticipated()))).toBeNull();
+    expect(decodeEgsAnticipatedRows([null])).toBeNull();
+    expect(decodeEgsTopRankedRows([null])).toBeNull();
   });
 
   it('decodes anticipated rows and canonicalizes VNDB identifiers', () => {

@@ -122,11 +122,12 @@ export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } =
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!value) continue;
         total += value.byteLength;
         if (total > MAX_HTML_BYTES) {
           exceeded = true;
-          await reader.cancel('cap exceeded').catch(() => undefined);
+          try {
+            await reader.cancel('cap exceeded');
+          } catch {}
           break;
         }
         chunks.push(value);

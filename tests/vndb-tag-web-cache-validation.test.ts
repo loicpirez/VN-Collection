@@ -11,6 +11,26 @@ function writeCacheRow(key: string, body: unknown): void {
   `).run(key, JSON.stringify(body), NOW, NOW + 60_000);
 }
 
+function validDetail(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'g990050',
+    name: 'Fixture',
+    breadcrumb: [],
+    properties: {},
+    childGroups: [],
+    ...overrides,
+  };
+}
+
+function nestedNode(depth: number): Record<string, unknown> {
+  return {
+    id: `g${990100 + depth}`,
+    name: 'Fixture child',
+    href: `/tag/g${990100 + depth}?tab=vndb`,
+    children: depth === 0 ? [] : [nestedNode(depth - 1)],
+  };
+}
+
 beforeEach(() => {
   db.prepare(`DELETE FROM vndb_cache WHERE cache_key LIKE 'vndb-tag-web:%'`).run();
 });
@@ -84,5 +104,49 @@ describe('VNDB tag-web cache structure validation', () => {
       },
     });
     expect(readVndbTagWebDetailCache('g990050')).toBeNull();
+  });
+
+  it('accepts canonical and null tag breadcrumb links', () => {
+    writeCacheRow('vndb-tag-web:detail:g990050', {
+      source_url: 'https://vndb.org/g990050',
+      data: validDetail({
+        breadcrumb: [
+          { id: null, name: 'Tags', href: '/tags?mode=vndb' },
+          { id: 'g990049', name: 'Parent', href: '/tag/g990049?tab=vndb' },
+          { id: 'g990050', name: 'Fixture', href: null },
+        ],
+      }),
+    });
+    expect(readVndbTagWebDetailCache('g990050')?.data.breadcrumb).toHaveLength(3);
+  });
+
+  it('rejects malformed breadcrumbs and over-deep trees', () => {
+    writeCacheRow('vndb-tag-web:detail:g990050', {
+      source_url: 'https://vndb.org/g990050',
+      data: validDetail({ breadcrumb: [null] }),
+    });
+    expect(readVndbTagWebDetailCache('g990050')).toBeNull();
+    writeCacheRow('vndb-tag-web:home', {
+      source_url: 'https://vndb.org/g',
+      data: {
+        groups: [{
+          id: 'g990050',
+          label: 'Fixture group',
+          href: '/tag/g990050?tab=vndb',
+          children: [nestedNode(9)],
+        }],
+        recentlyAdded: [],
+        popular: [],
+      },
+    });
+    expect(readVndbTagHomeTreeCache()).toBeNull();
+  });
+
+  it('rejects malformed cached JSON', () => {
+    db.prepare(`
+      INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
+      VALUES (?, ?, NULL, NULL, ?, ?)
+    `).run('vndb-tag-web:home', '{', NOW, NOW + 60_000);
+    expect(readVndbTagHomeTreeCache()).toBeNull();
   });
 });

@@ -145,6 +145,18 @@ describe('fetchVndbTopRanked', () => {
     const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
     expect(body.filters).toEqual(['votecount', '>=', 250]);
   });
+
+  it('deduplicates rows and stops as soon as the clamped limit is reached', async () => {
+    const rows = Array.from({ length: 10 }, (_, index) => vnRow(`v901${String(index).padStart(2, '0')}`, { rating: null }));
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse({ results: [rows[0], rows[0], ...rows.slice(1)], more: true }),
+    );
+
+    const out = await fetchVndbTopRanked(10);
+
+    expect(out).toHaveLength(10);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe('fetchVndbTopRankedPage', () => {
@@ -229,6 +241,33 @@ describe('fetchUpcomingForCollection', () => {
     expect(body.filters[0]).toBe('and');
     expect(body.filters[2]).toEqual(['producer', '=', ['id', '=', 'p90001']]);
   });
+
+  it('filters malformed developer ids, queries multiple watched producers, and deduplicates releases', async () => {
+    upsertVn({
+      id: 'v90502',
+      title: 'vn-v90502',
+      languages: ['ja'],
+      developers: [
+        { id: 'bad', name: 'invalid' },
+        { id: 'p90001', name: 'studio-x' },
+        { id: 'p90002', name: 'studio-y' },
+      ],
+    });
+    addToCollection('v90502', {});
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        results: [releaseRow('r90003'), releaseRow('r90003')],
+        more: false,
+      }),
+    );
+
+    const out = await fetchUpcomingForCollection();
+
+    expect(out.map((row) => row.id)).toEqual(['r90003']);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.filters[2][0]).toBe('or');
+    expect(JSON.stringify(body.filters[2])).not.toContain('bad');
+  });
 });
 
 describe('fetchAllUpcomingFromVndb', () => {
@@ -250,5 +289,19 @@ describe('fetchAllUpcomingFromVndb', () => {
     const out = await fetchAllUpcomingFromVndb(50);
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
     expect(out).toHaveLength(1);
+  });
+
+  it('stops inside a page as soon as the requested limit is reached', async () => {
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        results: Array.from({ length: 60 }, (_, index) => releaseRow(`r91${String(index).padStart(3, '0')}`)),
+        more: true,
+      }),
+    );
+
+    const out = await fetchAllUpcomingFromVndb(50);
+
+    expect(out).toHaveLength(50);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
   });
 });

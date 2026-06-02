@@ -16,11 +16,14 @@ const mockSafeFetch = vi.mocked(safeFetch);
 const MAX_HTML_BYTES = 8 * 1024 * 1024;
 
 /** Build a Response whose body is a real ReadableStream of the given chunks. */
-function streamingResponse(chunks: Uint8Array[], headers: Record<string, string> = {}): Response {
+function streamingResponse(chunks: Uint8Array[], headers: Record<string, string> = {}, cancelError?: Error): Response {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const c of chunks) controller.enqueue(c);
       controller.close();
+    },
+    cancel() {
+      if (cancelError) return Promise.reject(cancelError);
     },
   });
   return new Response(stream, { status: 200, headers });
@@ -98,6 +101,18 @@ describe('fetchVndbWebHtml — streamed body cap', () => {
     // Nothing should have been cached.
     const cached = db.prepare(`SELECT body FROM vndb_cache WHERE cache_key = ?`).get(`scrape:${path}`);
     expect(cached).toBeUndefined();
+    clearKey(path);
+  });
+
+  it('returns null when stream cancellation rejects after exceeding the cap', async () => {
+    const path = '/p70007';
+    clearKey(path);
+    const big = new Uint8Array(5 * 1024 * 1024).fill(65);
+    mockSafeFetch.mockResolvedValue(streamingResponse([big, big], {}, new Error('cancel failed')));
+    const { fetchVndbWebHtml } = await import('@/lib/vndb-scrape');
+    const promise = fetchVndbWebHtml(path, { force: true });
+    await vi.runAllTimersAsync();
+    expect(await promise).toBeNull();
     clearKey(path);
   });
 

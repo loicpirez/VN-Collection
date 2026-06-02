@@ -13,6 +13,11 @@ export interface VndbTagTreeNode {
   moreCount?: number | null;
 }
 
+type ParsedTagTreeNode = VndbTagTreeNode & {
+  children: ParsedTagTreeNode[];
+  moreCount: number | null;
+};
+
 export interface VndbTagTreeGroup {
   id: string;
   label: string;
@@ -88,8 +93,6 @@ function parseCount(raw: string | undefined | null): number | null {
 }
 
 function findMatchingClose(html: string, openTagStart: number, tagName: string): number {
-  const openEnd = html.indexOf('>', openTagStart);
-  if (openEnd < 0) return -1;
   const tagRe = new RegExp(`<\\/?${tagName}\\b[^>]*>`, 'gi');
   tagRe.lastIndex = openTagStart;
   let depth = 0;
@@ -114,7 +117,7 @@ function extractFirstTagTree(html: string, from = 0): string | null {
   const start = from + m.index;
   const openEnd = html.indexOf('>', start);
   const close = findMatchingClose(html, start, 'ul');
-  if (openEnd < 0 || close < 0) return null;
+  if (close < 0) return null;
   return html.slice(openEnd + 1, close);
 }
 
@@ -124,7 +127,7 @@ function extractFirstUl(html: string, from = 0): string | null {
   const start = from + m.index;
   const openEnd = html.indexOf('>', start);
   const close = findMatchingClose(html, start, 'ul');
-  if (openEnd < 0 || close < 0) return null;
+  if (close < 0) return null;
   return html.slice(openEnd + 1, close);
 }
 
@@ -156,12 +159,13 @@ function extractTopLevelListItems(ulInner: string): string[] {
         depth += 1;
       }
     }
-    if (closeStart >= 0) out.push(ulInner.slice(contentStart, closeStart));
+    if (closeStart < 0) break;
+    out.push(ulInner.slice(contentStart, closeStart));
   }
   return out;
 }
 
-function parseTagNode(li: string): VndbTagTreeNode | null {
+function parseTagNode(li: string): ParsedTagTreeNode | null {
   const m = TAG_LINK_RE.exec(li);
   if (!m) return null;
   const id = m[1].toLowerCase();
@@ -180,10 +184,10 @@ function parseTagNode(li: string): VndbTagTreeNode | null {
   };
 }
 
-function parseTreeNodes(ulInner: string): VndbTagTreeNode[] {
+function parseTreeNodes(ulInner: string): ParsedTagTreeNode[] {
   return extractTopLevelListItems(ulInner)
     .map(parseTagNode)
-    .filter((node): node is VndbTagTreeNode => !!node);
+    .filter((node): node is ParsedTagTreeNode => !!node);
 }
 
 /**
@@ -201,8 +205,8 @@ export function parseVndbTagHomeTree(html: string): VndbTagHomeTree {
         id: node.id,
         label: node.name,
         href: node.href,
-        children: node.children ?? [],
-        moreCount: node.moreCount ?? null,
+        children: node.children,
+        moreCount: node.moreCount,
       };
     })
     .filter((group): group is VndbTagTreeGroup => !!group);
@@ -302,7 +306,7 @@ function firstTagAfter(html: string, from: number, tagName: string): string | nu
   const start = from + open.index;
   const openEnd = html.indexOf('>', start);
   const close = findMatchingClose(html, start, tagName);
-  if (openEnd < 0 || close < 0) return null;
+  if (close < 0) return null;
   return html.slice(openEnd + 1, close);
 }
 

@@ -86,4 +86,88 @@ describe('VNDB release row decoder', () => {
     expect(decodeVndbRelease({ ...RELEASE, images: [{ id: 'cv90041', url: 'x', type: 'bad' }] })).toBeNull();
     expect(decodeVndbRelease({ ...RELEASE, extlinks: [{ url: 'x', label: 'Site', name: 'site', id: {} }] })).toBeNull();
   });
+
+  it('accepts sparse optional nested metadata and null image languages', () => {
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      resolution: null,
+      producers: [{
+        id: 'p90041',
+        name: 'Studio',
+        developer: true,
+        publisher: false,
+      }],
+      extlinks: [{ url: 'https://example.invalid/release', label: 'Site', name: 'site' }],
+      vns: [
+        { id: 'v90041', rtype: 'complete' },
+        { id: 'v90042', rtype: 'trial', image: null },
+        { id: 'v90043', rtype: 'partial', image: { url: 'https://example.invalid/vn.jpg' } },
+      ],
+      images: [
+        {
+          id: 'cv90041',
+          url: 'https://example.invalid/cover.jpg',
+          type: 'dig',
+          languages: null,
+        },
+        {
+          id: 'cv90042',
+          url: 'https://example.invalid/cover-2.jpg',
+          type: 'pkgfront',
+        },
+      ],
+    })).toMatchObject({
+      resolution: null,
+      producers: [{ id: 'p90041' }],
+      extlinks: [{ url: 'https://example.invalid/release' }],
+      vns: [
+        { id: 'v90041', rtype: 'complete' },
+        { id: 'v90042', rtype: 'trial', image: null },
+        { id: 'v90043', rtype: 'partial', image: { url: 'https://example.invalid/vn.jpg' } },
+      ],
+      images: [
+        { languages: null },
+        { id: 'cv90042', type: 'pkgfront' },
+      ],
+    });
+    expect(decodeVndbRelease({ ...RELEASE, resolution: '1920x1080' })?.resolution).toBe('1920x1080');
+  });
+
+  it('rejects malformed top-level and nested optional metadata', () => {
+    expect(decodeVndbRelease({ ...RELEASE, images: null })).toBeNull();
+    expect(decodeVndbRelease({ ...RELEASE, resolution: [1] })).toBeNull();
+    expect(decodeVndbRelease({ ...RELEASE, languages: [null] })).toBeNull();
+    expect(decodeVndbRelease({ ...RELEASE, platforms: [4] })).toBeNull();
+    expect(decodeVndbRelease({ ...RELEASE, media: [{ medium: 'dvd', qty: -1 }] })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      producers: [{ id: 'p90041', name: 'Studio', developer: true, publisher: false, aliases: [4] }],
+    })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      producers: [{
+        id: 'p90041',
+        name: 'Studio',
+        developer: true,
+        publisher: false,
+        extlinks: [{ url: 'x', label: 'Site', name: 'site', id: {} }],
+      }],
+    })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      producers: [{ id: 'p90041', name: 'Studio', developer: true, publisher: false, extlinks: {} }],
+    })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      vns: [{ id: 'v90041', rtype: 'complete', image: { url: 4 } }],
+    })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      images: [{ id: 'cv90041', url: 'x', type: 'pkgfront', dims: [1] }],
+    })).toBeNull();
+    expect(decodeVndbRelease({
+      ...RELEASE,
+      images: [{ id: 'cv90041', url: 'x', type: 'pkgfront', languages: [4] }],
+    })).toBeNull();
+  });
 });

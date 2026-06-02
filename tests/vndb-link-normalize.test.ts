@@ -71,6 +71,9 @@ describe('normalizeVndbHref — bare refs and relative paths', () => {
   it('keeps a bare ref with unknown prefix unchanged', () => {
     expect(normalizeVndbHref('u123')).toBe('u123');
   });
+  it('keeps a relative ref with unknown prefix unchanged', () => {
+    expect(normalizeVndbHref('/u123')).toBe('/u123');
+  });
 });
 
 describe('normalizeVndbHref — already-normalized routes', () => {

@@ -99,22 +99,22 @@ function readDbConfigByKey(key: string): StoredProxyConfig {
   }
 }
 
-function resolveFromStored(envPrefix: string | null, db: StoredProxyConfig): ProxyConfig | null {
-  const enabledEnv = envPrefix ? process.env[`${envPrefix}_PROXY_ENABLED`] : undefined;
+function resolveFromStored(envPrefix: string, db: StoredProxyConfig): ProxyConfig | null {
+  const enabledEnv = process.env[`${envPrefix}_PROXY_ENABLED`];
   const enabled =
     enabledEnv != null
       ? enabledEnv === 'true' || enabledEnv === '1'
       : db.enabled === true;
   if (!enabled) return null;
-  const host = (envPrefix ? process.env[`${envPrefix}_PROXY_HOST`] : undefined) ?? db.host ?? '';
+  const host = process.env[`${envPrefix}_PROXY_HOST`] ?? db.host ?? '';
   if (!host) return null;
-  const portStr = (envPrefix ? process.env[`${envPrefix}_PROXY_PORT`] : undefined) ?? String(db.port ?? '');
-  const port = parseInt(portStr, 10);
+  const portStr = process.env[`${envPrefix}_PROXY_PORT`] ?? String(db.port ?? '');
+  const port = Number(portStr);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
-  const rawProtocol = (envPrefix ? process.env[`${envPrefix}_PROXY_PROTOCOL`] : undefined) ?? db.protocol ?? 'socks5h';
+  const rawProtocol = process.env[`${envPrefix}_PROXY_PROTOCOL`] ?? db.protocol ?? 'socks5h';
   if (!VALID_PROTOCOLS.has(rawProtocol)) return null;
-  const username = (envPrefix ? process.env[`${envPrefix}_PROXY_USERNAME`] : undefined) ?? db.username ?? null;
-  const password = (envPrefix ? process.env[`${envPrefix}_PROXY_PASSWORD`] : undefined) ?? db.password ?? null;
+  const username = process.env[`${envPrefix}_PROXY_USERNAME`] ?? db.username ?? null;
+  const password = process.env[`${envPrefix}_PROXY_PASSWORD`] ?? db.password ?? null;
   return {
     protocol: rawProtocol as ProxyProtocol,
     host,
@@ -293,7 +293,7 @@ export function saveProxyConfig(
     if (pw === null) {
       next.password = undefined;
     } else {
-      const value = typeof pw === 'string' ? pw : '';
+      const value = pw;
       if (value !== '' && value !== PROXY_PASSWORD_MASK) {
         next.password = value;
       }
@@ -371,7 +371,7 @@ export function saveStockProviderProxyConfig(
     if (pw === null) {
       next.password = undefined;
     } else {
-      const value = typeof pw === 'string' ? pw : '';
+      const value = pw;
       if (value !== '' && value !== PROXY_PASSWORD_MASK) {
         next.password = value;
       }

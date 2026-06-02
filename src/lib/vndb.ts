@@ -1,9 +1,10 @@
 import 'server-only';
 import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, readCachedJsonMany, TTL } from './vndb-cache';
+import { getAppSetting } from './db';
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 import { decodeVndbCharacterCacheResponse } from './vn-character-row';
-import { decodeVndbResultsEnvelope, type VndbResultsEnvelope } from './vndb-response-shape';
+import type { VndbResultsEnvelope } from './vndb-response-shape';
 import {
   createVndbResultsEnvelopeDecoder,
   decodeVndbAuthInfo,
@@ -215,15 +216,8 @@ const QUOTE_FIELDS = [
  * without editing `.env.local`.
  */
 function readVndbToken(): string | null {
-  try {
-    // Require lazily so importing `vndb.ts` from non-Node contexts (build) doesn't fault.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getAppSetting } = require('./db') as typeof import('./db');
-    const stored = getAppSetting('vndb_token');
-    if (stored && stored.trim()) return stored.trim();
-  } catch {
-    // DB unavailable in this context — fall through to env.
-  }
+  const stored = getAppSetting('vndb_token');
+  if (stored && stored.trim()) return stored.trim();
   return process.env.VNDB_TOKEN ?? null;
 }
 
@@ -238,11 +232,9 @@ async function vndbPost<T>(
   path: string,
   body: unknown,
   ttlMs: number,
-  decodeRow?: CachePayloadDecoder<T>,
+  decodeRow: CachePayloadDecoder<T>,
 ): Promise<VndbResponse<T>> {
-  const decode = decodeRow
-    ? createVndbResultsEnvelopeDecoder(decodeRow)
-    : decodeVndbResultsEnvelope<T>;
+  const decode = createVndbResultsEnvelopeDecoder(decodeRow);
   const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
     method: 'POST',
     headers: authHeaders(),
@@ -304,7 +296,6 @@ export interface AdvancedSearchOptions {
 
 function multi(field: string, values: string[]): unknown {
   // VNDB rejects an 'or' clause with fewer than 2 predicates.
-  if (values.length === 0) return null;
   if (values.length === 1) return [field, '=', values[0]];
   return ['or', ...values.map((v) => [field, '=', v])];
 }

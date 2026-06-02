@@ -193,4 +193,53 @@ describe('pullStatusesFromVndb', () => {
     expect(r.updated).toBe(0);
     expect(r.skippedNotInCollection).toBe(1);
   });
+
+  it('uses the account id when the auth response has no username and follows pagination', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9002', username: null, permissions: ['listread'] });
+    fetchUlistByLabelMock.mockImplementation(async (userId: string, labelId: number, options: { page: number }) => {
+      expect(userId).toBe('u9002');
+      if (labelId === VNDB_LABELS.playing && options.page === 1) {
+        return { results: [], more: true };
+      }
+      return { results: [], more: false };
+    });
+
+    const r = await pullStatusesFromVndb();
+    expect(r.ok).toBe(true);
+    expect(fetchUlistByLabelMock).toHaveBeenCalledWith('u9002', VNDB_LABELS.playing, { results: 100, page: 2 });
+  });
+
+  it('records a failed label fetch and continues with the remaining labels', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9003', username: 'tester', permissions: ['listread'] });
+    fetchUlistByLabelMock.mockImplementation(async (_userId: string, labelId: number) => {
+      if (labelId === VNDB_LABELS.playing) throw new Error('temporary label failure');
+      return { results: [], more: false };
+    });
+
+    const r = await pullStatusesFromVndb();
+    expect(r.ok).toBe(true);
+    expect(fetchUlistByLabelMock).toHaveBeenCalledTimes(Object.values(VNDB_LABELS).length);
+  });
+
+  it('treats a cached but unowned VN as unmatched', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9004', username: 'tester', permissions: ['listread'] });
+    upsertVn({ id: 'v90401', title: 'cached-only', languages: ['ja'] });
+    respondWithLabels({ [VNDB_LABELS.dropped]: [ulistEntry('v90401', [VNDB_LABELS.dropped])] });
+
+    const r = await pullStatusesFromVndb();
+    expect(r.updated).toBe(0);
+    expect(r.unmatched).toEqual([{ vn_id: 'v90401', status: 'dropped' }]);
+  });
+
+  it('caps the unmatched sample at twenty VNs', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9005', username: 'tester', permissions: ['listread'] });
+    respondWithLabels({
+      [VNDB_LABELS.planning]: Array.from({ length: 21 }, (_, index) =>
+        ulistEntry(`v905${String(index).padStart(2, '0')}`, [VNDB_LABELS.planning])),
+    });
+
+    const r = await pullStatusesFromVndb();
+    expect(r.skippedNotInCollection).toBe(21);
+    expect(r.unmatched).toHaveLength(20);
+  });
 });

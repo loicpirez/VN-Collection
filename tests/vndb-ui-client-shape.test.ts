@@ -61,6 +61,7 @@ describe('VNDB UI client response adapters', () => {
         egs: { median: 75, playtime_median_minutes: null },
       }],
     });
+    expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, egs: null }] })?.items[0]?.egs).toBeNull();
   });
 
   it('rejects malformed local payloads', () => {
@@ -68,5 +69,9 @@ describe('VNDB UI client response adapters', () => {
     expect(decodeVndbStatusClientState({ entry: { id: 'bad' }, labels: [] })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, in_collection: 'false' }] })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, egs: { median: '75' } }] })).toBeNull();
+    expect(decodeWishlistClientState(null)).toBeNull();
+    expect(decodeWishlistClientState({ needsAuth: 'yes', items: [] })).toBeNull();
+    expect(decodeWishlistClientState({ items: null })).toBeNull();
+    expect(decodeWishlistClientState({ items: new Array(1001).fill(WISHLIST_ROW) })).toBeNull();
   });
 });

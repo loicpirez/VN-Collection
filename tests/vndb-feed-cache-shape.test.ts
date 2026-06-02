@@ -66,6 +66,29 @@ describe('VNDB feed cache shape decoders', () => {
       results: [],
       more: false,
     });
+    expect(decodeVndbTopRankedPage({ results: [null], more: false })).toEqual({ results: [], more: false });
+    expect(decodeVndbTopRankedPage({
+      results: [{ ...topRankedRow(), image: { url: 4 } }],
+      more: false,
+    })).toEqual({ results: [], more: false });
+    expect(decodeVndbTopRankedPage({
+      results: [{ ...topRankedRow(), id: 4 }],
+      more: false,
+    })).toEqual({ results: [], more: false });
+  });
+
+  it('accepts sparse top-ranked image metadata and ignores malformed developers', () => {
+    expect(decodeVndbTopRankedPage({
+      results: [{
+        ...topRankedRow(),
+        image: { url: 'https://example.invalid/cover.jpg' },
+        developers: [null],
+      }],
+      more: false,
+    })?.results[0]).toMatchObject({
+      image: { url: 'https://example.invalid/cover.jpg' },
+      developers: [],
+    });
   });
 
   it('normalizes upcoming release language rows into codes', () => {
@@ -88,6 +111,34 @@ describe('VNDB feed cache shape decoders', () => {
   it('rejects malformed upcoming envelopes and oversized pages', () => {
     expect(decodeUpcomingReleasePage({ results: [], more: 'false' })).toBeNull();
     expect(decodeUpcomingReleasePage({ results: new Array(1001).fill(upcomingRow()), more: false })).toBeNull();
+    expect(decodeUpcomingReleasePage({ results: [null], more: false })).toEqual({ results: [], more: false });
+    expect(decodeUpcomingReleasePage({
+      results: [{ ...upcomingRow(), languages: {} }],
+      more: false,
+    })).toEqual({ results: [], more: false });
+    expect(decodeUpcomingReleasePage({
+      results: [{ ...upcomingRow(), id: 4 }],
+      more: false,
+    })).toEqual({ results: [], more: false });
+  });
+
+  it('keeps null upcoming VN images and drops malformed nested VN images', () => {
+    expect(decodeUpcomingReleasePage({
+      results: [{
+      ...upcomingRow(),
+      producers: [null],
+      vns: [
+        { id: 'v990102', title: 'Synthetic upcoming VN', image: null },
+        { id: 'v990103', title: 'Malformed image', image: { url: 4 } },
+        null,
+      ],
+      }],
+      more: false,
+    })?.results[0]?.vns).toEqual([{
+      id: 'v990102',
+      title: 'Synthetic upcoming VN',
+      image: null,
+    }]);
   });
 
   it('decodes recommendation and producer-completion summaries', () => {
@@ -124,6 +175,62 @@ describe('VNDB feed cache shape decoders', () => {
         image: null,
       }],
     });
+    expect(decodeRecommendationResults({
+      results: [{
+        ...recommendation,
+        image: { url: 'https://example.invalid/cover.jpg', thumbnail: 'https://example.invalid/thumb.jpg' },
+      }],
+    })?.results[0]?.image).toEqual({
+      url: 'https://example.invalid/cover.jpg',
+      thumbnail: 'https://example.invalid/thumb.jpg',
+    });
+    expect(decodeProducerCompletionResults({
+      results: [{
+        id: 'v990104',
+        title: 'Synthetic completion row',
+        alttitle: null,
+        released: null,
+        rating: null,
+        image: { url: 'https://example.invalid/cover.jpg', thumbnail: 'https://example.invalid/thumb.jpg' },
+      }],
+    })?.results[0]?.image).toEqual({
+      url: 'https://example.invalid/cover.jpg',
+      thumbnail: 'https://example.invalid/thumb.jpg',
+    });
+  });
+
+  it('filters malformed recommendation and completion rows and validates result envelopes', () => {
+    expect(decodeRecommendationResults(null)).toBeNull();
+    expect(decodeRecommendationResults({ results: new Array(1001).fill(null) })).toBeNull();
+    expect(decodeRecommendationResults({
+      results: [null, {
+        id: 'v990103',
+        title: 'Synthetic recommendation',
+        alttitle: null,
+        released: null,
+        rating: null,
+        votecount: null,
+        length_minutes: null,
+        image: { url: 'x' },
+        developers: [],
+      }],
+    })).toEqual({ results: [] });
+    expect(decodeRecommendationResults({
+      results: [{ ...topRankedRow(), id: 4 }, { ...topRankedRow(), developers: {} }],
+    })).toEqual({ results: [] });
+    expect(decodeProducerCompletionResults({
+      results: [null, {
+        id: 'v990104',
+        title: 'Synthetic completion row',
+        alttitle: null,
+        released: null,
+        rating: null,
+        image: { url: 'x' },
+      }],
+    })).toEqual({ results: [] });
+    expect(decodeProducerCompletionResults({
+      results: [{ id: 4, title: 'Invalid', alttitle: null, released: null, rating: null, image: null }],
+    })).toEqual({ results: [] });
   });
 
   it('decodes producer association VN and release pages', () => {
@@ -151,6 +258,56 @@ describe('VNDB feed cache shape decoders', () => {
     });
   });
 
+  it('preserves sparse association rows and filters malformed nested members', () => {
+    expect(decodeProducerAssociationVnPage({
+      results: [{
+        id: 'v990105',
+        title: 'Synthetic developer VN',
+      }, {
+        id: 'v990106',
+        title: 'Full developer VN',
+        alttitle: null,
+        released: null,
+        rating: null,
+        image: { url: 'https://example.invalid/cover.jpg', thumbnail: 'https://example.invalid/thumb.jpg' },
+      }, {
+        id: 4,
+        title: 'Invalid id',
+      }, {
+        id: 'v990107',
+        title: 'Missing thumbnail',
+        image: { url: 'https://example.invalid/cover.jpg' },
+      }, null],
+      more: false,
+    })?.results).toEqual([
+      { id: 'v990105', title: 'Synthetic developer VN' },
+      {
+        id: 'v990106',
+        title: 'Full developer VN',
+        alttitle: null,
+        released: null,
+        rating: null,
+        image: { url: 'https://example.invalid/cover.jpg', thumbnail: 'https://example.invalid/thumb.jpg' },
+      },
+    ]);
+    expect(decodeProducerAssociationReleasePage({
+      results: [{
+        id: 'r990105',
+        vns: [null],
+        producers: [
+          { id: 'p990105', developer: true, publisher: false },
+          { id: 'bad', developer: true, publisher: false },
+          null,
+        ],
+      }, null],
+      more: false,
+    })?.results).toEqual([{
+      id: 'r990105',
+      vns: [],
+      producers: [{ id: 'p990105', developer: true, publisher: false }],
+    }]);
+  });
+
   it('decodes Steam release links and filters malformed nested members', () => {
     expect(decodeSteamReleaseResults({
       results: [{
@@ -166,6 +323,29 @@ describe('VNDB feed cache shape decoders', () => {
         title: 'Synthetic Steam release',
         extlinks: [{ url: 'https://store.steampowered.com/app/990107', name: 'steam', id: 990107 }],
         vns: [{ id: 'v990107' }],
+      }],
+    });
+  });
+
+  it('preserves Steam extlinks without ids and filters malformed Steam rows', () => {
+    expect(decodeSteamReleaseResults({
+      results: [{
+        title: 'Synthetic Steam release',
+        extlinks: [
+          { url: 'https://example.invalid/store', name: 'store' },
+          { url: 'https://example.invalid/store-2', name: 'store', id: 'sku' },
+          { url: 'https://example.invalid/store-3', name: 'store', id: {} },
+        ],
+        vns: [null],
+      }, null],
+    })).toEqual({
+      results: [{
+        title: 'Synthetic Steam release',
+        extlinks: [
+          { url: 'https://example.invalid/store', name: 'store' },
+          { url: 'https://example.invalid/store-2', name: 'store', id: 'sku' },
+        ],
+        vns: [],
       }],
     });
   });

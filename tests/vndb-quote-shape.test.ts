@@ -66,5 +66,73 @@ describe('VNDB quote row decoder', () => {
     expect(decodeVndbQuote({ ...QUOTE, vn: { ...QUOTE.vn, id: 'bad' } })).toBeNull();
     expect(decodeVndbQuote({ ...QUOTE, character: { ...QUOTE.character, aliases: [4] } })).toBeNull();
     expect(decodeVndbQuote({ ...QUOTE, character: { ...QUOTE.character, image: { url: 4 } } })).toBeNull();
+    expect(decodeVndbQuote({ ...QUOTE, vn: 'bad' })).toBeNull();
+    expect(decodeVndbQuote({ ...QUOTE, character: 'bad' })).toBeNull();
+    expect(decodeVndbQuote({ ...QUOTE, vn: { ...QUOTE.vn, image: { url: 'x', dims: [1] } } })).toBeNull();
+    expect(decodeVndbQuote({ ...QUOTE, character: { ...QUOTE.character, aliases: new Array(5001).fill('Alias') } })).toBeNull();
+  });
+
+  it('accepts minimal nested rows and sparse image metadata', () => {
+    expect(decodeVndbQuote({
+      id: 'q90072',
+      quote: 'Minimal',
+      score: 1,
+      vn: {
+        id: 'v90072',
+        title: 'Fixture',
+        image: null,
+      },
+      character: {
+        id: 'c90072',
+        name: 'Heroine',
+        original: null,
+        image: { url: 'https://example.invalid/character.jpg' },
+      },
+    })).toEqual({
+      id: 'q90072',
+      quote: 'Minimal',
+      score: 1,
+      vn: {
+        id: 'v90072',
+        title: 'Fixture',
+        image: null,
+      },
+      character: {
+        id: 'c90072',
+        name: 'Heroine',
+        original: null,
+        image: { url: 'https://example.invalid/character.jpg' },
+      },
+    });
+  });
+
+  it('omits nested images when VNDB does not send image fields', () => {
+    expect(decodeVndbQuote({
+      id: 'q90073',
+      quote: 'Sparse',
+      score: 1,
+      vn: {
+        id: 'v90073',
+        title: 'Fixture',
+      },
+      character: {
+        id: 'c90073',
+        name: 'Heroine',
+        original: null,
+      },
+    })).toEqual({
+      id: 'q90073',
+      quote: 'Sparse',
+      score: 1,
+      vn: {
+        id: 'v90073',
+        title: 'Fixture',
+      },
+      character: {
+        id: 'c90073',
+        name: 'Heroine',
+        original: null,
+      },
+    });
   });
 });

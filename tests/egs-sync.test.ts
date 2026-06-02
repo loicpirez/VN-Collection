@@ -1,4 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { updateCollectionMock } = vi.hoisted(() => ({
+  updateCollectionMock: vi.fn(),
+}));
+
+vi.mock('@/lib/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db')>();
+  updateCollectionMock.mockImplementation(actual.updateCollection);
+  return { ...actual, updateCollection: updateCollectionMock };
+});
+
 import { db, setAppSetting } from '@/lib/db';
 
 vi.mock('@/lib/erogamescape', () => ({
@@ -151,6 +162,38 @@ describe('computeEgsSuggestions', () => {
     expect(result.suggestions).toHaveLength(1);
     expect(result.suggestions[0]!.egs_finish_date).toBe('2024-03-15');
   });
+
+  it('suggests start date when local has none', async () => {
+    insertVn('v1', 'My VN');
+    insertCollection('v1', 0, null);
+    insertEgsGame('v1', 1001);
+    mockFetch.mockResolvedValue([makeReview(1001, { start_date: '2024-03-01' })]);
+    const result = await computeEgsSuggestions();
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]!.egs_start_date).toBe('2024-03-01');
+  });
+
+  it('ignores an unlinked review when another review is linked', async () => {
+    insertVn('v1', 'My VN');
+    insertCollection('v1', 0, null);
+    insertEgsGame('v1', 1001);
+    mockFetch.mockResolvedValue([
+      makeReview(1001, { tokuten: 80 }),
+      makeReview(1002, { tokuten: 90 }),
+    ]);
+    const result = await computeEgsSuggestions();
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]!.egs_id).toBe(1001);
+  });
+
+  it('does not suggest a zero EGS score', async () => {
+    insertVn('v1', 'My VN');
+    insertCollection('v1', 0, null);
+    insertEgsGame('v1', 1001);
+    mockFetch.mockResolvedValue([makeReview(1001, { tokuten: 0 })]);
+    const result = await computeEgsSuggestions();
+    expect(result.suggestions).toEqual([]);
+  });
 });
 
 describe('applyEgsSuggestions', () => {
@@ -186,5 +229,31 @@ describe('applyEgsSuggestions', () => {
     expect(result.applied).toBe(1);
     const row = db.prepare(`SELECT user_rating FROM collection WHERE vn_id = 'v1'`).get() as { user_rating: number };
     expect(row.user_rating).toBe(85);
+  });
+
+  it('applies missing start and finish dates together', async () => {
+    insertVn('v1', 'Dated VN');
+    insertCollection('v1', 0, null);
+    insertEgsGame('v1', 1003);
+    mockFetch.mockResolvedValue([makeReview(1003, { start_date: '2024-03-01', finish_date: '2024-03-15' })]);
+    const result = await applyEgsSuggestions(['v1']);
+    expect(result.applied).toBe(1);
+    const row = db.prepare(`SELECT started_date, finished_date FROM collection WHERE vn_id = 'v1'`).get() as {
+      started_date: string;
+      finished_date: string;
+    };
+    expect(row).toEqual({ started_date: '2024-03-01', finished_date: '2024-03-15' });
+  });
+
+  it('records an update error and continues without incrementing applied', async () => {
+    insertVn('v1', 'Failing VN');
+    insertCollection('v1', 0, null);
+    insertEgsGame('v1', 1004);
+    mockFetch.mockResolvedValue([makeReview(1004, { tokuten: 90 })]);
+    updateCollectionMock.mockImplementationOnce(() => {
+      throw new Error('synthetic write failure');
+    });
+    const result = await applyEgsSuggestions(['v1']);
+    expect(result.applied).toBe(0);
   });
 });

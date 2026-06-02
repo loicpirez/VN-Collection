@@ -187,6 +187,22 @@ describe('trait → character helpers', () => {
     const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
     expect(body.filters[0]).toBe('and');
   });
+
+  it('getCharactersForTraitInVns uses a bare trait filter for one VN when spoilers are included and sorts results', async () => {
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse(envelope([charRow('c90021'), charRow('c90020')])),
+    );
+
+    const out = await getCharactersForTraitInVns('i9005', ['v90022'], { includeSpoiler: true });
+
+    expect(out.map((c) => c.id)).toEqual(['c90020', 'c90021']);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.filters).toEqual([
+      'and',
+      ['trait', '=', 'i9005'],
+      ['vn', '=', ['id', '=', 'v90022']],
+    ]);
+  });
 });
 
 describe('cache-read helpers (no network)', () => {

@@ -268,7 +268,7 @@ async function fetchOnce<T>(
   const now = Date.now();
 
   if (res.status === 304 && cached) {
-    if (ttlMs > 0) touchCacheRow(key, now, now + ttlMs);
+    touchCacheRow(key, now, now + ttlMs);
     let cachedData: T;
     try {
       cachedData = decodePayload(JSON.parse(cached.body), decode);

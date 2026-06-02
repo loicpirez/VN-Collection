@@ -72,7 +72,7 @@ export async function computeEgsSuggestions(): Promise<{
 
   type ColRow = {
     vn_id: string;
-    playtime_minutes: number | null;
+    playtime_minutes: number;
     user_rating: number | null;
     title: string;
     started_date: string | null;
@@ -102,7 +102,7 @@ export async function computeEgsSuggestions(): Promise<{
     const localItem = local.get(vnId);
     if (!localItem) continue;
     const egsMinutes = r.total_play_time_hours != null ? Math.round(r.total_play_time_hours * 60) : null;
-    const localMinutes = localItem.playtime_minutes ?? 0;
+    const localMinutes = localItem.playtime_minutes;
     const hasPlaytimeJump = egsMinutes != null && egsMinutes > localMinutes;
     const hasNewScore = r.tokuten != null && r.tokuten > 0 && localItem.user_rating == null;
     const hasNewDate = !!(r.start_date && !localItem.started_date) || !!(r.finish_date && !localItem.finished_date);
@@ -152,10 +152,6 @@ export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: n
     }
     if (s.egs_start_date && !s.local_started_date) patch.started_date = s.egs_start_date;
     if (s.egs_finish_date && !s.local_finished_date) patch.finished_date = s.egs_finish_date;
-    if (Object.keys(patch).length === 0) {
-      tickJob(job.id);
-      continue;
-    }
     try {
       updateCollection(vnId, patch);
       applied += 1;

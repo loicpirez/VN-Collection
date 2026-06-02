@@ -157,6 +157,17 @@ describe('getVndbTagWebDetail', () => {
     expect(r.warning).toMatch(/g90101 tag hierarchy/);
   });
 
+  it('serves a fresh detail cache row and force-refreshes it on demand', async () => {
+    fetchVndbWebHtmlMock.mockResolvedValueOnce('<html>g90103</html>');
+    await getVndbTagWebDetail('g90103');
+    fetchVndbWebHtmlMock.mockClear();
+    await getVndbTagWebDetail('g90103');
+    expect(fetchVndbWebHtmlMock).not.toHaveBeenCalled();
+    fetchVndbWebHtmlMock.mockResolvedValueOnce('<html>g90103-refresh</html>');
+    await getVndbTagWebDetail('g90103', { force: true });
+    expect(fetchVndbWebHtmlMock).toHaveBeenCalledWith('/g90103', { force: true });
+  });
+
   it('throws when the detail scrape fails with no cache', async () => {
     fetchVndbWebHtmlMock.mockResolvedValueOnce(null);
     await expect(getVndbTagWebDetail('g90102')).rejects.toThrow(/g90102 is unavailable/);

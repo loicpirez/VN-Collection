@@ -78,7 +78,7 @@ import {
   searchTraits,
   searchVn,
 } from '@/lib/vndb';
-import { clearCache } from '@/lib/db';
+import { clearCache, setAppSetting } from '@/lib/db';
 
 const FAKE_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 const ORIGINAL_TOKEN = process.env.VNDB_TOKEN;
@@ -149,6 +149,7 @@ afterAll(() => {
 
 beforeEach(() => {
   clearCache();
+  setAppSetting('vndb_token', null);
   providerFetchMock.mockReset();
 });
 
@@ -226,6 +227,21 @@ describe('advancedSearchVn', () => {
     await advancedSearchVn({ lengthMin: 3, lengthMax: 3 });
     const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
     expect(body.filters).toEqual(['length', '=', 3]);
+  });
+
+  it('supports single-value list filters, one-sided length bounds, and an empty inverted range', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    await advancedSearchVn({ langs: ['ja'], lengthMax: 2 });
+    await advancedSearchVn({ lengthMin: 4 });
+    await advancedSearchVn({ lengthMin: 5, lengthMax: 1 });
+    const bodies = providerFetchMock.mock.calls.map((call) => JSON.parse(String((call[1] as RequestInit).body)));
+    expect(bodies[0].filters).toContainEqual(['lang', '=', 'ja']);
+    expect(bodies[0].filters).toContainEqual(['or', ['length', '=', 1], ['length', '=', 2]]);
+    expect(bodies[1].filters).toEqual(['or', ['length', '=', 4], ['length', '=', 5]]);
+    expect(bodies[2].filters).toBeUndefined();
   });
 });
 
@@ -330,6 +346,31 @@ describe('character helpers', () => {
     expect(body.filters).toBeUndefined();
     expect(body.sort).toBe('id');
   });
+
+  it('searchCharacters supports an id query, every numeric upper bound, and a single text filter', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    await searchCharacters('C90003', {
+      ageMax: 30,
+      heightMax: 180,
+      bustMin: 70,
+      bustMax: 100,
+      waistMin: 50,
+      waistMax: 80,
+      hipsMin: 75,
+      hipsMax: 110,
+      results: 200,
+    });
+    await searchCharacters('plain text');
+    const first = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    const second = JSON.parse(String((providerFetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(first.filters).toContainEqual(['id', '=', 'c90003']);
+    expect(first.filters).toContainEqual(['hips', '<=', 110]);
+    expect(first.results).toBe(100);
+    expect(second.filters).toEqual(['search', '=', 'plain text']);
+    expect(second.sort).toBe('searchrank');
+  });
 });
 
 describe('staff helpers', () => {
@@ -344,6 +385,30 @@ describe('staff helpers', () => {
   it('getStaff returns null on empty results', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([])));
     expect(await getStaff('s90404')).toBeNull();
+  });
+
+  it('searchStaff supports text and optional filters or no filters at all', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    await searchStaff('writer', { mainOnly: false, role: 'scenario', lang: 'ja', vn: 'v90001', results: 200 });
+    await searchStaff('', { mainOnly: false });
+    const first = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    const second = JSON.parse(String((providerFetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(first.filters).toContainEqual(['search', '=', 'writer']);
+    expect(first.filters).toContainEqual(['role', '=', 'scenario']);
+    expect(first.filters).toContainEqual(['lang', '=', 'ja']);
+    expect(first.filters).toContainEqual(['vn', '=', ['id', '=', 'v90001']]);
+    expect(first.results).toBe(100);
+    expect(first.sort).toBe('searchrank');
+    expect(second.filters).toBeUndefined();
+  });
+
+  it('searchStaff collapses its default main-only filter to one predicate', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([])));
+    await searchStaff('');
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.filters).toEqual(['ismain', '=', 1]);
   });
 
   it('fetchStaffVnList paginates until more=false and keeps only this staff\'s roles', async () => {
@@ -392,6 +457,67 @@ describe('staff helpers', () => {
     );
     const out = await fetchVaVnList('s90001');
     expect(out[0].characters[0].id).toBe('c90001');
+  });
+
+  it('credit lists skip unrelated rows and preserve null image fallbacks', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([
+        {
+          id: 'v90210',
+          title: 'staff-empty',
+          alttitle: null,
+          released: null,
+          rating: null,
+          image: null,
+          staff: [{ id: 's90999', role: 'art', note: null }],
+        },
+        {
+          id: 'v90211',
+          title: 'staff-match',
+          alttitle: null,
+          released: null,
+          rating: null,
+          image: null,
+          staff: [{ id: 's90001', role: 'scenario', note: null }],
+        },
+      ])))
+      .mockResolvedValueOnce(jsonResponse(envelope([
+        {
+          id: 'v90212',
+          title: 'va-empty',
+          alttitle: null,
+          released: null,
+          rating: null,
+          image: null,
+          va: [{ staff: { id: 's90999' }, note: null, character: { id: 'c90999', name: 'other', original: null, image: null } }],
+        },
+        {
+          id: 'v90213',
+          title: 'va-match',
+          alttitle: null,
+          released: null,
+          rating: null,
+          image: null,
+          va: [{ staff: { id: 's90001' }, note: null, character: { id: 'c90001', name: 'match', original: null, image: null } }],
+        },
+      ])));
+    const staff = await fetchStaffVnList('s90001');
+    const va = await fetchVaVnList('s90001');
+    expect(staff).toEqual([expect.objectContaining({ id: 'v90211', image_url: null, image_thumb: null })]);
+    expect(va).toEqual([expect.objectContaining({
+      id: 'v90213',
+      image_url: null,
+      image_thumb: null,
+      characters: [expect.objectContaining({ image_url: null })],
+    })]);
+  });
+
+  it('fetchVaVnList continues while VNDB reports more pages', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...envelope([], true) }))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    expect(await fetchVaVnList('s90001')).toEqual([]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -443,6 +569,24 @@ describe('tag + trait helpers', () => {
   it('getTrait returns null on empty results', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([])));
     expect(await getTrait('i90404')).toBeNull();
+  });
+
+  it('searchTags and searchTraits cover id and empty-query request shapes', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    await searchTags('G90001');
+    await searchTags('');
+    await searchTraits('I90001');
+    await searchTraits('personality');
+    const bodies = providerFetchMock.mock.calls.map((call) => JSON.parse(String((call[1] as RequestInit).body)));
+    expect(bodies[0].filters).toContainEqual(['id', '=', 'g90001']);
+    expect(bodies[1].filters).toBeUndefined();
+    expect(bodies[2].filters).toEqual(['id', '=', 'i90001']);
+    expect(bodies[3].filters).toEqual(['search', '=', 'personality']);
+    expect(bodies[3].sort).toBe('searchrank');
   });
 });
 
@@ -518,6 +662,14 @@ describe('quote helpers', () => {
     expect(q?.id).toBe('q2');
   });
 
+  it('returns null when random quote queries receive an empty envelope', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([])))
+      .mockResolvedValueOnce(jsonResponse(envelope([])));
+    expect(await getRandomQuote()).toBeNull();
+    expect(await getRandomQuoteForVns(['v90400'])).toBeNull();
+  });
+
   it('getQuotesForVn short-circuits for non-VNDB ids', async () => {
     expect(await getQuotesForVn('egs_9')).toEqual([]);
     expect(providerFetchMock).not.toHaveBeenCalled();
@@ -533,6 +685,17 @@ describe('stats + auth + user', () => {
     expect(s.vn).toBe(7);
     // GET request, no body.
     expect((providerFetchMock.mock.calls[0][1] as RequestInit).method).toBe('GET');
+  });
+
+  it('prefers a trimmed DB-stored token over the environment token', async () => {
+    setAppSetting('vndb_token', '  stored-test-token  ');
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse({ chars: 1, producers: 2, releases: 3, staff: 4, tags: 5, traits: 6, vn: 7 }),
+    );
+    await getGlobalStats();
+    expect(new Headers((providerFetchMock.mock.calls[0][1] as RequestInit).headers).get('Authorization')).toBe(
+      'Token stored-test-token',
+    );
   });
 
   it('getAuthInfo returns the decoded auth payload when a token is configured', async () => {
@@ -599,6 +762,17 @@ describe('fetchVnCovers', () => {
     const out = await fetchVnCovers(['v90600', 'v90601']);
     expect(out.size).toBe(0);
   });
+
+  it('preserves null thumbnail and sexual defaults for sparse images', async () => {
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse(envelope([{ id: 'v90610', image: { url: 'https://t.vndb.org/v90610.jpg' } }])),
+    );
+    expect((await fetchVnCovers(['v90610'])).get('v90610')).toEqual({
+      url: 'https://t.vndb.org/v90610.jpg',
+      thumbnail: null,
+      sexual: null,
+    });
+  });
 });
 
 describe('ulist read + write', () => {
@@ -646,6 +820,13 @@ describe('ulist read + write', () => {
     const out = await fetchAuthenticatedWishlist();
     expect(Array.isArray(out)).toBe(true);
     expect((out as { id: string }[]).map((e) => e.id)).toEqual(['v90800', 'v90801']);
+  });
+
+  it('fetchAuthenticatedWishlist returns needsAuth when no token is configured', async () => {
+    setAppSetting('vndb_token', null);
+    delete process.env.VNDB_TOKEN;
+    await expect(fetchAuthenticatedWishlist()).resolves.toEqual({ needsAuth: true });
+    process.env.VNDB_TOKEN = FAKE_TOKEN;
   });
 
   it('fetchUlistEntry returns null when the entry is absent', async () => {
@@ -704,6 +885,31 @@ describe('ulist read + write', () => {
   it('a non-OK PATCH surfaces a sanitised error', async () => {
     providerFetchMock.mockResolvedValueOnce(new Response('line1\nline2', { status: 403 }));
     await expect(addToVndbWishlist('v91004')).rejects.toThrow(/403/);
+  });
+
+  it('surfaces list mutation errors even when reading the upstream body fails', async () => {
+    const failingBody = (status: number) => {
+      const response = new Response('', { status });
+      vi.spyOn(response, 'text').mockRejectedValue(new Error('unreadable'));
+      return response;
+    };
+    providerFetchMock
+      .mockResolvedValueOnce(failingBody(500))
+      .mockResolvedValueOnce(failingBody(500))
+      .mockResolvedValueOnce(failingBody(500))
+      .mockResolvedValueOnce(failingBody(500));
+    await expect(addToVndbWishlist('v91010')).rejects.toThrow(/500/);
+    await expect(removeFromVndbWishlist('v91011')).rejects.toThrow(/500/);
+    await expect(patchUlistEntry('v91012', {})).rejects.toThrow(/500/);
+    await expect(deleteUlistEntry('v91013')).rejects.toThrow(/500/);
+  });
+
+  it('fetchUlistEntry and deleteUlistEntry reject invalid VN ids before mutation', async () => {
+    providerFetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'u9001', username: 'tester', permissions: ['listread'] }),
+    );
+    await expect(fetchUlistEntry('bad-id')).rejects.toThrow(/invalid vn id/);
+    await expect(deleteUlistEntry('bad-id')).rejects.toThrow(/invalid vn id/);
   });
 });
 

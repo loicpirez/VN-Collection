@@ -53,6 +53,13 @@ describe('happy path', () => {
     await throttledFetch(VNDB, {}, 'vndbmirror');
     expect(providerFetchMock.mock.calls[0][2]).toBe('vndbmirror');
   });
+
+  it('supplies an empty request init when the caller omits it', async () => {
+    const { throttledFetch } = await freshThrottle();
+    providerFetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    await throttledFetch(VNDB);
+    expect(providerFetchMock.mock.calls[0][1]).toEqual({});
+  });
 });
 
 describe('SSRF gate', () => {

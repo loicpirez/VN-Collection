@@ -106,14 +106,10 @@ export interface PullResult {
 const STATUS_PRECEDENCE: Status[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
 
 function pickStatusFromLabels(labelIds: number[]): Status | null {
-  const localStatuses = labelIds
-    .map((id) => VNDB_LABELS_REVERSE[id])
-    .filter((s): s is Status => s != null);
-  if (localStatuses.length === 0) return null;
-  for (const s of STATUS_PRECEDENCE) {
-    if (localStatuses.includes(s)) return s;
+  for (const status of STATUS_PRECEDENCE) {
+    if (labelIds.includes(VNDB_LABELS[status])) return status;
   }
-  return localStatuses[0];
+  return null;
 }
 
 /**
@@ -176,7 +172,7 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
       continue;
     }
     const local = getCollectionItem(vnId);
-    if (!local) {
+    if (!local?.status) {
       skipped += 1;
       if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
       continue;
@@ -185,9 +181,9 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
       unchanged += 1;
       continue;
     }
-    const prev: Status | null = (local.status as Status | null) ?? null;
+    const prev = local.status;
     updateCollection(vnId, { status: target });
-    changes.push({ vn_id: vnId, title: local.title ?? vnId, from: prev, to: target });
+    changes.push({ vn_id: vnId, title: local.title, from: prev, to: target });
     updated += 1;
   }
 

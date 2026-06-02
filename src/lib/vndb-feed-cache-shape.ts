@@ -71,6 +71,7 @@ function decodeTopRankedRow(value: unknown): VndbTopRanked | null {
   const image = decodeImage(record.image);
   const languages = decodeStringArray(record.languages);
   const platforms = decodeStringArray(record.platforms);
+  const developers = decodeDeveloperRows(record.developers);
   if (
     !isVndbVnId(id) ||
     !isString(record.title) ||
@@ -82,11 +83,10 @@ function decodeTopRankedRow(value: unknown): VndbTopRanked | null {
     !isNullableNumber(record.length_minutes) ||
     !languages ||
     !platforms ||
-    !Array.isArray(record.developers)
+    !developers
   ) {
     return null;
   }
-  const developers = decodeDeveloperRows(record.developers) ?? [];
   return {
     id: id.toLowerCase(),
     title: record.title,
