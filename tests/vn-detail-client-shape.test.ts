@@ -88,4 +88,33 @@ describe('VN detail client response adapters', () => {
     expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, location: 'bad' }] })).toBeNull();
     expect(decodeVnAspectClientState({ override: null, derived: '3:2' })).toBeNull();
   });
+
+  it('rejects malformed release-list and owned-edition envelopes', () => {
+    expect(decodeVnDetailReleasesResponse(null)).toBeNull();
+    expect(decodeVnDetailReleasesResponse({ releases: null })).toBeNull();
+    expect(decodeVnDetailReleasesResponse({ releases: Array.from({ length: 101 }, () => RELEASE) })).toBeNull();
+    expect(decodeOwnedEditionsResponse(null)).toBeNull();
+    expect(decodeOwnedEditionsResponse({ owned: null })).toBeNull();
+  });
+
+  it('decodes null and display shelf placements and rejects malformed placements', () => {
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, shelf: null }] })?.[0]?.shelf).toBeNull();
+    expect(decodeOwnedEditionsResponse({
+      owned: [{ ...OWNED, shelf: { kind: 'display', id: 2, name: 'Shelf', afterRow: 1, position: 0 } }],
+    })?.[0]?.shelf).toEqual({ kind: 'display', id: 2, name: 'Shelf', afterRow: 1, position: 0 });
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, shelf: { kind: 'bad', id: 1, name: 'Shelf' } }] })).toBeNull();
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, shelf: 4 }] })).toBeNull();
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, physical_location: [4] }] })).toBeNull();
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, aspect: null }] })).toBeNull();
+    expect(decodeOwnedEditionsResponse({ owned: [{ ...OWNED, aspect: { ...OWNED.aspect, source: 'unknown' } }] })?.[0]?.aspect.source).toBe('unknown');
+  });
+
+  it('decodes a null aspect override and rejects malformed override rows', () => {
+    expect(decodeVnAspectClientState({ override: null, derived: 'unknown' })).toEqual({
+      override: null,
+      derived: 'unknown',
+    });
+    expect(decodeVnAspectClientState({ override: { aspect_key: 'bad', note: null }, derived: '16:9' })).toBeNull();
+    expect(decodeVnAspectClientState({ override: { aspect_key: '16:9', note: 1 }, derived: '16:9' })).toBeNull();
+  });
 });

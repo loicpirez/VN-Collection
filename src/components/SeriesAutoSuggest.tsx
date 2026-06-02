@@ -56,6 +56,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
 
   if (!suggestion || dismissed) return null;
   if (suggestion.existing.length === 0 && !suggestion.suggestedName) return null;
+  const suggestedName = suggestion.suggestedName;
 
   async function joinExisting(seriesId: number) {
     if (mutationInFlightRef.current) return;
@@ -88,8 +89,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
     }
   }
 
-  async function createNew() {
-    if (!suggestion?.suggestedName) return;
+  async function createNew(suggestedName: string) {
     if (mutationInFlightRef.current) return;
     const ownerVnId = vnId;
     const controller = new AbortController();
@@ -101,12 +101,13 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
       const r = await fetch('/api/series', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: suggestion.suggestedName }),
+        body: JSON.stringify({ name: suggestedName }),
         signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const seriesId = decodeCreatedSeriesId(await r.json());
       if (!seriesId) throw new Error(t.common.error);
+      if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       const link = await fetch(`/api/series/${seriesId}/vn/${ownerVnId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -163,15 +164,15 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
             {t.seriesAutoSuggest.joinExisting}: {s.name}
           </button>
         ))}
-        {suggestion.suggestedName && (
+        {suggestedName && (
           <button
             type="button"
-            onClick={createNew}
+            onClick={() => createNew(suggestedName)}
             disabled={!!busy}
             className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/60 bg-bg-card px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/15 disabled:opacity-50 sm:min-h-0"
           >
             {busy === 'create' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
-            {t.seriesAutoSuggest.createNew}: {suggestion.suggestedName}
+            {t.seriesAutoSuggest.createNew}: {suggestedName}
           </button>
         )}
       </div>

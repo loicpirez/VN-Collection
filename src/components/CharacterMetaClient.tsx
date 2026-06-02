@@ -33,26 +33,23 @@ export function CharacterMetaClient({ char }: Props) {
   const genderA = char.gender?.[0] ?? null;
   const genderB = char.gender?.[1] ?? null;
 
-  const sexDiffers = !!sexB && sexB !== sexA;
-  const genderDiffers = !!genderB && genderB !== genderA;
-
   return (
     <>
-      {sexDiffers && (
+      {sexB && sexB !== sexA && (
         <InlineSpoilerReveal
           label={t.characters.sexReal}
           value={labelSex(sexB, t)}
           autoReveal={level > 0}
         />
       )}
-      {genderDiffers && (
+      {genderB && genderB !== genderA && (
         <InlineSpoilerReveal
           label={t.characters.genderReal}
           value={labelGender(genderB, t)}
           autoReveal={level > 0}
         />
       )}
-      {(char.traits ?? []).length > 0 && (
+      {char.traits.length > 0 && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted">{t.characters.traits}</h3>
@@ -62,7 +59,7 @@ export function CharacterMetaClient({ char }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {(char.traits ?? []).map((tr) => (
+            {char.traits.map((tr) => (
               <SpoilerChip
                 key={tr.id}
                 level={tr.spoiler}
@@ -89,7 +86,7 @@ function InlineSpoilerReveal({
   autoReveal,
 }: {
   label: string;
-  value: string | null;
+  value: string;
   autoReveal: boolean;
 }) {
   const t = useT();
@@ -100,7 +97,6 @@ function InlineSpoilerReveal({
   useEffect(() => {
     setLocalRevealed(null);
   }, [autoReveal]);
-  if (!value) return null;
   const persistRevealed = localRevealed ?? autoReveal;
   // Transient reveal - hover/focus shows the actual readable value.
   // Persistent reveal sticks until the user explicitly hides.
@@ -146,8 +142,7 @@ function InlineSpoilerReveal({
   );
 }
 
-function labelSex(s: string | null, t: ReturnType<typeof useT>): string | null {
-  if (!s) return null;
+function labelSex(s: string, t: ReturnType<typeof useT>): string {
   const map: Record<string, string> = {
     m: t.characters.genderM,
     f: t.characters.genderF,
@@ -156,8 +151,7 @@ function labelSex(s: string | null, t: ReturnType<typeof useT>): string | null {
   };
   return map[s] ?? s;
 }
-function labelGender(g: string | null, t: ReturnType<typeof useT>): string | null {
-  if (!g) return null;
+function labelGender(g: string, t: ReturnType<typeof useT>): string {
   const map: Record<string, string> = {
     m: t.characters.genderM,
     f: t.characters.genderF,

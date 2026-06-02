@@ -73,19 +73,17 @@ interface Props {
  *      list → partial.
  *   4. Otherwise → complete.
  *
- * Synthetic / EGS-only ids (`egs_*`) bypass VNDB and always read as
- * `complete` here - the Data cluster gates them out via `!isEgsOnly`
- * upstream, so the value never reaches the DownloadAssetsButton.
+ * Synthetic / EGS-only ids (`egs_*`) never reach this helper because
+ * the Data cluster gates them out via `!isEgsOnly`.
  */
 function deriveVnDataState(vn: CollectionItem): 'none' | 'partial' | 'complete' {
-  if (vn.id.startsWith('egs_')) return 'complete';
-  if (!vn.fetched_at || vn.fetched_at === 0) return 'none';
+  if (!vn.fetched_at) return 'none';
   if (!vn.title || vn.title === vn.id) return 'none';
   const AGE_30D_MS = 30 * 24 * 60 * 60 * 1000;
   const ageMs = Date.now() - vn.fetched_at;
   const stale = ageMs > AGE_30D_MS;
   const missingCover = !vn.local_image && !vn.local_image_thumb;
-  const missingPlatforms = !vn.platforms || vn.platforms.length === 0;
+  const missingPlatforms = vn.platforms.length === 0;
   if (stale || missingCover || missingPlatforms) return 'partial';
   return 'complete';
 }
@@ -99,9 +97,9 @@ const ACTION_BUTTON_CLASSES =
 export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage, hasCustomBanner, imageSourcePref }: Props) {
   const t = await getDict();
   const isEgsOnly = vn.id.startsWith('egs_');
-  const screenshots: Screenshot[] = vn.screenshots ?? [];
-  const releaseImages: ReleaseImage[] = vn.release_images ?? [];
-  const extlinks = vn.extlinks ?? [];
+  const screenshots: Screenshot[] = vn.screenshots;
+  const releaseImages: ReleaseImage[] = vn.release_images;
+  const extlinks = vn.extlinks;
   const hasExtlinks = extlinks.length > 0;
   const showExternalMenu = !isEgsOnly || hasExtlinks || !!egsRow?.egs_id;
   const coverPicker = (
@@ -110,10 +108,10 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
       vndbImage={vn.image_url}
       egsId={egsRow?.egs_id ?? null}
       egsHasImage={egsHasImage}
-      currentCustomCover={vn.custom_cover ?? null}
+      currentCustomCover={vn.custom_cover}
       currentImageSource={imageSourcePref}
       currentRotation={
-        ((vn.cover_rotation ?? 0) as 0 | 90 | 180 | 270)
+        vn.cover_rotation
       }
       screenshots={screenshots}
       releaseImages={releaseImages}
@@ -242,7 +240,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         <CoverPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />
         <BannerSourcePicker
           vnId={vn.id}
-          currentBanner={vn.banner_image ?? null}
+          currentBanner={vn.banner_image}
           coverRemote={vn.image_url}
           coverLocal={vn.local_image || vn.local_image_thumb}
           coverSexual={vn.image_sexual ?? null}

@@ -118,18 +118,9 @@ export async function ProducerVnsSections({
         </p>
       )}
 
-      {/*
-        Hide an empty role section when the other side has data - a
-        publisher-only studio shouldn't ship a heavy "As developer"
-        empty frame, and vice versa. When BOTH are empty we still
-        render the developer section as a single empty state so the
-        page isn't completely blank.
-      */}
-      {(developerVns.length > 0 ||
-        (developerVns.length === 0 && publisherVns.length === 0 && scopedTotal > 0)) && (
+      {developerVns.length > 0 && (
         <RoleSection
           title={t.producerVns.developerCredits}
-          emptyMessage={t.producerVns.noDeveloper}
           icon="dev"
           vns={developerVns}
           t={t}
@@ -140,7 +131,6 @@ export async function ProducerVnsSections({
       {publisherVns.length > 0 && (
         <RoleSection
           title={t.producerVns.publisherCredits}
-          emptyMessage={t.producerVns.noPublisher}
           icon="pub"
           vns={publisherVns}
           t={t}
@@ -153,14 +143,12 @@ export async function ProducerVnsSections({
 
 function RoleSection({
   title,
-  emptyMessage,
   icon,
   vns,
   t,
   locale,
 }: {
   title: string;
-  emptyMessage: string;
   icon: 'dev' | 'pub';
   vns: ProducerVnRef[];
   t: Awaited<ReturnType<typeof getDict>>;
@@ -181,20 +169,17 @@ function RoleSection({
         </span>
       </div>
 
-      {vns.length === 0 ? (
-        <p className="text-xs text-muted/80">{emptyMessage}</p>
-      ) : (
-        <PaginatedGrid
-          ariaLabel={title}
-          resetKey={title}
-          className="grid gap-2"
-          style={{
-            // Density-aware grid (was hard `minmax(220px, 1fr)`).
-            gridTemplateColumns:
-              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
-          }}
-        >
-          {vns.map((v) => (
+      <PaginatedGrid
+        ariaLabel={title}
+        resetKey={title}
+        className="grid gap-2"
+        style={{
+          // Density-aware grid (was hard `minmax(220px, 1fr)`).
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+        }}
+      >
+        {vns.map((v) => (
             <li key={v.id} className="relative">
               <Link
                 href={`/vn/${v.id}`}
@@ -250,9 +235,8 @@ function RoleSection({
                 )}
               </div>
             </li>
-          ))}
-        </PaginatedGrid>
-      )}
+        ))}
+      </PaginatedGrid>
     </div>
   );
 }

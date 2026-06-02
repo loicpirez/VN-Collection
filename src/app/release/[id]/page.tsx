@@ -50,13 +50,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   if (!/^r\d+$/i.test(id)) notFound();
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  let release: VndbRelease | null = null;
-  let error: string | null = null;
-  try {
-    release = await getRelease(id);
-  } catch (e) {
-    error = (e as Error).message;
-  }
+  const release = await getRelease(id).catch(() => null);
   if (!release) notFound();
   // First-time visit caches the resolution for aspect-ratio filters.
   // Deferred via after() so the DB write runs after the response is
@@ -67,9 +61,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const releaseVns = release.vns;
   after(() => {
     for (const vn of releaseVns) {
-      if (vn?.id) {
-        upsertReleaseResolutionCache({ releaseId, vnId: vn.id, resolution });
-      }
+      upsertReleaseResolutionCache({ releaseId, vnId: vn.id, resolution });
     }
     if (releaseVns.length === 0) {
       upsertReleaseResolutionCache({ releaseId, resolution });
@@ -314,12 +306,6 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
         )}
       </header>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
-          {error}
-        </div>
-      )}
-
       {ownedContexts.length > 0 && (
         <section className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
@@ -377,10 +363,10 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           >
             {release.images.map((img) => {
               const aspect = img.type === 'pkgmed' ? 'aspect-square' : img.type === 'dig' ? 'aspect-video' : 'aspect-[2/3]';
-              const typeKey = TYPE_LABEL[img.type] ?? 'dig';
+              const typeKey = TYPE_LABEL[img.type];
               return (
                 <figure
-                  key={`${img.id ?? img.url}`}
+                  key={img.id}
                   className="overflow-hidden rounded-lg border border-border bg-bg-elev"
                 >
                   <div className={`${aspect} w-full`}>

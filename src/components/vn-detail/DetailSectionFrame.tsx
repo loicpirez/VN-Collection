@@ -115,7 +115,6 @@ export function DetailSectionFrame({
   }, [id, defaultCollapsed]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
     const target = `#section-${id}`;
     const reveal = () => {
       if (window.location.hash === target) {

@@ -340,7 +340,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const location = (vn.location as Location | undefined) ?? 'unknown';
   const editionType = (vn.edition_type as EditionType | undefined) ?? 'none';
   const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
-  const isFanDisc = (vn.relations ?? []).some((r) => r.relation === 'orig');
+  const isFanDisc = vn.relations.some((r) => r.relation === 'orig');
 
   return (
     <div className="w-full">
@@ -464,7 +464,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   </span>
                 )}
                 <TitleLine title={displayTitle} alttitle={displayAltTitle} />
-                {(vn.titles ?? []).length > 1 && (
+                {vn.titles.length > 1 && (
                   <details className="group mt-1 text-[11px]">
                     <summary className="inline-flex cursor-pointer items-center gap-1 text-muted hover:text-white [&::-webkit-details-marker]:hidden [list-style:none]">
                       <ChevronRight
@@ -472,10 +472,10 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         aria-hidden
                       />
                       <span className="font-bold uppercase tracking-wider">{t.detail.titlesAll}</span>
-                      <span className="ml-1 opacity-70">({(vn.titles ?? []).length})</span>
+                      <span className="ml-1 opacity-70">({vn.titles.length})</span>
                     </summary>
                     <ul className="mt-1 space-y-0.5 pl-2">
-                      {(vn.titles ?? []).map((tr) => (
+                      {vn.titles.map((tr) => (
                         <li key={`${tr.lang}-${tr.title}`} className="text-white/85">
                           <span className="mr-1 inline-flex h-4 min-w-[1.5rem] items-center justify-center rounded bg-bg-elev/60 px-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                             {tr.lang}
@@ -498,18 +498,18 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     </ul>
                   </details>
                 )}
-                {(vn.aliases ?? []).length > 0 && (
+                {vn.aliases.length > 0 && (
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] text-muted">
                     <span className="font-bold uppercase tracking-wider">
                       {t.detail.aliases}
                     </span>
-                    {(vn.aliases ?? []).slice(0, 6).map((a) => (
+                    {vn.aliases.slice(0, 6).map((a) => (
                       <span key={a} className="max-w-[16rem] truncate opacity-90" title={a}>
                         {a}
                       </span>
                     ))}
-                    {(vn.aliases ?? []).length > 6 && (
-                      <span className="text-muted/60">{t.form.andNMore.replace('{n}', String((vn.aliases ?? []).length - 6))}</span>
+                    {vn.aliases.length > 6 && (
+                      <span className="text-muted/60">{t.form.andNMore.replace('{n}', String(vn.aliases.length - 6))}</span>
                     )}
                   </div>
                 )}
@@ -682,7 +682,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   : null;
                 const allAspects = aspectDisplay.aspects.length > 0
                   ? aspectDisplay.aspects
-                      .map((k) => t.aspect.keys[k as keyof typeof t.aspect.keys] ?? k)
+                      .map((k) => t.aspect.keys[k])
                       .join(' / ')
                   : t.aspect.keys.unknown;
                 return (
@@ -735,17 +735,17 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   <BrandCompare
                     vnId={vn.id}
                     current={sourcePref.brand ?? 'auto'}
-                    vndbDevs={(vn.developers ?? []).map((d) => ({ id: d.id ?? '', name: d.name }))}
+                    vndbDevs={vn.developers.map((d) => ({ id: d.id, name: d.name }))}
                     egsBrand={egsRow?.brand_name ?? null}
                     label={t.detail.developers}
                   />
                 </div>
               )}
-              {(vn.publishers?.length ?? 0) > 0 && (
+              {vn.publishers.length > 0 && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.publishers}</dt>
                   <dd className="mt-1 flex flex-wrap gap-1.5">
-                    {(vn.publishers ?? []).map((p) =>
+                    {vn.publishers.map((p) =>
                       p.id ? (
                         <Link
                           key={p.id}
@@ -833,7 +833,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 Summary-vs-All + spoiler-mode toggle. The original
                 <VnTagChips> stays available as the compact card
                 fallback (see SearchClient.tsx / VnCard.tsx). */}
-            <VnTagsGroupedView tags={vn.tags ?? []} spoilOverride={spoilOverride} />
+            <VnTagsGroupedView tags={vn.tags} spoilOverride={spoilOverride} />
 
             {/*
               The detail-page action bar used to be a flat `flex-wrap`
@@ -968,7 +968,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               vnId={vn.id}
               title={displayTitle}
               altTitle={vn.alttitle ?? null}
-              vndbAliases={(vn.aliases ?? []) as string[]}
+              vndbAliases={vn.aliases}
               initialSnapshot={stockSnapshot}
               showErogePrice={false}
               placeMap={getPlaceProviderMap()}
@@ -1018,11 +1018,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
         }
         sectionNodes['characters'] = <CharactersSection vnId={vn.id} spoilOverride={spoilOverride} />;
-        if ((vn.va ?? []).length > 0) {
-          sectionNodes['cast'] = <CastSection va={vn.va ?? []} />;
+        if (vn.va.length > 0) {
+          sectionNodes['cast'] = <CastSection va={vn.va} />;
         }
-        if ((vn.staff ?? []).length > 0) {
-          sectionNodes['staff'] = <StaffSection staff={vn.staff ?? []} />;
+        if (vn.staff.length > 0) {
+          sectionNodes['staff'] = <StaffSection staff={vn.staff} />;
         }
         {
           const initialOverride = isVndbVnId(vn.id) ? getVnAspectOverride(vn.id) : null;

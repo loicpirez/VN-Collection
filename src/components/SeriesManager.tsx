@@ -39,7 +39,6 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
     if (busyRef.current) return;
     setError(null);
     const trimmed = name.trim();
-    if (!trimmed) return;
     busyRef.current = true;
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -69,7 +68,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         busyRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
     }
   }
@@ -86,7 +85,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         busyRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
       return;
     }
@@ -103,7 +102,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         busyRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
     }
   }

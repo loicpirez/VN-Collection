@@ -90,6 +90,15 @@ describe('walkSeriesRelations', () => {
       .run(NOW);
     expect(walkSeriesRelations('v1')).toEqual([]);
   });
+
+  it('caps a pathological relation frontier', () => {
+    insertVn('v1', 'A', Array.from({ length: 501 }, (_, index) => ({
+      id: `v${index + 2}`,
+      title: `Entry ${index + 2}`,
+      relation: 'seq',
+    })));
+    expect(walkSeriesRelations('v1')).toHaveLength(500);
+  });
 });
 
 describe('detectSeriesForVn', () => {
@@ -155,5 +164,19 @@ describe('detectSeriesForVn', () => {
     insertCollection('v2');
     const result = detectSeriesForVn('v1');
     expect(result!.suggestedName).toMatch(/^My Game/);
+  });
+
+  it('falls back to a trimmed seed title when related titles have no common prefix', () => {
+    insertVn('v1', 'Fixture 2', [{ id: 'v2', title: 'Other', relation: 'seq' }]);
+    insertVn('v2', 'Other');
+    insertCollection('v2');
+    expect(detectSeriesForVn('v1')?.suggestedName).toBe('Fixture');
+  });
+
+  it('falls back to the original seed title when trimming removes everything', () => {
+    insertVn('v1', ': subtitle', [{ id: 'v2', title: 'Other', relation: 'seq' }]);
+    insertVn('v2', 'Other');
+    insertCollection('v2');
+    expect(detectSeriesForVn('v1')?.suggestedName).toBe(': subtitle');
   });
 });

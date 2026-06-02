@@ -86,20 +86,13 @@ export function QuotesSection({ vnId }: { vnId: string }) {
                   // visually balanced regardless of image presence.
                   <span className="mt-2 flex items-center justify-end gap-2 text-xs not-italic text-muted">
                     <QuoteAvatar quote={q} size={28} />
-                    {q.character.id ? (
-                      <Link
-                        href={`/character/${q.character.id}`}
-                        className="hover:text-accent"
-                      >
-                        - {q.character.name}
-                        {q.character.original && ` / ${q.character.original}`}
-                      </Link>
-                    ) : (
-                      <span>
-                        - {q.character.name}
-                        {q.character.original && ` / ${q.character.original}`}
-                      </span>
-                    )}
+                    <Link
+                      href={`/character/${q.character.id}`}
+                      className="hover:text-accent"
+                    >
+                      - {q.character.name}
+                      {q.character.original && ` / ${q.character.original}`}
+                    </Link>
                   </span>
                 )}
               </li>

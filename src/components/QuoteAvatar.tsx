@@ -29,10 +29,10 @@ export function QuoteAvatar({
 }) {
   const resolved = resolveQuoteAvatar(quote);
   const characterName =
-    (quote?.character as { name?: string } | null | undefined)?.name ??
-    (quote as { character_name?: string | null } | undefined)?.character_name ??
+    quote?.character?.name ??
+    quote?.character_name ??
     '';
-  const altText = alt ?? characterName ?? '';
+  const altText = alt ?? characterName;
 
   // Covers are 2:3 - render a taller frame so the cover doesn't get
   // squashed into a square. Character portraits stay 1:1.

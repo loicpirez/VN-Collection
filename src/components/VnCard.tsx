@@ -110,13 +110,11 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const mutationAbortRef = useRef<AbortController | null>(null);
 
   function openMenuAt(x: number, y: number) {
-    if (selectable) return;
     if (!data.status && !data.inCollectionBadge) return;
     setMenuAnchor({ x, y });
   }
 
   function onContextMenu(e: React.MouseEvent) {
-    if (selectable) return;
     if (!data.status && !data.inCollectionBadge) return;
     e.preventDefault();
     openMenuAt(e.clientX, e.clientY);
@@ -171,7 +169,6 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (inFlightRef.current) return;
     const ownerVnId = data.id;
     inFlightRef.current = true;
     const controller = new AbortController();
@@ -284,7 +281,6 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (removingFromWishlist) return;
             void onRemoveFromWishlist();
           }}
           disabled={removingFromWishlist}
@@ -363,7 +359,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           {year && <span>{year}</span>}
           {data.editionType && data.editionType !== 'none' && (
             <span className="inline-flex rounded bg-bg-elev/70 px-1.5 py-0.5 text-muted" title={t.form.editionType}>
-              {t.editions[data.editionType] ?? data.editionType}
+              {t.editions[data.editionType]}
             </span>
           )}
           {visibleAspectKeys.length > 0 && (

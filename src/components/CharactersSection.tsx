@@ -32,7 +32,7 @@ const CharacterCard = memo(function CharacterCard({
   showSexual: boolean;
 }) {
   const role = c._vn?.role ?? 'appears';
-  const roleLabel = t.characters.roles[role as keyof typeof t.characters.roles] ?? role;
+  const roleLabel = t.characters.roles[role];
   const meta = ageString(c, t);
   return (
     <div
@@ -79,13 +79,13 @@ const CharacterCard = memo(function CharacterCard({
                 <SpoilerChip
                   key={tr.id}
                   href={`/trait/${encodeURIComponent(tr.id)}`}
-                  level={tr.spoiler ?? 0}
+                  level={tr.spoiler}
                   sexual={!!tr.sexual}
                   lie={!!tr.lie}
                   currentSpoilerLevel={spoilerLevel}
                   showSexual={showSexual}
                 >
-                  {tr.name ?? tr.id}
+                  {tr.name}
                 </SpoilerChip>
               ))}
           </div>
@@ -124,7 +124,6 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
   const fetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (fetchedForRef.current === vnId) return;
     fetchedForRef.current = vnId;
     // AbortController instead of an `alive` flag - cancels the
     // pending fetch when the user navigates away mid-load instead of
@@ -159,7 +158,7 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
       chars
         ? [...chars]
             .map((c) => ({ ...c, _vn: c.vns.find((v) => v.id === vnId) }))
-            .sort((a, b) => (ROLE_ORDER[a._vn?.role ?? 'appears'] ?? 9) - (ROLE_ORDER[b._vn?.role ?? 'appears'] ?? 9))
+            .sort((a, b) => ROLE_ORDER[a._vn?.role ?? 'appears'] - ROLE_ORDER[b._vn?.role ?? 'appears'])
         : [],
     [chars, vnId],
   );

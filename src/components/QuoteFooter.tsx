@@ -128,12 +128,10 @@ export function QuoteFooter() {
                     // mirrored.
                     <QuoteAvatar quote={quote} size={20} />
                   )}
-                  {quote.character && quote.character.id ? (
+                  {quote.character ? (
                     <Link href={`/character/${quote.character.id}`} className="hover:text-accent">
                       - {quote.character.name}
                     </Link>
-                  ) : quote.character ? (
-                    <span>- {quote.character.name}</span>
                   ) : null}
                   {quote.vn && (
                     <>

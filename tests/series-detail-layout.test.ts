@@ -61,6 +61,10 @@ describe('validateSeriesDetailLayoutV1', () => {
     }
   });
 
+  it('drops non-string order values', () => {
+    expect(validateSeriesDetailLayoutV1({ order: [4, 'works'] }).order[0]).toBe('works');
+  });
+
   it('tolerates a v0 flat shape (no `order` / `sections` wrapper)', () => {
     // Older shape: top-level keys are section ids.
     const out = validateSeriesDetailLayoutV1({
@@ -86,5 +90,6 @@ describe('validateSeriesDetailLayoutV1', () => {
     const json = JSON.stringify(layout);
     const back = parseSeriesDetailLayoutV1(json);
     expect(back).toEqual(layout);
+    expect(parseSeriesDetailLayoutV1(json)).toBe(back);
   });
 });

@@ -67,4 +67,12 @@ describe('dedupAppearances', () => {
     expect(out[0].role).toBe('main');
     expect(out[0].releaseCount).toBe(2);
   });
+
+  it('replaces an existing unknown role when a recognized role arrives', () => {
+    const rows = [
+      mk({ id: 'v9001', role: 'totally-bogus' as VndbCharacterVn['role'] }),
+      mk({ id: 'v9001', role: 'main' }),
+    ];
+    expect(dedupAppearances(rows)[0].role).toBe('main');
+  });
 });

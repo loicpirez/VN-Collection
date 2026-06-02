@@ -17,8 +17,7 @@ interface Props {
 }
 
 /** Resolve a stored relative path (eg "series/foo.png") to the public URL. */
-function toUrl(p: string | null): string | null {
-  if (!p) return null;
+function toUrl(p: string): string {
   if (/^https?:\/\//i.test(p) || p.startsWith('/api/')) return p;
   return `/api/files/${p}`;
 }
@@ -73,7 +72,6 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
   function startMutation(): AbortController | null {
     if (mutationInFlightRef.current) return null;
     const controller = new AbortController();
-    mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
     mutationInFlightRef.current = true;
     return controller;
@@ -85,14 +83,12 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
       && !controller.signal.aborted;
   }
 
-  function finishMutation(ownerSeriesId: number, controller: AbortController) {
+  function finishMutation(controller: AbortController) {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (identityRef.current === ownerSeriesId) {
-      setSaving(false);
-      setUploadingKind(null);
-    }
+    setSaving(false);
+    setUploadingKind(null);
   }
 
   async function onUpload(kind: 'cover' | 'banner', file: File) {
@@ -115,7 +111,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
       if (!ownsMutation(ownerSeriesId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      finishMutation(ownerSeriesId, controller);
+      finishMutation(controller);
     }
   }
 
@@ -144,7 +140,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
       if (!ownsMutation(ownerSeriesId, controller)) return;
       toast.error((e as Error).message);
     } finally {
-      finishMutation(ownerSeriesId, controller);
+      finishMutation(controller);
     }
   }
 
@@ -156,7 +152,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
           <div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-border bg-bg-elev">
             {coverPath ? (
               <SafeImage
-                src={toUrl(coverPath) ?? ''}
+                src={toUrl(coverPath)}
                 alt={t.series.cover}
                 className="h-full w-full"
               />
@@ -224,7 +220,7 @@ export function SeriesMetaEditor({ seriesId, initialName, initialDescription, in
             <div className="relative h-28 overflow-hidden rounded-lg border border-border bg-bg-elev">
               {bannerPath ? (
                 <SafeImage
-                  src={toUrl(bannerPath) ?? ''}
+                  src={toUrl(bannerPath)}
                   alt={t.series.banner}
                   className="h-full w-full"
                 />

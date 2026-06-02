@@ -55,6 +55,11 @@ describe('filterAndGroupTags', () => {
     expect(result.tech.map((t) => t.id)).toEqual(['g3']);
   });
 
+  it('defaults an omitted category to cont', () => {
+    const result = filterAndGroupTags([{ id: 'g5', name: 'Five', rating: 2, spoiler: 0 }], { view: 'all' });
+    expect(result.cont.map((t) => t.id)).toEqual(['g5']);
+  });
+
   // Spoiler tags must never be filtered out of the grouped result —
   // the chip masks them and the operator can reveal individually.
   it('does not drop spoiler tags regardless of mode (chip handles gating)', () => {

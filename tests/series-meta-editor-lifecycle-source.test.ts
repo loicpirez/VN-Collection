@@ -18,7 +18,7 @@ describe('series metadata editor mutation lifecycle', () => {
   it('aborts obsolete series work on identity replacement and teardown', () => {
     expect(EDITOR).toContain('identityRef.current = seriesId');
     expect(EDITOR).toContain('identityRef.current = null');
-    expect(EDITOR).toContain('finishMutation(ownerSeriesId, controller)');
+    expect(EDITOR).toContain('finishMutation(controller)');
   });
 
   it('disables competing editor controls while persistence is active', () => {

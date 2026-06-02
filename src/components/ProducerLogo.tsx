@@ -28,7 +28,7 @@ export function ProducerLogo({ producer, size = 48, className = '' }: Props) {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? '')
+    .map((s) => s[0]!.toUpperCase())
     .join('');
   return (
     <div

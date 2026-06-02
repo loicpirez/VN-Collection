@@ -75,7 +75,7 @@ export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
     setSpoilerMode(levelToSpoilerMode(settings.spoilerLevel));
   }, [settings.spoilerLevel]);
 
-  if (!tags || tags.length === 0) return null;
+  if (tags.length === 0) return null;
   // Tags are no longer filtered by spoiler level - they are always
   // listed and each `<SpoilerChip>` masks itself if the local
   // section threshold is below the tag's spoiler level. The toggle
@@ -84,15 +84,6 @@ export function VnTagsGroupedView({ tags, spoilOverride }: Props) {
   // chip to peek.
   const grouped = filterAndGroupTags(tags, { view });
   const sectionLevel = spoilerModeToLevel(spoilerMode);
-  const total = grouped.cont.length + grouped.ero.length + grouped.tech.length;
-  if (total === 0) {
-    return (
-      <div className="mt-2 rounded-md border border-border bg-bg-elev/30 p-2 text-xs text-muted">
-        {t.vnTags.emptyAfterFilter}
-      </div>
-    );
-  }
-
   return (
     <div className="mt-2 space-y-3">
       <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
