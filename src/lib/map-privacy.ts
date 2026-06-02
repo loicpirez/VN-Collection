@@ -2,7 +2,9 @@ import type { Locale } from './i18n/dictionaries';
 
 export const MAP_EXTERNAL_NETWORK_CONSENT_KEY = 'vncoll.map.external-network.v1';
 export const MAP_EXTERNAL_NETWORK_CHANGED_EVENT = 'vn:map-external-network-change';
+export const MAP_PRIVACY_NOTICE_DISMISSED_KEY = 'vncoll.map.privacy-notice-dismissed.v1';
 let ephemeralConsent = false;
+let ephemeralNoticeDismissed = false;
 
 /** Read whether the operator allowed map-related third-party requests. */
 export function readMapExternalNetworkConsent(): boolean {
@@ -23,6 +25,26 @@ export function writeMapExternalNetworkConsent(enabled: boolean): void {
     window.localStorage.setItem(MAP_EXTERNAL_NETWORK_CONSENT_KEY, String(enabled));
   } catch {}
   window.dispatchEvent(new CustomEvent(MAP_EXTERNAL_NETWORK_CHANGED_EVENT, { detail: enabled }));
+}
+
+/** Read whether the operator collapsed the map privacy explanation. */
+export function readMapPrivacyNoticeDismissed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = window.localStorage.getItem(MAP_PRIVACY_NOTICE_DISMISSED_KEY);
+    return stored == null ? ephemeralNoticeDismissed : stored === 'true';
+  } catch {
+    return ephemeralNoticeDismissed;
+  }
+}
+
+/** Persist the collapsed state for the map privacy explanation. */
+export function writeMapPrivacyNoticeDismissed(dismissed: boolean): void {
+  if (typeof window === 'undefined') return;
+  ephemeralNoticeDismissed = dismissed;
+  try {
+    window.localStorage.setItem(MAP_PRIVACY_NOTICE_DISMISSED_KEY, String(dismissed));
+  } catch {}
 }
 
 /** Build the Nominatim language preference from the active application locale. */

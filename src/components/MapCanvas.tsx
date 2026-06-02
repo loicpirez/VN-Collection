@@ -196,7 +196,7 @@ export function MapCanvas({
   return (
     <div
       ref={containerRef}
-      className={`w-full rounded-xl border border-border overflow-hidden ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
+      className={`relative isolate z-0 w-full overflow-hidden rounded-xl border border-border ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
     />
   );
 }

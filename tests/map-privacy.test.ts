@@ -3,9 +3,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   MAP_EXTERNAL_NETWORK_CONSENT_KEY,
+  MAP_PRIVACY_NOTICE_DISMISSED_KEY,
   geocodingAcceptLanguage,
   readMapExternalNetworkConsent,
+  readMapPrivacyNoticeDismissed,
   writeMapExternalNetworkConsent,
+  writeMapPrivacyNoticeDismissed,
 } from '@/lib/map-privacy';
 
 function source(path: string): string {
@@ -15,8 +18,11 @@ function source(path: string): string {
 describe('map third-party privacy boundary', () => {
   it('defaults to blocked outside the browser and keeps writes safe', () => {
     expect(MAP_EXTERNAL_NETWORK_CONSENT_KEY).toBe('vncoll.map.external-network.v1');
+    expect(MAP_PRIVACY_NOTICE_DISMISSED_KEY).toBe('vncoll.map.privacy-notice-dismissed.v1');
     expect(readMapExternalNetworkConsent()).toBe(false);
+    expect(readMapPrivacyNoticeDismissed()).toBe(false);
     expect(() => writeMapExternalNetworkConsent(true)).not.toThrow();
+    expect(() => writeMapPrivacyNoticeDismissed(true)).not.toThrow();
   });
 
   it('derives Nominatim language preferences from the active locale', () => {
@@ -39,8 +45,20 @@ describe('map third-party privacy boundary', () => {
     expect(modal).toContain("'Accept-Language': geocodingAcceptLanguage(locale)");
     expect(canvas).toContain('if (!externalNetworkAllowed || !containerRef.current || mapRef.current) return;');
     expect(control).toContain("event instanceof CustomEvent && typeof event.detail === 'boolean'");
+    expect(control).toContain('writeMapPrivacyNoticeDismissed(true)');
+    expect(control).toContain('writeMapPrivacyNoticeDismissed(false)');
     expect(mapPage).not.toContain("'Accept-Language': 'ja,en'");
     expect(modal).not.toContain("'Accept-Language': 'ja,en'");
+  });
+
+  it('isolates Leaflet below page overlays and keeps place dialogs above map content', () => {
+    const mapPage = source('src/components/MapPageClient.tsx');
+    const modal = source('src/components/AddEditPlaceModal.tsx');
+    const canvas = source('src/components/MapCanvas.tsx');
+    expect(canvas).toContain('relative isolate z-0 w-full overflow-hidden');
+    expect(mapPage).toContain('className="absolute z-30 mt-1');
+    expect(mapPage).not.toContain('z-[9999]');
+    expect(modal).toContain('className="fixed inset-0 z-[1000]');
   });
 
   it('aborts stale geocoding work and active requests after consent revocation', () => {

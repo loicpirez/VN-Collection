@@ -246,7 +246,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         {searchResults.length > 0 && (
           <ul
             role="listbox"
-            className="absolute z-[9999] mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
+            className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
           >
             {searchResults.map((r, i) => (
               <li key={i} role="option" aria-selected={false}>
