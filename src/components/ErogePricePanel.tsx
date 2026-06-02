@@ -932,9 +932,12 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                   }`}
                 >
                   {isPrimary && (
-                    <Pin
-                      className="-ml-0.5 mr-1 inline-block h-3 w-3 rounded-full bg-accent p-0.5 text-bg"
-                      aria-label={t.erogePrice.manualMatch.primaryBadge} aria-hidden />
+                    <>
+                      <Pin
+                        className="-ml-0.5 mr-1 inline-block h-3 w-3 rounded-full bg-accent p-0.5 text-bg"
+                        aria-hidden />
+                      <span className="sr-only">{t.erogePrice.manualMatch.primaryBadge}</span>
+                    </>
                   )}
                   <span>{c.detail.title}</span>
                   <span className="ml-1.5 text-[10px] opacity-80">

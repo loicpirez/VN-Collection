@@ -486,9 +486,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                           )}
                           {!tr.official && <span className="ml-1 text-[10px] text-muted">/ {t.titles.unofficial}</span>}
                           {tr.main && (
-                            <Star
-                              className="ml-1 inline h-2.5 w-2.5 fill-accent text-accent"
-                              aria-label={t.titles.main} aria-hidden />
+                            <>
+                              <Star
+                                className="ml-1 inline h-2.5 w-2.5 fill-accent text-accent"
+                                aria-hidden />
+                              <span className="sr-only">{t.titles.main}</span>
+                            </>
                           )}
                         </li>
                       ))}

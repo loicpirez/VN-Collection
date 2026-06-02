@@ -167,7 +167,7 @@ export function SpoilerChip({
           >
             {isStillSpoilery && <Lock className="h-2.5 w-2.5 opacity-60" aria-hidden />}
             {children}
-            {lie && <AlertTriangle className="h-2.5 w-2.5" aria-label={t.detail.tagLie} aria-hidden />}
+            {lie && (<><AlertTriangle className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{t.detail.tagLie}</span></>)}
             {level > 0 && !lie && <span className="text-[9px]" aria-hidden>!</span>}
           </Link>
           {wasGatedAndRevealed && (

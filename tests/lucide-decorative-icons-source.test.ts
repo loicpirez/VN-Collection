@@ -30,4 +30,17 @@ describe('Lucide decorative icon contract', () => {
       }
     }
   });
+
+  it('rejects a muted accessible name on a decorative Lucide instance', () => {
+    for (const path of [...walkTsx('src/app'), ...walkTsx('src/components')]) {
+      const body = readFileSync(path, 'utf8');
+      for (const name of localLucideNames(body)) {
+        const uses = body.match(new RegExp(`<${name}(?:\\s[^<>]*?)?\\s*/>`, 'g')) ?? [];
+        for (const use of uses) {
+          if (!/\baria-hidden(?:=|\s|\/>)/.test(use)) continue;
+          expect(use, `${path}: ${use}`).not.toMatch(/\baria-label(?:ledby)?\b/);
+        }
+      }
+    }
+  });
 });

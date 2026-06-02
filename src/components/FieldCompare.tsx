@@ -174,7 +174,7 @@ export function FieldCompare({
                   }`}
                   title={!vndbHas ? t.compare.emptySide : undefined}
                 >
-                  VNDB{!vndbHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} aria-hidden />}
+                  VNDB{!vndbHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
                 </button>
                 <button
                   type="button"
@@ -191,7 +191,7 @@ export function FieldCompare({
                   }`}
                   title={!egsHas ? t.compare.emptySide : undefined}
                 >
-                  EGS{!egsHas && <Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-label={t.compare.emptySide} aria-hidden />}
+                  EGS{!egsHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
                 </button>
               </div>
             )}

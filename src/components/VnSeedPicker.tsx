@@ -351,9 +351,12 @@ export function VnSeedPicker({
               className="input w-full pl-7 pr-7 text-sm"
             />
             {totalLoading && (
-              <Loader2
-                className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted"
-                aria-label={searchingLabel ?? undefined} aria-hidden />
+              <>
+                <Loader2
+                  className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted"
+                  aria-hidden />
+                {searchingLabel && <span className="sr-only">{searchingLabel}</span>}
+              </>
             )}
           </div>
           {open && hits.length === 0 && query.trim().length > 0 && !totalLoading && (

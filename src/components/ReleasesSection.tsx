@@ -84,9 +84,12 @@ const ReleaseRow = memo(function ReleaseRow({
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="flex flex-wrap items-baseline gap-2 text-sm font-bold">
           {isOwned && (
-            <Check
-              className="inline h-3 w-3 shrink-0 text-status-completed"
-              aria-label={t.releases.ownedYes} aria-hidden />
+            <>
+              <Check
+                className="inline h-3 w-3 shrink-0 text-status-completed"
+                aria-hidden />
+              <span className="sr-only">{t.releases.ownedYes}</span>
+            </>
           )}
           <Link href={`/release/${r.id}`} className="hover:text-accent">
             {r.title}
