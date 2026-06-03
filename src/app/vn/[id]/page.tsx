@@ -377,16 +377,18 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         <NotInCollectionBanner vnId={vn.id} />
       )}
 
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-bg-card shadow-card">
-        <HeroBanner
-          vnId={vn.id}
-          src={bannerSrc}
-          customBanner={customBanner}
-          initialPosition={vn.banner_position}
-          initialRotation={vn.banner_rotation}
-          inCollection={inCol}
-          sexual={vn.image_sexual}
-        />
+      <div className="relative rounded-2xl border border-border bg-bg-card shadow-card">
+        <div className="overflow-hidden rounded-t-2xl">
+          <HeroBanner
+            vnId={vn.id}
+            src={bannerSrc}
+            customBanner={customBanner}
+            initialPosition={vn.banner_position}
+            initialRotation={vn.banner_rotation}
+            inCollection={inCol}
+            sexual={vn.image_sexual}
+          />
+        </div>
 
         <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
