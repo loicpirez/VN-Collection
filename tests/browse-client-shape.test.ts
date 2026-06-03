@@ -159,8 +159,10 @@ describe('browse client response adapters', () => {
   it('rejects malformed and oversized flat arrays', () => {
     expect(decodeTagsResponse({ tags: null })).toBeNull();
     expect(decodeTraitsResponse({ traits: null })).toBeNull();
-    expect(decodeTagsResponse({ tags: Array.from({ length: 201 }, () => tag) })).toBeNull();
-    expect(decodeTraitsResponse({ traits: Array.from({ length: 201 }, () => trait) })).toBeNull();
+    expect(decodeTagsResponse({ tags: Array.from({ length: 500 }, () => tag) })).toHaveLength(500);
+    expect(decodeTraitsResponse({ traits: Array.from({ length: 500 }, () => trait) })).toHaveLength(500);
+    expect(decodeTagsResponse({ tags: Array.from({ length: 10001 }, () => tag) })).toBeNull();
+    expect(decodeTraitsResponse({ traits: Array.from({ length: 10001 }, () => trait) })).toBeNull();
     expect(decodeTagsResponse({ tags: [{ ...tag, aliases: null }] })).toBeNull();
   });
 

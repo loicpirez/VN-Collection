@@ -5,6 +5,7 @@ import { isValidVnId, normalizeVnId } from './vn-id-shape';
 
 const MAX_TEXTUAL_HITS = 50;
 const MAX_FLAT_ROWS = 200;
+const MAX_BROWSE_ROWS = 10_000;
 const MAX_TREE_ROWS = 10_000;
 const MAX_TREE_DEPTH = 8;
 const TAG_ID_RE = /^g\d+$/i;
@@ -233,7 +234,7 @@ export function decodeTextualSearchHits(value: unknown): TextualSearchHit[] | nu
  */
 export function decodeTagsResponse(value: unknown): VndbTag[] | null {
   const tags = asJsonRecord(value)?.tags;
-  if (!Array.isArray(tags) || tags.length > MAX_FLAT_ROWS) return null;
+  if (!Array.isArray(tags) || tags.length > MAX_BROWSE_ROWS) return null;
   const out: VndbTag[] = [];
   for (const value of tags) {
     const tag = decodeTag(value);
@@ -251,7 +252,7 @@ export function decodeTagsResponse(value: unknown): VndbTag[] | null {
  */
 export function decodeTraitsResponse(value: unknown): VndbTrait[] | null {
   const traits = asJsonRecord(value)?.traits;
-  if (!Array.isArray(traits) || traits.length > MAX_FLAT_ROWS) return null;
+  if (!Array.isArray(traits) || traits.length > MAX_BROWSE_ROWS) return null;
   const out: VndbTrait[] = [];
   for (const value of traits) {
     const trait = decodeTrait(value);
