@@ -97,6 +97,28 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
           </h1>
           <p className="mt-1 text-sm text-muted">{t.stock.pageSubtitle}</p>
         </div>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={refreshAlicenet}
+            disabled={alicenetRefreshing}
+            aria-busy={alicenetRefreshing}
+            title={t.stock.alicenetRefreshHint as string}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-border bg-bg px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {alicenetRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="h-4 w-4" aria-hidden />
+            )}
+            {alicenetRefreshing ? (t.stock.alicenetRefreshing as string) : (t.stock.alicenetRefresh as string)}
+          </button>
+          {alicenetRefreshing && alicenetProgress && alicenetProgress.total > 0 && (
+            <span className="text-[11px] tabular-nums text-muted" aria-live="polite">
+              {alicenetProgress.done}/{alicenetProgress.total}
+            </span>
+          )}
+        </div>
       </header>
 
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5" aria-labelledby="stock-picker-label">
