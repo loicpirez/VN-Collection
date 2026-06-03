@@ -46,6 +46,30 @@ export const STOCK_PROVIDER_IDS = [
 export type StockProviderId = (typeof STOCK_PROVIDER_IDS)[number];
 
 /**
+ * Canonical id for the AliceNet cached stock provider. AliceNet is a
+ * read-time cached provider whose inventory lives in `alicenet_stock`, so it
+ * is intentionally NOT part of `STOCK_PROVIDER_IDS` (those are live-fetch
+ * providers). Every surface that references the provider id - the read-time
+ * synthesis in `stock.ts` and the place-registry queries in `db.ts` - imports
+ * this constant so the id never drifts between modules.
+ */
+export const ALICENET_PROVIDER_ID = 'alicenet';
+
+/**
+ * Branch / location label stamped on synthesized AliceNet offers. The place
+ * registry links physical shops to provider labels, so this is the value an
+ * operator assigns to a place to surface AliceNet stock there. Shared so the
+ * synthesis and the place queries agree on a single spelling.
+ */
+export const ALICENET_BRANCH_LABEL = 'AliceNet';
+
+/**
+ * Public storefront URL stamped on synthesized AliceNet offers. AliceNet has
+ * no per-item product page, so every offer points at the single stock page.
+ */
+export const ALICENET_STOCK_URL = 'https://www.alice-kobe.com/html/page4.html';
+
+/**
  * Human-readable display label for each provider. Used by the Settings UI
  * and the stock panel chip rendering. Labels are intentionally static
  * strings (not i18n keys) because they are brand names; the surrounding

@@ -354,7 +354,7 @@ export function StockPanel({
   useEffect(() => {
     if (initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
     physicalDefaultRef.current = true;
-    const physicalIds = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
+    const physicalIds = providers.filter((p) => p.physical && !p.disabled).map((p) => p.id);
     if (physicalIds.length > 0) setSelectedProviders(physicalIds);
   }, [initialSnapshot, providers.length]);
 
@@ -365,7 +365,7 @@ export function StockPanel({
     setRefreshing(true);
     setError(null);
 
-    const toCheck = selectedProviders ?? refreshableProviders.map((p) => p.id);
+    const toCheck = (selectedProviders ?? refreshableProviderIds).filter((id) => refreshableProviderSet.has(id));
     setProgress({ done: 0, total: toCheck.length });
     setCurrentProvider(null);
 
@@ -673,8 +673,15 @@ export function StockPanel({
   );
   const refreshableProviders = useMemo(() => providers.filter((p) => p.kind !== 'cached' && !p.disabled), [providers]);
   const refreshableProviderIds = useMemo(() => refreshableProviders.map((p) => p.id), [refreshableProviders]);
-  const selectedProviderIds = selectedProviders ?? refreshableProviderIds;
+  const refreshableProviderSet = useMemo(() => new Set(refreshableProviderIds), [refreshableProviderIds]);
+  const selectableProviders = useMemo(() => providers.filter((p) => !p.disabled), [providers]);
+  const selectableProviderIds = useMemo(() => selectableProviders.map((p) => p.id), [selectableProviders]);
+  const selectedProviderIds = selectedProviders ?? selectableProviderIds;
   const selectedProviderSet = useMemo(() => new Set(selectedProviderIds), [selectedProviderIds]);
+  const refreshSelectionCount = useMemo(
+    () => selectedProviderIds.filter((id) => refreshableProviderSet.has(id)).length,
+    [selectedProviderIds, refreshableProviderSet],
+  );
   const statusByProvider = useMemo(
     () => new Map((snapshot?.statuses ?? []).map((s) => [s.provider, s])),
     [snapshot?.statuses],
@@ -698,7 +705,7 @@ export function StockPanel({
   const diagnosticByProvider = useMemo(() => new Map(diagnostics.map((diag) => [diag.provider, diag])), [diagnostics]);
 
   const physicalProviderIds = useMemo(
-    () => new Set(providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id)),
+    () => new Set(providers.filter((p) => p.physical && !p.disabled).map((p) => p.id)),
     [providers],
   );
   const isPhysicalSelection = useMemo(
@@ -764,7 +771,7 @@ export function StockPanel({
       return;
     }
     if (kind === 'physical') {
-      const ids = providers.filter((p) => p.physical && p.kind !== 'cached').map((p) => p.id);
+      const ids = providers.filter((p) => p.physical && !p.disabled).map((p) => p.id);
       if (ids.length > 0) setSelectedProviders(ids);
       return;
     }
@@ -795,21 +802,21 @@ export function StockPanel({
   const toggleProvider = useCallback(
     (id: string) => {
       setSelectedProviders((prev) => {
-        const next = new Set(prev ?? refreshableProviderIds);
+        const next = new Set(prev ?? selectableProviderIds);
         if (next.has(id)) next.delete(id);
         else next.add(id);
         if (next.size === 0) return prev;
-        const values = refreshableProviderIds.filter((pid) => next.has(pid));
-        return values.length === refreshableProviderIds.length ? null : values;
+        const values = selectableProviderIds.filter((pid) => next.has(pid));
+        return values.length === selectableProviderIds.length ? null : values;
       });
     },
-    [refreshableProviderIds],
+    [selectableProviderIds],
   );
 
   const checkButtonLabel = refreshing
     ? t.stock.checkingProviders.replace(
         '{count}',
-        progress ? `${progress.done}/${progress.total}` : String(selectedProviderIds.length || refreshableProviders.length),
+        progress ? `${progress.done}/${progress.total}` : String(refreshSelectionCount || refreshableProviders.length),
       )
     : isPhysicalSelection
       ? t.stock.checkPhysical
@@ -893,7 +900,7 @@ export function StockPanel({
           <button
             type="button"
             onClick={refresh}
-            disabled={refreshing || (selectedProviders != null && selectedProviders.length === 0)}
+            disabled={refreshing || refreshSelectionCount === 0}
             className="btn btn-primary min-h-[44px]"
             aria-busy={refreshing}
           >
@@ -920,7 +927,7 @@ export function StockPanel({
             <span className="text-[11px] text-muted">
               {t.stock.providerSelectedCount
                 .replace('{selected}', String(selectedProviderIds.length))
-                .replace('{total}', String(refreshableProviders.length))}
+                .replace('{total}', String(selectableProviders.length))}
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
           </summary>
@@ -966,7 +973,8 @@ export function StockPanel({
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label={t.stock.providers}>
             {providers.map((provider) => {
-              const selectable = provider.kind !== 'cached' && !provider.disabled;
+              const selectable = !provider.disabled;
+              const refreshable = refreshableProviderSet.has(provider.id);
               const status = statusByProvider.get(provider.id);
               return (
                 <ProviderTile
@@ -976,6 +984,7 @@ export function StockPanel({
                   count={offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0}
                   diagnostic={diagnosticByProvider.get(provider.id)}
                   selectable={selectable}
+                  refreshable={refreshable}
                   selected={selectable ? selectedProviderSet.has(provider.id) : false}
                   refreshing={refreshing}
                   isRefreshingThis={refreshing && currentProvider === provider.id}
@@ -1502,6 +1511,7 @@ const ProviderTile = memo(function ProviderTile({
   count,
   diagnostic,
   selectable,
+  refreshable,
   selected,
   refreshing,
   isRefreshingThis,
@@ -1515,6 +1525,7 @@ const ProviderTile = memo(function ProviderTile({
   count: number;
   diagnostic: NormalizedProviderDiagnostic | undefined;
   selectable: boolean;
+  refreshable: boolean;
   selected: boolean;
   refreshing: boolean;
   isRefreshingThis: boolean;
@@ -1527,7 +1538,7 @@ const ProviderTile = memo(function ProviderTile({
   const capabilityLabel = providerCapabilityText(t, provider);
   const lastChecked = status?.fetched_at ? timeAgo(status.fetched_at, t) : null;
   const lastCheckedFull = status?.fetched_at ? fmtDate(new Date(status.fetched_at), locale) : null;
-  const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel ?? (selectable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
+  const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel ?? (refreshable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
   const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
   const tooltipParts: string[] = [];
   if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
@@ -1580,7 +1591,7 @@ const ProviderTile = memo(function ProviderTile({
           )}
         </span>
       </button>
-      {selectable && (
+      {refreshable && (
         <button
           type="button"
           onClick={(e) => {

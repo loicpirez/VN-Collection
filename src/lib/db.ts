@@ -33,7 +33,7 @@ import {
   type AspectKey,
 } from './aspect-ratio';
 import { decodeStoredExtras, type ErogePriceExtrasV1 } from './erogeprice-meta';
-import { STOCK_PROVIDER_IDS, type StockProviderId } from './stock-provider-constants';
+import { ALICENET_BRANCH_LABEL, ALICENET_PROVIDER_ID, ALICENET_STOCK_URL, ONLINE_STOCK_SENTINEL, STOCK_PROVIDER_IDS, type StockProviderId } from './stock-provider-constants';
 import { decodeVndbCharacter } from './vndb-character-row-shape';
 import type { VndbCharacter } from './vndb';
 import { decodeVndbRelease } from './vndb-release-shape';
@@ -7678,6 +7678,64 @@ export function listKnownPlaces(): string[] {
 
 // Place registry
 
+/**
+ * SQL integer-yen extraction for an AliceNet price string, mirroring
+ * `parsePriceYen` in `stock.ts` so the place views and the per-VN panel agree
+ * on every price. AliceNet stores prices as display strings (for example
+ * `5,000円`). A value is parsed only when it carries a yen marker (`円`, `¥`,
+ * or `￥`) and the digits-and-grouping remainder casts to a positive integer.
+ * Anything else yields NULL, so the place views never fabricate a price from
+ * an unparseable or marker-less cell.
+ */
+const ALICENET_PRICE_SQL = (() => {
+  const src = "COALESCE(NULLIF(k.sale_price, ''), NULLIF(k.list_price, ''))";
+  const hasYenMarker = `(${src} GLOB '*円*' OR ${src} GLOB '*¥*' OR ${src} GLOB '*￥*')`;
+  const digits = `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${src}, ''), ',', ''), '円', ''), '¥', ''), '￥', ''), ' ', '')`;
+  return `
+    CASE
+      WHEN ${hasYenMarker}
+        AND ${digits} GLOB '[0-9]*'
+        AND ${digits} NOT GLOB '*[^0-9]*'
+        AND CAST(${digits} AS INTEGER) > 0
+      THEN CAST(${digits} AS INTEGER)
+      ELSE NULL
+    END
+  `.trim();
+})();
+
+/**
+ * Combined physical-stock offer source for the place-registry views. UNIONs
+ * the persisted `vn_stock_offer` rows with the read-time AliceNet offers that
+ * `getStockForVn` synthesizes from `alicenet_stock`, so a place linked to the
+ * AliceNet branch surfaces its cached stock consistently with the per-VN
+ * panel. Only AliceNet rows already matched to a VN are included, matching the
+ * synthesis which keys offers on a resolved `vn_id`.
+ *
+ * Every column the place queries read (`vn_id`, `provider`, `availability`,
+ * `price`, `currency`, `url`, `location_branch`, `location_label`,
+ * `updated_at`) is projected by both arms so callers can treat the union like
+ * a single offer table.
+ */
+const PLACE_STOCK_OFFER_SOURCE = `
+  SELECT
+    vn_id, provider, availability, price, currency, url,
+    location_branch, location_label, updated_at
+  FROM vn_stock_offer
+  UNION ALL
+  SELECT
+    k.vn_id AS vn_id,
+    '${ALICENET_PROVIDER_ID}' AS provider,
+    'in_stock' AS availability,
+    ${ALICENET_PRICE_SQL} AS price,
+    'JPY' AS currency,
+    '${ALICENET_STOCK_URL}' AS url,
+    '${ALICENET_BRANCH_LABEL}' AS location_branch,
+    '${ALICENET_BRANCH_LABEL}' AS location_label,
+    k.updated_at AS updated_at
+  FROM alicenet_stock k
+  WHERE k.vn_id IS NOT NULL
+`;
+
 export interface PlaceRow {
   id: number;
   name: string;
@@ -7714,7 +7772,7 @@ export function listPlaces(): PlaceWithLinks[] {
       WITH stock_by_place AS (
         SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
         FROM place_provider_link ppl2
-        JOIN vn_stock_offer vso ON (
+        JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
           vso.location_branch = ppl2.provider_label
           OR vso.location_label = ppl2.provider_label
         )
@@ -7745,7 +7803,7 @@ export function getPlace(id: number): PlaceWithLinks | null {
       WITH stock_by_place AS (
         SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
         FROM place_provider_link ppl2
-        JOIN vn_stock_offer vso ON (
+        JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
           vso.location_branch = ppl2.provider_label
           OR vso.location_label = ppl2.provider_label
         )
@@ -7853,7 +7911,10 @@ export function listUnassignedBranches(): string[] {
         FROM vn_stock_offer
         WHERE location_label IS NOT NULL
           AND location_label != ''
-          AND location_label != '__online_stock__'
+          AND location_label != ?
+        UNION
+        SELECT ? AS label
+        WHERE EXISTS (SELECT 1 FROM alicenet_stock WHERE vn_id IS NOT NULL)
       )
       WHERE NOT EXISTS (
         SELECT 1 FROM place_provider_link ppl
@@ -7861,7 +7922,7 @@ export function listUnassignedBranches(): string[] {
       )
       ORDER BY label COLLATE NOCASE ASC
     `)
-    .all() as { label: string }[];
+    .all(ONLINE_STOCK_SENTINEL, ALICENET_BRANCH_LABEL) as { label: string }[];
   return rows.map((r) => r.label);
 }
 
@@ -7950,7 +8011,7 @@ export function listPlaceVnsEnhanced(placeId: number): PlaceVnRow[] {
         SUM(CASE WHEN vso.availability IN ('in_stock', 'limited') THEN 1 ELSE 0 END) AS in_stock_count,
         SUM(CASE WHEN vso.availability = 'out_of_stock' THEN 1 ELSE 0 END) AS out_of_stock_count,
         MAX(vso.updated_at) AS max_updated_at
-      FROM vn_stock_offer vso
+      FROM (${PLACE_STOCK_OFFER_SOURCE}) vso
       JOIN place_provider_link ppl ON (
         ppl.provider_label = vso.location_branch
         OR ppl.provider_label = vso.location_label
@@ -7997,7 +8058,7 @@ export function listVnsAtPlace(
         MIN(vso.price) AS min_price,
         COUNT(*) AS offer_count,
         MAX(vso.updated_at) AS max_updated_at
-      FROM vn_stock_offer vso
+      FROM (${PLACE_STOCK_OFFER_SOURCE}) vso
       JOIN place_provider_link ppl ON (
         ppl.provider_label = vso.location_branch
         OR ppl.provider_label = vso.location_label
@@ -8037,7 +8098,7 @@ export function listOffersAtPlace(
         vso.location_branch,
         vso.location_label,
         vso.updated_at
-      FROM vn_stock_offer vso
+      FROM (${PLACE_STOCK_OFFER_SOURCE}) vso
       JOIN place_provider_link ppl ON (
         ppl.provider_label = vso.location_branch
         OR ppl.provider_label = vso.location_label

@@ -348,7 +348,10 @@ describe('StockPanel', () => {
     fireEvent.click(screen.getByText(t.stock.providers as string));
 
     expect(screen.getByText(t.stock.providerCapabilities.cached_offers as string)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Cached Inventory:/ }).getAttribute('aria-pressed')).toBe('false');
+    // Cached providers (AliceNet et al.) are selectable like any other source;
+    // with the default null selection every selectable tile is pressed.
+    expect(screen.getByRole('button', { name: /Cached Inventory:/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Cached Inventory:/ }).hasAttribute('disabled')).toBe(false);
     expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.janLookup as string)).length).toBeGreaterThan(0);
     expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.limited as string)).length).toBeGreaterThan(0);
     expect(screen.getAllByText((content) => content.includes(t.stock.providerCapabilities.manualOnly as string)).length).toBeGreaterThan(0);
@@ -377,6 +380,57 @@ describe('StockPanel', () => {
     // The router-side POST body targets exactly this one provider.
     const post = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[1]?.method === 'POST');
     expect(JSON.parse(String(post![1].body))).toEqual({ providers: ['surugaya'] });
+  });
+
+  it('treats a cached provider (AliceNet) as selectable but never refreshable', async () => {
+    const onPost = vi.fn(() => json(snapshot()));
+    const snap = snapshot({
+      offers: [],
+      providers: [
+        provider({ id: 'surugaya', label: 'Studio X Shop', kind: 'direct', physical: true }),
+        provider({
+          id: 'alicenet',
+          label: 'AliceNet',
+          kind: 'cached',
+          lookupCapabilities: ['cached_inventory'],
+          resultCapability: 'cached_offers',
+          physical: true,
+          physicalStockMode: 'exact_cached',
+          confirmedPhysicalUsable: true,
+        }),
+      ],
+      statuses: [],
+      summary: { total: 0, available: 0, best_price: null, related_available: 0, needs_review: 0, rejected: 0, last_refresh: null },
+    });
+    global.fetch = routeFetch({ snapshot: snap, onPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+
+    // The AliceNet tile is an enabled, selectable checkbox button.
+    const aliceTile = screen.getByRole('button', { name: /^AliceNet:/ });
+    expect(aliceTile.hasAttribute('disabled')).toBe(false);
+    expect(aliceTile.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(aliceTile);
+    expect(aliceTile.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(aliceTile);
+    expect(aliceTile.getAttribute('aria-pressed')).toBe('true');
+
+    // Cached providers expose no per-tile live refresh affordance.
+    expect(
+      screen.queryByRole('button', {
+        name: (t.stock.refreshOnlyProvider as string).replace('{provider}', 'AliceNet'),
+      }),
+    ).toBeNull();
+
+    // A bulk refresh with AliceNet selected never POSTs the cached provider.
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.check as string) }));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    const postedProviders = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => c[1]?.method === 'POST' && String(c[0]).endsWith('/stock'))
+      .flatMap((c) => JSON.parse(String(c[1].body)).providers as string[]);
+    expect(postedProviders.length).toBeGreaterThan(0);
+    expect(postedProviders).toContain('surugaya');
+    expect(postedProviders).not.toContain('alicenet');
   });
 
   it('adds an alias from a suggestion and shows the success toast', async () => {

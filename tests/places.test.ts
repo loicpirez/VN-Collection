@@ -22,6 +22,8 @@ import {
   getPlaceProviderMap,
   linkProviderToPlace,
   listBranchesAtOtherPlaces,
+  listOffersAtPlace,
+  listPlaceVnsEnhanced,
   listPlaces,
   listUnassignedBranches,
   listVnsAtPlace,
@@ -29,16 +31,39 @@ import {
   unlinkProviderFromPlace,
   updatePlace,
 } from '@/lib/db';
+import { ALICENET_BRANCH_LABEL } from '@/lib/stock-provider-constants';
 
 const PLACE_NAME_PREFIX = '__test_place_';
 const VN_ID_A = 'v90001';
 const VN_ID_B = 'v90002';
+const ALICENET_CODE = '901-000001-001';
 
 function resetFixtures(): void {
   db.prepare(`DELETE FROM place_provider_link WHERE place_id IN (SELECT id FROM place_registry WHERE name LIKE '${PLACE_NAME_PREFIX}%')`).run();
   db.prepare(`DELETE FROM place_registry WHERE name LIKE '${PLACE_NAME_PREFIX}%'`).run();
   db.prepare(`DELETE FROM vn_stock_offer WHERE vn_id IN (?, ?)`).run(VN_ID_A, VN_ID_B);
+  db.prepare(`DELETE FROM alicenet_stock WHERE code = ?`).run(ALICENET_CODE);
   db.prepare(`DELETE FROM vn WHERE id IN (?, ?)`).run(VN_ID_A, VN_ID_B);
+}
+
+/** Insert one AliceNet stock row matched to a VN, mirroring the sync path. */
+function seedAlicenetStock(opts: { code: string; vnId: string | null; salePrice?: string | null }): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO alicenet_stock (code, title, jan, list_price, sale_price, vn_id, vn_match_source, fetched_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(code) DO UPDATE SET vn_id = excluded.vn_id, sale_price = excluded.sale_price
+  `).run(
+    opts.code,
+    'used game',
+    '4900000000001',
+    '5,000円',
+    opts.salePrice ?? '3,200円',
+    opts.vnId,
+    opts.vnId ? 'manual' : 'none',
+    now,
+    now,
+  );
 }
 
 function seedVn(id: string, title: string): void {
@@ -304,5 +329,87 @@ describe('listBranchesAtOtherPlaces', () => {
     const seenFromA = listBranchesAtOtherPlaces(a);
     expect(seenFromA.find((r) => r.provider_label === 'BranchB')).toBeTruthy();
     expect(seenFromA.find((r) => r.provider_label === 'BranchA')).toBeFalsy();
+  });
+});
+
+describe('AliceNet as a place-assignable cached provider', () => {
+  beforeEach(resetFixtures);
+  afterEach(resetFixtures);
+
+  it('lists the AliceNet branch as assignable when a matched row exists', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    expect(listUnassignedBranches()).toContain(ALICENET_BRANCH_LABEL);
+  });
+
+  it('does not list the AliceNet branch when no matched row exists', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: null });
+    expect(listUnassignedBranches()).not.toContain(ALICENET_BRANCH_LABEL);
+  });
+
+  it('drops the AliceNet branch from unassigned once it is linked to a place', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice` });
+    linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
+    expect(listUnassignedBranches()).not.toContain(ALICENET_BRANCH_LABEL);
+  });
+
+  it('counts AliceNet stock in the place stock_count', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_count` });
+    linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
+    expect(getPlace(id)!.stock_count).toBe(1);
+    expect(listPlaces().find((p) => p.id === id)!.stock_count).toBe(1);
+  });
+
+  it('surfaces AliceNet stock through listVnsAtPlace with the parsed yen price', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A, salePrice: '3,200円' });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_vns` });
+    linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
+    const vns = listVnsAtPlace(id);
+    expect(vns).toHaveLength(1);
+    expect(vns[0].vn_id).toBe(VN_ID_A);
+    expect(vns[0].min_price).toBe(3200);
+    expect(vns[0].offer_count).toBe(1);
+  });
+
+  it('surfaces an AliceNet offer row through listOffersAtPlace', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_offers` });
+    linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
+    const offers = listOffersAtPlace(id, 'all');
+    const alice = offers.find((o) => o.provider === 'alicenet');
+    expect(alice).toBeDefined();
+    expect(alice!.vn_id).toBe(VN_ID_A);
+    expect(alice!.availability).toBe('in_stock');
+    expect(alice!.location_branch).toBe(ALICENET_BRANCH_LABEL);
+    expect(alice!.price).toBe(3200);
+  });
+
+  it('includes AliceNet in the enhanced place browser rows', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_enh` });
+    linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
+    const rows = listPlaceVnsEnhanced(id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vn_id).toBe(VN_ID_A);
+    expect(rows[0].in_stock_count).toBe(1);
+    expect(rows[0].min_price).toBe(3200);
+  });
+
+  it('does not surface AliceNet stock at places linked to other branches', () => {
+    seedVn(VN_ID_A, 'Game A');
+    seedAlicenetStock({ code: ALICENET_CODE, vnId: VN_ID_A });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_other` });
+    linkProviderToPlace(id, 'SomeOtherBranch');
+    expect(getPlace(id)!.stock_count).toBe(0);
+    expect(listVnsAtPlace(id)).toHaveLength(0);
+    expect(listOffersAtPlace(id, 'all').find((o) => o.provider === 'alicenet')).toBeUndefined();
   });
 });
