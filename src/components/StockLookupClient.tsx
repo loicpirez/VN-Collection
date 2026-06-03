@@ -1,8 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingBag } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { useToast } from './ToastProvider';
+import { runAliceNetWholeRefresh, type AliceNetRefreshProgress } from '@/lib/alicenet-pipeline';
 import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 import { StockPanelBoundary } from './StockPanelBoundary';
@@ -14,8 +16,12 @@ import { decodeVnTitleResponse } from '@/lib/vn-summary-client-shape';
 export function StockLookupClient({ initialVnId }: { initialVnId: string | null }) {
   const t = useT();
   const router = useRouter();
+  const toast = useToast();
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null);
   const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
+  const [alicenetRefreshing, setAlicenetRefreshing] = useState(false);
+  const [alicenetProgress, setAlicenetProgress] = useState<AliceNetRefreshProgress | null>(null);
+  const alicenetAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -49,6 +55,33 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
       });
     return () => ctrl.abort();
   }, [initialVnId, t.common.error]);
+
+  useEffect(() => () => alicenetAbortRef.current?.abort(), []);
+
+  async function refreshAlicenet() {
+    if (alicenetRefreshing) return;
+    const ctrl = new AbortController();
+    alicenetAbortRef.current = ctrl;
+    setAlicenetRefreshing(true);
+    setAlicenetProgress(null);
+    try {
+      const result = await runAliceNetWholeRefresh({
+        errorFallback: t.common.error,
+        signal: ctrl.signal,
+        onProgress: (p) => setAlicenetProgress(p),
+      });
+      if (ctrl.signal.aborted) return;
+      toast.success((t.stock.alicenetRefreshDone as string).replace('{matched}', String(result.matched)));
+      router.refresh();
+    } catch (e) {
+      if (ctrl.signal.aborted || (e as Error).name === 'AbortError') return;
+      toast.error(`${t.stock.alicenetRefresh as string}: ${(e as Error).message}`);
+    } finally {
+      if (alicenetAbortRef.current === ctrl) alicenetAbortRef.current = null;
+      setAlicenetRefreshing(false);
+      setAlicenetProgress(null);
+    }
+  }
 
   function handlePick(hit: VnPickerHit) {
     router.push(`/stock?vn=${encodeURIComponent(hit.id)}`);
