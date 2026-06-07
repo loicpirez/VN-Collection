@@ -1,5 +1,6 @@
 import 'server-only';
 import { getAppSetting, setAppSetting } from './db';
+import { ALICENET_PROVIDER_ID } from './stock-provider-constants';
 
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
 /**
@@ -39,11 +40,12 @@ export interface ProxyDisplayConfig {
 
 export const PROXY_PASSWORD_MASK = '••••••••';
 
-const ENV_PREFIX: Record<ProviderId, string> = {
+type EnvBackedProviderId = Exclude<ProviderId, 'alicenet'>;
+
+const ENV_PREFIX: Record<EnvBackedProviderId, string> = {
   vndb: 'VNDB',
   vndbmirror: 'VNDBMIRROR',
   egs: 'EGS',
-  alicenet: 'ALICENET',
   stock: 'STOCK',
 };
 
@@ -99,22 +101,22 @@ function readDbConfigByKey(key: string): StoredProxyConfig {
   }
 }
 
-function resolveFromStored(envPrefix: string, db: StoredProxyConfig): ProxyConfig | null {
-  const enabledEnv = process.env[`${envPrefix}_PROXY_ENABLED`];
+function resolveFromStored(envPrefix: string | null, db: StoredProxyConfig): ProxyConfig | null {
+  const enabledEnv = envPrefix ? process.env[`${envPrefix}_PROXY_ENABLED`] : undefined;
   const enabled =
     enabledEnv != null
       ? enabledEnv === 'true' || enabledEnv === '1'
       : db.enabled === true;
   if (!enabled) return null;
-  const host = process.env[`${envPrefix}_PROXY_HOST`] ?? db.host ?? '';
+  const host = (envPrefix ? process.env[`${envPrefix}_PROXY_HOST`] : undefined) ?? db.host ?? '';
   if (!host) return null;
-  const portStr = process.env[`${envPrefix}_PROXY_PORT`] ?? String(db.port ?? '');
+  const portStr = (envPrefix ? process.env[`${envPrefix}_PROXY_PORT`] : undefined) ?? String(db.port ?? '');
   const port = Number(portStr);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
-  const rawProtocol = process.env[`${envPrefix}_PROXY_PROTOCOL`] ?? db.protocol ?? 'socks5h';
+  const rawProtocol = (envPrefix ? process.env[`${envPrefix}_PROXY_PROTOCOL`] : undefined) ?? db.protocol ?? 'socks5h';
   if (!VALID_PROTOCOLS.has(rawProtocol)) return null;
-  const username = process.env[`${envPrefix}_PROXY_USERNAME`] ?? db.username ?? null;
-  const password = process.env[`${envPrefix}_PROXY_PASSWORD`] ?? db.password ?? null;
+  const username = (envPrefix ? process.env[`${envPrefix}_PROXY_USERNAME`] : undefined) ?? db.username ?? null;
+  const password = (envPrefix ? process.env[`${envPrefix}_PROXY_PASSWORD`] : undefined) ?? db.password ?? null;
   return {
     protocol: rawProtocol as ProxyProtocol,
     host,
@@ -126,19 +128,26 @@ function resolveFromStored(envPrefix: string, db: StoredProxyConfig): ProxyConfi
 
 /**
  * Resolves the active proxy configuration for a provider.
- * Env vars take priority over DB settings. Returns null when disabled or incomplete.
+ * Env vars take priority over DB settings for fixed network providers.
+ * AliceNet is stock-owned and intentionally ignores direct proxy resolution.
+ * Returns null when disabled or incomplete.
  * Never logs the returned config — it contains credentials.
  */
 export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
-  return resolveFromStored(ENV_PREFIX[provider], readDbConfig(provider));
+  if (provider === ALICENET_PROVIDER_ID) return null;
+  const envPrefix = ENV_PREFIX[provider as EnvBackedProviderId];
+  return resolveFromStored(envPrefix, readDbConfig(provider));
 }
 
 /**
  * Two-tier proxy resolution for stock providers:
- *   1. Per-shop override at `<providerId>_proxy_config` (env prefix
- *      `<PROVIDERID>_PROXY_*`), if enabled.
- *   2. Generic `stock_proxy_config` (env prefix `STOCK_PROXY_*`), if enabled.
+ *   1. Per-shop override at `<providerId>_proxy_config`, if enabled.
+ *   2. Generic `stock_proxy_config`, if enabled.
  *   3. null — direct connection.
+ *
+ * AliceNet is a cached stock provider, but it only uses the stored
+ * `stock_proxy_config` row. It intentionally ignores direct AliceNet
+ * settings and fixed-provider stock environment settings.
  *
  * The two-tier system lets the operator route ONE bot-blocked shop
  * (AmiAmi, Suruga-ya, GEO) through a separate proxy without having to
@@ -147,6 +156,9 @@ export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
 export function resolveStockProviderProxy(providerId: StockProxyProviderId): ProxyConfig | null {
   // Sanity-check the provider id so we never look up arbitrary keys.
   if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return resolveProxyConfig('stock');
+  if (providerId === ALICENET_PROVIDER_ID) {
+    return resolveFromStored(null, readDbConfig('stock'));
+  }
   const envPrefix = providerId.toUpperCase();
   const dbKey = `${providerId}_proxy_config`;
   const perShop = resolveFromStored(envPrefix, readDbConfigByKey(dbKey));
@@ -176,6 +188,16 @@ export function buildProxyUrl(config: ProxyConfig): string {
 
 /** Returns the stored proxy settings for display (password masked). */
 export function getProxyConfigForDisplay(provider: ProviderId): ProxyDisplayConfig {
+  if (provider === ALICENET_PROVIDER_ID) {
+    return {
+      enabled: false,
+      protocol: 'socks5h',
+      host: '',
+      port: null,
+      username: '',
+      hasPassword: false,
+    };
+  }
   const db = readDbConfig(provider);
   return {
     enabled: db.enabled === true,
@@ -232,6 +254,7 @@ export function saveProxyConfig(
   provider: ProviderId,
   patch: Record<string, unknown>,
 ): string | null {
+  if (provider === ALICENET_PROVIDER_ID) return 'AliceNet proxy is configured through stock_proxy_config';
   const existing = readDbConfig(provider);
   const next: StoredProxyConfig = { ...existing };
 

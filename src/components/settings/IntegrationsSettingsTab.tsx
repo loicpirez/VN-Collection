@@ -37,7 +37,7 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
   const [pwDraft, setPwDraft] = useState('');
   const [pwFocused, setPwFocused] = useState(false);
   const pwInputRef = useRef<HTMLInputElement | null>(null);
-  const [testResult, setTestResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: true; ms: number } | { ok: false; error: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const testAbortRef = useRef<AbortController | null>(null);
   const testInFlightRef = useRef(false);
@@ -263,8 +263,8 @@ function ProxySettingsSection({ t, providerKey, providerId, label, config, onSav
               className={`text-[10px] ${testResult.ok ? 'text-status-completed' : 'text-status-dropped'}`}
             >
               {testResult.ok
-                ? t.settings.proxyTestOk.replace('{ms}', String(testResult.ms ?? 0))
-                : t.settings.proxyTestFail.replace('{error}', testResult.error ?? '')}
+                ? t.settings.proxyTestOk.replace('{ms}', String(testResult.ms))
+                : t.settings.proxyTestFail.replace('{error}', testResult.error)}
             </span>
           )}
         </div>
@@ -500,14 +500,6 @@ export function IntegrationsSettingsTab({
         label={t.settings.proxyProviderVndbmirror}
         config={server?.vndbmirror_proxy_config}
         onSave={(patch) => saveServer({ vndbmirror_proxy_config: patch })}
-      />
-      <ProxySettingsSection
-        t={t}
-        providerKey="alicenet_proxy_config"
-        providerId="alicenet"
-        label={t.settings.proxyProviderAliceNet}
-        config={server?.alicenet_proxy_config}
-        onSave={(patch) => saveServer({ alicenet_proxy_config: patch })}
       />
       <ProxySettingsSection
         t={t}

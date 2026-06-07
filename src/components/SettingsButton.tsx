@@ -104,7 +104,6 @@ export type ServerSettingsPatch = Partial<{
     vndb_proxy_config: Record<string, unknown>;
     vndbmirror_proxy_config: Record<string, unknown>;
     egs_proxy_config: Record<string, unknown>;
-    alicenet_proxy_config: Record<string, unknown>;
     stock_proxy_config: Record<string, unknown>;
     stock_disabled_providers: string[] | null;
     stock_retry_without_proxy: boolean;
@@ -146,7 +145,6 @@ export function SettingsButton() {
   const mountedRef = useRef(true);
 
   const loadServer = useCallback(async () => {
-    if (!mountedRef.current) return;
     loadAbortRef.current?.abort();
     const ac = new AbortController();
     loadAbortRef.current = ac;
@@ -171,7 +169,7 @@ export function SettingsButton() {
       pullAbortRef.current?.abort();
       pullAbortRef.current = null;
       pullInFlightRef.current = false;
-      if (mountedRef.current) setPulling(false);
+      setPulling(false);
     };
   }, [open, loadServer]);
 
@@ -211,13 +209,13 @@ export function SettingsButton() {
         if (saveAbortRef.current === controller) saveAbortRef.current = null;
       }
     });
-    saveQueueRef.current = task.then(() => undefined, () => undefined);
+    saveQueueRef.current = task.then(() => undefined);
     return task;
   }
 
   async function onSaveToken() {
     setSavingToken(true);
-    const saved = await saveServer({ vndb_token: tokenInput.trim() || null });
+    const saved = await saveServer({ vndb_token: tokenInput.trim() });
     if (!mountedRef.current) return;
     setSavingToken(false);
     if (saved) setTokenInput('');
@@ -239,7 +237,7 @@ export function SettingsButton() {
         throw new Error(data?.message ?? t.common.error);
       }
       if (!mountedRef.current || pullAbortRef.current !== controller || controller.signal.aborted) return;
-      toast.success(`${t.settings.vndbPullDone} (${data.updated ?? 0}/${data.scanned ?? 0})`);
+      toast.success(`${t.settings.vndbPullDone} (${data.updated}/${data.scanned})`);
       setPullDiff({
         scanned: data.scanned,
         updated: data.updated,
@@ -258,7 +256,7 @@ export function SettingsButton() {
       if (pullAbortRef.current === controller) {
         pullAbortRef.current = null;
         pullInFlightRef.current = false;
-        if (mountedRef.current) setPulling(false);
+        setPulling(false);
       }
     }
   }

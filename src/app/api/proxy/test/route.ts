@@ -7,7 +7,7 @@ import {
   resolveStockProviderProxy,
   type ProviderId,
 } from '@/lib/proxy-config';
-import { STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock-provider-constants';
+import { ALICENET_PROVIDER_ID, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock-provider-constants';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { tooManyRequests } from '@/lib/rate-limit-response';
 
@@ -56,7 +56,7 @@ const STOCK_SHOP_TEST_URLS: Record<StockProviderId, string> = {
   bikkuri_takarajima: 'https://beak-takarajima.celosia.co.jp/',
 };
 
-const FIXED_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'alicenet', 'stock']);
+const FIXED_PROVIDERS = new Set<string>(['vndb', 'vndbmirror', 'egs', 'stock']);
 const STOCK_PROVIDERS = new Set<string>(STOCK_PROVIDER_IDS);
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -92,13 +92,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // stock proxy IS set, IF the per-shop override is what the user just
   // enabled. That's the intended semantic — the user wants to verify
   // their per-shop config end-to-end.
-  if (STOCK_PROVIDERS.has(provider)) {
-    const shopId = provider as StockProviderId;
+  if (STOCK_PROVIDERS.has(provider) || provider === ALICENET_PROVIDER_ID) {
+    const shopId = provider as StockProviderId | typeof ALICENET_PROVIDER_ID;
     const config = resolveStockProviderProxy(shopId);
     if (!config) {
       return NextResponse.json(
         { error: 'proxy is not configured or disabled for this provider' },
         { status: 400 },
+      );
+    }
+    if (shopId === ALICENET_PROVIDER_ID) {
+      return runProbe(PROVIDER_TEST_URLS.alicenet, (url, init) =>
+        stockProviderFetch(url, init, shopId),
       );
     }
     return runProbe(STOCK_SHOP_TEST_URLS[shopId], (url, init) =>
