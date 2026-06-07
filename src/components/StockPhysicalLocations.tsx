@@ -81,11 +81,15 @@ export function StockPhysicalLocations({
       map.set(key, list);
     }
     return [...map.entries()]
-      .map(([branch, list]) => ({ branch, offers: [...list].sort(sortKey) }))
+      .map(([branch, list]) => {
+        let minPrice = Number.MAX_SAFE_INTEGER;
+        for (const offer of list) {
+          if (offer.price != null && offer.price < minPrice) minPrice = offer.price;
+        }
+        return { branch, offers: [...list].sort(sortKey), minPrice };
+      })
       .sort((a, b) => {
-        const aMin = a.offers[0]?.price ?? Number.MAX_SAFE_INTEGER;
-        const bMin = b.offers[0]?.price ?? Number.MAX_SAFE_INTEGER;
-        return aMin - bMin;
+        return a.minPrice - b.minPrice;
       });
   }, [offers]);
   useEffect(() => {
