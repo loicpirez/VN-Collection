@@ -527,6 +527,7 @@ export const dictionaries = {
     library: {
       all: 'Tout',
       filterPlaceholder: 'Filtrer la collection...',
+      collectionInvalid: 'La réponse de la collection est invalide. Recharge la page après une synchronisation ou vérifie le serveur.',
       clearSearch: 'Effacer la recherche',
       sortLabel: 'Trier par',
       sortAsc: 'Tri ascendant',
@@ -4048,6 +4049,7 @@ export const dictionaries = {
     library: {
       all: 'All',
       filterPlaceholder: 'Filter the collection...',
+      collectionInvalid: 'The collection response is invalid. Refresh after syncing or check the server.',
       clearSearch: 'Clear search',
       sortLabel: 'Sort by',
       sortAsc: 'Ascending',
@@ -7566,6 +7568,7 @@ export const dictionaries = {
     library: {
       all: 'すべて',
       filterPlaceholder: 'コレクション内を検索...',
+      collectionInvalid: 'コレクションの応答が不正です。同期後に再読み込みするか、サーバーを確認してください。',
       clearSearch: '検索をクリア',
       sortLabel: '並び替え',
       sortAsc: '昇順',

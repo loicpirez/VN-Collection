@@ -163,6 +163,27 @@ describe('collection client response adapters', () => {
     expect(minimal).not.toHaveProperty('egs');
   });
 
+  it('treats legacy null optional card metadata as absent instead of rejecting the page', () => {
+    const decoded = decodeCollectionCardItem({
+      ...card,
+      status: null,
+      favorite: null,
+      edition_type: null,
+      dumped: null,
+      dumped_ignored: null,
+      added_at: null,
+      updated_at: null,
+    });
+    expect(decoded).not.toBeNull();
+    expect(decoded).not.toHaveProperty('status');
+    expect(decoded).not.toHaveProperty('favorite');
+    expect(decoded).not.toHaveProperty('edition_type');
+    expect(decoded).not.toHaveProperty('dumped');
+    expect(decoded).not.toHaveProperty('dumped_ignored');
+    expect(decoded).not.toHaveProperty('added_at');
+    expect(decoded).not.toHaveProperty('updated_at');
+  });
+
   it('rejects malformed nested card data at each boundary', () => {
     const invalidCards: Array<Record<string, unknown>> = [
       { ...card, developers: null },

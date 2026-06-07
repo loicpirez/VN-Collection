@@ -252,24 +252,24 @@ function isRotation(value: unknown): value is 0 | 90 | 180 | 270 {
   return value === 0 || value === 90 || value === 180 || value === 270;
 }
 
-function isOptionalStatus(value: unknown): value is Status | undefined {
-  return value === undefined || (isString(value) && (STATUSES as readonly string[]).includes(value));
+function isOptionalStatus(value: unknown): value is Status | null | undefined {
+  return value === undefined || value === null || (isString(value) && (STATUSES as readonly string[]).includes(value));
 }
 
-function isOptionalEditionType(value: unknown): value is EditionType | undefined {
-  return value === undefined || (isString(value) && (EDITION_TYPES as readonly string[]).includes(value));
+function isOptionalEditionType(value: unknown): value is EditionType | null | undefined {
+  return value === undefined || value === null || (isString(value) && (EDITION_TYPES as readonly string[]).includes(value));
 }
 
-function isOptionalBoolean(value: unknown): value is boolean | undefined {
-  return value === undefined || typeof value === 'boolean';
+function isOptionalBoolean(value: unknown): value is boolean | null | undefined {
+  return value === undefined || value === null || typeof value === 'boolean';
 }
 
 function isOptionalNullableFiniteNumber(value: unknown): value is number | null | undefined {
   return value === undefined || isNullableFiniteNumber(value);
 }
 
-function isOptionalFiniteNumber(value: unknown): value is number | undefined {
-  return value === undefined || isFiniteNumber(value);
+function isOptionalFiniteNumber(value: unknown): value is number | null | undefined {
+  return value === undefined || value === null || isFiniteNumber(value);
 }
 
 /**
@@ -355,16 +355,16 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     cover_rotation: row.cover_rotation,
     banner_rotation: row.banner_rotation,
     fetched_at: row.fetched_at,
-    ...(row.status === undefined ? {} : { status: row.status }),
+    ...(row.status == null ? {} : { status: row.status }),
     ...(row.user_rating === undefined ? {} : { user_rating: row.user_rating }),
-    ...(row.playtime_minutes === undefined ? {} : { playtime_minutes: row.playtime_minutes }),
-    ...(row.favorite === undefined ? {} : { favorite: row.favorite }),
-    ...(row.edition_type === undefined ? {} : { edition_type: row.edition_type }),
+    ...(row.playtime_minutes == null ? {} : { playtime_minutes: row.playtime_minutes }),
+    ...(row.favorite == null ? {} : { favorite: row.favorite }),
+    ...(row.edition_type == null ? {} : { edition_type: row.edition_type }),
     ...(physicalLocation === undefined ? {} : { physical_location: physicalLocation }),
-    ...(row.dumped === undefined ? {} : { dumped: row.dumped }),
-    ...(row.dumped_ignored === undefined ? {} : { dumped_ignored: row.dumped_ignored }),
-    ...(row.added_at === undefined ? {} : { added_at: row.added_at }),
-    ...(row.updated_at === undefined ? {} : { updated_at: row.updated_at }),
+    ...(row.dumped == null ? {} : { dumped: row.dumped }),
+    ...(row.dumped_ignored == null ? {} : { dumped_ignored: row.dumped_ignored }),
+    ...(row.added_at == null ? {} : { added_at: row.added_at }),
+    ...(row.updated_at == null ? {} : { updated_at: row.updated_at }),
     ...(series === undefined ? {} : { series }),
     ...(egs === undefined ? {} : { egs }),
     ...(aspectKeys === undefined ? {} : { aspect_keys: aspectKeys as AspectKey[] }),
