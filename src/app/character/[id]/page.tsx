@@ -35,10 +35,7 @@ function fmtBirthday(b: [number, number] | null, locale: Locale): string | null 
   return `${d}/${String(m).padStart(2, '0')}`;
 }
 
-function sexLabel(s: [string | null, string | null] | null, t: Awaited<ReturnType<typeof getDict>>, idx: 0 | 1 = 0): string | null {
-  if (!s) return null;
-  const v = s[idx];
-  if (v == null) return null;
+function sexLabel(v: string, t: Awaited<ReturnType<typeof getDict>>): string {
   const map: Record<string, string> = {
     m: t.characters.genderM,
     f: t.characters.genderF,
@@ -48,10 +45,7 @@ function sexLabel(s: [string | null, string | null] | null, t: Awaited<ReturnTyp
   return map[v] ?? v;
 }
 
-function genderLabel(g: [string | null, string | null] | null, t: Awaited<ReturnType<typeof getDict>>, idx: 0 | 1 = 0): string | null {
-  if (!g) return null;
-  const v = g[idx];
-  if (v == null) return null;
+function genderLabel(v: string, t: Awaited<ReturnType<typeof getDict>>): string {
   const map: Record<string, string> = {
     m: t.characters.genderM,
     f: t.characters.genderF,
@@ -104,35 +98,34 @@ export default async function CharacterPage({
       href: `/characters?bloodType=${encodeURIComponent(bt)}`,
     });
   }
-  const bday = fmtBirthday(char.birthday, locale);
-  if (bday) {
-    const month = char.birthday?.[0];
+  const birthday = char.birthday;
+  const bday = fmtBirthday(birthday, locale);
+  if (bday && birthday) {
+    const month = birthday[0];
     meta.push({
       label: t.characters.birthday,
       value: bday,
-      href: month ? `/characters?birthMonth=${month}` : undefined,
+      href: `/characters?birthMonth=${month}`,
     });
   }
-  const sexA = sexLabel(char.sex, t, 0);
-  if (sexA) {
-    const sx = char.sex?.[0];
+  const sx = char.sex?.[0] ?? null;
+  if (sx != null) {
+    const sexA = sexLabel(sx, t);
     meta.push({
       label: t.characters.sex,
       value: sexA,
-      href: sx ? `/characters?sex=${encodeURIComponent(sx)}` : undefined,
+      href: `/characters?sex=${encodeURIComponent(sx)}`,
     });
   }
-  const genderA = genderLabel(char.gender, t, 0);
-  if (genderA) meta.push({ label: t.characters.gender, value: genderA });
+  const primaryGender = char.gender?.[0] ?? null;
+  if (primaryGender != null) meta.push({ label: t.characters.gender, value: genderLabel(primaryGender, t) });
 
   // VNDB returns one row per (character, vn, release) tuple, so the
   // raw `char.vns` array can carry the same VN id N times when N
   // releases exist. `dedupAppearances` collapses by VN id, keeps the
   // strongest role, and exposes `releaseCount` so the card can render
   // "N editions" instead of stacking identical covers.
-  const sortedVns = dedupAppearances(char.vns).sort(
-    (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
-  );
+  const sortedVns = dedupAppearances(char.vns).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
   const appearsInOwned = isInCollectionMany(sortedVns.map((v) => v.id));
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
@@ -368,7 +361,7 @@ export default async function CharacterPage({
                 {sortedVns.map((v) => {
                   const year = v.released?.slice(0, 4);
                   const ratingDisplay = v.rating != null ? fmtNum(v.rating / 10, locale, 1) : null;
-                  const role = t.characters.roles[v.role as keyof typeof t.characters.roles] ?? v.role;
+                  const role = t.characters.roles[v.role];
                   const owned = appearsInOwned.has(v.id);
                   return (
                     <li key={`${v.id}-${v.role}`}>

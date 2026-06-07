@@ -219,4 +219,38 @@ describe('stats page runtime', () => {
     expect(html).toContain(dictionaries.en.charts.topPublishers);
     expect(html).not.toContain(dictionaries.en.charts.topDevelopers);
   });
+
+  it('renders individual years when the release-year span is small', async () => {
+    vi.mocked(getStats).mockReturnValue({
+      total: 1,
+      playtime_minutes: 0,
+      byStatus: [],
+    });
+    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+      byYear: [{ year: '2020', count: 1 }, { year: '2022', count: 2 }],
+    }));
+
+    const html = renderToStaticMarkup(await StatsPage());
+
+    expect(html).toContain('/?yearMin=2020&amp;yearMax=2020');
+    expect(html).toContain('/?yearMin=2022&amp;yearMax=2022');
+  });
+
+  it('falls back for unknown status labels and skips non-numeric years in wide ranges', async () => {
+    vi.mocked(getStats).mockReturnValue({
+      total: 2,
+      playtime_minutes: 0,
+      byStatus: [{ status: 'custom_status', n: 1 }],
+    });
+    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+      byYear: [{ year: '1990', count: 1 }, { year: '200x', count: 9 }, { year: '2025', count: 2 }],
+    }));
+
+    const html = renderToStaticMarkup(await StatsPage());
+
+    expect(html).toContain('custom_status');
+    expect(html).toContain('1990-1994');
+    expect(html).toContain('2025-2029');
+    expect(html).not.toContain('200x: 9');
+  });
 });

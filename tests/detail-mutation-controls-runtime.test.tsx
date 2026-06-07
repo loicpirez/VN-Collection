@@ -324,6 +324,61 @@ describe('ReleaseOwnedToggle', () => {
     expect(await screen.findByText('owned failed')).toBeInTheDocument();
   });
 
+  it('reports a failure when adding the VN to the collection fails before owned-release creation', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce(jsonResponse({ error: 'collection add failed' }, 500));
+    renderWithProviders(
+      <ReleaseOwnedToggle
+        vnId="v90001"
+        vnTitle="VN title"
+        vnRelation="partial"
+        releaseId="r90001"
+        initialInCollection={false}
+        initialOwned={false}
+      />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
+    expect(await screen.findByText('collection add failed')).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores stale completion after the preliminary collection add resolves on a different release', async () => {
+    let resolveAdd: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveAdd = resolve;
+    }));
+    const { rerender } = renderWithProviders(
+      <ReleaseOwnedToggle
+        vnId="v90001"
+        vnTitle="VN title"
+        vnRelation="complete"
+        releaseId="r90001"
+        initialInCollection={false}
+        initialOwned={false}
+      />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
+    rerender(
+      <ReleaseOwnedToggle
+        vnId="v90001"
+        vnTitle="VN title"
+        vnRelation="complete"
+        releaseId="r90002"
+        initialInCollection={false}
+        initialOwned={false}
+      />,
+    );
+
+    await act(async () => {
+      resolveAdd(jsonResponse());
+      await Promise.resolve();
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { pressed: false })).not.toBeDisabled();
+  });
+
   it('ignores a stale completion after the release identity changes', async () => {
     let resolveFetch: (response: Response) => void = () => {};
     global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
@@ -356,5 +411,41 @@ describe('ReleaseOwnedToggle', () => {
       await Promise.resolve();
     });
     expect(screen.getByRole('button', { pressed: false })).not.toBeDisabled();
+  });
+
+  it('ignores a stale rejection after the release identity changes', async () => {
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((_resolve, reject) => {
+      rejectFetch = reject;
+    }));
+    const { rerender } = renderWithProviders(
+      <ReleaseOwnedToggle
+        vnId="v90001"
+        vnTitle="VN title"
+        vnRelation="complete"
+        releaseId="r90001"
+        initialInCollection
+        initialOwned={false}
+      />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
+    rerender(
+      <ReleaseOwnedToggle
+        vnId="v90001"
+        vnTitle="VN title"
+        vnRelation="complete"
+        releaseId="r90002"
+        initialInCollection
+        initialOwned={false}
+      />,
+    );
+
+    await act(async () => {
+      rejectFetch(new Error('late owned failure'));
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('late owned failure')).toBeNull();
   });
 });

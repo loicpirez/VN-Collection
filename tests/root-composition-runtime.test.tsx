@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import RootLayout, { generateMetadata as generateRootMetadata, viewport } from '@/app/layout';
 import HomePage, { generateMetadata as generateHomeMetadata } from '@/app/page';
@@ -39,7 +39,7 @@ vi.mock('@/components/HeaderHeightVar', () => ({ HeaderHeightVar: () => <span da
 vi.mock('@/components/KeyboardShortcuts', () => ({ KeyboardShortcuts: () => <span data-testid="shortcuts" /> }));
 vi.mock('@/components/LanguageSwitcher', () => ({ LanguageSwitcher: () => <span data-testid="language" /> }));
 vi.mock('@/components/MoreNavMenu', () => ({
-  GroupedNav: ({ alicenetEnabled }: { alicenetEnabled: boolean }) => <span data-alicenet={alicenetEnabled} />,
+  GroupedNav: () => <span data-testid="grouped-nav" />,
 }));
 vi.mock('@/components/PageSpaceFrame', () => ({
   HeaderSpaceFrame: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -60,22 +60,14 @@ vi.mock('@/components/HomeLibrarySection', () => ({
 }));
 vi.mock('@/components/HomeLayoutEditorTrigger', () => ({ HomeLayoutEditorTrigger: () => <div>editor</div> }));
 
-const originalAliceNetEnabled = process.env.ALICENET_ENABLED;
-
 beforeEach(() => {
   mocks.cookieValue = undefined;
   mocks.sanitize.mockReset().mockReturnValue({});
   vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
 });
 
-afterEach(() => {
-  if (originalAliceNetEnabled === undefined) delete process.env.ALICENET_ENABLED;
-  else process.env.ALICENET_ENABLED = originalAliceNetEnabled;
-});
-
 describe('root layout composition', () => {
   it('renders metadata, viewport, providers, and the default density seed', async () => {
-    delete process.env.ALICENET_ENABLED;
     expect(await generateRootMetadata()).toEqual({
       title: { template: '%s / VN Collection', default: 'VN Collection' },
       description: dictionaries.en.app.tagline,
@@ -85,17 +77,15 @@ describe('root layout composition', () => {
     expect(html).toContain('lang="en"');
     expect(html).toContain('--card-density-px:220px');
     expect(html).toContain('href="#main-content"');
-    expect(html).toContain('data-alicenet="false"');
+    expect(html).toContain('data-testid="grouped-nav"');
     expect(html).toContain('Body');
   });
 
-  it('uses sanitized settings, clamps density, and forwards AliceNet availability', async () => {
-    process.env.ALICENET_ENABLED = 'true';
+  it('uses sanitized settings and clamps density', async () => {
     mocks.cookieValue = encodeURIComponent(JSON.stringify({ cardDensityPx: 999 }));
     mocks.sanitize.mockReturnValue({ cardDensityPx: 999 });
     let html = renderToStaticMarkup(await RootLayout({ children: null }));
     expect(html).toContain('--card-density-px:480px');
-    expect(html).toContain('data-alicenet="true"');
 
     mocks.sanitize.mockReturnValue({ cardDensityPx: 0 });
     html = renderToStaticMarkup(await RootLayout({ children: null }));

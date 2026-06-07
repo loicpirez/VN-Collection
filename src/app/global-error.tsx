@@ -6,7 +6,6 @@ const VALID_LOCALES = ['fr', 'en', 'ja'] as const;
 type SupportedLocale = typeof VALID_LOCALES[number];
 
 function readLocaleCookie(): SupportedLocale | null {
-  if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/(?:^|;\s*)locale=([^;]+)/);
   const loc = match?.[1];
   return loc && (VALID_LOCALES as readonly string[]).includes(loc) ? (loc as SupportedLocale) : null;
@@ -21,7 +20,6 @@ function readLocaleCookie(): SupportedLocale | null {
  * ourselves.
  */
 function readLocaleFromNavigator(): SupportedLocale | null {
-  if (typeof navigator === 'undefined') return null;
   const langs = navigator.languages?.length ? navigator.languages : [navigator.language || ''];
   for (const lang of langs) {
     const head = lang.toLowerCase().split('-')[0];

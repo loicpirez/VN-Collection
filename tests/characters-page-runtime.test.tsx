@@ -90,6 +90,9 @@ describe('characters page runtime', () => {
     expect(await generateMetadata({ searchParams: Promise.resolve({ q: ['Heroine', 'ignored'] }) })).toEqual({
       title: `Heroine - ${dictionaries.en.charactersSearch.pageTitle}`,
     });
+    expect(await generateMetadata({ searchParams: Promise.resolve({ q: 'Villain' }) })).toEqual({
+      title: `Villain - ${dictionaries.en.charactersSearch.pageTitle}`,
+    });
 
     const html = renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain(dictionaries.en.charactersSearch.empty);
@@ -161,6 +164,27 @@ describe('characters page runtime', () => {
       searchParams: Promise.resolve({ tab: 'vndb', q: 'missing' }),
     }));
     expect(html).toContain(dictionaries.en.charactersSearch.idleHint);
+  });
+
+  it('keeps the local duplicate when it already has the image and renders raw sex values', async () => {
+    vi.mocked(searchLocalCharacters).mockReturnValue([
+      local(character('c1', 'Local with image', {
+        image: { url: 'https://example.invalid/local.jpg' },
+        sex: ['x', null],
+      })),
+    ]);
+    vi.mocked(searchCharacters).mockResolvedValue([
+      character('c1', 'Remote without image'),
+    ]);
+
+    const html = renderToStaticMarkup(await CharactersPage({
+      searchParams: Promise.resolve({ tab: 'combined', q: 'duplicate', groupBy: 'sex' }),
+    }));
+
+    expect(html).toContain('Local with image');
+    expect(html).not.toContain('Remote without image');
+    expect(html).toContain('src="https://example.invalid/local.jpg"');
+    expect(html).toContain('>x</span>');
   });
 
   it('forwards numeric VNDB filters and renders grouped results with preserved filter form values', async () => {
@@ -242,5 +266,77 @@ describe('characters page runtime', () => {
     expect(html).toContain(dictionaries.en.charactersSearch.pageLabel.replace('{current}', '2').replace('{total}', '4'));
     expect(html).toContain('href="/characters?q=character&amp;q=alias&amp;groupBy=sex"');
     expect(html).toContain('href="/characters?q=character&amp;q=alias&amp;groupBy=sex&amp;page=3"');
+  });
+
+  it('clamps oversized pages and forwards negative toggle filters', async () => {
+    vi.mocked(searchLocalCharacters).mockReturnValue(
+      Array.from({ length: 61 }, (_, index) => local(character(`c${index + 1}`, `Character ${index + 1}`, {
+        age: 20,
+        birthday: [4, 1],
+      }))),
+    );
+
+    const html = renderToStaticMarkup(await CharactersPage({
+      searchParams: Promise.resolve({
+        q: 'character',
+        page: '9',
+        hasVoice: '0',
+        hasImage: '0',
+        birthMonth: '4',
+        ageMin: '18',
+        ageMax: '30',
+      }),
+    }));
+
+    expect(html).toContain(dictionaries.en.charactersSearch.pageLabel.replace('{current}', '2').replace('{total}', '2'));
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain('name="hasVoice" value="0"');
+    expect(html).toContain('name="hasImage" value="0"');
+    expect(html).toContain('name="birthMonth" value="4"');
+    expect(html).toContain('href="/characters?q=character&amp;hasVoice=0&amp;hasImage=0&amp;birthMonth=4&amp;ageMin=18&amp;ageMax=30"');
+  });
+
+  it('paginates unfiltered local browsing with clean first-page hrefs', async () => {
+    vi.mocked(searchLocalCharacters).mockReturnValue(
+      Array.from({ length: 61 }, (_, index) => local(character(`c${index + 1}`, `Character ${index + 1}`))),
+    );
+
+    const html = renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve({ q: '', page: '0' }) }));
+
+    expect(html).toContain(dictionaries.en.charactersSearch.pageLabel.replace('{current}', '1').replace('{total}', '2'));
+    expect(html).toContain('href="/characters"');
+    expect(html).toContain('href="/characters?page=2"');
+  });
+
+  it('renders active image and voice toggles and the unknown grouped bucket', async () => {
+    vi.mocked(searchLocalCharacters).mockReturnValue([
+      local(character('c1', 'Voiced image', {
+        image: { url: 'https://example.invalid/voiced.jpg' },
+        sex: ['', null],
+      }), ['ja']),
+    ]);
+
+    const html = renderToStaticMarkup(await CharactersPage({
+      searchParams: Promise.resolve({ hasImage: '1', hasVoice: '1', groupBy: 'sex' }),
+    }));
+
+    expect(html).toContain('name="hasVoice" value="1"');
+    expect(html).toContain('name="hasImage" value="1"');
+    expect(html).toContain('>unknown</h2>');
+    expect(html).toContain('href="/characters?hasVoice=1&amp;groupBy=sex"');
+    expect(html).toContain('href="/characters?hasImage=1&amp;groupBy=sex"');
+  });
+
+  it('renders a zero VN count when a remote character row omits the vns array', async () => {
+    vi.mocked(searchCharacters).mockResolvedValue([
+      character('c1', 'Remote without VN array', { vns: undefined }),
+    ]);
+
+    const html = renderToStaticMarkup(await CharactersPage({
+      searchParams: Promise.resolve({ tab: 'vndb', q: 'remote' }),
+    }));
+
+    expect(html).toContain('Remote without VN array');
+    expect(html).toContain(dictionaries.en.charactersSearch.vnCount.replace('{n}', '0'));
   });
 });

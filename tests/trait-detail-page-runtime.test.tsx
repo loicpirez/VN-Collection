@@ -109,6 +109,9 @@ describe('trait detail page runtime', () => {
   it('renders trait metadata and falls back to the traits title on lookup failure', async () => {
     expect(await generateTraitMetadata({ params: Promise.resolve({ id: 'i1' }) })).toEqual({ title: 'Trait' });
 
+    vi.mocked(getTrait).mockResolvedValueOnce(trait({ name: '' }));
+    expect(await generateTraitMetadata({ params: Promise.resolve({ id: 'i1' }) })).toEqual({ title: dictionaries.en.nav.traits });
+
     vi.mocked(getTrait).mockRejectedValueOnce(new Error('offline'));
     expect(await generateTraitMetadata({ params: Promise.resolve({ id: 'i1' }) })).toEqual({ title: dictionaries.en.nav.traits });
   });
@@ -130,6 +133,19 @@ describe('trait detail page runtime', () => {
 
     expect(html).toContain('trait offline');
     expect(html).toContain('href="https://vndb.org/i1"');
+  });
+
+  it('renders character-list errors without losing the trait header', async () => {
+    vi.mocked(getCharactersForTraitPage).mockRejectedValueOnce(new Error('characters offline'));
+
+    const html = renderToStaticMarkup(await TraitPage({
+      params: Promise.resolve({ id: 'i1' }),
+      searchParams: Promise.resolve({}),
+    }));
+
+    expect(html).toContain('Trait');
+    expect(html).toContain('characters offline');
+    expect(html).toContain(dictionaries.en.search.noResults);
   });
 
   it('renders rich trait metadata, owned VN priority, local images, and next pagination', async () => {
@@ -194,5 +210,40 @@ describe('trait detail page runtime', () => {
     expect(html).toContain('href="/trait/i1?mine=1&amp;page=3"');
     expect(html).toContain('Character 61');
     expect(getCharactersForTraitInVns).toHaveBeenCalledWith('i1', ['v1']);
+  });
+
+  it('renders previous-only all-results pagination and VN id title fallback', async () => {
+    vi.mocked(getCharactersForTraitPage).mockResolvedValueOnce({
+      results: [
+        character(1, {
+          vns: [{ id: 'v3', role: 'side', spoiler: 0 }],
+        }),
+      ],
+      more: false,
+    });
+
+    const html = renderToStaticMarkup(await TraitPage({
+      params: Promise.resolve({ id: 'i1' }),
+      searchParams: Promise.resolve({ page: '2' }),
+    }));
+
+    expect(html).toContain('href="/trait/i1"');
+    expect(html).toContain('>v3</span>');
+    expect(html).not.toContain('href="/trait/i1?page=3"');
+  });
+
+  it('renders first-page collection pagination and mine count suffix', async () => {
+    vi.mocked(listInCollectionVnIds).mockReturnValue(['v1']);
+    vi.mocked(getCharactersForTraitInVns).mockResolvedValueOnce(
+      Array.from({ length: 61 }, (_, index) => character(index + 1)),
+    );
+
+    const html = renderToStaticMarkup(await TraitPage({
+      params: Promise.resolve({ id: 'i1' }),
+      searchParams: Promise.resolve({ mine: '1' }),
+    }));
+
+    expect(html).toContain(`61 / 1 ${dictionaries.en.traits.mineCountSuffix}`);
+    expect(html).toContain('href="/trait/i1?mine=1&amp;page=2"');
   });
 });

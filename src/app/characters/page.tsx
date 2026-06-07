@@ -3,20 +3,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
 import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
-
-function isVndbCharacter(p: unknown): p is VndbCharacter {
-  if (typeof p !== 'object' || p === null) return false;
-  const r = p as Record<string, unknown>;
-  return (
-    typeof r.id === 'string' &&
-    r.id.length > 0 &&
-    typeof r.name === 'string' &&
-    r.name.length > 0 &&
-    Array.isArray(r.aliases) &&
-    Array.isArray(r.vns) &&
-    Array.isArray(r.traits)
-  );
-}
 import { searchLocalCharacters } from '@/lib/db';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
@@ -91,13 +77,10 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const hasFilters = hasActiveCharacterFilter(params);
   // Always fetch local results - local tab browses all, VNDB tab uses
   // local as fallback when no text query is active.
-  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).flatMap(
-    (row) => {
-      const p = row.profile;
-      if (!isVndbCharacter(p)) return [];
-      return [{ ...p, voice_languages: row.voice_languages }];
-    },
-  );
+  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).map((row) => ({
+    ...row.profile,
+    voice_languages: row.voice_languages,
+  }));
   let vndbResults: VndbCharacter[] = [];
   // Hit the VNDB API for any non-local tab - including empty-query on
   // VNDB tab so the operator can browse without typing a name first.
@@ -497,6 +480,7 @@ export default async function CharactersPage({ searchParams }: PageProps) {
               >
                 {bucket.items.map((c) => {
                   const primarySex = c.sex?.[0];
+                  const vnCount = c.vns?.length ?? 0;
                   return (
                     <li key={c.id}>
                       <Link
@@ -529,10 +513,10 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                           {c.blood_type && <span className="uppercase">{c.blood_type}</span>}
                         </div>
                         <p className="text-[10px] text-muted/70">
-                          {((c.vns?.length ?? 0) === 1
+                          {(vnCount === 1
                             ? t.charactersSearch.vnCountSingular
                             : t.charactersSearch.vnCount
-                          ).replace('{n}', String(c.vns?.length ?? 0))}
+                          ).replace('{n}', String(vnCount))}
                         </p>
                       </Link>
                     </li>

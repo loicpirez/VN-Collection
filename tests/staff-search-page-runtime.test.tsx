@@ -75,6 +75,9 @@ describe('staff search page runtime', () => {
     expect(await generateMetadata({ searchParams: Promise.resolve({ q: ['Writer', 'ignored'] }) })).toEqual({
       title: `Writer - ${dictionaries.en.staffSearch.pageTitle}`,
     });
+    expect(await generateMetadata({ searchParams: Promise.resolve({ q: 'Composer' }) })).toEqual({
+      title: `Composer - ${dictionaries.en.staffSearch.pageTitle}`,
+    });
 
     const html = renderToStaticMarkup(await StaffSearchPage({ searchParams: Promise.resolve({}) }));
 
@@ -93,6 +96,37 @@ describe('staff search page runtime', () => {
     expect(html).toContain('name="role" value="translator"');
     expect(html).toContain('name="lang" value="ja"');
     expect(searchStaff).not.toHaveBeenCalled();
+  });
+
+  it('keeps VN and role filters local-only when the local tab drives a VNDB query', async () => {
+    vi.mocked(searchLocalStaff).mockReturnValue([
+      localStaff('s2', 'Beta', { vn_count: 2 }),
+      localStaff('s1', 'Alpha', { vn_count: 2 }),
+    ]);
+    vi.mocked(searchStaff).mockResolvedValue([
+      remoteStaff('s3', 'Remote'),
+    ]);
+
+    const html = renderToStaticMarkup(await StaffSearchPage({
+      searchParams: Promise.resolve({
+        q: 'writer',
+        role: 'scenario',
+        vn: 'V90002',
+        sort: 'vn_count',
+      }),
+    }));
+
+    expect(searchStaff).toHaveBeenCalledWith('writer', {
+      results: 60,
+      mainOnly: true,
+      role: null,
+      lang: null,
+      vn: null,
+    });
+    expect(searchLocalStaff).toHaveBeenCalledWith({ q: 'writer', role: 'scenario', lang: null, limit: 200 });
+    expect(html.indexOf('Alpha')).toBeLessThan(html.indexOf('Beta'));
+    expect(html).toContain('name="vn" value="v90002"');
+    expect(html).toContain('href="/staff?q=writer&amp;vn=v90002&amp;sort=vn_count"');
   });
 
   it('merges VNDB with local rows, keeps local precedence, filters languages, and renders card metadata', async () => {
@@ -175,5 +209,20 @@ describe('staff search page runtime', () => {
       searchParams: Promise.resolve({ q: 'missing', tab: 'vndb' }),
     }));
     expect(html).toContain(dictionaries.en.staffSearch.empty);
+  });
+
+  it('does not render the aka line for a single alias', async () => {
+    vi.mocked(searchStaff).mockResolvedValueOnce([
+      remoteStaff('s1', 'Solo alias', {
+        aliases: [{ aid: 1, name: 'Only alias', latin: null, ismain: false }],
+      }),
+    ]);
+
+    const html = renderToStaticMarkup(await StaffSearchPage({
+      searchParams: Promise.resolve({ q: 'solo', tab: 'vndb', aliases: '1' }),
+    }));
+
+    expect(html).toContain('Solo alias');
+    expect(html).not.toContain(`${dictionaries.en.common.aka} Only alias`);
   });
 });

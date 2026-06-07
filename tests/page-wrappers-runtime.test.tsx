@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import AliceNetPage, { generateMetadata as generateAliceNetMetadata } from '@/app/alicenet/page';
 import MapPage, { generateMetadata as generateMapMetadata } from '@/app/map/page';
 import PlacesPage, { generateMetadata as generatePlacesMetadata } from '@/app/places/page';
 import PlacePage, { generateMetadata as generatePlaceMetadata } from '@/app/places/[id]/page';
@@ -18,10 +17,14 @@ const navigationMocks = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error('not-found');
   }),
+  redirect: vi.fn((href: string) => {
+    throw new Error(`redirect:${href}`);
+  }),
 }));
 
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
+  redirect: navigationMocks.redirect,
 }));
 
 vi.mock('next/headers', () => ({
@@ -33,10 +36,6 @@ vi.mock('@/lib/db', () => ({
   getPlace: vi.fn(),
   listPlaces: vi.fn(),
   listSeries: vi.fn(),
-}));
-
-vi.mock('@/components/AliceNetClient', () => ({
-  AliceNetClient: () => <div data-testid="alicenet" />,
 }));
 
 vi.mock('@/components/MapPageClient', () => ({
@@ -98,31 +97,17 @@ const series: SeriesRow = {
 };
 
 const t = dictionaries[DEFAULT_LOCALE];
-const originalAliceNetEnabled = process.env.ALICENET_ENABLED;
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
+  navigationMocks.redirect.mockClear();
   vi.mocked(getCacheFreshness).mockReset().mockReturnValue(null);
   vi.mocked(getPlace).mockReset().mockReturnValue(null);
   vi.mocked(listPlaces).mockReset().mockReturnValue([place]);
   vi.mocked(listSeries).mockReset().mockReturnValue([series]);
 });
 
-afterEach(() => {
-  if (originalAliceNetEnabled === undefined) delete process.env.ALICENET_ENABLED;
-  else process.env.ALICENET_ENABLED = originalAliceNetEnabled;
-});
-
 describe('thin App Router page wrappers', () => {
-  it('gates AliceNet while exposing localized metadata when enabled', async () => {
-    delete process.env.ALICENET_ENABLED;
-    expect(await generateAliceNetMetadata()).toEqual({});
-    expect(() => AliceNetPage()).toThrow('not-found');
-    process.env.ALICENET_ENABLED = 'true';
-    expect(await generateAliceNetMetadata()).toEqual({ title: t.nav.alicenet });
-    expect(renderToStaticMarkup(<AliceNetPage />)).toContain('data-testid="alicenet"');
-  });
-
   it('maps valid and invalid map focus parameters', async () => {
     expect(await generateMapMetadata()).toEqual({ title: t.map.title });
     let html = renderToStaticMarkup(await MapPage({

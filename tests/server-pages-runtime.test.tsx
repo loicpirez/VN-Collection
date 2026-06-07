@@ -1,247 +1,286 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import DataPage, { generateMetadata as generateDataMetadata } from '@/app/data/page';
-import SchemaPage, { generateMetadata as generateSchemaMetadata } from '@/app/schema/page';
-import SteamLayout, { generateMetadata as generateSteamMetadata } from '@/app/steam/layout';
-import YearPage, { generateMetadata as generateYearMetadata } from '@/app/year/page';
-import {
-  getCacheFreshness,
-  getDbStatus,
-  getReadingGoal,
-  yearReview,
-  type DbStatus,
-  type ReadingGoal,
-  type YearReview,
-} from '@/lib/db';
-import { getAuthInfo, getSchema } from '@/lib/vndb';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
-vi.mock('@/lib/db', () => ({
+const dbMocks = vi.hoisted(() => ({
   getCacheFreshness: vi.fn(),
-  getDbStatus: vi.fn(),
-  getReadingGoal: vi.fn(),
-  yearReview: vi.fn(),
+  listAllQuotes: vi.fn(),
+  listCollectionForCards: vi.fn(),
+  listPlaces: vi.fn(),
 }));
 
-vi.mock('@/lib/vndb', () => ({
-  getAuthInfo: vi.fn(),
-  getSchema: vi.fn(),
+const headerMocks = vi.hoisted(() => ({
+  headers: vi.fn(),
+}));
+
+const qrMocks = vi.hoisted(() => ({
+  toString: vi.fn(),
+}));
+
+const tagMocks = vi.hoisted(() => ({
+  getVndbTagHomeTree: vi.fn(),
+}));
+
+vi.mock('@/lib/db', () => ({
+  getCacheFreshness: dbMocks.getCacheFreshness,
+  listAllQuotes: dbMocks.listAllQuotes,
+  listCollectionForCards: dbMocks.listCollectionForCards,
+  listPlaces: dbMocks.listPlaces,
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
   getDict: vi.fn(async () => dictionaries.en),
-  getLocale: vi.fn(async () => 'en'),
 }));
 
-vi.mock('@/components/ActivityHeatmap', () => ({
-  ActivityHeatmap: ({ year }: { year: number }) => <div data-testid="heatmap">{year}</div>,
+vi.mock('next/headers', () => ({
+  headers: headerMocks.headers,
 }));
 
-vi.mock('@/components/DataMaintenance', () => ({
-  DataMaintenance: () => <div data-testid="maintenance" />,
+vi.mock('qrcode', () => ({
+  toString: qrMocks.toString,
 }));
 
-vi.mock('@/components/DropImport', () => ({
-  DropImport: () => <div data-testid="drop-import" />,
+vi.mock('@/lib/vndb-tag-web-cache', () => ({
+  getVndbTagHomeTree: tagMocks.getVndbTagHomeTree,
 }));
 
-vi.mock('@/components/EgsSyncBlock', () => ({
-  EgsSyncBlock: () => <div data-testid="egs-sync" />,
+vi.mock('@/components/MapPageClient', () => ({
+  MapPageClient: (props: Record<string, unknown>) => <pre data-testid="map-props">{JSON.stringify(props)}</pre>,
 }));
 
-vi.mock('@/components/ExportGameListButton', () => ({
-  ExportGameListButton: () => <button type="button">game-list</button>,
+vi.mock('@/components/TagsBrowser', () => ({
+  TagsBrowser: (props: Record<string, unknown>) => <pre data-testid="tags-props">{JSON.stringify(props)}</pre>,
 }));
 
-vi.mock('@/components/ImportPanel', () => ({
-  ImportPanel: () => <div data-testid="import-panel" />,
+vi.mock('@/components/QuoteAvatar', () => ({
+  QuoteAvatar: ({ quote }: { quote: { quote_id: string } }) => <span data-testid="quote-avatar">{quote.quote_id}</span>,
 }));
 
-vi.mock('@/components/OpenSettingsButton', () => ({
-  OpenSettingsButton: ({ tab, label }: { tab: string; label: string }) => <button type="button" data-tab={tab}>{label}</button>,
+vi.mock('@/components/PrintButton', () => ({
+  PrintButton: ({ label }: { label: string }) => <button type="button">{label}</button>,
 }));
 
-vi.mock('@/components/SelectiveFullDownload', () => ({
-  SelectiveFullDownload: () => <div data-testid="selective-download" />,
-}));
+import MapPage, { generateMetadata as generateMapMetadata } from '@/app/map/page';
+import TagsPage, { generateMetadata as generateTagsMetadata } from '@/app/tags/page';
+import QuotesPage, { generateMetadata as generateQuotesMetadata } from '@/app/quotes/page';
+import LabelsPage, { generateMetadata as generateLabelsMetadata } from '@/app/labels/page';
 
-vi.mock('@/components/CollapsibleSummary', () => ({
-  CollapsibleSummary: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
-}));
+function headerMap(values: Record<string, string | null>): Headers {
+  const h = new Headers();
+  for (const [key, value] of Object.entries(values)) {
+    if (value != null) h.set(key, value);
+  }
+  return h;
+}
 
-vi.mock('@/components/RefreshScopeButton', () => ({
-  RefreshScopeButton: ({ scope, lastUpdatedAt }: { scope: string; lastUpdatedAt?: number | null }) => (
-    <button type="button" data-scope={scope}>{lastUpdatedAt ?? 'none'}</button>
-  ),
-}));
-
-vi.mock('@/components/SchemaBrowser', () => ({
-  SchemaBrowser: ({ schema }: { schema: unknown }) => <pre data-testid="schema-browser">{JSON.stringify(schema)}</pre>,
-}));
-
-vi.mock('@/components/SchemaEgsSection', () => ({
-  SchemaEgsSection: () => <div data-testid="schema-egs" />,
-}));
-
-vi.mock('@/components/SchemaLocalSection', () => ({
-  SchemaLocalSection: () => <div data-testid="schema-local" />,
-}));
-
-function dbStatus(overrides: Partial<DbStatus> = {}): DbStatus {
+function quoteRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    db_path: '/tmp/collection.db',
-    rows: [{ table: 'vn', count: 12 }],
-    egs_matched: 2,
-    egs_unmatched: 1,
-    cache_total: 5,
-    cache_fresh: 4,
-    cache_stale: 1,
-    vndb_token: 'none',
+    vn_id: 'v1',
+    vn_title: 'VN One',
+    quote_id: 'q1',
+    quote: 'Quote one',
+    score: 7,
+    character_id: 'c1',
+    character_name: 'Heroine',
+    character_local_image: null,
+    vn_image_url: null,
+    vn_local_image: null,
+    vn_local_image_thumb: null,
     ...overrides,
   };
 }
 
-function review(overrides: Partial<YearReview> = {}): YearReview {
+function cardRow(id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    year: 2026,
-    completed: 0,
-    hours: 0,
-    topTags: [],
-    topGenres: [],
-    avgUserRating: null,
-    best: [],
+    id,
+    title: `Title ${id}`,
+    physical_location: [],
+    status: 'owned',
     ...overrides,
   };
 }
 
 beforeEach(() => {
-  vi.mocked(getCacheFreshness).mockReset().mockReturnValue(null);
-  vi.mocked(getDbStatus).mockReset().mockReturnValue(dbStatus());
-  vi.mocked(getReadingGoal).mockReset().mockReturnValue(null);
-  vi.mocked(yearReview).mockReset().mockReturnValue(review());
-  vi.mocked(getAuthInfo).mockReset().mockResolvedValue(null);
-  vi.mocked(getSchema).mockReset().mockResolvedValue({ enums: { platform: ['win'] } });
+  vi.clearAllMocks();
+  dbMocks.getCacheFreshness.mockReturnValue(null);
+  dbMocks.listAllQuotes.mockReturnValue([]);
+  dbMocks.listCollectionForCards.mockReturnValue([]);
+  dbMocks.listPlaces.mockReturnValue([{ id: 1, name: 'Place One', lat: 35, lng: 139 }]);
+  headerMocks.headers.mockResolvedValue(headerMap({ host: 'localhost:3000' }));
+  qrMocks.toString.mockResolvedValue('<svg><path /></svg>');
+  tagMocks.getVndbTagHomeTree.mockResolvedValue({ data: { groups: [{ id: 'content', label: 'Content', tags: [] }] } });
 });
 
-describe('data page runtime', () => {
-  it('renders metadata, authenticated DB-token status, row counts, and operation entry points', async () => {
-    vi.mocked(getDbStatus).mockReturnValue(dbStatus({ vndb_token: 'db' }));
-    vi.mocked(getAuthInfo).mockResolvedValue({ id: 'u1', username: 'reader', permissions: [] });
-
-    expect(await generateDataMetadata()).toEqual({ title: dictionaries.en.nav.data });
-    const html = renderToStaticMarkup(await DataPage());
-
-    expect(html).toContain('reader');
-    expect(html).toContain(dictionaries.en.dataMgmt.statusVndbSourceDb);
-    expect(html).toContain('/tmp/collection.db');
-    expect(html).toContain('>vn</th>');
-    expect(html).toContain('>12</td>');
-    expect(html).toContain('href="/api/export/csv"');
-    expect(html).toContain('href="/labels"');
-    expect(html).toContain('data-testid="maintenance"');
-    expect(html).toContain('data-testid="drop-import"');
-    expect(html).toContain('data-testid="selective-download"');
-  });
-
-  it('renders muted missing-token status and warning status with auth errors', async () => {
-    let html = renderToStaticMarkup(await DataPage());
-    expect(html).toContain(dictionaries.en.dataMgmt.statusVndbNone);
-    expect(html).toContain('text-muted');
-
-    vi.mocked(getDbStatus).mockReturnValue(dbStatus({ vndb_token: 'env' }));
-    vi.mocked(getAuthInfo).mockRejectedValue(new Error('invalid token'));
-    html = renderToStaticMarkup(await DataPage());
-    expect(html).toContain(dictionaries.en.dataMgmt.statusVndbInvalid);
-    expect(html).toContain('invalid token');
-    expect(html).toContain('text-status-dropped');
-  });
-
-  it('renders the environment-token source for authenticated status', async () => {
-    vi.mocked(getDbStatus).mockReturnValue(dbStatus({ vndb_token: 'env' }));
-    vi.mocked(getAuthInfo).mockResolvedValue({ id: 'u2', username: 'env-reader', permissions: [] });
-
-    const html = renderToStaticMarkup(await DataPage());
-
-    expect(html).toContain('env-reader');
-    expect(html).toContain(dictionaries.en.dataMgmt.statusVndbSourceEnv);
-  });
-});
-
-describe('schema page runtime', () => {
-  it('renders metadata, cache freshness, local and EGS summaries, and VNDB schema', async () => {
-    vi.mocked(getCacheFreshness).mockReturnValue(123);
-
-    expect(await generateSchemaMetadata()).toEqual({ title: dictionaries.en.schemaPage.pageTitle });
-    const html = renderToStaticMarkup(await SchemaPage());
-
-    expect(html).toContain('data-scope="schema"');
-    expect(html).toContain('>123</button>');
-    expect(html).toContain('data-testid="schema-local"');
-    expect(html).toContain('data-testid="schema-egs"');
-    expect(html).toContain('data-testid="schema-browser"');
-    expect(html).toContain('&quot;platform&quot;:[&quot;win&quot;]');
-    expect(getCacheFreshness).toHaveBeenCalledWith(['% /schema|%']);
-  });
-
-  it('renders the VNDB schema error while preserving local sections', async () => {
-    vi.mocked(getSchema).mockRejectedValue(new Error('schema unavailable'));
-
-    const html = renderToStaticMarkup(await SchemaPage());
-
-    expect(html).toContain('schema unavailable');
-    expect(html).toContain('data-testid="schema-local"');
-    expect(html).not.toContain('data-testid="schema-browser"');
-  });
-});
-
-describe('steam layout runtime', () => {
-  it('renders localized metadata and passes children through unchanged', async () => {
-    expect(await generateSteamMetadata()).toEqual({ title: dictionaries.en.settings.steamTitle });
-    expect(renderToStaticMarkup(<SteamLayout><span>steam-child</span></SteamLayout>)).toBe('<span>steam-child</span>');
-  });
-});
-
-describe('year page runtime', () => {
-  it('normalizes invalid years in metadata and renders a zero-goal summary without optional lists', async () => {
-    const currentYear = new Date().getFullYear();
-    const zeroGoal: ReadingGoal = { year: currentYear, target: 0, updated_at: 1 };
-    vi.mocked(getReadingGoal).mockReturnValue(zeroGoal);
-
-    expect(await generateYearMetadata({ searchParams: Promise.resolve({ y: 'invalid' }) })).toEqual({
-      title: dictionaries.en.year.title.replace('{year}', String(currentYear)),
-    });
-    const html = renderToStaticMarkup(await YearPage({ searchParams: Promise.resolve({ y: '1979' }) }));
-
-    expect(html).toContain(String(currentYear));
-    expect(html).toContain('data-testid="heatmap"');
-    expect(html).not.toContain('role="progressbar"');
-    expect(html).not.toContain(dictionaries.en.year.topTags);
-    expect(html).not.toContain(dictionaries.en.year.best);
-  });
-
-  it('renders a clamped goal, rating, tags, best entries, and year navigation for a valid year', async () => {
-    vi.mocked(yearReview).mockReturnValue(review({
-      year: 2025,
-      completed: 15,
-      hours: 42,
-      avgUserRating: 87,
-      topTags: [{ id: 'g 1', name: 'Drama', count: 3 }],
-      best: [{ id: 'v1', title: 'Best VN', rating: 92 }],
+describe('map page runtime', () => {
+  it('renders metadata and finite focus props from search params', async () => {
+    expect(await generateMapMetadata()).toEqual({ title: dictionaries.en.map.title });
+    const html = renderToStaticMarkup(await MapPage({
+      searchParams: Promise.resolve({ lat: '35.1', lng: '139.2', place: '5' }),
     }));
-    vi.mocked(getReadingGoal).mockReturnValue({ year: 2025, target: 10, updated_at: 1 });
+    expect(html).toContain('&quot;focusLat&quot;:35.1');
+    expect(html).toContain('&quot;focusLng&quot;:139.2');
+    expect(html).toContain('&quot;focusId&quot;:5');
+  });
 
-    expect(await generateYearMetadata({ searchParams: Promise.resolve({ y: '2025' }) })).toEqual({
-      title: dictionaries.en.year.title.replace('{year}', '2025'),
-    });
-    const html = renderToStaticMarkup(await YearPage({ searchParams: Promise.resolve({ y: '2025' }) }));
+  it('normalizes missing and invalid focus search params to null', async () => {
+    const html = renderToStaticMarkup(await MapPage({
+      searchParams: Promise.resolve({ lat: 'bad', lng: '139.2', id: '-1' }),
+    }));
+    expect(html).toContain('&quot;focusLat&quot;:null');
+    expect(html).toContain('&quot;focusLng&quot;:null');
+    expect(html).toContain('&quot;focusId&quot;:null');
+  });
 
-    expect(html).toContain('href="/year?y=2024"');
-    expect(html).toContain('href="/year?y=2026"');
-    expect(html).toContain('role="progressbar"');
-    expect(html).toContain('aria-valuenow="100"');
-    expect(html).toContain('href="/?tag=g%201"');
-    expect(html).toContain('href="/vn/v1"');
-    expect(html).toContain('Best VN');
-    expect(html).toContain('9.2');
+  it('renders null focus props when no focus search params are supplied', async () => {
+    const html = renderToStaticMarkup(await MapPage({
+      searchParams: Promise.resolve({}),
+    }));
+    expect(html).toContain('&quot;focusLat&quot;:null');
+    expect(html).toContain('&quot;focusLng&quot;:null');
+    expect(html).toContain('&quot;focusId&quot;:null');
+  });
+});
+
+describe('tags page runtime', () => {
+  it('passes cache freshness, VNDB mode, and prefetched tree to the client', async () => {
+    dbMocks.getCacheFreshness.mockReturnValue(123);
+    expect(await generateTagsMetadata()).toEqual({ title: dictionaries.en.nav.tags });
+    const html = renderToStaticMarkup(await TagsPage({
+      searchParams: Promise.resolve({ mode: 'vndb' }),
+    }));
+    expect(html).toContain('&quot;lastUpdatedAt&quot;:123');
+    expect(html).toContain('&quot;initialMode&quot;:&quot;vndb&quot;');
+    expect(html).toContain('&quot;groups&quot;');
+  });
+
+  it('falls back to a null initial tree when VNDB tag scraping fails or returns no data', async () => {
+    tagMocks.getVndbTagHomeTree.mockResolvedValueOnce({});
+    let html = renderToStaticMarkup(await TagsPage({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain('&quot;initialTree&quot;:null');
+
+    tagMocks.getVndbTagHomeTree.mockRejectedValueOnce(new Error('scrape failed'));
+    html = renderToStaticMarkup(await TagsPage({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain('&quot;initialTree&quot;:null');
+  });
+});
+
+describe('quotes page runtime', () => {
+  it('renders metadata and the empty state for an empty result set', async () => {
+    expect(await generateQuotesMetadata()).toEqual({ title: dictionaries.en.nav.quotes });
+    const html = renderToStaticMarkup(await QuotesPage({
+      searchParams: Promise.resolve({ q: '', page: 'bad' }),
+    }));
+    expect(html).toContain(dictionaries.en.quotesPage.empty);
+    expect(dbMocks.listAllQuotes).toHaveBeenCalledWith('', 51, 0);
+  });
+
+  it('renders search pagination links with q and page params', async () => {
+    dbMocks.listAllQuotes.mockReturnValue(Array.from({ length: 51 }, (_value, index) => quoteRow({
+      vn_id: `v${index + 1}`,
+      quote_id: `q${index + 1}`,
+    })));
+    const html = renderToStaticMarkup(await QuotesPage({
+      searchParams: Promise.resolve({ q: 'hero', page: '2' }),
+    }));
+    expect(html).toContain('href="/quotes?q=hero"');
+    expect(html).toContain('href="/quotes?q=hero&amp;page=3"');
+    expect(html).toContain(dictionaries.en.quotesPage.pageIndicator.replace('{page}', '2'));
+  });
+
+  it('renders page-one next pagination without search params', async () => {
+    dbMocks.listAllQuotes.mockReturnValue(Array.from({ length: 51 }, (_value, index) => quoteRow({
+      vn_id: `v${index + 1}`,
+      quote_id: `q${index + 1}`,
+    })));
+    const html = renderToStaticMarkup(await QuotesPage({
+      searchParams: Promise.resolve({}),
+    }));
+    expect(html).toContain('href="/quotes?page=2"');
+    expect(html).not.toContain(dictionaries.en.quotesPage.prevPage);
+  });
+
+  it('renders previous-only pagination on later pages without a next page', async () => {
+    dbMocks.listAllQuotes.mockReturnValue([quoteRow()]);
+    const html = renderToStaticMarkup(await QuotesPage({
+      searchParams: Promise.resolve({ page: '2' }),
+    }));
+    expect(html).toContain('href="/quotes"');
+    expect(html).toContain(dictionaries.en.quotesPage.prevPage);
+    expect(html).not.toContain(dictionaries.en.quotesPage.nextPage);
+  });
+
+  it('renders character-name-only citations and page-one next links without a query', async () => {
+    dbMocks.listAllQuotes.mockReturnValue([quoteRow({ character_id: null, character_name: 'Narrator' }), quoteRow({ character_name: null })]);
+    const html = renderToStaticMarkup(await QuotesPage({
+      searchParams: Promise.resolve({ page: '1' }),
+    }));
+    expect(html).toContain('Narrator');
+    expect(html).not.toContain('href="/character/');
+    expect(html).not.toContain(dictionaries.en.quotesPage.prevPage);
+  });
+});
+
+describe('labels page runtime', () => {
+  it('renders metadata and invalid-id feedback', async () => {
+    expect(await generateLabelsMetadata()).toEqual({ title: dictionaries.en.labels.title });
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: 'bad', status: undefined }),
+    }));
+    expect(html).toContain(dictionaries.en.labels.invalidIds);
+    expect(dbMocks.listCollectionForCards).not.toHaveBeenCalled();
+  });
+
+  it('renders the empty state when no labels match', async () => {
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: '', status: 'owned' }),
+    }));
+    expect(html).toContain(dictionaries.en.labels.empty);
+    expect(dbMocks.listCollectionForCards).toHaveBeenCalledWith({ sort: 'title', vnIds: undefined });
+  });
+
+  it('treats comma-only id filters as an unfiltered request', async () => {
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: ', ,', status: undefined }),
+    }));
+    expect(html).toContain(dictionaries.en.labels.empty);
+    expect(dbMocks.listCollectionForCards).toHaveBeenCalledWith({ sort: 'title', vnIds: undefined });
+  });
+
+  it('generates QR labels, applies id/status filters, and shows truncation', async () => {
+    dbMocks.listCollectionForCards.mockReturnValue(Array.from({ length: 201 }, (_value, index) => cardRow(`v${index + 1}`, {
+      status: 'owned',
+      physical_location: index === 0 ? ['shelf'] : [],
+    })));
+    headerMocks.headers.mockResolvedValue(headerMap({
+      'x-forwarded-proto': 'https',
+      'x-forwarded-host': 'example.test',
+      host: 'localhost:3000',
+    }));
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: Array.from({ length: 501 }, (_value, index) => `v${index + 1}`).join(','), status: 'owned' }),
+    }));
+    expect(html).toContain(dictionaries.en.labels.truncated.replace('{shown}', '200').replace('{total}', '201'));
+    expect(html).toContain('shelf');
+    expect(qrMocks.toString).toHaveBeenCalledWith('https://example.test/vn/v1', expect.any(Object));
+    const firstArg = dbMocks.listCollectionForCards.mock.calls[0]?.[0] as { vnIds?: string[] };
+    expect(firstArg.vnIds).toHaveLength(500);
+  });
+
+  it('falls back to a local SVG error marker when QR generation fails', async () => {
+    dbMocks.listCollectionForCards.mockReturnValue([cardRow('v1')]);
+    qrMocks.toString.mockRejectedValue(new Error('qr failed'));
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: 'v1', status: undefined }),
+    }));
+    expect(html).toContain('<text x="2" y="14" font-size="6" fill="#cc0000">');
+  });
+
+  it('renders labels when physical_location is absent', async () => {
+    dbMocks.listCollectionForCards.mockReturnValue([cardRow('v1', { physical_location: null })]);
+    const html = renderToStaticMarkup(await LabelsPage({
+      searchParams: Promise.resolve({ ids: 'v1', status: undefined }),
+    }));
+    expect(html).toContain('Title v1');
+    expect(html).not.toContain(' / ');
   });
 });

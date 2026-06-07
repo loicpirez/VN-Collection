@@ -8,7 +8,6 @@ import {
   getCollectionItem,
   getCoOccurringTags,
   getEgsForVn,
-  getPlaceProviderMap,
   getSourcePref,
   getVnAspectOverride,
   isInCollection,
@@ -25,8 +24,6 @@ import {
 } from '@/lib/db';
 import { getVn, type VndbVn } from '@/lib/vndb';
 import { detectSeriesForVn, type SeriesSuggestion } from '@/lib/series-detect';
-import { getStockForVn, type StockSnapshot } from '@/lib/stock';
-import { decodeStoredExtras } from '@/lib/erogeprice-meta';
 import { isCacheFresh } from '@/lib/cache-age';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { VnSectionId } from '@/lib/vn-detail-layout';
@@ -62,7 +59,6 @@ vi.mock('@/lib/db', () => ({
   getCollectionItem: vi.fn(),
   getCoOccurringTags: vi.fn(),
   getEgsForVn: vi.fn(),
-  getPlaceProviderMap: vi.fn(),
   getSourcePref: vi.fn(),
   getVnAspectOverride: vi.fn(),
   isEgsOnly: (id: string) => id.startsWith('egs_'),
@@ -83,14 +79,6 @@ vi.mock('@/lib/vndb', () => ({
 
 vi.mock('@/lib/series-detect', () => ({
   detectSeriesForVn: vi.fn(),
-}));
-
-vi.mock('@/lib/stock', () => ({
-  getStockForVn: vi.fn(),
-}));
-
-vi.mock('@/lib/erogeprice-meta', () => ({
-  decodeStoredExtras: vi.fn(),
 }));
 
 vi.mock('@/lib/cache-age', () => ({
@@ -234,14 +222,6 @@ vi.mock('@/components/TitleLine', () => ({
   TitleLine: ({ alttitle, title }: { alttitle?: string; title: string }) => <div>{`title:${title}:${alttitle ?? 'none'}`}</div>,
 }));
 
-vi.mock('@/components/StockPanelBoundary', () => ({
-  StockPanelBoundary: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@/components/StockPricesSection', () => ({
-  StockPricesSection: ({ vnId }: { vnId: string }) => <div>{`stock-prices:${vnId}`}</div>,
-}));
-
 vi.mock('@/components/EgsPanel', () => ({
   EgsPanel: ({ initialGame, searchSeed, vnId }: { initialGame: { id: number } | null; searchSeed: string; vnId: string }) => (
     <div>{`egs-panel:${vnId}:${initialGame?.id ?? 'none'}:${searchSeed}`}</div>
@@ -304,10 +284,6 @@ vi.mock('@/components/QuotesSection', () => ({
 
 vi.mock('@/components/ReleasesSection', () => ({
   ReleasesSection: () => <div />,
-}));
-
-vi.mock('@/components/StockPanel', () => ({
-  StockPanel: () => <div />,
 }));
 
 function collectionItem(id: string, overrides: Partial<CollectionItem> = {}): CollectionItem {
@@ -404,25 +380,6 @@ function egsRow(vnId: string, overrides: Partial<EgsRow> = {}): EgsRow {
   };
 }
 
-function stockSnapshot(overrides: Partial<StockSnapshot> = {}): StockSnapshot {
-  return {
-    offers: [],
-    statuses: [],
-    providers: [],
-    sources: [],
-    summary: {
-      total: 0,
-      available: 0,
-      best_price: null,
-      related_available: 0,
-      needs_review: 0,
-      rejected: 0,
-      last_refresh: null,
-    },
-    ...overrides,
-  };
-}
-
 async function renderPage(id: string, searchParams: Record<string, string | string[] | undefined> = {}): Promise<string> {
   const stream = await renderToReadableStream(await VnDetail({
     params: Promise.resolve({ id }),
@@ -445,7 +402,6 @@ beforeEach(() => {
   vi.mocked(getCollectionItem).mockReset().mockReturnValue(null);
   vi.mocked(getCoOccurringTags).mockReset().mockReturnValue([]);
   vi.mocked(getEgsForVn).mockReset().mockReturnValue(null);
-  vi.mocked(getPlaceProviderMap).mockReset().mockReturnValue({});
   vi.mocked(getSourcePref).mockReset().mockReturnValue({});
   vi.mocked(getVnAspectOverride).mockReset().mockReturnValue(null);
   vi.mocked(isInCollection).mockReset().mockReturnValue(false);
@@ -459,8 +415,6 @@ beforeEach(() => {
   vi.mocked(upsertVn).mockReset();
   vi.mocked(getVn).mockReset().mockResolvedValue(null);
   vi.mocked(detectSeriesForVn).mockReset().mockReturnValue(null);
-  vi.mocked(getStockForVn).mockReset().mockReturnValue(stockSnapshot());
-  vi.mocked(decodeStoredExtras).mockReset().mockReturnValue(null);
   vi.mocked(isCacheFresh).mockReset().mockReturnValue(true);
 });
 
@@ -610,7 +564,7 @@ describe('VN detail page runtime', () => {
     expect(materializeReleaseMetaForVn).toHaveBeenCalledWith('v90008');
   });
 
-  it('renders full collection-only composition, source preferences, and price extras', async () => {
+  it('renders full collection-only composition and source preferences', async () => {
     const item = collectionItem('v90009', {
       title: 'Owned VN',
       alttitle: 'Owned alternate',
@@ -649,32 +603,10 @@ describe('VN detail page runtime', () => {
       relatedInCollection: [{ id: 'v2', title: 'Related', relation: 'seq' }],
     };
     const linked = egsRow('v90009');
-    const snapshot = stockSnapshot({
-      statuses: [{
-        vn_id: 'v90009',
-        provider: 'eroge_price',
-        status: 'ok',
-        message: null,
-        fetched_at: 1,
-        offer_count: 1,
-        blocked_kind: null,
-        fresh_offers_found: 1,
-        cached_offers_available: 0,
-        extras_json: '{}',
-      }],
-    });
     vi.mocked(getCollectionItem).mockReturnValue(item);
     vi.mocked(isInCollection).mockReturnValue(true);
     vi.mocked(getSourcePref).mockReturnValue({ image: 'custom', playtime: 'egs', description: 'vndb', brand: 'egs' });
     vi.mocked(getEgsForVn).mockReturnValue(linked);
-    vi.mocked(getStockForVn).mockReturnValue(snapshot);
-    vi.mocked(decodeStoredExtras).mockReturnValue({
-      schemaVersion: 1,
-      candidates: [],
-      selectedEpId: null,
-      searchQuery: null,
-      refreshedAt: 1,
-    });
     vi.mocked(detectSeriesForVn).mockReturnValue(suggestion);
     vi.mocked(listListsForVn).mockReturnValue([{
       id: 1,
@@ -707,7 +639,6 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('series-suggest:v90009');
     expect(html).toContain('session:v90009:0');
     expect(html).toContain('activity:v90009:0');
-    expect(html).toContain('stock-prices:v90009');
     expect(html).toContain('egs-panel:v90009:42:Owned alternate');
     expect(html).toContain('egs-details:v90009');
     expect(html).toContain('cast:1');

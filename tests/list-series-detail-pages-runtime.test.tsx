@@ -13,6 +13,7 @@ import {
   type UserList,
   type UserListItem,
 } from '@/lib/db';
+import { publicUrlFor } from '@/lib/files';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { CollectionCardItem, SeriesWithVns } from '@/lib/types';
 import type { CardData } from '@/components/VnCard';
@@ -109,7 +110,7 @@ vi.mock('@/components/PaginatedGrid', () => ({
 }));
 
 vi.mock('@/components/SafeImage', () => ({
-  SafeImage: ({ src, alt }: { src: string | null; alt: string }) => <img src={src ?? ''} alt={alt} />,
+  SafeImage: ({ src, alt }: { src: string | null; alt: string }) => <img {...(src ? { src } : {})} alt={alt} />,
 }));
 
 vi.mock('@/components/SeriesAddVnForm', () => ({
@@ -238,6 +239,7 @@ beforeEach(() => {
   vi.mocked(getUserList).mockReset().mockReturnValue(null);
   vi.mocked(listCollectionForCards).mockReset().mockReturnValue([]);
   vi.mocked(listUserListItems).mockReset().mockReturnValue([]);
+  vi.mocked(publicUrlFor).mockReset().mockImplementation((path: string | null | undefined) => path ? `/files/${path}` : null);
 });
 
 describe('series detail page runtime', () => {
@@ -273,6 +275,21 @@ describe('series detail page runtime', () => {
     expect(html).toContain('&quot;listCount&quot;:3');
     expect(html).toContain('&quot;inReadingQueue&quot;:true');
     expect(html).toContain('data-testid="series-remove"');
+  });
+
+  it('renders series cards with default list counts and empty image URLs when file URLs cannot be resolved', async () => {
+    vi.mocked(getSeries).mockReturnValue(series({ cover_path: 'cover.jpg', banner_path: 'banner.jpg' }));
+    vi.mocked(publicUrlFor).mockReturnValue(null);
+    vi.mocked(listCollectionForCards).mockReturnValue([card('v1')]);
+
+    const html = renderToStaticMarkup(await SeriesDetailPage({ params: Promise.resolve({ id: '7' }) }));
+
+    expect(html).toContain('alt="Series Name - Banner"');
+    expect(html).toContain('alt="Series Name - Cover"');
+    expect(html).not.toContain('/files/banner.jpg');
+    expect(html).not.toContain('/files/cover.jpg');
+    expect(html).toContain('&quot;listCount&quot;:0');
+    expect(html).toContain('&quot;inReadingQueue&quot;:false');
   });
 });
 
@@ -326,6 +343,44 @@ describe('list detail page runtime', () => {
     expect(html).toContain('&quot;inReadingQueue&quot;:true');
     expect(html).toContain('&quot;isFanDisc&quot;:true');
     expect(html).toContain('&quot;listCount&quot;:2');
+  });
+
+  it('reuses cached card projections for the same row object across renders', async () => {
+    const sharedRow = row('v1', { developers: JSON.stringify([{ name: 'Studio' }]) });
+    vi.mocked(getUserList).mockReturnValue(list());
+    vi.mocked(listUserListItems).mockReturnValue([listItem('v1'), listItem('v1', 1)]);
+    sqlMocks.all.mockReturnValue([sharedRow]);
+
+    renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(html).toContain('&quot;developers&quot;:[{&quot;name&quot;:&quot;Studio&quot;}]');
+  });
+
+  it('ignores non-array developer JSON and non-array relation JSON', async () => {
+    vi.mocked(getUserList).mockReturnValue(list());
+    vi.mocked(listUserListItems).mockReturnValue([listItem('v1')]);
+    sqlMocks.all.mockReturnValue([row('v1', {
+      developers: JSON.stringify({ name: 'Not array' }),
+      publishers: JSON.stringify([{ id: 123, name: 'Publisher' }, { id: 'p2' }]),
+      relations: JSON.stringify({ relation: 'orig' }),
+    })]);
+
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(html).toContain('&quot;developers&quot;:[]');
+    expect(html).toContain('&quot;publishers&quot;:[{&quot;name&quot;:&quot;Publisher&quot;}]');
+    expect(html).toContain('&quot;isFanDisc&quot;:false');
+  });
+
+  it('falls back when relation JSON is malformed', async () => {
+    vi.mocked(getUserList).mockReturnValue(list());
+    vi.mocked(listUserListItems).mockReturnValue([listItem('v1')]);
+    sqlMocks.all.mockReturnValue([row('v1', { relations: 'invalid-json' })]);
+
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(html).toContain('&quot;isFanDisc&quot;:false');
   });
 
   it('uses paginated cards above the reorder threshold and chunks large VN queries', async () => {

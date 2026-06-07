@@ -240,4 +240,33 @@ describe('character detail page runtime', () => {
     expect(html).toContain(dictionaries.en.common.none);
     expect(html).toContain(dictionaries.en.characters.genderA);
   });
+
+  it('renders raw sex and gender labels, missing birthday, and appearance fallbacks', async () => {
+    vi.mocked(getCharacter).mockResolvedValueOnce(character({
+      birthday: [0, 0],
+      sex: ['x', null],
+      gender: ['z', null],
+      vns: [{ id: 'v9', role: 'appears', spoiler: 0 }],
+    }));
+
+    const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
+
+    expect(html).toContain('href="/characters?sex=x"');
+    expect(html).toContain('>z</dd>');
+    expect(html).not.toContain('birthMonth=');
+    expect(html).toContain('>v9</span>');
+    expect(html).not.toContain('fill-accent');
+  });
+
+  it('skips primary sex and gender rows when VNDB leaves them empty', async () => {
+    vi.mocked(getCharacter).mockResolvedValueOnce(character({
+      sex: [null, 'f'],
+      gender: [null, 'm'],
+    }));
+
+    const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
+
+    expect(html).not.toContain(dictionaries.en.characters.sex);
+    expect(html).not.toContain(dictionaries.en.characters.gender);
+  });
 });

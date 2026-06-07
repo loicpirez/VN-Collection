@@ -185,6 +185,14 @@ describe('tag detail page runtime', () => {
     expect(html).toContain('>g1</h1>');
   });
 
+  it('falls back to the tag id when the header tag lookup rejects', async () => {
+    vi.mocked(getTag).mockRejectedValueOnce(new Error('header offline'));
+
+    const html = await renderTag({ id: 'g1' }, {});
+
+    expect(html).toContain('>g1</h1>');
+  });
+
   it('renders enriched local cards, the library action, and the local cap warning', async () => {
     vi.mocked(listCollectionForCards).mockReturnValue(Array.from({ length: 500 }, (_, index) => card(`v${index + 1}`)));
     vi.mocked(countListMembershipsByVn).mockReturnValue(new Map([['v1', 3]]));
@@ -259,5 +267,44 @@ describe('tag detail page runtime', () => {
 
     html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
     expect(html).toContain(dictionaries.en.search.noResults);
+  });
+
+  it('renders previous-only VNDB pagination and image/rating fallbacks', async () => {
+    vi.mocked(fetchTopVnsByTag).mockResolvedValueOnce({
+      results: [
+        hit('v3', { released: null, rating: null, image: null }),
+      ],
+      more: false,
+    });
+
+    const html = await renderTag({ id: 'g1' }, { tab: 'vndb', page: '2' });
+
+    expect(html).toContain('none<!-- -->:<!-- -->Hit v3');
+    expect(html).toContain('href="/tag/g1?tab=vndb"');
+    expect(html).not.toContain('href="/tag/g1?tab=vndb&amp;page=3"');
+    expect(html).not.toContain('fill-accent');
+  });
+
+  it('renders true searchable and false applicable hierarchy chips on first-page VNDB results', async () => {
+    vi.mocked(getVndbTagWebDetail).mockResolvedValueOnce({
+      data: detail({
+        properties: { searchable: true, applicable: false },
+      }),
+      fetched_at: 1,
+      stale: false,
+      source_url: 'https://vndb.org/g1',
+    });
+    vi.mocked(fetchTopVnsByTag).mockResolvedValueOnce({
+      results: [hit('v4', { rating: 70, released: '2025-05-01' })],
+      more: false,
+    });
+
+    const html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
+
+    expect(html).toContain(dictionaries.en.tagPage.searchable);
+    expect(html).toContain(dictionaries.en.tagPage.notApplicable);
+    expect(html).toContain('7.0');
+    expect(html).toContain('2025');
+    expect(html).toContain(dictionaries.en.tagPage.pageLabel.replace('{n}', '1'));
   });
 });

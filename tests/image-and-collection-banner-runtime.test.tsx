@@ -131,6 +131,41 @@ describe('NotInCollectionBanner request lifecycle', () => {
     expect(navigationMocks.refresh).not.toHaveBeenCalled();
   });
 
+  it('cancels a pending delayed refresh when the VN identity changes after success', async () => {
+    vi.useFakeTimers();
+    const { rerender } = renderWithProviders(<NotInCollectionBanner vnId="v90001" />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.detail.notInLibraryBanner.cta }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(navigationMocks.refresh).toHaveBeenCalledTimes(1);
+
+    rerender(<NotInCollectionBanner vnId="v90002" />);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(navigationMocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('guards the delayed refresh callback when a stale timer still fires', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => undefined);
+    const { rerender } = renderWithProviders(<NotInCollectionBanner vnId="v90001" />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.detail.notInLibraryBanner.cta }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(navigationMocks.refresh).toHaveBeenCalledTimes(1);
+
+    rerender(<NotInCollectionBanner vnId="v90002" />);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(navigationMocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores a late rejection after unmount', async () => {
     let rejectFetch: (error: Error) => void = () => {};
     global.fetch = vi.fn().mockReturnValue(new Promise<Response>((_resolve, reject) => {

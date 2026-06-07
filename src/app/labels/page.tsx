@@ -135,34 +135,37 @@ export default async function LabelsPage({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 print:grid-cols-4 print:gap-1">
-          {items.map((it, i) => (
-            <div
-              key={it.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-bg-card p-2 text-[11px] print:border-black/40"
-            >
-              {/*
-                PAGE-017: dangerouslySetInnerHTML safety note.
-                The SVG string in `qrs[i]` is produced server-side by the
-                `qrcode` npm package (toString with type:'svg'). It contains
-                only SVG path/rect elements - no script, no event handler,
-                no external resource reference. The source is entirely
-                internal; no user-supplied string ever reaches this field.
-                This pattern is reviewed on every `qrcode` dependency update.
-              */}
+          {items.map((it, i) => {
+            const locations = it.physical_location ?? [];
+            return (
               <div
-                aria-label={t.labels.qrCodeFor.replace('{id}', it.id)}
-                className="shrink-0 bg-white p-1 [&_svg]:h-20 [&_svg]:w-20"
-                dangerouslySetInnerHTML={{ __html: qrs[i] }}
-              />
-              <div className="min-w-0">
-                <p className="line-clamp-3 font-bold leading-tight" title={it.title}>{it.title}</p>
-                <p className="mt-0.5 font-mono text-[10px] text-muted">{it.id}</p>
-                {(it.physical_location ?? []).length > 0 && (
-                  <p className="mt-0.5 text-[10px] text-muted">{(it.physical_location ?? []).join(' / ')}</p>
-                )}
+                key={it.id}
+                className="flex items-center gap-2 rounded-md border border-border bg-bg-card p-2 text-[11px] print:border-black/40"
+              >
+                {/*
+                  PAGE-017: dangerouslySetInnerHTML safety note.
+                  The SVG string in `qrs[i]` is produced server-side by the
+                  `qrcode` npm package (toString with type:'svg'). It contains
+                  only SVG path/rect elements - no script, no event handler,
+                  no external resource reference. The source is entirely
+                  internal; no user-supplied string ever reaches this field.
+                  This pattern is reviewed on every `qrcode` dependency update.
+                */}
+                <div
+                  aria-label={t.labels.qrCodeFor.replace('{id}', it.id)}
+                  className="shrink-0 bg-white p-1 [&_svg]:h-20 [&_svg]:w-20"
+                  dangerouslySetInnerHTML={{ __html: qrs[i] }}
+                />
+                <div className="min-w-0">
+                  <p className="line-clamp-3 font-bold leading-tight" title={it.title}>{it.title}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted">{it.id}</p>
+                  {locations.length > 0 && (
+                    <p className="mt-0.5 text-[10px] text-muted">{locations.join(' / ')}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

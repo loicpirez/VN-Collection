@@ -222,17 +222,20 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-muted">{t.staffSearch.filtersLabel}:</span>
-          {staffRoles.map((r) => (
-            <Link
-              key={r}
-              href={chipHref({ role: role === r ? null : r })}
-              className={role === r ? 'chip chip-active' : 'chip'}
-              aria-pressed={role === r}
-              title={t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
-            >
-              {t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels] ?? r}
-            </Link>
-          ))}
+          {staffRoles.map((r) => {
+            const label = t.staffSearch.roleLabels[r as keyof typeof t.staffSearch.roleLabels];
+            return (
+              <Link
+                key={r}
+                href={chipHref({ role: role === r ? null : r })}
+                className={role === r ? 'chip chip-active' : 'chip'}
+                aria-pressed={role === r}
+                title={label}
+              >
+                {label}
+              </Link>
+            );
+          })}
           <span className="text-muted/60">/</span>
           {langs.map((l) => (
             <Link

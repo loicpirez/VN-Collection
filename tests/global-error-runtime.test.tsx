@@ -49,4 +49,21 @@ describe('global root-layout error boundary', () => {
     render(<GlobalError error={new Error('boom')} reset={vi.fn()} />);
     await waitFor(() => expect(screen.getByRole('button', { name: '再試行' })).toBeInTheDocument());
   });
+
+  it('keeps the English fallback when neither cookie nor browser locale is supported', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    document.cookie = 'locale=unsupported; path=/';
+    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['de-DE', 'it-IT']);
+    vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('de-DE');
+    render(<GlobalError error={new Error('boom')} reset={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument());
+  });
+
+  it('keeps the English fallback when the browser exposes no language value', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue([]);
+    vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('');
+    render(<GlobalError error={new Error('boom')} reset={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument());
+  });
 });

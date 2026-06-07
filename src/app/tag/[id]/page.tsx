@@ -22,6 +22,38 @@ import { SkeletonBlock } from '@/components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
+const TAG_VNDB_SKELETON_NODES = Array.from({ length: 12 }, (_, i) => (
+  <li
+    key={`tag-vndb-skel-${i}`}
+    className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2"
+  >
+    <SkeletonBlock className="aspect-[2/3] w-full rounded" />
+    <SkeletonBlock className="h-3 w-full" />
+    <SkeletonBlock className="h-2 w-2/3" />
+  </li>
+));
+
+const TAG_META_HEADER_SKELETON = (
+  <div aria-busy="true">
+    <SkeletonBlock className="h-8 w-2/5" />
+    <div className="mt-2 flex gap-2">
+      <SkeletonBlock className="h-5 w-16 rounded" />
+      <SkeletonBlock className="h-5 w-20 rounded" />
+      <SkeletonBlock className="h-5 w-20 rounded" />
+    </div>
+  </div>
+);
+
+const TAG_WEB_DETAIL_SKELETON = (
+  <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6" aria-busy="true">
+    <SkeletonBlock className="h-4 w-1/3" />
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <SkeletonBlock className="h-20 rounded-lg" />
+      <SkeletonBlock className="h-20 rounded-lg" />
+    </div>
+  </section>
+);
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const dict = await getDict();
@@ -87,7 +119,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           responds. loading.tsx covers the initial navigation;
           this Suspense handles the intra-page streaming.
         */}
-        <Suspense fallback={<TagMetaHeaderSkeleton />}>
+        <Suspense fallback={TAG_META_HEADER_SKELETON}>
           <TagMetaHeaderAsync tagId={tagId} t={t} />
         </Suspense>
         <p className="mt-3 text-sm text-muted">
@@ -161,7 +193,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         now exclusively about the operator's collection matches.
       */}
       {tab === 'vndb' && (
-        <Suspense fallback={<TagWebDetailSkeleton />}>
+        <Suspense fallback={TAG_WEB_DETAIL_SKELETON}>
           <TagWebDetailBlock tagId={tagId} />
         </Suspense>
       )}
@@ -201,25 +233,20 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             the operator sees skeleton cards instead of a frozen
             blank page while the upstream call is in flight.
           */}
-          <Suspense fallback={<TagVndbSkeleton />}>
+          <Suspense fallback={(
+            <ul
+              className="grid gap-3"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
+              aria-busy="true"
+            >
+              {TAG_VNDB_SKELETON_NODES}
+            </ul>
+          )}>
             <TagVndbResults tagId={tagId} page={page} />
           </Suspense>
         </section>
       )}
     </DensityScopeProvider>
-  );
-}
-
-function TagMetaHeaderSkeleton() {
-  return (
-    <div aria-busy="true">
-      <SkeletonBlock className="h-8 w-2/5" />
-      <div className="mt-2 flex gap-2">
-        <SkeletonBlock className="h-5 w-16 rounded" />
-        <SkeletonBlock className="h-5 w-20 rounded" />
-        <SkeletonBlock className="h-5 w-20 rounded" />
-      </div>
-    </div>
   );
 }
 
@@ -264,36 +291,19 @@ async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<Retu
   );
 }
 
-function TagWebDetailSkeleton() {
-  return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6" aria-busy="true">
-      <SkeletonBlock className="h-4 w-1/3" />
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <SkeletonBlock className="h-20 rounded-lg" />
-        <SkeletonBlock className="h-20 rounded-lg" />
-      </div>
-    </section>
-  );
-}
-
 async function TagWebDetailBlock({ tagId }: { tagId: string }) {
   const t = await getDict();
   const locale = await getLocale();
-  let detail: Awaited<ReturnType<typeof getVndbTagWebDetail>> | null = null;
-  let error: string | null = null;
+  let detail: Awaited<ReturnType<typeof getVndbTagWebDetail>>;
   try {
     detail = await getVndbTagWebDetail(tagId);
   } catch (e) {
-    error = (e as Error).message;
-  }
-  if (error) {
     return (
       <section className="mt-6 rounded-xl border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
-        {error}
+        {(e as Error).message}
       </section>
     );
   }
-  if (!detail) return null;
   const data = detail.data;
   return (
     <section className="mt-6 space-y-4 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -364,32 +374,6 @@ function TagChildChip({ tag, locale }: { tag: VndbTagTreeNode; locale: Locale })
       <span>{tag.name}</span>
       {tag.count != null ? <span className="text-muted tabular-nums">({fmtNum(tag.count, locale)})</span> : null}
     </Link>
-  );
-}
-
-/**
- * Skeleton placeholder for the VNDB-tag VN grid. Mirrors the final
- * card shape (cover + 2 lines of text) so the layout doesn't jump
- * when results land.
- */
-function TagVndbSkeleton() {
-  return (
-    <ul
-      className="grid gap-3"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
-      aria-busy="true"
-    >
-      {Array.from({ length: 12 }).map((_, i) => (
-        <li
-          key={`tag-vndb-skel-${i}`}
-          className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2"
-        >
-          <SkeletonBlock className="aspect-[2/3] w-full rounded" />
-          <SkeletonBlock className="h-3 w-full" />
-          <SkeletonBlock className="h-2 w-2/3" />
-        </li>
-      ))}
-    </ul>
   );
 }
 

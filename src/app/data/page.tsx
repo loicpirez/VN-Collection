@@ -26,7 +26,7 @@ export default async function DataPage() {
   const locale = await getLocale();
   const status = getDbStatus();
   let auth: { id: string; username: string; permissions: string[] } | null = null;
-  let authError: string | null = null;
+  let authError: string | undefined;
   try {
     auth = await getAuthInfo();
   } catch (e) {
@@ -75,7 +75,7 @@ export default async function DataPage() {
                 ? `${t.dataMgmt.statusVndbSource}: ${
                     status.vndb_token === 'db' ? t.dataMgmt.statusVndbSourceDb : t.dataMgmt.statusVndbSourceEnv
                   }`
-                : authError ?? undefined
+                : authError
             }
           />
           <StatCard

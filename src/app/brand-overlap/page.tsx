@@ -66,7 +66,7 @@ export default async function BrandOverlapPage({
         <BrandOverlapPicker initialA={a} initialB={b} />
       </header>
 
-      {a && b ? <Result a={a} b={b} page={page} /> : (
+      {a && b ? await Result({ a, b, page }) : (
         <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
           {t.brandOverlap.pickHint}
         </p>
