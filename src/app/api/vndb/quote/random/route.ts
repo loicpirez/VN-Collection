@@ -64,12 +64,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({
         quote: {
           ...quote,
-          vn: vnCover
-            ? {
-                ...(quote.vn ?? {}),
-                image_url: vnCover.image_url,
-                local_image: vnCover.local_image,
-                local_image_thumb: vnCover.local_image_thumb,
+	          vn: vnCover
+	            ? {
+	                ...quote.vn,
+	                image_url: vnCover.image_url,
+	                local_image: vnCover.local_image,
+	                local_image_thumb: vnCover.local_image_thumb,
               }
             : quote.vn,
           character:

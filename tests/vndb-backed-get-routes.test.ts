@@ -97,6 +97,15 @@ describe('GET /api/character/[id]', () => {
     expect((await res.json()).error).toBe('not found');
   });
 
+  it('502 when the character upstream call throws', async () => {
+    getCharacterMock.mockRejectedValue(new Error('character upstream down'));
+    const res = await characterGET(loopbackReq('/api/character/c9004', '10.1.0.4'), {
+      params: Promise.resolve({ id: 'c9004' }),
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('upstream service unavailable');
+  });
+
   it('200 with the character payload on success', async () => {
     getCharacterMock.mockResolvedValue({ id: 'c9003', name: 'Heroine A' });
     const res = await characterGET(loopbackReq('/api/character/c9003', '10.1.0.3'), {
@@ -130,6 +139,15 @@ describe('GET /api/release/[id]', () => {
     });
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('not found');
+  });
+
+  it('502 when the release upstream call throws', async () => {
+    getReleaseMock.mockRejectedValue(new Error('release upstream down'));
+    const res = await releaseGET(loopbackReq('/api/release/r9004', '10.2.0.4'), {
+      params: Promise.resolve({ id: 'r9004' }),
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('upstream service unavailable');
   });
 
   it('200 with the release payload on success', async () => {
@@ -205,6 +223,15 @@ describe('GET /api/tags/web-tree', () => {
     getTreeMock.mockResolvedValue({ groups: [] });
     await tagTreeGET(loopbackReq('/api/tags/web-tree?force=1', '10.5.0.2'));
     expect(getTreeMock).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('502 when the tag tree cache helper throws', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    getTreeMock.mockRejectedValue(new Error('tag tree unavailable'));
+    const res = await tagTreeGET(loopbackReq('/api/tags/web-tree', '10.5.0.3'));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    consoleSpy.mockRestore();
   });
 });
 

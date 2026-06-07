@@ -13,21 +13,26 @@
  * falls between a surrogate pair. A dedicated case feeds astral
  * characters and asserts no U+FFFD replacement char appears.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/export/ics/route';
 import { addToCollection, db, upsertVn } from '@/lib/db';
+import * as dbModule from '@/lib/db';
 
 const MULTIBYTE_ID = 'v970021';
 const ASTRAL_ID = 'v970022';
-const IDS = [MULTIBYTE_ID, ASTRAL_ID];
+const FINISHED_ID = 'v970023';
+const FINISHED_FALLBACK_ID = 'v970024';
+const INVALID_DATE_ID = 'v970025';
+const IDS = [MULTIBYTE_ID, ASTRAL_ID, FINISHED_ID, FINISHED_FALLBACK_ID, INVALID_DATE_ID];
 
 const MULTIBYTE_TITLE = `${'あ'.repeat(40)};,\\\n${'い'.repeat(40)}`;
 const ASTRAL_TITLE = '\u{1F600}'.repeat(40);
 
 function cleanup(): void {
-  db.prepare(`DELETE FROM collection WHERE vn_id IN (?, ?)`).run(...IDS);
-  db.prepare(`DELETE FROM vn WHERE id IN (?, ?)`).run(...IDS);
+  const placeholders = IDS.map(() => '?').join(',');
+  db.prepare(`DELETE FROM collection WHERE vn_id IN (${placeholders})`).run(...IDS);
+  db.prepare(`DELETE FROM vn WHERE id IN (${placeholders})`).run(...IDS);
 }
 
 /**
@@ -98,6 +103,42 @@ describe('GET /api/export/ics — folding and escaping (TESTA-013)', () => {
     expect(summary).not.toContain('�');
     expect(summary).toContain(ASTRAL_TITLE);
   });
+
+  it('emits finish events with numeric ratings and falls back when title and rating are blank', async () => {
+    upsertVn({ id: FINISHED_ID, title: 'Finished; Novel' });
+    upsertVn({ id: FINISHED_FALLBACK_ID, title: '' });
+    addToCollection(FINISHED_ID, { finished_date: '2024-05-06', user_rating: 88 });
+    addToCollection(FINISHED_FALLBACK_ID, { started_date: '2024-07-08', finished_date: '2024-07-09' });
+
+    const res = await GET(new NextRequest('http://127.0.0.1/api/export/ics'));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain(`UID:${FINISHED_ID}-finish@vn-collection.local`);
+    expect(body).toContain('DTSTART;VALUE=DATE:20240506');
+    expect(unfoldLine(body, 'SUMMARY:Finished: Finished')).toContain('Finished\\; Novel');
+    expect(unfoldLine(body, 'DESCRIPTION:Visual novel finished')).toContain('Rating: 88 / 100');
+    expect(body).toContain(`UID:${FINISHED_FALLBACK_ID}-start@vn-collection.local`);
+    expect(body).toContain(`UID:${FINISHED_FALLBACK_ID}-finish@vn-collection.local`);
+    expect(body).toContain(`SUMMARY:▶ Started ${FINISHED_FALLBACK_ID}`);
+    expect(body).toContain(`SUMMARY:Finished: ${FINISHED_FALLBACK_ID}`);
+    expect(body).toContain('Status: planning');
+    expect(body).toContain('Rating: — / 100');
+  });
+
+  it('skips malformed started and finished dates instead of emitting invalid ICS dates', async () => {
+    upsertVn({ id: INVALID_DATE_ID, title: 'Bad dates' });
+    addToCollection(INVALID_DATE_ID, { started_date: '2024-1-2', finished_date: 'soon' });
+
+    const res = await GET(new NextRequest('http://127.0.0.1/api/export/ics'));
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).not.toContain(`UID:${INVALID_DATE_ID}-start@vn-collection.local`);
+    expect(body).not.toContain(`UID:${INVALID_DATE_ID}-finish@vn-collection.local`);
+    expect(body).not.toContain('DTSTART;VALUE=DATE:2024-1-2');
+    expect(body).not.toContain('DTSTART;VALUE=DATE:soon');
+  });
 });
 
 describe('GET /api/export/ics — auth gate (TESTA-013)', () => {
@@ -106,5 +147,18 @@ describe('GET /api/export/ics — auth gate (TESTA-013)', () => {
     expect(res.status).toBe(403);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain('restricted to localhost');
+  });
+
+  it('returns a sanitized 500 when card listing fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const listSpy = vi.spyOn(dbModule, 'listCollectionForCards').mockImplementation(() => {
+      throw new Error('private ics failure');
+    });
+    const res = await GET(new NextRequest('http://127.0.0.1/api/export/ics'));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[internal:export.ics.GET] private ics failure');
+    listSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });

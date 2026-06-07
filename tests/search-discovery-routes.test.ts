@@ -65,6 +65,12 @@ function loopback(path: string, fwd: string): NextRequest {
   });
 }
 
+function external(path: string): NextRequest {
+  return new NextRequest(`http://93.184.216.34${path}`, {
+    headers: { host: '93.184.216.34' },
+  });
+}
+
 function loopbackPost(path: string, fwd: string, body: unknown): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
     method: 'POST',
@@ -88,6 +94,19 @@ afterEach(() => {
 });
 
 describe('GET /api/search', () => {
+  it('403 from an external origin', async () => {
+    const res = await searchGET(external('/api/search?q=blocked'));
+    expect(res.status).toBe(403);
+  });
+
+  it('429 after the search rate limit is exceeded', async () => {
+    let res: Response = new Response(null);
+    for (let i = 0; i < 31; i++) {
+      res = await searchGET(loopback('/api/search', '10.10.99.1'));
+    }
+    expect(res.status).toBe(429);
+  });
+
   it('200 with empty results for a blank query (no upstream call)', async () => {
     const res = await searchGET(loopback('/api/search', '10.10.0.1'));
     expect(res.status).toBe(200);
@@ -108,6 +127,13 @@ describe('GET /api/search', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.results[0].in_collection).toBe(true);
+  });
+
+  it('502 when VNDB search throws', async () => {
+    searchVnMock.mockRejectedValue(new Error('vndb search down'));
+    const res = await searchGET(loopback('/api/search?q=owned', '10.10.0.3'));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('upstream service unavailable');
   });
 });
 
@@ -183,6 +209,11 @@ describe('GET /api/traits', () => {
 });
 
 describe('GET /api/staff', () => {
+  it('403 from an external origin', async () => {
+    const res = await staffGET(external('/api/staff?q=blocked'));
+    expect(res.status).toBe(403);
+  });
+
   it('200 with an empty list for a blank query (no upstream call)', async () => {
     const res = await staffGET(loopback('/api/staff', '10.15.0.1'));
     expect(res.status).toBe(200);
@@ -196,9 +227,29 @@ describe('GET /api/staff', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ staff: [{ id: 's90', name: 'Staff X' }] });
   });
+
+  it('502 when VNDB staff search throws', async () => {
+    searchStaffMock.mockRejectedValue(new Error('staff upstream down'));
+    const res = await staffGET(loopback('/api/staff?q=staff', '10.15.0.3'));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('upstream service unavailable');
+  });
 });
 
 describe('GET /api/egs/search', () => {
+  it('403 from an external origin', async () => {
+    const res = await egsSearchGET(external('/api/egs/search?q=blocked'));
+    expect(res.status).toBe(403);
+  });
+
+  it('429 after the EGS search rate limit is exceeded', async () => {
+    let res: Response = new Response(null);
+    for (let i = 0; i < 31; i++) {
+      res = await egsSearchGET(loopback('/api/egs/search', '10.16.99.1'));
+    }
+    expect(res.status).toBe(429);
+  });
+
   it('200 with empty candidates for a blank query (no upstream call)', async () => {
     const res = await egsSearchGET(loopback('/api/egs/search', '10.16.0.1'));
     expect(res.status).toBe(200);
@@ -221,6 +272,15 @@ describe('GET /api/egs/search', () => {
     const body = await res.json();
     expect(body.error).toBe('egs_unreachable');
     expect(body.candidates).toEqual([]);
+  });
+
+  it('502 when EGS search throws an unexpected upstream error', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    searchEgsCandidatesMock.mockRejectedValue(new Error('unexpected EGS failure'));
+    const res = await egsSearchGET(loopback('/api/egs/search?q=egs', '10.16.0.4'));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    consoleSpy.mockRestore();
   });
 });
 

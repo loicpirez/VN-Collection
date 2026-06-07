@@ -50,6 +50,12 @@ function reqGet(qs: string) {
   });
 }
 
+function externalReqGet(qs: string) {
+  return new NextRequest(`http://93.184.216.34/api/stock/summary?${qs}`, {
+    headers: { host: '93.184.216.34' },
+  });
+}
+
 function reqPost(body: unknown) {
   return new NextRequest('http://localhost/api/stock/summary', {
     method: 'POST',
@@ -67,6 +73,11 @@ beforeEach(reset);
 afterEach(reset);
 
 describe('GET /api/stock/summary', () => {
+  it('rejects non-loopback GET requests', async () => {
+    const res = await GET(externalReqGet(`ids=${VN_A}`) as never);
+    expect(res.status).toBe(403);
+  });
+
   it('returns empty summary when no ids provided', async () => {
     const res = await GET(reqGet('') as never);
     expect(res.status).toBe(200);

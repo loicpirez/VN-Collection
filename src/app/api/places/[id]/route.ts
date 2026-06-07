@@ -38,7 +38,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const existing = getPlace(id);
+    if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as Record<string, unknown>;
     if (
       ('lat' in body && body.lat !== null && typeof body.lat !== 'number')
@@ -70,10 +71,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
     if ('notes' in body) patch.notes = notes.value;
     if ('lat' in patch || 'lng' in patch) {
-      const current = getPlace(id);
       const coordinates = {
-        lat: 'lat' in patch && (typeof patch.lat === 'number' || patch.lat === null) ? patch.lat : current?.lat,
-        lng: 'lng' in patch && (typeof patch.lng === 'number' || patch.lng === null) ? patch.lng : current?.lng,
+        lat: 'lat' in patch && (typeof patch.lat === 'number' || patch.lat === null) ? patch.lat : existing.lat,
+        lng: 'lng' in patch && (typeof patch.lng === 'number' || patch.lng === null) ? patch.lng : existing.lng,
       };
       const hasAnyCoordinate = coordinates.lat != null || coordinates.lng != null;
       if (hasAnyCoordinate && !hasFiniteCoordinates(coordinates)) {

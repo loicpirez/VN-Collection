@@ -213,6 +213,18 @@ describe('POST /api/collection/[id]/cover', () => {
 });
 
 describe('PATCH /api/collection/[id]/cover (rotation)', () => {
+  it('400 on an invalid vn id', async () => {
+    const res = await coverPATCH(localReq('/api/collection/x/cover', 'PATCH', { rotation: 90 }), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
+  it('404 when the VN is not in collection', async () => {
+    const res = await coverPATCH(localReq('/api/collection/v90103/cover', 'PATCH', { rotation: 90 }), ctx(ABSENT));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not in collection' });
+  });
+
   it('400 when rotation is not a number', async () => {
     const res = await coverPATCH(localReq('/api/collection/v90102/cover', 'PATCH', { rotation: 'sideways' }), ctx());
     expect(res.status).toBe(400);
@@ -227,6 +239,12 @@ describe('PATCH /api/collection/[id]/cover (rotation)', () => {
 });
 
 describe('DELETE /api/collection/[id]/cover', () => {
+  it('400 on an invalid vn id', async () => {
+    const res = await coverDELETE(localReq('/api/collection/x/cover', 'DELETE'), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
   it('404 when the VN is not in collection', async () => {
     const res = await coverDELETE(localReq('/api/collection/v90103/cover', 'DELETE'), ctx(ABSENT));
     expect(res.status).toBe(404);

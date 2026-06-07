@@ -25,8 +25,8 @@ export async function GET(req: Request): Promise<NextResponse> {
           title: it.title,
           alttitle: it.alttitle ?? null,
           released: it.released ?? null,
-          developers: it.developers ?? [],
-          publishers: it.publishers ?? [],
+          developers: it.developers,
+          publishers: it.publishers,
         }),
       )
       .sort(compareArchiveSource)

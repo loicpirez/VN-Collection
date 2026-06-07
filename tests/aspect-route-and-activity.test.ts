@@ -100,11 +100,26 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     expect(listUserActivity({ kind: 'aspect.clear', limit: 5 })).toHaveLength(0);
   });
 
+  it('PATCH rejects an invalid VN id before reading the body', async () => {
+    const res = await PATCH(buildPatch('bad', { aspect_key: '16:9' }) as never, {
+      params: Promise.resolve({ id: 'bad' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('PATCH rejects "unknown" (no UX path for it) with HTTP 400', async () => {
     const res = await PATCH(buildPatch(SYNTHETIC_ID, { aspect_key: 'unknown' }) as never, {
       params: Promise.resolve({ id: SYNTHETIC_ID }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('PATCH persists an optional note string with a manual override', async () => {
+    const res = await PATCH(buildPatch(SYNTHETIC_ID, { aspect_key: '16:10', note: 'manual box art' }) as never, {
+      params: Promise.resolve({ id: SYNTHETIC_ID }),
+    });
+    expect(res.status).toBe(200);
+    expect(getVnAspectOverride(SYNTHETIC_ID)?.note).toBe('manual box art');
   });
 
   it('PATCH rejects malformed notes instead of silently discarding them', async () => {
@@ -132,6 +147,13 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     expect(getVnAspectOverride(SYNTHETIC_ID)).toBeNull();
     const events = listUserActivity({ kind: 'aspect.clear', limit: 5 });
     expect(events.length).toBe(1);
+  });
+
+  it('DELETE rejects an invalid VN id before clearing overrides', async () => {
+    const res = await DELETE(buildDelete('bad') as never, {
+      params: Promise.resolve({ id: 'bad' }),
+    });
+    expect(res.status).toBe(400);
   });
 });
 

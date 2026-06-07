@@ -78,13 +78,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     '% /trait|%',
     '% /vn:top-ranked:%',
   ];
-  // Each pattern must use only `[ A-Za-z0-9_/|:%-]` characters — no
-  // backslashes, no quotes, no nested wildcards from arbitrary input.
-  for (const p of BUST_PATTERNS) {
-    if (!/^[\sA-Za-z0-9_/|:%-]+$/.test(p)) {
-      throw new Error(`refresh/global: unsafe bust pattern: ${p}`);
-    }
-  }
   const bust = db.prepare(
     'DELETE FROM vndb_cache WHERE ' +
     BUST_PATTERNS.map(() => 'cache_key LIKE ?').join(' OR '),

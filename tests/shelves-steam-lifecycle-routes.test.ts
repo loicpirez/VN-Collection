@@ -23,10 +23,16 @@ import {
   POST as slotsPOST,
   DELETE as slotsDELETE,
 } from '@/app/api/shelves/[id]/slots/route';
+import {
+  POST as displaysPOST,
+  DELETE as displaysDELETE,
+} from '@/app/api/shelves/[id]/displays/route';
 import { GET as steamLibraryGET } from '@/app/api/steam/library/route';
 import { GET as steamSyncGET, POST as steamSyncPOST } from '@/app/api/steam/sync/route';
-import { POST as steamLinkPOST, DELETE as steamLinkDELETE } from '@/app/api/steam/link/route';
+import { GET as steamLinkGET, POST as steamLinkPOST, DELETE as steamLinkDELETE } from '@/app/api/steam/link/route';
 import { addToCollection, db } from '@/lib/db';
+import * as dbModule from '@/lib/db';
+import * as activityModule from '@/lib/activity';
 
 const {
   fetchOwnedGamesMock,
@@ -134,6 +140,12 @@ describe('shelves CRUD + reorder', () => {
     expect(Array.isArray((await res.json()).unplaced)).toBe(true);
   });
 
+  it('POST validates shelf creation fields', async () => {
+    expect((await shelvesPOST(loopback('/api/shelves', 'POST', { name: '' }))).status).toBe(400);
+    expect((await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_bad_cols`, cols: 0 }))).status).toBe(400);
+    expect((await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_bad_rows`, rows: 0 }))).status).toBe(400);
+  });
+
   it('PATCH resize returns the new dimensions and an evicted list', async () => {
     const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_resize`, cols: 4, rows: 4 }));
     const shelf = (await created.json()).shelf;
@@ -147,6 +159,43 @@ describe('shelves CRUD + reorder', () => {
     expect(Array.isArray(body.evicted)).toBe(true);
   });
 
+  it('GET, PATCH, and DELETE validate shelf ids and missing shelves', async () => {
+    expect((await shelfIdGET(loopback('/api/shelves/bad'), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await shelfIdGET(loopback('/api/shelves/987654'), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+    expect((await shelfIdPATCH(loopback('/api/shelves/bad', 'PATCH', {}), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await shelfIdPATCH(loopback('/api/shelves/987654', 'PATCH', {}), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+    expect((await shelfIdDELETE(loopback('/api/shelves/bad', 'DELETE'), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await shelfIdDELETE(loopback('/api/shelves/987654', 'DELETE'), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+  });
+
+  it('PATCH validates shelf update fields and handles helper not-found results', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_patch_validation` }));
+    const shelf = (await created.json()).shelf;
+
+    expect((await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { name: '' }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+    expect((await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { cols: 0 }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+    expect((await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { rows: 0 }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+
+    const renameSpy = vi.spyOn(dbModule, 'renameShelf').mockReturnValue(null);
+    const renamed = await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { name: `${SHELF_NAME}_missing_rename` }), {
+      params: Promise.resolve({ id: String(shelf.id) }),
+    });
+    expect(renamed.status).toBe(404);
+    renameSpy.mockRestore();
+
+    const resizeSpy = vi.spyOn(dbModule, 'resizeShelf').mockReturnValue(null);
+    const resized = await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { cols: 2 }), {
+      params: Promise.resolve({ id: String(shelf.id) }),
+    });
+    expect(resized.status).toBe(404);
+    resizeSpy.mockRestore();
+
+    const onlyRows = await shelfIdPATCH(loopback(`/api/shelves/${shelf.id}`, 'PATCH', { rows: 2 }), {
+      params: Promise.resolve({ id: String(shelf.id) }),
+    });
+    expect(onlyRows.status).toBe(200);
+  });
+
   it('PATCH reorders shelves by id', async () => {
     const a = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_a` }));
     const b = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_b` }));
@@ -155,6 +204,48 @@ describe('shelves CRUD + reorder', () => {
     const res = await shelvesPATCH(loopback('/api/shelves', 'PATCH', { order: [idB, idA] }));
     expect(res.status).toBe(200);
     expect(Array.isArray((await res.json()).shelves)).toBe(true);
+  });
+
+  it('POST reports sanitized shelf creation failures', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const createSpy = vi.spyOn(dbModule, 'createShelf').mockImplementation(() => {
+      throw new Error('private shelf create failure');
+    });
+
+    const res = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_create_fail` }));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'shelf create failed' });
+    expect(consoleSpy).toHaveBeenCalledWith('shelf create failed:', 'private shelf create failure');
+    createSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('PATCH validates reorder payloads', async () => {
+    expect((await shelvesPATCH(loopback('/api/shelves', 'PATCH', {}))).status).toBe(400);
+    expect((await shelvesPATCH(loopback('/api/shelves', 'PATCH', { order: Array.from({ length: 501 }, (_, index) => index + 1) }))).status).toBe(400);
+    expect((await shelvesPATCH(loopback('/api/shelves', 'PATCH', { order: [1, 0] }))).status).toBe(400);
+    expect((await shelvesPATCH(loopback('/api/shelves', 'PATCH', { order: [1, 1] }))).status).toBe(400);
+  });
+
+  it('PATCH reports sanitized shelf patch failures', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_patch_fail` }));
+    const shelf = (await created.json()).shelf;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const renameSpy = vi.spyOn(dbModule, 'renameShelf').mockImplementation(() => {
+      throw new Error('private shelf patch failure');
+    });
+
+    const res = await shelfIdPATCH(
+      loopback(`/api/shelves/${shelf.id}`, 'PATCH', { name: `${SHELF_NAME}_patched_fail` }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'shelf patch failed' });
+    expect(consoleSpy).toHaveBeenCalledWith('shelf patch failed:', 'private shelf patch failure');
+    renameSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 
@@ -188,6 +279,157 @@ describe('shelves/[id]/slots place/remove', () => {
     );
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('not found');
+  });
+
+  it('POST and DELETE validate shelf slot ids and owned-release identities', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_slot_identity`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+
+    expect((await slotsPOST(loopback('/api/shelves/bad/slots', 'POST', { row: 0, col: 0, vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await slotsPOST(loopback(`/api/shelves/${shelf.id}/slots`, 'POST', { row: 0, col: 0, vn_id: 'bad', release_id: RELEASE_ID }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+    expect((await slotsDELETE(loopback('/api/shelves/bad/slots', 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await slotsDELETE(loopback('/api/shelves/987654/slots', 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+    expect((await slotsDELETE(loopback(`/api/shelves/${shelf.id}/slots`, 'DELETE', { vn_id: 'bad', release_id: RELEASE_ID }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+  });
+
+  it('POST validates shelf slot placement bodies', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_slot_validation`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+    const cases: unknown[] = [
+      {},
+      { row: 0 },
+      { row: 0.5, col: 0, vn_id: VN_ID, release_id: RELEASE_ID },
+      { row: 0, col: 0.5, vn_id: VN_ID, release_id: RELEASE_ID },
+      { row: -1, col: 0, vn_id: VN_ID, release_id: RELEASE_ID },
+      { row: 0, col: -1, vn_id: VN_ID, release_id: RELEASE_ID },
+      { row: 0, col: 0, release_id: RELEASE_ID },
+      { row: 0, col: 0, vn_id: VN_ID },
+    ];
+
+    for (const body of cases) {
+      const res = await slotsPOST(loopback(`/api/shelves/${shelf.id}/slots`, 'POST', body), {
+        params: Promise.resolve({ id: String(shelf.id) }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe('row/col/vn_id/release_id required');
+    }
+  });
+
+  it('POST returns the shelf placement error when the DB helper rejects the move', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_slot_fail`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const placeSpy = vi.spyOn(dbModule, 'placeShelfItem').mockImplementation(() => {
+      throw new Error('slot rejected');
+    });
+
+    const res = await slotsPOST(
+      loopback(`/api/shelves/${shelf.id}/slots`, 'POST', { row: 0, col: 0, vn_id: VN_ID, release_id: RELEASE_ID }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('shelf slot place failed');
+    expect(consoleSpy).toHaveBeenCalledWith('shelf slot place failed:', 'slot rejected');
+    placeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('DELETE returns an internal error when shelf unplacement fails', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_slot_delete_fail` }));
+    const shelf = (await created.json()).shelf;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const removeSpy = vi.spyOn(dbModule, 'removeShelfPlacement').mockImplementation(() => {
+      throw new Error('remove rejected');
+    });
+
+    const res = await slotsDELETE(
+      loopback(`/api/shelves/${shelf.id}/slots`, 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe('internal error');
+    expect(consoleSpy).toHaveBeenCalledWith('[shelves/[id]/slots DELETE] DB error:', 'remove rejected');
+    removeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('shelves/[id]/displays place/remove', () => {
+  it('POST places an owned edition in a display strip and DELETE returns it to the pool', async () => {
+    seedOwnedEdition();
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_display`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+
+    const placed = await displaysPOST(
+      loopback(`/api/shelves/${shelf.id}/displays`, 'POST', { after_row: 0, position: 0, vn_id: VN_ID, release_id: RELEASE_ID }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+    expect(placed.status).toBe(200);
+    expect((await placed.json()).displays.some((slot: { vn_id: string }) => slot.vn_id === VN_ID)).toBe(true);
+
+    const removed = await displaysDELETE(
+      loopback(`/api/shelves/${shelf.id}/displays`, 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+    expect(removed.status).toBe(200);
+    expect((await removed.json()).displays.some((slot: { vn_id: string }) => slot.vn_id === VN_ID)).toBe(false);
+  });
+
+  it('POST returns the display placement error when the DB helper rejects the move', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_display_fail`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const placeSpy = vi.spyOn(dbModule, 'placeShelfDisplayItem').mockImplementation(() => {
+      throw new Error('display rejected');
+    });
+
+    const res = await displaysPOST(
+      loopback(`/api/shelves/${shelf.id}/displays`, 'POST', { after_row: 0, position: 0, vn_id: VN_ID, release_id: RELEASE_ID }),
+      { params: Promise.resolve({ id: String(shelf.id) }) },
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('shelf display place failed');
+    expect(consoleSpy).toHaveBeenCalledWith('shelf display place failed:', 'display rejected');
+    placeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('POST and DELETE validate shelf display ids and owned-release identities', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_display_identity`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+
+    expect((await displaysPOST(loopback('/api/shelves/bad/displays', 'POST', { after_row: 0, position: 0, vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await displaysPOST(loopback('/api/shelves/987654/displays', 'POST', { after_row: 0, position: 0, vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+    expect((await displaysPOST(loopback(`/api/shelves/${shelf.id}/displays`, 'POST', { after_row: 0, position: 0, vn_id: 'bad', release_id: RELEASE_ID }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+    expect((await displaysDELETE(loopback('/api/shelves/bad/displays', 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: 'bad' }) })).status).toBe(400);
+    expect((await displaysDELETE(loopback('/api/shelves/987654/displays', 'DELETE', { vn_id: VN_ID, release_id: RELEASE_ID }), { params: Promise.resolve({ id: '987654' }) })).status).toBe(404);
+    expect((await displaysDELETE(loopback(`/api/shelves/${shelf.id}/displays`, 'DELETE', { vn_id: 'bad', release_id: RELEASE_ID }), { params: Promise.resolve({ id: String(shelf.id) }) })).status).toBe(400);
+  });
+
+  it('POST validates shelf display placement bodies', async () => {
+    const created = await shelvesPOST(loopback('/api/shelves', 'POST', { name: `${SHELF_NAME}_display_validation`, cols: 3, rows: 3 }));
+    const shelf = (await created.json()).shelf;
+    const cases: unknown[] = [
+      {},
+      { after_row: 0 },
+      { after_row: 0.5, position: 0, vn_id: VN_ID, release_id: RELEASE_ID },
+      { after_row: 0, position: 0.5, vn_id: VN_ID, release_id: RELEASE_ID },
+      { after_row: -1, position: 0, vn_id: VN_ID, release_id: RELEASE_ID },
+      { after_row: 0, position: -1, vn_id: VN_ID, release_id: RELEASE_ID },
+      { after_row: 0, position: 0, release_id: RELEASE_ID },
+      { after_row: 0, position: 0, vn_id: VN_ID },
+    ];
+
+    for (const body of cases) {
+      const res = await displaysPOST(loopback(`/api/shelves/${shelf.id}/displays`, 'POST', body), {
+        params: Promise.resolve({ id: String(shelf.id) }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe('after_row/position/vn_id/release_id required');
+    }
   });
 });
 
@@ -228,6 +470,18 @@ describe('steam/sync', () => {
     expect((await res.json()).code).toBe('steam_not_configured');
   });
 
+  it('GET 502 with sanitized generic upstream failures', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fetchOwnedGamesMock.mockRejectedValue({ message: null });
+
+    const res = await steamSyncGET(loopback('/api/steam/sync'));
+
+    expect(res.status).toBe(502);
+    expect((await res.json()).code).toBe('steam_sync_failed');
+    expect(consoleSpy).toHaveBeenCalledWith('steam sync failed:', 'unknown error');
+    consoleSpy.mockRestore();
+  });
+
   it('POST 200 applying playtime to a collected VN', async () => {
     seedOwnedEdition();
     const res = await steamSyncPOST(
@@ -237,9 +491,44 @@ describe('steam/sync', () => {
     expect(await res.json()).toEqual({ applied: 1 });
     expect(recordSyncMock).toHaveBeenCalledWith(VN_ID, 120);
   });
+
+  it('POST validates Steam sync apply payloads', async () => {
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', {}))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: Array.from({ length: 2001 }, () => ({ vn_id: VN_ID, playtime_minutes: 1 })) }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [null] }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [[]] }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [{ vn_id: 'bad', playtime_minutes: 1 }] }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [{ vn_id: VN_ID, playtime_minutes: 1.5 }] }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [{ vn_id: VN_ID, playtime_minutes: -1 }] }))).status).toBe(400);
+    expect((await steamSyncPOST(loopback('/api/steam/sync', 'POST', { applies: [{ vn_id: VN_ID, playtime_minutes: 10_000_001 }] }))).status).toBe(400);
+  });
+
+  it('POST skips non-collected VNs and logs activity failures without failing', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('steam sync activity failed');
+    });
+
+    const res = await steamSyncPOST(
+      loopback('/api/steam/sync', 'POST', { applies: [{ vn_id: VN_ID, playtime_minutes: 120 }] }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ applied: 0 });
+    expect(recordSyncMock).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith('[steam:sync] activity log failed:', 'steam sync activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('steam/link', () => {
+  it('GET lists current Steam links', async () => {
+    const res = await steamLinkGET();
+    expect(res.status).toBe(200);
+    expect(Array.isArray((await res.json()).links)).toBe(true);
+  });
+
   it('POST pins a Steam app and DELETE unlinks it', async () => {
     seedOwnedEdition();
     const linked = await steamLinkPOST(
@@ -261,9 +550,40 @@ describe('steam/link', () => {
     expect((await res.json()).error).toBe('add VN to collection first');
   });
 
+  it('POST validates manual Steam link payloads', async () => {
+    expect((await steamLinkPOST(loopback('/api/steam/link', 'POST', { vn_id: 'egs_1', appid: 5, steam_name: 'X' }))).status).toBe(400);
+    expect((await steamLinkPOST(loopback('/api/steam/link', 'POST', { vn_id: VN_ID, appid: 0, steam_name: 'X' }))).status).toBe(400);
+    expect((await steamLinkPOST(loopback('/api/steam/link', 'POST', { vn_id: VN_ID, appid: 5, steam_name: '' }))).status).toBe(400);
+  });
+
+  it('POST and DELETE continue when Steam link activity logging fails', async () => {
+    seedOwnedEdition();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('steam link activity failed');
+    });
+
+    const linked = await steamLinkPOST(
+      loopback('/api/steam/link', 'POST', { vn_id: VN_ID.toUpperCase(), appid: 556, steam_name: 'Steam Title' }),
+    );
+    expect(linked.status).toBe(200);
+    expect(consoleSpy).toHaveBeenCalledWith('[steam:link] activity log failed:', 'steam link activity failed');
+
+    const unlinked = await steamLinkDELETE(loopback(`/api/steam/link?vn_id=${VN_ID.toUpperCase()}`, 'DELETE'));
+    expect(unlinked.status).toBe(200);
+    expect(consoleSpy).toHaveBeenCalledWith('[steam:unlink] activity log failed:', 'steam link activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
   it('DELETE 404 when the VN is not linked', async () => {
     const res = await steamLinkDELETE(loopback(`/api/steam/link?vn_id=${VN_ID}`, 'DELETE'));
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('not linked');
+  });
+
+  it('DELETE validates Steam unlink ids', async () => {
+    expect((await steamLinkDELETE(loopback('/api/steam/link', 'DELETE'))).status).toBe(400);
+    expect((await steamLinkDELETE(loopback('/api/steam/link?vn_id=bad', 'DELETE'))).status).toBe(400);
   });
 });

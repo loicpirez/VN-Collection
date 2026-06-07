@@ -12,10 +12,11 @@
  * of the request's loopback origin.
  */
 import Database from 'better-sqlite3';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { POST } from '@/app/api/refresh/scope/route';
 import type { NextRequest } from 'next/server';
+import * as activityModule from '@/lib/activity';
 
 // Force lib/db bootstrap so vndb_cache exists.
 db.prepare('SELECT 1').get();
@@ -126,6 +127,11 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     expect(json.error).toBe('unknown scope');
   });
 
+  it('returns 400 on a missing or non-string scope id', async () => {
+    expect((await POST(postScope({}))).status).toBe(400);
+    expect((await POST(postScope({ scope: 123 }))).status).toBe(400);
+  });
+
   it('returns 400 when a templated param is missing', async () => {
     const res = await POST(postScope({ scope: 'tag-detail' }));
     expect(res.status).toBe(400);
@@ -143,5 +149,41 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
   it('rejects malformed explicit params containers', async () => {
     expect((await POST(postScope({ scope: 'tags-list', params: [] }))).status).toBe(400);
     expect((await POST(postScope({ scope: 'tags-list', params: { gid: 73 } }))).status).toBe(400);
+  });
+
+  it('returns success when scoped refresh activity logging fails', async () => {
+    seed('POST /tag|POST|abc');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('scope activity failed');
+    });
+
+    const res = await POST(postScope({ scope: 'tags-list' }));
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).deleted).toBe(1);
+    expect(consoleSpy).toHaveBeenCalledWith('[refresh:tags-list] activity log failed:', 'scope activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('maps non-standard resolver failures to the generic response', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/refresh-scopes', () => ({
+      resolveScopePatterns: () => {
+        throw { message: null };
+      },
+    }));
+    const { POST: mockedPost } = await import('@/app/api/refresh/scope/route');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await mockedPost(postScope({ scope: 'tags-list' }));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid scope or params' });
+    expect(consoleSpy).toHaveBeenCalledWith('[refresh/scope] reject:', { scopeId: 'tags-list', msg: '' });
+    consoleSpy.mockRestore();
+    vi.doUnmock('@/lib/refresh-scopes');
+    vi.resetModules();
   });
 });

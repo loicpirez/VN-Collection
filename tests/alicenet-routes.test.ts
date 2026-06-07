@@ -64,7 +64,7 @@ import { POST as downloadVndbPOST } from '@/app/api/alicenet/download-vndb/route
 import { POST as resetPOST } from '@/app/api/alicenet/reset-matches/route';
 import { POST as linkPOST, DELETE as linkDELETE } from '@/app/api/alicenet/[code]/link/route';
 
-import { db, setAliceNetVnLink, upsertAliceNetStock, upsertVn } from '@/lib/db';
+import { db, setAliceNetVnLink, setAppSetting, upsertAliceNetStock, upsertVn } from '@/lib/db';
 
 type Body = Record<string, unknown> | undefined;
 
@@ -91,7 +91,9 @@ function seedRow(code: string, title = 'Synthetic Stock Row'): void {
 }
 
 function resetTable(): void {
-  db.exec('DELETE FROM alicenet_stock; DELETE FROM vn; DELETE FROM collection; DELETE FROM user_activity;');
+  db.exec(
+    "DELETE FROM alicenet_stock; DELETE FROM vn; DELETE FROM collection; DELETE FROM user_activity; DELETE FROM app_setting WHERE key = 'alicenet_last_fetch';",
+  );
 }
 
 beforeEach(() => {
@@ -144,12 +146,40 @@ describe('GET /api/alicenet', () => {
   it('200 annotates in_wishlist when the live wishlist contains the matched VN', async () => {
     seedRow('100-000000-003');
     setAliceNetVnLink('100-000000-003', 'v60001', 'auto');
+    setAppSetting('alicenet_last_fetch', '1700000000000');
     fetchAuthenticatedWishlistMock.mockResolvedValue([{ id: 'v60001' }]);
     const res = await listGET(localReq('GET'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.stats.in_wishlist).toBe(1);
+    expect(body.last_fetch).toBe(1700000000000);
     expect(body.items.find((i: { code: string }) => i.code === '100-000000-003')?.in_wishlist).toBe(1);
+  });
+
+  it('200 keeps the wishlist count at zero when matched rows are absent from the live wishlist', async () => {
+    seedRow('100-000000-005');
+    setAliceNetVnLink('100-000000-005', 'v60005', 'auto');
+    fetchAuthenticatedWishlistMock.mockResolvedValue([{ id: 'v69999' }]);
+    const res = await listGET(localReq('GET'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.stats.in_wishlist).toBe(0);
+    expect(body.items.find((i: { code: string }) => i.code === '100-000000-005')?.in_wishlist).toBe(0);
+  });
+
+  it('200 falls back to no wishlist annotations when the wishlist request fails', async () => {
+    seedRow('100-000000-004');
+    setAliceNetVnLink('100-000000-004', 'v60002', 'auto');
+    fetchAuthenticatedWishlistMock.mockRejectedValue(new Error('wishlist unavailable'));
+    const res = await listGET(new Request('http://127.0.0.1/api/alicenet?offset=bad&limit=2000', {
+      method: 'GET',
+      headers: { host: '127.0.0.1' },
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.page.limit).toBe(1000);
+    expect(body.page.offset).toBe(0);
+    expect(body.stats.in_wishlist).toBe(0);
   });
 
   it('403 for a non-loopback host', async () => {
@@ -167,12 +197,12 @@ describe('POST /api/alicenet/fetch', () => {
     expect(await res.json()).toMatchObject({ count: 3, added: 1, fetched_at: 1234 });
   });
 
-  it('500 with a sanitized error when the refresh throws', async () => {
-    refreshAliceNetStockMock.mockRejectedValue(new Error('socket reset at /Users/secret/path'));
+  it('502 with a sanitized actionable error when the refresh throws', async () => {
+    refreshAliceNetStockMock.mockRejectedValue(new Error('ETIMEDOUT at /Users/secret/path?token=abc123'));
     const res = await fetchPOST(localReq('POST', {}) as never);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(502);
     const body = await res.json();
-    expect(body).toEqual({ error: 'alicenet stock refresh failed' });
+    expect(body).toEqual({ error: 'AliceNet request timed out. Check the network or proxy, then retry.' });
   });
 
   it('403 for a non-loopback host', async () => {
@@ -190,6 +220,14 @@ describe('POST /api/alicenet/match-next', () => {
     expect(await res.json()).toEqual({ processed: 5, matched: 2, remaining: 7 });
   });
 
+  it('200 forwards retry_none defaults and run-start timestamps', async () => {
+    matchNextAliceNetItemsMock.mockResolvedValue({ processed: 1, matched: 0, remaining: 0 });
+    const res = await matchNextPOST(localReq('POST', { run_started_at: 1700000000000 }) as never);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ processed: 1, matched: 0, remaining: 0 });
+    expect(matchNextAliceNetItemsMock).toHaveBeenCalledWith(5, false, 1700000000000);
+  });
+
   it('400 when batch exceeds the route maximum', async () => {
     const res = await matchNextPOST(localReq('POST', { batch: 21 }) as never);
     expect(res.status).toBe(400);
@@ -201,6 +239,12 @@ describe('POST /api/alicenet/match-next', () => {
     const res = await matchNextPOST(localReq('POST', { retry_none: 'yes' }) as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('retry_none must be boolean');
+  });
+
+  it('400 when run_started_at is below the accepted range', async () => {
+    const res = await matchNextPOST(localReq('POST', { run_started_at: 0 }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('run_started_at must be between 1 and 9007199254740991');
   });
 
   it('403 for a non-loopback host', async () => {
@@ -224,6 +268,12 @@ describe('POST /api/alicenet/match-vndb-from-egs', () => {
     expect((await res.json()).error).toBe('run_started_at must be an integer');
   });
 
+  it('400 when batch exceeds the VNDB-from-EGS route maximum', async () => {
+    const res = await matchVndbFromEgsPOST(localReq('POST', { batch: 51 }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('batch must be between 1 and 50');
+  });
+
   it('403 for a non-loopback host', async () => {
     const res = await matchVndbFromEgsPOST(remoteReq('POST', {}) as never);
     expect(res.status).toBe(403);
@@ -234,15 +284,22 @@ describe('POST /api/alicenet/match-vndb-from-egs', () => {
 describe('POST /api/alicenet/retry-vndb-aggressive', () => {
   it('200 returns the one-shot counters', async () => {
     retryVndbForAliceNetAggressiveMock.mockResolvedValue({ processed: 4, matched: 0, remaining: 0 });
-    const res = await retryAggressivePOST(localReq('POST', {}) as never);
+    const res = await retryAggressivePOST(localReq('POST', { run_started_at: 1700000000001 }) as never);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ processed: 4, matched: 0, remaining: 0 });
+    expect(retryVndbForAliceNetAggressiveMock).toHaveBeenCalledWith(4, 1700000000001);
   });
 
   it('400 when batch exceeds the route maximum', async () => {
     const res = await retryAggressivePOST(localReq('POST', { batch: 21 }) as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('batch must be between 1 and 20');
+  });
+
+  it('400 when run_started_at is below the accepted range', async () => {
+    const res = await retryAggressivePOST(localReq('POST', { run_started_at: 0 }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('run_started_at must be between 1 and 9007199254740991');
   });
 
   it('403 for a non-loopback host', async () => {
@@ -265,6 +322,18 @@ describe('POST /api/alicenet/search-egs-no-vndb', () => {
     const res = await searchEgsPOST(localReq('POST', { aggressive: 1 }) as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('aggressive must be boolean');
+  });
+
+  it('400 when search batch exceeds the route maximum', async () => {
+    const res = await searchEgsPOST(localReq('POST', { batch: 51 }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('batch must be between 1 and 50');
+  });
+
+  it('400 when search run_started_at is not positive', async () => {
+    const res = await searchEgsPOST(localReq('POST', { run_started_at: 0 }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('run_started_at must be between 1 and 9007199254740991');
   });
 
   it('403 for a non-loopback host', async () => {
@@ -292,7 +361,7 @@ describe('POST /api/alicenet/download-vndb', () => {
     getVnMock.mockResolvedValue(null);
     const res = await downloadVndbPOST(localReq('POST', { batch: 5 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream error', processed: 0 });
+    expect(await res.json()).toEqual({ error: 'VNDB returned no data for v60011', processed: 0 });
   });
 
   it('400 when batch exceeds the route maximum', async () => {
@@ -323,6 +392,18 @@ describe('POST /api/alicenet/resolve-egs', () => {
     expect(resolveEgsForVnMock).toHaveBeenCalledWith('v60020', { allowSearch: true });
   });
 
+  it('200 marks the EGS link as searched when no game is resolved', async () => {
+    seedRow('300-000000-003');
+    setAliceNetVnLink('300-000000-003', 'v60022', 'auto');
+    upsertVn({ id: 'v60022', title: 'Local VN 3' });
+    resolveEgsForVnMock.mockResolvedValue({ game: null });
+    const res = await resolveEgsPOST(localReq('POST', { batch: 5 }) as never);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ processed: 1 });
+    const stored = db.prepare('SELECT egs_id, egs_match_source FROM alicenet_stock WHERE code = ?').get('300-000000-003');
+    expect(stored).toMatchObject({ egs_id: null, egs_match_source: 'auto' });
+  });
+
   it('502 with a sanitized error when the resolver throws', async () => {
     seedRow('300-000000-002');
     setAliceNetVnLink('300-000000-002', 'v60021', 'auto');
@@ -330,7 +411,7 @@ describe('POST /api/alicenet/resolve-egs', () => {
     resolveEgsForVnMock.mockRejectedValue(new Error('EGS SQL form 500 at /Users/secret'));
     const res = await resolveEgsPOST(localReq('POST', { batch: 5 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream error', processed: 0 });
+    expect(await res.json()).toEqual({ error: 'EGS SQL form 500 at [local path]', processed: 0 });
   });
 
   it('400 when batch exceeds the route maximum', async () => {
@@ -395,6 +476,18 @@ describe('POST /api/alicenet/[code]/link', () => {
     });
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('not found');
+  });
+
+  it('200 clears a manual VN link when vn_id is null', async () => {
+    seedRow('400-000000-003', 'Manual Null Target');
+    setAliceNetVnLink('400-000000-003', 'v60033', 'manual');
+    const res = await linkPOST(localReq('POST', { vn_id: null }) as never, {
+      params: Promise.resolve({ code: '400-000000-003' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    const stored = db.prepare('SELECT vn_id, vn_match_source FROM alicenet_stock WHERE code = ?').get('400-000000-003');
+    expect(stored).toMatchObject({ vn_id: null, vn_match_source: 'none' });
   });
 
   it('403 for a non-loopback host', async () => {

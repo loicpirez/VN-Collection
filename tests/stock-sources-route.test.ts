@@ -20,6 +20,27 @@ beforeEach(clear);
 afterEach(clear);
 
 describe('POST /api/vn/[id]/stock/sources — validation', () => {
+  it('rejects non-local requests before parsing source URLs', async () => {
+    const res = await POST(
+      new Request('http://example.com/api/vn/v97531/stock/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://www.amazon.co.jp/dp/B000JF6UD2' }),
+      }) as never,
+      { params: Promise.resolve({ id: VN_ID }) },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects invalid VN ids before parsing the source URL', async () => {
+    const res = await POST(
+      makeReq({ url: 'https://www.amazon.co.jp/dp/B000JF6UD2' }) as never,
+      { params: Promise.resolve({ id: 'bad' }) },
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/invalid id/);
+  });
+
   it('rejects missing url with 400', async () => {
     const res = await POST(makeReq({}) as never, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(400);
@@ -53,6 +74,15 @@ describe('POST /api/vn/[id]/stock/sources — validation', () => {
     expect((await res.json()).error).toMatch(/unsupported provider/);
   });
 
+  it('rejects allowed non-shop hosts that are not stock providers', async () => {
+    const res = await POST(
+      makeReq({ url: 'https://t.vndb.org/cv/00/1.jpg' }) as never,
+      { params: Promise.resolve({ id: VN_ID }) },
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/unsupported provider/);
+  });
+
   it('rejects extremely long url', async () => {
     const url = 'https://www.amazon.co.jp/dp/' + 'A'.repeat(2000);
     const res = await POST(
@@ -74,6 +104,20 @@ describe('POST /api/vn/[id]/stock/sources — validation', () => {
     expect(sources[0].provider).toBe('amazon_jp');
     expect(sources[0].url).toBe('https://www.amazon.co.jp/dp/B000JF6UD2');
     expect(sources[0].product_id).toBe('B000JF6UD2');
+  });
+
+  it('accepts a valid Sofmap URL without product-id canonicalization', async () => {
+    const url = 'https://a.sofmap.com/product_detail.aspx?sku=100959203';
+    const res = await POST(
+      makeReq({ url }) as never,
+      { params: Promise.resolve({ id: VN_ID }) },
+    );
+    expect(res.status).toBe(200);
+    const sources = listStockSources(VN_ID);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].provider).toBe('sofmap');
+    expect(sources[0].url).toBe(url);
+    expect(sources[0].product_id).toBeNull();
   });
 
   it('rejects more than 32 manual sources per VN', async () => {
@@ -118,5 +162,16 @@ describe('POST /api/vn/[id]/stock/sources — validation', () => {
     );
     expect(res.status).toBe(400);
     expect(listStockSources(VN_ID)).toHaveLength(0);
+  });
+
+  it('stores a valid release_id with the manual source', async () => {
+    const res = await POST(
+      makeReq({ url: 'https://www.amazon.co.jp/dp/B000JF6UD2', release_id: 'R12345' }) as never,
+      { params: Promise.resolve({ id: VN_ID }) },
+    );
+    expect(res.status).toBe(200);
+    const sources = listStockSources(VN_ID);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].release_id).toBe('R12345');
   });
 });

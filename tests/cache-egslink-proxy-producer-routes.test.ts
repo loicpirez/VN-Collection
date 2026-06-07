@@ -24,6 +24,7 @@ import {
 import { POST as proxyTestPOST } from '@/app/api/proxy/test/route';
 import { POST as producerRefreshPOST } from '@/app/api/producer/[id]/refresh/route';
 import { db } from '@/lib/db';
+import * as activityModule from '@/lib/activity';
 
 const { fetchAssocMock, invalidateAssocMock } = vi.hoisted(() => ({
   fetchAssocMock: vi.fn(),
@@ -51,6 +52,13 @@ function loopback(path: string, method = 'GET', body?: unknown, fwd = '127.0.0.1
   });
 }
 
+function external(path: string, method = 'GET'): NextRequest {
+  return new NextRequest(`http://93.184.216.34${path}`, {
+    method,
+    headers: { host: '93.184.216.34' },
+  });
+}
+
 beforeEach(() => {
   fetchAssocMock.mockReset();
   invalidateAssocMock.mockReset();
@@ -59,9 +67,15 @@ beforeEach(() => {
 afterEach(() => {
   db.prepare('DELETE FROM egs_vn_link WHERE egs_id = ?').run(EGS_ID);
   db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?').run('%__test_cache_route%');
+  db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?').run('%test-cache-route%');
 });
 
 describe('GET /api/vndb/cache', () => {
+  it('403 from an external origin', async () => {
+    const res = await cacheGET(external('/api/vndb/cache') as never);
+    expect(res.status).toBe(403);
+  });
+
   it('200 with cache stats from loopback', async () => {
     const res = await cacheGET(loopback('/api/vndb/cache') as never);
     expect(res.status).toBe(200);
@@ -70,10 +84,10 @@ describe('GET /api/vndb/cache', () => {
 });
 
 describe('DELETE /api/vndb/cache', () => {
-  function seedCacheRow(): void {
+  function seedCacheRow(cacheKey = 'GET /__test_cache_route|GET|abc'): void {
     db.prepare(
       'INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)',
-    ).run('GET /__test_cache_route|GET|abc', '{}', Date.now(), Date.now() - 1000);
+    ).run(cacheKey, '{}', Date.now(), Date.now() - 1000);
   }
 
   it('200 pruning expired rows in expired mode', async () => {
@@ -89,6 +103,17 @@ describe('DELETE /api/vndb/cache', () => {
     const res = await cacheDELETE(loopback('/api/vndb/cache?mode=prefix&prefix=a%25b', 'DELETE') as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/LIKE wildcard/);
+  });
+
+  it('200 deleting rows by an exact path prefix', async () => {
+    seedCacheRow('GET /test-cache-route|GET|abc');
+    const prefix = encodeURIComponent('GET /test-cache-route');
+    const res = await cacheDELETE(loopback(`/api/vndb/cache?mode=prefix&prefix=${prefix}`, 'DELETE') as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mode).toBe('prefix');
+    expect(body.prefix).toBe('GET /test-cache-route');
+    expect(body.removed).toBeGreaterThanOrEqual(1);
   });
 
   it('200 clearing everything in the default (all) mode', async () => {
@@ -116,6 +141,30 @@ describe('egs/[id]/vndb pin lifecycle', () => {
     expect(await res.json()).toEqual({ link: null });
   });
 
+  it('accepts EGS-prefixed ids on read', async () => {
+    const res = await egsVndbGET(loopback(`/api/egs/egs_${EGS_ID}/vndb`) as never, {
+      params: Promise.resolve({ id: `egs_${EGS_ID}` }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ link: null });
+  });
+
+  it('POST rejects malformed EGS ids and VNDB ids', async () => {
+    const invalidId = await egsVndbPOST(
+      loopback('/api/egs/bad/vndb', 'POST', { vndb_id: VN_ID }) as never,
+      { params: Promise.resolve({ id: 'bad' }) },
+    );
+    expect(invalidId.status).toBe(400);
+    expect(await invalidId.json()).toEqual({ error: 'invalid egs id' });
+
+    const invalidVn = await egsVndbPOST(
+      loopback(`/api/egs/${EGS_ID}/vndb`, 'POST', { vndb_id: 'bad' }) as never,
+      { params: Promise.resolve({ id: String(EGS_ID) }) },
+    );
+    expect(invalidVn.status).toBe(400);
+    expect(await invalidVn.json()).toEqual({ error: 'invalid vndb_id' });
+  });
+
   it('POST pins a VNDB id, GET reads it back, DELETE clears it', async () => {
     const pinned = await egsVndbPOST(
       loopback(`/api/egs/${EGS_ID}/vndb`, 'POST', { vndb_id: VN_ID }) as never,
@@ -137,6 +186,14 @@ describe('egs/[id]/vndb pin lifecycle', () => {
     expect(await cleared.json()).toEqual({ ok: true });
   });
 
+  it('DELETE rejects malformed EGS ids', async () => {
+    const res = await egsVndbDELETE(loopback('/api/egs/bad/vndb', 'DELETE') as never, {
+      params: Promise.resolve({ id: 'bad' }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid egs id' });
+  });
+
   it('POST 200 records an explicit "no VNDB counterpart" pin on null', async () => {
     const res = await egsVndbPOST(
       loopback(`/api/egs/${EGS_ID}/vndb`, 'POST', { vndb_id: null }) as never,
@@ -146,6 +203,26 @@ describe('egs/[id]/vndb pin lifecycle', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.link.vn_id).toBeNull();
+  });
+
+  it('logs activity failures without failing link or unlink operations', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+
+    const link = await egsVndbPOST(
+      loopback(`/api/egs/${EGS_ID}/vndb`, 'POST', { vndb_id: VN_ID }) as never,
+      { params: Promise.resolve({ id: String(EGS_ID) }) },
+    );
+    expect(link.status).toBe(200);
+    const unlink = await egsVndbDELETE(loopback(`/api/egs/${EGS_ID}/vndb`, 'DELETE') as never, {
+      params: Promise.resolve({ id: String(EGS_ID) }),
+    });
+    expect(unlink.status).toBe(200);
+    expect(consoleSpy).toHaveBeenCalledWith(`[egs-vndb:${EGS_ID}] activity log failed:`, 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 
@@ -201,6 +278,34 @@ describe('POST /api/producer/[id]/refresh', () => {
     expect(body.developers).toBe(2);
     expect(body.publishers).toBe(1);
     expect(invalidateAssocMock).toHaveBeenCalledWith(PRODUCER_ID);
+  });
+
+  it('200 when activity logging fails after refreshing associations', async () => {
+    fetchAssocMock.mockResolvedValue({
+      name: 'Studio X',
+      developerVns: [{ id: 'v1' }],
+      publisherVns: [],
+      totalUnique: 1,
+      ownedUnique: 1,
+      fromCache: false,
+      upstreamFailed: false,
+      stale: true,
+    });
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+
+    const res = await producerRefreshPOST(
+      loopback(`/api/producer/${PRODUCER_ID}/refresh`, 'POST', {}) as never,
+      { params: Promise.resolve({ id: PRODUCER_ID }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, developers: 1, publishers: 0, owned: 1, stale: true });
+    expect(consoleSpy).toHaveBeenCalledWith(`[producer:${PRODUCER_ID}] activity log failed:`, 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 
   it('502 when every upstream association call failed', async () => {

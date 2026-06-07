@@ -89,7 +89,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (isJobCancelled(job.id) || controller.signal.aborted) break;
         const chunk = vnIds.slice(start, start + STOCK_BATCH_VN_CONCURRENCY);
         await Promise.all(chunk.map(async (vnId) => {
-          if (isJobCancelled(job.id) || controller.signal.aborted) return;
           setJobCurrent(job.id, vnId);
           persistJob(job.id);
           const providerJob = startJob('stock-batch', jobLabel('stock_providers_for_vn', `Providers - ${vnId}`, { vnId }), providers.length, vnId);

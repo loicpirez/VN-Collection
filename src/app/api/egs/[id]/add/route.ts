@@ -67,8 +67,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       kind: 'collection.add',
       entity: 'vn',
       entityId: vnId,
-      label: game.gamename ?? `EGS #${egsId}`,
-      payload: { source: 'egs', egs_id: egsId, status: patch.status ?? null },
+      label: game.gamename,
+      payload: { source: 'egs', egs_id: egsId, status: patch.status },
     });
   } catch {
     // ignore

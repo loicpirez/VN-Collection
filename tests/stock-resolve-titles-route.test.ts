@@ -90,4 +90,15 @@ describe('GET /api/stock/resolve-titles', () => {
     expect(body['bulk title 49']).toBeDefined();
     expect(body['bulk title 50']).toBeUndefined();
   });
+
+  it('rate-limits repeated title resolution probes', async () => {
+    let limited: Response | null = null;
+    for (let i = 0; i < 31; i += 1) {
+      limited = await GET(makeReq('?q=a%25b', '10.0.0.240'));
+    }
+
+    if (!limited) throw new Error('rate-limit probe did not run');
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({ error: 'rate limit exceeded' });
+  });
 });

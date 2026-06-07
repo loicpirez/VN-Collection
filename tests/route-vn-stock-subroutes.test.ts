@@ -86,6 +86,11 @@ describe('GET /api/vn/[id]/stock/sources', () => {
     expect(body.sources).toHaveLength(1);
     expect(body.sources[0].provider).toBe('amazon_jp');
   });
+
+  it('403 before reading sources when the request is not local or tokened', async () => {
+    const res = await sourcesGET(new NextRequest('http://example.com/api/vn/v90501/stock/sources'), ctx());
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('DELETE /api/vn/[id]/stock/sources', () => {
@@ -95,10 +100,24 @@ describe('DELETE /api/vn/[id]/stock/sources', () => {
     expect((await res.json()).error).toBe('source id required');
   });
 
+  it('400 on an invalid source delete VN id', async () => {
+    const res = await sourcesDELETE(localReq('/api/vn/bad/stock/sources', 'DELETE', { id: 1 }), ctx('bad'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid id' });
+  });
+
   it('200 and removes the requested source', async () => {
     upsertStockSource({ vn_id: VN, provider: 'amazon_jp', url: 'https://www.amazon.co.jp/dp/B000000222', product_id: 'B000000222' });
     const [row] = listStockSources(VN);
     const res = await sourcesDELETE(localReq('/api/vn/v90501/stock/sources', 'DELETE', { id: row.id }), ctx());
+    expect(res.status).toBe(200);
+    expect(listStockSources(VN)).toHaveLength(0);
+  });
+
+  it('200 and accepts source_id as the delete body key', async () => {
+    upsertStockSource({ vn_id: VN, provider: 'amazon_jp', url: 'https://www.amazon.co.jp/dp/B000000333', product_id: 'B000000333' });
+    const [row] = listStockSources(VN);
+    const res = await sourcesDELETE(localReq('/api/vn/v90501/stock/sources', 'DELETE', { source_id: row.id }), ctx());
     expect(res.status).toBe(200);
     expect(listStockSources(VN)).toHaveLength(0);
   });
@@ -115,11 +134,28 @@ describe('GET /api/vn/[id]/stock/aliases', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray((await res.json()).aliases)).toBe(true);
   });
+
+  it('403 before reading aliases when the request is not local or tokened', async () => {
+    const res = await aliasesGET(new NextRequest('http://example.com/api/vn/v90501/stock/aliases'), ctx());
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('POST /api/vn/[id]/stock/aliases', () => {
   it('400 when the term is empty', async () => {
     const res = await aliasesPOST(localReq('/api/vn/v90501/stock/aliases', 'POST', { term: '', action: 'add' }), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('term required');
+  });
+
+  it('400 on an invalid alias POST VN id', async () => {
+    const res = await aliasesPOST(localReq('/api/vn/bad/stock/aliases', 'POST', { term: 'alias', action: 'add' }), ctx('bad'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid id' });
+  });
+
+  it('400 when the alias term is not a string', async () => {
+    const res = await aliasesPOST(localReq('/api/vn/v90501/stock/aliases', 'POST', { term: 123, action: 'add' }), ctx());
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('term required');
   });
@@ -142,6 +178,15 @@ describe('PATCH /api/vn/[id]/stock/eroge-price', () => {
     const res = await epPATCH(localReq('/api/vn/v90501/stock/eroge-price', 'PATCH', {}), ctx());
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/ep_id required/);
+  });
+
+  it('403 before patching eroge-price extras when the request is not local or tokened', async () => {
+    const res = await epPATCH(new NextRequest('http://example.com/api/vn/v90501/stock/eroge-price', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ep_id: 100 }),
+    }), ctx());
+    expect(res.status).toBe(403);
   });
 
   it('404 when no extras are stored for the VN', async () => {
@@ -170,6 +215,21 @@ describe('POST /api/vn/[id]/stock/eroge-price', () => {
   it('400 when ep_id is missing', async () => {
     const res = await epPOST(localReq('/api/vn/v90501/stock/eroge-price', 'POST', {}), ctx());
     expect(res.status).toBe(400);
+  });
+
+  it('403 before adding eroge-price candidates when the request is not local or tokened', async () => {
+    const res = await epPOST(new NextRequest('http://example.com/api/vn/v90501/stock/eroge-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ep_id: 777 }),
+    }), ctx());
+    expect(res.status).toBe(403);
+  });
+
+  it('400 on an invalid VN id before adding an eroge-price candidate', async () => {
+    const res = await epPOST(localReq('/api/vn/bad/stock/eroge-price', 'POST', { ep_id: 777 }), ctx('bad'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid id' });
   });
 
   it('200 (already present) without fetching when the candidate exists', async () => {
@@ -208,6 +268,24 @@ describe('POST /api/vn/[id]/stock/eroge-price', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).candidates).toContain(777);
   });
+
+  it('200 and appends a freshly-fetched candidate to existing extras', async () => {
+    seedExtras([100], 100);
+    fetchBundleMock.mockResolvedValue({
+      epId: 888,
+      gameUrl: 'https://eroge-price.com/games/888',
+      detail: { id: 888, title: 'Fetched extra' },
+      priceStats: {},
+      priceHistory: [],
+      related: {},
+      fetchedAt: Date.now(),
+    });
+    const res = await epPOST(localReq('/api/vn/v90501/stock/eroge-price', 'POST', { ep_id: 888 }), ctx());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.candidates).toEqual([100, 888]);
+    expect(body.selectedEpId).toBe(100);
+  });
 });
 
 describe('DELETE /api/vn/[id]/stock/eroge-price', () => {
@@ -215,6 +293,19 @@ describe('DELETE /api/vn/[id]/stock/eroge-price', () => {
     const res = await epDELETE(localReq('/api/vn/v90501/stock/eroge-price', 'DELETE'), ctx());
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('ep_id query param required');
+  });
+
+  it('403 before deleting eroge-price candidates when the request is not local or tokened', async () => {
+    const res = await epDELETE(new NextRequest('http://example.com/api/vn/v90501/stock/eroge-price?ep_id=5', {
+      method: 'DELETE',
+    }), ctx());
+    expect(res.status).toBe(403);
+  });
+
+  it('400 on an invalid VN id before deleting an eroge-price candidate', async () => {
+    const res = await epDELETE(localReq('/api/vn/bad/stock/eroge-price?ep_id=5', 'DELETE'), ctx('bad'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid id' });
   });
 
   it('200 (no extras) when nothing is stored', async () => {
@@ -240,6 +331,15 @@ describe('DELETE /api/vn/[id]/stock/eroge-price', () => {
   it('200 and re-points selection when a non-last candidate is removed', async () => {
     seedExtras([100, 200], 100);
     const res = await epDELETE(localReq('/api/vn/v90501/stock/eroge-price?ep_id=100', 'DELETE'), ctx());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.candidates).toEqual([200]);
+    expect(body.selectedEpId).toBe(200);
+  });
+
+  it('200 and keeps the selected candidate when deleting a different candidate', async () => {
+    seedExtras([100, 200], 200);
+    const res = await epDELETE(localReq('/api/vn/v90501/stock/eroge-price?egs_id=100', 'DELETE'), ctx());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.candidates).toEqual([200]);

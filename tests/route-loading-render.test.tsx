@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import HomeLoading from '@/app/loading';
 import ActivityLoading from '@/app/activity/loading';
-import AliceNetLoading from '@/app/alicenet/loading';
 import BrandOverlapLoading from '@/app/brand-overlap/loading';
 import CharacterLoading from '@/app/character/[id]/loading';
 import CharactersLoading from '@/app/characters/loading';
@@ -59,7 +58,6 @@ vi.mock('next/headers', () => ({
 const routeLoaders = [
   HomeLoading,
   ActivityLoading,
-  AliceNetLoading,
   BrandOverlapLoading,
   CharacterLoading,
   CharactersLoading,

@@ -43,8 +43,7 @@ const COLUMNS = [
  * and discards on import.
  */
 function csvEscape(v: unknown): string {
-  if (v == null) return '';
-  let s = typeof v === 'string' ? v : Array.isArray(v) ? v.join('; ') : String(v);
+  let s = typeof v === 'string' ? v : String(v);
   if (s.length > 0 && /^[=+\-@\t\r]/.test(s)) {
     s = `'${s}`;
   }
@@ -70,32 +69,33 @@ export async function GET(req: Request): Promise<NextResponse> {
     const items = listCollection({ sort: 'title', _projection: 'full-no-raw' });
     const lines: string[] = [COLUMNS.join(',')];
     for (const it of items) {
+      const physicalLocation = it.physical_location ?? [];
       const row = [
         it.id,
         it.title,
         it.alttitle ?? '',
-        it.status ?? '',
+        it.status,
         it.user_rating ?? '',
         it.rating ?? '',
-        it.playtime_minutes ?? 0,
+        it.playtime_minutes,
         it.length_minutes ?? '',
         it.released ?? '',
-        (it.languages ?? []).join('; '),
-        (it.platforms ?? []).join('; '),
-        (it.developers ?? []).map((d) => d.name).join('; '),
-        (it.tags ?? []).map((t) => t.name).join('; '),
+        it.languages.join('; '),
+        it.platforms.join('; '),
+        it.developers.map((d) => d.name).join('; '),
+        it.tags.map((t) => t.name).join('; '),
         it.favorite ? 1 : 0,
         it.started_date ?? '',
         it.finished_date ?? '',
-        it.location ?? '',
-        it.edition_type ?? '',
+        it.location,
+        it.edition_type,
         it.edition_label ?? '',
-        it.box_type ?? '',
-        (it.physical_location ?? []).join('; '),
+        it.box_type,
+        physicalLocation.join('; '),
         it.download_url ?? '',
         it.dumped ? 1 : 0,
-        it.added_at ?? '',
-        it.updated_at ?? '',
+        it.added_at,
+        it.updated_at,
       ];
       lines.push(row.map(csvEscape).join(','));
     }

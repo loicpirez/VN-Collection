@@ -10,7 +10,7 @@ function safeAttachmentFilename(raw: string | undefined): string {
   // Strip anything that could break out of the quoted filename and
   // inject a CR/LF header. Keep it to safe characters + dot/dash.
   const cleaned = raw.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
-  return cleaned || 'asset.svg';
+  return cleaned;
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {

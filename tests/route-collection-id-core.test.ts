@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addToCollection, db, upsertVn } from '@/lib/db';
+import * as dbModule from '@/lib/db';
+import * as activityModule from '@/lib/activity';
 import {
   GET as collectionGET,
   POST as collectionPOST,
@@ -77,6 +79,21 @@ describe('GET /api/collection/[id]', () => {
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not found' });
   });
+
+  it('500 with a sanitized response when the collection read fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const readSpy = vi.spyOn(dbModule, 'getCollectionItem').mockImplementation(() => {
+      throw new Error('read failed');
+    });
+
+    const res = await collectionGET(localReq('GET') as never, ctx());
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[collection/[id] GET] DB error:', 'read failed');
+    readSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('POST /api/collection/[id]', () => {
@@ -132,6 +149,47 @@ describe('PATCH /api/collection/[id]', () => {
     expect(body.item.favorite).toBe(true);
     expect(body.item.user_rating).toBe(95);
   });
+
+  it('accepts null to clear the download URL', async () => {
+    addToCollection(VN, { status: 'planning', download_url: 'https://example.com/file.zip' });
+
+    const res = await collectionPATCH(localReq('PATCH', { download_url: null }) as never, ctx());
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).item.download_url).toBeNull();
+  });
+
+  it('500 with a sanitized response when the collection update fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const updateSpy = vi.spyOn(dbModule, 'updateCollection').mockImplementation(() => {
+      throw new Error('update failed');
+    });
+    addToCollection(VN, { status: 'planning' });
+
+    const res = await collectionPATCH(localReq('PATCH', { favorite: true }) as never, ctx());
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[collection/[id] PATCH] DB error:', 'update failed');
+    updateSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('500 with a sanitized response when patch activity logging fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+    addToCollection(VN, { status: 'planning' });
+
+    const res = await collectionPATCH(localReq('PATCH', { favorite: true }) as never, ctx());
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[collection/[id] PATCH] DB error:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('DELETE /api/collection/[id]', () => {
@@ -153,5 +211,21 @@ describe('DELETE /api/collection/[id]', () => {
     const res = await collectionDELETE(localReq('DELETE') as never, ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('500 with a sanitized response when delete activity logging fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+    addToCollection(VN, { status: 'planning' });
+
+    const res = await collectionDELETE(localReq('DELETE') as never, ctx());
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[collection/[id] DELETE] DB error:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });

@@ -104,7 +104,7 @@ export async function GET(req: Request): Promise<NextResponse> {
           `DTSTAMP:${stamp}`,
           `DTSTART;VALUE=DATE:${start}`,
           `SUMMARY:${ics(`▶ Started ${title}`)}`,
-          `DESCRIPTION:${ics(`Visual novel started\\nStatus: ${it.status ?? '—'}\\n${it.id}`)}`,
+          `DESCRIPTION:${ics(`Visual novel started\\nStatus: ${it.status}\\n${it.id}`)}`,
           'END:VEVENT',
         );
       }

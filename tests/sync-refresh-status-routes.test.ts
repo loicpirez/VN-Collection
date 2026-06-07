@@ -13,6 +13,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import * as activityModule from '@/lib/activity';
+import { addToCollection, db } from '@/lib/db';
 
 const {
   computeEgsSuggestionsMock,
@@ -102,6 +104,28 @@ beforeEach(() => {
   computeEgsSuggestionsMock.mockReset();
   applyEgsSuggestionsMock.mockReset();
   pullStatusesMock.mockReset();
+  getGlobalStatsMock.mockReset();
+  getGlobalStatsMock.mockResolvedValue({ vn: 1 });
+  getAuthInfoMock.mockReset();
+  getAuthInfoMock.mockResolvedValue(null);
+  getSchemaMock.mockReset();
+  getSchemaMock.mockResolvedValue({});
+  searchTagsMock.mockReset();
+  searchTagsMock.mockResolvedValue([]);
+  searchTraitsMock.mockReset();
+  searchTraitsMock.mockResolvedValue([]);
+  fetchEgsAnticipatedMock.mockReset();
+  fetchEgsAnticipatedMock.mockResolvedValue([]);
+  fetchEgsTopRankedMock.mockReset();
+  fetchEgsTopRankedMock.mockResolvedValue([]);
+  fetchVndbTopRankedMock.mockReset();
+  fetchVndbTopRankedMock.mockResolvedValue([]);
+  fetchAllUpcomingMock.mockReset();
+  fetchAllUpcomingMock.mockResolvedValue([]);
+  fetchUpcomingForCollectionMock.mockReset();
+  fetchUpcomingForCollectionMock.mockResolvedValue([]);
+  db.prepare("DELETE FROM collection WHERE vn_id IN ('v90301', 'vbad')").run();
+  db.prepare("DELETE FROM vn WHERE id IN ('v90301', 'vbad')").run();
 });
 
 describe('GET /api/download-status', () => {
@@ -126,6 +150,18 @@ describe('GET /api/egs/sync', () => {
 });
 
 describe('POST /api/egs/sync', () => {
+  it('400 when vn_ids is missing or exceeds the route limit', async () => {
+    const missing = await egsSyncPOST(loopback('/api/egs/sync', 'POST', {}));
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: 'vn_ids must be an array' });
+
+    const oversized = await egsSyncPOST(loopback('/api/egs/sync', 'POST', {
+      vn_ids: Array.from({ length: 1001 }, (_, index) => `v${index + 1}`),
+    }));
+    expect(oversized.status).toBe(400);
+    expect(await oversized.json()).toEqual({ error: 'vn_ids exceeds limit of 1000' });
+  });
+
   it('200 with applied:0 for an empty pick list (no apply call)', async () => {
     const res = await egsSyncPOST(loopback('/api/egs/sync', 'POST', { vn_ids: [] }));
     expect(res.status).toBe(200);
@@ -141,6 +177,23 @@ describe('POST /api/egs/sync', () => {
     expect(body.ok).toBe(true);
     expect(body.applied).toBe(1);
     expect(applyEgsSuggestionsMock).toHaveBeenCalledWith(['v90201']);
+  });
+
+  it('deduplicates picks and logs activity failures without failing the apply response', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+    applyEgsSuggestionsMock.mockResolvedValue({ applied: 1 });
+
+    const res = await egsSyncPOST(loopback('/api/egs/sync', 'POST', { vn_ids: ['V90201', 'v90201'] }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, applied: 1 });
+    expect(applyEgsSuggestionsMock).toHaveBeenCalledWith(['v90201']);
+    expect(consoleSpy).toHaveBeenCalledWith('[egs:sync] activity log failed:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 
@@ -169,6 +222,10 @@ describe('POST /api/vndb/pull-statuses', () => {
 
 describe('POST /api/refresh/global', () => {
   it('200 completing every fan-out task with all upstreams stubbed', async () => {
+    db.prepare('INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('v90301', 'Refresh VN', Date.now());
+    db.prepare('INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('vbad', 'Invalid Refresh VN', Date.now());
+    addToCollection('v90301', {});
+    addToCollection('vbad', {});
     const res = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -176,5 +233,19 @@ describe('POST /api/refresh/global', () => {
     expect(body.total).toBeGreaterThan(0);
     expect(body.done).toBe(body.total);
     expect(getGlobalStatsMock).toHaveBeenCalled();
+  });
+
+  it('200 with failed count when a fan-out task throws and authinfo fallback swallows VNDB auth failures', async () => {
+    getGlobalStatsMock.mockRejectedValue(new Error('global stats failed'));
+    getAuthInfoMock.mockRejectedValue(new Error('auth info failed'));
+
+    const res = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.failed).toBe(1);
+    expect(body.done).toBe(body.total - 1);
+    expect(getAuthInfoMock).toHaveBeenCalled();
   });
 });

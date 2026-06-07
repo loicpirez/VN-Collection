@@ -17,7 +17,8 @@ import { GET as activityKindsGET } from '@/app/api/activity/kinds/route';
 import { GET as stockRecentGET } from '@/app/api/stock/recent/route';
 import { GET as gameListGET } from '@/app/api/export/game-list/route';
 import { GET as rawGET } from '@/app/api/export/raw/route';
-import { db, upsertProducer } from '@/lib/db';
+import { db, setVnPublishers, upsertProducer, upsertVn } from '@/lib/db';
+import * as dbModule from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 const { fetchProducerMock } = vi.hoisted(() => ({ fetchProducerMock: vi.fn() }));
@@ -29,7 +30,9 @@ vi.mock('@/lib/vndb', async (importOriginal) => {
 
 const PRODUCER_ID = 'p90801';
 const VN_ID = 'v90801';
+const VN_ID_EMPTY_META = 'v90802';
 const ACTIVITY_KIND = '__test_kind_route';
+const RAW_CACHE_PREFIX = 'TEST export raw';
 
 function loopbackReq(path: string): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, { headers: { host: '127.0.0.1' } });
@@ -45,11 +48,19 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  db.prepare('DELETE FROM producer WHERE id IN (?, ?)').run('p90802', 'p90803');
   db.prepare('DELETE FROM producer WHERE id = ?').run(PRODUCER_ID);
   db.prepare('DELETE FROM vn_stock_offer WHERE vn_id = ?').run(VN_ID);
+  db.prepare('DELETE FROM vn_developer_index WHERE vn_id = ?').run(VN_ID);
+  db.prepare('DELETE FROM vn_developer_index WHERE vn_id = ?').run(VN_ID_EMPTY_META);
+  db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?').run(VN_ID);
+  db.prepare('DELETE FROM vn_publisher_index WHERE vn_id = ?').run(VN_ID_EMPTY_META);
   db.prepare('DELETE FROM collection WHERE vn_id = ?').run(VN_ID);
+  db.prepare('DELETE FROM collection WHERE vn_id = ?').run(VN_ID_EMPTY_META);
   db.prepare('DELETE FROM vn WHERE id = ?').run(VN_ID);
+  db.prepare('DELETE FROM vn WHERE id = ?').run(VN_ID_EMPTY_META);
   db.prepare('DELETE FROM user_activity WHERE kind = ?').run(ACTIVITY_KIND);
+  db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?').run(`${RAW_CACHE_PREFIX}%`);
 });
 
 describe('GET /api/producers', () => {
@@ -102,6 +113,52 @@ describe('GET /api/producer/[id]', () => {
     });
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('not found');
+  });
+
+  it('200 stores and returns a freshly fetched producer when the local cache is empty', async () => {
+    fetchProducerMock.mockResolvedValue({ id: PRODUCER_ID, name: 'Fetched Studio' });
+    const res = await producerGET(loopbackReq(`/api/producer/${PRODUCER_ID}`) as never, {
+      params: Promise.resolve({ id: PRODUCER_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.producer.id).toBe(PRODUCER_ID);
+    expect(body.producer.name).toBe('Fetched Studio');
+    expect(fetchProducerMock).toHaveBeenCalledWith(PRODUCER_ID);
+  });
+
+  it('200 returns stale cached producer data when VNDB no longer returns it', async () => {
+    upsertProducer({ id: PRODUCER_ID, name: 'Stale Studio' });
+    db.prepare('UPDATE producer SET fetched_at = ? WHERE id = ?').run(1, PRODUCER_ID);
+    fetchProducerMock.mockResolvedValue(null);
+    const res = await producerGET(loopbackReq(`/api/producer/${PRODUCER_ID}`) as never, {
+      params: Promise.resolve({ id: PRODUCER_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.producer.name).toBe('Stale Studio');
+  });
+
+  it('200 returns stale cached producer data with a warning when VNDB fetch fails', async () => {
+    upsertProducer({ id: PRODUCER_ID, name: 'Warning Studio' });
+    db.prepare('UPDATE producer SET fetched_at = ? WHERE id = ?').run(1, PRODUCER_ID);
+    fetchProducerMock.mockRejectedValue(new Error('producer upstream down'));
+    const res = await producerGET(loopbackReq(`/api/producer/${PRODUCER_ID}`) as never, {
+      params: Promise.resolve({ id: PRODUCER_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.producer.name).toBe('Warning Studio');
+    expect(body.warning).toBe('fetch failed; using cached data');
+  });
+
+  it('502 when uncached and VNDB fetch fails', async () => {
+    fetchProducerMock.mockRejectedValue(new Error('producer upstream down'));
+    const res = await producerGET(loopbackReq(`/api/producer/${PRODUCER_ID}`) as never, {
+      params: Promise.resolve({ id: PRODUCER_ID }),
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('upstream service unavailable');
   });
 });
 
@@ -156,15 +213,20 @@ describe('GET /api/export/game-list', () => {
   });
 
   it('200 plain-text attachment with one line per collected game', async () => {
-    db.prepare('INSERT OR IGNORE INTO vn (id, title, released, fetched_at) VALUES (?, ?, ?, ?)').run(
-      VN_ID,
-      'List Title',
-      '2021-05-01',
-      Date.now(),
-    );
+    upsertVn({
+      id: VN_ID,
+      title: 'List Title',
+      released: '2021-05-01',
+      developers: [{ id: 'p90802', name: 'List Developer' }],
+    });
+    setVnPublishers(VN_ID, [{ id: 'p90803', name: 'List Publisher' }]);
     db.prepare(
       'INSERT OR IGNORE INTO collection (vn_id, status, added_at, updated_at) VALUES (?, ?, ?, ?)',
     ).run(VN_ID, 'finished', Date.now(), Date.now());
+    upsertVn({ id: VN_ID_EMPTY_META, title: 'Metadata Empty Title' });
+    db.prepare(
+      'INSERT OR IGNORE INTO collection (vn_id, status, added_at, updated_at) VALUES (?, ?, ?, ?)',
+    ).run(VN_ID_EMPTY_META, 'finished', Date.now(), Date.now());
 
     const res = await gameListGET(loopbackReq('/api/export/game-list'));
     expect(res.status).toBe(200);
@@ -172,6 +234,21 @@ describe('GET /api/export/game-list', () => {
     expect(res.headers.get('Content-Disposition')).toMatch(/attachment; filename="vn-games-/);
     const text = await res.text();
     expect(text).toContain('List Title');
+    expect(text).toContain('List Developer');
+    expect(text).toContain('Metadata Empty Title');
+  });
+
+  it('500 with a sanitized body when archive listing fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const listSpy = vi.spyOn(dbModule, 'listCollection').mockImplementation(() => {
+      throw new Error('private game-list failure');
+    });
+    const res = await gameListGET(loopbackReq('/api/export/game-list'));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[internal:export.game-list.GET] private game-list failure');
+    listSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 
@@ -182,6 +259,14 @@ describe('GET /api/export/raw', () => {
   });
 
   it('200 streaming the vndb cache as a parseable JSON document', async () => {
+    const now = Date.now();
+    db.prepare(
+      'INSERT OR REPLACE INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(`${RAW_CACHE_PREFIX}:json`, JSON.stringify({ ok: true }), 'etag-json', null, now, now + 1000);
+    db.prepare(
+      'INSERT OR REPLACE INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(`${RAW_CACHE_PREFIX}:raw`, '{broken', null, 'last-modified', now, now + 1000);
+
     const res = await rawGET(loopbackReq('/api/export/raw'));
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toMatch(/application\/json/);
@@ -193,5 +278,11 @@ describe('GET /api/export/raw', () => {
     };
     expect(typeof parsed.exported_at).toBe('number');
     expect(Array.isArray(parsed.entries)).toBe(true);
+    expect(parsed.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cache_key: `${RAW_CACHE_PREFIX}:json`, body: { ok: true }, etag: 'etag-json' }),
+        expect.objectContaining({ cache_key: `${RAW_CACHE_PREFIX}:raw`, body: '{broken', last_modified: 'last-modified' }),
+      ]),
+    );
   });
 });

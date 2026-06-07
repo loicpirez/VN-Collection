@@ -77,6 +77,9 @@ function seedExtras(vnId: string): ErogePriceExtrasV1 {
 
 describe('PATCH /api/vn/[id]/stock/eroge-price — manual matching', () => {
   it('rejects unsupported provider extras and malformed eroge-price envelopes at the storage boundary', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(setStockProviderExtras('v90000', 'eroge_price', circular)).toBe(false);
     expect(setStockProviderExtras('v90000', 'other_provider', { schemaVersion: 1 })).toBe(false);
     expect(setStockProviderExtras('v90000', 'eroge_price', { schemaVersion: 1, candidates: [] })).toBe(false);
     expect(getErogePriceStockExtras('v90000')).toBeNull();

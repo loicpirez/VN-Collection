@@ -1,6 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { addManualActivity, addToCollection, createRoute, db, markReleaseOwned, upsertVn } from '@/lib/db';
+import * as dbModule from '@/lib/db';
+import * as activityModule from '@/lib/activity';
 import {
   GET as activityGET,
   POST as activityPOST,
@@ -110,6 +112,12 @@ describe('DELETE /api/collection/[id]/activity', () => {
 });
 
 describe('custom-description PATCH/POST/DELETE', () => {
+  it('400 when the VN id is invalid (PATCH)', async () => {
+    const res = await descPATCH(localReq('/api/collection/not-valid/custom-description', 'PATCH', { text: 'x' }), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
   it('404 when the VN is not in collection (PATCH)', async () => {
     const res = await descPATCH(localReq('/api/collection/v90105/custom-description', 'PATCH', { text: 'x' }), ctx(ABSENT));
     expect(res.status).toBe(404);
@@ -121,16 +129,91 @@ describe('custom-description PATCH/POST/DELETE', () => {
     expect((await res.json()).error).toBe('text must be a string or null');
   });
 
+  it('400 when text exceeds the editor limit', async () => {
+    const res = await descPATCH(localReq('/api/collection/v90104/custom-description', 'PATCH', { text: 'x'.repeat(50_001) }), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('text too long (max 50000)');
+  });
+
   it('200 with { ok: true } on POST with a string body', async () => {
     const res = await descPOST(localReq('/api/collection/v90104/custom-description', 'POST', { text: 'my synopsis' }), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
   });
 
+  it('200 with { ok: true } when PATCH receives no text and clears the override', async () => {
+    const res = await descPATCH(localReq('/api/collection/v90104/custom-description', 'PATCH', {}), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('POST returns 400 when the VN id is invalid', async () => {
+    const res = await descPOST(localReq('/api/collection/not-valid/custom-description', 'POST', { text: 'x' }), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
+  it('POST returns 404 when the VN is not in collection', async () => {
+    const res = await descPOST(localReq('/api/collection/v90105/custom-description', 'POST', { text: 'x' }), ctx(ABSENT));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not in collection' });
+  });
+
+  it('500 when the custom synopsis write fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const writeSpy = vi.spyOn(dbModule, 'setCustomDescription').mockImplementation(() => {
+      throw new Error('write failed');
+    });
+    const res = await descPATCH(localReq('/api/collection/v90104/custom-description', 'PATCH', { text: 'my synopsis' }), ctx());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[custom-description:v90104] DB error:', 'write failed');
+    writeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
   it('200 with { ok: true } on DELETE', async () => {
     const res = await descDELETE(localReq('/api/collection/v90104/custom-description', 'DELETE'), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('DELETE returns 400 when the VN id is invalid', async () => {
+    const res = await descDELETE(localReq('/api/collection/not-valid/custom-description', 'DELETE'), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
+  it('DELETE returns 404 when the VN is not in collection', async () => {
+    const res = await descDELETE(localReq('/api/collection/v90105/custom-description', 'DELETE'), ctx(ABSENT));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not in collection' });
+  });
+
+  it('DELETE returns 500 when clearing the custom synopsis fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const writeSpy = vi.spyOn(dbModule, 'setCustomDescription').mockImplementation(() => {
+      throw new Error('clear failed');
+    });
+    const res = await descDELETE(localReq('/api/collection/v90104/custom-description', 'DELETE'), ctx());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[custom-description:v90104] DB error:', 'clear failed');
+    writeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('logs custom synopsis activity failures without failing the write', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+    const res = await descPOST(localReq('/api/collection/v90104/custom-description', 'POST', { text: 'my synopsis' }), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(consoleSpy).toHaveBeenCalledWith('[custom-description:v90104] activity log failed:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 
@@ -170,6 +253,12 @@ describe('routes GET/POST/PATCH', () => {
 });
 
 describe('source-pref GET/PATCH', () => {
+  it('400 when the VN id is invalid (GET)', async () => {
+    const res = await sourcePrefGET(localReq('/api/collection/not-valid/source-pref', 'GET'), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
   it('404 when the VN is not in collection (GET)', async () => {
     const res = await sourcePrefGET(localReq('/api/collection/v90105/source-pref', 'GET'), ctx(ABSENT));
     expect(res.status).toBe(404);
@@ -193,10 +282,35 @@ describe('source-pref GET/PATCH', () => {
     expect((await res.json()).error).toBe('invalid value for title');
   });
 
+  it('400 when the VN id is invalid (PATCH)', async () => {
+    const res = await sourcePrefPATCH(localReq('/api/collection/not-valid/source-pref', 'PATCH', { title: 'egs' }), ctx('not-valid'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid vn id' });
+  });
+
   it('200 and stores the choice (PATCH)', async () => {
     const res = await sourcePrefPATCH(localReq('/api/collection/v90104/source-pref', 'PATCH', { title: 'egs' }), ctx());
     expect(res.status).toBe(200);
     expect((await res.json()).pref.title).toBe('egs');
+  });
+
+  it('PATCH returns 404 when the VN is not in collection', async () => {
+    const res = await sourcePrefPATCH(localReq('/api/collection/v90105/source-pref', 'PATCH', { title: 'egs' }), ctx(ABSENT));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not in collection' });
+  });
+
+  it('logs source preference activity failures without failing the preference update', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
+      throw new Error('activity failed');
+    });
+    const res = await sourcePrefPATCH(localReq('/api/collection/v90104/source-pref', 'PATCH', { image: 'custom' }), ctx());
+    expect(res.status).toBe(200);
+    expect((await res.json()).pref.image).toBe('custom');
+    expect(consoleSpy).toHaveBeenCalledWith('[source-pref:v90104] activity log failed:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
 

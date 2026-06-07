@@ -84,6 +84,26 @@ describe('GET /api/files/[...path] — path traversal guard', () => {
     expect(res.headers.get('content-disposition')).toMatch(/attachment/);
   });
 
+  it('uses a safe default attachment filename when an SVG request has no path segment', async () => {
+    mockReadStored.mockResolvedValue({
+      buffer: Buffer.from('<svg/>').buffer,
+      contentType: 'image/svg+xml',
+    });
+    const res = await GET(new Request('http://localhost/api/files'), makeCtx([]));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="asset.svg"');
+  });
+
+  it('sanitizes unsafe SVG attachment filenames before writing the header', async () => {
+    mockReadStored.mockResolvedValue({
+      buffer: Buffer.from('<svg/>').buffer,
+      contentType: 'image/svg+xml',
+    });
+    const res = await GET(new Request('http://localhost/api/files/bad%20name%0D%0A.svg'), makeCtx(['bad name\r\n.svg']));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="bad_name_.svg"');
+  });
+
   it('allows valid path with no .. characters', async () => {
     mockReadStored.mockResolvedValue({
       buffer: Buffer.from('img').buffer,

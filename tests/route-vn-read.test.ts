@@ -32,8 +32,8 @@ import {
 
 const VN = 'v90301';
 
-function localReq(path: string, method = 'GET', body?: unknown): NextRequest {
-  return new NextRequest(`http://localhost${path}`, {
+function localReq(path: string, method = 'GET', body?: unknown, origin = 'http://localhost'): NextRequest {
+  return new NextRequest(`${origin}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -89,6 +89,12 @@ describe('GET /api/vn/[id]/characters', () => {
     expect(res.status).toBe(400);
   });
 
+  it('403 before upstream work when the request is not local or tokened', async () => {
+    const res = await vnCharsGET(localReq('/api/vn/v90301/characters', 'GET', undefined, 'http://example.com'), ctx());
+    expect(res.status).toBe(403);
+    expect(charsMock).not.toHaveBeenCalled();
+  });
+
   it('200 with characters enriched with a localImage field', async () => {
     charsMock.mockResolvedValue([{ id: 'c90001', name: 'Heroine', traits: [] }]);
     const res = await vnCharsGET(localReq('/api/vn/v90301/characters', 'GET'), ctx());
@@ -134,6 +140,14 @@ describe('GET /api/vn/[id]/quotes', () => {
     const body = await res.json();
     expect(body.quotes).toHaveLength(1);
     expect(body.quotes[0].quote).toBe('a line');
+  });
+
+  it('leaves a character unchanged when no local portrait is available', async () => {
+    quotesMock.mockResolvedValue([{ id: 2, quote: 'another line', character: { id: 'c90301', name: 'Heroine' } }]);
+    const res = await vnQuotesGET(localReq('/api/vn/v90301/quotes', 'GET'), ctx());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.quotes[0].character).toEqual({ id: 'c90301', name: 'Heroine' });
   });
 });
 

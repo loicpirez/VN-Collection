@@ -43,39 +43,39 @@ type BoundaryProps = {
   reset: () => void;
 };
 
-const boundaries: ComponentType<BoundaryProps>[] = [
-  RootError,
-  ActivityError,
-  BrandOverlapError,
-  CharacterError,
-  CharactersError,
-  CompareError,
-  DataError,
-  DumpedError,
-  EgsError,
-  ListsError,
-  ListDetailError,
-  ProducerError,
-  ProducersError,
-  QuotesError,
-  RecommendationsError,
-  ReleaseError,
-  SchemaError,
-  SeriesError,
-  SeriesDetailError,
-  ShelfError,
-  SimilarError,
-  StaffError,
-  StaffDetailError,
-  StatsError,
-  TagError,
-  TagsError,
-  TopRankedError,
-  TraitError,
-  UpcomingError,
-  VnError,
-  WishlistError,
-  YearError,
+const boundaries: Array<[string, ComponentType<BoundaryProps>]> = [
+  ['root', RootError],
+  ['activity', ActivityError],
+  ['brand overlap', BrandOverlapError],
+  ['character detail', CharacterError],
+  ['characters', CharactersError],
+  ['compare', CompareError],
+  ['data', DataError],
+  ['dumped', DumpedError],
+  ['egs', EgsError],
+  ['lists', ListsError],
+  ['list detail', ListDetailError],
+  ['producer detail', ProducerError],
+  ['producers', ProducersError],
+  ['quotes', QuotesError],
+  ['recommendations', RecommendationsError],
+  ['release detail', ReleaseError],
+  ['schema', SchemaError],
+  ['series', SeriesError],
+  ['series detail', SeriesDetailError],
+  ['shelf', ShelfError],
+  ['similar', SimilarError],
+  ['staff', StaffError],
+  ['staff detail', StaffDetailError],
+  ['stats', StatsError],
+  ['tag detail', TagError],
+  ['tags', TagsError],
+  ['top ranked', TopRankedError],
+  ['trait detail', TraitError],
+  ['upcoming', UpcomingError],
+  ['vn detail', VnError],
+  ['wishlist', WishlistError],
+  ['year', YearError],
 ];
 
 const t = dictionaries[DEFAULT_LOCALE];
@@ -86,27 +86,21 @@ afterEach(() => {
 });
 
 describe('route error boundaries', () => {
-  it('renders recovery UI, logs the error, exposes an optional digest, and resets every segment', () => {
+  it.each(boundaries)('renders recovery UI, logs the error, exposes an optional digest, and resets %s', (_name, Boundary) => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    for (const Boundary of boundaries) {
-      const reset = vi.fn();
-      const { container, unmount } = renderWithProviders(
-        <Boundary error={Object.assign(new Error('boom'), { digest: 'trace-123' })} reset={reset} />,
-      );
-      expect(container.textContent).toContain('trace-123');
-      fireEvent.click(screen.getByRole('button', { name: t.errorBoundary.retry }));
-      expect(reset).toHaveBeenCalledTimes(1);
-      unmount();
-    }
-    expect(log).toHaveBeenCalledTimes(boundaries.length);
+    const reset = vi.fn();
+    const { container } = renderWithProviders(
+      <Boundary error={Object.assign(new Error('boom'), { digest: 'trace-123' })} reset={reset} />,
+    );
+    expect(container.textContent).toContain('trace-123');
+    fireEvent.click(screen.getByRole('button', { name: t.errorBoundary.retry }));
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalled();
   });
 
-  it('omits the digest row when a segment error has no digest', () => {
+  it.each(boundaries)('omits the digest row when %s has no digest', (_name, Boundary) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    for (const Boundary of boundaries) {
-      const { container, unmount } = renderWithProviders(<Boundary error={new Error('boom')} reset={vi.fn()} />);
-      expect(container.textContent).not.toContain('trace-123');
-      unmount();
-    }
+    const { container } = renderWithProviders(<Boundary error={new Error('boom')} reset={vi.fn()} />);
+    expect(container.textContent).not.toContain('trace-123');
   });
 });
