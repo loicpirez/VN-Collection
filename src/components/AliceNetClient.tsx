@@ -81,8 +81,7 @@ import {
  * active locale. Falls back to the raw string when no positive integer
  * yen value can be parsed.
  */
-function formatPriceJpy(value: string | null, locale: Locale): string {
-  if (!value) return '';
+function formatPriceJpy(value: string, locale: Locale): string {
   const n = parsePrice(value);
   if (n == null) return value;
   return formatCurrency(n, locale);
@@ -129,12 +128,10 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   const mountedRef = useRef(true);
   const codeRef = useRef(code);
   const mutationAbortRef = useRef<AbortController | null>(null);
-  const mutationInFlightRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     codeRef.current = code;
-    mutationInFlightRef.current = false;
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = null;
     setBusy(null);
@@ -144,11 +141,8 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
     };
   }, [code]);
 
-  if (candidates.length === 0) return null;
-
   async function pick(vnId: string) {
-    if (mutationInFlightRef.current) return;
-    mutationInFlightRef.current = true;
+    if (mutationAbortRef.current) return;
     const owner = code;
     const controller = new AbortController();
     mutationAbortRef.current = controller;
@@ -169,7 +163,6 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
     } finally {
       if (mountedRef.current && codeRef.current === owner && mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
-        mutationInFlightRef.current = false;
         setBusy(null);
       }
     }
@@ -260,7 +253,7 @@ const AliceNetSearchInput = memo(function AliceNetSearchInput({
 });
 
 /**
- * Client-side page for the AliceNet second-hand stock browser.
+ * Client-side panel for the AliceNet second-hand stock browser.
  *
  * Download sequence (manual or via "Download all"):
  *   1. Download stock from AliceNET (uses configured proxy if set)
@@ -271,7 +264,12 @@ const AliceNetSearchInput = memo(function AliceNetSearchInput({
  * All steps can be run individually or chained with "Download all".
  * Any step can be stopped with the Stop button.
  */
-export function AliceNetClient() {
+interface AliceNetClientProps {
+  basePath?: string;
+  embedded?: boolean;
+}
+
+export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceNetClientProps = {}) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -389,12 +387,12 @@ export function AliceNetClient() {
     const controller = new AbortController();
     loadAbortRef.current = controller;
     const { signal } = controller;
-    if (mountedRef.current) setLoading(true);
+    setLoading(true);
     try {
       const r = await fetch('/api/alicenet', { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const first = decodeAliceNetClientSnapshot(await r.json());
-      if (!first) throw new Error(t.common.error);
+      if (!first) throw new Error(t.alicenet.alicenetInvalidSnapshot);
       if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
       const accumulated = [...first.items];
       let next = first.page;
@@ -403,12 +401,11 @@ export function AliceNetClient() {
         const pr = await fetch(`/api/alicenet?offset=${offset}&limit=${next.limit}`, { cache: 'no-store', signal });
         if (!pr.ok) throw new Error(await readApiError(pr, t.common.error));
         const pageResult = decodeAliceNetStockPage(await pr.json());
-        if (!pageResult) throw new Error(t.common.error);
+        if (!pageResult) throw new Error(t.alicenet.alicenetInvalidSnapshot);
         if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
         accumulated.push(...pageResult.items);
         next = pageResult.page;
       }
-      if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
       setItems(accumulated);
       setStats(first.stats);
       setPending(first.pending);
@@ -444,7 +441,6 @@ export function AliceNetClient() {
   }, [load]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     try {
       window.localStorage.setItem(ALICENET_PREFS_KEY, JSON.stringify({ sort, group, view }));
     } catch {
@@ -453,7 +449,7 @@ export function AliceNetClient() {
   }, [sort, group, view]);
 
   useEffect(() => {
-    const params = new URLSearchParams(urlSearch?.toString() ?? '');
+    const params = new URLSearchParams(urlSearch.toString());
     let dirty = false;
     const setOrDelete = (key: string, value: string, defaultValue: string) => {
       if (value === defaultValue) {
@@ -476,9 +472,9 @@ export function AliceNetClient() {
     setOrDelete('filters', showFilters ? '1' : '0', '1');
     if (dirty) {
       const next = params.toString();
-      router.replace(`/alicenet${next ? `?${next}` : ''}`, { scroll: false });
+      router.replace(`${basePath}${next ? `?${next}` : ''}`, { scroll: false });
     }
-  }, [filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
+  }, [basePath, filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
 
   function ownsOp(token: number): boolean {
     return mountedRef.current && opInFlightRef.current && opTokenRef.current === token;
@@ -503,21 +499,26 @@ export function AliceNetClient() {
     if (opTokenRef.current !== token) return;
     activeOpAbortRef.current = null;
     opInFlightRef.current = false;
-    if (mountedRef.current) setActiveOp('idle');
+    setActiveOp('idle');
   }
 
-  async function downloadStock(token: number) {
+  async function downloadStock(token: number): Promise<RunTotals> {
     const controller = new AbortController();
     activeOpAbortRef.current = controller;
+    setOpDone(0);
+    setOpTotal(1);
     const r = await fetch('/api/alicenet/fetch', { method: 'POST', signal: controller.signal });
     if (!r.ok) throw new Error(await readApiError(r, t.common.error));
     const d = decodeAliceNetStockSyncResult(await r.json());
-    if (!d) throw new Error(t.common.error);
-    if (!ownsOp(token) || controller.signal.aborted) return;
-    if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
+    if (!d) throw new Error(t.alicenet.alicenetInvalidSync);
+    if (!ownsOp(token) || controller.signal.aborted) return { processed: 0, matched: 0 };
+    activeOpAbortRef.current = null;
+    setOpDone(1);
+    setOpTotal(1);
     if (d.removed > 0) {
       toast.success(t.alicenet.alicenetStockRemoved.replace('{n}', String(d.removed)));
     }
+    return { processed: d.count, matched: 0 };
   }
 
   async function runLoop(
@@ -532,11 +533,9 @@ export function AliceNetClient() {
     let done = 0;
     let matched = 0;
     const runStartedAt = Date.now();
-    if (ownsOp(token)) {
-      setOpDone(0);
-      setOpTotal(initialTotal);
-      setOpLabel(label);
-    }
+    setOpDone(0);
+    setOpTotal(initialTotal);
+    setOpLabel(label);
     while (ownsOp(token) && !stopRef.current) {
       const controller = new AbortController();
       activeOpAbortRef.current = controller;
@@ -548,9 +547,9 @@ export function AliceNetClient() {
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       const d = decodeAliceNetLoopResult(await r.json());
-      if (!d) throw new Error(t.common.error);
+      if (!d) throw new Error(t.alicenet.alicenetInvalidLoop);
       if (!ownsOp(token) || controller.signal.aborted) return { processed: done, matched };
-      if (activeOpAbortRef.current === controller) activeOpAbortRef.current = null;
+      activeOpAbortRef.current = null;
       done += d.processed;
       matched += d.matched ?? 0;
       setOpDone(done);
@@ -566,45 +565,55 @@ export function AliceNetClient() {
     let label = '';
     let totals: RunTotals = { processed: 0, matched: 0 };
     try {
-      if (op === 'downloading') {
-        label = t.alicenet.alicenetDownloading;
-        setOpLabel(label);
-        setOpDone(0);
-        setOpTotal(0);
-        await downloadStock(token);
-      } else if (op === 'matching') {
-        label = t.alicenet.alicenetMatchVndbEgs;
-        totals = await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
-      } else if (op === 'retrying') {
-        label = t.alicenet.alicenetRetryNone;
-        totals = await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
-      } else if (op === 'vndb-from-egs') {
-        label = t.alicenet.alicenetMatchVndbFromEgs;
-        totals = await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
-      } else if (op === 'retry-vndb-aggressive') {
-        label = t.alicenet.alicenetRetryVndbAggressive;
-        totals = await runLoop('/api/alicenet/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
-      } else if (op === 'search-egs') {
-        label = t.alicenet.alicenetSearchEgsForNoVndb;
-        totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
-      } else if (op === 'search-egs-aggressive') {
-        label = t.alicenet.alicenetSearchEgsForNoVndbAggressive;
-        totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
-      } else if (op === 'download-vndb') {
-        label = t.alicenet.alicenetDownloadVndb;
-        totals = await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
-      } else if (op === 'resolve-egs') {
-        label = t.alicenet.alicenetResolveEgs;
-        totals = await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+      switch (op) {
+        case 'downloading':
+          label = t.alicenet.alicenetDownloading;
+          setOpLabel(label);
+          setOpDone(0);
+          setOpTotal(1);
+          totals = await downloadStock(token);
+          break;
+        case 'matching':
+          label = t.alicenet.alicenetMatchVndbEgs;
+          totals = await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
+          break;
+        case 'retrying':
+          label = t.alicenet.alicenetRetryNone;
+          totals = await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
+          break;
+        case 'vndb-from-egs':
+          label = t.alicenet.alicenetMatchVndbFromEgs;
+          totals = await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
+          break;
+        case 'retry-vndb-aggressive':
+          label = t.alicenet.alicenetRetryVndbAggressive;
+          totals = await runLoop('/api/alicenet/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
+          break;
+        case 'search-egs':
+          label = t.alicenet.alicenetSearchEgsForNoVndb;
+          totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
+          break;
+        case 'search-egs-aggressive':
+          label = t.alicenet.alicenetSearchEgsForNoVndbAggressive;
+          totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
+          break;
+        case 'download-vndb':
+          label = t.alicenet.alicenetDownloadVndb;
+          totals = await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
+          break;
+        case 'resolve-egs':
+          label = t.alicenet.alicenetResolveEgs;
+          totals = await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+          break;
       }
       if (!ownsOp(token) || stopRef.current) return;
       await load();
       if (!ownsOp(token)) return;
-      setLastRun({ label: label || op, ...totals });
+      setLastRun({ label, ...totals });
     } catch (e) {
       if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
-      const message = `${label || op}: ${(e as Error).message}`;
-      setLastRun({ label: label || op, ...totals, error: (e as Error).message });
+      const message = `${label}: ${(e as Error).message}`;
+      setLastRun({ label, ...totals, error: (e as Error).message });
       toast.error(message, 0);
     } finally {
       finishOp(token);
@@ -618,7 +627,7 @@ export function AliceNetClient() {
     try {
       setOpLabel(label);
       setOpDone(0);
-      setOpTotal(0);
+      setOpTotal(1);
       await downloadStock(token);
       if (!ownsOp(token) || stopRef.current) return;
       label = t.alicenet.alicenetMatchVndbEgs;
@@ -654,11 +663,9 @@ export function AliceNetClient() {
     setResettingMatches(true);
     const ok = await confirm({ message: t.alicenet.alicenetResetConfirm, tone: 'danger' });
     if (!ok || controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) {
-      if (resetAbortRef.current === controller) {
-        resetAbortRef.current = null;
-        resetInFlightRef.current = false;
-        if (mountedRef.current) setResettingMatches(false);
-      }
+      resetAbortRef.current = null;
+      resetInFlightRef.current = false;
+      if (mountedRef.current) setResettingMatches(false);
       return;
     }
     try {
@@ -670,11 +677,9 @@ export function AliceNetClient() {
       if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      if (resetAbortRef.current === controller) {
-        resetAbortRef.current = null;
-        resetInFlightRef.current = false;
-        if (mountedRef.current) setResettingMatches(false);
-      }
+      resetAbortRef.current = null;
+      resetInFlightRef.current = false;
+      if (mountedRef.current) setResettingMatches(false);
     }
   }
 
@@ -690,11 +695,9 @@ export function AliceNetClient() {
       tone: 'danger',
     });
     if (!ok || controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) {
-      if (clearAbortRef.current === controller) {
-        clearAbortRef.current = null;
-        clearInFlightRef.current = false;
-        if (mountedRef.current) setClearingCode(null);
-      }
+      clearAbortRef.current = null;
+      clearInFlightRef.current = false;
+      if (mountedRef.current) setClearingCode(null);
       return;
     }
     try {
@@ -706,16 +709,17 @@ export function AliceNetClient() {
       if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       toast.error((e as Error).message);
     } finally {
-      if (clearAbortRef.current === controller) {
-        clearAbortRef.current = null;
-        clearInFlightRef.current = false;
-        if (mountedRef.current) setClearingCode(null);
-      }
+      clearAbortRef.current = null;
+      clearInFlightRef.current = false;
+      if (mountedRef.current) setClearingCode(null);
     }
   }
 
   const isBusy = activeOp !== 'idle';
   const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
+  const opPercentLabel = opTotal > 0
+    ? t.alicenet.alicenetProgressPercent.replace('{percent}', String(opPct))
+    : t.alicenet.alicenetProgressPreparing;
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
   const showStatsSkeleton = loading && items.length === 0 && stats.total === 0;
 
@@ -791,34 +795,24 @@ export function AliceNetClient() {
     return list;
   }, [items, filter, producerFilter, search, yearMin, yearMax, priceMin, priceMax]);
 
+  const sortComparators = useMemo<Record<AliceNetSort, (a: AliceNetItem, b: AliceNetItem) => number>>(() => ({
+    title: (a, b) => displayTitle(a).localeCompare(displayTitle(b)),
+    release_desc: (a, b) => comparableDate(b.release_date || b.egs_release_date).localeCompare(comparableDate(a.release_date || a.egs_release_date)),
+    release_asc: (a, b) => comparableDate(a.release_date || a.egs_release_date).localeCompare(comparableDate(b.release_date || b.egs_release_date)),
+    price_asc: (a, b) => (parsePrice(a.sale_price) ?? Number.MAX_SAFE_INTEGER) - (parsePrice(b.sale_price) ?? Number.MAX_SAFE_INTEGER),
+    price_desc: (a, b) => (parsePrice(b.sale_price) ?? 0) - (parsePrice(a.sale_price) ?? 0),
+    updated_desc: (a, b) => b.updated_at - a.updated_at,
+    match_status: (a, b) => {
+      const rank = { unresolved: 0, new: 1, egs: 2, vndb: 3 } as const;
+      return rank[matchKind(a)] - rank[matchKind(b)] || displayTitle(a).localeCompare(displayTitle(b));
+    },
+  }), []);
+
   const sorted = useMemo(() => {
     const out = [...filtered];
-    out.sort((a, b) => {
-      switch (sort) {
-        case 'title':
-          return displayTitle(a).localeCompare(displayTitle(b));
-        case 'release_desc':
-          return comparableDate(b.release_date || b.egs_release_date).localeCompare(comparableDate(a.release_date || a.egs_release_date));
-        case 'release_asc':
-          return comparableDate(a.release_date || a.egs_release_date).localeCompare(comparableDate(b.release_date || b.egs_release_date));
-        case 'price_asc':
-          return (parsePrice(a.sale_price) ?? Number.MAX_SAFE_INTEGER) - (parsePrice(b.sale_price) ?? Number.MAX_SAFE_INTEGER);
-        case 'price_desc':
-          return (parsePrice(b.sale_price) ?? 0) - (parsePrice(a.sale_price) ?? 0);
-        case 'updated_desc':
-          return (b.updated_at ?? 0) - (a.updated_at ?? 0);
-        case 'match_status': {
-          const rank = { unresolved: 0, new: 1, egs: 2, vndb: 3 } as const;
-          return rank[matchKind(a)] - rank[matchKind(b)] || displayTitle(a).localeCompare(displayTitle(b));
-        }
-        default: {
-          const _exhaustive: never = sort;
-          return String(_exhaustive).localeCompare('');
-        }
-      }
-    });
+    out.sort(sortComparators[sort]);
     return out;
-  }, [filtered, sort]);
+  }, [filtered, sort, sortComparators]);
 
   const grouped = useMemo<{ key: string; items: AliceNetItem[] }[]>(() => {
     if (group === 'none') return [{ key: '', items: sorted }];
@@ -833,7 +827,7 @@ export function AliceNetClient() {
             : t.alicenet.alicenetNeedsMatch;
       } else if (group === 'producer') {
         key = displayProducer(item) || t.wishlist.groupUnknown;
-      } else if (group === 'year') {
+      } else {
         key = (item.release_date || item.egs_release_date)?.slice(0, 4) || t.wishlist.groupUnknown;
       }
       const bucket = buckets.get(key);
@@ -881,6 +875,7 @@ export function AliceNetClient() {
     (priceMin ? 1 : 0) +
     (priceMax ? 1 : 0) +
     (search ? 1 : 0);
+  const bulkPct = bulkBusy ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0;
 
   function resetFilters() {
     setFilter('all');
@@ -925,7 +920,7 @@ export function AliceNetClient() {
       requireTyping: codes.length >= 5 ? 'DELETE' : undefined,
     });
     if (!ok || !ownsBulk(token) || [...selectedRef.current].sort().join('|') !== selectionKey) {
-      if (bulkTokenRef.current === token) bulkInFlightRef.current = false;
+      bulkInFlightRef.current = false;
       return;
     }
     bulkStopRef.current = false;
@@ -934,7 +929,6 @@ export function AliceNetClient() {
     let done = 0;
     try {
       for (const code of codes) {
-        if (!ownsBulk(token) || bulkStopRef.current) break;
         setBulkProgress({ done, total: codes.length, current: code });
         const controller = new AbortController();
         bulkAbortRef.current = controller;
@@ -946,7 +940,7 @@ export function AliceNetClient() {
           throw e;
         }
         if (!ownsBulk(token) || controller.signal.aborted) break;
-        if (bulkAbortRef.current === controller) bulkAbortRef.current = null;
+        bulkAbortRef.current = null;
         done += 1;
         setBulkProgress({ done, total: codes.length, current: code });
       }
@@ -961,11 +955,9 @@ export function AliceNetClient() {
       if (bulkTokenRef.current === token) {
         bulkAbortRef.current = null;
         bulkInFlightRef.current = false;
-        if (mountedRef.current) {
-          setBulkBusy(false);
-          setBulkProgress({ done: 0, total: 0, current: '' });
-          clearSelection();
-        }
+        setBulkBusy(false);
+        setBulkProgress({ done: 0, total: 0, current: '' });
+        clearSelection();
       }
     }
   }
@@ -1179,13 +1171,15 @@ export function AliceNetClient() {
     );
   }
 
+  const HeadingTag = embedded ? 'h2' : 'h1';
+
   return (
-    <DensityScopeProvider scope="aliceNet" className="page-space mx-auto max-w-screen-2xl px-4 py-6">
+    <DensityScopeProvider scope="aliceNet" className={embedded ? 'mt-8' : 'page-space mx-auto max-w-screen-2xl px-4 py-6'}>
 
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <ShoppingBag className="h-5 w-5 text-accent" aria-hidden />
-        <h1 className="text-xl font-bold">{t.alicenet.alicenetTitle}</h1>
+        <HeadingTag className="text-xl font-bold">{t.alicenet.alicenetTitle}</HeadingTag>
         {lastFetch && (
           <span className="text-xs text-muted">
             {t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))}
@@ -1262,10 +1256,14 @@ export function AliceNetClient() {
               <div className="flex items-center gap-2 text-xs text-muted">
                 <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
                 <span className="truncate">{opLabel}</span>
+                <span className="shrink-0 rounded border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                  {opPercentLabel}
+                </span>
                 {opTotal > 0 && (
                   <span className="ml-auto shrink-0 tabular-nums">{opDone}/{opTotal}</span>
                 )}
               </div>
+              <p className="mt-1 text-[11px] text-muted/80">{t.alicenet.alicenetProgressBackground}</p>
               {opTotal > 0 && (
                 <div
                   role="progressbar"
@@ -1279,6 +1277,15 @@ export function AliceNetClient() {
                     className="h-full bg-accent transition-[width] duration-200"
                     style={{ width: `${opPct}%` }}
                   />
+                </div>
+              )}
+              {opTotal === 0 && (
+                <div
+                  role="progressbar"
+                  aria-label={opLabel}
+                  className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
+                >
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
                 </div>
               )}
             </div>
@@ -1327,18 +1334,30 @@ export function AliceNetClient() {
 
             <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionRecovery}</div>
-              <button
-                type="button"
-                onClick={() => runSingleOp('retrying')}
-                disabled={stats.none_found === 0}
-                className="btn btn-sm btn-primary w-full sm:w-auto"
-              >
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                {t.alicenet.alicenetRetryNone}
-                {stats.none_found > 0 && (
-                  <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
-                )}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runSingleOp('retrying')}
+                  disabled={stats.none_found === 0}
+                  className="btn btn-sm btn-primary w-full sm:w-auto"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  {t.alicenet.alicenetRetryNone}
+                  {stats.none_found > 0 && (
+                    <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runSingleOp('retry-vndb-aggressive')}
+                  disabled={stats.none_found === 0}
+                  className="btn btn-sm w-full sm:w-auto"
+                  title={t.alicenet.alicenetRetryVndbAggressiveHint}
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                  {t.alicenet.alicenetRetryVndbAggressive}
+                </button>
+              </div>
               <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetSmartRetryHint}</p>
             </section>
 
@@ -1544,10 +1563,11 @@ export function AliceNetClient() {
             ? 'border-status-dropped/40 bg-status-dropped/10 text-status-dropped'
             : 'border-border bg-bg-card text-muted'
         }`}>
-          <div className="font-semibold text-white">{lastRun.label}</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetLastRunTitle}</div>
+          <div className="mt-1 font-semibold text-white">{lastRun.label}</div>
           <div className="mt-1 text-xs">
             {lastRun.error
-              ? lastRun.error
+              ? t.alicenet.alicenetLastRunFailed.replace('{error}', lastRun.error)
               : t.alicenet.alicenetLastRunSummary
                 .replace('{processed}', String(lastRun.processed))
                 .replace('{matched}', String(lastRun.matched))}
@@ -1556,10 +1576,14 @@ export function AliceNetClient() {
       )}
 
       {(filter === 'unmatched' || filter === 'none_found' || filter === 'egs_only') && (stats.none_found > 0 || stats.egs_only > 0) && (
-        <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-5">
           <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
             <Search className="h-3.5 w-3.5" aria-hidden />
             <span className="min-w-0 truncate">{t.alicenet.alicenetRetryNone}</span>
+          </button>
+          <button type="button" onClick={() => runSingleOp('retry-vndb-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            <span className="min-w-0 truncate">{t.alicenet.alicenetRetryVndbAggressive}</span>
           </button>
           <button type="button" onClick={() => runSingleOp('vndb-from-egs')} disabled={isBusy || stats.egs_only === 0} className="btn btn-sm justify-start">
             <Link2 className="h-3.5 w-3.5" aria-hidden />
@@ -1593,9 +1617,9 @@ export function AliceNetClient() {
       ) : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {stats.total === 0 ? (
-            <p>{t.alicenet.alicenetEmptyNoStock ?? t.alicenet.alicenetUnmatched}</p>
+            <p>{t.alicenet.alicenetEmptyNoStock}</p>
           ) : (
-            <p>{t.alicenet.alicenetEmptyForFilter ?? t.alicenet.alicenetUnmatched}</p>
+            <p>{t.alicenet.alicenetEmptyForFilter}</p>
           )}
         </div>
       ) : (
@@ -1663,7 +1687,7 @@ export function AliceNetClient() {
               </div>
               <div
                 role="progressbar"
-                aria-valuenow={bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0}
+                aria-valuenow={bulkPct}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-label={t.alicenet.alicenetBulkClearLink}
@@ -1671,7 +1695,7 @@ export function AliceNetClient() {
               >
                 <div
                   className="h-full bg-accent transition-[width] duration-150"
-                  style={{ width: `${bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0}%` }}
+                  style={{ width: `${bulkPct}%` }}
                 />
               </div>
             </div>
@@ -1743,8 +1767,7 @@ function AliceNetCardGrid({ items, renderCard }: { items: AliceNetItem[]; render
   }, []);
   useEffect(() => {
     if (items.length <= VIRTUAL_GRID_THRESHOLD) return;
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef.current!;
     measureGrid();
     window.addEventListener('scroll', measureGrid, { passive: true });
     window.addEventListener('resize', measureGrid);
@@ -1833,8 +1856,7 @@ function AliceNetRowList({ items, renderRow }: { items: AliceNetItem[]; renderRo
       setRange({ start: 0, end: items.length });
       return;
     }
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef.current!;
     measure();
     window.addEventListener('scroll', measure, { passive: true });
     window.addEventListener('resize', measure);

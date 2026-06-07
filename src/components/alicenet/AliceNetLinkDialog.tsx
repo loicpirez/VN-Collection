@@ -27,6 +27,17 @@ function initialQuery(item: AliceNetItem): string {
       .trim();
 }
 
+function errorName(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || !('name' in value)) return null;
+  return typeof value.name === 'string' ? value.name : null;
+}
+
+function errorMessage(value: unknown, fallback: string): string {
+  if (value instanceof Error) return value.message;
+  if (typeof value === 'object' && value !== null && 'message' in value && typeof value.message === 'string') return value.message;
+  return fallback;
+}
+
 /**
  * Match/remap modal for a single AliceNet stock row. Debounces a VNDB
  * title search, lists hits, and links the chosen VN (or "no match") via
@@ -86,8 +97,8 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
       if (controller.signal.aborted || !mountedRef.current || itemCodeRef.current !== owner || searchAbortRef.current !== controller) return;
       setHits(results.slice(0, 30));
     } catch (error) {
-      if (!(error instanceof Error && error.name === 'AbortError')) {
-        toast.error(error instanceof Error ? error.message : t.common.error);
+      if (errorName(error) !== 'AbortError') {
+        toast.error(errorMessage(error, t.common.error));
       }
     } finally {
       if (mountedRef.current && itemCodeRef.current === owner && searchAbortRef.current === controller) {
@@ -101,9 +112,10 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
     searchAbortRef.current?.abort();
     searchAbortRef.current = null;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 300);
+    const handle = setTimeout(() => search(query), 300);
+    debounceRef.current = handle;
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearTimeout(handle);
       searchAbortRef.current?.abort();
     };
   }, [query, search]);
@@ -129,8 +141,8 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
       onLinked();
       onClose();
     } catch (e) {
-      if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
-      toast.error((e as Error).message);
+      if (controller.signal.aborted || errorName(e) === 'AbortError') return;
+      toast.error(errorMessage(e, t.common.error));
     } finally {
       if (mountedRef.current && itemCodeRef.current === owner && mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;

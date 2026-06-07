@@ -368,12 +368,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
             </span>
           )}
-          {/* Library card grid: no stock chip at all. Per-card the
-              chip competed visually with rating / playtime / aspect
-              chips and the precise availability info isn't actionable
-              from the grid - the user opens the VN page when they
-              actually want to buy something. The full StockPanel is
-              there, plus the /stock lookup page. */}
+          {/* Library card grid: no stock chip. Availability lookup lives on /stock. */}
         </div>
         {allPlaytime && (
           <div className="text-[11px]">

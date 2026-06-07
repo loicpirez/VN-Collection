@@ -23,8 +23,6 @@ export const VN_SECTION_IDS = [
   'session-activity',
   'relations',
   'vndb-status',
-  'stock',
-  'stock-prices',
   'egs-panel',
   'egs-details',
   'characters',
@@ -56,7 +54,6 @@ export interface VnDetailLayoutV1 {
 }
 
 const DEFAULT_COLLAPSED_SECTION_IDS = new Set<VnSectionId>([
-  'stock-prices',
   'egs-details',
   'cast',
   'staff',

@@ -1,10 +1,9 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RefreshCw, ShoppingBag } from 'lucide-react';
+import { ShoppingBag } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import { useToast } from './ToastProvider';
-import { runAliceNetWholeRefresh, type AliceNetRefreshProgress } from '@/lib/alicenet-pipeline';
+import { AliceNetClient } from './AliceNetClient';
 import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 import { StockPanelBoundary } from './StockPanelBoundary';
@@ -16,12 +15,8 @@ import { decodeVnTitleResponse } from '@/lib/vn-summary-client-shape';
 export function StockLookupClient({ initialVnId }: { initialVnId: string | null }) {
   const t = useT();
   const router = useRouter();
-  const toast = useToast();
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null);
   const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
-  const [alicenetRefreshing, setAlicenetRefreshing] = useState(false);
-  const [alicenetProgress, setAlicenetProgress] = useState<AliceNetRefreshProgress | null>(null);
-  const alicenetAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -56,33 +51,6 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
     return () => ctrl.abort();
   }, [initialVnId, t.common.error]);
 
-  useEffect(() => () => alicenetAbortRef.current?.abort(), []);
-
-  async function refreshAlicenet() {
-    if (alicenetRefreshing) return;
-    const ctrl = new AbortController();
-    alicenetAbortRef.current = ctrl;
-    setAlicenetRefreshing(true);
-    setAlicenetProgress(null);
-    try {
-      const result = await runAliceNetWholeRefresh({
-        errorFallback: t.common.error,
-        signal: ctrl.signal,
-        onProgress: (p) => setAlicenetProgress(p),
-      });
-      if (ctrl.signal.aborted) return;
-      toast.success((t.stock.alicenetRefreshDone as string).replace('{matched}', String(result.matched)));
-      router.refresh();
-    } catch (e) {
-      if (ctrl.signal.aborted || (e as Error).name === 'AbortError') return;
-      toast.error(`${t.stock.alicenetRefresh as string}: ${(e as Error).message}`);
-    } finally {
-      if (alicenetAbortRef.current === ctrl) alicenetAbortRef.current = null;
-      setAlicenetRefreshing(false);
-      setAlicenetProgress(null);
-    }
-  }
-
   function handlePick(hit: VnPickerHit) {
     router.push(`/stock?vn=${encodeURIComponent(hit.id)}`);
   }
@@ -96,28 +64,6 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
             {t.stock.pageTitle}
           </h1>
           <p className="mt-1 text-sm text-muted">{t.stock.pageSubtitle}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            onClick={refreshAlicenet}
-            disabled={alicenetRefreshing}
-            aria-busy={alicenetRefreshing}
-            title={t.stock.alicenetRefreshHint as string}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-border bg-bg px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {alicenetRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4" aria-hidden />
-            )}
-            {alicenetRefreshing ? (t.stock.alicenetRefreshing as string) : (t.stock.alicenetRefresh as string)}
-          </button>
-          {alicenetRefreshing && alicenetProgress && alicenetProgress.total > 0 && (
-            <span className="text-[11px] tabular-nums text-muted" aria-live="polite">
-              {alicenetProgress.done}/{alicenetProgress.total}
-            </span>
-          )}
         </div>
       </header>
 
@@ -146,6 +92,8 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
       )}
 
       <StockBatchClient />
+
+      <AliceNetClient embedded basePath="/stock" />
     </div>
   );
 }

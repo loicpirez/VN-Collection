@@ -59,7 +59,7 @@ export function TutorialTour() {
     }
     window.addEventListener('vn-tour:start', onStart);
     // Auto-open only on the library home page. Deep links such as
-    // /alicenet should never be hijacked back to "/".
+    // /stock should never be hijacked back to "/".
     if (!done && pathname === '/') {
       const id = setTimeout(() => {
         setActive(true);

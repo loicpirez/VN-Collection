@@ -4,6 +4,7 @@ import { readJsonObject } from '@/lib/api-body';
 import { listAliceNetVnidsToDownload, countAliceNetDownloadPending, upsertVn } from '@/lib/db';
 import { getVn } from '@/lib/vndb';
 import { parseAliceNetBatch } from '@/lib/alicenet-route-input';
+import { aliceNetApiError } from '@/lib/alicenet-api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,10 +37,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       processed++;
     }
   } catch (err) {
-    // Sanitize: log details server-side, return a generic JSON error so
-    // upstream network/proxy messages don't surface in the response body.
     console.error('[alicenet/download-vndb] upstream error:', (err as Error).message);
-    return NextResponse.json({ error: 'upstream error', processed }, { status: 502 });
+    const response = aliceNetApiError(err, 'VNDB metadata download failed.', 502);
+    const body = await response.json() as { error: string };
+    return NextResponse.json({ ...body, processed }, { status: 502 });
   }
 
   const { vndb_pending } = countAliceNetDownloadPending();

@@ -39,7 +39,6 @@ import {
   UserSquare,
   Wand2,
   X,
-  ShoppingBag,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
@@ -70,7 +69,7 @@ interface NavItem {
  * screen readers and the visual layer agree. The "More" catch-all bin
  * is gone - every item lives in a named category.
  */
-export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: boolean }) {
+export function GroupedNav() {
   const t = useT();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -131,7 +130,6 @@ export function GroupedNav({ alicenetEnabled = false }: { alicenetEnabled?: bool
     { href: '/map', label: t.nav.map, icon: Map },
     { href: '/schema', label: t.nav.schema, icon: FileCode2 },
     { href: '/data', label: t.nav.data, icon: Database },
-    ...(alicenetEnabled ? [{ href: '/alicenet', label: t.nav.alicenet, icon: ShoppingBag }] : []),
   ];
 
   // Active when any item in the group matches the current route - the
@@ -207,7 +205,6 @@ function isActive(pathname: string | null, item: NavItem): boolean {
   if (item.exact) return path === item.href;
   // Strip query from the item's href too (e.g. /year?y=2026 → /year).
   const itemPath = item.href.split('?')[0];
-  if (itemPath === '/') return path === '/';
   return path === itemPath || path.startsWith(`${itemPath}/`);
 }
 
@@ -259,8 +256,7 @@ function NavGroup({
   const menuId = useId();
 
   function updateMenuPosition() {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = triggerRef.current!.getBoundingClientRect();
     const gutter = 8;
     const width = 224;
     const naturalHeight = items.length * 44 + 8;
@@ -294,16 +290,13 @@ function NavGroup({
         return;
       }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-      const menuItems = Array.from(
-        menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-      );
-      if (menuItems.length === 0) return;
+      const menuItems = Array.from(menuRef.current!.querySelectorAll<HTMLElement>('[role="menuitem"]'));
       const idx = menuItems.indexOf(document.activeElement as HTMLElement);
       let next: HTMLElement | undefined;
       if (e.key === 'Home') next = menuItems[0];
       else if (e.key === 'End') next = menuItems[menuItems.length - 1];
-      else if (e.key === 'ArrowDown') next = menuItems[(idx + 1 + menuItems.length) % menuItems.length] ?? menuItems[0];
-      else next = menuItems[(idx - 1 + menuItems.length) % menuItems.length] ?? menuItems[menuItems.length - 1];
+      else if (e.key === 'ArrowDown') next = menuItems[(idx + 1 + menuItems.length) % menuItems.length];
+      else next = menuItems[(idx - 1 + menuItems.length) % menuItems.length];
       e.preventDefault();
       next?.focus();
     }

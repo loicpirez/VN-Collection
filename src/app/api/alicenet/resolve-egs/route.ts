@@ -4,6 +4,7 @@ import { readJsonObject } from '@/lib/api-body';
 import { listAliceNetItemsForEgsResolve, countAliceNetDownloadPending, setAliceNetEgsLink } from '@/lib/db';
 import { resolveEgsForVn } from '@/lib/erogamescape';
 import { parseAliceNetBatch } from '@/lib/alicenet-route-input';
+import { aliceNetApiError } from '@/lib/alicenet-api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -46,10 +47,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       processed++;
     }
   } catch (err) {
-    // Sanitize: log details server-side, return a generic JSON error so
-    // upstream network/proxy messages don't surface in the response body.
     console.error('[alicenet/resolve-egs] upstream error:', (err as Error).message);
-    return NextResponse.json({ error: 'upstream error', processed }, { status: 502 });
+    const response = aliceNetApiError(err, 'EGS resolution failed.', 502);
+    const body = await response.json() as { error: string };
+    return NextResponse.json({ ...body, processed }, { status: 502 });
   }
 
   const { egs_pending } = countAliceNetDownloadPending();

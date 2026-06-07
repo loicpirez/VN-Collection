@@ -67,10 +67,6 @@ import { RelationsSection } from '@/components/RelationsSection';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
-import { StockPanelBoundary } from '@/components/StockPanelBoundary';
-import { StockPricesSection } from '@/components/StockPricesSection';
-import { getStockForVn } from '@/lib/stock';
-import { decodeStoredExtras } from '@/lib/erogeprice-meta';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
@@ -84,7 +80,6 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
-import { getPlaceProviderMap } from '@/lib/db';
 
 const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then((m) => m.MediaGallery), {
   loading: () => (
@@ -109,10 +104,6 @@ const QuotesSection = nextDynamic(() => import('@/components/QuotesSection').the
 });
 
 const ReleasesSection = nextDynamic(() => import('@/components/ReleasesSection').then((m) => m.ReleasesSection), {
-  loading: () => <SkeletonRows count={4} />,
-});
-
-const StockPanel = nextDynamic(() => import('@/components/StockPanel').then((m) => m.StockPanel), {
   loading: () => <SkeletonRows count={4} />,
 });
 
@@ -958,34 +949,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         }
         if (!vn.id.startsWith('egs_')) {
           sectionNodes['vndb-status'] = <VndbStatusPanel vnId={vn.id} />;
-        }
-        const stockSnapshot = getStockForVn(vn.id);
-        sectionNodes['stock'] = (
-          <StockPanelBoundary
-            title={t.stock.title}
-            fallbackMessage={t.stock.boundaryFallback as string}
-            retryLabel={t.stock.boundaryRetry as string}
-          >
-            <StockPanel
-              vnId={vn.id}
-              title={displayTitle}
-              altTitle={vn.alttitle ?? null}
-              vndbAliases={vn.aliases}
-              initialSnapshot={stockSnapshot}
-              showErogePrice={false}
-              placeMap={getPlaceProviderMap()}
-              bare
-            />
-          </StockPanelBoundary>
-        );
-        // StockPricesSection hides itself unless the eroge_price
-        // provider returned a v1 extras blob; gate on that so a VN
-        // without price history doesn't get an empty section frame.
-        const hasErogePriceExtras = stockSnapshot.statuses.some((s) => {
-          return s.provider === 'eroge_price' && decodeStoredExtras(s.extras_json) !== null;
-        });
-        if (hasErogePriceExtras) {
-          sectionNodes['stock-prices'] = <StockPricesSection vnId={vn.id} initialSnapshot={stockSnapshot} />;
         }
         sectionNodes['egs-panel'] = (
           <EgsPanel
