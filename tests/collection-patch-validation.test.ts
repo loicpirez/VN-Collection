@@ -159,6 +159,100 @@ describe('PATCH /api/collection/[id] — pickFields validation', () => {
     expect(res.status).toBe(200);
   });
 
+  it('trims blank download_url to null and rejects non-string download_url', async () => {
+    const blank = await PATCH(patchReq(VN_ID, { download_url: '   ' }), ctx());
+    expect(blank.status).toBe(200);
+    expect(
+      (db.prepare('SELECT download_url FROM collection WHERE vn_id = ?').get(VN_ID) as { download_url: string | null }).download_url,
+    ).toBeNull();
+
+    const malformed = await PATCH(patchReq(VN_ID, { download_url: 123 }), ctx());
+    expect(malformed.status).toBe(400);
+    expect((await malformed.json() as { error: string }).error).toBe('download_url must be string or null');
+  });
+
+  it('rejects malformed optional metadata fields', async () => {
+    const cases: Array<{ body: Record<string, unknown>; error: string }> = [
+      { body: { notes: 1 }, error: 'notes must be a string or null' },
+      { body: { notes: 'x'.repeat(50_001) }, error: 'notes too long (max 50000)' },
+      { body: { favorite: 'true' }, error: 'favorite must be boolean' },
+      { body: { location: 'moon' }, error: 'invalid location' },
+      { body: { edition_type: 'deluxe' }, error: 'invalid edition_type' },
+      { body: { edition_label: 1 }, error: 'edition_label must be a string or null' },
+      { body: { edition_label: 'x'.repeat(201) }, error: 'edition_label too long (max 200)' },
+      { body: { box_type: 'crate' }, error: 'invalid box_type' },
+      { body: { dumped: 'false' }, error: 'dumped must be boolean' },
+      { body: { dumped_ignored: 0 }, error: 'dumped_ignored must be boolean' },
+      { body: { physical_location: [1] }, error: 'physical_location entries must be strings' },
+    ];
+
+    for (const item of cases) {
+      const res = await PATCH(patchReq(VN_ID, item.body), ctx());
+      expect(res.status).toBe(400);
+      expect((await res.json() as { error: string }).error).toBe(item.error);
+    }
+  });
+
+  it('accepts and clears optional metadata fields', async () => {
+    const setRes = await PATCH(
+      patchReq(VN_ID, {
+        finished_date: '2024-04-05',
+        notes: 'note',
+        favorite: true,
+        location: 'jp',
+        edition_type: 'limited',
+        edition_label: 'Limited box',
+        box_type: 'special_edition',
+        dumped: true,
+        dumped_ignored: true,
+        physical_location: ['Shelf A', 'Drawer B'],
+      }),
+      ctx(),
+    );
+    expect(setRes.status).toBe(200);
+    const setRow = db.prepare(`
+      SELECT finished_date, notes, favorite, location, edition_type, edition_label, box_type, dumped, dumped_ignored, physical_location
+      FROM collection WHERE vn_id = ?
+    `).get(VN_ID) as {
+      finished_date: string | null;
+      notes: string | null;
+      favorite: number;
+      location: string | null;
+      edition_type: string | null;
+      edition_label: string | null;
+      box_type: string | null;
+      dumped: number;
+      dumped_ignored: number;
+      physical_location: string | null;
+    };
+    expect(setRow).toMatchObject({
+      finished_date: '2024-04-05',
+      notes: 'note',
+      favorite: 1,
+      location: 'jp',
+      edition_type: 'limited',
+      edition_label: 'Limited box',
+      box_type: 'special_edition',
+      dumped: 1,
+      dumped_ignored: 1,
+    });
+    expect(JSON.parse(setRow.physical_location ?? '[]')).toEqual(['Shelf A', 'Drawer B']);
+
+    const clearRes = await PATCH(
+      patchReq(VN_ID, {
+        finished_date: '',
+        notes: '',
+        edition_label: null,
+        physical_location: null,
+      }),
+      ctx(),
+    );
+    expect(clearRes.status).toBe(200);
+    const cleared = db.prepare('SELECT finished_date, notes, edition_label, physical_location FROM collection WHERE vn_id = ?')
+      .get(VN_ID) as { finished_date: string | null; notes: string | null; edition_label: string | null; physical_location: string | null };
+    expect(cleared).toEqual({ finished_date: null, notes: null, edition_label: null, physical_location: null });
+  });
+
   it('rejects oversized physical-location arrays instead of silently truncating them', async () => {
     const physicalLocation = Array.from({ length: 33 }, (_, index) => `Shelf ${index}`);
     const res = await PATCH(patchReq(VN_ID, { physical_location: physicalLocation }), ctx());

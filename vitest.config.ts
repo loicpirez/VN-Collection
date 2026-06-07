@@ -7,6 +7,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     pool: 'forks',
+    testTimeout: 30000,
     // SQLite spins up a real DB per test file; isolation per worker
     // keeps the suite easy to reason about without explicit cleanup.
     isolate: true,

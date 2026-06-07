@@ -37,7 +37,6 @@ function settingsPayload(): Record<string, unknown> {
     vndb_proxy_config: proxy,
     vndbmirror_proxy_config: proxy,
     egs_proxy_config: proxy,
-    alicenet_proxy_config: proxy,
     stock_proxy_config: proxy,
     stock_disabled_providers: ['sofmap'],
     stock_retry_without_proxy: false,

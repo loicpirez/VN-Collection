@@ -88,7 +88,7 @@ describe('wishlist card pagination', () => {
   });
 
   it('exposes URL-backed localized page navigation for long wishlists', () => {
-    expect(wishlist).toContain("const requestedPage = readPageFromUrl(search?.get('page') ?? null)");
+    expect(wishlist).toContain("const requestedPage = readPageFromUrl(search.get('page') ?? null)");
     expect(wishlist).toContain("if (key !== 'page') sp.delete('page')");
     expect(wishlist).toContain('aria-label={t.wishlist.paginationLabel}');
     expect(wishlist).toContain('{t.wishlist.previousPage}');

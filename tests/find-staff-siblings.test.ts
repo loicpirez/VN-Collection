@@ -140,4 +140,21 @@ describe('findStaffSiblings', () => {
     expect(sibs[0].sid).toBe('s9601');
     expect(sibs[0].vns).toHaveLength(1);
   });
+
+  it('uses VA-only input names and groups one candidate sid across multiple VNs', () => {
+    seedVn('v9060', 'Input voice VN', true);
+    seedVn('v9061', 'Candidate display VN', true);
+    seedVn('v9062', 'Candidate original VN', true);
+    seedVaCredit('v9060', 's9700', 'c9700', 'Voice Shared', 'Voice Original');
+    seedStaffCredit('v9061', 's9701', 'Voice Shared');
+    seedStaffCredit('v9062', 's9701', 'Different Display', 'Voice Original');
+
+    const sibs = findStaffSiblings('s9700');
+    expect(sibs).toHaveLength(1);
+    expect(sibs[0]).toMatchObject({ sid: 's9701', name: 'Voice Shared', original: null });
+    expect(sibs[0].vns).toEqual([
+      { vn_id: 'v9061', vn_title: 'Candidate display VN' },
+      { vn_id: 'v9062', vn_title: 'Candidate original VN' },
+    ]);
+  });
 });

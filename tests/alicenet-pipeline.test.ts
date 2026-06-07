@@ -1,7 +1,7 @@
 /**
  * Hermetic coverage for the AliceNet fetch/parse/match/resolve pipeline in
  * src/lib/alicenet.ts. Every upstream is mocked: VNDB search, the three EGS
- * helpers, and the single network primitive (`providerFetch`). The per-worker
+ * helpers, and the single network primitive (`stockProviderFetch`). The per-worker
  * SQLite store is seeded through the real exported db functions so the
  * matching code reads and writes genuine rows.
  */
@@ -15,7 +15,7 @@ const { searchEgsCandidatesMock, fetchEgsGameMock, searchEgsByNameMock } = vi.ho
   fetchEgsGameMock: vi.fn(),
   searchEgsByNameMock: vi.fn(),
 }));
-const { providerFetchMock } = vi.hoisted(() => ({ providerFetchMock: vi.fn() }));
+const { stockProviderFetchMock } = vi.hoisted(() => ({ stockProviderFetchMock: vi.fn() }));
 
 vi.mock('@/lib/vndb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vndb')>();
@@ -34,7 +34,7 @@ vi.mock('@/lib/erogamescape', async (importOriginal) => {
 
 vi.mock('@/lib/proxy-fetch', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/proxy-fetch')>();
-  return { ...actual, providerFetch: providerFetchMock };
+  return { ...actual, stockProviderFetch: stockProviderFetchMock };
 });
 
 import {
@@ -146,7 +146,7 @@ beforeEach(() => {
   searchEgsCandidatesMock.mockReset();
   fetchEgsGameMock.mockReset();
   searchEgsByNameMock.mockReset();
-  providerFetchMock.mockReset();
+  stockProviderFetchMock.mockReset();
   searchVnMock.mockResolvedValue({ results: [], more: false });
   searchEgsCandidatesMock.mockResolvedValue([]);
   fetchEgsGameMock.mockResolvedValue(null);
@@ -201,27 +201,27 @@ describe('parseAliceNetHtml', () => {
 describe('fetchAliceNetHtml', () => {
   it('decodes the EUC-JP body to UTF-8 text', async () => {
     const eucjp = Buffer.from([0xa4, 0xa2, 0xa4, 0xa4]); // あい in EUC-JP
-    providerFetchMock.mockResolvedValue(new Response(eucjp, { status: 200 }));
+    stockProviderFetchMock.mockResolvedValue(new Response(eucjp, { status: 200 }));
     const text = await fetchAliceNetHtml();
     expect(text).toBe('あい');
-    expect(providerFetchMock).toHaveBeenCalledTimes(1);
-    expect(providerFetchMock.mock.calls[0]?.[2]).toBe('alicenet');
+    expect(stockProviderFetchMock).toHaveBeenCalledTimes(1);
+    expect(stockProviderFetchMock.mock.calls[0]?.[2]).toBe('alicenet');
   });
 
   it('throws on a non-ok upstream response', async () => {
-    providerFetchMock.mockResolvedValue(new Response('nope', { status: 503 }));
+    stockProviderFetchMock.mockResolvedValue(new Response('nope', { status: 503 }));
     await expect(fetchAliceNetHtml()).rejects.toThrow(/HTTP 503/);
   });
 
   it('rejects an oversized declared content-length before reading the body', async () => {
-    providerFetchMock.mockResolvedValue(
+    stockProviderFetchMock.mockResolvedValue(
       new Response('x', { status: 200, headers: { 'content-length': String(9 * 1024 * 1024) } }),
     );
     await expect(fetchAliceNetHtml()).rejects.toThrow(/too large/);
   });
 
   it('throws when the upstream body is absent', async () => {
-    providerFetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+    stockProviderFetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     await expect(fetchAliceNetHtml()).rejects.toThrow(/empty body/);
   });
 
@@ -236,7 +236,7 @@ describe('fetchAliceNetHtml', () => {
         return Promise.reject(new Error('synthetic cancellation failure'));
       },
     });
-    providerFetchMock.mockResolvedValue(new Response(body, { status: 200 }));
+    stockProviderFetchMock.mockResolvedValue(new Response(body, { status: 200 }));
     await expect(fetchAliceNetHtml()).rejects.toThrow(/exceeded/);
     expect(cancelled).toBe(true);
   });
@@ -247,7 +247,7 @@ describe('refreshAliceNetStock', () => {
     seedRow({ code: '999-888888-777', title: 'Old Sold Item' });
     const html = `
       <tr><td>111-222222-333</td><td>Fresh Item</td><td></td><td>2021/05/05</td><td></td><td></td></tr>`;
-    providerFetchMock.mockResolvedValue(new Response(Buffer.from(html, 'latin1'), { status: 200 }));
+    stockProviderFetchMock.mockResolvedValue(new Response(Buffer.from(html, 'latin1'), { status: 200 }));
     const result = await refreshAliceNetStock();
     expect(result.count).toBe(1);
     expect(result.added).toBe(1);

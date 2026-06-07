@@ -26,7 +26,7 @@ describe('desktop grouped navigation portal', () => {
 
   it('keeps keyboard focus and outside-click handling bound to the portaled menu', () => {
     expect(source).toContain("menuRef.current?.querySelector<HTMLElement>('[role=\"menuitem\"]')");
-    expect(source).toContain("menuRef.current?.querySelectorAll<HTMLElement>('[role=\"menuitem\"]')");
+    expect(source).toContain("menuRef.current!.querySelectorAll<HTMLElement>('[role=\"menuitem\"]')");
     expect(source).toContain('!menuRef.current?.contains(target)');
     expect(source).toContain('triggerRef.current?.focus({ preventScroll: true })');
   });

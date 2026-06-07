@@ -38,7 +38,8 @@ describe('AliceNet branding', () => {
       .map((path) => relative(ROOT, path))
       .filter((path) => LEGACY_IDENTIFIER_RE.test(path));
     expect(files).toEqual([]);
-    expect(existsSync(join(ROOT, 'src/app/alicenet/page.tsx'))).toBe(true);
+    expect(existsSync(join(ROOT, 'src/app/alicenet/page.tsx'))).toBe(false);
+    expect(source('src/components/StockLookupClient.tsx')).toContain('<AliceNetClient embedded basePath="/stock" />');
     expect(existsSync(join(ROOT, 'src/components/AliceNetClient.tsx'))).toBe(true);
     expect(existsSync(join(ROOT, 'src/lib/alicenet.ts'))).toBe(true);
   });
@@ -68,13 +69,16 @@ describe('AliceNet branding', () => {
     for (const path of ['README.md', 'FEATURES.md', 'CLAUDE.md']) {
       const text = source(path);
       expect(text, path).toContain('AliceNet');
-      expect(text, path).toContain('ALICENET_ENABLED');
-      expect(text, path).toContain('/alicenet');
+      expect(text, path).toContain('/stock');
       expect(text, path).toContain('/api/alicenet/*');
       expect(text, path).toContain('alicenet_*');
+      expect(text, path).not.toContain('ALICENET_ENABLED');
+      expect(text, path).not.toContain('ALICENET_PROXY');
     }
     const proxyConfig = source('src/lib/proxy-config.ts');
-    expect(proxyConfig).toContain("alicenet: 'ALICENET'");
-    expect(proxyConfig).toContain("alicenet: 'alicenet_proxy_config'");
+    expect(proxyConfig).toContain("if (provider === ALICENET_PROVIDER_ID) return null");
+    expect(proxyConfig).toContain("if (providerId === ALICENET_PROVIDER_ID)");
+    expect(proxyConfig).toContain("return resolveFromStored(null, readDbConfig('stock'))");
+    expect(proxyConfig).not.toContain("alicenet: 'ALICENET'");
   });
 });

@@ -266,7 +266,7 @@ export interface VndbSearchHit {
 
 export interface Stats {
   total: number;
-  byStatus: { status: Status; n: number }[];
+  byStatus: { status: string; n: number }[];
   playtime_minutes: number;
 }
 

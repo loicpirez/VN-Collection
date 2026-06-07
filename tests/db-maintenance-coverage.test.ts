@@ -38,6 +38,7 @@ import {
   putCacheRow,
   removeFromCollection,
   setAppSetting,
+  setVnPublishers,
   setQuotesForVn,
   touchCacheRow,
   unmarkReleaseOwned,
@@ -141,6 +142,46 @@ describe('export / import round-trip', () => {
     expect(summary.errors).toEqual([]);
     expect(isInCollection('v90010')).toBe(false);
   });
+
+  it('continues after collection and series-link rows fail foreign-key checks', () => {
+    const now = Date.now();
+    const payload: CollectionExportPayload = {
+      version: 2,
+      exported_at: now,
+      vns: [{ id: 'v90020', title: 'Imported VN', raw: { id: 'v90020', title: 'Imported VN' }, fetched_at: now }],
+      collection: [
+        {
+          vn_id: 'v99998',
+          status: 'planning',
+          user_rating: null,
+          playtime_minutes: 0,
+          started_date: null,
+          finished_date: null,
+          notes: null,
+          favorite: 0,
+          location: 'unknown',
+          edition_type: 'none',
+          edition_label: null,
+          physical_location: null,
+          added_at: now,
+          updated_at: now,
+        },
+      ],
+      series: [{ id: 700, name: 'Broken membership import', description: null, cover_path: null, banner_path: null, created_at: now, updated_at: now }],
+      series_vn: [{ series_id: 700, vn_id: 'v99999', order_index: 0 }],
+    };
+
+    const summary = importData(payload);
+    expect(summary.vns_upserted).toBe(1);
+    expect(summary.collection_upserted).toBe(0);
+    expect(summary.series_created).toBe(1);
+    expect(summary.series_links).toBe(0);
+    expect(summary.errors).toEqual([
+      'collection v99998: import failed',
+      'series_vn 700/v99999: import failed',
+    ]);
+    expect(isInCollection('v99998')).toBe(false);
+  });
 });
 
 describe('migrateVnId', () => {
@@ -210,6 +251,90 @@ describe('app-setting audit', () => {
     setAppSetting('vndb_token', 'same-value-0001');
     expect(listSettingAudit().filter((a) => a.key === 'vndb_token')).toHaveLength(1);
   });
+
+  it('audits blank secrets and malformed backup URLs with diagnostic previews', () => {
+    setAppSetting('vndb_token', '   ');
+    setAppSetting('vndb_backup_url', 'not a url 1234');
+
+    const audit = listSettingAudit();
+    expect(audit.find((a) => a.key === 'vndb_token')?.next_preview).toBeNull();
+    expect(audit.find((a) => a.key === 'vndb_backup_url')?.next_preview).toBe('…1234');
+  });
+});
+
+describe('VN materialized indexes', () => {
+  it('skips invalid embedded VNDB credits while keeping valid index rows', () => {
+    upsertVn({
+      id: 'v90031',
+      title: 'Index validation VN',
+      has_anime: false,
+      developers: [
+        { id: '', name: 'Ignored developer' },
+        { id: 'p90031', name: 'Valid developer' },
+      ],
+      languages: ['', 'ja'],
+      platforms: ['', 'win'],
+      tags: [
+        { id: '', name: 'Ignored tag', rating: 0, spoiler: 0, category: null },
+        { id: 'g90031', name: '', rating: 2, spoiler: 1, category: null },
+      ],
+      relations: [
+        {
+          id: 'v90032',
+          title: 'Related without developer id',
+          relation: 'seq',
+          relation_official: false,
+          developers: [{ name: 'No id developer' }],
+        },
+      ],
+      staff: [
+        {},
+        { id: 's90031' },
+        { id: 's90032', name: 'Valid Writer', role: 'scenario' },
+      ],
+      va: [
+        { staff: { id: 's90033', name: '' }, character: { id: 'c90031', name: 'No Staff Name' } },
+        { staff: { id: 's90034', name: 'No Character Id' }, character: { id: '', name: 'Missing id' } },
+        { staff: { id: 's90035', name: 'Valid VA' }, character: { id: 'c90035', name: 'Valid Character' } },
+      ],
+    });
+
+    expect(db.prepare('SELECT producer_id FROM vn_developer_index WHERE vn_id = ?').all('v90031')).toEqual([
+      { producer_id: 'p90031' },
+    ]);
+    expect(db.prepare('SELECT lang FROM vn_language_index WHERE vn_id = ?').all('v90031')).toEqual([{ lang: 'ja' }]);
+    expect(db.prepare('SELECT platform FROM vn_platform_index WHERE vn_id = ?').all('v90031')).toEqual([{ platform: 'win' }]);
+    expect(db.prepare('SELECT tag_id, tag_name, spoiler, category FROM vn_tag_index WHERE vn_id = ?').all('v90031')).toEqual([
+      { tag_id: 'g90031', tag_name: 'g90031', spoiler: 1, category: null },
+    ]);
+    expect(db.prepare('SELECT sid, role FROM vn_staff_credit WHERE vn_id = ?').all('v90031')).toEqual([
+      { sid: 's90032', role: 'scenario' },
+    ]);
+    expect(db.prepare('SELECT sid, c_id FROM vn_va_credit WHERE vn_id = ?').all('v90031')).toEqual([
+      { sid: 's90035', c_id: 'c90035' },
+    ]);
+  });
+
+  it('deduplicates publishers and ignores incomplete publisher rows', () => {
+    upsertVn({ id: 'v90033', title: 'Publisher index VN' });
+    setVnPublishers('v90033', [
+      { id: '', name: 'Missing id' },
+      { id: 'p90033', name: '' },
+      { id: 'p90034', name: 'Publisher A' },
+      { id: 'p90034', name: 'Publisher A duplicate' },
+      { id: 'p90035', name: 'Publisher B' },
+    ]);
+
+    const publisherRow = db.prepare('SELECT publishers FROM vn WHERE id = ?').get('v90033') as { publishers: string };
+    expect(JSON.parse(publisherRow.publishers)).toEqual([
+      { id: 'p90034', name: 'Publisher A' },
+      { id: 'p90035', name: 'Publisher B' },
+    ]);
+    expect(db.prepare('SELECT producer_id FROM vn_publisher_index WHERE vn_id = ? ORDER BY producer_id').all('v90033')).toEqual([
+      { producer_id: 'p90034' },
+      { producer_id: 'p90035' },
+    ]);
+  });
 });
 
 describe('owned releases', () => {
@@ -237,6 +362,54 @@ describe('owned releases', () => {
 
     unmarkReleaseOwned('v90001', 'r1001');
     expect(listOwnedReleasesForVn('v90001')).toHaveLength(0);
+  });
+
+  it('updates every owned-edition patch field with typed values', () => {
+    upsertVn({ id: 'v90021', title: 'Edition full patch VN' });
+    addToCollection('v90021', { status: 'planning' });
+    markReleaseOwned('v90021', 'r1021');
+
+    updateOwnedRelease('v90021', 'r1021', {
+      notes: 'complete patch',
+      location: 'jp',
+      physical_location: 'Shelf Z, Box Z',
+      box_type: 'large',
+      edition_label: 'First print',
+      condition: 'mint',
+      price_paid: 1234,
+      currency: 'JPY',
+      acquired_date: '2026-01-02',
+      purchase_place: 'AliceNet counter',
+      owned_platform: 'win',
+      dumped: true,
+    });
+
+    const [row] = listOwnedReleasesForVn('v90021');
+    expect(row).toMatchObject({
+      notes: 'complete patch',
+      location: 'jp',
+      physical_location: ['Shelf Z', 'Box Z'],
+      box_type: 'large',
+      edition_label: 'First print',
+      condition: 'mint',
+      price_paid: 1234,
+      currency: 'JPY',
+      acquired_date: '2026-01-02',
+      owned_platform: 'win',
+      dumped: true,
+    });
+    expect(
+      db.prepare('SELECT purchase_place, dumped FROM owned_release WHERE vn_id = ? AND release_id = ?').get('v90021', 'r1021'),
+    ).toEqual({ purchase_place: 'AliceNet counter', dumped: 1 });
+    expect(
+      db.prepare('SELECT place FROM collection_place_index WHERE vn_id = ? ORDER BY place').all('v90021'),
+    ).toEqual([{ place: 'Box Z' }, { place: 'Shelf Z' }]);
+
+    updateOwnedRelease('v90021', 'r1021', { dumped: false, physical_location: null });
+    expect(listOwnedReleasesForVn('v90021')[0].dumped).toBe(false);
+    expect(
+      db.prepare('SELECT place FROM collection_place_index WHERE vn_id = ?').all('v90021'),
+    ).toEqual([]);
   });
 });
 

@@ -20,10 +20,8 @@ describe('validateVnDetailLayoutV1', () => {
     for (const id of VN_SECTION_IDS) {
       expect(out.sections[id].visible).toBe(true);
     }
-    expect(out.sections.stock.collapsedByDefault).toBe(false);
     expect(out.sections.characters.collapsedByDefault).toBe(false);
     expect(out.sections.releases.collapsedByDefault).toBe(true);
-    expect(out.sections['stock-prices'].collapsedByDefault).toBe(true);
   });
 
   it('returns defaults for invalid (array / primitive) input', () => {

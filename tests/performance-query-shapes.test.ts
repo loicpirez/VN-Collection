@@ -39,7 +39,7 @@ describe('home library request shape', () => {
     expect(body).toContain('function requestCollection(url: string, fallbackError: string)');
     expect(body).toContain('activeRequest.consumers += 1');
     expect(body).toContain('activeRequest.controller.abort()');
-    expect(body).toContain('const request = requestCollection(`/api/collection?${params}`, t.common.error)');
+    expect(body).toContain('const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid)');
     expect(body).not.toContain("fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })");
   });
 });

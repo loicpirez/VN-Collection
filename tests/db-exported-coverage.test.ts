@@ -17,10 +17,12 @@ import {
   getDbStatus,
   getOwnedRelease,
   getOwnedReleaseAspectInfo,
+  getSourcePref,
   getStaffProfileFromCredits,
   getVaTimeline,
   getVasForCharacter,
   isEgsOnly,
+  isValidStatus,
   isValidBoxType,
   isValidEditionType,
   isValidLocation,
@@ -34,11 +36,14 @@ import {
   materializeReleaseAspectsForCollectionVns,
   placeShelfDisplayItem,
   placeShelfItem,
+  putCacheRow,
   restoreFromSqliteFile,
+  searchLocalCharacters,
   searchLocalStaff,
   setAppSetting,
   setEgsLocalImage,
   setOwnedReleaseAspectOverride,
+  setSourcePref,
   setStockProviderExtras,
   setVnAspectOverride,
   upsertCharacterImage,
@@ -60,6 +65,7 @@ function wipe(): void {
     DELETE FROM owned_release_aspect_override;
     DELETE FROM release_resolution_cache;
     DELETE FROM vndb_cache;
+    DELETE FROM character_vn_index;
     DELETE FROM vn_stock_offer;
     DELETE FROM vn_stock_provider_status;
     DELETE FROM owned_release;
@@ -111,6 +117,43 @@ function insertVaCredit(vnId: string, sid: string, charId: string, charName: str
     INSERT INTO vn_va_credit (vn_id, sid, aid, c_id, c_name, c_original, c_image_url, va_name, va_original, va_lang, note)
     VALUES (?, ?, 3, ?, ?, ?, 'https://example.test/character.jpg', ?, 'VA original', 'ja', 'voice note')
   `).run(vnId, sid, charId, charName, charOriginal, vaName);
+}
+
+function putCharacterProfile(
+  id: string,
+  over: Partial<{ name: string; original: string | null; aliases: string[] }> = {},
+): void {
+  const numeric = id.replace(/^c/, '');
+  putCacheRow({
+    cache_key: `char_full:${id}`,
+    body: JSON.stringify({
+      profile: {
+        id: id.toUpperCase(),
+        name: over.name ?? `Character ${numeric}`,
+        original: over.original ?? null,
+        aliases: over.aliases ?? [],
+        description: null,
+        image: null,
+        blood_type: null,
+        height: null,
+        weight: null,
+        bust: null,
+        waist: null,
+        hips: null,
+        cup: null,
+        age: null,
+        birthday: null,
+        sex: null,
+        gender: null,
+        vns: [],
+        traits: [],
+      },
+    }),
+    etag: null,
+    last_modified: null,
+    fetched_at: 1,
+    expires_at: 9_999_999,
+  });
 }
 
 beforeAll(wipe);
@@ -191,6 +234,35 @@ describe('db exported staff and character helpers', () => {
     });
   });
 
+  it('searches local character cache rows and aggregates voice languages', () => {
+    upsertVn({ id: 'v90009', title: 'Character Search A' });
+    upsertVn({ id: 'v90010', title: 'Character Search B' });
+    addToCollection('v90009');
+    addToCollection('v90010');
+    db.prepare('INSERT INTO character_vn_index (character_id, vn_id) VALUES (?, ?)').run('c90009', 'v90009');
+    db.prepare('INSERT INTO character_vn_index (character_id, vn_id) VALUES (?, ?)').run('c90010', 'v90010');
+    db.prepare('INSERT INTO character_vn_index (character_id, vn_id) VALUES (?, ?)').run('c90011', 'v90010');
+
+    putCharacterProfile('c90009', { name: 'Needle Character', original: 'Original Needle', aliases: ['Alias Needle'] });
+    putCharacterProfile('c90010', { name: 'Second Character' });
+    putCacheRow({
+      cache_key: 'char_full:c90011',
+      body: JSON.stringify({ profile: { id: 'bad' } }),
+      etag: null,
+      last_modified: null,
+      fetched_at: 1,
+      expires_at: 9_999_999,
+    });
+    insertVaCredit('v90009', 's90009', 'c90009', 'Needle Character', 'Actor A');
+    insertVaCredit('v90010', 's90010', 'c90009', 'Needle Character', 'Actor B');
+
+    const byAlias = searchLocalCharacters({ q: 'alias needle', limit: 5 });
+    expect(byAlias.map((row) => row.profile.id)).toEqual(['c90009']);
+    expect(byAlias[0]?.voice_languages).toEqual(['ja']);
+    expect(searchLocalCharacters({ q: 'absent', limit: 5 })).toEqual([]);
+    expect(searchLocalCharacters({ limit: 1 })).toHaveLength(1);
+  });
+
   it('searches the local staff index with combined filters', () => {
     upsertVn({ id: 'v90008', title: 'Staff Search VN' });
     addToCollection('v90008');
@@ -251,6 +323,8 @@ describe('db exported image, EGS, activity, and enum helpers', () => {
   });
 
   it('validates the remaining collection enum families', () => {
+    expect(isValidStatus('completed')).toBe(true);
+    expect(isValidStatus('invalid')).toBe(false);
     expect(isValidLocation('jp')).toBe(true);
     expect(isValidLocation('invalid')).toBe(false);
     expect(isValidEditionType('limited')).toBe(true);
@@ -266,6 +340,27 @@ describe('db exported image, EGS, activity, and enum helpers', () => {
     expect(status.db_path).toBe(process.env.DB_PATH);
     expect(status.vndb_token).toBe('db');
     expect(status.rows.some((row) => row.table === 'vn')).toBe(true);
+  });
+
+  it('reports an environment VNDB token only when no database token exists', () => {
+    const prior = process.env.VNDB_TOKEN;
+    setAppSetting('vndb_token', null);
+    process.env.VNDB_TOKEN = 'fixture-env-token';
+    try {
+      expect(getDbStatus().vndb_token).toBe('env');
+    } finally {
+      if (prior == null) delete process.env.VNDB_TOKEN;
+      else process.env.VNDB_TOKEN = prior;
+    }
+  });
+
+  it('prunes automatic source preferences before storing custom source choices', () => {
+    upsertVn({ id: 'v90030', title: 'Source pref VN' });
+    addToCollection('v90030');
+    setSourcePref('v90030', { title: 'auto', description: 'egs', rating: 'custom' });
+    expect(getSourcePref('v90030')).toEqual({ description: 'egs', rating: 'custom' });
+    setSourcePref('v90030', { title: 'auto' });
+    expect(getSourcePref('v90030')).toEqual({});
   });
 });
 
@@ -429,5 +524,29 @@ describe('db exported SQLite restore', () => {
 
   it('rejects non-SQLite restore buffers', async () => {
     await expect(restoreFromSqliteFile(Buffer.from('not sqlite'))).rejects.toThrow(/not a valid SQLite DB/);
+  });
+
+  it('reports skipped restore tables and preserves a disabled foreign-key pragma', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'vndb-db-sparse-restore-'));
+    const backupPath = join(dir, 'sparse.db');
+    const source = new Database(backupPath);
+    try {
+      source.exec(`
+        CREATE TABLE vn (unrelated TEXT);
+        INSERT INTO vn (unrelated) VALUES ('no shared columns');
+      `);
+      source.close();
+      db.pragma('foreign_keys = OFF');
+
+      const summary = await restoreFromSqliteFile(await readFile(backupPath));
+
+      expect(summary.skipped).toContainEqual({ name: 'vn', reason: 'no shared columns' });
+      expect(summary.skipped).toContainEqual({ name: 'collection', reason: 'missing in backup' });
+      expect(db.pragma('foreign_keys', { simple: true })).toBe(0);
+    } finally {
+      if (source.open) source.close();
+      db.pragma('foreign_keys = ON');
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

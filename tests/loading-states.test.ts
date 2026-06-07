@@ -30,7 +30,7 @@ const ROUTES = [
   { row: 'R5-176 /tags', file: 'src/app/tags/loading.tsx' },
   { row: 'R5-177 /characters', file: 'src/app/characters/loading.tsx' },
   { row: 'R5-177 /staff', file: 'src/app/staff/loading.tsx' },
-  { row: 'TESTA-003 /alicenet', file: 'src/app/alicenet/loading.tsx' },
+  { row: 'TESTA-003 /stock', file: 'src/app/stock/loading.tsx' },
   { row: 'TESTA-003 /map', file: 'src/app/map/loading.tsx' },
   { row: 'TESTA-003 /places', file: 'src/app/places/loading.tsx' },
   { row: 'TESTA-003 /places/[id]', file: 'src/app/places/[id]/loading.tsx' },

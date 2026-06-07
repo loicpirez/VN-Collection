@@ -10,12 +10,20 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getStockForVn } from '@/lib/stock';
 import {
+  batchVnStockSummaries,
+  clearVnStockCache,
   db,
+  getDisabledStockProviders,
+  getStockRetryWithoutProxy,
+  listVnStockOffers,
+  listVnStockProviderStatuses,
   replaceVnStockProviderSnapshot,
   setAppSetting,
+  setStockProviderExtras,
   upsertVn,
   type VnStockOfferInput,
 } from '@/lib/db';
+import type { ErogePriceBundle, ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
 
 const VN_ID = 'v95100';
 const NOW = 1_700_000_000_000;
@@ -65,7 +73,87 @@ function seedAlicenet(code: string, salePrice: string | null, listPrice: string 
     INSERT INTO alicenet_stock (code, title, jan, list_price, sale_price, vn_id, vn_match_source, fetched_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, 'manual', ?, ?)
     ON CONFLICT(code) DO UPDATE SET vn_id = excluded.vn_id, sale_price = excluded.sale_price
-  `).run(code, 'てすとげーむ used', '4900000000001', listPrice, salePrice, VN_ID, NOW, NOW);
+`).run(code, 'てすとげーむ used', '4900000000001', listPrice, salePrice, VN_ID, NOW, NOW);
+}
+
+function bundle(epId: number, currentPrice: number | null): ErogePriceBundle {
+  return {
+    epId,
+    gameUrl: `https://eroge-price.com/games/${epId}`,
+    detail: {
+      id: epId,
+      title: 'Placeholder price game',
+      maker: 'Studio Placeholder',
+      genres: [],
+      mainStaff: { scenario: [], illustration: [], voice: [], music: [], singer: [] },
+      releaseDate: null,
+      coverImageUrl: null,
+      description: null,
+      officialSiteUrl: null,
+      brandSiteUrl: null,
+      platform: 'PC',
+      ageRating: 'R18',
+      hasDownload: true,
+      hasPackage: true,
+      fanzaDownloadCid: null,
+      fanzaPackageCid: null,
+      downloadRetailers: [{
+        retailerId: 1,
+        retailerName: 'Placeholder Store A',
+        retailerLogoUrl: null,
+        productUrl: 'https://example.test/download',
+        productCode: 'D1',
+        isAvailable: true,
+        condition: null,
+        conditionNote: null,
+        qualityRank: 4,
+        currentPrice,
+        isOnSale: false,
+        originalPrice: null,
+        discountRate: null,
+        regularPrice: currentPrice,
+        lastChecked: null,
+      }],
+      packageRetailers: [{
+        retailerId: 2,
+        retailerName: 'Placeholder Store B',
+        retailerLogoUrl: null,
+        productUrl: 'https://example.test/package',
+        productCode: 'P1',
+        isAvailable: true,
+        condition: 'used',
+        conditionNote: null,
+        qualityRank: 3,
+        currentPrice: currentPrice == null ? null : currentPrice + 500,
+        isOnSale: false,
+        originalPrice: null,
+        discountRate: null,
+        regularPrice: currentPrice == null ? null : currentPrice + 500,
+        lastChecked: null,
+      }],
+    },
+    priceStats: {
+      allTimeMin: null,
+      allTimeMinNote: null,
+      allTimeMax: null,
+      allTimeMaxNote: null,
+      thirtyDayMin: null,
+      thirtyDayMinNote: null,
+    },
+    priceHistory: [],
+    related: { connections: [], sameBrand: [] },
+    fetchedAt: NOW,
+  };
+}
+
+function extras(selectedEpId: number, candidates: ErogePriceBundle[]): ErogePriceExtrasV1 {
+  return {
+    schemaVersion: 1,
+    candidates,
+    selectedEpId,
+    searchQuery: 'placeholder',
+    refreshedAt: NOW,
+  };
 }
 
 beforeEach(() => {
@@ -131,6 +219,25 @@ describe('getStockForVn — summary counters', () => {
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
 
     expect(getStockForVn(VN_ID).summary.best_price).toBeNull();
+  });
+
+  it('keeps old offers when a provider snapshot asks to preserve them and then clears cache counts', () => {
+    replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
+      offer({ provider_offer_id: 'kept', price: 2500 }),
+    ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
+    replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
+      offer({ provider_offer_id: 'added', price: 2000 }),
+    ], { status: 'partial', message: 'cached fallback', fetched_at: NOW + 1, offer_count: 1 }, { preserveExistingOffers: true });
+
+    expect(listVnStockOffers(VN_ID).map((row) => row.provider_offer_id).sort()).toEqual(['added', 'kept']);
+    expect(listVnStockProviderStatuses(VN_ID)[0]).toMatchObject({
+      provider: 'melonbooks',
+      status: 'partial',
+      fresh_offers_found: 1,
+      cached_offers_available: 0,
+    });
+    expect(clearVnStockCache(VN_ID)).toEqual({ offers: 2, statuses: 1 });
+    expect(clearVnStockCache(VN_ID)).toEqual({ offers: 0, statuses: 0 });
   });
 });
 
@@ -218,5 +325,33 @@ describe('getStockForVn — disabled providers flag', () => {
     const melonbooks = snapshot.providers.find((p) => p.id === 'melonbooks');
     expect((wondergoo as { disabled?: boolean }).disabled).toBe(true);
     expect((melonbooks as { disabled?: boolean }).disabled).toBe(false);
+  });
+
+  it('filters malformed disabled-provider settings and reads the direct retry toggle', () => {
+    setAppSetting('stock_disabled_providers', JSON.stringify(['wondergoo', 'bad-provider', 'wondergoo']));
+    expect([...getDisabledStockProviders()]).toEqual(['wondergoo']);
+    setAppSetting('stock_disabled_providers', '{not-json');
+    expect([...getDisabledStockProviders()]).toEqual([]);
+    setAppSetting('stock_retry_without_proxy', '1');
+    expect(getStockRetryWithoutProxy()).toBe(true);
+    setAppSetting('stock_retry_without_proxy', '0');
+    expect(getStockRetryWithoutProxy()).toBe(false);
+  });
+});
+
+describe('batchVnStockSummaries — Eroge Price fallback', () => {
+  it('uses stored Eroge Price extras when no materialised offers exist', () => {
+    const withExtras = 'v95101';
+    const invalidExtras = 'v95102';
+    db.prepare(`DELETE FROM vn_stock_provider_status WHERE vn_id IN (?, ?)`).run(withExtras, invalidExtras);
+    expect(setStockProviderExtras(withExtras, 'eroge_price', extras(99001, [bundle(99001, 2200)]))).toBe(true);
+    db.prepare(`
+      INSERT INTO vn_stock_provider_status (vn_id, provider, status, fetched_at, extras_json)
+      VALUES (?, 'eroge_price', 'ok', ?, ?)
+    `).run(invalidExtras, NOW, '{bad-json');
+
+    const summaries = batchVnStockSummaries([VN_ID, withExtras, invalidExtras]);
+    expect(summaries.get(withExtras)).toEqual({ available: 2, best_price: 2200 });
+    expect(summaries.has(invalidExtras)).toBe(false);
   });
 });

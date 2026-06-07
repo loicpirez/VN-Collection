@@ -10,7 +10,7 @@ describe('library filters and grid UX', () => {
   it('supports tri-state filtering for VNs that belong to personal lists', () => {
     const src = source('src/components/LibraryClient.tsx');
     expect(src).toContain("const urlInList = searchParams.get('in_list')");
-    expect(src).toContain("!ternaryMatches(urlInList, (it.list_count ?? 0) > 0)");
+    expect(src).toContain('!ternaryMatches(urlInList, it.list_count > 0)');
     const moreFilters = source('src/components/library/MoreFilters.tsx');
     expect(src + moreFilters).toContain("{ key: 'in_list', label: t.nav.lists }");
   });

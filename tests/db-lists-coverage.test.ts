@@ -119,6 +119,31 @@ describe('user lists', () => {
     expect(updateUserList(99999, { name: 'nope' })).toBeNull();
   });
 
+  it('validates names and keeps slugs stable for equivalent renames', () => {
+    expect(() => createUserList({ name: '   ' })).toThrow(/name required/);
+    const punctuation = createUserList({ name: '!!!', color: '#123456', icon: 'bookmark' });
+    const duplicate = createUserList({ name: '!!!' });
+    expect(punctuation.slug).toBe('list');
+    expect(duplicate.slug).toBe('list-2');
+    expect(getUserListBySlug('missing-list')).toBeNull();
+
+    const slugStable = createUserList({ name: 'Case Name' });
+    const renamed = updateUserList(slugStable.id, {
+      name: 'CASE NAME',
+      color: '#abcdef',
+      icon: null,
+      pinned: false,
+    });
+    expect(renamed).toMatchObject({
+      name: 'CASE NAME',
+      slug: 'case-name',
+      color: '#abcdef',
+      icon: null,
+      pinned: 0,
+    });
+    expect(() => updateUserList(slugStable.id, { name: '  ' })).toThrow(/name required/);
+  });
+
   it('adds / lists / removes / reorders members and tracks memberships per VN', () => {
     const list = createUserList({ name: 'Members' });
     expect(addVnToList(99999, 'v90001')).toBeNull();

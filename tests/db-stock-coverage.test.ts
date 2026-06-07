@@ -192,6 +192,41 @@ describe('alicenet matching queues + counts', () => {
     expect(countAliceNetNoVndbNoEgs()).toBe(0);
   });
 
+  it('clears an AliceNet EGS link while preserving the explicit source marker', () => {
+    upsertAliceNetStock([aliceRow('210-000002-002', 'Clear egs')]);
+    setAliceNetEgsLink('210-000002-002', 4321, 'auto');
+    setAliceNetEgsLink('210-000002-002', null, 'manual');
+    const row = getAliceNetStockItem('210-000002-002');
+    expect(row).toMatchObject({
+      egs_id: null,
+      egs_match_source: 'manual',
+      egs_title: null,
+      egs_brand: null,
+      egs_release_date: null,
+      egs_image_url: null,
+    });
+  });
+
+  it('persists full AliceNet EGS metadata when a resolver returns it', () => {
+    upsertAliceNetStock([aliceRow('210-000003-003', 'Full egs')]);
+    setAliceNetEgsLink('210-000003-003', 5678, 'auto', {
+      title: 'EGS Title',
+      brand: 'EGS Brand',
+      releaseDate: '2024-05-01',
+      imageUrl: 'https://example.test/cover.jpg',
+      vndbRaw: 'v12345',
+    });
+    expect(getAliceNetStockItem('210-000003-003')).toMatchObject({
+      egs_id: 5678,
+      egs_match_source: 'auto',
+      egs_title: 'EGS Title',
+      egs_brand: 'EGS Brand',
+      egs_release_date: '2024-05-01',
+      egs_image_url: 'https://example.test/cover.jpg',
+      egs_vndb_raw: 'v12345',
+    });
+  });
+
   it('honours the retryBefore window on the none-found queue', () => {
     upsertAliceNetStock([aliceRow('220-000001-001', 'Recent none')]);
     setAliceNetVnLink('220-000001-001', null, 'none');

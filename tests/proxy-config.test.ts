@@ -190,6 +190,19 @@ describe('resolveProxyConfig', () => {
     }));
     expect(resolveProxyConfig('egs')).toMatchObject({ username: null, password: null });
   });
+
+  it('does not resolve AliceNet as a fixed proxy provider', () => {
+    expect(resolveProxyConfig('alicenet')).toBeNull();
+    dbMock.setAppSetting('alicenet_proxy_config', JSON.stringify({
+      enabled: true,
+      protocol: 'socks5h',
+      host: 'stored-alicenet.example.com',
+      port: 1081,
+    }));
+    expect(resolveProxyConfig('alicenet')).toBeNull();
+    expect(getProxyConfigForDisplay('alicenet')).toMatchObject({ enabled: false, host: '', port: null });
+    expect(saveProxyConfig('alicenet', { enabled: true })).toContain('stock_proxy_config');
+  });
 });
 
 describe('buildProxyUrl', () => {
@@ -429,6 +442,28 @@ describe('resolveStockProviderProxy (two-tier)', () => {
     expect(isStockProviderProxied('amiami')).toBe(false);
     saveProxyConfig('stock', { enabled: true, host: 'generic.example.com', port: 1080 });
     expect(isStockProviderProxied('amiami')).toBe(true);
+  });
+
+  it('uses the stored Stock proxy for AliceNet and ignores AliceNet-specific settings', () => {
+    dbMock.setAppSetting('alicenet_proxy_config', JSON.stringify({
+      enabled: true,
+      protocol: 'https',
+      host: 'stored-alicenet.example.com',
+      port: 8443,
+    }));
+    expect(resolveStockProviderProxy('alicenet')).toBeNull();
+    saveProxyConfig('stock', {
+      enabled: true,
+      protocol: 'http',
+      host: 'stored-stock.example.com',
+      port: 8080,
+    });
+    expect(resolveStockProviderProxy('alicenet')).toMatchObject({
+      protocol: 'http',
+      host: 'stored-stock.example.com',
+      port: 8080,
+    });
+    expect(isStockProviderProxied('alicenet')).toBe(true);
   });
 });
 

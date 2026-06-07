@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PATCH as patchPlace } from '@/app/api/places/[id]/route';
 import { GET as listPlacesRoute, POST as createPlaceRoute } from '@/app/api/places/route';
 import { addToCollection, createPlace, db, getPlace, updatePlace, upsertVn } from '@/lib/db';
+import * as dbModule from '@/lib/db';
 import { hasFiniteCoordinates, normalizeOptionalCoordinate } from '@/lib/place-coordinates';
 
 const PLACE_NAME_PREFIX = '__test_coordinates_';
@@ -68,6 +69,83 @@ describe('place coordinate API validation', () => {
       expect.arrayContaining([expect.objectContaining({ name: `${PLACE_NAME_PREFIX}registry` })]),
     );
     expect(payload.known_places).toContain('Shelf Tokyo');
+  });
+
+  it('surfaces a sanitized internal error when listing places fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const listSpy = vi.spyOn(dbModule, 'listPlaces').mockImplementation(() => {
+      throw new Error('private list failure');
+    });
+    const response = await listPlacesRoute();
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[internal:places.GET] private list failure');
+    listSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('creates a place with normalized optional metadata and coordinates', async () => {
+    const response = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', {
+        name: `${PLACE_NAME_PREFIX}created`,
+        name_ja: `${PLACE_NAME_PREFIX}created-ja`,
+        kind: 'chain',
+        address: 'Akihabara',
+        lat: 35.698,
+        lng: 139.773,
+        url: 'https://example.com/shop',
+        notes: 'open late',
+      }),
+    );
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(getPlace(body.id)).toMatchObject({
+      name: `${PLACE_NAME_PREFIX}created`,
+      name_ja: `${PLACE_NAME_PREFIX}created-ja`,
+      kind: 'chain',
+      lat: 35.698,
+      lng: 139.773,
+      url: 'https://example.com/shop',
+    });
+  });
+
+  it('surfaces a sanitized internal error when creating a place fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const createSpy = vi.spyOn(dbModule, 'createPlace').mockImplementation(() => {
+      throw new Error('private create failure');
+    });
+    const response = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}create-fail` }),
+    );
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(consoleSpy).toHaveBeenCalledWith('[internal:places.POST] private create failure');
+    createSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('rejects malformed required and optional place fields on create', async () => {
+    const missingName = await createPlaceRoute(jsonRequest('/api/places', 'POST', { name: ' ' }));
+    expect(missingName.status).toBe(400);
+    expect(await missingName.json()).toEqual({ error: 'name is required' });
+
+    const badJapaneseName = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}bad-ja`, name_ja: { text: 'bad' } }),
+    );
+    expect(badJapaneseName.status).toBe(400);
+    expect(await badJapaneseName.json()).toEqual({ error: 'name_ja must be a string' });
+
+    const badKind = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}bad-kind`, kind: 'museum' }),
+    );
+    expect(badKind.status).toBe(400);
+    expect(await badKind.json()).toEqual({ error: 'kind must be shop, chain, or storage' });
+
+    const badAddress = await createPlaceRoute(
+      jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}bad-address`, address: { text: 'bad' } }),
+    );
+    expect(badAddress.status).toBe(400);
+    expect(await badAddress.json()).toEqual({ error: 'address must be a string' });
   });
 
   it('rejects incomplete or non-finite coordinates on create', async () => {

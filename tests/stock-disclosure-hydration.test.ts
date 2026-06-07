@@ -7,7 +7,7 @@ describe('stock disclosure hydration', () => {
   it('loads persisted disclosure preferences after hydration', () => {
     expect(source).toContain("const [providerSetupOpen, setProviderSetupOpen] = useStockUiPreference('providerSetupOpen');");
     expect(source).toContain("const [searchSetupOpen, setSearchSetupOpen] = useStockUiPreference('searchSetupOpen');");
-    expect(source).toContain("const [isOpen, setIsOpen] = useStockUiPreference('providerDiagOpen', defaultOpen ?? false);");
+    expect(source).toContain("const [isOpen, setIsOpen] = useStockUiPreference('providerDiagOpen', defaultOpen);");
     expect(source).not.toMatch(/useState\(\(\) => \{\s*try \{\s*const raw = localStorage\.getItem\(STOCK_UI_KEY\)/);
   });
 

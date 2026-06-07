@@ -27,7 +27,8 @@ describe('AliceNet lifecycle', () => {
   it('locks row actions and candidate remaps before network work', () => {
     expect(CLIENT).toContain('if (resetInFlightRef.current) return');
     expect(CLIENT).toContain('if (clearInFlightRef.current) return');
-    expect(CLIENT).toContain('if (mutationInFlightRef.current) return');
+    expect(CLIENT).toContain('setBusy(vnId)');
+    expect(CLIENT).toContain('disabled={busy != null || isActive}');
     expect(CLIENT).toContain('codeRef.current !== owner');
   });
 
