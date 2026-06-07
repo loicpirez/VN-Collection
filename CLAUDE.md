@@ -219,8 +219,7 @@ vndb-collection/
 │   │   ├── stats/page.tsx              # Charts + cache panel + import/export
 │   │   ├── character/[id]/page.tsx     # Character detail with "appears in" gallery
 │   │   ├── vn/[id]/page.tsx            # The big VN detail page
-│   │   ├── stock/page.tsx              # Generic per-VN stock / price lookup
-│   │   ├── alicenet/page.tsx      # AliceNet stock browser (AliceNetClient, gated)
+│   │   ├── stock/page.tsx              # Generic stock / price lookup + AliceNet mirror
 │   │   ├── not-found.tsx
 │   │   └── api/                        # see "API surface" below
 │   ├── components/
@@ -647,7 +646,7 @@ app_setting      PK key
                   character_detail_section_layout_v1, staff_detail_section_layout_v1,
                   producer_detail_section_layout_v1, series_detail_section_layout_v1,
                   shelf_view_prefs_v1,
-                  {provider}_proxy_config (JSON per provider: vndb, vndbmirror, egs, alicenet),
+                  {provider}_proxy_config (JSON per provider: vndb, vndbmirror, egs, stock and per-shop stock overrides),
                   migration_* keys (one-shot migration idempotency guards)
 
 vn (additions)   egs_only INT — synthetic entries from /api/egs/[id]/add use
@@ -769,7 +768,7 @@ alicenet_stock PK code (format "###-######-###")
                   fetched_at, updated_at
                   — AliceNet second-hand stock mirror. Full-sync on every download:
                   items absent from the new snapshot are DELETED (sold). Route:
-                  POST /api/alicenet/fetch. Gated behind ALICENET_ENABLED=true.
+                  POST /api/alicenet/fetch from the /stock AliceNet controls.
 ```
 
 ---
@@ -836,11 +835,13 @@ response (CSV) in the shared `vndb_cache` table.
 
 ## Per-provider proxy infrastructure (lib/proxy-config.ts + lib/proxy-fetch.ts)
 
-Providers: `vndb` | `vndbmirror` | `egs` | `alicenet`.
+Providers: `vndb` | `vndbmirror` | `egs` | `stock` plus per-shop stock overrides.
 
 ### Resolution order
 
-Env vars take priority over DB settings for every provider.
+Env vars take priority over DB settings for fixed providers. AliceNet is
+stock-owned and uses only the stored Stock proxy setting configured in the
+application.
 
 | Env pattern | Meaning |
 | --- | --- |
@@ -850,12 +851,14 @@ Env vars take priority over DB settings for every provider.
 | `<PREFIX>_PROXY_PORT` | 1–65535 |
 | `<PREFIX>_PROXY_USERNAME` / `_PASSWORD` | optional auth |
 
-Prefixes: `VNDB`, `VNDBMIRROR`, `EGS`, `ALICENET`.
+Prefixes: `VNDB`, `VNDBMIRROR`, `EGS`, `STOCK`.
 
 `resolveProxyConfig(provider)` returns `ProxyConfig | null`. When null, all
 calls fall back to native `fetch()` (no global proxy).
 
-`providerFetch(url, init, providerId)` is the call site. It builds a
+`providerFetch(url, init, providerId)` is the fixed-provider call site.
+`stockProviderFetch(url, init, providerId)` is the stock-provider call site.
+Both build a
 `SocksProxyAgent` (socks5/h) or `HttpsProxyAgent` (http/https) from
 `buildProxyUrl(config)` and passes it as `{ agent }` to `node-fetch`. Never
 use raw `fetch()` for any URL that should be proxied.
@@ -865,34 +868,37 @@ use raw `fetch()` for any URL that should be proxied.
 - `buildProxyUrl()` result is **never logged, never returned to client, never included in error messages**.
 - `getProxyConfigForDisplay()` returns `{ enabled, protocol, host, port, username, hasPassword }` — raw password never echoed.
 - Saving proxy settings preserves the stored password when the submitted value is `''` or `PROXY_PASSWORD_MASK = '••••••••'`.
-- Proxy is NEVER applied globally to all outbound requests. Only the routes that explicitly call `providerFetch(..., 'egs')` / `providerFetch(..., 'alicenet')` etc. use it.
+- Proxy is NEVER applied globally to all outbound requests. Fixed providers call `providerFetch(...)`; stock providers, including AliceNet, call `stockProviderFetch(...)`.
 - `add 'server-only'` to any file importing proxy-config.ts.
 
 ### DB storage
 
 Stored per provider in `app_setting`:
-- `egs_proxy_config` / `vndbmirror_proxy_config` / `alicenet_proxy_config` (no VNDB key — VNDB proxy is env-only for now).
+- `egs_proxy_config` / `vndbmirror_proxy_config` / `stock_proxy_config` / per-shop stock override keys.
 
 ### UI
 
-Settings → Integrations → a `ProxySettingsSection` per provider (EGS, VNDB mirror, AliceNet). Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
+Settings → Integrations → `ProxySettingsSection` controls for EGS, VNDB, VNDB mirror, stock shops, and per-shop stock overrides. Fields: enabled toggle, protocol select, host, port, username, password (write-only input, existing value shown as `••••••••`). Test button fires `POST /api/proxy/test { provider }`.
 
 ---
 
-## AliceNet stock browser (src/lib/alicenet.ts)
+## AliceNet stock mirror (src/lib/alicenet.ts)
 
-`AliceNet` is the canonical label and identifier prefix: `/alicenet`,
-`/api/alicenet/*`, `alicenet_*`, and `ALICENET_ENABLED`. The SQLite bootstrap
+`AliceNet` is the canonical label and identifier prefix for `/api/alicenet/*`
+and `alicenet_*`. The SQLite bootstrap
 migrates databases created before this rename forward on first open; keep
 those migration inputs isolated to the migration block in `src/lib/db.ts`.
 
-Gated behind `ALICENET_ENABLED=true` in `.env.local`. The `/alicenet` page
-renders `<AliceNetClient>` which is a pure client component (SSE-like polling
-for op progress, no streaming).
+The `/stock` page owns the AliceNet controls and renders `<AliceNetClient>` as
+the mirrored-inventory surface. AliceNet never auto-fetches; every stock,
+match, and download operation starts from an explicit user action.
+There is no AliceNet enable environment flag and the AliceNet browser is not
+mounted on individual VN pages. AliceNet uses the stored Stock proxy setting
+and has no `ALICENET_*` or `STOCK_*` environment prefix.
 
 ### Fetch
 
-`fetchAliceNetHtml()` calls `providerFetch(ALICENET_URL, …, 'alicenet')`.
+`fetchAliceNetHtml()` calls `stockProviderFetch(ALICENET_URL, …, 'alicenet')`.
 The page is EUC-JP; the response buffer is decoded via `new TextDecoder('euc-jp')`.
 
 ### Parse
@@ -1135,7 +1141,6 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
 ## Conventions
 
 ### Feature flags
-- `ALICENET_ENABLED=true` — enables the `/alicenet` page and all `/api/alicenet/*` routes.
 - `VNCOLL_DISABLE_ACTIVITY=1` skips writes to the global `user_activity` audit table. The gate honours only the literal `'1'`; any other value (including `true`) is a no-op. Per-VN `vn_activity` (reading log) is unaffected.
 
 ### i18n
@@ -1863,10 +1868,10 @@ After non-trivial changes, walk through these in the browser
     default inner sub-tab of the Layout tab (alongside VN, Character,
     Staff, Producer, Series). Includes the deep-link from /data's
     "Manage in Settings -> Integrations" button.
-  - `/alicenet` (when `ALICENET_ENABLED=true`): stats bar, all eight
-    filter tabs (All, Matched, VNDB, EGS only, Unmatched, No VNDB
-    result, In collection, In my wishlist), Download Stock, Find VNDB
-    & EGS Matches, Reset, candidate chips, manual link dialog.
+  - `/stock`: generic per-VN shop lookup plus AliceNet mirrored stock
+    controls, all eight AliceNet filter tabs (All, Matched, VNDB, EGS only,
+    Unmatched, No VNDB result, In collection, In wishlist), Download Stock,
+    Find VNDB & EGS Matches, Reset, candidate chips, manual link dialog.
   - Mobile (≤ 640px): navbar is a Menu sheet, density slider
     accessible, advanced filter drawer fits, no horizontal
     scroll on any listing grid.
@@ -2119,7 +2124,7 @@ New DB tables introduced by recent batches:
 | `shelf_unit` / `shelf_slot` / `shelf_display_slot` | Drag-and-drop shelf layout | `shelf_unit` is the grid metadata; `shelf_slot` is regular cells; `shelf_display_slot` is face-out rows between shelves. Both placement tables enforce UNIQUE `(vn_id, release_id)` through helpers so one edition is placed once. |
 | `release_resolution_cache` / `owned_release_aspect_override` | Aspect-ratio filtering | VNDB release resolutions are normalized to buckets; manual per-edition overrides take precedence for library filters/groups. |
 | `vn_stock_offer` / `vn_stock_provider_status` | Generic stock lookup | Per-VN shop snapshots from VNDB release extlinks, JAN/GTIN title search, EGS price pages, and known official retailer links. Providers include Sofmap, Suruga-ya, Eroge Price, Unoya, Melonbooks, Mandarake, WonderGOO, Trader, Animate, ebten, Getchu, Gamers, GAMECITY, Asakusa Mach, Amazon JP, AmiAmi, Otakarasouko, GEO, Joshin, Neowing, Yodobashi, and Bikkuri Takarajima. |
-| `alicenet_stock` | AliceNet stock browser | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. Gated behind `ALICENET_ENABLED=true`. |
+| `alicenet_stock` | AliceNet stock mirror | Second-hand shop inventory with full-sync delete, VNDB/EGS match columns, candidate remap JSON, search_title. |
 
 ## Backlog cleared (2026-05-15 batch H)
 

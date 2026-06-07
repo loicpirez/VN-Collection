@@ -28,7 +28,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Export, import, and back up the local SQLite database.
 - Print QR label sheets for physical editions via `/labels`.
 - Check per-VN shop stock and prices across Eroge Price, Sofmap, Suruga-ya, Mandarake, Melonbooks, Unoya, Trader, WonderGOO, and other linked retailers.
-- Browse and match second-hand stock from AliceNet against VNDB/EGS (optional, env-gated).
+- Browse and match second-hand stock from AliceNet against VNDB/EGS inside the stock workspace.
 
 ---
 
@@ -107,17 +107,16 @@ changing the opt-in state.
 - Top-ranked pages with vote thresholds and weighted ranking.
 - Upcoming and anticipated releases with cache freshness indicators.
 
-### AliceNet stock browser (optional)
-
-Set `ALICENET_ENABLED=true` in `.env.local` to enable the `/alicenet` page.
+### AliceNet stock mirror
 
 - Download the current second-hand stock from [AliceNet](https://www.alice-kobe.com/) on demand (never auto-fetched).
 - Full sync: items no longer listed (sold) are deleted from the local DB.
 - Auto-match stock entries against VNDB and ErogameScape with rate-limited batch processing.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
 - Six-step "Download all": stock, VNDB + EGS match, retry no-result, match VNDB from EGS, VNDB data download, EGS resolution. Three of those operations are also exposed as standalone single ops (`match-vndb-from-egs`, `retry-vndb-aggressive`, `search-egs-no-vndb`).
-- Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In my wishlist.
-- Outbound fetch can route through a per-provider SOCKS5/HTTP proxy.
+- Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In wishlist.
+- The AliceNet controls live inside `/stock` so generic VN shop lookup and mirrored second-hand inventory stay in one stock surface.
+- Outbound fetch can route through the stock SOCKS5/HTTP proxy settings.
 
 ### Per-VN stock and price lookup
 
@@ -217,7 +216,7 @@ If you configure an EGS user id, the app can also help sync user-specific public
 
 ## Proxy configuration
 
-Some outbound requests (ErogameScape, VNDB mirror, AliceNet) can be routed through a SOCKS5 or HTTP proxy. Set env vars or configure per-provider in Settings → Integrations.
+Some outbound requests (ErogameScape, VNDB mirror, and stock shops) can be routed through a SOCKS5 or HTTP proxy. Set env vars for fixed network providers, or configure the visible controls in Settings → Integrations.
 
 ```env
 EGS_PROXY_ENABLED=true
@@ -228,15 +227,15 @@ EGS_PROXY_USERNAME=user
 EGS_PROXY_PASSWORD=pass
 ```
 
-Same pattern for `ALICENET_` and `VNDBMIRROR_` prefixes. The proxy is applied **only** to the configured provider — all other traffic uses a direct connection.
+Same pattern for the `VNDBMIRROR_` prefix. AliceNet is always part of Stock & prices, is not controlled by an environment flag, and uses the stored Stock proxy settings rather than an `ALICENET_` or `STOCK_` env prefix.
 
 Proxy passwords are never logged or echoed by the settings API.
 
-`AliceNet` is the canonical label and identifier prefix. The `/alicenet`
-route, `/api/alicenet/*` routes, `alicenet_*` SQLite identifiers, and
-`ALICENET_ENABLED` environment gate are used by current installs. On first
-open, databases created before this rename migrate their prior local table,
-settings, cached stock rows, and activity rows forward automatically.
+`AliceNet` is the canonical label and identifier prefix. The `/api/alicenet/*`
+routes and `alicenet_*` SQLite identifiers are used by the `/stock` page. The
+UI is embedded in Stock & prices and is not mounted on individual VN pages. On
+first open, databases created before this rename migrate their prior local
+table, settings, cached stock rows, and activity rows forward automatically.
 
 ---
 
@@ -246,7 +245,6 @@ settings, cached stock rows, and activity rows forward automatically.
 | --- | --- | --- |
 | `DB_PATH` | `./data/collection.db` | Override SQLite file location |
 | `STORAGE_ROOT` | `./data/storage/` | Override media/image storage directory |
-| `ALICENET_ENABLED` | unset | Set to `true` to enable the `/alicenet` stock browser page |
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
 | `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
 | `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |

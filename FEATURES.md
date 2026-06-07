@@ -723,12 +723,17 @@ per-VN reading-log is unaffected.
 
 ---
 
-## AliceNet stock browser
+## AliceNet stock mirror
 
-`AliceNet` is the canonical label and identifier prefix: `/alicenet`,
-`/api/alicenet/*`, `alicenet_*`, and `ALICENET_ENABLED`. On first open,
+`AliceNet` is the canonical label and identifier prefix for `/api/alicenet/*`
+and `alicenet_*`. On first open,
 databases created before this rename migrate their prior local table,
 settings, cached stock rows, and activity rows forward automatically.
+
+AliceNet has no page-enable environment flag. It is part of the `/stock`
+surface, rendered by `StockLookupClient` as the mirrored-inventory browser, and
+is not mounted inside individual VN detail pages. It uses the stored Stock
+proxy settings and has no `ALICENET_*` or `STOCK_*` environment prefix.
 
 ## Shop map privacy
 
@@ -817,10 +822,10 @@ Each `fetchShopText` call has a 15s timeout backed by an
 slow shop cannot stall the sequential refresh loop.
 
 ### Stock download ✅
-`/alicenet` — gated behind the `ALICENET_ENABLED=true` env var. The page
-lists all items currently in stock at AliceNet (a specialist second-hand
-game retailer). Data is fetched **only** on explicit button press via
-`POST /api/alicenet/fetch`; the page never auto-fetches on load.
+The AliceNet mirror is part of `/stock`, next to the generic per-VN shop
+lookup. It lists all items currently in stock at AliceNet (a specialist
+second-hand game retailer). Data is fetched **only** on explicit button press
+via `POST /api/alicenet/fetch`; the page never auto-fetches on load.
 
 Each download is a full sync:
 - Items absent from the new snapshot (sold) are **deleted** from the local
@@ -833,7 +838,7 @@ The stock page is EUC-JP encoded; `fetchAliceNetHtml()` decodes it via
 (`parseAliceNetHtml`) and skips the header row plus any row without the
 `###-######-###` code format.
 
-The fetch optionally routes through a per-provider SOCKS5/HTTP proxy
+The fetch optionally routes through the stock SOCKS5/HTTP proxy path
 (see **Proxy infrastructure** below).
 
 ### Title normalization ✅
@@ -940,8 +945,8 @@ are fetched or displayed for unmatched items.
 
 ### Per-provider outbound proxy ✅
 `src/lib/proxy-config.ts` + `src/lib/proxy-fetch.ts` provide a
-per-provider proxy layer. Providers: `vndb`, `vndbmirror`, `egs`,
-`alicenet`.
+per-provider proxy layer. Fixed providers: `vndb`, `vndbmirror`, `egs`,
+and the stock shop layer.
 
 **Resolution** (env vars take priority over DB settings):
 
@@ -954,7 +959,7 @@ per-provider proxy layer. Providers: `vndb`, `vndbmirror`, `egs`,
 | `<PREFIX>_PROXY_USERNAME` | optional |
 | `<PREFIX>_PROXY_PASSWORD` | optional |
 
-Prefixes: `VNDB` · `VNDBMIRROR` · `EGS` · `ALICENET`.
+Prefixes: `VNDB` · `VNDBMIRROR` · `EGS` · `STOCK`.
 
 `providerFetch(url, init, providerId)` routes the request through a
 SOCKS5/SOCKS5h agent (`socks-proxy-agent`) or an HTTPS agent
@@ -971,12 +976,13 @@ SOCKS5/SOCKS5h agent (`socks-proxy-agent`) or an HTTPS agent
 - `PROXY_PASSWORD_MASK = '••••••••'` is the UI sentinel.
 
 **Settings UI**: Settings → Integrations exposes a `ProxySettingsSection`
-for each provider (EGS, VNDB mirror, AliceNet). Proxy test endpoint:
+for fixed providers and stock shops. Proxy test endpoint:
 `POST /api/proxy/test { provider, … }` fires a real HEAD/GET against the
 provider's test URL through the configured proxy.
 
 DB key per provider: `egs_proxy_config`, `vndbmirror_proxy_config`,
-`alicenet_proxy_config` (all stored in `app_setting`).
+`stock_proxy_config`, plus per-shop stock override keys (all stored in
+`app_setting`).
 
 ---
 
