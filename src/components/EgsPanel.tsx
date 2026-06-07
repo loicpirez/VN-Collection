@@ -11,7 +11,7 @@ import { ErrorAlert } from './ErrorAlert';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
-import { brandHref, yearHref } from '@/lib/egs-links';
+import { yearHref } from '@/lib/egs-links';
 import { safeHref } from '@/lib/safe-href';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -131,7 +131,7 @@ export function EgsPanel({
     if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     operationInFlightRef.current = false;
-    if (mountedRef.current) setUnlinking(false);
+    setUnlinking(false);
   }
 
   const load = useCallback(
@@ -249,7 +249,6 @@ export function EgsPanel({
   }
 
   function onPicked(picked: EgsPanelGame, pickedSource: Source) {
-    if (!ownsPanel(vnId)) return;
     loadAbortRef.current?.abort();
     loadAbortRef.current = null;
     setFetchState((prev) => ({ ...prev, game: picked, source: pickedSource }));
@@ -321,6 +320,7 @@ export function EgsPanel({
   const vndbPt = fmtMinutes(vndbLengthMinutes, locale, t.year);
   const sumPt = fmtMinutes(totalPlaytime || null, locale, t.year);
   const gameHref = safeHref(game.url);
+  const brandName = game.brand_name?.trim() || null;
 
   return (
     <>
@@ -390,22 +390,17 @@ export function EgsPanel({
           deep-links into the Library year filter. The strip stays
           hidden when no token is renderable.
         */}
-        {(game.brand_name || game.sellday) && (
+        {(brandName || game.sellday) && (
           <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-            {game.brand_name && (() => {
-              const href = brandHref(null, game.brand_name);
-              return href ? (
-                <Link
-                  href={href}
-                  className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
-                  title={game.brand_name}
-                >
-                  {game.brand_name}
-                </Link>
-              ) : (
-                <span className="text-muted">{game.brand_name}</span>
-              );
-            })()}
+            {brandName && (
+              <Link
+                href={`/search?q=${encodeURIComponent(brandName)}`}
+                className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                title={brandName}
+              >
+                {brandName}
+              </Link>
+            )}
             {game.sellday && (() => {
               const href = yearHref(game.sellday);
               return href ? (
@@ -625,7 +620,7 @@ function EgsPicker({
       if (linkAbortRef.current === controller) {
         linkAbortRef.current = null;
         linkInFlightRef.current = false;
-        if (mountedRef.current) setLinking(null);
+        setLinking(null);
       }
     }
   }

@@ -148,12 +148,9 @@ function requestCollection(url: string, fallbackError: string): {
   }
   const activeRequest = request;
   activeRequest.consumers += 1;
-  let released = false;
   return {
     promise: activeRequest.promise,
     release: () => {
-      if (released) return;
-      released = true;
       activeRequest.consumers -= 1;
       if (
         activeRequest.consumers === 0 &&
@@ -332,13 +329,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       })
       .then((d) => {
         if (ctrl.signal.aborted || !d) return;
-        if ((SORT_KEYS as readonly string[]).includes(d.default_sort ?? '')) {
+        if ((SORT_KEYS as readonly string[]).includes(d.default_sort)) {
           setDefaultSort(d.default_sort as SortKey);
         }
-        if (d.default_order === 'asc' || d.default_order === 'desc') {
-          setDefaultOrder(d.default_order);
-        }
-        if ((GROUP_KEYS as readonly string[]).includes(d.default_group ?? '')) {
+        setDefaultOrder(d.default_order);
+        if ((GROUP_KEYS as readonly string[]).includes(d.default_group)) {
           setDefaultGroup(d.default_group as GroupKey);
         }
       })
@@ -461,7 +456,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (orderMutationAbortRef.current !== controller) return;
     orderMutationAbortRef.current = null;
     orderMutationInFlightRef.current = false;
-    if (mountedRef.current) setSavingOrder(false);
+    setSavingOrder(false);
   }, []);
 
   function toggleSelected(id: string) {
@@ -479,8 +474,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   }
 
   const resetCustomOrder = useCallback(async () => {
-    const controller = startOrderMutation();
-    if (!controller) return;
+    const controller = startOrderMutation()!;
     const ok = await confirm({
       message: t.library.customSortReset,
       tone: 'danger',
@@ -573,7 +567,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         toast.error(`${t.common.error}: ${error.message}`);
       })
       .finally(() => {
-        if (facetsAbortRef.current === ctrl) facetsAbortRef.current = null;
+        facetsAbortRef.current = null;
       });
   }, [toast, t.common.error, t.common.httpStatus]);
 
@@ -659,7 +653,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     setError(null);
     const params = new URLSearchParams(collectionQueryParams);
     params.set('page', String(urlPage));
-    const request = requestCollection(`/api/collection?${params}`, t.common.error);
+    const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid);
     request.promise
       .then((data) => {
         if (!alive) return;
@@ -812,7 +806,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     if (isExplicit(it.image_sexual, settings.nsfwThreshold)) return true;
     if (it.egs?.erogame === true) return true;
     if (it.egs?.okazu === true) return true;
-    if ((it.tags ?? []).some((tag) => tag.category === 'ero')) return true;
+    if (it.tags.some((tag) => tag.category === 'ero')) return true;
     return false;
   }
 
@@ -833,7 +827,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         if (!ternaryMatches(urlOnlyEgsOnly, it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchVndb, !it.id.startsWith('egs_'))) return false;
         if (!ternaryMatches(urlMatchEgs, !!it.egs?.egs_id)) return false;
-        if (!ternaryMatches(urlFanDisc, (it.relations ?? []).some((r) => r.relation === 'orig'))) return false;
+        if (!ternaryMatches(urlFanDisc, it.relations.some((r) => r.relation === 'orig'))) return false;
         if (!ternaryMatches(urlHasNotes, it.has_notes)) return false;
         if (!ternaryMatches(urlHasCustomCover, !!it.custom_cover)) return false;
         if (!ternaryMatches(urlHasBanner, !!it.banner_image)) return false;
@@ -847,10 +841,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
         // the collection API - the branch was dead.)
         if (!ternaryMatches(
           urlIsNukige,
-          (it.tags ?? []).some((tag) => tag.name?.toLowerCase() === 'nukige'),
+          it.tags.some((tag) => tag.name.toLowerCase() === 'nukige'),
         )) return false;
         if (!ternaryMatches(urlInReadingQueue, !!it.in_reading_queue)) return false;
-        if (!ternaryMatches(urlInList, (it.list_count ?? 0) > 0)) return false;
+        if (!ternaryMatches(urlInList, it.list_count > 0)) return false;
         return true;
       }),
     [
@@ -1114,7 +1108,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               clearLabel={t.library.facetAll}
               resultLabel={t.library.facetResults}
               noResultsLabel={t.library.facetNoResults}
-              onChange={(value) => setParam('producer', value || null)}
+              onChange={(value) => setParam('producer', value)}
             />
             <FacetCombobox
               value={publisher}
@@ -1124,7 +1118,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               clearLabel={t.library.facetAll}
               resultLabel={t.library.facetResults}
               noResultsLabel={t.library.facetNoResults}
-              onChange={(value) => setParam('publisher', value || null)}
+              onChange={(value) => setParam('publisher', value)}
             />
             <FacetCombobox
               value={seriesId}
@@ -1134,7 +1128,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               clearLabel={t.library.facetAll}
               resultLabel={t.library.facetResults}
               noResultsLabel={t.library.facetNoResults}
-              onChange={(value) => setParam('series', value || null)}
+              onChange={(value) => setParam('series', value)}
             />
             <FacetCombobox
               value={urlTag}
@@ -1144,7 +1138,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               clearLabel={t.library.facetAll}
               resultLabel={t.library.facetResults}
               noResultsLabel={t.library.facetNoResults}
-              onChange={(value) => setParam('tag', value || null)}
+              onChange={(value) => setParam('tag', value)}
             />
             <FacetCombobox
               value={urlPlace}
@@ -1154,7 +1148,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               clearLabel={t.library.facetAll}
               resultLabel={t.library.facetResults}
               noResultsLabel={t.library.facetNoResults}
-              onChange={(value) => setParam('place', value || null)}
+              onChange={(value) => setParam('place', value)}
             />
             <select
               className="input w-full"
@@ -1165,7 +1159,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               <option value="">{t.library.filterByEdition}</option>
               {(['physical', 'digital', 'limited', 'standard', 'collector', 'download_code'] as const).map((ed) => (
                 <option key={ed} value={ed}>
-                  {(t.editions as Record<string, string>)[ed] ?? ed}
+                  {(t.editions as Record<string, string>)[ed]}
                 </option>
               ))}
             </select>
@@ -1190,7 +1184,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                         const next = active
                           ? urlAspectSet.filter((x) => x !== k)
                           : [...urlAspectSet, k];
-                        setParam('aspect', next.length > 0 ? next.join(',') : null);
+                        setParam('aspect', next.join(','));
                       }}
                       className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
                         active
@@ -1219,9 +1213,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   min={1980}
                   max={2040}
                   onChange={(e) => setYearMinInput(e.target.value)}
-                  onBlur={() => setParam('yearMin', yearMinInput.trim() || null)}
+                  onBlur={() => setParam('yearMin', yearMinInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('yearMin', yearMinInput.trim() || null);
+                    if (e.key === 'Enter') setParam('yearMin', yearMinInput.trim());
                   }}
                   aria-label={t.search.yearMin}
                 />
@@ -1235,9 +1229,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   min={1980}
                   max={2040}
                   onChange={(e) => setYearMaxInput(e.target.value)}
-                  onBlur={() => setParam('yearMax', yearMaxInput.trim() || null)}
+                  onBlur={() => setParam('yearMax', yearMaxInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('yearMax', yearMaxInput.trim() || null);
+                    if (e.key === 'Enter') setParam('yearMax', yearMaxInput.trim());
                   }}
                   aria-label={t.search.yearMax}
                 />
@@ -1258,9 +1252,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   min={0}
                   max={100}
                   onChange={(e) => setRatingMinInput(e.target.value)}
-                  onBlur={() => setParam('ratingMin', ratingMinInput.trim() || null)}
+                  onBlur={() => setParam('ratingMin', ratingMinInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('ratingMin', ratingMinInput.trim() || null);
+                    if (e.key === 'Enter') setParam('ratingMin', ratingMinInput.trim());
                   }}
                   aria-label={t.library.scoreMin}
                 />
@@ -1274,9 +1268,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   min={0}
                   max={100}
                   onChange={(e) => setRatingMaxInput(e.target.value)}
-                  onBlur={() => setParam('ratingMax', ratingMaxInput.trim() || null)}
+                  onBlur={() => setParam('ratingMax', ratingMaxInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('ratingMax', ratingMaxInput.trim() || null);
+                    if (e.key === 'Enter') setParam('ratingMax', ratingMaxInput.trim());
                   }}
                   aria-label={t.library.scoreMax}
                 />
@@ -1296,9 +1290,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   value={playtimeMinInput}
                   min={0}
                   onChange={(e) => setPlaytimeMinInput(e.target.value)}
-                  onBlur={() => setParam('playtimeMin', playtimeMinInput.trim() || null)}
+                  onBlur={() => setParam('playtimeMin', playtimeMinInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('playtimeMin', playtimeMinInput.trim() || null);
+                    if (e.key === 'Enter') setParam('playtimeMin', playtimeMinInput.trim());
                   }}
                   aria-label={t.library.playtimeMin}
                 />
@@ -1311,9 +1305,9 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
                   value={playtimeMaxInput}
                   min={0}
                   onChange={(e) => setPlaytimeMaxInput(e.target.value)}
-                  onBlur={() => setParam('playtimeMax', playtimeMaxInput.trim() || null)}
+                  onBlur={() => setParam('playtimeMax', playtimeMaxInput.trim())}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setParam('playtimeMax', playtimeMaxInput.trim() || null);
+                    if (e.key === 'Enter') setParam('playtimeMax', playtimeMaxInput.trim());
                   }}
                   aria-label={t.library.playtimeMax}
                 />
@@ -1482,7 +1476,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               label={t.aspect.keys[k]}
               onClear={() => {
                 const next = urlAspectSet.filter((x) => x !== k);
-                setParam('aspect', next.length > 0 ? next.join(',') : null);
+                setParam('aspect', next.join(','));
               }}
               t={t}
             />
@@ -1694,14 +1688,6 @@ const DEFAULT_GRID_MEASUREMENTS: GridMeasurements = {
   densityPx: 220,
 };
 
-function sameGridMeasurements(a: GridMeasurements, b: GridMeasurements): boolean {
-  return a.width === b.width &&
-    a.scrollY === b.scrollY &&
-    a.viewportHeight === b.viewportHeight &&
-    a.containerTop === b.containerTop &&
-    a.densityPx === b.densityPx;
-}
-
 function Grid({
   items,
   selectMode = false,
@@ -1760,13 +1746,12 @@ function Grid({
         containerTop: Math.round(rect.top + window.scrollY),
         densityPx: parseCssPixelValue(getComputedStyle(el).getPropertyValue('--card-density-px'), 220),
       };
-      setMeasurements((prev) => (sameGridMeasurements(prev, next) ? prev : next));
+      setMeasurements(next);
     });
   }, []);
   useEffect(() => {
     if (items.length <= virtualThreshold) return;
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef.current!;
     measureGrid();
     window.addEventListener('scroll', measureGrid, { passive: true });
     window.addEventListener('resize', measureGrid);
@@ -1776,10 +1761,8 @@ function Grid({
       window.removeEventListener('scroll', measureGrid);
       window.removeEventListener('resize', measureGrid);
       observer?.disconnect();
-      if (measureFrameRef.current !== null) {
-        window.cancelAnimationFrame(measureFrameRef.current);
-        measureFrameRef.current = null;
-      }
+      window.cancelAnimationFrame(Number(measureFrameRef.current));
+      measureFrameRef.current = null;
     };
   }, [items.length, measureGrid, virtualThreshold]);
   const virtual = useMemo(
@@ -1896,7 +1879,7 @@ function groupItems(
       const dev = it.developers[0];
       // Fall back to the developer name when the id is missing or blank.
       // EGS-synthetic entries sometimes carry a brand_name without a VNDB
-      const devKey = (dev?.id && dev.id.trim()) || (dev?.name && `n:${dev.name}`) || '__none__';
+      const devKey = dev ? dev.id : '__none__';
       const label = dev?.name ?? t.library.groupOther;
       if (!map.has(devKey)) map.set(devKey, { key: devKey, label, items: [] });
       map.get(devKey)!.items.push(it);
@@ -1905,14 +1888,14 @@ function groupItems(
       // - VNDB models publisher as a release-level role, so this bucket
       // is intentionally distinct from the developer bucket and a VN
       // with multiple publishers shows up under each.
-      const pubs = (it.publishers ?? []).filter((p) => p && (p.id || p.name));
+      const pubs = it.publishers;
       if (pubs.length === 0) {
         const fb = map.get('__none__') ?? fallback(t.library.groupOther);
         fb.items.push(it);
         map.set('__none__', fb);
       } else {
         for (const pub of pubs) {
-          const k = (pub.id && pub.id.trim()) || `n:${pub.name}`;
+          const k = pub.id;
           if (!map.has(k)) map.set(k, { key: k, label: pub.name, items: [] });
           map.get(k)!.items.push(it);
         }
@@ -1938,7 +1921,7 @@ function groupItems(
         map.get(aspect)!.items.push(it);
       }
     } else if (group === 'tag') {
-      const tags = (it.tags ?? []).filter((t) => t.spoiler === 0).slice(0, 3);
+      const tags = it.tags.filter((t) => t.spoiler === 0).slice(0, 3);
       if (tags.length === 0) {
         const fb = map.get('__none__') ?? fallback(t.library.groupOther);
         fb.items.push(it);
@@ -1969,11 +1952,11 @@ function groupItems(
           map.get(pl)!.items.push(it);
         }
       }
-    } else if (group === 'edition') {
+    } else {
       const ed = it.edition_type ?? 'none';
       const label = ed === 'none'
         ? t.library.groupOther
-        : ((t.editions as Record<string, string>)[ed] ?? ed);
+        : (t.editions as Record<string, string>)[ed];
       if (!map.has(ed)) map.set(ed, { key: ed, label, items: [] });
       map.get(ed)!.items.push(it);
     }
@@ -2171,8 +2154,7 @@ function LibraryActionsMenu({
     function key(e: KeyboardEvent) {
       if (e.key === 'Escape') { setOpen(false); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
-      if (items.length === 0) return;
+      const items = Array.from(ref.current!.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
       e.preventDefault();
       const idx = items.indexOf(document.activeElement as HTMLElement);
       let next: HTMLElement | undefined;

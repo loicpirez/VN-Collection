@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { EGS_CHANGED_EVENT } from '@/components/EgsPanel';
@@ -23,6 +23,16 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 const LABELS = [
   { id: 1, label: 'Playing', private: false },
   { id: 2, label: 'Finished', private: false },
@@ -35,7 +45,15 @@ const LABELS = [
  * Build a /api/vn/[id]/vndb-status state with an optional ulist entry.
  * Entry id must be a real VNDB id and labels need the {id,label} shape.
  */
-function statePayload(opts: { entry?: boolean; vote?: number | null; labelIds?: number[]; needsAuth?: boolean } = {}) {
+function statePayload(opts: {
+  entry?: boolean;
+  vote?: number | null;
+  labelIds?: number[];
+  needsAuth?: boolean;
+  started?: string | null;
+  finished?: string | null;
+  notes?: string | null;
+} = {}) {
   const entry = opts.entry
     ? {
         id: 'v90001',
@@ -43,9 +61,9 @@ function statePayload(opts: { entry?: boolean; vote?: number | null; labelIds?: 
         voted: null,
         lastmod: 200,
         vote: opts.vote ?? null,
-        started: '2024-01-01',
-        finished: null,
-        notes: 'hello',
+        started: opts.started === undefined ? '2024-01-01' : opts.started,
+        finished: opts.finished === undefined ? null : opts.finished,
+        notes: opts.notes === undefined ? 'hello' : opts.notes,
         labels: (opts.labelIds ?? [1]).map((id) => ({ id, label: LABELS.find((l) => l.id === id)?.label ?? `L${id}` })),
       }
     : null;
@@ -89,6 +107,47 @@ describe('VndbStatusPanel branches', () => {
     expect(await screen.findByRole('button', { name: 'Playing' })).toBeInTheDocument();
   });
 
+  it('renders the fallback error when the status payload is malformed', async () => {
+    global.fetch = vi.fn(async () => json({ entry: 'bad' }));
+    render();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(t.common.error);
+  });
+
+  it('uses the fallback error when loading rejects with an empty message', async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error('');
+    });
+    render();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(t.common.error);
+  });
+
+  it('ignores stale refresh responses after a newer load starts', async () => {
+    const stale = deferredResponse();
+    const fresh = deferredResponse();
+    let refreshCount = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes('/api/vn/v90001/vndb-status') && !init?.method) {
+        refreshCount += 1;
+        if (refreshCount === 1) return Promise.resolve(json(statePayload({ entry: false })));
+        if (refreshCount === 2) return stale.promise;
+        return fresh.promise;
+      }
+      return Promise.resolve(json(statePayload({ entry: false })));
+    });
+    render();
+    const refresh = await screen.findByRole('button', { name: t.vndbStatus.refresh });
+    fireEvent.click(refresh);
+    fireEvent.click(refresh);
+    await waitFor(() => expect(refreshCount).toBe(3));
+    stale.resolve(json(statePayload({ needsAuth: true })));
+    await stale.promise;
+    expect(screen.queryByText(t.vndbStatus.needsToken)).toBeNull();
+    fresh.resolve(json(statePayload({ entry: false })));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Playing' })).toBeInTheDocument());
+  });
+
   it('renders the needs-token notice when the server reports needsAuth', async () => {
     global.fetch = vi.fn(async () => json(statePayload({ needsAuth: true })));
     render();
@@ -128,6 +187,82 @@ describe('VndbStatusPanel branches', () => {
     await waitFor(() => expect(lastBody).toEqual({ labels_set: [2] }));
     await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  });
+
+  it('ignores duplicate label toggles while the first toggle is pending', async () => {
+    const pending = deferredResponse();
+    let patchCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        patchCalls += 1;
+        return pending.promise;
+      }
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    render();
+    const finished = await screen.findByRole('button', { name: 'Finished' });
+    act(() => {
+      finished.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      finished.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await waitFor(() => expect(patchCalls).toBe(1));
+    pending.resolve(json({ ok: true }));
+    await pending.promise;
+  });
+
+  it('does not refresh the route when a label save reload becomes stale', async () => {
+    const reload = deferredResponse();
+    let getCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return Promise.resolve(json({ ok: true }));
+      if (String(url).includes('/vndb-status')) {
+        getCalls += 1;
+        if (getCalls === 1) return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+        if (getCalls === 2) return reload.promise;
+        return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+      }
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const view = render();
+    fireEvent.click(await screen.findByRole('button', { name: 'Finished' }));
+    expect(await screen.findByText(t.toast.saved)).toBeInTheDocument();
+    view.rerender(<VndbStatusPanel vnId="v90008" />);
+    await act(async () => {
+      reload.resolve(json(statePayload({ entry: true, labelIds: [1, 2] })));
+      await reload.promise;
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it('ignores stale label toggle success and failure after VN identity changes', async () => {
+    const success = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return success.promise;
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const first = render();
+    fireEvent.click(await screen.findByRole('button', { name: 'Finished' }));
+    first.rerender(<VndbStatusPanel vnId="v90002" />);
+    await act(async () => {
+      success.resolve(json({ ok: true }));
+      await success.promise;
+    });
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+    first.unmount();
+
+    const failure = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return failure.promise;
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const second = render();
+    fireEvent.click(await screen.findByRole('button', { name: 'Finished' }));
+    second.rerender(<VndbStatusPanel vnId="v90003" />);
+    await act(async () => {
+      failure.reject(new Error('late toggle failure'));
+      await failure.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('late toggle failure')).toBeNull();
   });
 
   it('unsets a label that is already active (labels_unset path)', async () => {
@@ -187,6 +322,93 @@ describe('VndbStatusPanel branches', () => {
     fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.cancel }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(deleteCalled).toBe(false);
+  });
+
+  it('ignores duplicate clear-all clicks while the confirmation is open', async () => {
+    let deleteCalled = false;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') { deleteCalled = true; return json({ ok: true }); }
+      return json(statePayload({ entry: true, labelIds: [1] }));
+    });
+    render();
+    const clearBtn = await screen.findByRole('button', { name: t.vndbStatus.removeFromList });
+    act(() => {
+      clearBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      clearBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const dialogs = await screen.findAllByRole('alertdialog');
+    expect(dialogs).toHaveLength(1);
+    fireEvent.click(within(dialogs[0]).getByRole('button', { name: t.common.cancel }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(deleteCalled).toBe(false);
+  });
+
+  it('ignores stale clear-all success and failure after VN identity changes', async () => {
+    const success = deferredResponse();
+    let successDeleteCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        successDeleteCalls += 1;
+        return success.promise;
+      }
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const first = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.removeFromList }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(successDeleteCalls).toBe(1));
+    first.rerender(<VndbStatusPanel vnId="v90004" />);
+    await act(async () => {
+      success.resolve(json({ ok: true }));
+      await success.promise;
+    });
+    expect(screen.queryByText(t.toast.removed)).toBeNull();
+    first.unmount();
+
+    const failure = deferredResponse();
+    let failureDeleteCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        failureDeleteCalls += 1;
+        return failure.promise;
+      }
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const second = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.removeFromList }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(failureDeleteCalls).toBe(1));
+    second.rerender(<VndbStatusPanel vnId="v90005" />);
+    await act(async () => {
+      failure.reject(new Error('late clear failure'));
+      await failure.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('late clear failure')).toBeNull();
+  });
+
+  it('does not refresh the route when clear-all reload becomes stale', async () => {
+    const reload = deferredResponse();
+    let getCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return Promise.resolve(json({ ok: true }));
+      if (String(url).includes('/vndb-status')) {
+        getCalls += 1;
+        if (getCalls === 1) return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+        if (getCalls === 2) return reload.promise;
+        return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+      }
+      return Promise.resolve(json(statePayload({ entry: true, labelIds: [1] })));
+    });
+    const view = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.removeFromList }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+    expect(await screen.findByText(t.toast.removed)).toBeInTheDocument();
+    view.rerender(<VndbStatusPanel vnId="v90009" />);
+    await act(async () => {
+      reload.resolve(json(statePayload({ entry: false })));
+      await reload.promise;
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it('surfaces a localized toast error when clear-all fails after confirmation', async () => {
@@ -295,9 +517,13 @@ describe('VndbStatusPanel branches', () => {
       fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
       const voteInput = await screen.findByPlaceholderText('-');
       fireEvent.change(voteInput, { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: t.dateInput.clear }));
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '   ' } });
       fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.detailsSave }));
       await waitFor(() => expect(patchBody).not.toBeNull());
       expect(patchBody!.vote).toBeNull();
+      expect(patchBody!.started).toBeNull();
+      expect(patchBody!.notes).toBeNull();
     });
 
     it('rejects an out-of-range vote without calling the API', async () => {
@@ -326,6 +552,116 @@ describe('VndbStatusPanel branches', () => {
       fireEvent.change(voteInput, { target: { value: '8.0' } });
       fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.detailsSave }));
       expect(await screen.findByText(t.apiErrors.vndbUnavailable)).toBeInTheDocument();
+    });
+
+    it('ignores duplicate detail saves while a save is pending', async () => {
+      const pending = deferredResponse();
+      let patchCalls = 0;
+      global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') {
+          patchCalls += 1;
+          return pending.promise;
+        }
+        return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+      });
+      render();
+      fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
+      const voteInput = await screen.findByPlaceholderText('-');
+      fireEvent.change(voteInput, { target: { value: '8.0' } });
+      const save = screen.getByRole('button', { name: t.vndbStatus.detailsSave });
+      act(() => {
+        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      await waitFor(() => expect(patchCalls).toBe(1));
+      pending.resolve(json({ ok: true }));
+      await pending.promise;
+    });
+
+    it('preserves dirty detail fields when a parent refresh returns newer entry data', async () => {
+      let getCalls = 0;
+      global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') return Promise.resolve(json({ ok: true }));
+        if (String(url).includes('/vndb-status')) {
+          getCalls += 1;
+          return Promise.resolve(json(statePayload({
+            entry: true,
+            vote: 70,
+            labelIds: [1],
+            notes: getCalls === 1 ? 'server original' : 'server changed',
+          })));
+        }
+        return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+      });
+      const { container } = render();
+      fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
+      const notes = container.querySelector('textarea') as HTMLTextAreaElement;
+      await waitFor(() => expect(notes).toHaveValue('server original'));
+      fireEvent.change(notes, { target: { value: 'local dirty notes' } });
+      await waitFor(() => expect(notes).toHaveValue('local dirty notes'));
+      fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.refresh }));
+      await waitFor(() => expect(getCalls).toBeGreaterThan(1));
+      await waitFor(() => expect(notes).toHaveValue('local dirty notes'));
+    });
+
+    it('keeps detail save stale when the follow-up reload changes identity', async () => {
+      const reload = deferredResponse();
+      let getCalls = 0;
+      global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') return Promise.resolve(json({ ok: true }));
+        if (String(url).includes('/vndb-status')) {
+          getCalls += 1;
+          if (getCalls === 1) return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+          if (getCalls === 2) return reload.promise;
+          return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+        }
+        return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+      });
+      const view = render();
+      fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
+      fireEvent.change(await screen.findByPlaceholderText('-'), { target: { value: '8.0' } });
+      fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.detailsSave }));
+      expect(await screen.findByText(t.toast.saved)).toBeInTheDocument();
+      view.rerender(<VndbStatusPanel vnId="v90010" />);
+      await act(async () => {
+        reload.resolve(json(statePayload({ entry: true, vote: 80, labelIds: [1] })));
+        await reload.promise;
+      });
+    });
+
+    it('ignores stale detail save success and failure after VN identity changes', async () => {
+      const success = deferredResponse();
+      global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') return success.promise;
+        return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+      });
+      const first = render();
+      fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
+      fireEvent.change(await screen.findByPlaceholderText('-'), { target: { value: '8.0' } });
+      fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.detailsSave }));
+      first.rerender(<VndbStatusPanel vnId="v90006" />);
+      await act(async () => {
+        success.resolve(json({ ok: true }));
+        await success.promise;
+      });
+      expect(screen.queryByText(t.toast.saved)).toBeNull();
+      first.unmount();
+
+      const failure = deferredResponse();
+      global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') return failure.promise;
+        return Promise.resolve(json(statePayload({ entry: true, vote: 70, labelIds: [1] })));
+      });
+      const second = render();
+      fireEvent.click(await screen.findByText(t.vndbStatus.detailsToggle));
+      fireEvent.change(await screen.findByPlaceholderText('-'), { target: { value: '8.0' } });
+      fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.detailsSave }));
+      second.rerender(<VndbStatusPanel vnId="v90007" />);
+      await act(async () => {
+        failure.reject(new Error('late details failure'));
+        await failure.promise.catch(() => undefined);
+      });
+      expect(screen.queryByText('late details failure')).toBeNull();
     });
   });
 });

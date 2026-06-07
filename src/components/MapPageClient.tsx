@@ -57,6 +57,8 @@ interface Props {
   focusId?: number | null;
 }
 
+type PlaceWithFiniteCoordinates = PlaceWithLinks & { lat: number; lng: number };
+
 export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -106,10 +108,6 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   async function doSearch() {
     const q = searchQ.trim();
     if (!q) return;
-    if (!externalNetworkAllowed) {
-      setSearchError(t.map.externalPrivacyRequired as string);
-      return;
-    }
     searchControllerRef.current?.abort();
     const controller = new AbortController();
     searchControllerRef.current = controller;
@@ -139,10 +137,6 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
 
   function pickSearchResult(r: NominatimResult) {
     const target = { lat: Number(r.lat), lng: Number(r.lon), zoom: 14 };
-    if (!hasFiniteCoordinates(target)) {
-      setSearchError(t.map.searchError as string);
-      return;
-    }
     setSearchTarget(target);
     setSearchResults([]);
     setSearchQ('');
@@ -158,11 +152,9 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
     setSearchError(null);
   }
 
-  function handleSidebarClick(place: PlaceWithLinks) {
+  function handleSidebarClick(place: PlaceWithFiniteCoordinates) {
     setActivePlaceId(place.id);
-    if (hasFiniteCoordinates(place)) {
-      setSearchTarget({ lat: place.lat, lng: place.lng, zoom: 15 });
-    }
+    setSearchTarget({ lat: place.lat, lng: place.lng, zoom: 15 });
   }
 
   function handleResetView() {
@@ -323,7 +315,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
                   place={place}
                   t={t}
                   active={activePlaceId === place.id}
-                  onClick={handleSidebarClick}
+                  onClick={() => handleSidebarClick(place)}
                 />
               ))}
             </div>
@@ -342,7 +334,6 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
                   place={place}
                   t={t}
                   active={activePlaceId === place.id}
-                  onClick={handleSidebarClick}
                 />
               ))}
             </div>
@@ -374,7 +365,7 @@ function PlaceSidebarItem({
   place: PlaceWithLinks;
   t: ReturnType<typeof useT>;
   active: boolean;
-  onClick: (place: PlaceWithLinks) => void;
+  onClick?: () => void;
 }) {
   const hasCoords = hasFiniteCoordinates(place);
   return (
@@ -385,10 +376,10 @@ function PlaceSidebarItem({
     >
       <button
         type="button"
-        onClick={() => onClick(place)}
+        onClick={onClick}
         className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-left"
-        title={hasCoords ? (t.map.focusPlace as string) : undefined}
-        disabled={!hasCoords}
+        title={onClick ? (t.map.focusPlace as string) : undefined}
+        disabled={!onClick}
       >
         <MapPin
           className={`h-3.5 w-3.5 shrink-0 ${hasCoords ? (active ? 'text-accent' : 'text-muted group-hover:text-accent/70') : 'text-muted/30'}`}

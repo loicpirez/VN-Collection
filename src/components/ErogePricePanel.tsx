@@ -61,8 +61,7 @@ function fmtYen(yen: number | null | undefined, locale: 'fr' | 'en' | 'ja'): str
   return formatCurrency(yen, locale);
 }
 
-function fmtIsoDate(iso: string | null, locale: 'fr' | 'en' | 'ja'): string {
-  if (!iso) return '-';
+function fmtIsoDate(iso: string, locale: 'fr' | 'en' | 'ja'): string {
   try {
     return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : locale === 'ja' ? 'ja-JP' : 'en-US', {
       year: 'numeric',
@@ -207,7 +206,6 @@ function RelatedRail({
   vnMatches?: Map<string, string>;
 }) {
   const t = useT();
-  if (items.length === 0) return null;
   return (
     <section>
       <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">{title}</h4>
@@ -275,11 +273,11 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
   const gameHref = safeHref(bundle.gameUrl);
   const officialSiteHref = safeHref(d.officialSiteUrl);
   const brandSiteHref = safeHref(d.brandSiteUrl);
-  const fanzaDownloadHref = d.fanzaDownloadCid
-    ? safeHref(`https://dlsoft.dmm.co.jp/detail/${d.fanzaDownloadCid}/`)
+  const fanzaDownloadLink = d.fanzaDownloadCid
+    ? { href: `https://dlsoft.dmm.co.jp/detail/${encodeURIComponent(d.fanzaDownloadCid)}/`, cid: d.fanzaDownloadCid }
     : null;
-  const fanzaPackageHref = d.fanzaPackageCid
-    ? safeHref(`https://www.dmm.co.jp/mono/pcgame/-/detail/=/cid=${d.fanzaPackageCid}/`)
+  const fanzaPackageLink = d.fanzaPackageCid
+    ? { href: `https://www.dmm.co.jp/mono/pcgame/-/detail/=/cid=${encodeURIComponent(d.fanzaPackageCid)}/`, cid: d.fanzaPackageCid }
     : null;
   const [range, setRange] = useState<RangeKey>('2Y');
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
@@ -407,24 +405,24 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 without leaving the panel. The id format is
                 `<cid>` and FANZA's canonical URL is
                 /digital/pcgame/-/detail/=/cid=<cid>/ */}
-            {fanzaDownloadHref && (
+            {fanzaDownloadLink && (
               <a
-                href={fanzaDownloadHref}
+                href={fanzaDownloadLink.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
-                title={d.fanzaDownloadCid ?? undefined}
+                title={fanzaDownloadLink.cid}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA DL
               </a>
             )}
-            {fanzaPackageHref && (
+            {fanzaPackageLink && (
               <a
-                href={fanzaPackageHref}
+                href={fanzaPackageLink.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
-                title={d.fanzaPackageCid ?? undefined}
+                title={fanzaPackageLink.cid}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA PKG
               </a>
@@ -734,7 +732,6 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   }
 
   const handleSetPrimary = async () => {
-    if (isActiveAlreadyPrimary) return;
     const controller = beginMutation();
     if (!controller) return;
     const ownerVnId = vnId;
@@ -814,23 +811,22 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
   };
 
   const handleRemove = async (epId: number) => {
-    if (extras.candidates.length <= 1) return;
     const controller = beginMutation();
     if (!controller) return;
     const ownerVnId = vnId;
     const wasPrimary = primaryId === epId;
     const prev = extras;
+    const remainingCandidates = extras.candidates.filter((candidate) => candidate.epId !== epId);
     const nextActiveId =
       activeId === epId
-        ? extras.candidates.find((candidate) => candidate.epId !== epId)?.epId ?? activeId
+        ? remainingCandidates[0]!.epId
         : activeId;
     setRemovingEpId(epId);
     setExtras((s) => {
-      const remaining = s.candidates.filter((c) => c.epId !== epId);
       return {
         ...s,
-        candidates: remaining,
-        selectedEpId: wasPrimary ? remaining[0]?.epId ?? null : s.selectedEpId,
+        candidates: remainingCandidates,
+        selectedEpId: wasPrimary ? remainingCandidates[0]!.epId : s.selectedEpId,
       };
     });
     setActiveId(nextActiveId);
@@ -955,7 +951,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                   title={t.erogePrice.manualMatch.removeCandidate}
                   aria-label={`${t.erogePrice.manualMatch.removeCandidate}: ${c.detail.title}`}
                 >
-                  {removingEpId === c.epId ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
+                  <X className="h-3 w-3" aria-hidden />
                 </button>
               </div>
             );
@@ -977,10 +973,8 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50 sm:min-h-0"
               title={t.erogePrice.manualMatch.setPrimaryHint}
             >
-              {pinState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Pin className="h-3 w-3" aria-hidden />}
-              {pinState === 'saving'
-                ? t.erogePrice.manualMatch.saving
-                : t.erogePrice.manualMatch.setPrimary}
+              <Pin className="h-3 w-3" aria-hidden />
+              {t.erogePrice.manualMatch.setPrimary}
             </button>
           )}
           {pinState === 'error' && (

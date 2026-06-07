@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, within, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { BrandOverlapPicker } from '@/components/BrandOverlapPicker';
 
@@ -95,6 +95,51 @@ describe('BrandOverlapPicker', () => {
     await waitFor(() => expect(container.querySelector('form')).not.toBeNull());
     const selectB = screen.getByLabelText('Studio B...') as HTMLSelectElement;
     expect(within(selectB).getAllByRole('option')).toHaveLength(1);
+  });
+
+  it('renders an empty list when the API payload is malformed', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ producers: 'invalid' }));
+    const { container } = renderWithProviders(<BrandOverlapPicker initialA={null} initialB={null} />, { locale: 'en' });
+    await waitFor(() => expect(container.querySelector('form')).not.toBeNull());
+    const selectA = screen.getByLabelText('Studio A...') as HTMLSelectElement;
+    expect(within(selectA).getAllByRole('option')).toHaveLength(1);
+  });
+
+  it('ignores a producer-list response that resolves after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const { unmount } = renderWithProviders(<BrandOverlapPicker initialA={null} initialB={null} />, { locale: 'en' });
+    unmount();
+
+    await act(async () => {
+      resolveFetch(jsonResponse(PRODUCERS));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
+
+  it('ignores a producer-list rejection that resolves after unmount', async () => {
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((_resolve, reject) => {
+      rejectFetch = reject;
+    }));
+    const { unmount } = renderWithProviders(<BrandOverlapPicker initialA={null} initialB={null} />, { locale: 'en' });
+    unmount();
+
+    await act(async () => {
+      rejectFetch(new Error('late failure'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
+
+  it('ignores form submission until both brands are selected', async () => {
+    const { container } = renderWithProviders(<BrandOverlapPicker initialA={null} initialB={null} />, { locale: 'en' });
+    await waitFor(() => expect(container.querySelector('form')).not.toBeNull());
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('re-syncs the selected values when initial props change', async () => {

@@ -67,7 +67,7 @@ export function SetBannerButton({ vnId, value, source = 'path', className = '' }
       startTransition(() => router.refresh());
       if (doneTimer.current) clearTimeout(doneTimer.current);
       doneTimer.current = setTimeout(() => {
-        if (identityRef.current === ownerVnId) setDone(false);
+        setDone(false);
       }, 1500);
     } catch (err) {
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;

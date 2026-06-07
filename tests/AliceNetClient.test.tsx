@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, within, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { AliceNetClient } from '@/components/AliceNetClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import type { AliceNetClientItem, AliceNetClientStats } from '@/lib/alicenet-client-shape';
 
 const replace = vi.fn();
+let mockedSearchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace, refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => '/alicenet',
-  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/stock',
+  useSearchParams: () => mockedSearchParams,
   notFound: vi.fn(),
   redirect: vi.fn(),
 }));
@@ -78,7 +79,7 @@ function snapshot(opts: {
     items,
     stats: makeStats({ total: items.length, ...opts.stats }),
     pending: opts.pending ?? { vndb_pending: 0, egs_pending: 0 },
-    last_fetch: opts.last_fetch ?? 1700000000,
+    last_fetch: opts.last_fetch === undefined ? 1700000000 : opts.last_fetch,
   };
 }
 
@@ -87,6 +88,16 @@ function renderClient() {
   return renderWithProviders(
     <DisplaySettingsProvider>
       <AliceNetClient />
+    </DisplaySettingsProvider>,
+    { locale: 'en' },
+  );
+}
+
+/** Render the embedded stock-page variant with the same providers. */
+function renderEmbeddedClient() {
+  return renderWithProviders(
+    <DisplaySettingsProvider>
+      <AliceNetClient embedded basePath="/stock" />
     </DisplaySettingsProvider>,
     { locale: 'en' },
   );
@@ -117,6 +128,7 @@ const EGS_ITEM = makeItem({
 
 beforeEach(() => {
   replace.mockClear();
+  mockedSearchParams = new URLSearchParams();
   try {
     window.localStorage.clear();
   } catch {
@@ -128,6 +140,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  try {
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
+  } catch {
+    /* ignore */
+  }
 });
 
 describe('AliceNetClient', () => {
@@ -181,6 +199,36 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
   });
 
+  it('filters by matched, EGS-only, unmatched, and no-result tabs', async () => {
+    const unmatched = makeItem({ code: '001-000004-001', title: 'Unmatched Title' });
+    const none = makeItem({ code: '001-000005-001', title: 'No Result Title', vn_match_source: 'none' });
+    global.fetch = vi.fn(async () =>
+      json(snapshot({
+        items: [VNDB_ITEM, EGS_ITEM, unmatched, none],
+        stats: { total: 4, matched: 2, vndb_matched: 1, egs_only: 1, unmatched: 2, none_found: 1 },
+      })),
+    );
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^Matched/ }));
+    await waitFor(() => expect(screen.queryByText('Unmatched Title')).toBeNull());
+    expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
+
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^EGS only/ }));
+    await waitFor(() => expect(screen.queryByText('Matched Title Two')).toBeNull());
+    expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
+
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^Unmatched/ }));
+    await waitFor(() => expect(screen.queryByText('Egs Title Three')).toBeNull());
+    expect(screen.getByText('Unmatched Title')).toBeInTheDocument();
+    expect(screen.getByText('No Result Title')).toBeInTheDocument();
+
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^No VNDB result/ }));
+    await waitFor(() => expect(screen.queryByText('Unmatched Title')).toBeNull());
+    expect(screen.getByText('No Result Title')).toBeInTheDocument();
+  });
+
   it('filters by the debounced search input', async () => {
     global.fetch = vi.fn(async () =>
       json(snapshot({ items: [VNDB_ITEM, EGS_ITEM], stats: { matched: 2, vndb_matched: 1, egs_only: 1 } })),
@@ -190,6 +238,20 @@ describe('AliceNetClient', () => {
     await user.type(screen.getByLabelText('Filter by title, code...'), 'Egs Title');
     await waitFor(() => expect(screen.queryByText('Matched Title Two')).toBeNull());
     expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
+  });
+
+  it('hydrates valid URL state, hidden filters, and list view', async () => {
+    mockedSearchParams = new URLSearchParams('filter=egs_only&sort=price_asc&group=year&view=list&filters=0&q=Egs');
+    global.fetch = vi.fn(async () =>
+      json(snapshot({ items: [VNDB_ITEM, EGS_ITEM], stats: { total: 2, matched: 2, vndb_matched: 1, egs_only: 1 } })),
+    );
+    renderClient();
+    expect(await screen.findByText('Egs Title Three')).toBeInTheDocument();
+    expect(screen.queryByText('Matched Title Two')).toBeNull();
+    expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent');
+    expect(screen.getByLabelText('Sort')).toHaveValue('price_asc');
+    expect(screen.getByLabelText('Group')).toHaveValue('year');
+    expect(screen.queryByLabelText('Producer')).toBeNull();
   });
 
   it('filters by year range', async () => {
@@ -202,6 +264,20 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
   });
 
+  it('applies max-year and min-price filters', async () => {
+    const oldCheap = makeItem({ code: '001-000012-001', title: 'Old Cheap Title', release_date: '2008/01/01', sale_price: '¥900' });
+    const oldExpensive = makeItem({ code: '001-000013-001', title: 'Old Expensive Title', release_date: '2008/01/01', sale_price: '¥3,000' });
+    const modern = makeItem({ code: '001-000014-001', title: 'Modern Title', release_date: '2022/01/01', sale_price: '¥5,000' });
+    global.fetch = vi.fn(async () => json(snapshot({ items: [oldCheap, oldExpensive, modern], stats: { total: 3 } })));
+    const { user } = renderClient();
+    await screen.findByText('Old Cheap Title');
+    await user.type(screen.getByLabelText('Max year'), '2010');
+    await waitFor(() => expect(screen.queryByText('Modern Title')).toBeNull());
+    await user.type(screen.getByLabelText('Min price'), '2000');
+    await waitFor(() => expect(screen.queryByText('Old Cheap Title')).toBeNull());
+    expect(screen.getByText('Old Expensive Title')).toBeInTheDocument();
+  });
+
   it('switches to the list view', async () => {
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
     const { user } = renderClient();
@@ -209,6 +285,16 @@ describe('AliceNetClient', () => {
     await user.click(screen.getByRole('button', { name: 'List' }));
     await waitFor(() => expect(document.querySelector('li')).not.toBeNull());
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
+  });
+
+  it('restores invalid saved preferences as defaults and renders the embedded stock section', async () => {
+    window.localStorage.setItem('vncoll.alicenet.prefs.v1', JSON.stringify({ sort: 'bad-sort', group: 'bad-group', view: 'bad-view' }));
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    renderEmbeddedClient();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Stock AliceNet' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cards' })).toHaveClass('bg-accent');
+    expect(screen.getByLabelText('Sort')).toHaveValue('match_status');
+    expect(screen.getByLabelText('Group')).toHaveValue('none');
   });
 
   it('groups by match status', async () => {
@@ -249,6 +335,8 @@ describe('AliceNetClient', () => {
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Sync stock' }));
     await waitFor(() => expect(calls).toContain('/api/alicenet/fetch'));
+    expect(await screen.findByText('Last run')).toBeInTheDocument();
+    expect(await screen.findByText('1 processed, 0 matched.')).toBeInTheDocument();
   });
 
   it('runs the match operation loop and renders the last-run summary', async () => {
@@ -319,6 +407,8 @@ describe('AliceNetClient', () => {
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Sync stock' }));
+    expect(await screen.findByText('0%')).toBeInTheDocument();
+    expect(screen.getByText('The job runs in the background. You can keep browsing this page.')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Stop' }));
     await waitFor(() => expect(aborted).toBe(true));
   });
@@ -356,12 +446,61 @@ describe('AliceNetClient', () => {
     await waitFor(() => expect(endpoints).toContain('/api/alicenet/download-vndb'));
     await user.click(screen.getByRole('button', { name: /Resolve EGS via VNDB/ }));
     await waitFor(() => expect(endpoints).toContain('/api/alicenet/resolve-egs'));
-    await user.click(within(tabsGroup()).getByRole('button', { name: /No VNDB result/ }));
-    await user.click(screen.getByRole('button', { name: /VNDB from EGS/ }));
+  });
+
+  it('runs the smart VNDB retry operation from the recovery toolbar', async () => {
+    const endpoints: string[] = [];
+    const noneItem = makeItem({
+      code: '001-000015-001',
+      title: 'Aggressive Retry Title',
+      vn_match_source: 'none',
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') endpoints.push(u);
+      if (u === '/api/alicenet/retry-vndb-aggressive') return json({ processed: 1, matched: 0, remaining: 0 });
+      return json(snapshot({
+        items: [noneItem],
+        stats: { total: 1, unmatched: 1, none_found: 1 },
+      }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Aggressive Retry Title');
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^No VNDB result/ }));
+    await user.click(screen.getAllByRole('button', { name: /Smart VNDB retry/ })[0]);
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/retry-vndb-aggressive'));
+  });
+
+  it('runs no-result recovery variants from visible controls', async () => {
+    const endpoints: string[] = [];
+    const noneItem = makeItem({
+      code: '001-000010-001',
+      title: 'No Result Title',
+      vn_match_source: 'none',
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') endpoints.push(u);
+      if (
+        u === '/api/alicenet/match-vndb-from-egs' ||
+        u === '/api/alicenet/search-egs-no-vndb'
+      ) {
+        return json({ processed: 1, matched: 1, remaining: 0 });
+      }
+      return json(snapshot({
+        items: [EGS_ITEM, noneItem],
+        stats: { total: 2, matched: 1, egs_only: 1, unmatched: 1, none_found: 1 },
+        pending: { vndb_pending: 1, egs_pending: 1 },
+      }));
+    });
+    renderClient();
+    await screen.findByText('Egs Title Three');
+    fireEvent.click(within(tabsGroup()).getByRole('button', { name: /No VNDB result/ }));
+    fireEvent.click(screen.getByRole('button', { name: /VNDB from EGS/ }));
     await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-vndb-from-egs'));
-    await user.click(screen.getByRole('button', { name: /^Search on EGS$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Search on EGS$/ }));
     await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(0));
-    await user.click(screen.getByRole('button', { name: /Search on EGS \(aggressive filter\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Search on EGS \(aggressive filter\)/ }));
     await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(1));
   });
 
@@ -375,6 +514,7 @@ describe('AliceNetClient', () => {
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: /Match new rows/ }));
     expect(await screen.findAllByText(/match-loop-failed/)).toHaveLength(2);
+    expect(screen.getByText('Failed: match-loop-failed')).toBeInTheDocument();
   });
 
   it('resets auto matches after confirmation', async () => {
@@ -421,7 +561,10 @@ describe('AliceNetClient', () => {
     const { user } = renderClient();
     const card = (await screen.findByText('Egs Title Three')).closest('article')!;
     await user.click(within(card).getByRole('button', { name: 'Link' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', undefined, { timeout: 5_000 });
+    expect(dialog).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('enters select mode, selects all, and bulk-clears links with confirmation', async () => {
@@ -459,6 +602,22 @@ describe('AliceNetClient', () => {
     await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
   });
 
+  it('toggles an individual selected card off and on', async () => {
+    global.fetch = vi.fn(async () =>
+      json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })),
+    );
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    const toggle = screen.getByRole('button', { name: 'Select Matched Title Two' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
+  });
+
   it('filters by producer and price, then resets filters', async () => {
     const cheap = makeItem({ code: '001-000011-001', title: 'Cheap Brand Title', sale_price: '¥1,000', egs_brand: 'Budget Brand' });
     global.fetch = vi.fn(async () =>
@@ -492,6 +651,27 @@ describe('AliceNetClient', () => {
     renderClient();
     expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent');
+  });
+
+  it('filters to an EGS producer from the card producer action', async () => {
+    const otherEgs = makeItem({
+      code: '001-000016-001',
+      title: 'Other EGS Brand Title',
+      egs_id: 77777,
+      egs_match_source: 'auto',
+      egs_brand: 'Other Brand',
+    });
+    global.fetch = vi.fn(async () =>
+      json(snapshot({
+        items: [EGS_ITEM, otherEgs],
+        stats: { total: 2, matched: 2, egs_only: 2 },
+      })),
+    );
+    const { user } = renderClient();
+    await screen.findByText('Egs Title Three');
+    await user.click(screen.getByRole('button', { name: 'Brand Z' }));
+    await waitFor(() => expect(screen.queryByText('Other EGS Brand Title')).toBeNull());
+    expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
   });
 
   it('renders the virtual-scroll notice for large card lists', async () => {
@@ -533,6 +713,29 @@ describe('AliceNetClient', () => {
     await waitFor(() => expect(remapBody).toEqual({ vn_id: 'v90002' }));
   });
 
+  it('renders candidate detail titles and toasts when remapping fails', async () => {
+    const remapItem = makeItem({
+      code: '001-000017-001',
+      title: 'Candidate Detail Title',
+      vn_id: 'v90001',
+      vn_match_source: 'auto',
+      vn_candidates: JSON.stringify([
+        { id: 'v90001', title: 'Cand One', alttitle: 'Alt One', released: '2018-01-02' },
+        { id: 'v90002', title: 'Cand Two', alttitle: 'Alt Two', released: '2019-03-04' },
+      ]),
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/link') && init?.method === 'POST') return json({ error: 'candidate failed' }, 500);
+      return json(snapshot({ items: [remapItem], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
+    const card = (await screen.findByText('Candidate Detail Title')).closest('article')!;
+    expect(within(card).getByRole('button', { name: 'v90002' })).toHaveAttribute('title', expect.stringContaining('Alt Two'));
+    await user.click(within(card).getByRole('button', { name: 'v90002' }));
+    await waitFor(() => expect(screen.getAllByText(/candidate failed/).length).toBeGreaterThan(0));
+  });
+
   it('shows an error toast when the initial load fails', async () => {
     global.fetch = vi.fn(async () => json({ error: 'load failed' }, 500));
     renderClient();
@@ -550,5 +753,271 @@ describe('AliceNetClient', () => {
     expect(
       await screen.findByText('No item matches the current filters. Widen the query or reset the filters.'),
     ).toBeInTheDocument();
+  });
+
+  it('renders the no-stock empty state without a last-fetch label', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ last_fetch: null })));
+    renderClient();
+    expect(await screen.findByText('No stock downloaded yet. Click "Download" to fetch the latest AliceNet inventory.')).toBeInTheDocument();
+    expect(screen.queryByText(/Updated:/)).toBeNull();
+  });
+
+  it('falls back to raw price text and hides empty prices', async () => {
+    const rawPrice = makeItem({ code: '001-000018-001', title: 'Raw Price Title', sale_price: 'Ask at counter' });
+    const noPrice = makeItem({ code: '001-000019-001', title: 'No Price Title', sale_price: null, list_price: null });
+    global.fetch = vi.fn(async () => json(snapshot({ items: [rawPrice, noPrice], stats: { total: 2 } })));
+    renderClient();
+    expect(await screen.findByText('Raw Price Title')).toBeInTheDocument();
+    expect(screen.getByText('Ask at counter')).toBeInTheDocument();
+    expect(screen.getByText('No Price Title')).toBeInTheDocument();
+  });
+
+  it('renders no candidate chip row for an empty candidate payload', async () => {
+    const item = makeItem({
+      code: '001-000020-001',
+      title: 'Empty Candidate Title',
+      vn_id: 'v90020',
+      vn_match_source: 'auto',
+      vn_candidates: '[]',
+    });
+    global.fetch = vi.fn(async () => json(snapshot({ items: [item], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    const card = (await screen.findByText('Empty Candidate Title')).closest('article')!;
+    expect(within(card).queryByText('Candidates:')).toBeNull();
+  });
+
+  it('restores non-string saved preferences and malformed saved preferences as defaults', async () => {
+    window.localStorage.setItem('vncoll.alicenet.prefs.v1', JSON.stringify({ sort: 1, group: false, view: null }));
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    const first = renderClient();
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort')).toHaveValue('match_status');
+    first.unmount();
+
+    window.localStorage.setItem('vncoll.alicenet.prefs.v1', '{');
+    renderClient();
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cards' })).toHaveClass('bg-accent');
+  });
+
+  it('falls back to default preferences when localStorage cannot be read', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort')).toHaveValue('match_status');
+  });
+
+  it('cleans default URL state from the stock route', async () => {
+    mockedSearchParams = new URLSearchParams('filter=all&sort=match_status&group=none&view=cards&q=&producer=&yearMin=&yearMax=&priceMin=&priceMax=&filters=1');
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    await screen.findByText('Matched Title Two');
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/stock', { scroll: false }));
+  });
+
+  it('reports malformed initial and follow-up stock payloads', async () => {
+    global.fetch = vi.fn(async () => json({ broken: true }));
+    const first = renderClient();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The local AliceNet response is malformed.');
+    first.unmount();
+
+    const page1 = {
+      ...snapshot({ items: [VNDB_ITEM], stats: { total: 2, matched: 1, vndb_matched: 1 } }),
+      page: { offset: 0, limit: 1, total: 2, has_more: true },
+    };
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).includes('offset=1')) return json({ broken: true });
+      return json(page1);
+    });
+    renderClient();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The local AliceNet response is malformed.');
+  });
+
+  it('reports malformed operation payloads and loop results without matched counts', async () => {
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') calls.push(u);
+      if (u === '/api/alicenet/fetch') return json({ broken: true });
+      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
+    });
+    const first = renderClient();
+    await screen.findByText('Matched Title Two');
+    await first.user.click(screen.getByRole('button', { name: 'Sync stock' }));
+    await waitFor(() => expect(screen.getAllByText(/AliceNet sync returned a malformed response/).length).toBeGreaterThan(0));
+    first.unmount();
+
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ processed: 1, remaining: 0 });
+      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
+    });
+    const second = renderClient();
+    await screen.findByText('Matched Title Two');
+    await second.user.click(screen.getByRole('button', { name: /Match new rows/ }));
+    expect(await screen.findByText('1 processed, 0 matched.')).toBeInTheDocument();
+    expect(calls).toContain('/api/alicenet/fetch');
+  });
+
+  it('reports malformed loop payloads with the AliceNet pipeline diagnostic', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ broken: true });
+      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
+    await waitFor(() => expect(screen.getAllByText(/AliceNet processing returned malformed progress/).length).toBeGreaterThan(0));
+  });
+
+  it('reports download-all failures with the active step label', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
+        return json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 });
+      }
+      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'download all failed' }, 500);
+      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Download all' }));
+    expect(await screen.findByText(/download all failed/)).toBeInTheDocument();
+  });
+
+  it('cancels and fails reset-auto-match flows cleanly', async () => {
+    let resetCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/reset-matches' && init?.method === 'POST') {
+        resetCalls += 1;
+        return json({ error: 'reset failed' }, 500);
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
+    });
+    const first = renderClient();
+    await screen.findByText('Matched Title Two');
+    await first.user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
+    let confirm = await screen.findByRole('alertdialog');
+    await first.user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(resetCalls).toBe(0);
+
+    await first.user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
+    confirm = await screen.findByRole('alertdialog');
+    await first.user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(screen.getAllByText(/reset failed/).length).toBeGreaterThan(0));
+  });
+
+  it('toggles filters, returns from list view to cards, and exits select mode', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    await screen.findByText('Matched Title Two');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await waitFor(() => expect(screen.queryByLabelText('Producer')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await waitFor(() => expect(screen.getByLabelText('Producer')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'List' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cards' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cards' })).toHaveClass('bg-accent'));
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit selection' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select' })).toHaveAttribute('aria-pressed', 'false'));
+  });
+
+  it('measures and window-renders large card lists deterministically', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    vi.stubGlobal('ResizeObserver', class {
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, 900, 1200));
+    const many = Array.from({ length: 120 }, (_, index) =>
+      makeItem({
+        code: `001-${String(index + 100).padStart(6, '0')}-001`,
+        title: `Measured Card ${index + 1}`,
+      }),
+    );
+    global.fetch = vi.fn(async () => json(snapshot({ items: many, stats: { total: many.length } })));
+    renderClient();
+    expect(await screen.findByText(/120 items - virtual scroll active/)).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('[data-virtualized-alicenet-grid="true"]')).not.toBeNull());
+  });
+
+  it('window-renders large list view rows and keeps row actions usable', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    vi.stubGlobal('ResizeObserver', class {
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, 900, 1200));
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 1000 });
+    const many = Array.from({ length: 120 }, (_, index) =>
+      makeItem({
+        code: `001-${String(index + 200).padStart(6, '0')}-001`,
+        title: `Measured Row ${index + 1}`,
+        egs_id: index === 10 ? 80010 : null,
+        egs_match_source: index === 10 ? 'auto' : null,
+      }),
+    );
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).startsWith('/api/search')) return json({ results: [] });
+      return json(snapshot({ items: many, stats: { total: many.length, matched: 1, egs_only: 1 } }));
+    });
+    renderClient();
+    await screen.findByText(/120 items - virtual scroll active/);
+    fireEvent.click(screen.getByRole('button', { name: 'List' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
+    const [renderedTitle] = await screen.findAllByText(/^Measured Row \d+$/);
+    expect(renderedTitle).toBeDefined();
+    const renderedName = renderedTitle.textContent ?? '';
+    expect(screen.getAllByText(/^Measured Row \d+$/).length).toBeLessThan(120);
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    const row = renderedTitle.closest('li')!;
+    const rowToggle = within(row).getByRole('button', { name: `Select ${renderedName}` });
+    fireEvent.click(rowToggle);
+    await waitFor(() => expect(rowToggle).toHaveAttribute('aria-pressed', 'true'));
+    expect(within(row).getByRole('button', { name: 'Link' })).toBeEnabled();
+  });
+
+  it('runs contextual no-result recovery buttons', async () => {
+    const endpoints: string[] = [];
+    const noneItem = makeItem({
+      code: '001-000021-001',
+      title: 'Contextual No Result Title',
+      vn_match_source: 'none',
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === 'POST') endpoints.push(u);
+      if (u === '/api/alicenet/match-next' || u === '/api/alicenet/retry-vndb-aggressive') {
+        return json({ processed: 1, matched: 0, remaining: 0 });
+      }
+      return json(snapshot({ items: [noneItem], stats: { total: 1, unmatched: 1, none_found: 1 } }));
+    });
+    renderClient();
+    await screen.findByText('Contextual No Result Title');
+    fireEvent.click(within(tabsGroup()).getByRole('button', { name: /^No VNDB result/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Recover no-result rows$/ }));
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-next'));
+    const smartRetryButtons = screen.getAllByRole('button', { name: /^Smart VNDB retry$/ });
+    expect(smartRetryButtons.length).toBeGreaterThan(1);
+    fireEvent.click(smartRetryButtons[smartRetryButtons.length - 1]!);
+    await waitFor(() => expect(endpoints).toContain('/api/alicenet/retry-vndb-aggressive'));
   });
 });

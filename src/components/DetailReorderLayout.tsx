@@ -213,7 +213,7 @@ export function DetailReorderLayout({
       if (saveAbortRef.current === controller) {
         saveAbortRef.current = null;
         saveInFlightRef.current = false;
-        if (identityRef.current === ownerIdentityKey) setSaving(false);
+        setSaving(false);
       }
     }
   }, [draft, settingsKey, eventName, identityKey, toast, t]);

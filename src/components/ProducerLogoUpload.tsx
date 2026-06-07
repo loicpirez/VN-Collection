@@ -10,6 +10,13 @@ interface Props {
   hasLogo: boolean;
 }
 
+interface ProducerMutationOptions {
+  clearInfo?: boolean;
+  errorFallback: string;
+  request: (ownerProducerId: string, controller: AbortController) => Promise<Response>;
+  onSuccess: () => void;
+}
+
 export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
   const t = useT();
   const router = useRouter();
@@ -30,7 +37,7 @@ export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
     setBusy(false);
     setError(null);
     setInfo(null);
-    if (inputRef.current) inputRef.current.value = '';
+    inputRef.current!.value = '';
     return () => {
       identityRef.current = null;
       mutationAbortRef.current?.abort();
@@ -54,72 +61,68 @@ export function ProducerLogoUpload({ producerId, hasLogo }: Props) {
       && !controller.signal.aborted;
   }
 
-  function finishMutation(ownerProducerId: string, controller: AbortController) {
+  function finishMutation(controller: AbortController) {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (identityRef.current === ownerProducerId) setBusy(false);
+    setBusy(false);
+  }
+
+  async function runMutation(options: ProducerMutationOptions) {
+    const ownerProducerId = producerId;
+    const controller = startMutation();
+    if (!controller) return;
+    setError(null);
+    if (options.clearInfo) setInfo(null);
+    setBusy(true);
+    try {
+      const res = await options.request(ownerProducerId, controller);
+      if (!res.ok) throw new Error(await readApiError(res, options.errorFallback));
+      if (!ownsMutation(ownerProducerId, controller)) return;
+      options.onSuccess();
+    } catch (e) {
+      if (!ownsMutation(ownerProducerId, controller)) return;
+      setError((e as Error).message);
+    } finally {
+      finishMutation(controller);
+    }
   }
 
   async function handleUpload(file: File) {
-    const ownerProducerId = producerId;
-    const controller = startMutation();
-    if (!controller) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(`/api/producer/${ownerProducerId}/logo`, { method: 'POST', body: fd, signal: controller.signal });
-      if (!res.ok) throw new Error(await readApiError(res, t.cover.uploadError));
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      setError((e as Error).message);
-    } finally {
-      finishMutation(ownerProducerId, controller);
-    }
+    const fd = new FormData();
+    fd.append('file', file);
+    await runMutation({
+      errorFallback: t.cover.uploadError,
+      request: (ownerProducerId, controller) =>
+        fetch(`/api/producer/${ownerProducerId}/logo`, { method: 'POST', body: fd, signal: controller.signal }),
+      onSuccess: () => {
+        startTransition(() => router.refresh());
+      },
+    });
   }
 
   async function handleRemove() {
-    const ownerProducerId = producerId;
-    const controller = startMutation();
-    if (!controller) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/producer/${ownerProducerId}/logo`, { method: 'DELETE', signal: controller.signal });
-      if (!res.ok) throw new Error(await readApiError(res, t.cover.uploadError));
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      setError((e as Error).message);
-    } finally {
-      finishMutation(ownerProducerId, controller);
-    }
+    await runMutation({
+      errorFallback: t.cover.uploadError,
+      request: (ownerProducerId, controller) =>
+        fetch(`/api/producer/${ownerProducerId}/logo`, { method: 'DELETE', signal: controller.signal }),
+      onSuccess: () => {
+        startTransition(() => router.refresh());
+      },
+    });
   }
 
   async function handleRefetch() {
-    const ownerProducerId = producerId;
-    const controller = startMutation();
-    if (!controller) return;
-    setError(null);
-    setInfo(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/producer/${ownerProducerId}`, { cache: 'no-store', signal: controller.signal });
-      if (!res.ok) throw new Error(await readApiError(res, t.common.error));
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      setInfo(t.producers.fetched);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerProducerId, controller)) return;
-      setError((e as Error).message);
-    } finally {
-      finishMutation(ownerProducerId, controller);
-    }
+    await runMutation({
+      clearInfo: true,
+      errorFallback: t.common.error,
+      request: (ownerProducerId, controller) =>
+        fetch(`/api/producer/${ownerProducerId}`, { cache: 'no-store', signal: controller.signal }),
+      onSuccess: () => {
+        setInfo(t.producers.fetched);
+        startTransition(() => router.refresh());
+      },
+    });
   }
 
   return (

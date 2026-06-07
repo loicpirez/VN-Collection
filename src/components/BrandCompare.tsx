@@ -153,7 +153,6 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           tone="vndb"
           label="VNDB"
           active={optimistic === 'vndb' || (optimistic === 'auto' && resolved.used === 'vndb')}
-          empty={!vndbHas}
           onUse={() => persist('vndb')}
           pending={(saving || pending) && optimistic === 'vndb'}
           saving={saving}
@@ -165,7 +164,6 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           tone="egs"
           label="ErogameScape"
           active={optimistic === 'egs' || (optimistic === 'auto' && resolved.used === 'egs')}
-          empty={!egsHas}
           onUse={() => persist('egs')}
           pending={(saving || pending) && optimistic === 'egs'}
           saving={saving}
@@ -220,7 +218,6 @@ function Column({
   tone,
   label,
   active,
-  empty,
   onUse,
   pending,
   saving,
@@ -230,7 +227,6 @@ function Column({
   tone: 'vndb' | 'egs';
   label: string;
   active: boolean;
-  empty: boolean;
   onUse: () => void;
   pending: boolean;
   saving: boolean;
@@ -248,23 +244,21 @@ function Column({
           {label}
           {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
-        {!empty && (
-          <button
-            type="button"
-            onClick={onUse}
-            disabled={active || saving}
-            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
-              active
-                ? 'bg-accent/20 text-accent cursor-default'
-                : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
-            }`}
-          >
-            {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-            {useLabel}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onUse}
+          disabled={active || saving}
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
+            active
+              ? 'bg-accent/20 text-accent cursor-default'
+              : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
+          }`}
+        >
+          {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+          {useLabel}
+        </button>
       </div>
-      {empty ? <p className="text-[11px] italic text-muted/70">-</p> : children}
+      {children}
     </div>
   );
 }

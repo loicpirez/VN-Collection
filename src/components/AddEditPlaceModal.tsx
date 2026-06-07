@@ -77,7 +77,6 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
       const ok = await confirm({ message: t.places.discardConfirm as string, tone: 'danger' });
       if (!ok || identityRef.current !== ownerIdentity) return;
     }
-    if (identityRef.current !== ownerIdentity) return;
     onClose();
   }, [identity, dirty, confirm, t, onClose]);
 
@@ -128,10 +127,6 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   async function geocode() {
     const query = geocodeQ.trim();
     if (!query) return;
-    if (!externalNetworkAllowed) {
-      setGeocodeError(t.map.externalPrivacyRequired as string);
-      return;
-    }
     geocodeControllerRef.current?.abort();
     const controller = new AbortController();
     geocodeControllerRef.current = controller;
@@ -177,8 +172,6 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   }
 
   async function handleSave() {
-    if (saveInFlightRef.current) return;
-    if (!name.trim()) return;
     setError(null);
     const coordinates = {
       lat: lat !== '' ? Number(lat) : null,
@@ -231,7 +224,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
       }
     } catch (e) {
       if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
-      if (saveAbortRef.current === controller && identityRef.current === ownerIdentity) setError(t.common.error as string);
+      setError(t.common.error as string);
     } finally {
       if (saveAbortRef.current === controller && identityRef.current === ownerIdentity) {
         saveAbortRef.current = null;

@@ -30,13 +30,14 @@ describe('route-section lifecycle', () => {
   it('reserves route deletion before awaiting confirmation', () => {
     const removeStart = ROUTES.indexOf('const remove = useCallback(async (id: number)');
     const body = ROUTES.slice(removeStart, ROUTES.indexOf('const move = useCallback', removeStart));
-    expect(body.indexOf('const controller = startMutation()')).toBeLessThan(body.indexOf('await confirm('));
+    expect(body.indexOf('const controller = createMutationController()')).toBeLessThan(body.indexOf('await confirm('));
     expect(body).toContain('if (!ok || !ownsMutation(ownerVnId, controller))');
   });
 
   it('suppresses obsolete character errors and nested editor completion work', () => {
     expect(ROUTES).toContain("ctrl.signal.aborted || identityRef.current !== vnId");
-    expect(ROUTES).toContain('editingIdRef.current = null');
+    expect(ROUTES).toContain('setEditingId(null)');
+    expect(ROUTES).not.toContain('editingIdRef');
     expect(ROUTES).toContain('notesOpenRef.current = null');
   });
 

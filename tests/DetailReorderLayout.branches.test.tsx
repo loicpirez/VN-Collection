@@ -13,6 +13,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const dnd: { onDragEnd?: (e: unknown) => void } = {};
+const sortableState = { isDragging: false };
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children, onDragEnd }: { children: React.ReactNode; onDragEnd?: (e: unknown) => void }) => {
     dnd.onDragEnd = onDragEnd;
@@ -32,7 +33,7 @@ vi.mock('@dnd-kit/sortable', async () => {
     SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     verticalListSortingStrategy: () => null,
     sortableKeyboardCoordinates: () => null,
-    useSortable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, transform: null, transition: undefined, isDragging: false }),
+    useSortable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, transform: null, transition: undefined, isDragging: sortableState.isDragging }),
   };
 });
 vi.mock('@dnd-kit/utilities', () => ({ CSS: { Transform: { toString: () => '' } } }));
@@ -41,6 +42,16 @@ function okFetch() {
   return vi.fn().mockResolvedValue(
     new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }),
   );
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 const SECTION_IDS = ['overview', 'works', 'extra'] as const;
@@ -79,6 +90,7 @@ function renderLayout(layout = makeLayout(), identityKey = 'p90001') {
 describe('DetailReorderLayout branches', () => {
   beforeEach(() => {
     dnd.onDragEnd = undefined;
+    sortableState.isDragging = false;
     global.fetch = okFetch() as unknown as typeof fetch;
   });
   afterEach(() => {
@@ -171,5 +183,123 @@ describe('DetailReorderLayout branches', () => {
     // The identity effect forces editing=false.
     expect(screen.queryByRole('button', { name: /^Save$|Enregistrer/i })).toBeNull();
     expect(screen.getByRole('button', { name: /Edit layout|Mise en page/i })).toBeTruthy();
+  });
+
+  it('ignores layout events without a layout payload', () => {
+    renderLayout();
+    fireEvent(window, new CustomEvent(EVENT_NAME, { detail: {} }));
+    expect(screen.getByTestId('sec-extra')).toBeTruthy();
+  });
+
+  it('skips unknown ordered ids and falls back to visible state for missing section entries', () => {
+    const layout = {
+      sections: { overview: { visible: true } },
+      order: ['ghost', 'works'],
+    } as unknown as SectionLayoutV1;
+    renderLayout(layout);
+    expect(screen.getByTestId('sec-works')).toBeTruthy();
+    expect(screen.getByTestId('sec-overview')).toBeTruthy();
+    expect(screen.getByTestId('sec-extra')).toBeTruthy();
+  });
+
+  it('toggles visibility for a section missing from the persisted section map', () => {
+    const layout = {
+      sections: { overview: { visible: true } },
+      order: ['works', 'overview', 'extra'],
+    } as unknown as SectionLayoutV1;
+    renderLayout(layout);
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    const worksRow = screen.getByText('Works').closest('.relative') as HTMLElement;
+    fireEvent.click(within(worksRow).getByRole('button', { name: /Hide section|Masquer la section/i }));
+    expect(screen.getByRole('button', { name: /^Save$|Enregistrer/i })).toBeTruthy();
+  });
+
+  it('ignores drag events whose ids are missing from the draft order', () => {
+    renderLayout();
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    act(() => {
+      dnd.onDragEnd?.({ active: { id: 'missing' }, over: { id: 'works' } });
+    });
+    expect(screen.getAllByRole('button', { name: /Drag|Déplacer/i }).length).toBe(3);
+  });
+
+  it('locks edit controls while a save is in flight', async () => {
+    const pending = deferredResponse();
+    const fetchMock = vi.fn(() => pending.promise);
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderLayout();
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    const saveButton = screen.getByRole('button', { name: /^Save$|Enregistrer/i });
+    const resetButton = screen.getByRole('button', { name: /Reset|Réinitialiser/i });
+    const cancelButton = screen.getByRole('button', { name: /Cancel|Annuler/i });
+    const hideButton = screen.getAllByRole('button', { name: /Hide section|Masquer la section|Show section|Afficher la section/i })[0];
+    const collapseButton = screen.getAllByRole('button', { name: /Collapse|Expand|Réduire par défaut|Agrandir par défaut/i })[0];
+    act(() => {
+      saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      resetButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      cancelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      hideButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      collapseButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      dnd.onDragEnd?.({ active: { id: 'overview' }, over: { id: 'works' } });
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      pending.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      await pending.promise;
+    });
+  });
+
+  it('ignores stale save success and failure after identity changes', async () => {
+    const success = deferredResponse();
+    global.fetch = vi.fn(() => success.promise) as unknown as typeof fetch;
+    const first = renderLayout(makeLayout(), 'p90001');
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Save$|Enregistrer/i }));
+    first.rerender(
+      <DetailReorderLayout
+        sections={sections()}
+        initialLayout={makeLayout()}
+        sectionIds={SECTION_IDS}
+        settingsKey={SETTINGS_KEY}
+        eventName={EVENT_NAME}
+        identityKey="p90002"
+      />,
+    );
+    await act(async () => {
+      success.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      await success.promise;
+    });
+    expect(screen.getByRole('button', { name: /Edit layout|Mise en page/i })).toBeTruthy();
+
+    first.unmount();
+    const failure = deferredResponse();
+    global.fetch = vi.fn(() => failure.promise) as unknown as typeof fetch;
+    const second = renderLayout(makeLayout(), 'p90003');
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Save$|Enregistrer/i }));
+    second.rerender(
+      <DetailReorderLayout
+        sections={sections()}
+        initialLayout={makeLayout()}
+        sectionIds={SECTION_IDS}
+        settingsKey={SETTINGS_KEY}
+        eventName={EVENT_NAME}
+        identityKey="p90004"
+      />,
+    );
+    await act(async () => {
+      failure.reject(new Error('late failure'));
+      await failure.promise.catch(() => undefined);
+    });
+    expect(screen.getByRole('button', { name: /Edit layout|Mise en page/i })).toBeTruthy();
+  });
+
+  it('renders the dragging style from the sortable hook', () => {
+    sortableState.isDragging = true;
+    renderLayout();
+    fireEvent.click(screen.getByRole('button', { name: /Edit layout|Mise en page/i }));
+    const row = screen.getByText('Overview').closest('.relative') as HTMLElement;
+    expect(row.style.opacity).toBe('0.5');
   });
 });

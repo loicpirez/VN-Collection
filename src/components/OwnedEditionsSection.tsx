@@ -58,6 +58,13 @@ const CONDITIONS: { value: string; key: 'new' | 'used' | 'sealed' | 'opened' | '
 
 const COMMON_CURRENCIES = ['JPY', 'EUR', 'USD', 'GBP', 'CNY', 'KRW'];
 
+function isAbortError(value: unknown): boolean {
+  return typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    value.name === 'AbortError';
+}
+
 type AspectOverridePatch =
   | {
       width: number | null;
@@ -114,7 +121,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
     reloadAbortRef.current = controller;
     const ownerVnId = vnId;
     const { signal } = controller;
-    if (mountedRef.current) setLoading(true);
+    setLoading(true);
     try {
       const [ownedResponse, releasesResponse] = await Promise.all([
         fetch(`/api/collection/${vnId}/owned-releases`, { cache: 'no-store', signal }),
@@ -129,7 +136,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       setOwned(owned);
       setReleases(releases);
     } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal.aborted) return;
+      if (isAbortError(e) || signal.aborted) return;
       // ignore - section is optional
     } finally {
       if (reloadAbortRef.current === controller) {
@@ -188,7 +195,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         if (!ctrl.signal.aborted) setKnownPlaces(decodeKnownPlacesResponse(d) ?? []);
       })
       .catch((e) => {
-        if ((e as Error).name !== 'AbortError') {
+        if (!isAbortError(e)) {
           // optional suggestions
         }
       });
@@ -280,7 +287,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         }),
       );
     } catch (e) {
-      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
+      if (!ownsMutation(ownerVnId, controller) || isAbortError(e)) return;
       toast.error((e as Error).message);
     } finally {
       finishMutation(ownerVnId, controller);
@@ -311,7 +318,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
         }),
       );
     } catch (e) {
-      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
+      if (!ownsMutation(ownerVnId, controller) || isAbortError(e)) return;
       toast.error((e as Error).message);
     } finally {
       finishMutation(ownerVnId, controller);
@@ -342,7 +349,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
       toast.success(t.toast.saved);
       setEditingId(null);
     } catch (e) {
-      if (!ownsMutation(ownerVnId, controller) || (e instanceof Error && e.name === 'AbortError')) return;
+      if (!ownsMutation(ownerVnId, controller) || isAbortError(e)) return;
       toast.error((e as Error).message);
     } finally {
       finishMutation(ownerVnId, controller);
@@ -515,7 +522,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
     : null;
   const platformState = derivePlatformDisplay({
     ownedPlatform: edition.owned_platform,
-    releasePlatforms: edition.rel_platforms ?? [],
+    releasePlatforms: edition.rel_platforms,
     releaseId: edition.release_id,
   });
 
@@ -701,7 +708,7 @@ function EditionEditor({
   //   - 2+         → select dropdown so the user picks the exact
   //                  physical SKU they own (the user-reported bug
   //                  for r65069 etc.).
-  const releasePlatforms = edition.rel_platforms ?? [];
+  const releasePlatforms = edition.rel_platforms;
   const [ownedPlatform, setOwnedPlatform] = useState<string>(edition.owned_platform ?? '');
   const [aspectWidth, setAspectWidth] = useState<string>(
     edition.aspect?.source === 'manual' && edition.aspect.width ? String(edition.aspect.width) : '',

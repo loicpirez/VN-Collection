@@ -89,6 +89,25 @@ describe('CoverHero branches', () => {
     });
   });
 
+  it('shows the no-image placeholder when load fails without a local fallback', () => {
+    localStorage.setItem('vn_display_settings_v1', JSON.stringify({ preferLocalImages: false }));
+    renderHero(
+      <CoverHero
+        vnId="v90015"
+        initialRemote="https://example.com/no-local.jpg"
+        initialLocal={null}
+        sexual={null}
+        alt="No local cover"
+        inCollection={false}
+      />,
+    );
+    const img = screen.getByAltText('No local cover') as HTMLImageElement;
+    act(() => {
+      img.dispatchEvent(new Event('error'));
+    });
+    expect(screen.getByRole('img', { name: 'No local cover' })).toBeInTheDocument();
+  });
+
   it('re-syncs client state to new server-rendered props on rerender', () => {
     const { rerender } = renderHero(
       <CoverHero vnId="v90014" initialRemote="https://example.com/a.jpg" initialLocal={null} sexual={null} alt="Synced cover" inCollection={false} />,

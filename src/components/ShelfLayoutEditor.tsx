@@ -77,6 +77,13 @@ function clampDim(n: number): number {
   return Math.max(SHELF_MIN, Math.min(SHELF_MAX, Math.floor(n)));
 }
 
+function escapeShelfVnSelectorValue(value: string): string {
+  const root = globalThis as typeof globalThis & { CSS?: { escape?: (input: string) => string } };
+  const escape = root.CSS?.escape;
+  if (typeof escape === 'function') return escape(value);
+  return value.replace(/["\\]/g, '\\$&');
+}
+
 /**
  * Two-pane drag-and-drop editor for the physical shelf layout.
  *
@@ -195,10 +202,12 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         if (found && !ac.signal.aborted) {
           setActiveId(shelf.id);
           const scrollTimer = window.setTimeout(() => {
-            if (ac.signal.aborted) return;
-            document
-              .querySelector<HTMLElement>(`[data-shelf-vn="${CSS.escape(highlightVnId)}"]`)
-              ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+            const target = document.querySelector<HTMLElement>(
+              `[data-shelf-vn="${escapeShelfVnSelectorValue(highlightVnId)}"]`,
+            );
+            if (typeof target?.scrollIntoView === 'function') {
+              target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+            }
           }, 120);
           ac.signal.addEventListener('abort', () => clearTimeout(scrollTimer), { once: true });
           return;
@@ -222,6 +231,10 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
 
   function startMutation(): AbortController | null {
     if (mutationInFlightRef.current) return null;
+    return beginMutation();
+  }
+
+  function beginMutation(): AbortController {
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
@@ -241,7 +254,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (mountedRef.current) setBusy(false);
+    setBusy(false);
   }
 
   // Pokémon-box style left/right paging across shelves. Wraps around
@@ -250,8 +263,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const pageShelf = useCallback(
     (delta: -1 | 1) => {
       if (shelves.length === 0 || mutationInFlightRef.current) return;
-      const idx = activeIndex < 0 ? 0 : activeIndex;
-      const next = (idx + delta + shelves.length) % shelves.length;
+      const next = (activeIndex + delta + shelves.length) % shelves.length;
       setActiveId(shelves[next].id);
     },
     [shelves, activeIndex],
@@ -260,7 +272,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
+      const target = e.target instanceof HTMLElement ? e.target : null;
       if (target) {
         const tag = target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
@@ -288,26 +300,23 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     useSensor(KeyboardSensor),
   );
 
-  function patchActiveSlots(updater: (prev: ShelfSlotEntry[]) => ShelfSlotEntry[]) {
-    if (activeId == null) return;
+  function patchShelfSlots(shelfId: number, updater: (prev: ShelfSlotEntry[]) => ShelfSlotEntry[]) {
     setLoaded((prev) => {
-      const cur = prev[activeId];
+      const cur = prev[shelfId];
       if (!cur) return prev;
-      return { ...prev, [activeId]: { ...cur, slots: updater(cur.slots) } };
+      return { ...prev, [shelfId]: { ...cur, slots: updater(cur.slots) } };
     });
   }
 
-  function patchActiveDisplays(updater: (prev: ShelfDisplaySlotEntry[]) => ShelfDisplaySlotEntry[]) {
-    if (activeId == null) return;
+  function patchShelfDisplays(shelfId: number, updater: (prev: ShelfDisplaySlotEntry[]) => ShelfDisplaySlotEntry[]) {
     setLoaded((prev) => {
-      const cur = prev[activeId];
+      const cur = prev[shelfId];
       if (!cur) return prev;
-      return { ...prev, [activeId]: { ...cur, displays: updater(cur.displays) } };
+      return { ...prev, [shelfId]: { ...cur, displays: updater(cur.displays) } };
     });
   }
 
-  async function refreshActiveShelf(id = activeId) {
-    if (id == null) return;
+  async function refreshActiveShelf(id: number) {
     refreshAbortRef.current?.abort();
     const ac = new AbortController();
     refreshAbortRef.current = ac;
@@ -337,8 +346,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   async function placeOnSlot(target: { row: number; col: number }, source: DragSource) {
     if (activeId == null) return;
     const ownerShelfId = activeId;
-    const controller = startMutation();
-    if (!controller) return;
+    const controller = beginMutation();
     // Optimistic update:
     //   - move/insert the dragged item to (row, col)
     //   - if source was a slot AND target had an occupant -> put occupant at source slot (swap)
@@ -357,7 +365,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       // Build a hopeful next state from a fresh fetch result. To keep
       // the UI snappy we still patch locally first, then reconcile
       // with the server response.
-      patchActiveSlots((prev) => {
+      patchShelfSlots(ownerShelfId, (prev) => {
         const next = prev.filter(
           (s) => !(s.row === target.row && s.col === target.col)
             && !(s.vn_id === source.vn_id && s.release_id === source.release_id),
@@ -388,16 +396,16 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           // entry so the EditionInfoPopover keeps its data while
           // the drag-end refetch is in flight.
           owned_platform: ed.owned_platform ?? null,
-          physical_location: ed.physical_location ?? [],
+          physical_location: ed.physical_location,
           price_paid: ed.price_paid ?? null,
           currency: ed.currency ?? null,
           acquired_date: ed.acquired_date ?? null,
-          vn_platforms: ed.vn_platforms ?? [],
-          vn_languages: ed.vn_languages ?? [],
+          vn_platforms: ed.vn_platforms,
+          vn_languages: ed.vn_languages,
           vn_released: ed.vn_released ?? null,
           rel_title: ed.rel_title ?? null,
-          rel_platforms: ed.rel_platforms ?? [],
-          rel_languages: ed.rel_languages ?? [],
+          rel_platforms: ed.rel_platforms,
+          rel_languages: ed.rel_languages,
           rel_released: ed.rel_released ?? null,
           rel_resolution: ed.rel_resolution ?? null,
           dumped: ed.dumped,
@@ -421,7 +429,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           ),
         );
       } else if (source.kind === 'display') {
-        patchActiveDisplays((prev) =>
+        patchShelfDisplays(ownerShelfId, (prev) =>
           prev.filter(
             (d) => !(d.vn_id === source.vn_id && d.release_id === source.release_id),
           ),
@@ -456,8 +464,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       await refreshShelfMeta();
     } catch (e) {
       if (!ownsMutation(controller, ownerShelfId)) return;
-      patchActiveSlots(() => prevSnapshot.slots);
-      patchActiveDisplays(() => prevSnapshot.displays);
+      patchShelfSlots(ownerShelfId, () => prevSnapshot.slots);
+      patchShelfDisplays(ownerShelfId, () => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
@@ -471,8 +479,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   ) {
     if (activeId == null) return;
     const ownerShelfId = activeId;
-    const controller = startMutation();
-    if (!controller) return;
+    const controller = beginMutation();
     const prevSnapshot: {
       slots: ShelfSlotEntry[];
       displays: ShelfDisplaySlotEntry[];
@@ -486,7 +493,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     try {
       const ed = findEdition(source, prevSnapshot.slots, prevSnapshot.displays, prevSnapshot.pool);
       if (ed) {
-        patchActiveDisplays((prev) => {
+        patchShelfDisplays(ownerShelfId, (prev) => {
           const next = prev.filter(
             (d) => !(d.after_row === target.after_row && d.position === target.position)
               && !(d.vn_id === source.vn_id && d.release_id === source.release_id),
@@ -513,16 +520,16 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             // Mirror the slot-placement optimistic forward - see the
             // sibling call site above for the rationale.
             owned_platform: ed.owned_platform ?? null,
-            physical_location: ed.physical_location ?? [],
+            physical_location: ed.physical_location,
             price_paid: ed.price_paid ?? null,
             currency: ed.currency ?? null,
             acquired_date: ed.acquired_date ?? null,
-            vn_platforms: ed.vn_platforms ?? [],
-            vn_languages: ed.vn_languages ?? [],
+            vn_platforms: ed.vn_platforms,
+            vn_languages: ed.vn_languages,
             vn_released: ed.vn_released ?? null,
             rel_title: ed.rel_title ?? null,
-            rel_platforms: ed.rel_platforms ?? [],
-            rel_languages: ed.rel_languages ?? [],
+            rel_platforms: ed.rel_platforms,
+            rel_languages: ed.rel_languages,
             rel_released: ed.rel_released ?? null,
             rel_resolution: ed.rel_resolution ?? null,
             dumped: ed.dumped,
@@ -545,7 +552,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           prev.filter((e) => !(e.vn_id === source.vn_id && e.release_id === source.release_id)),
         );
       } else if (source.kind === 'slot') {
-        patchActiveSlots((prev) =>
+        patchShelfSlots(ownerShelfId, (prev) =>
           prev.filter((s) => !(s.vn_id === source.vn_id && s.release_id === source.release_id)),
         );
       }
@@ -570,8 +577,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       await refreshShelfMeta();
     } catch (e) {
       if (!ownsMutation(controller, ownerShelfId)) return;
-      patchActiveSlots(() => prevSnapshot.slots);
-      patchActiveDisplays(() => prevSnapshot.displays);
+      patchShelfSlots(ownerShelfId, () => prevSnapshot.slots);
+      patchShelfDisplays(ownerShelfId, () => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
@@ -582,8 +589,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   async function unplaceItem(source: DragSource) {
     if (activeId == null) return;
     const ownerShelfId = activeId;
-    const controller = startMutation();
-    if (!controller) return;
+    const controller = beginMutation();
     const prevSnapshot: {
       slots: ShelfSlotEntry[];
       displays: ShelfDisplaySlotEntry[];
@@ -598,7 +604,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         (s) => s.vn_id === source.vn_id && s.release_id === source.release_id,
       );
       if (occupant) {
-        patchActiveSlots((prev) =>
+        patchShelfSlots(ownerShelfId, (prev) =>
           prev.filter(
             (s) => !(s.vn_id === source.vn_id && s.release_id === source.release_id),
           ),
@@ -609,7 +615,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         (s) => s.vn_id === source.vn_id && s.release_id === source.release_id,
       );
       if (displayOccupant) {
-        patchActiveDisplays((prev) =>
+        patchShelfDisplays(ownerShelfId, (prev) =>
           prev.filter(
             (s) => !(s.vn_id === source.vn_id && s.release_id === source.release_id),
           ),
@@ -631,8 +637,8 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       await refreshShelfMeta();
     } catch (e) {
       if (!ownsMutation(controller, ownerShelfId)) return;
-      patchActiveSlots(() => prevSnapshot.slots);
-      patchActiveDisplays(() => prevSnapshot.displays);
+      patchShelfSlots(ownerShelfId, () => prevSnapshot.slots);
+      patchShelfDisplays(ownerShelfId, () => prevSnapshot.displays);
       setUnplaced(prevSnapshot.pool);
       toast.error((e as Error).message || t.shelfLayout.saveFailed);
     } finally {
@@ -752,13 +758,12 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   }
 
   async function handleRename() {
-    if (!activeShelf) return;
-    const ownerShelfId = activeShelf.id;
-    const controller = startMutation();
-    if (!controller) return;
+    const shelf = activeShelf!;
+    const ownerShelfId = shelf.id;
+    const controller = beginMutation();
     const next = await prompt({
       title: t.shelfLayout.rename,
-      initial: activeShelf.name,
+      initial: shelf.name,
       confirmLabel: t.shelfLayout.rename,
       cancelLabel: t.shelfLayout.cancel,
     });
@@ -795,13 +800,11 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   }
 
   async function handleResize(deltaCols: number, deltaRows: number) {
-    if (!activeShelf) return;
-    const ownerShelfId = activeShelf.id;
-    const cols = clampDim(activeShelf.cols + deltaCols);
-    const rows = clampDim(activeShelf.rows + deltaRows);
-    if (cols === activeShelf.cols && rows === activeShelf.rows) return;
-    const controller = startMutation();
-    if (!controller) return;
+    const shelf = activeShelf!;
+    const ownerShelfId = shelf.id;
+    const cols = clampDim(shelf.cols + deltaCols);
+    const rows = clampDim(shelf.rows + deltaRows);
+    const controller = beginMutation();
     try {
       const res = await fetch(`/api/shelves/${ownerShelfId}`, {
         method: 'PATCH',
@@ -817,9 +820,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         prev.map((s) => (s.id === ownerShelfId ? { ...s, ...data.shelf } : s)),
       );
       setLoaded((prev) => ({
-        ...prev,
-        [ownerShelfId]: {
-          shelf: { ...activeShelf, ...data.shelf },
+          ...prev,
+          [ownerShelfId]: {
+          shelf: { ...shelf, ...data.shelf },
           slots: data.slots,
           displays: activeState?.displays.filter(
             (d) => d.after_row <= data.shelf.rows && d.position < data.shelf.cols,
@@ -842,10 +845,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   }
 
   async function handleDelete() {
-    if (!activeShelf) return;
-    const ownerShelfId = activeShelf.id;
-    const controller = startMutation();
-    if (!controller) return;
+    const shelf = activeShelf!;
+    const ownerShelfId = shelf.id;
+    const controller = beginMutation();
     const ok = await confirm({
       message: t.shelfLayout.deleteConfirm,
       tone: 'danger',
@@ -1518,9 +1520,6 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
   // horizontally if the panel would clip the right viewport edge.
   const containerRef = useRef<HTMLLIElement>(null);
   const artwork = editionArtwork(entry);
-  const stop = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-  };
   const isSynthetic = entry.release_id.startsWith('synthetic:');
   return (
     <li
@@ -1562,7 +1561,7 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           // most useful single distinguisher when two editions of
           const platformState = derivePlatformDisplay({
             ownedPlatform: entry.owned_platform,
-            releasePlatforms: entry.rel_platforms ?? [],
+            releasePlatforms: entry.rel_platforms,
             releaseId: entry.release_id,
           });
           const platformChip =
@@ -1634,7 +1633,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
       {slot.box_type !== 'none' && (
         <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-bg/75 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
           <Box className="h-2.5 w-2.5" aria-hidden />
-          {(t.boxTypes as Record<string, string>)[slot.box_type] ?? slot.box_type}
+          {(t.boxTypes as Record<string, string>)[slot.box_type]}
         </span>
       )}
       {slot.dumped && (
@@ -1803,31 +1802,19 @@ function findEdition(
   box_type: ShelfEntry['box_type'];
   condition: string | null;
   dumped: boolean;
-  // Optional release/owned metadata. All three sources
-  // (ShelfSlotEntry / ShelfDisplaySlotEntry / ShelfEntry) now
-  // carry these - the synthetic pool path provided by
-  // `synthesizePoolEntryFromEdge` may not. The optional shape
-  // lets the caller forward what's available and fall back to
-  // safe defaults otherwise.
-  owned_platform?: string | null;
-  /**
-   * Owned-release annotations now plumbed through `listShelfSlots` /
-   * by the optimistic snapshots, then refetched from the server). All
-   * four are optional because the synthetic pool synthesizer for
-   * brand-new editions doesn't know them.
-   */
-  physical_location?: string[];
-  price_paid?: number | null;
-  currency?: string | null;
-  acquired_date?: string | null;
-  vn_platforms?: string[];
-  vn_languages?: string[];
-  vn_released?: string | null;
-  rel_title?: string | null;
-  rel_platforms?: string[];
-  rel_languages?: string[];
-  rel_released?: string | null;
-  rel_resolution?: string | null;
+  owned_platform: string | null;
+  physical_location: string[];
+  price_paid: number | null;
+  currency: string | null;
+  acquired_date: string | null;
+  vn_platforms: string[];
+  vn_languages: string[];
+  vn_released: string | null;
+  rel_title: string | null;
+  rel_platforms: string[];
+  rel_languages: string[];
+  rel_released: string | null;
+  rel_resolution: string | null;
 } | null {
   if (src.kind === 'slot') {
     const slot = slots.find(

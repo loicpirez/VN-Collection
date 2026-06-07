@@ -59,7 +59,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
 
   function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [],
+      e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'),
     );
     if (items.length === 0) return;
     const idx = items.indexOf(document.activeElement as HTMLElement);
@@ -108,7 +108,6 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
       setMemberCount(set.size);
     } catch (error) {
       if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
-      if (identityRef.current !== ownerVnId || loadAbortRef.current !== controller) return;
       toast.error(error instanceof Error ? error.message : t.common.error);
     } finally {
       if (loadAbortRef.current === controller && identityRef.current === ownerVnId) {
@@ -123,7 +122,6 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
     loadAbortRef.current?.abort();
     loadAbortRef.current = null;
     membershipsRef.current = null;
-    for (const controller of toggleAbortRefs.current.values()) controller.abort();
     toggleAbortRefs.current.clear();
     toggleInFlightRef.current.clear();
     createAbortRef.current?.abort();
@@ -192,15 +190,13 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
       startTransition(() => router.refresh());
     } catch (e) {
       if (identityRef.current === ownerVnId && toggleAbortRefs.current.get(list.id) === controller && !controller.signal.aborted) {
-        const live = membershipsRef.current;
-        if (live) {
-          const rollback = new Set(live);
-          if (isMember) rollback.add(list.id);
-          else rollback.delete(list.id);
-          membershipsRef.current = rollback;
-          setMemberships(rollback);
-          setMemberCount(rollback.size);
-        }
+        const live = membershipsRef.current!;
+        const rollback = new Set(live);
+        if (isMember) rollback.add(list.id);
+        else rollback.delete(list.id);
+        membershipsRef.current = rollback;
+        setMemberships(rollback);
+        setMemberCount(rollback.size);
         toast.error((e as Error).message);
       }
     } finally {
@@ -231,7 +227,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
       const list = decodeCreatedOrganizerUserList(await r.json());
       if (!list) throw new Error(t.common.error);
       if (identityRef.current !== ownerVnId || createAbortRef.current !== controller || controller.signal.aborted) return;
-      setLists((cur) => (cur ? [list, ...cur] : [list]));
+      setLists((cur) => [list, ...cur!]);
       setNewName('');
       await toggle(list);
     } catch (e) {
@@ -309,7 +305,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
             </div>
           )}
-          {!loading && lists && (
+          {!loading && lists && memberships && (
             <>
               {lists.length > 5 && (
                 <input
@@ -329,7 +325,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
               )}
               <ul className="mb-2 max-h-56 overflow-y-auto">
                 {filtered.map((l) => {
-                  const checked = memberships?.has(l.id) ?? false;
+                  const checked = memberships.has(l.id);
                   return (
                     <li key={l.id}>
                       <button

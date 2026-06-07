@@ -18,6 +18,14 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 function logoFile() {
   return new File(['bytes'], 'logo.png', { type: 'image/png' });
 }
@@ -65,6 +73,30 @@ describe('ProducerLogoUpload branches', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('opens the hidden file input from the upload button', () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    renderWithProviders(<ProducerLogoUpload producerId="p90001" hasLogo={false} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload logo' }));
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('does not start a second refetch while one is in flight', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(
+      () => new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    global.fetch = fetchMock;
+    renderWithProviders(<ProducerLogoUpload producerId="p90001" hasLogo={false} />, { locale: 'en' });
+    const refetch = screen.getByRole('button', { name: 'Refresh from VNDB' });
+    fireEvent.click(refetch);
+    fireEvent.click(refetch);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(json({ ok: true }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
   it('resets local state (busy/error) when the producerId prop changes', async () => {
     global.fetch = vi.fn().mockResolvedValue(json({ error: 'first boom' }, 500));
     const { rerender, container } = renderWithProviders(
@@ -78,5 +110,53 @@ describe('ProducerLogoUpload branches', () => {
     // clears the error/info/busy state.
     rerender(<ProducerLogoUpload producerId="p90002" hasLogo={false} />);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('ignores a second upload file change while the first upload is in flight', async () => {
+    const firstUpload = deferred<Response>();
+    const fetchMock = vi.fn(() => firstUpload.promise);
+    global.fetch = fetchMock;
+    const { container } = renderWithProviders(<ProducerLogoUpload producerId="p90001" hasLogo={false} />, { locale: 'en' });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { files: [logoFile()] } });
+    fireEvent.change(input, { target: { files: [logoFile()] } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    firstUpload.resolve(json({ ok: true }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('drops stale successful mutation results after the producer identity changes', async () => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn(() => pending.promise);
+    const { rerender, container } = renderWithProviders(
+      <ProducerLogoUpload producerId="p90001" hasLogo={false} />,
+      { locale: 'en' },
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [logoFile()] } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    rerender(<ProducerLogoUpload producerId="p90002" hasLogo={false} />);
+    pending.resolve(json({ ok: true }));
+    await pending.promise;
+    await Promise.resolve();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('drops stale failed mutation results after the producer identity changes', async () => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn(() => pending.promise);
+    const { rerender } = renderWithProviders(<ProducerLogoUpload producerId="p90001" hasLogo />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove logo' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    rerender(<ProducerLogoUpload producerId="p90002" hasLogo />);
+    pending.resolve(json({ error: 'late remove error' }, 500));
+    await pending.promise;
+    await Promise.resolve();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

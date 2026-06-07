@@ -8,7 +8,7 @@ describe('VN edit-form mutation lifecycle', () => {
     expect(EDIT_FORM).toContain('const collectionAbortRef = useRef<AbortController | null>(null)');
     expect(EDIT_FORM).toContain("const collectionMutationKindRef = useRef<'autosave' | 'action' | null>(null)");
     expect(EDIT_FORM).toContain('function beginAutosave(ownerVnId: string): AbortController | null');
-    expect(EDIT_FORM).toContain('function beginCollectionAction(ownerVnId: string): AbortController | null');
+    expect(EDIT_FORM).toContain('function beginCollectionAction(): AbortController');
     expect(EDIT_FORM).toContain('collectionAbortRef.current?.abort()');
     expect(EDIT_FORM).toContain('keepalive: detached');
     expect(EDIT_FORM).toContain('signal: controller?.signal');
@@ -18,14 +18,14 @@ describe('VN edit-form mutation lifecycle', () => {
   it('acquires the destructive collection owner before awaiting confirmation', () => {
     const removeStart = EDIT_FORM.indexOf('async function handleRemove()');
     const removeBody = EDIT_FORM.slice(removeStart, EDIT_FORM.indexOf('async function addSeries', removeStart));
-    expect(removeBody.indexOf('const controller = beginCollectionAction(ownerVnId)'))
+    expect(removeBody.indexOf('const controller = beginCollectionAction()'))
       .toBeLessThan(removeBody.indexOf('await confirm('));
     expect(removeBody).toContain('clearPendingAutosave()');
   });
 
   it('owns one series mutation channel and cancels obsolete work', () => {
     expect(EDIT_FORM).toContain('const seriesAbortRef = useRef<AbortController | null>(null)');
-    expect(EDIT_FORM).toContain('function beginSeriesMutation(ownerVnId: string): AbortController | null');
+    expect(EDIT_FORM).toContain('function beginSeriesMutation(): AbortController');
     expect(EDIT_FORM).toContain('seriesAbortRef.current?.abort()');
     expect(EDIT_FORM).toContain('signal: controller.signal');
     expect(EDIT_FORM).toContain('if (!ownsSeriesMutation(ownerVnId, controller)) return');

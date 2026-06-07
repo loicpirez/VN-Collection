@@ -171,7 +171,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
       if (saveAbortRef.current === controller) {
         saveAbortRef.current = null;
         saveInFlightRef.current = false;
-        if (identityRef.current === ownerSeriesId) setSaving(false);
+        setSaving(false);
       }
     }
   }, [draft, toast, t.common.error, t.toast.saved, router, seriesId]);
@@ -283,8 +283,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
       ) : (
         <div className="space-y-4">
           {visibleIds.map((id) => {
-            const node = sectionMap.get(id);
-            if (!node) return null;
+            const node = sectionMap.get(id)!;
             const state = active.sections[id];
             return (
               <SectionWrapper

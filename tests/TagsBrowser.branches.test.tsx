@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from './helpers/render-component';
 import { TagsBrowser } from '@/components/TagsBrowser';
@@ -68,6 +68,22 @@ function tree(): VndbTagHomeTree {
     ],
     popular: [{ id: 'g30', name: 'Popular X', href: href('g30'), count: 99 }],
     recentlyAdded: [{ id: 'g40', name: 'Recent X', href: href('g40'), count: 2, dateLabel: '2024-05' }],
+  };
+}
+
+function treeWithOnlyRecent(): VndbTagHomeTree {
+  return {
+    groups: [
+      {
+        id: 'g1',
+        label: 'Group One X',
+        href: href('g1'),
+        children: [{ id: 'g11', name: 'Child A', href: href('g11'), count: null }],
+        moreCount: 0,
+      },
+    ],
+    popular: [],
+    recentlyAdded: [{ id: 'g40', name: 'Recent X', href: href('g40'), count: null, dateLabel: null }],
   };
 }
 
@@ -245,6 +261,27 @@ describe('TagsBrowser branches', () => {
     expect(urls.some((u) => u.startsWith('/api/collection/tags'))).toBe(true);
   });
 
+  it('ignores the SSR-tree local-count merge when the component unmounts first', async () => {
+    let resolveLocal: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith('/api/collection/tags')) {
+        return new Promise<Response>((resolve) => { resolveLocal = resolve; });
+      }
+      return Promise.resolve(jsonOk(treeApi()));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { unmount } = renderWithProviders(<TagsBrowser initialMode="vndb" initialTree={tree()} />, { locale: 'en' });
+    expect(await screen.findByText('Group One X')).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    unmount();
+    resolveLocal?.(jsonOk(localTagsApi([tag({ id: 'g11', vn_count: 4 })])));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('collapses and expands a root group row in the tree', async () => {
     const u = userEvent.setup();
     global.fetch = routedFetch({ local: localTagsApi([]) }) as unknown as typeof fetch;
@@ -272,6 +309,34 @@ describe('TagsBrowser branches', () => {
     expect(screen.getByText(t.tags.staleHierarchy)).toBeInTheDocument();
     // The local count (4) renders as a chip on the matching tree chip.
     expect(screen.getByText('4')).toBeInTheDocument();
+  });
+
+  it('ignores a web-tree response that resolves after unmount', async () => {
+    vi.useFakeTimers();
+    let resolveLocal: ((response: Response) => void) | undefined;
+    let resolveTree: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith('/api/collection/tags')) {
+        return new Promise<Response>((resolve) => { resolveLocal = resolve; });
+      }
+      if (url.startsWith('/api/tags/web-tree')) {
+        return new Promise<Response>((resolve) => { resolveTree = resolve; });
+      }
+      return Promise.resolve(jsonOk({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { unmount } = renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    await act(async () => {
+      vi.advanceTimersByTime(301);
+    });
+    unmount();
+    resolveLocal?.(jsonOk(localTagsApi([tag({ id: 'g11', vn_count: 4 })])));
+    resolveTree?.(jsonOk(treeApi('cache is stale')));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows the error alert when the web-tree fetch is not ok', async () => {
@@ -314,6 +379,61 @@ describe('TagsBrowser branches', () => {
     expect(urls.some((url) => url.startsWith('/api/tags?results=100') && url.includes('category=cont') && url.includes('q=alpha'))).toBe(true);
   });
 
+  it('runs the vndb search path without a category query parameter', async () => {
+    mockParams = new URLSearchParams('mode=vndb&q=alpha');
+    const fetchMock = routedFetch({
+      local: localTagsApi([]),
+      tags: { tags: [tag({ id: 'g900', name: 'alpha Search X', category: 'cont' })] },
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    await waitFor(() => expect(screen.getByText('alpha Search X')).toBeInTheDocument(), { timeout: 3000 });
+    const urls = fetchMock.mock.calls.map((c) => c[0] as string);
+    expect(urls.some((url) => url.startsWith('/api/tags?results=100') && !url.includes('category=') && url.includes('q=alpha'))).toBe(true);
+  });
+
+  it('runs the vndb search path with a category and no query parameter', async () => {
+    mockParams = new URLSearchParams('mode=vndb&category=ero');
+    const fetchMock = routedFetch({
+      local: localTagsApi([]),
+      tags: { tags: [tag({ id: 'g901', name: 'Category Search X', category: 'ero' })] },
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    await waitFor(() => expect(screen.getByText('Category Search X')).toBeInTheDocument(), { timeout: 3000 });
+    const urls = fetchMock.mock.calls.map((c) => c[0] as string);
+    expect(urls.some((url) => url.startsWith('/api/tags?results=100') && url.includes('category=ero') && !url.includes('&q='))).toBe(true);
+  });
+
+  it('ignores vndb search results that resolve after unmount', async () => {
+    vi.useFakeTimers();
+    mockParams = new URLSearchParams('mode=vndb&q=alpha');
+    let resolveLocal: ((response: Response) => void) | undefined;
+    let resolveTags: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith('/api/collection/tags')) {
+        return new Promise<Response>((resolve) => { resolveLocal = resolve; });
+      }
+      if (url.startsWith('/api/tags?')) {
+        return new Promise<Response>((resolve) => { resolveTags = resolve; });
+      }
+      return Promise.resolve(jsonOk({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { unmount } = renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    await act(async () => {
+      vi.advanceTimersByTime(301);
+    });
+    unmount();
+    resolveLocal?.(jsonOk(localTagsApi([tag({ id: 'g100', vn_count: 4 })])));
+    resolveTags?.(jsonOk({ tags: [tag({ id: 'g100', name: 'alpha Searched Tag X' })] }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('shows the error alert when the vndb search fetch is not ok', async () => {
     mockParams = new URLSearchParams('mode=vndb&q=alpha');
     global.fetch = vi.fn(async (url: string) => {
@@ -335,13 +455,50 @@ describe('TagsBrowser branches', () => {
   });
 
   it('shows the generic error when the vndb search decoder rejects the payload', async () => {
+    vi.useFakeTimers();
     mockParams = new URLSearchParams('mode=vndb&q=alpha');
     global.fetch = vi.fn(async (url: string) => {
       if (url.startsWith('/api/tags?')) return jsonOk({ tags: 'not-an-array' });
       return jsonOk(localTagsApi([]));
     }) as unknown as typeof fetch;
     renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    await act(async () => {
+      vi.advanceTimersByTime(301);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    vi.useRealTimers();
     expect(await screen.findByRole('alert', undefined, { timeout: 3000 })).toHaveTextContent(t.common.error);
+  });
+
+  it('ignores an AbortError raised while loading tags', async () => {
+    global.fetch = vi.fn(async () => Promise.reject(new DOMException('aborted', 'AbortError'))) as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser />, { locale: 'en' });
+    await waitFor(() => expect(screen.getByText(t.tags.emptyTitle)).toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('does not set an error when a rejected local request settles after unmount', async () => {
+    let rejectLocal: ((error: Error) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((_, reject) => { rejectLocal = reject; }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { unmount } = renderWithProviders(<TagsBrowser />, { locale: 'en' });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    unmount();
+    rejectLocal?.(new Error('late failure'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a VNDB tree with only recent tags and local-count chips in the list panel', async () => {
+    global.fetch = routedFetch({ local: localTagsApi([tag({ id: 'g40', name: 'Recent X', vn_count: 6 })]) }) as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser initialMode="vndb" initialTree={treeWithOnlyRecent()} />, { locale: 'en' });
+    expect(await screen.findByText('Recent X')).toBeInTheDocument();
+    expect(screen.queryByText(t.tags.popularTags)).toBeNull();
+    expect(screen.getByText(t.tags.recentlyAdded)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('6')).toBeInTheDocument(), { timeout: 3000 });
   });
 
   it('renders the external per-card VNDB link with a stop-propagation handler', async () => {
@@ -453,5 +610,13 @@ describe('TagsBrowser branches', () => {
     renderWithProviders(<TagsBrowser />, { locale: 'en' });
     expect((screen.getByLabelText(t.tags.searchPlaceholder) as HTMLInputElement).value).toBe('preset');
     expect((screen.getByLabelText(t.tags.categoryFilter) as HTMLSelectElement).value).toBe('tech');
+  });
+
+  it('handles a null search-params object from navigation stubs', async () => {
+    mockParams = null as unknown as URLSearchParams;
+    global.fetch = routedFetch({ local: localTagsApi([]) }) as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser />, { locale: 'en' });
+    expect(await screen.findByText(t.tags.emptyTitle)).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining('undefined'), expect.anything());
   });
 });

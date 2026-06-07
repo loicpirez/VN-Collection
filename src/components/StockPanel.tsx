@@ -107,6 +107,7 @@ const STOCK_OFFER_PAGE_SIZE = 12;
 
 const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
+const EMPTY_SOURCES: StockSnapshot['sources'] = [];
 
 export function StockPanel({
   vnId,
@@ -144,7 +145,7 @@ export function StockPanel({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[] | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
   const [aliasLoading, setAliasLoading] = useState(false);
@@ -212,10 +213,8 @@ export function StockPanel({
     if (identityRef.current !== ownerVnId || aliasAbortRef.current !== controller) return;
     aliasAbortRef.current = null;
     aliasMutationInFlightRef.current = false;
-    if (mountedRef.current) {
-      setAliasLoading(false);
-      setAliasPendingTerm(null);
-    }
+    setAliasLoading(false);
+    setAliasPendingTerm(null);
   }
 
   function beginSnapshotMutation(channelRef: MutableRefObject<AbortController | null>): AbortController | null {
@@ -301,7 +300,7 @@ export function StockPanel({
     setRefreshing(false);
     setError(null);
     setSelectedProviders(null);
-    setProgress(null);
+    setProgress({ done: 0, total: 0 });
     setCurrentProvider(null);
     setAliases([]);
     setAliasLoading(false);
@@ -370,7 +369,6 @@ export function StockPanel({
     setCurrentProvider(null);
 
     for (let i = 0; i < toCheck.length; i++) {
-      if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) break;
       const provider = toCheck[i];
       setCurrentProvider(provider);
       try {
@@ -423,12 +421,10 @@ export function StockPanel({
           signal: ctrl.signal,
         });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-        if (r.ok) {
-          const snapshot = decodeStockSnapshot(await r.json());
-          if (!snapshot) throw new Error(t.common.error);
-          if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) return;
-          setSnapshot(snapshot);
-        }
+        const snapshot = decodeStockSnapshot(await r.json());
+        if (!snapshot) throw new Error(t.common.error);
+        if (!ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) return;
+        setSnapshot(snapshot);
       } catch (e) {
         if ((e as Error).name !== 'AbortError' && ownsSnapshotMutation(ownerVnId, abortRef, ctrl)) {
           setError(e instanceof Error && e.message ? e.message : t.common.error);
@@ -659,6 +655,7 @@ export function StockPanel({
 
   const now = useMemo(() => Date.now(), [snapshot]);
   const allOffers = snapshot?.offers ?? EMPTY_OFFERS;
+  const sources = snapshot?.sources ?? EMPTY_SOURCES;
   const staleProviderIds = useMemo(() => {
     if (!hideStale) return new Set<string>();
     return new Set(
@@ -718,6 +715,11 @@ export function StockPanel({
 
   const best = snapshot?.summary.best_price ?? null;
   const lastRefresh = snapshot?.summary.last_refresh ?? null;
+  const availableCount = snapshot?.summary.available ?? 0;
+  const totalCount = snapshot?.summary.total ?? 0;
+  const relatedAvailable = snapshot?.summary.related_available ?? 0;
+  const needsReview = snapshot?.summary.needs_review ?? 0;
+  const rejectedCount = snapshot?.summary.rejected ?? 0;
   const checkedStatuses = snapshot?.statuses ?? [];
   const displayDiagnostics = diagnostics.filter(
     (diag) =>
@@ -755,11 +757,8 @@ export function StockPanel({
 
   const blockedProviderCount = useMemo(() => {
     const blockedGroups = new Set<ProviderDiagnosticGroup>(['blocked', 'attention']);
-    return refreshableProviders.filter((p) => {
-      const diag = diagnosticByProvider.get(p.id);
-      return diag ? blockedGroups.has(diag.group) : false;
-    }).length;
-  }, [refreshableProviders, diagnosticByProvider]);
+    return diagnostics.filter((diag) => refreshableProviderSet.has(diag.provider) && blockedGroups.has(diag.group)).length;
+  }, [diagnostics, refreshableProviderSet]);
   const notCheckedCount = useMemo(
     () => refreshableProviders.filter((p) => !statusByProvider.has(p.id)).length,
     [refreshableProviders, statusByProvider],
@@ -779,20 +778,17 @@ export function StockPanel({
       // Select providers currently in blocked/unreachable state so the user
       // can re-check them after a transient issue.
       const blockedGroups: ProviderDiagnosticGroup[] = ['blocked', 'attention'];
-      const ids = refreshableProviders
-        .map((p) => p.id)
-        .filter((id) => {
-          const diag = diagnosticByProvider.get(id);
-          return diag ? blockedGroups.includes(diag.group) : false;
-        });
-      if (ids.length > 0) setSelectedProviders(ids);
+      const ids = diagnostics
+        .filter((diag) => refreshableProviderSet.has(diag.provider) && blockedGroups.includes(diag.group))
+        .map((diag) => diag.provider);
+      setSelectedProviders(ids);
       return;
     }
     if (kind === 'not_checked') {
       const ids = refreshableProviders
         .map((p) => p.id)
         .filter((id) => !statusByProvider.has(id));
-      if (ids.length > 0) setSelectedProviders(ids);
+      setSelectedProviders(ids);
       return;
     }
     const ids = refreshableProviders.filter((p) => p.kind === kind).map((p) => p.id);
@@ -816,7 +812,7 @@ export function StockPanel({
   const checkButtonLabel = refreshing
     ? t.stock.checkingProviders.replace(
         '{count}',
-        progress ? `${progress.done}/${progress.total}` : String(refreshSelectionCount || refreshableProviders.length),
+        `${progress.done}/${progress.total}`,
       )
     : isPhysicalSelection
       ? t.stock.checkPhysical
@@ -837,26 +833,26 @@ export function StockPanel({
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <PackageSearch className="h-3 w-3" aria-hidden />
               {t.stock.availableGameCount
-                .replace('{available}', String(snapshot?.summary.available ?? 0))
-                .replace('{total}', String(snapshot?.summary.total ?? 0))}
+                .replace('{available}', String(availableCount))
+                .replace('{total}', String(totalCount))}
             </span>
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1">
               <CircleDollarSign className="h-3 w-3" aria-hidden />
               {best != null ? t.stock.bestGamePrice.replace('{price}', currency.format(best)) : t.stock.noPrice}
             </span>
-            {(snapshot?.summary.related_available ?? 0) > 0 && (
+            {relatedAvailable > 0 && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-                {t.stock.relatedAvailableCount.replace('{count}', String(snapshot?.summary.related_available ?? 0))}
+                {t.stock.relatedAvailableCount.replace('{count}', String(relatedAvailable))}
               </span>
             )}
-            {(snapshot?.summary.needs_review ?? 0) > 0 && (
+            {needsReview > 0 && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-                {t.stock.needsReviewCount.replace('{count}', String(snapshot?.summary.needs_review ?? 0))}
+                {t.stock.needsReviewCount.replace('{count}', String(needsReview))}
               </span>
             )}
-            {(snapshot?.summary.rejected ?? 0) > 0 && (
+            {rejectedCount > 0 && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-1">
-                {t.stock.rejectedCount.replace('{count}', String(snapshot?.summary.rejected ?? 0))}
+                {t.stock.rejectedCount.replace('{count}', String(rejectedCount))}
               </span>
             )}
             {lastRefresh && (
@@ -910,7 +906,7 @@ export function StockPanel({
         </div>
       </header>
       <p className="sr-only" role="status" aria-live="polite">
-        {refreshing && progress
+        {refreshing
           ? (t.stock.checkingProviders as string).replace('{count}', `${progress.done}/${progress.total}`)
           : ''}
       </p>
@@ -976,13 +972,14 @@ export function StockPanel({
               const selectable = !provider.disabled;
               const refreshable = refreshableProviderSet.has(provider.id);
               const status = statusByProvider.get(provider.id);
+              const count = offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0;
               return (
                 <ProviderTile
                   key={provider.id}
                   provider={provider}
                   status={status}
-                  count={offerCountByProvider.get(provider.id) ?? status?.offer_count ?? 0}
-                  diagnostic={diagnosticByProvider.get(provider.id)}
+                  count={count}
+                  diagnostic={normalizeProviderDiagnostic(provider, status, count)}
                   selectable={selectable}
                   refreshable={refreshable}
                   selected={selectable ? selectedProviderSet.has(provider.id) : false}
@@ -1008,9 +1005,9 @@ export function StockPanel({
         <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-white [&::-webkit-details-marker]:hidden">
           <Tag className="h-3 w-3" aria-hidden />
           <span className="flex-1">{t.stock.searchSetup as string}</span>
-          {(aliases.length > 0 || (snapshot?.sources ?? []).length > 0) && (
+          {(aliases.length > 0 || sources.length > 0) && (
             <span className="rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold text-accent">
-              {aliases.length + (snapshot?.sources ?? []).length}
+              {aliases.length + sources.length}
             </span>
           )}
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
@@ -1076,9 +1073,9 @@ export function StockPanel({
           {t.stock.manualSources}
         </h3>
         <p className="mt-1 text-[11px] text-muted">{t.stock.manualSourceHint}</p>
-        {(snapshot?.sources ?? []).length > 0 && (
+        {sources.length > 0 && (
           <ul className="mt-2 space-y-1">
-            {(snapshot?.sources ?? []).map((source) => {
+            {sources.map((source) => {
               const sourceHref = safeHref(source.url);
               return (
               <li
@@ -1439,11 +1436,7 @@ function stockAvailabilityLabel(
   const marketplaceMatch = /^(?:marketplace:|Marketplace:\s*¥)(\d[\d,]*)$/.exec(raw);
   if (marketplaceMatch) {
     const price = Number(marketplaceMatch[1].replace(/,/g, ''));
-    const dict = t.stock.availabilityLabels as Record<string, string | undefined>;
-    const tpl = dict.marketplace;
-    if (tpl) {
-      return tpl.replace('{price}', currency.format(price));
-    }
+    return t.stock.availabilityLabels.marketplace.replace('{price}', currency.format(price));
   }
   const slug = LEGACY_AVAILABILITY_LABEL_MAP[raw] ?? raw;
   const dict = t.stock.availabilityLabels as Record<string, string | undefined>;
@@ -1523,7 +1516,7 @@ const ProviderTile = memo(function ProviderTile({
   provider: StockProvider;
   status: StockStatus | undefined;
   count: number;
-  diagnostic: NormalizedProviderDiagnostic | undefined;
+  diagnostic: NormalizedProviderDiagnostic;
   selectable: boolean;
   refreshable: boolean;
   selected: boolean;
@@ -1534,12 +1527,12 @@ const ProviderTile = memo(function ProviderTile({
   onToggle: (id: string) => void;
   onRefreshOnly: (id: string) => void;
 }) {
-  const badgeLabel = diagnostic ? providerDiagnosticText(t, diagnostic.badgeKey) : null;
+  const badgeLabel = providerDiagnosticText(t, diagnostic.badgeKey);
   const capabilityLabel = providerCapabilityText(t, provider);
   const lastChecked = status?.fetched_at ? timeAgo(status.fetched_at, t) : null;
   const lastCheckedFull = status?.fetched_at ? fmtDate(new Date(status.fetched_at), locale) : null;
-  const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel ?? (refreshable ? t.stock.providerNotChecked : t.stock.providerCached)}${count > 0 ? ` (${count})` : ''}`;
-  const diagnosticMessage = diagnostic ? providerDiagnosticText(t, diagnostic.messageKey) : null;
+  const ariaLabel = `${provider.label}: ${capabilityLabel}. ${badgeLabel}${count > 0 ? ` (${count})` : ''}`;
+  const diagnosticMessage = providerDiagnosticText(t, diagnostic.messageKey);
   const tooltipParts: string[] = [];
   if (diagnosticMessage && diagnostic?.kind !== 'ok') tooltipParts.push(diagnosticMessage);
   if (lastCheckedFull) tooltipParts.push((t.stock.lastChecked as string).replace('{date}', lastCheckedFull));
@@ -1550,9 +1543,7 @@ const ProviderTile = memo(function ProviderTile({
           ? 'border-border bg-bg/30 text-muted/40 opacity-60'
           : selected
             ? 'border-accent bg-accent/10 text-white'
-            : selectable
-              ? 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
-              : 'border-border bg-bg/60 text-muted opacity-80'
+            : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
       }`}
       title={provider.disabled ? (t.stock.providerDisabledHint as string) : (tooltipParts.length > 0 ? tooltipParts.join('\n') : undefined)}
     >
@@ -1623,7 +1614,7 @@ function ProviderStatusBadge({
   loading = false,
 }: {
   t: ReturnType<typeof useT>;
-  diagnostic: NormalizedProviderDiagnostic | undefined;
+  diagnostic: NormalizedProviderDiagnostic;
   count: number;
   cached: boolean;
   loading?: boolean;
@@ -1631,10 +1622,10 @@ function ProviderStatusBadge({
   if (loading) {
     return <Loader2 className="h-3 w-3 animate-spin text-accent" aria-hidden />;
   }
-  if (cached && (!diagnostic || diagnostic.kind === 'not_checked')) {
+  if (cached && diagnostic.kind === 'not_checked') {
     return <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{count}</span>;
   }
-  if (!diagnostic || diagnostic.kind === 'not_checked') {
+  if (diagnostic.kind === 'not_checked') {
     return (
       <span className="rounded-md border border-border bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">
         {t.stock.providerNotChecked}
@@ -1647,8 +1638,8 @@ function ProviderStatusBadge({
 }
 
 function providerDiagnosticText(t: TDict, key: string): string {
-  const dict = t.stock.providerDiagnostics as Record<string, string> | undefined;
-  return dict?.[key] ?? key;
+  const dict = t.stock.providerDiagnostics as Record<string, string>;
+  return dict[key];
 }
 
 function diagnosticToneClass(tone: NormalizedProviderDiagnostic['tone']): string {
@@ -1669,11 +1660,11 @@ function diagnosticGroupTitle(t: TDict, group: ProviderDiagnosticGroup): string 
   return providerDiagnosticText(t, map[group]);
 }
 
-function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: NormalizedProviderDiagnostic[]; t: TDict; defaultOpen?: boolean }) {
+function ProviderDiagnostics({ diagnostics, t, defaultOpen }: { diagnostics: NormalizedProviderDiagnostic[]; t: TDict; defaultOpen: boolean }) {
   const groups: ProviderDiagnosticGroup[] = ['attention', 'blocked', 'skipped', 'no_results', 'not_checked'];
   const technical = diagnostics.filter((diag) => diag.technicalDetail);
   const attentionCount = diagnostics.filter((d) => d.group === 'attention' || d.group === 'blocked').length;
-  const [isOpen, setIsOpen] = useStockUiPreference('providerDiagOpen', defaultOpen ?? false);
+  const [isOpen, setIsOpen] = useStockUiPreference('providerDiagOpen', defaultOpen);
   return (
     <details
       open={isOpen}

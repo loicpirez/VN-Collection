@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -108,6 +108,35 @@ describe('EgsRichDetails branches', () => {
     expect(container.querySelector('dl')).toBeNull();
   });
 
+  it('ignores a fetch result that resolves after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const view = renderWithProviders(<EgsRichDetails vnId="v90001" />, { locale: 'en' });
+    view.unmount();
+    await act(async () => {
+      resolveFetch(json(snapshot({ genre: 'Late' })));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Late')).toBeNull();
+  });
+
+  it('ignores malformed numeric columns while rendering valid fields', async () => {
+    mockFetchRaw({
+      genre: 'Comedy',
+      axis_of_soft_or_hard: 'not a number',
+      hanbaisuu: 'NaN',
+      max2: 'Infinity',
+    });
+    renderWithProviders(<EgsRichDetails vnId="v90001" />, { locale: 'en' });
+    expect(await screen.findByText('Comedy')).toBeInTheDocument();
+    expect(screen.queryByText(t.egsRich.softHard)).toBeNull();
+    expect(screen.queryByText(t.egsRich.salesRank)).toBeNull();
+    expect(screen.queryByText(t.egsRich.scoreRange)).toBeNull();
+  });
+
   it('renders every external link, every stat, and the POV breakdown', async () => {
     mockFetchRaw({
       erogetrailers: '777',
@@ -206,6 +235,16 @@ describe('EgsRichDetails branches', () => {
     // A bucket renders 0 (0%); B is 7 of 10 (70%).
     expect(screen.getByText('(0%)')).toBeInTheDocument();
     expect(screen.getByText('(70%)')).toBeInTheDocument();
+  });
+
+  it('falls back to zero for missing B and C POV buckets while A is populated', async () => {
+    mockFetchRaw({
+      total_pov_enrollment_of_a: '4',
+    });
+    renderWithProviders(<EgsRichDetails vnId="v90001" />, { locale: 'en' });
+    expect(await screen.findByText(t.egsRich.povBreakdown)).toBeInTheDocument();
+    expect(screen.getByText('(100%)')).toBeInTheDocument();
+    expect(screen.getAllByText('(0%)')).toHaveLength(2);
   });
 
   it('keeps the POV panel hidden when the enrollment total is zero', async () => {

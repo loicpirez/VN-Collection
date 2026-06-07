@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { EditionInfoTrigger, type EditionInfoPopoverData } from '@/components/EditionInfoPopover';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -74,6 +74,8 @@ describe('EditionInfoPopover branches', () => {
   it('closes the popover on Escape', async () => {
     renderTrigger(makeData());
     await openPopover();
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(screen.getByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeNull());
   });
@@ -83,6 +85,57 @@ describe('EditionInfoPopover branches', () => {
     await openPopover();
     fireEvent.mouseDown(document.body);
     await waitFor(() => expect(screen.queryByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeNull());
+  });
+
+  it('keeps the popover open for trigger and popover pointer events', async () => {
+    renderTrigger(makeData());
+    const button = screen.getByRole('button', { name: t.shelfLayout.poolItemDetails });
+    fireEvent.pointerDown(button);
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+    const region = await screen.findByRole('region', { name: t.shelfLayout.poolItemDetails });
+    fireEvent.pointerDown(region);
+    fireEvent.mouseDown(region);
+    expect(screen.getByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeInTheDocument();
+  });
+
+  it('applies the scoped hover class when requested', () => {
+    renderWithProviders(
+      <EditionInfoTrigger data={makeData()} groupHoverHidden groupHoverScope="group/slot" />,
+      { locale: 'en' },
+    );
+    expect(screen.getByRole('button', { name: t.shelfLayout.poolItemDetails }).className).toContain('sm:group/slot-hover:text-accent');
+  });
+
+  it('computes above/right placement when viewport space is constrained', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 20,
+      y: 720,
+      top: 720,
+      right: 120,
+      bottom: 780,
+      left: 20,
+      width: 100,
+      height: 60,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(220);
+    const offsetWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(300);
+    const innerHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+    const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(260);
+    renderTrigger(makeData());
+    const region = await openPopover();
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event('scroll'));
+    });
+    await waitFor(() => expect(region.className).toContain('bottom-full'));
+    expect(region.className).toContain('right-0');
+    expect(rectSpy).toHaveBeenCalled();
+    offsetHeight.mockRestore();
+    offsetWidth.mockRestore();
+    innerHeight.mockRestore();
+    innerWidth.mockRestore();
   });
 
   it('renders rel_title and edition_label as distinct secondary lines', async () => {
@@ -116,6 +169,9 @@ describe('EditionInfoPopover branches', () => {
     expect(within(region).getByText(t.shelfLayout.platformChooseLabel)).toBeInTheDocument();
     const chooseLink = within(region).getByRole('link', { name: new RegExp(t.form.choosePlatform) });
     expect(chooseLink.getAttribute('href')).toContain('edit_release=r90001');
+    fireEvent.pointerDown(chooseLink);
+    fireEvent.mouseDown(chooseLink);
+    fireEvent.click(chooseLink);
   });
 
   it('offers a refresh action when release metadata is missing for a real release', async () => {
@@ -129,6 +185,62 @@ describe('EditionInfoPopover branches', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/collection/v90001/assets?refresh=true');
     expect(init.method).toBe('POST');
+  });
+
+  it('ignores duplicate metadata refresh clicks while the first request is pending', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    global.fetch = fetchMock as typeof fetch;
+    renderTrigger(makeData({ owned_platform: null, rel_platforms: [], release_id: 'r90057' }));
+    const region = await openPopover();
+    const refresh = within(region).getByRole('button', { name: t.shelfLayout.refreshReleases });
+    act(() => {
+      fireEvent.click(refresh);
+      fireEvent.click(refresh);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
+  });
+
+  it('ignores a stale successful metadata refresh after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    global.fetch = fetchMock as typeof fetch;
+    const view = renderTrigger(makeData({ owned_platform: null, rel_platforms: [], release_id: 'r90058' }));
+    const region = await openPopover();
+    fireEvent.click(within(region).getByRole('button', { name: t.shelfLayout.refreshReleases }));
+    view.unmount();
+    await act(async () => {
+      resolveFetch(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+  });
+
+  it('ignores abort errors from a metadata refresh', async () => {
+    const fetchMock = vi.fn(() => Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+    global.fetch = fetchMock as typeof fetch;
+    renderTrigger(makeData({ owned_platform: null, rel_platforms: [], release_id: 'r90059' }));
+    const region = await openPopover();
+    fireEvent.click(within(region).getByRole('button', { name: t.shelfLayout.refreshReleases }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('aborted')).toBeNull();
+  });
+
+  it('ignores a stale failed metadata refresh after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    global.fetch = fetchMock as typeof fetch;
+    const view = renderTrigger(makeData({ owned_platform: null, rel_platforms: [], release_id: 'r90060' }));
+    const region = await openPopover();
+    fireEvent.click(within(region).getByRole('button', { name: t.shelfLayout.refreshReleases }));
+    view.unmount();
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ error: 'late refresh failed' }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('late refresh failed')).toBeNull();
   });
 
   it('surfaces an error toast when the metadata refresh fails', async () => {
@@ -180,6 +292,19 @@ describe('EditionInfoPopover branches', () => {
     expect(within(region).getByText(t.shelf.dumped)).toBeInTheDocument();
   });
 
+  it('falls back to raw condition and box labels and omits a blank currency suffix', async () => {
+    renderTrigger(makeData({
+      condition: 'shopworn',
+      box_type: 'steelcase',
+      price_paid: 1234,
+      currency: null,
+    }));
+    const region = await openPopover();
+    expect(within(region).getByText('shopworn')).toBeInTheDocument();
+    expect(within(region).getByText('steelcase')).toBeInTheDocument();
+    expect(within(region).getByText('1,234', { exact: false })).toBeInTheDocument();
+  });
+
   it('falls back to vn_* released/languages when rel_* are empty', async () => {
     renderTrigger(makeData({
       rel_released: null,
@@ -198,5 +323,19 @@ describe('EditionInfoPopover branches', () => {
     renderWithProviders(<EditionInfoTrigger data={makeData()} ariaLabelOverride="Custom details" />, { locale: 'en' });
     fireEvent.click(screen.getByRole('button', { name: 'Custom details' }));
     expect(await screen.findByRole('region', { name: 'Custom details' })).toBeInTheDocument();
+  });
+
+  it('keeps the popover open when VN and release links receive pointer/click events', async () => {
+    renderTrigger(makeData());
+    const region = await openPopover();
+    for (const link of [
+      within(region).getByRole('link', { name: t.shelfLayout.poolOpenVn }),
+      within(region).getByRole('link', { name: t.shelfLayout.poolOpenRelease }),
+    ]) {
+      fireEvent.pointerDown(link);
+      fireEvent.mouseDown(link);
+      fireEvent.click(link);
+    }
+    expect(screen.getByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeInTheDocument();
   });
 });

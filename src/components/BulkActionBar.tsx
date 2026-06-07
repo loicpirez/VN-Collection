@@ -111,7 +111,7 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
   function requestStop() {
     cancelRef.current = true;
     controllerRef.current?.abort();
-    if (selectionIdentityRef.current != null) setOperation((prev) => ({ ...prev, aborted: true }));
+    setOperation((prev) => ({ ...prev, aborted: true }));
   }
 
   async function applyField(field: BulkField) {
@@ -128,7 +128,6 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
     let done = 0;
     try {
       for (const id of ids) {
-        if (cancelRef.current || !ownsSelection(ownerKey)) break;
         const controller = new AbortController();
         controllerRef.current = controller;
         setOperation((prev) => ({ ...prev, currentId: id }));
@@ -158,13 +157,6 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
           onClear();
         });
       } else {
-        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
-        onApplied();
-      }
-    } catch (e) {
-      if (ownsSelection(ownerKey) && !cancelRef.current) {
-        localErrors.push((e as Error).message);
-        setErrors(localErrors);
         toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
         onApplied();
       }
@@ -198,7 +190,6 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
       const localErrors: string[] = [];
       let done = 0;
       for (const id of ids) {
-        if (cancelRef.current || !ownsSelection(ownerKey)) break;
         const controller = new AbortController();
         controllerRef.current = controller;
         setOperation((prev) => ({ ...prev, currentId: id }));
@@ -230,13 +221,6 @@ export function BulkActionBar({ selectedIds, onClear, onApplied }: Props) {
         onApplied();
         onClear();
       });
-    } catch (e) {
-      if (ownsSelection(ownerKey) && !cancelRef.current) {
-        const localErrors = [(e as Error).message];
-        setErrors(localErrors);
-        toast.error(`${localErrors.length} ${t.bulkEdit.errors}`);
-        onApplied();
-      }
     } finally {
       if (ownsSelection(ownerKey)) {
         cancelRef.current = false;

@@ -134,4 +134,51 @@ describe('DownloadStatusBar branches', () => {
     // The label renders as a plain span (no vn_id -> JobLabelText short-circuits).
     expect(within(region).getByText(/Plain label no id/)).not.toBeNull();
   });
+
+  it('uses the job label on the collapsed chip when a live job has no current item', async () => {
+    const job = {
+      id: 'no-current', kind: 'cache-refresh', vn_id: null, label: 'Queue tail',
+      total: 2, done: 1, errors: [], started_at: 1, finished_at: null,
+    };
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [job] })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    const trigger = screen.getByRole('button', { name: 'Active downloads' });
+    expect(within(trigger).getByText(/Queue tail/)).not.toBeNull();
+  });
+
+  it('does not update state when a polling response resolves after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const { container, unmount } = renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    unmount();
+    resolveFetch(okJson(snapshot({ jobs: [{
+      id: 'late', kind: 'staff', vn_id: null, label: 'Late job',
+      total: 1, done: 0, errors: [], started_at: 1, finished_at: null,
+    }] })));
+    await flush();
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('falls back to polling when EventSource construction throws', async () => {
+    class ThrowingEventSource {
+      constructor() {
+        throw new Error('stream unavailable');
+      }
+    }
+    (globalThis as unknown as { EventSource: unknown }).EventSource = ThrowingEventSource;
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{
+      id: 'poll-fallback', kind: 'staff', vn_id: null, label: 'Fallback poll',
+      total: 1, done: 0, errors: [], started_at: 1, finished_at: null,
+    }] })));
+    try {
+      renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+      await flush();
+      expect(global.fetch).toHaveBeenCalledWith('/api/download-status', expect.objectContaining({ cache: 'no-store' }));
+      expect(screen.getByRole('button', { name: 'Active downloads' })).not.toBeNull();
+    } finally {
+      delete (globalThis as unknown as { EventSource?: unknown }).EventSource;
+    }
+  });
 });

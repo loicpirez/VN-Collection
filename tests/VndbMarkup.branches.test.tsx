@@ -42,6 +42,12 @@ describe('VndbMarkup renderer branches', () => {
     expect(root.querySelector('br')).not.toBeNull();
   });
 
+  it('keeps unknown bracketed text as literal text', () => {
+    const { container } = renderMarkup('literal [not-a-tag] value');
+    const root = container.querySelector('.markup-root') as HTMLElement;
+    expect(root.textContent).toBe('literal [not-a-tag] value');
+  });
+
   it('renders [b] [i] [u] [s] as strong/em/underline/strike', () => {
     const { container } = renderMarkup('[b]B[/b][i]I[/i][u]U[/u][s]S[/s]');
     const root = container.querySelector('.markup-root') as HTMLElement;
@@ -72,6 +78,13 @@ describe('VndbMarkup renderer branches', () => {
     expect(link.getAttribute('href')).toBe('https://example.com/empty');
   });
 
+  it('drops only malformed url tags while preserving their visible text', () => {
+    const { container } = renderMarkup('[url]No attribute[/url] [url=https://example.com/open]No close');
+    const root = container.querySelector('.markup-root') as HTMLElement;
+    expect(root.textContent).toBe('No attribute No close');
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
   it('falls back to the url text when an internal [url] label is empty', () => {
     renderMarkup('[url=/c90001][/url]');
     // The visible label is the raw fallback; the href is normalized to the
@@ -86,6 +99,12 @@ describe('VndbMarkup renderer branches', () => {
     const link = screen.getByRole('link', { name: 'https://example.com/path' });
     expect(link.getAttribute('href')).toBe('https://example.com/path');
     expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  it('autolinks a bare URL that reaches the end of the text', () => {
+    renderMarkup('https://example.com/final');
+    const link = screen.getByRole('link', { name: 'https://example.com/final' });
+    expect(link.getAttribute('href')).toBe('https://example.com/final');
   });
 
   it('rewrites a javascript: scheme url to # (sanitized as external anchor)', () => {

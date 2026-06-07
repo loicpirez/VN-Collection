@@ -353,7 +353,7 @@ function HomeLayoutPanel({
               <SortableHomeLayoutRow
                 key={id}
                 id={id}
-                visible={draft.sections[id]?.visible !== false}
+                visible={draft.sections[id].visible !== false}
                 label={t.homeSections.sectionLabels[id]}
                 onToggleVisible={() => toggleVisible(id)}
               />
@@ -529,8 +529,8 @@ function VnLayoutPanel({
               <SortableDetailRow
                 key={id}
                 id={id}
-                visible={draft.sections[id]?.visible !== false}
-                collapsedByDefault={draft.sections[id]?.collapsedByDefault ?? false}
+                visible={draft.sections[id].visible !== false}
+                collapsedByDefault={draft.sections[id].collapsedByDefault}
                 label={t.vnLayout.sectionLabels[id]}
                 collapseLabel={t.vnLayout.collapseByDefault}
                 showLabel={t.vnLayout.show}
@@ -669,8 +669,8 @@ function PageLayoutPanel<Id extends string>({
                     <SortableDetailRow
                       key={id}
                       id={id}
-                      visible={draft.sections[id]?.visible !== false}
-                      collapsedByDefault={draft.sections[id]?.collapsedByDefault ?? false}
+                      visible={draft.sections[id].visible !== false}
+                      collapsedByDefault={draft.sections[id].collapsedByDefault}
                       label={sectionLabels[id] ?? id}
                       collapseLabel={t.vnLayout.collapseByDefault}
                       showLabel={t.vnLayout.show}
@@ -789,8 +789,8 @@ function PerPageLayoutPanel() {
   const { settings, set } = useDisplaySettings();
   const { confirm } = useConfirm();
   const [hydrated, setHydrated] = useState(false);
-  const pageSpace = settings.pageSpace ?? {};
-  const density = settings.density ?? {};
+  const pageSpace = settings.pageSpace;
+  const density = settings.density;
 
   useEffect(() => {
     setHydrated(true);

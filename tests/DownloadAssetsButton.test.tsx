@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DownloadAssetsButton } from '@/components/DownloadAssetsButton';
@@ -85,6 +86,58 @@ describe('DownloadAssetsButton', () => {
     const { user } = renderWithProviders(<DownloadAssetsButton vnId="v90008" />, { locale: 'en' });
     await user.click(screen.getByRole('button', { name: 'Download missing' }));
     expect(await screen.findByText('Download failed')).not.toBeNull();
+  });
+
+  it('falls back to the generic error label when the response JSON is invalid', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response('not json', { status: 200, headers: { 'content-type': 'application/json' } }));
+    const { user } = renderWithProviders(<DownloadAssetsButton vnId="v90016" />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: 'Download missing' }));
+    expect(await screen.findByText('Download failed')).not.toBeNull();
+  });
+
+  it('falls back to the generic error label when a non-ok response has no decoded error', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okJson({ broken: true }, 500));
+    const { user } = renderWithProviders(<DownloadAssetsButton vnId="v90010" />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: 'Download missing' }));
+    expect(await screen.findByText('Download failed')).not.toBeNull();
+  });
+
+  it('ignores duplicate clicks while one mutation is in flight', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    renderWithProviders(<DownloadAssetsButton vnId="v90011" />, { locale: 'en' });
+
+    const button = screen.getByRole('button', { name: 'Download missing' });
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    resolveFetch(okJson({ ok: true }));
+    expect(await screen.findByText('Missing data fetched.')).not.toBeNull();
+  });
+
+  it('ignores stale success and failure completions after the VN changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const { rerender, user } = renderWithProviders(<DownloadAssetsButton vnId="v90012" />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: 'Download missing' }));
+    rerender(<DownloadAssetsButton vnId="v90013" />);
+    resolveFetch(okJson({ ok: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    await waitFor(() => expect(screen.queryByText('Missing data fetched.')).toBeNull());
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }));
+    rerender(<DownloadAssetsButton vnId="v90014" />);
+    await user.click(screen.getByRole('button', { name: 'Download missing' }));
+    rerender(<DownloadAssetsButton vnId="v90015" />);
+    rejectFetch(new Error('stale failure'));
+    await Promise.resolve();
+    await Promise.resolve();
+    await waitFor(() => expect(screen.queryByText('stale failure')).toBeNull());
   });
 
   it('renders full-width menu rows in the menu variant', () => {

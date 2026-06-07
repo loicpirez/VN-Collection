@@ -135,7 +135,7 @@ export function ReleaseOwnedToggle({
       if (identityRef.current === ownerIdentity && mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationInFlightRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        setBusy(false);
       }
     }
   }

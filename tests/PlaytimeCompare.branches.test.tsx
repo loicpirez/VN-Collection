@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -191,11 +191,57 @@ describe('PlaytimeCompare branches', () => {
       { locale: 'en' },
     );
     fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
-    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
-    // Second click before the first settles must be a no-op (in-flight guard).
-    fireEvent.click(screen.getByRole('button', { name: t.compare.useAuto }));
+    const egsButton = screen.getByRole('button', { name: t.compare.useEgs });
+    const autoButton = screen.getByRole('button', { name: t.compare.useAuto });
+    act(() => {
+      egsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      autoButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(ok());
     await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
+  });
+
+  it('drops a successful persist after the VN identity changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const { rerender } = renderWithProviders(
+      <PlaytimeCompare vnId="v90001" current="vndb" vndb={600} egs={900} mine={300} />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(<PlaytimeCompare vnId="v90002" current="vndb" vndb={600} egs={900} mine={300} />);
+
+    await act(async () => {
+      resolveFetch(ok());
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+  });
+
+  it('drops a failed persist after the VN identity changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const { rerender } = renderWithProviders(
+      <PlaytimeCompare vnId="v90001" current="vndb" vndb={600} egs={900} mine={300} />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(<PlaytimeCompare vnId="v90002" current="vndb" vndb={600} egs={900} mine={300} />);
+
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ error: 'late playtime failure' }), { status: 500, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('late playtime failure')).toBeNull();
   });
 });

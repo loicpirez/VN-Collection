@@ -160,14 +160,8 @@ export function EditionInfoTrigger({
       'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
     );
     firstFocusable?.focus({ preventScroll: true });
-    function onDoc(e: MouseEvent) {
-      const target = e.target as Node;
-      if (
-        !buttonRef.current?.contains(target) &&
-        !popoverRef.current?.contains(target)
-      ) {
-        setOpen(false);
-      }
+    function onDoc() {
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -187,10 +181,8 @@ export function EditionInfoTrigger({
       setPlaced(false);
       return;
     }
-    if (typeof window === 'undefined') return;
-    const button = buttonRef.current;
-    const popover = popoverRef.current;
-    if (!button || !popover) return;
+    const button = buttonRef.current!;
+    const popover = popoverRef.current!;
     const anchor = (button.offsetParent as HTMLElement | null) ?? button;
     const compute = () => {
       const tileRect = anchor.getBoundingClientRect();
@@ -255,7 +247,7 @@ export function EditionInfoTrigger({
       if (identityRef.current === ownerIdentity && refreshAbortRef.current === controller) {
         refreshAbortRef.current = null;
         refreshInFlightRef.current = false;
-        if (mountedRef.current) setRefreshing(false);
+        setRefreshing(false);
       }
     }
   }
@@ -440,7 +432,6 @@ export function EditionInfoTrigger({
             */}
             {data.owned_platform && data.rel_platforms.length > 1 && (() => {
               const ownedPlatform = data.owned_platform;
-              if (!ownedPlatform) return null;
               const otherPlatforms = data.rel_platforms.filter((p) => p.toLowerCase() !== ownedPlatform.toLowerCase());
               return (
               <div className="text-[10px] text-muted/70">

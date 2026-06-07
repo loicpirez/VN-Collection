@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
@@ -148,6 +149,30 @@ function release(id: string, overrides: Partial<VndbRelease> = {}): VndbRelease 
   };
 }
 
+function pickerReleases(): VndbRelease[] {
+  return Array.from({ length: 41 }, (_value, index) => {
+    const id = `r9${String(index + 1).padStart(4, '0')}`;
+    return release(id, {
+      title: `Picker release ${index + 1}`,
+      alttitle: index === 40 ? 'Final alternate title' : null,
+      languages: [
+        { lang: index === 40 ? 'en' : 'ja', title: null, latin: null, mtl: index === 40, main: true },
+      ],
+      platforms: index === 40 ? ['swi'] : ['win'],
+      patch: index === 40,
+      official: index !== 40,
+      freeware: index === 40,
+      uncensored: index === 40,
+      has_ero: index !== 40,
+      resolution: index === 40 ? '1024x768' : [1280, 720],
+      producers: [{ id: 'p90001', developer: true, publisher: true, name: index === 40 ? 'Final Studio' : 'Studio A' }],
+      images: index === 40
+        ? [{ id: 'cv90041', url: '/release-41.jpg', type: 'pkgfront', sexual: 0 }]
+        : [],
+    });
+  });
+}
+
 function ownedRow(releaseId: string, overrides: Partial<OwnedEditionClientRow> = {}): OwnedEditionClientRow {
   return {
     vn_id: VN_ID,
@@ -194,11 +219,47 @@ interface TestServerState {
   releases: VndbRelease[];
   knownPlaces: string[];
   failOwned?: boolean;
+  abortOwned?: boolean;
+  failReleases?: boolean;
+  malformedOwned?: boolean;
+  malformedReleases?: boolean;
   failPlaces?: boolean;
+  malformedPlaces?: boolean;
+  placesAbort?: boolean;
+  holdPlaces?: boolean;
   failPost?: boolean;
   failPatch?: boolean;
   malformedPatch?: boolean;
   failDelete?: boolean;
+  holdPost?: boolean;
+  holdPatch?: boolean;
+  holdDelete?: boolean;
+  holdReload?: boolean;
+}
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: Error) => void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+interface FetchControls {
+  post?: Deferred<Response>;
+  patch?: Deferred<Response>;
+  delete?: Deferred<Response>;
+  reloadOwned?: Deferred<Response>;
+  reloadReleases?: Deferred<Response>;
+  places?: Deferred<Response>;
 }
 
 function parseBody(init: RequestInit | undefined): PatchBody {
@@ -286,27 +347,54 @@ function applyPatch(row: OwnedEditionClientRow, patch: PatchBody): OwnedEditionC
   return patched;
 }
 
-function installFetchServer(state: TestServerState) {
+function installFetchServer(state: TestServerState, controls: FetchControls = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input.toString();
     const method = init?.method ?? 'GET';
     if (url === `/api/collection/${VN_ID}/owned-releases` && method === 'GET') {
-      return state.failOwned ? json({ error: 'owned failed' }, 500) : json({ owned: state.owned });
+      if (state.abortOwned) throw new DOMException('aborted', 'AbortError');
+      if (state.holdReload) {
+        controls.reloadOwned ??= deferred<Response>();
+        return controls.reloadOwned.promise;
+      }
+      if (state.failOwned) return json({ error: 'owned failed' }, 500);
+      if (state.malformedOwned) return json({ owned: [{ release_id: 42 }] });
+      return json({ owned: state.owned });
     }
     if (url === `/api/vn/${VN_ID}/releases` && method === 'GET') {
+      if (state.holdReload) {
+        controls.reloadReleases ??= deferred<Response>();
+        return controls.reloadReleases.promise;
+      }
+      if (state.failReleases) return json({ error: 'releases failed' }, 500);
+      if (state.malformedReleases) return json({ releases: [{ id: 42 }] });
       return json({ releases: state.releases });
     }
     if (url === '/api/places' && method === 'GET') {
+      if (state.placesAbort) throw new DOMException('aborted', 'AbortError');
+      if (state.holdPlaces) {
+        controls.places ??= deferred<Response>();
+        return controls.places.promise;
+      }
       if (state.failPlaces) return json({ error: 'places failed' }, 500);
+      if (state.malformedPlaces) return json({ known_places: [42] });
       return json({ known_places: state.knownPlaces });
     }
     if (url === `/api/collection/${VN_ID}/owned-releases` && method === 'POST') {
+      if (state.holdPost) {
+        controls.post ??= deferred<Response>();
+        return controls.post.promise;
+      }
       if (state.failPost) return json({ error: 'add failed' }, 500);
       const body = parseBody(init);
       if (body.release_id) state.owned = [rowFromReleaseId(body.release_id, state.releases), ...state.owned];
       return json({ ok: true });
     }
     if (url === `/api/collection/${VN_ID}/owned-releases` && method === 'PATCH') {
+      if (state.holdPatch) {
+        controls.patch ??= deferred<Response>();
+        return controls.patch.promise;
+      }
       if (state.failPatch) return json({ error: 'save failed' }, 500);
       const body = parseBody(init);
       state.owned = state.owned.map((row) => row.release_id === body.release_id ? applyPatch(row, body) : row);
@@ -314,6 +402,10 @@ function installFetchServer(state: TestServerState) {
       return json({ owned: state.owned });
     }
     if (url.startsWith(`/api/collection/${VN_ID}/owned-releases?`) && method === 'DELETE') {
+      if (state.holdDelete) {
+        controls.delete ??= deferred<Response>();
+        return controls.delete.promise;
+      }
       if (state.failDelete) return json({ error: 'delete failed' }, 500);
       const parsed = new URL(url, 'http://localhost');
       const releaseId = parsed.searchParams.get('release_id');
@@ -326,18 +418,45 @@ function installFetchServer(state: TestServerState) {
   return fetchMock;
 }
 
-async function renderLoaded(state: TestServerState) {
+async function renderLoaded(
+  state: TestServerState,
+  props: Partial<ComponentProps<typeof OwnedEditionsSection>> = {},
+) {
   const fetchMock = installFetchServer(state);
   const rendered = renderWithProviders(
     <OwnedEditionsSection
       vnId={VN_ID}
       parentVnTitle="Parent VN"
       parentVnCover={{ url: '/parent.jpg', localPath: '/local-parent.jpg', sexual: 0 }}
+      {...props}
     />,
     { locale: 'en' },
   );
   await screen.findByRole('button', { name: t.inventory.addEdition });
   return { ...rendered, fetchMock };
+}
+
+function renderWithServer(
+  state: TestServerState,
+  controls: FetchControls = {},
+  props: Partial<ComponentProps<typeof OwnedEditionsSection>> = {},
+) {
+  const fetchMock = installFetchServer(state, controls);
+  const rendered = renderWithProviders(
+    <OwnedEditionsSection
+      vnId={VN_ID}
+      parentVnTitle="Parent VN"
+      parentVnCover={{ url: '/parent.jpg', localPath: '/local-parent.jpg', sexual: 0 }}
+      {...props}
+    />,
+    { locale: 'en' },
+  );
+  return { ...rendered, fetchMock, controls };
+}
+
+function batchedClickTwice(element: HTMLElement) {
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
 describe('OwnedEditionsSection', () => {
@@ -435,29 +554,8 @@ describe('OwnedEditionsSection', () => {
     expect(screen.getByText(`1920x1080 / ${t.aspect.keys['16:9']} (${t.aspect.vndb})`)).toBeTruthy();
   });
 
-  it('opens the release picker, paginates, filters, resets, and adds a selected release', async () => {
-    const releases = Array.from({ length: 41 }, (_value, index) => {
-      const id = `r9${String(index + 1).padStart(4, '0')}`;
-      return release(id, {
-        title: `Picker release ${index + 1}`,
-        alttitle: index === 40 ? 'Final alternate title' : null,
-        languages: [
-          { lang: index === 40 ? 'en' : 'ja', title: null, latin: null, mtl: index === 40, main: true },
-        ],
-        platforms: index === 40 ? ['swi'] : ['win'],
-        patch: index === 40,
-        official: index !== 40,
-        freeware: index === 40,
-        uncensored: index === 40,
-        has_ero: index !== 40,
-        resolution: index === 40 ? '1024x768' : [1280, 720],
-        producers: [{ id: 'p90001', developer: true, publisher: true, name: index === 40 ? 'Final Studio' : 'Studio A' }],
-        images: index === 40
-          ? [{ id: 'cv90041', url: '/release-41.jpg', type: 'pkgfront', sexual: 0 }]
-          : [],
-      });
-    });
-    const { fetchMock } = await renderLoaded({ owned: [], releases, knownPlaces: [] });
+  it('opens the release picker and paginates through release metadata', async () => {
+    await renderLoaded({ owned: [], releases: pickerReleases(), knownPlaces: [] });
 
     fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
     expect(screen.getByText('Picker release 1')).toBeTruthy();
@@ -471,6 +569,12 @@ describe('OwnedEditionsSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerPrevious }));
     expect(screen.getByText('Picker release 1')).toBeTruthy();
+  }, 10_000);
+
+  it('filters and resets the release picker', async () => {
+    await renderLoaded({ owned: [], releases: pickerReleases(), knownPlaces: [] });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
 
     fireEvent.change(screen.getByLabelText(t.inventory.pickerSearchPlaceholder), {
       target: { value: 'Final alternate' },
@@ -491,6 +595,12 @@ describe('OwnedEditionsSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
     expect(screen.getByText('Picker release 1')).toBeTruthy();
+  });
+
+  it('adds a selected release from the release picker', async () => {
+    const { fetchMock } = await renderLoaded({ owned: [], releases: pickerReleases(), knownPlaces: [] });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
 
     fireEvent.change(screen.getByLabelText(t.inventory.pickerSearchPlaceholder), {
       target: { value: 'Picker release 41' },
@@ -727,5 +837,615 @@ describe('OwnedEditionsSection', () => {
 
     expect(await screen.findByRole('link', { name: 'Release 90001' })).toBeTruthy();
     expect(fetchMock.mock.calls.filter(([url]) => url === `/api/collection/${VN_ID}/owned-releases`).length).toBeGreaterThan(1);
+  });
+
+  it('ignores unrelated owned-edition events and handles reload decoder failures as optional section errors', async () => {
+    const placesAbort = await renderLoaded({
+      owned: [],
+      releases: [],
+      knownPlaces: [],
+      placesAbort: true,
+    });
+    const beforeIgnoredEvents = placesAbort.fetchMock.mock.calls.length;
+    window.dispatchEvent(new CustomEvent(OWNED_EDITIONS_EVENT));
+    window.dispatchEvent(
+      new CustomEvent(OWNED_EDITIONS_EVENT, {
+        detail: { vnId: 'v90002', releaseId: 'r90001', isNowOwned: true },
+      }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(placesAbort.fetchMock.mock.calls).toHaveLength(beforeIgnoredEvents);
+    cleanup();
+
+    await renderLoaded({
+      owned: [],
+      releases: [],
+      knownPlaces: [],
+      failReleases: true,
+    });
+    expect(await screen.findByText(t.inventory.empty)).toBeTruthy();
+    cleanup();
+
+    await renderLoaded({
+      owned: [],
+      releases: [],
+      knownPlaces: [],
+      malformedOwned: true,
+    });
+    expect(await screen.findByText(t.inventory.empty)).toBeTruthy();
+    cleanup();
+
+    await renderLoaded({
+      owned: [],
+      releases: [],
+      knownPlaces: [],
+      malformedReleases: true,
+    });
+    expect(await screen.findByText(t.inventory.empty)).toBeTruthy();
+  });
+
+  it('drops delayed reload results after unmount', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdReload: true,
+    };
+    const rendered = renderWithServer(state, controls);
+
+    await waitFor(() => {
+      expect(controls.reloadOwned).toBeDefined();
+      expect(controls.reloadReleases).toBeDefined();
+    });
+    rendered.unmount();
+    await act(async () => {
+      controls.reloadOwned?.resolve(json({ owned: state.owned }));
+      controls.reloadReleases?.resolve(json({ releases: state.releases }));
+      await controls.reloadOwned?.promise;
+      await controls.reloadReleases?.promise;
+    });
+    expect(rendered.fetchMock.mock.calls.some(([url]) => url === `/api/collection/${VN_ID}/owned-releases`)).toBe(true);
+  });
+
+  it('ignores aborting reloads and delayed places after unmount', async () => {
+    await renderLoaded({
+      owned: [],
+      releases: [],
+      knownPlaces: [],
+      abortOwned: true,
+    });
+    expect(await screen.findByText(t.inventory.empty)).toBeTruthy();
+    cleanup();
+
+    const controls: FetchControls = {};
+    const rendered = renderWithServer(
+      {
+        owned: [],
+        releases: [],
+        knownPlaces: ['Hidden shelf'],
+        holdPlaces: true,
+      },
+      controls,
+    );
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    await waitFor(() => expect(controls.places).toBeDefined());
+    rendered.unmount();
+    await act(async () => {
+      controls.places?.resolve(json({ known_places: ['Hidden shelf'] }));
+      await controls.places?.promise;
+    });
+    expect(screen.queryByText('Hidden shelf')).toBeNull();
+  });
+
+  it('covers release-card fallbacks for missing release metadata and local parent artwork', async () => {
+    await renderLoaded(
+      {
+        owned: [ownedRow('r90099')],
+        releases: [],
+        knownPlaces: [],
+      },
+      {
+        parentVnTitle: null,
+        parentVnCover: { url: null, localPath: '/local-parent.jpg', sexual: null },
+      },
+    );
+
+    expect(screen.getByRole('link', { name: 'r90099' })).toBeTruthy();
+    expect(screen.getByAltText('r90099')).toHaveAttribute('data-src', '/local-parent.jpg');
+  });
+
+  it('falls back to empty place suggestions when the places payload is malformed', async () => {
+    await renderLoaded({
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      malformedPlaces: true,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    fireEvent.change(screen.getByLabelText(t.form.physicalLocationPlaceholder), { target: { value: 'Shelf X' } });
+    expect(screen.getByDisplayValue('Shelf X')).toBeTruthy();
+  });
+
+  it('exercises each picker filter as an independent rejecting branch', async () => {
+    await renderLoaded({ owned: [], releases: pickerReleases(), knownPlaces: [] });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterPlatform), { target: { value: 'swi' } });
+    expect(screen.getByText('Picker release 41')).toBeTruthy();
+    expect(screen.queryByText('Picker release 1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterType), { target: { value: 'official' } });
+    expect(screen.getByText('Picker release 1')).toBeTruthy();
+    expect(screen.queryByText('Picker release 41')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterType), { target: { value: 'patch' } });
+    expect(screen.getByText('Picker release 41')).toBeTruthy();
+    expect(screen.queryByText('Picker release 1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterEro), { target: { value: 'ero' } });
+    expect(screen.getByText('Picker release 1')).toBeTruthy();
+    expect(screen.queryByText('Picker release 41')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterEro), { target: { value: 'noero' } });
+    expect(screen.getByText('Picker release 41')).toBeTruthy();
+    expect(screen.queryByText('Picker release 1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterMtl), { target: { value: 'nomtl' } });
+    expect(screen.getByText('Picker release 1')).toBeTruthy();
+    expect(screen.queryByText('Picker release 41')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
+
+    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterMtl), { target: { value: 'mtl' } });
+    expect(screen.getByText('Picker release 41')).toBeTruthy();
+    expect(screen.queryByText('Picker release 1')).toBeNull();
+  }, 10_000);
+
+  it('keeps stale add completions from editing rows after the VN identity changes', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdPost: true,
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    fireEvent.click(screen.getByRole('button', { name: /Release 90001/ }));
+    await waitFor(() => expect(controls.post).toBeDefined());
+    rendered.rerender(
+      <OwnedEditionsSection
+        vnId="v90002"
+        parentVnTitle="Other VN"
+        parentVnCover={{ url: '/other.jpg', localPath: null, sexual: 0 }}
+      />,
+    );
+    await act(async () => {
+      controls.post?.resolve(json({ ok: true }));
+      await controls.post?.promise;
+    });
+
+    expect(screen.queryByRole('button', { name: t.common.save })).toBeNull();
+  });
+
+  it('prevents duplicate add submissions while the first add is pending', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdPost: true,
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    await act(async () => {
+      batchedClickTwice(screen.getByRole('button', { name: /Release 90001/ }));
+    });
+    await waitFor(() => expect(controls.post).toBeDefined());
+    expect(rendered.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    await act(async () => {
+      controls.post?.resolve(json({ ok: true }));
+      await controls.post?.promise;
+    });
+  });
+
+  it('opens and closes edit mode with the row edit toggle', async () => {
+    await renderLoaded({
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    expect(screen.getByRole('button', { name: t.common.save })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    expect(screen.queryByRole('button', { name: t.common.save })).toBeNull();
+  });
+
+  it('clears pending add state when the component unmounts during a mutation', async () => {
+    const controls: FetchControls = {};
+    const rendered = renderWithServer(
+      {
+        owned: [],
+        releases: [release('r90001')],
+        knownPlaces: [],
+        holdPost: true,
+      },
+      controls,
+    );
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    fireEvent.click(screen.getByRole('button', { name: /Release 90001/ }));
+    await waitFor(() => expect(controls.post).toBeDefined());
+    rendered.unmount();
+    await act(async () => {
+      controls.post?.resolve(json({ ok: true }));
+      await controls.post?.promise;
+    });
+    expect(rendered.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
+
+  it('drops stale add completions after a delayed reload', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [],
+      releases: [release('r90001')],
+      knownPlaces: [],
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    state.holdReload = true;
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    fireEvent.click(screen.getByRole('button', { name: /Release 90001/ }));
+    await waitFor(() => {
+      expect(controls.reloadOwned).toBeDefined();
+      expect(controls.reloadReleases).toBeDefined();
+    });
+    rendered.rerender(
+      <OwnedEditionsSection
+        vnId="v90002"
+        parentVnTitle="Other VN"
+        parentVnCover={{ url: '/other.jpg', localPath: null, sexual: 0 }}
+      />,
+    );
+    await act(async () => {
+      controls.reloadOwned?.resolve(json({ owned: [ownedRow('r90001')] }));
+      controls.reloadReleases?.resolve(json({ releases: state.releases }));
+      await controls.reloadOwned?.promise;
+      await controls.reloadReleases?.promise;
+    });
+
+    expect(screen.queryByRole('button', { name: t.common.save })).toBeNull();
+  });
+
+  it('keeps stale remove completions from mutating after the VN identity changes', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdDelete: true,
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    fireEvent.click(screen.getByRole('button', { name: t.common.delete }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(controls.delete).toBeDefined());
+    rendered.rerender(
+      <OwnedEditionsSection
+        vnId="v90002"
+        parentVnTitle="Other VN"
+        parentVnCover={{ url: '/other.jpg', localPath: null, sexual: 0 }}
+      />,
+    );
+    await act(async () => {
+      controls.delete?.resolve(json({ ok: true }));
+      await controls.delete?.promise;
+    });
+    expect(screen.queryByText(t.toast.removed)).toBeNull();
+  });
+
+  it('drops stale remove completions after a delayed reload', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    state.holdReload = true;
+    fireEvent.click(screen.getByRole('button', { name: t.common.delete }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm }));
+    await waitFor(() => {
+      expect(controls.reloadOwned).toBeDefined();
+      expect(controls.reloadReleases).toBeDefined();
+    });
+    rendered.rerender(
+      <OwnedEditionsSection
+        vnId="v90002"
+        parentVnTitle="Other VN"
+        parentVnCover={{ url: '/other.jpg', localPath: null, sexual: 0 }}
+      />,
+    );
+    await act(async () => {
+      controls.reloadOwned?.resolve(json({ owned: [] }));
+      controls.reloadReleases?.resolve(json({ releases: state.releases }));
+      await controls.reloadOwned?.promise;
+      await controls.reloadReleases?.promise;
+    });
+    expect(screen.queryByText(t.toast.removed)).toBeNull();
+  });
+
+  it('prevents duplicate remove and save submissions while a mutation is pending', async () => {
+    const deleteControls: FetchControls = {};
+    const deleteRendered = renderWithServer(
+      {
+        owned: [ownedRow('r90001')],
+        releases: [release('r90001')],
+        knownPlaces: [],
+        holdDelete: true,
+      },
+      deleteControls,
+    );
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    await act(async () => {
+      batchedClickTwice(screen.getByRole('button', { name: t.common.delete }));
+    });
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(deleteControls.delete).toBeDefined());
+    expect(deleteRendered.fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1);
+    await act(async () => {
+      deleteControls.delete?.resolve(json({ ok: true }));
+      await deleteControls.delete?.promise;
+    });
+    cleanup();
+
+    const saveControls: FetchControls = {};
+    const saveRendered = renderWithServer(
+      {
+        owned: [ownedRow('r90001')],
+        releases: [release('r90001')],
+        knownPlaces: [],
+        holdPatch: true,
+      },
+      saveControls,
+    );
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    await act(async () => {
+      batchedClickTwice(screen.getByRole('button', { name: t.common.save }));
+    });
+    await waitFor(() => expect(saveControls.patch).toBeDefined());
+    expect(saveRendered.fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(1);
+    await act(async () => {
+      saveControls.patch?.resolve(json({ owned: [ownedRow('r90001')] }));
+      await saveControls.patch?.promise;
+    });
+  });
+
+  it('keeps stale save completions from replacing rows after identity changes', async () => {
+    const controls: FetchControls = {};
+    const state: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdPatch: true,
+    };
+    const rendered = renderWithServer(state, controls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    fireEvent.click(screen.getByRole('button', { name: t.common.save }));
+    await waitFor(() => expect(controls.patch).toBeDefined());
+    rendered.rerender(
+      <OwnedEditionsSection
+        vnId="v90002"
+        parentVnTitle="Other VN"
+        parentVnCover={{ url: '/other.jpg', localPath: null, sexual: 0 }}
+      />,
+    );
+    await act(async () => {
+      controls.patch?.resolve(json({ owned: [ownedRow('r90001', { edition_label: 'Stale label' })] }));
+      await controls.patch?.promise;
+    });
+    expect(screen.queryByText('Stale label')).toBeNull();
+  });
+
+  it('ignores abort errors from add, save, and delete mutations', async () => {
+    const addControls: FetchControls = {};
+    const addState: TestServerState = {
+      owned: [],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdPost: true,
+    };
+    renderWithServer(addState, addControls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    fireEvent.click(screen.getByRole('button', { name: /Release 90001/ }));
+    await waitFor(() => expect(addControls.post).toBeDefined());
+    await act(async () => {
+      addControls.post?.reject(new DOMException('aborted', 'AbortError'));
+      await addControls.post?.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('aborted')).toBeNull();
+    cleanup();
+
+    const saveControls: FetchControls = {};
+    const saveState: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdPatch: true,
+    };
+    renderWithServer(saveState, saveControls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    fireEvent.click(screen.getByRole('button', { name: t.common.save }));
+    await waitFor(() => expect(saveControls.patch).toBeDefined());
+    await act(async () => {
+      saveControls.patch?.reject(new DOMException('aborted', 'AbortError'));
+      await saveControls.patch?.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('aborted')).toBeNull();
+    cleanup();
+
+    const deleteControls: FetchControls = {};
+    const deleteState: TestServerState = {
+      owned: [ownedRow('r90001')],
+      releases: [release('r90001')],
+      knownPlaces: [],
+      holdDelete: true,
+    };
+    renderWithServer(deleteState, deleteControls);
+    await screen.findByRole('button', { name: t.inventory.addEdition });
+    fireEvent.click(screen.getByRole('button', { name: t.common.delete }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(deleteControls.delete).toBeDefined());
+    await act(async () => {
+      deleteControls.delete?.reject(new DOMException('aborted', 'AbortError'));
+      await deleteControls.delete?.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('aborted')).toBeNull();
+  });
+
+  it('saves existing manual-aspect metadata and trims nullable editor fields', async () => {
+    const { fetchMock } = await renderLoaded({
+      owned: [
+        ownedRow('r90001', {
+          edition_label: 'Old label',
+          condition: 'opened',
+          price_paid: 2000,
+          currency: 'jpy',
+          acquired_date: '2024-01-01',
+          purchase_place: 'Old shop',
+          notes: 'Old notes',
+          rel_platforms: ['win', 'swi'],
+          aspect: {
+            width: null,
+            height: null,
+            raw_resolution: null,
+            aspect_key: '4:3',
+            source: 'manual',
+            note: null,
+          },
+        }),
+      ],
+      releases: [release('r90001', { platforms: ['win', 'swi'] })],
+      knownPlaces: [],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    expect(screen.getByLabelText(t.inventory.pricePaid)).toHaveValue(2000);
+    expect(screen.getByLabelText(t.aspect.bucket)).toHaveValue('4:3');
+    fireEvent.change(screen.getByLabelText(t.form.editionLabel), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText(t.form.ownedPlatform), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(t.inventory.pricePaid), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(t.inventory.currency), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText(t.inventory.acquired), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(t.inventory.purchasePlace), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText(t.inventory.notes), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: t.common.save }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true));
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+    expect(parseBody(patchCall?.[1])).toMatchObject({
+      release_id: 'r90001',
+      edition_label: null,
+      owned_platform: null,
+      price_paid: null,
+      currency: null,
+      acquired_date: null,
+      purchase_place: null,
+      notes: null,
+      aspect_override: { width: null, height: null, aspect_key: '4:3' },
+    });
+  });
+
+  it('renders summary and editor fallbacks for sparse owned-edition metadata', async () => {
+    await renderLoaded({
+      owned: [
+        {
+          ...ownedRow('r90001', {
+          price_paid: 500,
+          currency: null,
+          rel_platforms: [],
+            aspect: {
+              width: 1024,
+              height: 768,
+              raw_resolution: '1024x768',
+              aspect_key: '4:3',
+              source: 'manual',
+              note: null,
+            },
+          }),
+        },
+      ],
+      releases: [release('r90001')],
+      knownPlaces: [],
+    });
+
+    expect(screen.getByText('500')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: t.common.edit }));
+    expect(screen.getByLabelText(t.aspect.width)).toHaveValue(1024);
+    expect(screen.getByLabelText(t.aspect.height)).toHaveValue(768);
+  });
+
+  it('renders picker rows without optional resolution, cover, producer, and parent artwork data', async () => {
+    await renderLoaded(
+      {
+        owned: [],
+        releases: [
+          release('r90001', {
+            producers: [],
+            resolution: null,
+            images: [],
+          }),
+        ],
+        knownPlaces: [],
+      },
+      {
+        parentVnTitle: null,
+        parentVnCover: undefined,
+      },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    expect(screen.getByRole('button', { name: /Release 90001/ })).toBeTruthy();
+    expect(screen.getByAltText('Release 90001')).toHaveAttribute('data-src', '');
+  });
+
+  it('renders the synthetic picker without parent title or artwork', async () => {
+    await renderLoaded(
+      {
+        owned: [],
+        releases: [],
+        knownPlaces: [],
+      },
+      {
+        parentVnTitle: null,
+        parentVnCover: undefined,
+      },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
+    expect(screen.getByAltText(t.inventory.syntheticTitle)).toHaveAttribute('data-src', '');
   });
 });

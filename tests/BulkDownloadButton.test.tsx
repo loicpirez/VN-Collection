@@ -5,10 +5,10 @@ import { renderWithProviders } from './helpers/render-component';
 import { BulkDownloadButton } from '@/components/BulkDownloadButton';
 
 const refreshSpy = vi.fn();
-const navState = { search: '' };
+const navState = { search: '', pathname: '/' };
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: refreshSpy, back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => '/',
+  usePathname: () => navState.pathname,
   useSearchParams: () => new URLSearchParams(navState.search),
   notFound: vi.fn(),
   redirect: vi.fn(),
@@ -45,6 +45,7 @@ describe('BulkDownloadButton', () => {
   beforeEach(() => {
     refreshSpy.mockClear();
     navState.search = '';
+    navState.pathname = '/';
     global.fetch = assetFetch();
   });
   afterEach(() => {

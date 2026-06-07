@@ -228,9 +228,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
 
   const switchMode = (next: TagsPageMode) => {
     setMode(next);
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', tagsPageHref(next));
-    }
+    window.history.replaceState(null, '', tagsPageHref(next));
   };
 
   const onTablistKeyDown = (e: React.KeyboardEvent) => {
@@ -511,13 +509,16 @@ function VndbTreeSkeleton() {
 function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbTag[]; mode: TagsPageMode; q: string; localCounts: Map<string, number>; locale: Locale }) {
   const t = useT();
   const buckets = useMemo(() => groupTagsByCategory(results, q), [results, q]);
+  const bucketLabels: Record<(typeof buckets)[number]['category'], string> = {
+    cont: t.tags.cat_cont,
+    ero: t.tags.cat_ero,
+    tech: t.tags.cat_tech,
+    other: t.tags.cat_other,
+  };
   return (
     <div className="space-y-6">
       {buckets.map((bucket) => {
-        const label =
-          bucket.category === 'other'
-            ? t.tags.cat_other
-            : t.tags[`cat_${bucket.category}` as 'cat_cont' | 'cat_ero' | 'cat_tech'];
+        const label = bucketLabels[bucket.category];
         return (
           <section key={bucket.category}>
             <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">

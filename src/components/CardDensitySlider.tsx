@@ -47,7 +47,7 @@ export function CardDensitySlider({
   const id = useId();
   const urlDensity = search?.get('density') ?? null;
   const value = resolveScopedDensity(settings, scope, urlDensity);
-  const scoped = settings.density?.[scope];
+  const scoped = settings.density[scope];
   // The Reset button clears the scoped override and lets the value
   // fall back to `cardDensityPx`. Disable when there's nothing to
   // reset (no scoped key) AND the active value already matches the
@@ -56,11 +56,11 @@ export function CardDensitySlider({
 
   const writeScoped = (next: number) => {
     const clamped = clampCardDensity(next);
-    set('density', { ...(settings.density ?? {}), [scope]: clamped });
+    set('density', { ...settings.density, [scope]: clamped });
   };
 
   const clearScoped = () => {
-    const nextDensity = { ...(settings.density ?? {}) };
+    const nextDensity = { ...settings.density };
     delete nextDensity[scope];
     set('density', nextDensity);
   };

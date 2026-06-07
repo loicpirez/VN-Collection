@@ -30,7 +30,7 @@ describe('stock panel request ownership', () => {
   it('resets VN-scoped stock state when the detail identity changes', () => {
     expect(PANEL).toContain('setSnapshot(initialSnapshot ?? null)');
     expect(PANEL).toContain('setSelectedProviders(null)');
-    expect(PANEL).toContain('setProgress(null)');
+    expect(PANEL).toContain('setProgress({ done: 0, total: 0 })');
     expect(PANEL).toContain('setAliases([])');
     expect(PANEL).toContain('aliasMutationInFlightRef.current = false');
     expect(PANEL).toContain('snapshotMutationInFlightRef.current = false');

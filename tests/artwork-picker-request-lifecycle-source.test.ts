@@ -13,7 +13,9 @@ describe('banner picker and gallery promotion request lifecycle', () => {
     expect(BANNER_PICKER).toContain('const mutationAbortRef = useRef<AbortController | null>(null)');
     expect(BANNER_PICKER).toContain('const mutationInFlightRef = useRef(false)');
     expect(BANNER_PICKER).toContain('mutationAbortRef.current?.abort()');
-    expect(countOccurrences(BANNER_PICKER, 'const controller = beginMutation();')).toBe(3);
+    expect(BANNER_PICKER).toContain('function runMutation(task: (ownerVnId: string, controller: AbortController) => Promise<void>)');
+    expect(countOccurrences(BANNER_PICKER, 'const controller = beginMutation();')).toBe(1);
+    expect(countOccurrences(BANNER_PICKER, 'runMutation(async (ownerVnId, controller) => {')).toBe(3);
     expect(countOccurrences(BANNER_PICKER, 'signal: controller.signal')).toBe(3);
     expect(countOccurrences(BANNER_PICKER, 'if (!ownsMutation(ownerVnId, controller)) return')).toBe(6);
   });

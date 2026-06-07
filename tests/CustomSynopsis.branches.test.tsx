@@ -108,6 +108,15 @@ describe('CustomSynopsis branches', () => {
     expect(screen.queryByDisplayValue('Discarded edit')).toBeNull();
   });
 
+  it('cancels edit mode from an empty initial synopsis', () => {
+    renderSynopsis({ initial: null });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.customSynopsis.add) }));
+    fireEvent.change(screen.getByLabelText('Synopsis'), { target: { value: 'Draft' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.cancel) }));
+    expect(screen.getByTestId('fallback')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Draft')).toBeNull();
+  });
+
   it('surfaces an error toast when the save PATCH fails', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(errorResponse('save boom'));
@@ -116,6 +125,45 @@ describe('CustomSynopsis branches', () => {
     fireEvent.change(screen.getByLabelText('Synopsis'), { target: { value: 'Will fail' } });
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.save) }));
     await waitFor(() => expect(screen.getByText('save boom')).toBeInTheDocument());
+  });
+
+  it('drops successful and failed save responses after unmount', async () => {
+    let resolveSave: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveSave = resolve; })) as unknown as typeof fetch;
+    const successView = renderSynopsis({ initial: null });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.customSynopsis.add) }));
+    fireEvent.change(screen.getByLabelText('Synopsis'), { target: { value: 'Stale save' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.save) }));
+    successView.unmount();
+    resolveSave(okResponse());
+    await Promise.resolve();
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+
+    let resolveFailedSave: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFailedSave = resolve; })) as unknown as typeof fetch;
+    const failureView = renderSynopsis({ initial: null });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.customSynopsis.add) }));
+    fireEvent.change(screen.getByLabelText('Synopsis'), { target: { value: 'Stale failed save' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.save) }));
+    failureView.unmount();
+    resolveFailedSave(errorResponse('stale save failed'));
+    await Promise.resolve();
+    expect(screen.queryByText('stale save failed')).toBeNull();
+  });
+
+  it('ignores a duplicate save submit while the first mutation is pending', async () => {
+    let resolveSave: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveSave = resolve; }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderSynopsis({ initial: null });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.customSynopsis.add) }));
+    fireEvent.change(screen.getByLabelText('Synopsis'), { target: { value: 'One save' } });
+    const saveButton = screen.getByRole('button', { name: new RegExp(t.common.save) });
+    saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveSave(okResponse());
+    await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
   });
 
   it('clears the custom synopsis after confirming and reverts to the fallback', async () => {
@@ -144,5 +192,27 @@ describe('CustomSynopsis branches', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.delete) }));
     await user.click(await screen.findByRole('button', { name: t.common.confirm }));
     await waitFor(() => expect(screen.getByText('clear boom')).toBeInTheDocument());
+  });
+
+  it('drops successful and failed clear responses after unmount', async () => {
+    let resolveClear: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveClear = resolve; })) as unknown as typeof fetch;
+    const successView = renderSynopsis({ initial: 'Clear stale success' });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.delete) }));
+    await successView.user.click(await screen.findByRole('button', { name: t.common.confirm }));
+    successView.unmount();
+    resolveClear(okResponse());
+    await Promise.resolve();
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+
+    let resolveFailedClear: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFailedClear = resolve; })) as unknown as typeof fetch;
+    const failureView = renderSynopsis({ initial: 'Clear stale failure' });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.common.delete) }));
+    await failureView.user.click(await screen.findByRole('button', { name: t.common.confirm }));
+    failureView.unmount();
+    resolveFailedClear(errorResponse('stale clear failed'));
+    await Promise.resolve();
+    expect(screen.queryByText('stale clear failed')).toBeNull();
   });
 });

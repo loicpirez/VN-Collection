@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dices, Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
@@ -29,9 +29,11 @@ export function RandomPickButton({ candidates, queryParams }: Props) {
   const toast = useToast();
   const router = useRouter();
   const [picking, setPicking] = useState(false);
+  const inFlightRef = useRef(false);
 
   async function pick() {
-    if (candidates.length === 0 || picking) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setPicking(true);
     let pool: { id: string; title: string }[] = candidates;
     try {
@@ -45,9 +47,9 @@ export function RandomPickButton({ candidates, queryParams }: Props) {
     } catch {
       pool = candidates;
     } finally {
+      inFlightRef.current = false;
       setPicking(false);
     }
-    if (pool.length === 0) return;
     const choice = pool[Math.floor(Math.random() * pool.length)];
     toast.success(`${t.library.randomPick.picked} - ${choice.title}`);
     router.push(`/vn/${choice.id}`);

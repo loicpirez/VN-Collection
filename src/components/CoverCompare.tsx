@@ -59,7 +59,7 @@ function pickColumn(
   if (pref === 'custom' && customHas) return { used: 'custom', fellBack: false };
   if (pref === 'egs' && egsHas) return { used: 'egs', fellBack: false };
   if (pref === 'vndb' && vndbHas) return { used: 'vndb', fellBack: false };
-  if (customHas) return { used: 'custom', fellBack: pref !== 'auto' && pref !== 'custom' };
+  if (customHas) return { used: 'custom', fellBack: pref !== 'auto' };
   if (vndbHas) return { used: 'vndb', fellBack: pref === 'egs' };
   if (egsHas) return { used: 'egs', fellBack: pref === 'vndb' };
   return { used: null, fellBack: false };

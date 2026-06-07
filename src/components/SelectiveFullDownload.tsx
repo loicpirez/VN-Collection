@@ -12,9 +12,12 @@ import { readApiError } from '@/lib/api-error-read';
 import { decodeSelectiveDownloadQueuedCount } from '@/lib/operation-client-shape';
 type SortKey = 'title' | 'added_at' | 'updated_at' | 'released' | 'rating' | 'user_rating' | 'playtime' | 'status';
 type SortOrder = 'asc' | 'desc';
+type NumericSortKey = 'added_at' | 'updated_at' | 'rating' | 'user_rating' | 'playtime';
+type StringSortKey = Exclude<SortKey, NumericSortKey>;
 
 /** All sort keys we expose, in the order they should appear in the dropdown. */
 const SORT_KEYS: SortKey[] = ['title', 'added_at', 'updated_at', 'released', 'rating', 'user_rating', 'playtime', 'status'];
+const NUMERIC_SORT_KEYS = new Set<SortKey>(['added_at', 'updated_at', 'rating', 'user_rating', 'playtime']);
 
 /** Default direction per key (most often what the user wants). */
 const DEFAULT_ORDER: Record<SortKey, SortOrder> = {
@@ -27,6 +30,10 @@ const DEFAULT_ORDER: Record<SortKey, SortOrder> = {
   playtime: 'desc',
   status: 'asc',
 };
+
+function isNumericSortKey(key: SortKey): key is NumericSortKey {
+  return NUMERIC_SORT_KEYS.has(key);
+}
 
 /**
  * Optional filter context passed in by callers that already know what the
@@ -106,7 +113,6 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
   );
 
   const load = useCallback(async () => {
-    if (!mountedRef.current) return;
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
@@ -184,40 +190,38 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
    */
   const sorted = useMemo(() => {
     const arr = [...filtered];
-    const numericKey = (r: CollectionSelectiveRow): number | null => {
-      switch (sortKey) {
+    const numericKey = (r: CollectionSelectiveRow, key: NumericSortKey): number | null => {
+      switch (key) {
         case 'added_at': return r.added_at;
         case 'updated_at': return r.updated_at;
         case 'rating': return r.rating;
         case 'user_rating': return r.user_rating;
         case 'playtime': return r.playtime_minutes;
-        default: return null;
       }
     };
-    const stringKey = (r: CollectionSelectiveRow): string => {
-      switch (sortKey) {
-        case 'title': return (r.title ?? '').toLowerCase();
+    const stringKey = (r: CollectionSelectiveRow, key: StringSortKey): string => {
+      switch (key) {
+        case 'title': return r.title.toLowerCase();
         case 'released': return r.released ?? '';
         case 'status': return r.status ?? '~'; // null statuses sort last
-        default: return '';
       }
     };
-    const isNumeric = ['added_at', 'updated_at', 'rating', 'user_rating', 'playtime'].includes(sortKey);
+    const isNumeric = isNumericSortKey(sortKey);
     arr.sort((a, b) => {
       let cmp: number;
       if (isNumeric) {
-        const av = numericKey(a);
-        const bv = numericKey(b);
+        const av = numericKey(a, sortKey);
+        const bv = numericKey(b, sortKey);
         // Nulls sort last regardless of direction so they don't drift to the top.
         if (av == null && bv == null) cmp = 0;
         else if (av == null) cmp = 1;
         else if (bv == null) cmp = -1;
         else cmp = av - bv;
       } else {
-        cmp = stringKey(a).localeCompare(stringKey(b));
+        cmp = stringKey(a, sortKey).localeCompare(stringKey(b, sortKey));
       }
       // Stable secondary tie-break by title so the order isn't ambiguous.
-      if (cmp === 0) cmp = (a.title ?? '').localeCompare(b.title ?? '');
+      if (cmp === 0) cmp = a.title.localeCompare(b.title);
       return sortOrder === 'asc' ? cmp : -cmp;
     });
     return arr;
@@ -283,11 +287,9 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
         toast.error((e as Error).message || t.common.error);
       }
     } finally {
-      if (submitAbortRef.current === controller) {
-        submitAbortRef.current = null;
-        submitInFlightRef.current = false;
-        if (mountedRef.current) setSubmitting(false);
-      }
+      submitAbortRef.current = null;
+      submitInFlightRef.current = false;
+      if (mountedRef.current) setSubmitting(false);
     }
   }
 

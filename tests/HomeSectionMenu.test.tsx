@@ -140,6 +140,23 @@ describe('HomeSectionControls', () => {
     expect(document.activeElement).toBe(items[0]);
   });
 
+  it('leaves menu focus unchanged for unrelated keys', () => {
+    renderWithProviders(
+      <HomeSectionControls
+        state={expanded}
+        busy={false}
+        onCollapseToggle={vi.fn()}
+        onHide={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: OPTIONS_LABEL }));
+    const menu = screen.getByRole('menu');
+    const first = within(menu).getAllByRole('menuitem')[0];
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(menu, { key: 'PageDown' });
+    expect(document.activeElement).toBe(first);
+  });
+
   it('closes the menu on Escape and restores focus to the trigger', () => {
     renderWithProviders(
       <HomeSectionControls state={expanded} busy={false} onCollapseToggle={vi.fn()} onHide={vi.fn()} />,
@@ -165,6 +182,16 @@ describe('HomeSectionControls', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('keeps the menu open when the click is inside the controls', () => {
+    renderWithProviders(
+      <HomeSectionControls state={expanded} busy={false} onCollapseToggle={vi.fn()} onHide={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: OPTIONS_LABEL }));
+    const menu = screen.getByRole('menu');
+    fireEvent.mouseDown(menu);
+    expect(screen.getByRole('menu')).toBe(menu);
+  });
+
   it('shows the expand chevron when collapsed', () => {
     renderWithProviders(
       <HomeSectionControls
@@ -176,6 +203,19 @@ describe('HomeSectionControls', () => {
     );
     const chevron = screen.getByRole('button', { name: /Développer|Expand/i });
     expect(chevron.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('renders the expand action inside the menu when collapsed', () => {
+    renderWithProviders(
+      <HomeSectionControls
+        state={{ visible: true, collapsed: true }}
+        busy={false}
+        onCollapseToggle={vi.fn()}
+        onHide={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: OPTIONS_LABEL }));
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Développer|Expand/i })).toBeTruthy();
   });
 
   it('disables both buttons while busy', () => {
@@ -255,6 +295,14 @@ describe('useHomeSection', () => {
     expect(screen.getByTestId('flags').textContent).toBe('false|false|true');
   });
 
+  it('ignores a HOME_LAYOUT_EVENT without detail', () => {
+    renderWithProviders(<HookProbe initialState={{ visible: true, collapsed: false }} />);
+    act(() => {
+      window.dispatchEvent(new Event(HOME_LAYOUT_EVENT));
+    });
+    expect(screen.getByTestId('flags').textContent).toBe('false|false|false');
+  });
+
   it('resets to the default on a reset event', () => {
     renderWithProviders(<HookProbe initialState={{ visible: false, collapsed: true }} />);
     expect(screen.getByTestId('flags').textContent).toBe('false|true|true');
@@ -262,5 +310,57 @@ describe('useHomeSection', () => {
       window.dispatchEvent(new CustomEvent(HOME_LAYOUT_EVENT, { detail: { reset: true } }));
     });
     expect(screen.getByTestId('flags').textContent).toBe('false|false|false');
+  });
+
+  it('ignores duplicate persistence while a section update is already in flight', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<HookProbe initialState={{ visible: true, collapsed: false }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'toggle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'toggle' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+    });
+  });
+
+  it('ignores a successful persistence response after unmount', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const view = renderWithProviders(<HookProbe initialState={{ visible: true, collapsed: false }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'toggle' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores a failed persistence response after unmount', async () => {
+    let rejectFetch: (error: Error) => void = () => {};
+    const fetchMock = vi.fn(() => new Promise<Response>((_resolve, reject) => {
+      rejectFetch = reject;
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const view = renderWithProviders(<HookProbe initialState={{ visible: true, collapsed: false }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'toggle' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => {
+      rejectFetch(new Error('late failure'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).not.toContain('late failure');
   });
 });

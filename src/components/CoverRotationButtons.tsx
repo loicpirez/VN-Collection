@@ -73,7 +73,7 @@ export function CoverRotationButtons({
   }, [vnId]);
 
   async function apply(next: 0 | 90 | 180 | 270) {
-    if (mutationInFlightRef.current || next === rotation) return;
+    if (mutationInFlightRef.current) return;
     const ownerVnId = vnId;
     const prev = rotation;
     const controller = new AbortController();

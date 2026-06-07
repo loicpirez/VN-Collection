@@ -155,12 +155,10 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     setEditingText('');
   }
 
-  async function saveEdit() {
-    if (editingId == null) return;
+  async function saveEdit(ownerEditingId: number) {
     const trimmed = editingText.trim();
     if (!trimmed) return;
     const ownerVnId = vnId;
-    const ownerEditingId = editingId;
     const controller = beginMutation('edit');
     if (!controller) return;
     try {
@@ -340,7 +338,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             onKeyDown={(e) => {
                               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                                 e.preventDefault();
-                                saveEdit();
+                                saveEdit(entry.id);
                               }
                               if (e.key === 'Escape') cancelEdit();
                             }}
@@ -357,7 +355,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                             </button>
                             <button
                               type="button"
-                              onClick={saveEdit}
+                              onClick={() => saveEdit(entry.id)}
                               disabled={busy !== null || editingText.trim().length === 0}
                               className="btn btn-primary text-xs"
                             >
@@ -381,8 +379,8 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   );
 }
 
-function fmtTime(ts: number, locale: string): string {
-  return new Date(ts).toLocaleTimeString(BCP47[locale as Locale] ?? 'en-US', {
+function fmtTime(ts: number, locale: Locale): string {
+  return new Date(ts).toLocaleTimeString(BCP47[locale], {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -393,8 +391,8 @@ function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): s
   return timeAgo(ts, t, now);
 }
 
-function groupByDay(entries: GameLogEntry[], locale: string): { day: string; items: GameLogEntry[] }[] {
-  const fmt = new Intl.DateTimeFormat(BCP47[locale as Locale] ?? 'en-US', {
+function groupByDay(entries: GameLogEntry[], locale: Locale): { day: string; items: GameLogEntry[] }[] {
+  const fmt = new Intl.DateTimeFormat(BCP47[locale], {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

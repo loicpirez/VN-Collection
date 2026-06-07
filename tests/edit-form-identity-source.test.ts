@@ -39,7 +39,7 @@ describe('VN edit-form identity lifecycle', () => {
     expect(EDIT_FORM).toContain('const identityRef = useRef<string | null>(vn.id)');
     expect(EDIT_FORM).toContain('identityRef.current = null');
     expect(EDIT_FORM).toContain('if (identityRef.current !== ownerVnId) return');
-    expect(EDIT_FORM).toContain('if (identityRef.current === ownerVnId) toast.success');
-    expect(EDIT_FORM).toContain('!unmountedRef.current && identityRef.current === ownerVnId');
+    expect(EDIT_FORM).toContain('ownsCollectionMutation(ownerVnId, controller)');
+    expect(EDIT_FORM).toContain('unmountedRef.current || identityRef.current !== ownerVnId');
   });
 });

@@ -21,6 +21,12 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function makeItem(overrides: Partial<AliceNetItem> = {}): AliceNetItem {
   return {
     code: '001-000002-001',
@@ -58,6 +64,19 @@ const RESULTS = {
     { id: 'v90001', title: 'Title Y', released: '2019-08-08', developers: [{ id: 'p90001', name: 'Studio X' }, { id: 'p90002', name: 'Studio Z' }] },
   ],
 };
+
+class ControlledJsonResponse extends Response {
+  private readonly resolveJson: Promise<unknown>;
+
+  constructor(resolveJson: Promise<unknown>) {
+    super('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    this.resolveJson = resolveJson;
+  }
+
+  override json(): Promise<unknown> {
+    return this.resolveJson;
+  }
+}
 
 describe('AliceNetLinkDialog branches', () => {
   beforeEach(() => {
@@ -129,6 +148,146 @@ describe('AliceNetLinkDialog branches', () => {
     }
   });
 
+  it('toasts the generic error when search throws a primitive value', async () => {
+    vi.useFakeTimers();
+    try {
+      global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+        if (String(url).startsWith('/api/search')) throw 'plain search failure';
+        return json({ ok: true });
+      });
+      renderWithProviders(<AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />, { locale: 'en' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await vi.waitFor(() => expect(screen.getByText(t.common.error)).toBeInTheDocument());
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('toasts object-shaped search errors that are not AbortError', async () => {
+    vi.useFakeTimers();
+    try {
+      global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+        if (String(url).startsWith('/api/search')) throw { name: 123, message: 'object search failure' };
+        return json({ ok: true });
+      });
+      renderWithProviders(<AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />, { locale: 'en' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await vi.waitFor(() => expect(screen.getByText('object search failure')).toBeInTheDocument());
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('suppresses AbortError search failures', async () => {
+    vi.useFakeTimers();
+    try {
+      global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+        if (String(url).startsWith('/api/search')) throw new DOMException('Aborted', 'AbortError');
+        return json({ ok: true });
+      });
+      renderWithProviders(<AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />, { locale: 'en' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await flushMicrotasks();
+      expect(screen.queryByRole('alert')).toBeNull();
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not fetch when the debounced query is blank', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetch = vi.fn(async () => json(RESULTS));
+      global.fetch = fetch;
+      renderWithProviders(<AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />, { locale: 'en' });
+      const input = screen.getByLabelText(t.mapEgs.searchPlaceholder);
+      fireEvent.change(input, { target: { value: '' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(screen.getByText(t.mapEgs.empty)).toBeInTheDocument();
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the search progress icon while the VNDB search is pending', async () => {
+    const pendingSearch: { resolve?: (response: Response) => void } = {};
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith('/api/search')) {
+        return new Promise<Response>((resolve, reject) => {
+          pendingSearch.resolve = resolve;
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        });
+      }
+      return Promise.resolve(json({ ok: true }));
+    });
+    renderWithProviders(
+      <AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />,
+      { locale: 'en' },
+    );
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeNull());
+    if (!pendingSearch.resolve) throw new Error('search resolver was not captured');
+    pendingSearch.resolve(json(RESULTS));
+    await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
+  });
+
+  it('drops a search response after the dialog switches to another AliceNet row', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveSearch: (response: Response) => void = () => {};
+      global.fetch = vi.fn((url: RequestInfo | URL) => {
+        if (String(url).startsWith('/api/search')) {
+          return new Promise<Response>((resolve) => { resolveSearch = resolve; });
+        }
+        return Promise.resolve(json({ ok: true }));
+      });
+      const { rerender } = renderWithProviders(
+        <AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />,
+        { locale: 'en' },
+      );
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+      rerender(<AliceNetLinkDialog item={makeItem({ code: '001-000002-002', search_title: 'Other Query' })} onClose={vi.fn()} onLinked={vi.fn()} />);
+      resolveSearch(json(RESULTS));
+      await flushMicrotasks();
+      expect(screen.queryByText('Title Y')).toBeNull();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops decoded search results after the dialog switches before JSON parsing completes', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveJson: (body: unknown) => void = () => {};
+      global.fetch = vi.fn((url: RequestInfo | URL) => {
+        if (String(url).startsWith('/api/search')) {
+          return Promise.resolve(new ControlledJsonResponse(new Promise<unknown>((resolve) => { resolveJson = resolve; })));
+        }
+        return Promise.resolve(json({ ok: true }));
+      });
+      const { rerender } = renderWithProviders(
+        <AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />,
+        { locale: 'en' },
+      );
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+      rerender(<AliceNetLinkDialog item={makeItem({ code: '001-000002-003', search_title: 'Third Query' })} onClose={vi.fn()} onLinked={vi.fn()} />);
+      resolveJson(RESULTS);
+      await flushMicrotasks();
+      expect(screen.queryByText('Title Y')).toBeNull();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('closes when the backdrop is clicked', async () => {
     const onClose = vi.fn();
     renderWithProviders(<AliceNetLinkDialog item={makeItem()} onClose={onClose} onLinked={vi.fn()} />, { locale: 'en' });
@@ -169,5 +328,79 @@ describe('AliceNetLinkDialog branches', () => {
     await within(dialog).findByText('Title Y');
     await user.click(within(dialog).getByRole('button', { name: t.mapEgs.useThis }));
     await waitFor(() => expect(linkUrl).toBe('/api/alicenet/999-123456-001/link'));
+  });
+
+  it('ignores duplicate link clicks while a mutation is already in flight', async () => {
+    const linkCalls: string[] = [];
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith('/api/search')) return Promise.resolve(json(RESULTS));
+      if (String(url).includes('/link') && init?.method === 'POST') {
+        linkCalls.push(String(url));
+        return new Promise<Response>(() => undefined);
+      }
+      return Promise.resolve(json({ ok: true }));
+    });
+    renderWithProviders(
+      <AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={vi.fn()} />,
+      { locale: 'en' },
+    );
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByText('Title Y');
+    const button = within(dialog).getByRole('button', { name: t.mapEgs.useThis });
+    act(() => {
+      button.click();
+      button.click();
+    });
+    expect(linkCalls).toHaveLength(1);
+  });
+
+  it('drops a successful link response after the dialog switches to another row', async () => {
+    let resolveLink: (response: Response) => void = () => {};
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith('/api/search')) return Promise.resolve(json(RESULTS));
+      if (String(url).includes('/link') && init?.method === 'POST') {
+        return new Promise<Response>((resolve) => { resolveLink = resolve; });
+      }
+      return Promise.resolve(json({ ok: true }));
+    });
+    const onClose = vi.fn();
+    const onLinked = vi.fn();
+    const { rerender } = renderWithProviders(
+      <AliceNetLinkDialog item={makeItem()} onClose={onClose} onLinked={onLinked} />,
+      { locale: 'en' },
+    );
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByText('Title Y');
+    fireEvent.click(within(dialog).getByRole('button', { name: t.mapEgs.useThis }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      '/api/alicenet/001-000002-001/link',
+      expect.objectContaining({ method: 'POST' }),
+    ));
+    rerender(<AliceNetLinkDialog item={makeItem({ code: '001-000002-004', search_title: 'Fourth Query' })} onClose={onClose} onLinked={onLinked} />);
+    resolveLink(json({ ok: true }));
+    await flushMicrotasks();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onLinked).not.toHaveBeenCalled();
+    expect(screen.queryByText(t.mapEgs.savedToast)).toBeNull();
+  });
+
+  it('drops aborted link mutations without showing an error toast', async () => {
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).startsWith('/api/search')) return Promise.resolve(json({ results: [] }));
+      if (String(url).includes('/link') && init?.method === 'POST') {
+        return Promise.reject(new DOMException('Aborted', 'AbortError'));
+      }
+      return Promise.resolve(json({ ok: true }));
+    });
+    const onLinked = vi.fn();
+    const { user } = renderWithProviders(
+      <AliceNetLinkDialog item={makeItem()} onClose={vi.fn()} onLinked={onLinked} />,
+      { locale: 'en' },
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: t.alicenet.alicenetNoMatch }));
+    await flushMicrotasks();
+    expect(onLinked).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

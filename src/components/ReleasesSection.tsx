@@ -268,20 +268,17 @@ export function ReleasesSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const pendingRef = useRef(false);
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     identityRef.current = vnId;
-    pendingRef.current = false;
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = null;
     setPendingId(null);
     setOwned(new Set());
     return () => {
       identityRef.current = null;
-      pendingRef.current = false;
       mutationAbortRef.current?.abort();
       mutationAbortRef.current = null;
     };
@@ -315,7 +312,7 @@ export function ReleasesSection({
   const refreshOwned = useCallback(async (signal?: AbortSignal) => {
     const ownerVnId = vnId;
     if (!inCollection) {
-      if (identityRef.current === ownerVnId) setOwned(new Set());
+      setOwned(new Set());
       return;
     }
     try {
@@ -325,9 +322,7 @@ export function ReleasesSection({
       if (!d) return;
       if (signal?.aborted || identityRef.current !== ownerVnId) return;
       setOwned(new Set(d.map((o) => o.release_id)));
-    } catch (e) {
-      if ((e as Error).name === 'AbortError' || signal?.aborted) return;
-      // ignore
+    } catch {
     }
   }, [vnId, inCollection]);
 
@@ -356,12 +351,10 @@ export function ReleasesSection({
   }, [vnId]);
 
   const toggleOwned = useCallback(async (releaseId: string, isOwned: boolean) => {
-    if (!inCollection || pendingRef.current) return;
     const ownerVnId = vnId;
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
-    pendingRef.current = true;
     setPendingId(releaseId);
     try {
       const url = isOwned
@@ -390,10 +383,9 @@ export function ReleasesSection({
     } finally {
       if (mutationAbortRef.current !== controller || identityRef.current !== ownerVnId) return;
       mutationAbortRef.current = null;
-      pendingRef.current = false;
       setPendingId(null);
     }
-  }, [inCollection, vnId, t.common.error]);
+  }, [vnId, t.common.error]);
 
   useSectionCount(releases ? releases.length : null);
 

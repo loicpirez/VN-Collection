@@ -55,7 +55,6 @@ function serverSettings(): ServerSettings {
     vndb_proxy_config: proxyConfig(),
     vndbmirror_proxy_config: proxyConfig(),
     egs_proxy_config: proxyConfig(),
-    alicenet_proxy_config: proxyConfig(),
     stock_proxy_config: proxyConfig(),
     stock_disabled_providers: [],
     stock_retry_without_proxy: true,
@@ -106,7 +105,7 @@ describe('LayoutSettingsTab', () => {
     expect(within(libraryRow).getByText(t.pageSpace.defaultPreset.replace('{preset}', t.pageSpace.preset.standard))).toBeTruthy();
   });
 
-  it('applies global spacing presets and reset-all actions', async () => {
+  it('applies global spacing presets', async () => {
     renderLayout();
     await waitFor(() => expect(screen.getByText(t.pageSpace.scope.library as string)).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSpacing as string }));
@@ -116,20 +115,27 @@ describe('LayoutSettingsTab', () => {
     expect(within(globalPanel as HTMLElement).getByRole('button', { name: t.pageSpace.preset.wide as string }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(within(globalPanel as HTMLElement).getByRole('button', { name: t.settings.globalPageWidthOff as string }));
     expect(within(globalPanel as HTMLElement).getByRole('button', { name: t.settings.globalPageWidthOff as string }).getAttribute('aria-pressed')).toBe('true');
+  });
 
-    const pagesSubTab = screen.getAllByRole('button', { name: t.settings.layoutSubTabPages as string })[0];
-    expect(pagesSubTab).toBeTruthy();
-    fireEvent.click(pagesSubTab);
+  it('applies reset-all actions', async () => {
+    localStorage.setItem(
+      'vn_display_settings_v1',
+      JSON.stringify({ pageSpace: { library: 'compact' }, density: { library: 240 } }),
+    );
+    renderLayout();
     await waitFor(() => expect(screen.getByText(t.pageSpace.scope.library as string)).toBeTruthy());
-    const libraryRow = closestListItem(screen.getByText(t.pageSpace.scope.library as string));
-    fireEvent.click(within(libraryRow).getByRole('button', { name: t.pageSpace.preset.compact as string }));
-    fireEvent.click(within(libraryRow).getByRole('button', { name: t.cardDensity.larger as string }));
-    expect((screen.getByRole('button', { name: t.settings.pageSpaceResetAll as string }) as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByRole('button', { name: t.settings.perPageResetAll as string }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: t.settings.pageSpaceResetAll as string }));
-    fireEvent.click(screen.getByRole('button', { name: t.settings.perPageResetAll as string }));
-    expect((screen.getByRole('button', { name: t.settings.pageSpaceResetAll as string }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: t.settings.perPageResetAll as string }) as HTMLButtonElement).disabled).toBe(true);
+    const pageReset = screen.getByRole('button', { name: t.settings.pageSpaceResetAll as string }) as HTMLButtonElement;
+    const densityReset = screen.getByRole('button', { name: t.settings.perPageResetAll as string }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(pageReset.disabled).toBe(false);
+      expect(densityReset.disabled).toBe(false);
+    });
+    fireEvent.click(pageReset);
+    fireEvent.click(densityReset);
+    await waitFor(() => {
+      expect(pageReset.disabled).toBe(true);
+      expect(densityReset.disabled).toBe(true);
+    });
   });
 
   it('resets all per-page controls after confirmation', async () => {
@@ -170,7 +176,9 @@ describe('LayoutSettingsTab', () => {
     window.addEventListener(VN_LAYOUT_EVENT, listener);
     renderLayout(saveServer);
     fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
-    fireEvent.click(screen.getByRole('tab', { name: t.vnLayout.restoreTitle as string }));
+    const vnTab = await screen.findByRole('tab', { name: t.vnLayout.restoreTitle as string });
+    fireEvent.click(vnTab);
+    await screen.findByRole('button', { name: t.vnLayout.reset as string });
     fireEvent.click(screen.getAllByLabelText(t.vnLayout.collapseByDefault as string)[0]);
     await waitFor(() => expect(saveServer).toHaveBeenCalledWith(expect.objectContaining({ vn_detail_section_layout_v1: expect.any(Object) })));
     fireEvent.click(screen.getAllByRole('button', { name: t.vnLayout.hide as string })[0]);

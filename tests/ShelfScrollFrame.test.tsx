@@ -122,4 +122,21 @@ describe('ShelfScrollFrame', () => {
     ).not.toThrow();
     globalThis.ResizeObserver = saved;
   });
+
+  it('does not observe a child element when the frame has no child node', () => {
+    const observers: Array<{ observe: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }> = [];
+    class CountingResizeObserver {
+      observe = vi.fn();
+      disconnect = vi.fn();
+      constructor() {
+        observers.push(this);
+      }
+    }
+    globalThis.ResizeObserver = CountingResizeObserver as unknown as typeof ResizeObserver;
+
+    renderWithProviders(<ShelfScrollFrame>{null}</ShelfScrollFrame>);
+
+    expect(observers).toHaveLength(1);
+    expect(observers[0].observe).toHaveBeenCalledTimes(1);
+  });
 });

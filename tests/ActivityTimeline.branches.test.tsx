@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act } from 'react';
 import { renderWithProviders } from './helpers/render-component';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -68,6 +69,7 @@ describe('ActivityTimeline branches', () => {
       entry({ id: 10, kind: 'started', payload: { to: '2024-01-02' } }),
       entry({ id: 11, kind: 'started', payload: {} }),
       entry({ id: 12, kind: 'finished', payload: { to: '2024-03-04' } }),
+      entry({ id: 18, kind: 'finished', payload: {} }),
       entry({ id: 13, kind: 'note', payload: { length: 42 } }),
       // note with non-number length exercises the `: 0` branch.
       entry({ id: 14, kind: 'note', payload: {} }),
@@ -171,6 +173,23 @@ describe('ActivityTimeline branches', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(screen.getByText('Stays X')).toBeInTheDocument();
     // DELETE request must never have fired after a cancel.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores a second delete request while the first confirmation is open', async () => {
+    const initial = [entry({ id: 19, kind: 'manual', payload: { text: 'Duplicate delete X' } })];
+    const fetchMock = vi.fn(async () => jsonOk({}));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ActivityTimeline vnId={VN_ID} initial={initial} />, { locale: 'en' });
+    const deleteButton = screen.getByRole('button', { name: t.common.delete });
+
+    act(() => {
+      deleteButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      deleteButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

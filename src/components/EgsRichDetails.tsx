@@ -30,10 +30,7 @@ function n(v: string | null | undefined): number | null {
 export function EgsRichDetails({ vnId }: { vnId: string }) {
   const t = useT();
   const locale = useLocale();
-  const fmtMin = (m: number | null): string | null => {
-    const v = formatMinutes(m, locale, t.year, { emptyValue: 'strict_positive' });
-    return v === '' ? null : v;
-  };
+  const fmtMin = (m: number): string => formatMinutes(m, locale, t.year, { emptyValue: 'strict_positive' });
   const [raw, setRaw] = useState<RawRow | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -129,23 +126,19 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
     <div className="p-4 sm:p-5">
       {links.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
-          {links.map((l) => {
-            const href = safeHref(l.href);
-            if (!href) return null;
-            return (
-              <a
-                key={l.href}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
-              >
-                {l.icon}
-                {l.label}
-                <ExternalLink className="h-2.5 w-2.5 opacity-60" aria-hidden />
-              </a>
-            );
-          })}
+          {links.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
+            >
+              {l.icon}
+              {l.label}
+              <ExternalLink className="h-2.5 w-2.5 opacity-60" aria-hidden />
+            </a>
+          ))}
         </div>
       )}
 
@@ -169,7 +162,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
         {fun != null && fun > 0 && (
           <Stat
             label={t.egsRich.timeToFun}
-            value={fmtMin(fun) ?? '-'}
+            value={fmtMin(fun)}
             hint={t.egsRich.timeToFunHint}
           />
         )}
@@ -219,7 +212,7 @@ function PovBar({
   value: number;
   total: number;
 }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const pct = Math.round((value / total) * 100);
   const fill = tone === 'good' ? 'bg-status-completed' : tone === 'warn' ? 'bg-status-playing' : 'bg-status-dropped';
   return (
     <div>

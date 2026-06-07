@@ -92,7 +92,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
 
 function formatRating(v: unknown, locale: Locale): string {
   if (typeof v !== 'number') return '-';
-  return (v / 10).toLocaleString(BCP47[locale] ?? 'en-US', {
+  return (v / 10).toLocaleString(BCP47[locale], {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });

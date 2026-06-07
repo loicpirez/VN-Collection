@@ -124,4 +124,36 @@ describe('StockPricesSection', () => {
     await waitFor(() => expect(container.querySelector('.animate-pulse')).toBeNull());
     expect(screen.queryByTestId('eroge-panel')).toBeNull();
   });
+
+  it('suppresses stale success completion after unmount', async () => {
+    let resolveFetch!: (response: Response) => void;
+    (global.fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    const { unmount } = renderWithProviders(<StockPricesSection vnId="v90010" />);
+    unmount();
+    resolveFetch(
+      new Response(JSON.stringify(snapshotWithExtras()), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByTestId('eroge-panel')).toBeNull();
+  });
+
+  it('suppresses stale failure completion after unmount', async () => {
+    let rejectFetch!: (error: Error) => void;
+    (global.fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise<Response>((_resolve, reject) => {
+        rejectFetch = reject;
+      }),
+    );
+    const { unmount } = renderWithProviders(<StockPricesSection vnId="v90011" />);
+    unmount();
+    rejectFetch(new Error('stale stock error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale stock error')).toBeNull();
+  });
 });

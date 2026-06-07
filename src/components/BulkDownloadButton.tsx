@@ -118,7 +118,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
       stopRequestedRef.current = true;
       collectionAbortRef.current?.abort();
       activeRequestAbortRef.current?.abort();
-      if (ownsRun(token)) setAborted(true);
+      setAborted(true);
     };
     setRunning(true);
     setFinished(false);
@@ -144,17 +144,12 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
   }
 
   async function runItems(items: { id: string; title: string }[], full: boolean, token: number) {
-    if (!ownsRun(token)) return;
     setTotal(items.length);
 
     const local: Failure[] = [];
     const egsAgg = new Map<EgsWarning['kind'], EgsWarning>();
     try {
       for (let i = 0; i < items.length; i++) {
-        if (stopRequestedRef.current) {
-          setAborted(true);
-          break;
-        }
         const it = items[i];
         setCurrentTitle(it.title);
         const controller = new AbortController();
@@ -186,8 +181,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
             local.push({ id: it.id, message: (e as Error).message });
           }
         }
-        if (activeRequestAbortRef.current === controller) activeRequestAbortRef.current = null;
-        if (!ownsRun(token)) return;
+        activeRequestAbortRef.current = null;
         if (stopRequestedRef.current) {
           setAborted(true);
           break;
@@ -201,7 +195,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
       setFinished(true);
       router.refresh();
     } catch (e) {
-      if (ownsRun(token)) setError((e as Error).message);
+      setError((e as Error).message);
     }
   }
 

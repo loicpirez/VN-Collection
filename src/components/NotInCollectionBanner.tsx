@@ -69,7 +69,6 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
       setAdded(true);
       window.dispatchEvent(new CustomEvent('vn:collection-changed', { detail: { vnId: ownerVnId } }));
       startTransition(() => router.refresh());
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (identityRef.current === ownerVnId) router.refresh();
       }, 250);

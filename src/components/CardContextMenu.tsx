@@ -70,10 +70,10 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
 
   useEffect(() => {
     triggerRef.current = document.activeElement;
-    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])');
-    firstItem?.focus({ preventScroll: true });
+    const firstItem = ref.current!.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])')!;
+    firstItem.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      if (!ref.current!.contains(e.target as Node)) onClose();
     }
     function key(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -85,17 +85,16 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
       // ARIA menu pattern. Tab still moves normally.
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
       const items = Array.from(
-        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]') ?? [],
+        ref.current!.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'),
       ).filter((el) => !el.hasAttribute('disabled'));
-      if (items.length === 0) return;
       const idx = items.indexOf(document.activeElement as HTMLElement);
-      let next: HTMLElement | undefined;
-      if (e.key === 'Home') next = items[0];
-      else if (e.key === 'End') next = items[items.length - 1];
-      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length] ?? items[0];
-      else next = items[(idx - 1 + items.length) % items.length] ?? items[items.length - 1];
+      let next: HTMLElement;
+      if (e.key === 'Home') next = items[0]!;
+      else if (e.key === 'End') next = items[items.length - 1]!;
+      else if (e.key === 'ArrowDown') next = items[(idx + 1 + items.length) % items.length]!;
+      else next = items[(idx - 1 + items.length) % items.length]!;
       e.preventDefault();
-      next?.focus();
+      next.focus();
     }
     window.addEventListener('mousedown', outside, true);
     window.addEventListener('keydown', key);

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within, cleanup } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within, cleanup } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { VnSourcePicker, type VnPickerHit } from '@/components/VnSourcePicker';
 import { dictionaries, DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
@@ -65,6 +65,16 @@ function routedFetch(opts: { library?: unknown; vndb?: unknown; egs?: unknown; f
   });
 }
 
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('VnSourcePicker branches', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -118,5 +128,108 @@ describe('VnSourcePicker branches', () => {
     expect(allTab.getAttribute('aria-pressed')).toBe('true');
     // Both group headers render under the all view.
     expect(screen.getByText('Egs Title')).toBeInTheDocument();
+  });
+
+  it('restores the all-sources view after a source tab was selected', async () => {
+    global.fetch = routedFetch({ vndb: vndbPayload(), egs: egsPayload() });
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} sources={['vndb', 'egs']} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
+    await waitFor(() => expect(screen.getByText('Vndb Title')).toBeInTheDocument());
+    const tabGroup = screen.getByRole('group', { name: t.stock.batchSourceFilter as string });
+    fireEvent.click(within(tabGroup).getByRole('button', { name: `${t.stock.batchSourceLabels.vndb} (1)` }));
+    expect(screen.queryByText('Egs Title')).not.toBeInTheDocument();
+    fireEvent.click(within(tabGroup).getByRole('button', { name: `${t.stock.batchSourceAll as string} (2)` }));
+    expect(screen.getByText('Egs Title')).toBeInTheDocument();
+  });
+
+  it('treats invalid decoded payloads as empty source results', async () => {
+    global.fetch = routedFetch({ library: { bogus: true }, vndb: { bogus: true }, egs: { bogus: true } });
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.getByText(t.search.noResults as string)).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('replaces a pending debounce when the query changes quickly', async () => {
+    global.fetch = routedFetch({ vndb: vndbPayload() });
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} sources={['vndb']} />);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'first' } });
+    fireEvent.change(input, { target: { value: 'second' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    expect(String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain('second');
+  });
+
+  it('ignores abort errors from every source', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    global.fetch = vi.fn(() => Promise.reject(abortError));
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.getByText(t.search.noResults as string)).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('ignores successful stale responses after the query changes', async () => {
+    const staleLibrary = deferredResponse();
+    const staleVndb = deferredResponse();
+    const staleEgs = deferredResponse();
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.includes('old')) {
+        if (u.startsWith('/api/collection/find')) return staleLibrary.promise;
+        if (u.startsWith('/api/search?')) return staleVndb.promise;
+        if (u.startsWith('/api/egs/search')) return staleEgs.promise;
+      }
+      if (u.startsWith('/api/collection/find')) return Promise.resolve(json({ matches: [] }));
+      if (u.startsWith('/api/search?')) return Promise.resolve(json({ results: [] }));
+      if (u.startsWith('/api/egs/search')) return Promise.resolve(json({ candidates: [] }));
+      return Promise.resolve(json({}));
+    });
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'old' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'new' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(6));
+    await act(async () => {
+      staleLibrary.resolve(json({ matches: [{ id: 'v90100', title: 'Stale Library', image_thumb: null, local_image_thumb: null }] }));
+      staleVndb.resolve(json(vndbPayload()));
+      staleEgs.resolve(json(egsPayload()));
+    });
+    expect(screen.queryByText('Stale Library')).not.toBeInTheDocument();
+    expect(screen.queryByText('Vndb Title')).not.toBeInTheDocument();
+    expect(screen.queryByText('Egs Title')).not.toBeInTheDocument();
+  });
+
+  it('ignores failed stale responses after the query changes', async () => {
+    const staleLibrary = deferredResponse();
+    const staleVndb = deferredResponse();
+    const staleEgs = deferredResponse();
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.includes('old')) {
+        if (u.startsWith('/api/collection/find')) return staleLibrary.promise;
+        if (u.startsWith('/api/search?')) return staleVndb.promise;
+        if (u.startsWith('/api/egs/search')) return staleEgs.promise;
+      }
+      if (u.startsWith('/api/collection/find')) return Promise.resolve(json({ matches: [] }));
+      if (u.startsWith('/api/search?')) return Promise.resolve(json({ results: [] }));
+      if (u.startsWith('/api/egs/search')) return Promise.resolve(json({ candidates: [] }));
+      return Promise.resolve(json({}));
+    });
+    renderWithProviders(<VnSourcePicker onPick={vi.fn()} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'old' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'new' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(6));
+    await act(async () => {
+      staleLibrary.reject(new Error('stale library'));
+      staleVndb.reject(new Error('stale vndb'));
+      staleEgs.reject(new Error('stale egs'));
+    });
+    expect(screen.getByText(t.search.noResults as string)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

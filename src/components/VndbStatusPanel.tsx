@@ -76,10 +76,8 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (mountedRef.current) {
-      setPendingLabel(null);
-      setPendingClear(false);
-    }
+    setPendingLabel(null);
+    setPendingClear(false);
   }
 
   const load = useCallback(async (showLoading = false): Promise<boolean> => {
@@ -437,7 +435,7 @@ function UlistDetailsEditor({
       if (controller && identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationInFlightRef.current = false;
-        if (mountedRef.current) setSaving(false);
+        setSaving(false);
       }
     }
   }

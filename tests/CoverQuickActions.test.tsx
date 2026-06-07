@@ -98,6 +98,7 @@ describe('CoverQuickActions', () => {
     global.fetch = fetchMock;
     renderWithProviders(<CoverQuickActions vnId="v90001" inCollection mode="tracking" />);
     const heart = await screen.findByRole('button', { name: t.coverActions.wishlist });
+    await waitFor(() => expect((heart as HTMLButtonElement).disabled).toBe(false));
     expect(heart.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(heart);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));

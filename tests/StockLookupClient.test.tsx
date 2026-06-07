@@ -40,6 +40,12 @@ vi.mock('@/components/StockBatchClient', () => ({
   StockBatchClient: () => <div data-testid="batch-client" />,
 }));
 
+vi.mock('@/components/AliceNetClient', () => ({
+  AliceNetClient: ({ embedded, basePath }: { embedded?: boolean; basePath?: string }) => (
+    <div data-testid="alicenet-client" data-embedded={String(embedded)} data-base-path={basePath ?? ''} />
+  ),
+}));
+
 const t = dictionaries[DEFAULT_LOCALE];
 
 function json(body: unknown, status = 200) {
@@ -55,6 +61,20 @@ function routedFetch(opts: { providerMap?: unknown; vnTitle?: unknown; titleFail
     if (u.startsWith('/api/vn/')) {
       if (opts.titleFail) return new Response('boom', { status: 500 });
       return json(opts.vnTitle ?? { vn: { title: 'Resolved Title' } });
+    }
+    return json({});
+  });
+}
+
+function routedFetchWithFailures(opts: { providerMapStatus?: number; titleReject?: Error; vnTitle?: unknown } = {}) {
+  return vi.fn(async (url: RequestInfo | URL) => {
+    const u = String(url);
+    if (u.startsWith('/api/places/provider-map')) {
+      return opts.providerMapStatus ? new Response('provider map failed', { status: opts.providerMapStatus }) : json({ broken: true });
+    }
+    if (u.startsWith('/api/vn/')) {
+      if (opts.titleReject) throw opts.titleReject;
+      return json(opts.vnTitle ?? { broken: true });
     }
     return json({});
   });
@@ -77,8 +97,9 @@ describe('StockLookupClient', () => {
     expect(screen.queryByTestId('stock-panel')).toBeNull();
     // The provider-map fetch still fires on mount.
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
-    // Batch client always mounts.
     expect(screen.getByTestId('batch-client')).toBeTruthy();
+    expect(screen.getByTestId('alicenet-client').getAttribute('data-embedded')).toBe('true');
+    expect(screen.getByTestId('alicenet-client').getAttribute('data-base-path')).toBe('/stock');
   });
 
   it('renders the panel inside the boundary and resolves the VN title when initialVnId is set', async () => {
@@ -113,5 +134,35 @@ describe('StockLookupClient', () => {
     // Panel still mounted; title stays empty (no crash on the failed fetch).
     expect(screen.getByTestId('stock-panel')).toBeTruthy();
     expect(screen.getByTestId('panel-title').textContent).toBe('');
+  });
+
+  it('ignores failed and undecodable provider-map responses', async () => {
+    global.fetch = routedFetchWithFailures({ providerMapStatus: 500 });
+    renderWithProviders(<StockLookupClient initialVnId="v90042" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
+    expect(screen.getByTestId('panel-places').textContent).toBe('');
+
+    vi.restoreAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    global.fetch = routedFetchWithFailures();
+    renderWithProviders(<StockLookupClient initialVnId="v90043" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
+    expect(screen.getAllByTestId('panel-places').at(-1)?.textContent).toBe('');
+  });
+
+  it('keeps the title empty for undecodable and aborted title responses', async () => {
+    global.fetch = routedFetchWithFailures({ vnTitle: { broken: true } });
+    renderWithProviders(<StockLookupClient initialVnId="v90042" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/vn/v90042', expect.any(Object)));
+    expect(screen.getByTestId('panel-title').textContent).toBe('');
+
+    vi.restoreAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    global.fetch = routedFetchWithFailures({ titleReject: abortError });
+    renderWithProviders(<StockLookupClient initialVnId="v90043" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/vn/v90043', expect.any(Object)));
+    expect(console.error).not.toHaveBeenCalled();
   });
 });

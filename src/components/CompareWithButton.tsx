@@ -86,7 +86,6 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
   }
 
   function go() {
-    if (picked.size === 0) return;
     const ids = [currentVnId, ...Array.from(picked)];
     router.push(`/compare?ids=${encodeURIComponent(ids.join(','))}`);
   }

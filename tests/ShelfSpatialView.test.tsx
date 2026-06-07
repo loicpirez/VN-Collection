@@ -167,6 +167,46 @@ describe('ShelfSpatialView', () => {
     expect(displayCard.getAttribute('href')).toBe('/vn/v90002');
   });
 
+  it('renders multiple face-out entries for one display row with portrait aspect', async () => {
+    listShelvesMock.mockReturnValue([shelf({ cols: 3, placed_count: 2 })]);
+    listShelfDisplaySlotsMock.mockReturnValue([
+      display({ after_row: 0, position: 0, vn_title: 'Display A' }),
+      display({
+        after_row: 0,
+        position: 2,
+        vn_id: 'v90003',
+        release_id: 'r90003',
+        vn_title: 'Display B',
+        edition_label: 'Limited',
+        vn_image_url: null,
+        vn_image_thumb: 'https://example.test/display-thumb.jpg',
+      }),
+    ]);
+    const { container } = await renderView({ defaultOrientation: 'portrait' });
+    const cards = screen.getAllByRole('link', { name: new RegExp(dictionaries.fr.shelfSpatial.displayItemPrefix) });
+    expect(cards).toHaveLength(2);
+    expect(cards[1].getAttribute('title')).toBe('Display B / Limited');
+    expect((within(cards[1]).getByRole('img', { name: 'Display B' }) as HTMLImageElement).src).toContain('display-thumb.jpg');
+    expect(container.querySelector('[data-shelf-display-grid]')?.getAttribute('style')).toContain('2/3');
+  });
+
+  it('renders shelf card edition title, thumbnail fallback, and dumped marker', async () => {
+    listShelvesMock.mockReturnValue([shelf({ placed_count: 1 })]);
+    listShelfSlotsMock.mockReturnValue([
+      slot({
+        edition_label: 'Box',
+        vn_image_url: null,
+        vn_image_thumb: 'https://example.test/thumb.jpg',
+        dumped: true,
+      }),
+    ]);
+    await renderView();
+    const card = screen.getByRole('link', { name: 'Title Y' });
+    expect(card.getAttribute('title')).toBe('Title Y / Box');
+    expect((within(card).getByRole('img', { name: 'Title Y' }) as HTMLImageElement).src).toContain('thumb.jpg');
+    expect(within(card).getByTitle(dictionaries.fr.shelf.dumped)).toBeTruthy();
+  });
+
   it('honors a per-row orientation override map', async () => {
     listShelvesMock.mockReturnValue([shelf({ rows: 2, placed_count: 1 })]);
     listShelfDisplaySlotsMock.mockReturnValue([display({ after_row: 1, position: 0 })]);

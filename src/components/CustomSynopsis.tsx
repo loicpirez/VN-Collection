@@ -77,58 +77,60 @@ export function CustomSynopsis({ vnId, label, initial, fallback }: Props) {
     setSaving(false);
   }
 
-  async function save() {
+  function runMutation(task: (ownerVnId: string, controller: AbortController) => Promise<void>) {
     const ownerVnId = vnId;
     const controller = beginMutation();
     if (!controller) return;
-    try {
-      const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim() || null }),
-        signal: controller.signal,
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.success(t.toast.saved);
-      setEditing(false);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.error((e as Error).message);
-    } finally {
-      finishMutation(ownerVnId, controller);
-    }
+    void task(ownerVnId, controller);
   }
 
-  async function clear() {
-    const ownerVnId = vnId;
-    const controller = beginMutation();
-    if (!controller) return;
-    const ok = await confirm({ message: t.customSynopsis.clearConfirm, tone: 'danger' });
-    if (!ok || !ownsMutation(ownerVnId, controller)) {
-      finishMutation(ownerVnId, controller);
-      return;
-    }
-    try {
-      const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: null }),
-        signal: controller.signal,
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (!ownsMutation(ownerVnId, controller)) return;
-      setText('');
-      setEditing(false);
-      toast.success(t.toast.saved);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.error((e as Error).message);
-    } finally {
-      finishMutation(ownerVnId, controller);
-    }
+  function save() {
+    runMutation(async (ownerVnId, controller) => {
+      try {
+        const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.trim() || null }),
+          signal: controller.signal,
+        });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.success(t.toast.saved);
+        setEditing(false);
+        startTransition(() => router.refresh());
+      } catch (e) {
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.error((e as Error).message);
+      } finally {
+        finishMutation(ownerVnId, controller);
+      }
+    });
+  }
+
+  function clear() {
+    runMutation(async (ownerVnId, controller) => {
+      try {
+        const ok = await confirm({ message: t.customSynopsis.clearConfirm, tone: 'danger' });
+        if (!ok || !ownsMutation(ownerVnId, controller)) return;
+        const r = await fetch(`/api/collection/${ownerVnId}/custom-description`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: null }),
+          signal: controller.signal,
+        });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!ownsMutation(ownerVnId, controller)) return;
+        setText('');
+        setEditing(false);
+        toast.success(t.toast.saved);
+        startTransition(() => router.refresh());
+      } catch (e) {
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.error((e as Error).message);
+      } finally {
+        finishMutation(ownerVnId, controller);
+      }
+    });
   }
 
   if (editing) {

@@ -3,7 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, screen, within, waitFor } from '@testing-library/react';
 import type { ComponentType } from 'react';
-import { renderWithProviders } from './helpers/render-component';
+import { renderToString } from 'react-dom/server';
+import { Providers, renderWithProviders } from './helpers/render-component';
 import type { PlaceWithLinks } from '@/lib/db';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
@@ -17,18 +18,34 @@ vi.mock('next/navigation', () => ({
 }));
 
 /** Render the dynamically-imported MapCanvas synchronously as a prop probe. */
+vi.mock('@/components/MapCanvas', () => ({
+  MapCanvas: () => <div data-testid="actual-map-canvas" />,
+}));
+
 vi.mock('next/dynamic', () => ({
-  default: (_loader: unknown) => {
+  default: (loader: () => Promise<unknown>, options?: { loading?: ComponentType }) => {
+    void loader().catch(() => undefined);
     return function MapCanvasStub(props: Record<string, unknown>) {
+      const Loading = options?.loading;
+      const popupStockLabel = props.popupStockLabel as ((n: number) => string) | undefined;
+      const popupBranchesLabel = props.popupBranchesLabel as ((n: number) => string) | undefined;
+      const onMarkerFocus = props.onMarkerFocus as ((id: number) => void) | undefined;
       return (
-        <div
-          data-testid="map-canvas"
-          data-place-count={String((props.places as unknown[]).length)}
-          data-focus-id={String(props.focusId ?? '')}
-          data-search-target={JSON.stringify(props.searchTarget ?? null)}
-          data-size-class={String(props.sizeClass ?? '')}
-          data-external={String(props.externalNetworkAllowed)}
-        />
+        <>
+          {Loading ? <Loading /> : null}
+          <div
+            data-testid="map-canvas"
+            data-place-count={String((props.places as unknown[]).length)}
+            data-focus-id={String(props.focusId ?? '')}
+            data-search-target={JSON.stringify(props.searchTarget ?? null)}
+            data-size-class={String(props.sizeClass ?? '')}
+            data-external={String(props.externalNetworkAllowed)}
+          >
+            <button type="button" onClick={() => onMarkerFocus?.(77)}>marker focus</button>
+            <span>{popupStockLabel?.(3)}</span>
+            <span>{popupBranchesLabel?.(2)}</span>
+          </div>
+        </>
       );
     } as ComponentType<Record<string, unknown>>;
   },
@@ -83,6 +100,17 @@ describe('MapPageClient branches', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the normal map size during server rendering', () => {
+    vi.stubGlobal('window', undefined);
+    const html = renderToString(
+      <Providers locale="en">
+        <MapPageClient places={[]} />
+      </Providers>,
+    );
+    expect(html).toContain(t.map.noPlaces as string);
   });
 
   it('shows the no-places message when nothing has coordinates', () => {
@@ -190,6 +218,20 @@ describe('MapPageClient branches', () => {
     expect(await screen.findByRole('button', { name: 'Kyoto' })).toBeInTheDocument();
   });
 
+  it('ignores blank geocoding submissions', async () => {
+    grantConsent();
+    const fetchSpy = vi.fn(async () => json([]));
+    global.fetch = fetchSpy;
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    await user.click(screen.getByLabelText(t.map.searchPlaceholder as string));
+    await user.keyboard('{Enter}');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('shows the empty-search message when Nominatim returns nothing', async () => {
     grantConsent();
     global.fetch = vi.fn(async () => json([]));
@@ -286,6 +328,72 @@ describe('MapPageClient branches', () => {
     expect(screen.getByTestId('map-canvas').getAttribute('data-focus-id')).toBe('7');
   });
 
+  it('updates active place from the map marker callback and renders popup labels', async () => {
+    grantConsent();
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 77, lat: 35, lng: 139, name: 'Marker Shop', name_ja: 'マーカー店', stock_count: 3, provider_labels: ['A', 'B'] })]} />,
+      { locale: 'en' },
+    );
+    const canvas = await screen.findByTestId('map-canvas');
+    expect(canvas).toHaveTextContent((t.map.popupStock as string).replace('{n}', '3'));
+    expect(canvas).toHaveTextContent((t.map.popupBranches as string).replace('{n}', '2'));
+    expect(screen.getByText('マーカー店')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'marker focus' }));
+    expect(screen.getByTestId('map-canvas').getAttribute('data-focus-id')).toBe('77');
+  });
+
+  it('drops a late geocoding response after consent is revoked', async () => {
+    grantConsent();
+    let resolveFetch: (response: Response) => void = () => {};
+    const fetchSpy = vi.fn(
+      () => new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    global.fetch = fetchSpy;
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    await user.type(screen.getByLabelText(t.map.searchPlaceholder as string), 'Late');
+    await user.click(screen.getByRole('button', { name: t.places.geocodeButton as string }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: t.map.externalPrivacyDisable as string }));
+    resolveFetch(json([{ display_name: 'Late Place', lat: '35.0', lon: '139.0' }]));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Late Place' })).toBeNull());
+    expect(screen.getByText(t.map.externalMapDisabled as string)).toBeInTheDocument();
+  });
+
+  it('suppresses aborted geocoding failures after consent is revoked', async () => {
+    grantConsent();
+    const fetchSpy = vi.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal instanceof AbortSignal) {
+            signal.addEventListener('abort', () => {
+              const err = new Error('aborted');
+              err.name = 'AbortError';
+              reject(err);
+            }, { once: true });
+          }
+        }),
+    );
+    global.fetch = fetchSpy;
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    await user.type(screen.getByLabelText(t.map.searchPlaceholder as string), 'Abort');
+    await user.click(screen.getByRole('button', { name: t.places.geocodeButton as string }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: t.map.externalPrivacyDisable as string }));
+    await waitFor(() => expect(screen.getByText(t.map.externalMapDisabled as string)).toBeInTheDocument());
+    expect(screen.queryByText(t.map.searchError as string)).toBeNull();
+  });
+
   it('handles a sidebar click on a place without coordinates', async () => {
     grantConsent();
     renderWithProviders(
@@ -345,6 +453,32 @@ describe('MapPageClient branches', () => {
 
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('closes the add-place modal without saving', async () => {
+    grantConsent();
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    await user.click(screen.getByRole('button', { name: new RegExp(t.map.addPlace as string) }));
+    const modal = await screen.findByRole('dialog');
+    await user.click(within(modal).getByRole('button', { name: t.common.cancel as string }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it('runs the place link click handler without bubbling', async () => {
+    grantConsent();
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 9, lat: 35, lng: 139, name: 'Linked Shop' })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    const link = screen.getByRole('link', { name: t.places.openPlace as string });
+    link.addEventListener('click', (e) => e.preventDefault());
+    await user.click(link);
   });
 
   it('clears search results when consent is revoked', async () => {

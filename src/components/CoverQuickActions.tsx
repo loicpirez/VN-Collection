@@ -193,7 +193,6 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
   }
 
   async function toggleVndbWishlist() {
-    if (!wishlist.available) return;
     const controller = beginMutation();
     if (!controller) return;
     const ownerVnId = vnId;

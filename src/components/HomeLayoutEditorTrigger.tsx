@@ -94,7 +94,6 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
 
   const persist = useCallback(
     async (patch: { order?: HomeSectionId[]; sections?: Partial<typeof sections> }) => {
-      if (inFlightRef.current) return;
       const controller = new AbortController();
       mutationAbortRef.current?.abort();
       mutationAbortRef.current = controller;
@@ -120,7 +119,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
         if (mutationAbortRef.current === controller) {
           mutationAbortRef.current = null;
           inFlightRef.current = false;
-          if (mountedRef.current) setBusy(false);
+          setBusy(false);
         }
       }
     },
@@ -170,12 +169,12 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
       if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      if (mutationAbortRef.current === controller) {
-        mutationAbortRef.current = null;
-        inFlightRef.current = false;
-        if (mountedRef.current) setBusy(false);
+        if (mutationAbortRef.current === controller) {
+          mutationAbortRef.current = null;
+          inFlightRef.current = false;
+          setBusy(false);
+        }
       }
-    }
   }
 
   return (
@@ -209,7 +208,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
               </div>
               <button
                 type="button"
-                onClick={() => { if (!inFlightRef.current) setOpen(false); }}
+                onClick={() => setOpen(false)}
                 disabled={busy}
                 aria-label={t.common.close}
                 className="tap-target rounded text-muted hover:text-white"
@@ -225,7 +224,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
                     <SortableHomeRow
                       key={id}
                       id={id}
-                      visible={sections[id]?.visible !== false}
+                      visible={sections[id].visible !== false}
                       label={t.homeLayout.sectionLabels[id]}
                       onToggleVisible={() => toggleVisible(id)}
                       busy={busy}

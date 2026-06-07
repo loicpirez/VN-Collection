@@ -72,6 +72,20 @@ describe('StockPhysicalLocations branches', () => {
     expect(unpricedIdx).toBeGreaterThan(pricedIdx);
   });
 
+  it('sorts priced offers before unpriced offers inside one branch', () => {
+    const { container } = renderWithProviders(
+      <StockPhysicalLocations
+        offers={[
+          offer({ title: 'Unpriced first', location_branch: 'Mixed', price: null, url: 'https://example.test/mixed-a' }),
+          offer({ title: 'Priced middle', location_branch: 'Mixed', price: 700, url: 'https://example.test/mixed-b' }),
+          offer({ title: 'Unpriced last', location_branch: 'Mixed', price: null, url: 'https://example.test/mixed-c' }),
+        ]}
+      />,
+    );
+    const rows = Array.from(container.querySelectorAll('li')).map((el) => el.textContent ?? '');
+    expect(rows[0]).toContain('Priced middle');
+  });
+
   it('clamps the page index when the offer set shrinks but still paginates', () => {
     const many: PhysicalOffer[] = Array.from({ length: 16 }, (_v, i) =>
       offer({ location_branch: `Branch ${String(i).padStart(2, '0')}`, url: `https://example.test/p${i}`, price: 100 + i }),

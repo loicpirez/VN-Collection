@@ -128,6 +128,22 @@ describe('CardDensitySlider (scoped)', () => {
     expect(reset).toBeEnabled();
   });
 
+  it('resets the global fallback when there is no scoped override but the inherited value is custom', async () => {
+    seedSettings({ cardDensityPx: 300, density: {} });
+    const { user } = renderWithProviders(
+      <DisplaySettingsProvider>
+        <CardDensitySlider scope="wishlist" />
+        <Probe />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '300');
+    const reset = screen.getByRole('button', { name: 'Reset density' });
+    expect(reset).toBeEnabled();
+    await user.click(reset);
+    expect(readProbe().cardDensityPx).toBe(220);
+  });
+
   it('lets a URL density override drive the displayed value', () => {
     searchParamsValue = new URLSearchParams('density=400');
     renderWithProviders(
@@ -153,6 +169,8 @@ describe('GlobalCardDensitySlider', () => {
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '240');
     await user.click(screen.getByRole('button', { name: 'Larger' }));
     expect(readProbe().cardDensityPx).toBe(260);
+    await user.click(screen.getByRole('button', { name: 'Denser' }));
+    expect(readProbe().cardDensityPx).toBe(240);
     fireEvent.change(screen.getByRole('slider'), { target: { value: '180' } });
     expect(readProbe().cardDensityPx).toBe(180);
   });

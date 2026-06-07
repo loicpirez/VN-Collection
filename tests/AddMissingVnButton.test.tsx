@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { cleanup, screen, within, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { AddMissingVnButton } from '@/components/AddMissingVnButton';
@@ -63,6 +64,20 @@ describe('AddMissingVnButton', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores same-frame duplicate click events while adding', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const { container } = renderWithProviders(<AddMissingVnButton vnId="v90003" />, { locale: 'en' });
+    const button = within(container).getByRole('button');
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    resolveFetch(okResponse());
+    await waitFor(() => expect(container.querySelector('svg.lucide-check')).not.toBeNull());
+  });
+
   it('surfaces an error toast when the request fails', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: 'boom' }), { status: 500, headers: { 'content-type': 'application/json' } }),
@@ -75,6 +90,28 @@ describe('AddMissingVnButton', () => {
     // Failure leaves the button re-enabled (no done state).
     expect(within(container).getByRole('button')).not.toBeDisabled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('suppresses stale success and failure completions after the VN changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const { user, container, rerender } = renderWithProviders(<AddMissingVnButton vnId="v90004" />, { locale: 'en' });
+    await user.click(within(container).getByRole('button'));
+    rerender(<AddMissingVnButton vnId="v90005" />);
+    resolveFetch(okResponse());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('Added to collection')).toBeNull();
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }));
+    rerender(<AddMissingVnButton vnId="v90006" />);
+    await user.click(within(container).getByRole('button'));
+    rerender(<AddMissingVnButton vnId="v90007" />);
+    rejectFetch(new Error('stale add error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale add error')).toBeNull();
   });
 
   it('resets internal state when the vnId prop changes', async () => {

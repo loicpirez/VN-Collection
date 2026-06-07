@@ -11,7 +11,7 @@ describe('read-only shelf display persistence lifecycle', () => {
     expect(CONTROLS).toContain('const saveAbortRef = useRef<AbortController | null>(null)');
     expect(CONTROLS).toContain('const saveQueueRef = useRef<Promise<void>>(Promise.resolve())');
     expect(CONTROLS).toContain('saveAbortRef.current?.abort()');
-    expect(CONTROLS).toContain('saveQueueRef.current = task.catch(() => undefined)');
+    expect(CONTROLS).toContain('saveQueueRef.current = task');
     expect(CONTROLS).toContain('signal: controller.signal');
   });
 

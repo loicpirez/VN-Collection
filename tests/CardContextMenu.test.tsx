@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CardContextMenu } from '@/components/CardContextMenu';
 
@@ -18,6 +18,14 @@ vi.mock('next/navigation', () => ({
 
 function okResponse() {
   return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 const BASE = {
@@ -123,6 +131,15 @@ describe('CardContextMenu', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it('keeps ordinary keys in the menu and closes on outside pointer input', () => {
+    const onClose = vi.fn();
+    renderWithProviders(<CardContextMenu {...BASE} onClose={onClose} />, { locale: 'en' });
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.mouseDown(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('closes via the dedicated close button', async () => {
     const onClose = vi.fn();
     const { user } = renderWithProviders(<CardContextMenu {...BASE} onClose={onClose} />, { locale: 'en' });
@@ -138,5 +155,68 @@ describe('CardContextMenu', () => {
     fireEvent.keyDown(window, { key: 'ArrowDown' });
     fireEvent.keyDown(window, { key: 'ArrowUp' });
     expect(document.activeElement).toHaveAttribute('role', 'menuitem');
+  });
+
+  it('skips focus restore when the previous active element has disappeared', () => {
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const view = renderWithProviders(<CardContextMenu {...BASE} onClose={vi.fn()} />, { locale: 'en' });
+    trigger.remove();
+    view.unmount();
+    expect(document.activeElement).not.toBe(trigger);
+  });
+
+  it('ignores duplicate mutations while the first request is pending', () => {
+    const pending = deferredResponse();
+    global.fetch = vi.fn().mockReturnValue(pending.promise);
+    renderWithProviders(<CardContextMenu {...BASE} onClose={vi.fn()} />, { locale: 'en' });
+    const button = screen.getByRole('menuitem', { name: /Mark as favorite/ });
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a successful mutation that resolves after unmount', async () => {
+    const pending = deferredResponse();
+    global.fetch = vi.fn().mockReturnValue(pending.promise);
+    const onClose = vi.fn();
+    const onChange = vi.fn();
+    const view = renderWithProviders(<CardContextMenu {...BASE} onClose={onClose} onChange={onChange} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Completed/ }));
+    view.unmount();
+    await act(async () => {
+      pending.resolve(okResponse());
+      await pending.promise;
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores a failed mutation that resolves after unmount', async () => {
+    const pending = deferredResponse();
+    global.fetch = vi.fn().mockReturnValue(pending.promise);
+    const view = renderWithProviders(<CardContextMenu {...BASE} onClose={vi.fn()} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Mark as favorite/ }));
+    view.unmount();
+    await act(async () => {
+      pending.resolve(new Response(JSON.stringify({ error: 'late boom' }), { status: 500, headers: { 'content-type': 'application/json' } }));
+      await pending.promise;
+    });
+    expect(screen.queryByText('late boom')).toBeNull();
+  });
+
+  it('surfaces status mutation failures without closing', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'status boom' }), { status: 500, headers: { 'content-type': 'application/json' } }),
+    );
+    const onClose = vi.fn();
+    renderWithProviders(<CardContextMenu {...BASE} onClose={onClose} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Completed/ }));
+    expect(await screen.findByText('status boom')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

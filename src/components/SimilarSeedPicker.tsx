@@ -110,7 +110,7 @@ export function SimilarSeedPicker({
         alttitle: r.alttitle,
         released: null,
         developer: null,
-        image: url ? { url, thumbnail: url, sexual: r.image_sexual ?? null } : null,
+        image: url ? { url, thumbnail: url, sexual: r.image_sexual } : null,
         inCollection: true,
       };
     });
@@ -125,7 +125,7 @@ export function SimilarSeedPicker({
         released: r.released,
         developer: r.developers?.[0]?.name ?? null,
         image: r.image ?? null,
-        inCollection: r.in_collection ?? false,
+        inCollection: r.in_collection,
       }));
 
     setHits([...localHits, ...vndbHits]);
@@ -280,7 +280,7 @@ export function SimilarSeedPicker({
                     <button
                       type="button"
                       onClick={() => select(hit.id)}
-                      onMouseEnter={() => setHighlight(idx)}
+                      onMouseOver={() => setHighlight(idx)}
                       className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left transition-colors ${
                         active ? 'bg-bg-elev text-accent' : 'hover:bg-bg-elev hover:text-accent'
                       }`}

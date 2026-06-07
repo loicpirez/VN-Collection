@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DumpIgnoreButton } from '@/components/DumpIgnoreButton';
 
@@ -40,8 +41,8 @@ describe('DumpIgnoreButton', () => {
 
   it('PATCHes dumped_ignored=true and shows the ignored toast on success', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
-    const { user } = renderWithProviders(<DumpIgnoreButton vnId="v90003" ignored={false} />, { locale: 'en' });
-    await user.click(screen.getByRole('button', { name: 'Ignore' }));
+    renderWithProviders(<DumpIgnoreButton vnId="v90003" ignored={false} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Ignore' }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -55,8 +56,8 @@ describe('DumpIgnoreButton', () => {
 
   it('PATCHes dumped_ignored=false and shows the restored toast when already ignored', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
-    const { user } = renderWithProviders(<DumpIgnoreButton vnId="v90004" ignored />, { locale: 'en' });
-    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    renderWithProviders(<DumpIgnoreButton vnId="v90004" ignored />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -93,5 +94,48 @@ describe('DumpIgnoreButton', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(okJson({ ok: true }));
     await waitFor(() => expect(btn.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('ignores same-frame duplicate click events before disabled state flushes', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(<DumpIgnoreButton vnId="v90008" ignored={false} />, { locale: 'en' });
+    const btn = screen.getByRole('button', { name: 'Ignore' });
+    act(() => {
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(okJson({ ok: true }));
+    expect(await screen.findByText('VN ignored in the dump tracker.')).not.toBeNull();
+  });
+
+  it('suppresses stale success and failure completions after the VN changes', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const { rerender, user } = renderWithProviders(<DumpIgnoreButton vnId="v90009" ignored={false} />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: 'Ignore' }));
+    rerender(<DumpIgnoreButton vnId="v90010" ignored={false} />);
+    resolveFetch(okJson({ ok: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('VN ignored in the dump tracker.')).toBeNull();
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }),
+    );
+    rerender(<DumpIgnoreButton vnId="v90011" ignored={false} />);
+    await user.click(screen.getByRole('button', { name: 'Ignore' }));
+    rerender(<DumpIgnoreButton vnId="v90012" ignored={false} />);
+    rejectFetch(new Error('stale ignore error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale ignore error')).toBeNull();
   });
 });

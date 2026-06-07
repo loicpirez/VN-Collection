@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
@@ -113,6 +114,49 @@ describe('RefreshScopeButton', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(okJson({ ok: true, deleted: 0, patterns: [], scope: 'tagsList' }));
     await vi.waitFor(() => expect(btn.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('ignores same-frame duplicate refresh clicks', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(<RefreshScopeButton scope="tagsList" />, { locale: 'en' });
+    const btn = screen.getByRole('button', { name: 'Refresh tags' });
+    act(() => {
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(okJson({ ok: true, deleted: 0, patterns: [], scope: 'tagsList' }));
+    await vi.waitFor(() => expect(screen.queryByText('Global data refreshed.')).not.toBeNull());
+  });
+
+  it('suppresses stale success and failure completions after the scope identity changes', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const { rerender } = renderWithProviders(<RefreshScopeButton scope="tagDetail" params={{ gid: 'g73' }} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh this tag' }));
+    rerender(<RefreshScopeButton scope="tagDetail" params={{ gid: 'g74' }} />);
+    resolveFetch(okJson({ ok: true, deleted: 0, patterns: [], scope: 'tagDetail' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('Global data refreshed.')).toBeNull();
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }),
+    );
+    rerender(<RefreshScopeButton scope="tagDetail" params={{ gid: 'g75' }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh this tag' }));
+    rerender(<RefreshScopeButton scope="tagDetail" params={{ gid: 'g76' }} />);
+    rejectFetch(new Error('stale refresh error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale refresh error')).toBeNull();
   });
 
   it('keeps the chip rendered after the 30s interval tick fires', async () => {

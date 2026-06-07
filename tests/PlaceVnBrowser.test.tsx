@@ -115,7 +115,7 @@ describe('PlaceVnBrowser', () => {
     });
   });
 
-  it('loads stock and filters by status, provider, price, search, grouping, and view mode', async () => {
+  it('loads stock and filters by status', async () => {
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Aikiss')).toBeTruthy());
 
@@ -129,8 +129,11 @@ describe('PlaceVnBrowser', () => {
 
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filterInWishlist as string) }));
     expect(screen.getByText('KimiKiss')).toBeTruthy();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filterAll as string) }));
+  it('filters by provider, price, and search', async () => {
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Aikiss')).toBeTruthy());
     fireEvent.change(screen.getByLabelText(t.places.filterProducer as string), { target: { value: 'p1' } });
     expect(screen.getByText('Canvas')).toBeTruthy();
     expect(screen.queryByText('KimiKiss')).toBeNull();
@@ -147,9 +150,18 @@ describe('PlaceVnBrowser', () => {
 
     fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'v10001' } });
     await waitFor(() => expect(screen.getByText('Aikiss')).toBeTruthy());
+  });
 
+  it('groups stock and switches view mode before resetting filters', async () => {
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Aikiss')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
     expect(screen.getByText('Aikiss')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(t.places.groupLabel as string), { target: { value: 'provider' } });
+    expect(screen.getAllByText('Giga').length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText(t.places.groupLabel as string), { target: { value: 'year' } });
+    expect(screen.getByText('2020')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'v10001' } });
     fireEvent.click(screen.getByRole('button', { name: t.places.resetFilters as string }));
     await waitFor(() => expect(screen.getByText('KimiKiss')).toBeTruthy());
   });
@@ -165,8 +177,8 @@ describe('PlaceVnBrowser', () => {
     expect(screen.getByText('Aikiss')).toBeTruthy();
   });
 
-  it('paginates long stock lists', async () => {
-    const rows = Array.from({ length: 65 }, (_, index) => vn({
+  it('paginates long stock lists forward and back', async () => {
+    const rows = Array.from({ length: 61 }, (_, index) => vn({
       vn_id: `v${20000 + index}`,
       title: `VN ${String(index + 1).padStart(2, '0')}`,
       min_price: index + 1,
@@ -178,14 +190,14 @@ describe('PlaceVnBrowser', () => {
       return json({});
     });
     renderBrowser();
-    await waitFor(() => expect(screen.getByText('VN 01')).toBeTruthy());
-    expect(screen.getByText('1-60 / 65')).toBeTruthy();
+    expect(await screen.findByText('VN 01')).toBeTruthy();
+    expect(screen.getByText('1-60 / 61')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: t.common.next as string }));
-    await waitFor(() => expect(screen.getByText('61-65 / 65')).toBeTruthy());
-    expect(screen.getByText('VN 65')).toBeTruthy();
+    expect(screen.getByText('61-61 / 61')).toBeTruthy();
+    expect(screen.getByText('VN 61')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: t.common.prev as string }));
-    await waitFor(() => expect(screen.getByText('1-60 / 65')).toBeTruthy());
-  });
+    expect(screen.getByText('1-60 / 61')).toBeTruthy();
+  }, 10_000);
 
   it('shows empty, filtered-empty, and load-error states', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {

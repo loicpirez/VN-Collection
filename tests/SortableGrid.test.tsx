@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, act } from '@testing-library/react';
+import { cleanup, screen, act, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import type { CollectionCardApiItem } from '@/lib/types';
 
@@ -24,6 +24,7 @@ const dndHandlers: {
   onDragEnd?: (e: unknown) => void;
   onDragCancel?: (e: unknown) => void;
 } = {};
+let sortableDragging = false;
 
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children, onDragStart, onDragEnd, onDragCancel }: {
@@ -60,7 +61,7 @@ vi.mock('@dnd-kit/sortable', async () => {
       setNodeRef: () => {},
       transform: null,
       transition: undefined,
-      isDragging: false,
+      isDragging: sortableDragging,
     }),
   };
 });
@@ -111,6 +112,7 @@ beforeEach(() => {
   dndHandlers.onDragStart = undefined;
   dndHandlers.onDragEnd = undefined;
   dndHandlers.onDragCancel = undefined;
+  sortableDragging = false;
 });
 
 afterEach(() => {
@@ -172,6 +174,18 @@ describe('SortableGrid', () => {
     expect(onReorder).not.toHaveBeenCalled();
   });
 
+  it('does not call onReorder when the dragged id is not in the current items', () => {
+    const onReorder = vi.fn();
+    renderWithProviders(
+      <SortableGrid items={[card('v90001', 'A'), card('v90002', 'B')]} onReorder={onReorder} />,
+      { locale: 'en' },
+    );
+    act(() => {
+      dndHandlers.onDragEnd?.({ active: { id: 'v99999' }, over: { id: 'v90002' } });
+    });
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+
   it('ignores drag callbacks entirely when disabled', () => {
     const onReorder = vi.fn();
     renderWithProviders(
@@ -199,6 +213,30 @@ describe('SortableGrid', () => {
       dndHandlers.onDragCancel?.({});
     });
     expect(screen.getByTestId('drag-overlay')).toBeEmptyDOMElement();
+  });
+
+  it('keeps the overlay empty when the active id is no longer rendered', () => {
+    renderWithProviders(
+      <SortableGrid items={[card('v90001', 'A'), card('v90002', 'B')]} onReorder={vi.fn()} />,
+      { locale: 'en' },
+    );
+    act(() => {
+      dndHandlers.onDragStart?.({ active: { id: 'v99999' } });
+    });
+    expect(screen.getByTestId('drag-overlay')).toBeEmptyDOMElement();
+  });
+
+  it('marks the sortable wrapper while dragging and suppresses native drag preview', () => {
+    sortableDragging = true;
+    const { container } = renderWithProviders(
+      <SortableGrid items={[card('v90001', 'A')]} onReorder={vi.fn()} />,
+      { locale: 'en' },
+    );
+    const wrapper = container.querySelector('[aria-roledescription="sortable item"]') as HTMLElement;
+    expect(wrapper.className).toContain('opacity-30 saturate-50');
+    const event = new Event('dragstart', { bubbles: true, cancelable: true });
+    fireEvent(wrapper, event);
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it('applies the dense grid template multiplier', () => {

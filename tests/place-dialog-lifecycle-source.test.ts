@@ -25,7 +25,9 @@ describe('place dialog lifecycle', () => {
     expect(ASSIGN).toContain('const mutationAbortRef = useRef<AbortController | null>(null)');
     expect(ASSIGN).toContain('const mutationRef = useRef(false)');
     expect(ASSIGN).toContain('refreshAbortRef.current !== controller');
-    expect(ASSIGN).toContain('if (mutationRef.current) return');
+    expect(ASSIGN).toContain('function beginMutation(): AbortController');
+    expect(ASSIGN).toContain('mutationRef.current = true');
+    expect(ASSIGN).toContain('disabled={busy !== null}');
     expect(ASSIGN).toContain('mutationAbortRef.current?.abort()');
     expect(ASSIGN).toContain('mutationAbortRef.current !== controller');
     expect(ASSIGN).toContain('signal: controller.signal');
@@ -44,6 +46,7 @@ describe('place dialog lifecycle', () => {
     expect(EDIT).toContain('const saveAbortRef = useRef<AbortController | null>(null)');
     expect(EDIT).toContain('setName(initial.name)');
     expect(EDIT).toContain('if (saveInFlightRef.current) return');
+    expect(EDIT).toContain('disabled={saving || !name.trim()}');
     expect(EDIT).toContain('saveAbortRef.current?.abort()');
     expect(EDIT).toContain('saveAbortRef.current !== controller');
     expect(EDIT).toContain('signal: controller.signal');

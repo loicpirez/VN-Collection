@@ -288,7 +288,6 @@ export function CoverSourcePicker({
       delta === 'reset'
         ? 0
         : (((((rotation + delta) % 360) + 360) % 360) as 0 | 90 | 180 | 270);
-    if (next === prev) return;
     const controller = beginMutation();
     if (!controller) return;
     setRotationState(next);
@@ -349,7 +348,8 @@ export function CoverSourcePicker({
     }
   }
 
-  const egsTabDisabled = !egsId || !egsHasImage;
+  const availableEgsId = egsId != null && egsHasImage ? egsId : null;
+  const egsTabDisabled = availableEgsId == null;
 
   const galleryItems = [
     ...screenshots.map((s, i) => ({
@@ -531,19 +531,15 @@ export function CoverSourcePicker({
                   </div>
                 </section>
               )}
-              {tab === 'egs' && (
+              {tab === 'egs' && availableEgsId != null && (
                 <section role="tabpanel" id={egsPanelId} aria-labelledby={egsTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.egsHint}</p>
-                  {egsId ? (
-                    <EgsCandidateGrid
-                      egsId={egsId}
-                      busy={busy}
-                      onUseDefault={useEgs}
-                      onPickUrl={(url) => applySource(/^https?:\/\//i.test(url) ? 'url' : 'path', url)}
-                    />
-                  ) : (
-                    <p className="text-xs text-muted">{t.coverPicker.noEgs}</p>
-                  )}
+                  <EgsCandidateGrid
+                    egsId={availableEgsId}
+                    busy={busy}
+                    onUseDefault={useEgs}
+                    onPickUrl={(url) => applySource(/^https?:\/\//i.test(url) ? 'url' : 'path', url)}
+                  />
                 </section>
               )}
               {tab === 'custom' && (

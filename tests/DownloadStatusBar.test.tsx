@@ -132,6 +132,38 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     expect(within(trigger).getByText(/2\/1/)).not.toBeNull();
   });
 
+  it('handles a zero-total progress bar', async () => {
+    const zeroTotalJob = {
+      id: 'job-zero',
+      kind: 'cache-refresh',
+      vn_id: null,
+      label: 'Custom label',
+      total: 0,
+      done: 0,
+      current_item: 'custom item',
+      errors: [],
+      started_at: 1,
+      finished_at: null,
+    };
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [zeroTotalJob] })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
+    const region = screen.getByRole('region', { name: 'Active downloads' });
+    expect(within(region).getAllByText(/Refresh/).length).toBeGreaterThan(0);
+    const progressbar = within(region).getByRole('progressbar', { name: /Custom label/ });
+    expect(progressbar.getAttribute('aria-valuemax')).toBe('1');
+  });
+
+  it('shows the empty popover when only throttle activity is present', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ throttle: { active: 1, queued: 0, retryAfterMs: 0 } })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
+    const region = screen.getByRole('region', { name: 'Active downloads' });
+    expect(within(region).getByText('No recent downloads.')).not.toBeNull();
+  });
+
   it('opens the popover and links the VN embedded in a finished job label', async () => {
     global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, vn_id: 'v90011', vn_title: 'Title Z' }] })));
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
@@ -141,6 +173,8 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     // Finished job label embeds the VN id, rendered as a link to /vn/v90011.
     const vnLink = within(region).getByRole('link', { name: /Title Z/ });
     expect(vnLink.getAttribute('href')).toBe('/vn/v90011');
+    fireEvent.click(vnLink);
+    expect(screen.getByRole('region', { name: 'Active downloads' })).not.toBeNull();
   });
 
   it('dismisses one finished job, collapsing the whole bar when nothing remains', async () => {
@@ -217,6 +251,29 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     expect(within(region).getByText(/EGS top-ranked \(top 100\)/)).not.toBeNull();
   });
 
+  it('falls back to the raw current item template for unknown current-item codes', async () => {
+    const unknownCodeJob = {
+      id: 'job-unknown-code',
+      kind: 'cache-refresh',
+      vn_id: null,
+      label: 'fallback label',
+      total: 10,
+      done: 4,
+      current_item: 'Raw current {count}',
+      current_item_code: 'missing_template_code',
+      current_item_params: { count: 7 },
+      errors: [],
+      started_at: 1,
+      finished_at: null,
+    };
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [unknownCodeJob] })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
+    const region = screen.getByRole('region', { name: 'Active downloads' });
+    expect(within(region).getByText('Raw current 7')).not.toBeNull();
+  });
+
   it('renders a current_item without a code as a non-linked plain id', async () => {
     const plainItemJob = {
       id: 'job-plain-1',
@@ -271,6 +328,8 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
+    expect(screen.getByRole('region', { name: 'Active downloads' })).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByRole('region', { name: 'Active downloads' })).not.toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('region', { name: 'Active downloads' })).toBeNull();
@@ -355,6 +414,27 @@ describe('DownloadStatusBar (SSE path)', () => {
     act(() => FakeEventSource.instances[0].fail());
     await flush();
     expect(global.fetch).toHaveBeenCalledWith('/api/download-status', expect.objectContaining({ cache: 'no-store' }));
+  });
+
+  it('keeps the stream open when EventSource reports a transient error', async () => {
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    const es = FakeEventSource.instances[0];
+    act(() => {
+      es.readyState = 1;
+      es.onerror?.();
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(es.closed).toBe(false);
+  });
+
+  it('ignores SSE messages after unmount', async () => {
+    const { unmount } = renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    const es = FakeEventSource.instances[0];
+    unmount();
+    act(() => es.emit(snapshot({ jobs: [LIVE_JOB] })));
+    expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
   });
 
   it('recreates the EventSource when the tab becomes visible again', async () => {

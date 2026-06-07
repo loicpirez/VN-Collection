@@ -104,11 +104,9 @@ export function EgsSyncBlock() {
       if (!mountedRef.current || usernameAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      if (usernameAbortRef.current === controller) {
-        usernameAbortRef.current = null;
-        usernameSaveRef.current = false;
-        if (mountedRef.current) setSavingUsername(false);
-      }
+      usernameAbortRef.current = null;
+      usernameSaveRef.current = false;
+      if (mountedRef.current) setSavingUsername(false);
     }
   }
 
@@ -133,11 +131,9 @@ export function EgsSyncBlock() {
       if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      if (syncAbortRef.current === controller) {
-        syncAbortRef.current = null;
-        syncInFlightRef.current = false;
-        if (mountedRef.current) setComputing(false);
-      }
+      syncAbortRef.current = null;
+      syncInFlightRef.current = false;
+      if (mountedRef.current) setComputing(false);
     }
   }
 
@@ -167,11 +163,9 @@ export function EgsSyncBlock() {
       if (!mountedRef.current || syncAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
     } finally {
-      if (syncAbortRef.current === controller) {
-        syncAbortRef.current = null;
-        syncInFlightRef.current = false;
-        if (mountedRef.current) setApplying(false);
-      }
+      syncAbortRef.current = null;
+      syncInFlightRef.current = false;
+      if (mountedRef.current) setApplying(false);
     }
   }
 

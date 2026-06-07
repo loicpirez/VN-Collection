@@ -118,12 +118,12 @@ function tokenize(input: string): Token[] {
 function pushText(arr: Token[], value: string): void {
   const urlRe = /https?:\/\/[^\s<>"'\])}]+/gi;
   let last = 0;
-  for (const m of value.matchAll(urlRe)) {
-    if (m.index === undefined) continue;
-    const trimmed = m[0].replace(/[.,;:!?)]+$/, '');
-    if (m.index > last) arr.push({ kind: 'text', value: value.slice(last, m.index) });
+  let match: RegExpExecArray | null;
+  while ((match = urlRe.exec(value)) !== null) {
+    const trimmed = match[0].replace(/[.,;:!?)]+$/, '');
+    if (match.index > last) arr.push({ kind: 'text', value: value.slice(last, match.index) });
     arr.push({ kind: 'url', href: sanitizeHref(trimmed), children: [{ kind: 'text', value: trimmed }], fallback: trimmed });
-    last = m.index + trimmed.length;
+    last = match.index + trimmed.length;
   }
   if (last < value.length) arr.push({ kind: 'text', value: value.slice(last) });
 }
@@ -169,10 +169,6 @@ function renderTokens(tokens: Token[], spoilerLabel: string, keyPrefix = 'm'): R
             {renderTokens(tok.children, spoilerLabel, key)}
           </SpoilerReveal>
         );
-      default: {
-        const _: never = tok;
-        return null;
-      }
     }
   });
 }
@@ -224,11 +220,6 @@ function collapse(tokens: Token[]): string {
       case 'spoiler':
         out += collapse(tok.children);
         break;
-      default: {
-        const _exhaustive: never = tok;
-        void _exhaustive;
-        break;
-      }
     }
   }
   return out;

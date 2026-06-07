@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { SelectiveFullDownload } from '@/components/SelectiveFullDownload';
 
@@ -19,6 +19,7 @@ function json(payload: unknown, status = 200): Response {
 interface RowSeed {
   id: string;
   title: string;
+  released?: string | null;
   status?: string | null;
   updated_at?: number | null;
   user_rating?: number | null;
@@ -30,7 +31,7 @@ function row(seed: RowSeed) {
     id: seed.id,
     title: seed.title,
     alttitle: null,
-    released: null,
+    released: seed.released ?? null,
     status: seed.status ?? null,
     rating: null,
     user_rating: seed.user_rating ?? null,
@@ -46,6 +47,16 @@ function collectionPage(items: ReturnType<typeof row>[]) {
 
 function titles() {
   return [...document.querySelectorAll('li button .font-bold')].map((n) => n.textContent);
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error | string) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 afterEach(() => {
@@ -121,5 +132,171 @@ describe('SelectiveFullDownload sort branches', () => {
       expect(calls.length).toBeGreaterThan(0);
     });
     expect(fetchMock.mock.calls.filter((c) => String(c[0]).startsWith('/api/collection')).length).toBeGreaterThan(firstCalls);
+  });
+
+  it('does not forward empty default filter values', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]));
+    global.fetch = fetchMock;
+    renderWithProviders(
+      <SelectiveFullDownload defaultFilters={{ status: '', tag: 'g90' }} />,
+      { locale: 'en' },
+    );
+    await screen.findByText('Title Alpha');
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).not.toContain('status=');
+    expect(url).toContain('tag=g90');
+  });
+
+  it('ignores a successful stale load after filters change', async () => {
+    const stale = deferredResponse();
+    let callCount = 0;
+    global.fetch = vi.fn(() => {
+      callCount += 1;
+      if (callCount === 1) return stale.promise;
+      return Promise.resolve(collectionPage([row({ id: 'v90002', title: 'Fresh Filtered' })]));
+    });
+    const { rerender } = renderWithProviders(
+      <SelectiveFullDownload defaultFilters={{ status: 'playing' }} />,
+      { locale: 'en' },
+    );
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    rerender(<SelectiveFullDownload defaultFilters={{ status: 'completed' }} />);
+    expect(await screen.findByText('Fresh Filtered')).toBeTruthy();
+    await act(async () => {
+      stale.resolve(collectionPage([row({ id: 'v90001', title: 'Stale Filtered' })]));
+    });
+    expect(screen.queryByText('Stale Filtered')).toBeNull();
+  });
+
+  it('ignores abort errors during load', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    global.fetch = vi.fn().mockRejectedValue(abortError);
+    renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Loading...')).toBeNull());
+    expect(screen.queryByText('aborted')).toBeNull();
+  });
+
+  it('uses the generic load error for non-Error rejections', async () => {
+    global.fetch = vi.fn().mockRejectedValue('plain load');
+    renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    expect(await screen.findByText('Error')).toBeTruthy();
+  });
+
+  it('sorts numeric rows with both compared values null by title', async () => {
+    const rows = [
+      row({ id: 'v90001', title: 'Beta', user_rating: null }),
+      row({ id: 'v90002', title: 'Alpha', user_rating: null }),
+    ];
+    global.fetch = vi.fn().mockResolvedValue(collectionPage(rows));
+    const { user } = renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    await screen.findByText('Beta');
+    await user.selectOptions(screen.getByLabelText('Sort'), 'user_rating');
+    await user.click(screen.getByRole('button', { name: 'Descending' }));
+    expect(titles()).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('sorts released rows with null dates participating in the string fallback', async () => {
+    const rows = [
+      row({ id: 'v90001', title: 'No Date', released: null }),
+      row({ id: 'v90002', title: 'Dated', released: '2024-01-01' }),
+    ];
+    global.fetch = vi.fn().mockResolvedValue(collectionPage(rows));
+    const { user } = renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    await screen.findByText('No Date');
+    await user.selectOptions(screen.getByLabelText('Sort'), 'released');
+    const order = titles();
+    expect(order).toContain('No Date');
+    expect(order).toContain('Dated');
+  });
+
+  it('toggles the same selected sort key from descending back to ascending', async () => {
+    global.fetch = vi.fn().mockResolvedValue(collectionPage([
+      row({ id: 'v90001', title: 'Alpha' }),
+      row({ id: 'v90002', title: 'Beta' }),
+    ]));
+    const { user } = renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    await screen.findByText('Alpha');
+    await user.selectOptions(screen.getByLabelText('Sort'), 'title');
+    expect(titles()).toEqual(['Beta', 'Alpha']);
+    await user.selectOptions(screen.getByLabelText('Sort'), 'title');
+    expect(titles()).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('does not start a second submit while one is pending', async () => {
+    const pendingSubmit = deferredResponse();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]))
+      .mockReturnValueOnce(pendingSubmit.promise);
+    global.fetch = fetchMock;
+    renderWithProviders(<SelectiveFullDownload defaultSelected={new Set(['v90001'])} />, { locale: 'en' });
+    await screen.findByText('Title Alpha');
+    const run = screen.getByRole('button', { name: 'Run (1)' });
+    act(() => {
+      run.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      run.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/collection/full-download')).toHaveLength(1));
+    await act(async () => {
+      pendingSubmit.resolve(json({ queued: 1 }));
+    });
+  });
+
+  it('toasts the generic error when submit returns an invalid queued body', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]))
+      .mockResolvedValueOnce(json({ nope: true }));
+    global.fetch = fetchMock;
+    const { user } = renderWithProviders(<SelectiveFullDownload defaultSelected={new Set(['v90001'])} />, { locale: 'en' });
+    await screen.findByText('Title Alpha');
+    await user.click(screen.getByRole('button', { name: 'Run (1)' }));
+    expect(await screen.findByText('Error')).toBeTruthy();
+  });
+
+  it('ignores a successful submit after unmount', async () => {
+    const pendingSubmit = deferredResponse();
+    const onSubmitDone = vi.fn();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]))
+      .mockReturnValueOnce(pendingSubmit.promise);
+    global.fetch = fetchMock;
+    const { user, unmount } = renderWithProviders(
+      <SelectiveFullDownload defaultSelected={new Set(['v90001'])} onSubmitDone={onSubmitDone} />,
+      { locale: 'en' },
+    );
+    await screen.findByText('Title Alpha');
+    await user.click(screen.getByRole('button', { name: 'Run (1)' }));
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/collection/full-download')).toHaveLength(1));
+    unmount();
+    await act(async () => {
+      pendingSubmit.resolve(json({ queued: 1 }));
+    });
+    expect(onSubmitDone).not.toHaveBeenCalled();
+  });
+
+  it('ignores submit AbortError failures', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]))
+      .mockRejectedValueOnce(abortError);
+    global.fetch = fetchMock;
+    const { user } = renderWithProviders(<SelectiveFullDownload defaultSelected={new Set(['v90001'])} />, { locale: 'en' });
+    await screen.findByText('Title Alpha');
+    await user.click(screen.getByRole('button', { name: 'Run (1)' }));
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/collection/full-download')).toHaveLength(1));
+    expect(screen.queryByText('aborted')).toBeNull();
+  });
+
+  it('uses the generic submit error for non-Error rejections', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(collectionPage([row({ id: 'v90001', title: 'Title Alpha' })]))
+      .mockRejectedValueOnce('plain submit');
+    global.fetch = fetchMock;
+    const { user } = renderWithProviders(<SelectiveFullDownload defaultSelected={new Set(['v90001'])} />, { locale: 'en' });
+    await screen.findByText('Title Alpha');
+    await user.click(screen.getByRole('button', { name: 'Run (1)' }));
+    expect(await screen.findByText('Error')).toBeTruthy();
   });
 });

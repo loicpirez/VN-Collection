@@ -87,8 +87,6 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
     if (pref === 'vndb' && vndbHas) return 'vndb';
     if (pref === 'egs' && egsHas) return 'egs';
     if (combinedHas) return 'combined';
-    if (vndbHas) return 'vndb';
-    if (egsHas) return 'egs';
     return 'mine';
   }
   const activeTab: Tab = pickColumn(optimistic);

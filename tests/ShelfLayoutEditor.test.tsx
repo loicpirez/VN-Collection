@@ -323,6 +323,29 @@ describe('ShelfLayoutEditor', () => {
     });
   });
 
+  it('resizes before the active shelf detail finishes loading', async () => {
+    const pendingDetail: { resolve?: (value: Response) => void } = {};
+    const detailPromise = new Promise<Response>((resolve) => {
+      pendingDetail.resolve = resolve;
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const detail = url.match(/\/api\/shelves\/(\d+)$/);
+      if (detail && init?.method === 'PATCH') {
+        return json({ shelf: bareUnit({ cols: 3, rows: 2 }), slots: [], evicted: [] });
+      }
+      if (detail) return detailPromise;
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter une colonne' }));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true);
+    });
+    pendingDetail.resolve?.(json({ shelf: bareUnit(), slots: [], displays: [] }));
+  });
+
   it('refreshes the pool and warns when resizing evicts editions', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -487,7 +510,7 @@ describe('ShelfLayoutEditor', () => {
 
   it('opens the fullscreen overlay and exposes a dialog', async () => {
     renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />);
-    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    expect(await screen.findByRole('tabpanel', undefined, { timeout: 5000 })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Plein écran' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
     // Escape closes it.

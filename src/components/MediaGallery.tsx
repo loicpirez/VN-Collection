@@ -80,9 +80,7 @@ export function MediaGallery({
       })),
     };
     for (const img of releaseImages) {
-      const typeKey = img.type.toLowerCase() as keyof typeof t.media;
-      const localizedType =
-        typeKey in t.media && typeof t.media[typeKey] === 'string' ? t.media[typeKey] : img.type;
+      const localizedType = t.media[img.type];
       const item: MediaItem = {
         key: `${img.release_id}-${img.id ?? img.url}`,
         url: img.url,
@@ -112,7 +110,7 @@ export function MediaGallery({
         ...groups.screenshots,
       ];
     }
-    return groups[filter] ?? [];
+    return groups[filter];
   }, [filter, groups]);
 
   if (
@@ -135,13 +133,14 @@ export function MediaGallery({
 
   const close = useCallback(() => setActive(null), []);
   const openLightbox = useCallback((index: number) => setActive(index), []);
+  const activeForNav = active ?? 0;
   const prev = useCallback(
-    () => setActive((a) => (a == null ? null : (a - 1 + visible.length) % visible.length)),
-    [visible.length],
+    () => setActive((activeForNav - 1 + visible.length) % visible.length),
+    [activeForNav, visible.length],
   );
   const next = useCallback(
-    () => setActive((a) => (a == null ? null : (a + 1) % visible.length)),
-    [visible.length],
+    () => setActive((activeForNav + 1) % visible.length),
+    [activeForNav, visible.length],
   );
 
   const lightboxRef = useRef<HTMLDivElement | null>(null);
@@ -362,7 +361,7 @@ const MediaTile = memo(function MediaTile({
         }}
         className="h-full w-full cursor-pointer"
         title={item.caption ?? item.alt}
-        aria-label={item.caption ? `${t.media.openLightbox} - ${item.caption}` : item.alt ? `${t.media.openLightbox} - ${item.alt}` : t.media.openLightbox}
+        aria-label={item.caption ? `${t.media.openLightbox} - ${item.caption}` : `${t.media.openLightbox} - ${item.alt}`}
       >
         <SafeImage
           src={item.thumbnail || item.url}
@@ -487,7 +486,6 @@ function TileKebab({
   // Outside-click + Escape + arrow-key roving focus.
   useEffect(() => {
     if (!open) return;
-    if (typeof document === 'undefined') return;
     function onDoc(e: MouseEvent) {
       const target = e.target as Node;
       if (
@@ -511,19 +509,25 @@ function TileKebab({
       // / `role="menuitemcheckbox"` rows inside the menu. Without
       // this the kebab was tab-only, which on a long menu meant
       // four discrete Tab keystrokes to reach the last entry.
-      const menu = menuRef.current;
-      if (!menu) return;
+      const menu = menuRef.current!;
       const items = Array.from(
         menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'),
       ).filter((el) => !el.hasAttribute('disabled'));
-      if (items.length === 0) return;
       const currentIndex = items.indexOf(document.activeElement as HTMLElement);
-      let nextIndex = currentIndex;
-      if (e.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
-      else if (e.key === 'ArrowUp')
-        nextIndex = (currentIndex - 1 + items.length) % items.length;
-      else if (e.key === 'Home') nextIndex = 0;
-      else if (e.key === 'End') nextIndex = items.length - 1;
+      let nextIndex: number;
+      switch (e.key) {
+        case 'ArrowDown':
+          nextIndex = (currentIndex + 1) % items.length;
+          break;
+        case 'ArrowUp':
+          nextIndex = (currentIndex - 1 + items.length) % items.length;
+          break;
+        case 'Home':
+          nextIndex = 0;
+          break;
+        default:
+          nextIndex = items.length - 1;
+      }
       e.preventDefault();
       items[nextIndex]?.focus({ preventScroll: true });
     }
@@ -539,7 +543,6 @@ function TileKebab({
   // keyboard user can arrow / Enter without an extra Tab.
   useEffect(() => {
     if (!open || !placed) return;
-    if (typeof document === 'undefined') return;
     const first = menuRef.current?.querySelector<HTMLElement>(
       '[role="menuitem"], [role="menuitemcheckbox"]',
     );
@@ -554,11 +557,9 @@ function TileKebab({
       setPlaced(false);
       return;
     }
-    if (typeof window === 'undefined') return;
     const trigger = triggerRef.current;
-    const menu = menuRef.current;
-    if (!trigger || !menu) return;
-    const anchor = (trigger.offsetParent as HTMLElement | null) ?? trigger;
+    const menu = menuRef.current!;
+    const anchor = (trigger!.offsetParent as HTMLElement | null) ?? trigger!;
     const compute = () => {
       const rect = anchor.getBoundingClientRect();
       const popH = menu.offsetHeight;

@@ -204,9 +204,8 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     }
   }
 
-  function fromEvent(e: { clientX: number; clientY: number }): string | null {
-    const el = ref.current;
-    if (!el) return null;
+  function fromEvent(e: { clientX: number; clientY: number }): string {
+    const el = ref.current!;
     const rect = el.getBoundingClientRect();
     const x = clamp(((e.clientX - rect.left) / rect.width) * 100);
     const y = clamp(((e.clientY - rect.top) / rect.height) * 100);
@@ -220,13 +219,11 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     // Capture on the container so subsequent move events keep coming here
     // even if the pointer leaves the element.
     ref.current?.setPointerCapture(e.pointerId);
-    const p = fromEvent(e);
-    if (p) setDraftPosition(p);
+    setDraftPosition(fromEvent(e));
   }
   function onPointerMove(e: React.PointerEvent) {
     if (!editing || !draggingRef.current) return;
-    const p = fromEvent(e);
-    if (p) setDraftPosition(p);
+    setDraftPosition(fromEvent(e));
   }
   function onPointerUp(e: React.PointerEvent) {
     if (!editing) return;

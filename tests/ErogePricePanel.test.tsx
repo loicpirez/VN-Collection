@@ -27,7 +27,9 @@ vi.mock('@/components/SafeImage', () => ({
 /** recharts needs layout measurement that jsdom lacks; stub the chart. */
 vi.mock('@/components/charts/Sparkline', () => ({
   DEFAULT_PALETTE: ['#111', '#222', '#333', '#444'],
-  PriceHistoryChart: ({ ariaLabel }: { ariaLabel: string }) => <div data-testid="price-chart" aria-label={ariaLabel} />,
+  PriceHistoryChart: ({ ariaLabel, formatYen }: { ariaLabel: string; formatYen: (value: number) => string }) => (
+    <div data-testid="price-chart" aria-label={ariaLabel}>{formatYen(1234)}</div>
+  ),
 }));
 
 const t = dictionaries[DEFAULT_LOCALE];

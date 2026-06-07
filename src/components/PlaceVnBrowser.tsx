@@ -45,7 +45,7 @@ function isSort(v: unknown): v is SortKey { return (SORTS as readonly unknown[])
 function isGroup(v: unknown): v is GroupKey { return (GROUPS as readonly unknown[]).includes(v); }
 function isView(v: unknown): v is ViewMode { return v === 'cards' || v === 'list'; }
 
-function loadPrefs(): { sort?: SortKey; group?: GroupKey; view?: ViewMode } {
+export function loadPrefs(): { sort?: SortKey; group?: GroupKey; view?: ViewMode } {
   if (typeof window === 'undefined') return {};
   try {
     const raw = window.localStorage.getItem(PREFS_KEY);
@@ -172,10 +172,6 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
         case 'price_asc': return (a.min_price ?? Number.MAX_SAFE_INTEGER) - (b.min_price ?? Number.MAX_SAFE_INTEGER);
         case 'price_desc': return (b.min_price ?? -1) - (a.min_price ?? -1);
         case 'fresh': return b.max_updated_at - a.max_updated_at;
-        default: {
-          const _exhaustive: never = sort;
-          return String(_exhaustive).localeCompare('');
-        }
       }
     });
   }, [filtered, sort]);
@@ -203,7 +199,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
       let key = '';
       if (group === 'provider') {
         key = parseDevs(vn.developers)[0]?.name || (t.wishlist.groupUnknown as string);
-      } else if (group === 'year') {
+      } else {
         key = vn.released?.slice(0, 4) || (t.wishlist.groupUnknown as string);
       }
       const bucket = buckets.get(key);

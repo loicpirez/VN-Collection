@@ -22,10 +22,14 @@ describe('producer detail identity lifecycle', () => {
     expect(LOGO).toContain('const mutationInFlightRef = useRef(false)');
     expect(LOGO).toContain('setError(null)');
     expect(LOGO).toContain('setInfo(null)');
-    expect(LOGO).toContain('if (inputRef.current) inputRef.current.value =');
-    expect(LOGO.match(/const ownerProducerId = producerId/g)).toHaveLength(3);
-    expect(LOGO.match(/if \(!ownsMutation\(ownerProducerId, controller\)\) return/g)?.length).toBeGreaterThanOrEqual(3);
-    expect(LOGO.match(/finishMutation\(ownerProducerId, controller\)/g)).toHaveLength(3);
+    expect(LOGO).toContain("inputRef.current!.value = ''");
+    expect(LOGO).toContain('interface ProducerMutationOptions');
+    expect(LOGO).toContain('async function runMutation(options: ProducerMutationOptions)');
+    expect(LOGO.match(/const ownerProducerId = producerId/g)).toHaveLength(1);
+    expect(LOGO.match(/if \(!ownsMutation\(ownerProducerId, controller\)\) return/g)).toHaveLength(2);
+    expect(LOGO.match(/finishMutation\(controller\)/g)).toHaveLength(1);
+    expect(LOGO).toContain('request: (ownerProducerId, controller) =>');
+    expect(LOGO).toContain('clearInfo: true');
     expect(LOGO).toContain('signal: controller.signal');
     expect(LOGO).toContain('identityRef.current = null');
   });

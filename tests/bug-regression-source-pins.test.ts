@@ -17,13 +17,13 @@ describe('metadata title template composition', () => {
 });
 
 describe('stock-price navigation race', () => {
-  it('hydrates from the server snapshot and aborts stale fallback requests', () => {
+  it('hydrates from snapshots where mounted and keeps stock prices off VN detail pages', () => {
     const body = source('src/components/StockPricesSection.tsx');
     const page = source('src/app/vn/[id]/page.tsx');
     expect(body).toContain('extrasFromStockSnapshot(initialSnapshot)');
     expect(body).toContain('if (initialSnapshot)');
     expect(body).toContain('setLoading(false)');
-    expect(page).toContain('<StockPricesSection vnId={vn.id} initialSnapshot={stockSnapshot} />');
+    expect(page).not.toContain('<StockPricesSection');
     expect(body).toContain('const controller = new AbortController()');
     expect(body).toContain('fetchStockPriceExtras(vnId, controller.signal)');
     expect(body).toContain('setExtras(data)');

@@ -116,23 +116,31 @@ export function VnSeedPicker({
     searchAbortRef.current = ac;
     setSearchingLocal(true);
     setSearchingVndb(true);
-    const localPromise = fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
-      cache: 'no-store',
-      signal: ac.signal,
-    })
-      .then((r) => (r.ok ? r.json() : { matches: [] }))
-      .then((d) => decodeCollectionFindMatches(d) ?? [])
-      .catch(() => [])
-      .finally(() => {
+    const localPromise = (async () => {
+      try {
+        const r = await fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
+          cache: 'no-store',
+          signal: ac.signal,
+        });
+        const d = r.ok ? await r.json() : { matches: [] };
+        return decodeCollectionFindMatches(d) ?? [];
+      } catch {
+        return [];
+      } finally {
         if (!ac.signal.aborted && lastQueryRef.current === trimmed) setSearchingLocal(false);
-      });
-    const vndbPromise = fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then((d) => decodeVndbSearchResults(d) ?? [])
-      .catch(() => [])
-      .finally(() => {
+      }
+    })();
+    const vndbPromise = (async () => {
+      try {
+        const r = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { cache: 'no-store', signal: ac.signal });
+        const d = r.ok ? await r.json() : { results: [] };
+        return decodeVndbSearchResults(d) ?? [];
+      } catch {
+        return [];
+      } finally {
         if (!ac.signal.aborted && lastQueryRef.current === trimmed) setSearchingVndb(false);
-      });
+      }
+    })();
     // Race local in first so the UI flickers minimally.
     const localRows = await localPromise;
     if (ac.signal.aborted || lastQueryRef.current !== trimmed) return;
@@ -165,7 +173,7 @@ export function VnSeedPicker({
         released: row.released,
         developer: row.developers?.[0]?.name ?? null,
         image: row.image,
-        inCollection: row.in_collection ?? false,
+        inCollection: row.in_collection,
         source: 'vndb' as const,
       }));
     setHits([...localHits, ...vndbHits]);
@@ -184,12 +192,11 @@ export function VnSeedPicker({
     if (autoFocusInput && editing) inputRef.current?.focus();
   }, [autoFocusInput, editing]);
 
-  // Reset the keyboard highlight whenever the hit list mutates so
-  // ArrowDown lands on a real row instead of an index that no longer
-  // exists.
+  // Keep the keyboard highlight on a real row without clobbering a
+  // pointer hover that lands while async search results settle.
   useEffect(() => {
-    setHighlight(0);
-  }, [hits]);
+    setHighlight((h) => Math.min(h, Math.max(hits.length - 1, 0)));
+  }, [hits.length]);
 
   const navigateTo = useCallback(
     (nextParams: URLSearchParams) => {

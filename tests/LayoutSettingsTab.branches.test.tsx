@@ -29,6 +29,7 @@ vi.mock('next/navigation', () => ({
 // Capture the active panel's onDragEnd so the reorder branch can be driven
 // without a real pointer/keyboard drag, following the repo dnd-test pattern.
 const dnd: { onDragEnd?: (e: unknown) => void } = {};
+const sortableState = { isDragging: false };
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children, onDragEnd }: { children: React.ReactNode; onDragEnd?: (e: unknown) => void }) => {
     dnd.onDragEnd = onDragEnd;
@@ -48,7 +49,7 @@ vi.mock('@dnd-kit/sortable', async () => {
     SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     verticalListSortingStrategy: () => null,
     sortableKeyboardCoordinates: () => null,
-    useSortable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, transform: null, transition: undefined, isDragging: false }),
+    useSortable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, transform: null, transition: undefined, isDragging: sortableState.isDragging }),
   };
 });
 vi.mock('@dnd-kit/utilities', () => ({ CSS: { Transform: { toString: () => '' } } }));
@@ -84,7 +85,6 @@ function serverSettings(): ServerSettings {
     vndb_proxy_config: proxyConfig(),
     vndbmirror_proxy_config: proxyConfig(),
     egs_proxy_config: proxyConfig(),
-    alicenet_proxy_config: proxyConfig(),
     stock_proxy_config: proxyConfig(),
     stock_disabled_providers: [],
     stock_retry_without_proxy: false,
@@ -113,6 +113,7 @@ function rowFor(text: string): HTMLElement {
 beforeEach(() => {
   try { localStorage.clear(); } catch { /* ignore */ }
   dnd.onDragEnd = undefined;
+  sortableState.isDragging = false;
   vi.restoreAllMocks();
 });
 afterEach(() => {
@@ -227,15 +228,86 @@ describe('LayoutSettingsTab branches', () => {
     expect(screen.getByText(t.homeSections.title as string)).toBeInTheDocument();
   });
 
+  it('keeps a newer home draft when an older failed save resolves late', async () => {
+    const resolvers: Array<(saved: boolean) => void> = [];
+    const saveServer = vi.fn<SaveServer>(() => new Promise<boolean>((resolve) => {
+      resolvers.push(resolve);
+    }));
+    renderLayout(saveServer);
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    const firstToggle = screen.getAllByRole('button', { name: t.homeSections.show as string })[0];
+    const secondToggle = screen.getAllByRole('button', { name: t.homeSections.show as string })[1];
+    fireEvent.click(firstToggle);
+    fireEvent.click(secondToggle);
+    await waitFor(() => expect(saveServer).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolvers[0]!(false);
+      await Promise.resolve();
+    });
+    expect(screen.getAllByRole('button', { name: t.homeSections.hide as string }).length).toBeGreaterThan(0);
+    await act(async () => {
+      resolvers[1]!(true);
+      await Promise.resolve();
+    });
+  });
+
   it('reverts the VN reset when the reset save fails', async () => {
     const saveServer = vi.fn<SaveServer>(async () => false);
     renderLayout(saveServer);
     fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
-    fireEvent.click(screen.getByRole('tab', { name: t.vnLayout.restoreTitle as string }));
-    fireEvent.click(screen.getByRole('button', { name: t.vnLayout.reset as string }));
+    const vnTab = await screen.findByRole('tab', { name: t.vnLayout.restoreTitle as string });
+    fireEvent.click(vnTab);
+    const reset = await screen.findByRole('button', { name: t.vnLayout.reset as string });
+    fireEvent.click(reset);
     await waitFor(() => expect(saveServer).toHaveBeenCalledWith({ vn_detail_section_layout_v1: null }));
     // Toggling a row after a failed reset keeps the panel usable.
     expect(screen.getAllByRole('button', { name: t.vnLayout.hide as string }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps a newer VN draft when an older failed save resolves late', async () => {
+    const resolvers: Array<(saved: boolean) => void> = [];
+    const saveServer = vi.fn<SaveServer>(() => new Promise<boolean>((resolve) => {
+      resolvers.push(resolve);
+    }));
+    renderLayout(saveServer);
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    fireEvent.click(screen.getByRole('tab', { name: t.vnLayout.restoreTitle as string }));
+    const firstToggle = screen.getAllByRole('button', { name: t.vnLayout.hide as string })[0];
+    const secondToggle = screen.getAllByRole('button', { name: t.vnLayout.hide as string })[1];
+    fireEvent.click(firstToggle);
+    fireEvent.click(secondToggle);
+    await waitFor(() => expect(saveServer).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolvers[0]!(false);
+      await Promise.resolve();
+    });
+    expect(screen.getAllByRole('button', { name: t.vnLayout.show as string }).length).toBeGreaterThan(0);
+    await act(async () => {
+      resolvers[1]!(true);
+      await Promise.resolve();
+    });
+  });
+
+  it('keeps a newer VN draft when an older failed reset resolves late', async () => {
+    const resolvers: Array<(saved: boolean) => void> = [];
+    const saveServer = vi.fn<SaveServer>(() => new Promise<boolean>((resolve) => {
+      resolvers.push(resolve);
+    }));
+    renderLayout(saveServer);
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    fireEvent.click(screen.getByRole('tab', { name: t.vnLayout.restoreTitle as string }));
+    fireEvent.click(screen.getByRole('button', { name: t.vnLayout.reset as string }));
+    fireEvent.click(screen.getAllByRole('button', { name: t.vnLayout.hide as string })[0]);
+    await waitFor(() => expect(saveServer).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolvers[0]!(false);
+      await Promise.resolve();
+    });
+    expect(screen.getAllByRole('button', { name: t.vnLayout.show as string }).length).toBeGreaterThan(0);
+    await act(async () => {
+      resolvers[1]!(true);
+      await Promise.resolve();
+    });
   });
 
   it('toggles a generic detail-panel section visibility and persists it', async () => {
@@ -245,6 +317,30 @@ describe('LayoutSettingsTab branches', () => {
     fireEvent.click(screen.getByRole('tab', { name: t.staffLayout.restoreTitle as string }));
     fireEvent.click(screen.getAllByRole('button', { name: t.vnLayout.hide as string })[0]);
     await waitFor(() => expect(saveServer).toHaveBeenCalledWith(expect.objectContaining({ staff_detail_section_layout_v1: expect.any(Object) })));
+  });
+
+  it('keeps a newer generic detail draft when an older failed save resolves late', async () => {
+    const resolvers: Array<(saved: boolean) => void> = [];
+    const saveServer = vi.fn<SaveServer>(() => new Promise<boolean>((resolve) => {
+      resolvers.push(resolve);
+    }));
+    renderLayout(saveServer);
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    fireEvent.click(screen.getByRole('tab', { name: t.staffLayout.restoreTitle as string }));
+    const firstToggle = screen.getAllByRole('button', { name: t.vnLayout.hide as string })[0];
+    const secondToggle = screen.getAllByRole('button', { name: t.vnLayout.hide as string })[1];
+    fireEvent.click(firstToggle);
+    fireEvent.click(secondToggle);
+    await waitFor(() => expect(saveServer).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolvers[0]!(false);
+      await Promise.resolve();
+    });
+    expect(screen.getAllByRole('button', { name: t.vnLayout.show as string }).length).toBeGreaterThan(0);
+    await act(async () => {
+      resolvers[1]!(true);
+      await Promise.resolve();
+    });
   });
 
   it('removes a per-scope override when the default preset is re-selected', async () => {
@@ -263,6 +359,7 @@ describe('LayoutSettingsTab branches', () => {
   it('falls back to default layouts for every detail tab when the server settings are null', async () => {
     renderLayout(vi.fn<SaveServer>(async () => true), null);
     fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    await waitFor(() => expect(screen.getByText(t.homeSections.title as string)).toBeInTheDocument());
     // Home tab renders from DEFAULT_HOME_LAYOUT.
     expect(screen.getByText(t.homeSections.title as string)).toBeInTheDocument();
     // Visit each detail tab so its `?? defaultXLayoutV1()` fallback executes.
@@ -278,6 +375,15 @@ describe('LayoutSettingsTab branches', () => {
     }
     // The series panel (last visited) shows its drag rows.
     expect(screen.getAllByRole('button', { name: t.vnLayout.hide as string }).length).toBeGreaterThan(0);
+  });
+
+  it('renders dragged home and detail rows with reduced opacity', async () => {
+    sortableState.isDragging = true;
+    renderLayout();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ opacity: '0.4' });
+    fireEvent.click(screen.getByRole('tab', { name: t.vnLayout.restoreTitle as string }));
+    expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ opacity: '0.4' });
   });
 
   it('persists a VN section drag-handle visibility toggle and dispatches the layout event', async () => {
@@ -399,6 +505,22 @@ describe('LayoutSettingsTab branches', () => {
     // Real sections still render; the phantom id produces no extra row.
     const rows = screen.getAllByRole('button', { name: t.vnLayout.hide as string });
     expect(rows.length).toBe(base.order.length);
+  });
+
+  it('falls back to the section id when a generic panel label is missing', async () => {
+    const server = serverSettings();
+    const base = server.character_detail_section_layout_v1!;
+    server.character_detail_section_layout_v1 = {
+      order: [...base.order, 'phantom' as never],
+      sections: {
+        ...base.sections,
+        phantom: { visible: true, collapsedByDefault: false },
+      } as never,
+    };
+    renderLayout(vi.fn<SaveServer>(async () => true), server);
+    fireEvent.click(screen.getByRole('button', { name: t.settings.layoutSubTabSections as string }));
+    fireEvent.click(screen.getByRole('tab', { name: t.characterLayout.restoreTitle as string }));
+    expect(screen.getByText('phantom')).toBeInTheDocument();
   });
 
   it('reorders a generic detail layout via a drag-end', async () => {

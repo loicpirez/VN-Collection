@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { EgsPanel } from '@/components/EgsPanel';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -37,6 +37,19 @@ function panelGame(over: Partial<Parameters<typeof EgsPanel>[0]['initialGame']> 
     sellday: '2024-01-26',
     playtime_median_minutes: 600,
     url: EGS_URL,
+    ...over,
+  };
+}
+
+function apiGame(over: Record<string, unknown> = {}) {
+  return {
+    ...panelGame(),
+    gamename_furigana: null,
+    description: null,
+    image_url: null,
+    okazu: null,
+    erogame: true,
+    raw: { id: '31426' },
     ...over,
   };
 }
@@ -270,5 +283,313 @@ describe('EgsPanel branches', () => {
     expect(screen.getByText(t.egs.playtimeMine)).toBeInTheDocument();
     // myPlaytime + egs both > 0 -> the accent sum chip renders.
     expect(screen.getByText(t.egs.playtimeSum, { exact: false })).toBeInTheDocument();
+  });
+
+  it('trims whitespace-only EGS brand metadata instead of rendering an empty chip', () => {
+    renderPanel({ initialGame: panelGame({ brand_name: '   ', sellday: null }) });
+    expect(screen.queryByRole('link', { name: /Studio X/ })).toBeNull();
+  });
+
+  it('renders the playtime sum when only EGS playtime contributes to the total', () => {
+    renderPanel({
+      vndbLengthMinutes: null,
+      myPlaytimeMinutes: 0,
+      initialGame: panelGame({ playtime_median_minutes: 600 }),
+    });
+    expect(screen.getByText(t.egs.playtimeSum, { exact: false })).toBeInTheDocument();
+  });
+
+  it('uses an empty picker query when no empty-state search seed is provided', async () => {
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: null });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    expect((within(dialog).getByLabelText(t.egs.searchPlaceholder) as HTMLInputElement).value).toBe('');
+  });
+
+  it('guards duplicate refresh clicks while a refresh is already in flight', async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      if (String(url).endsWith('?refresh=1')) {
+        return new Promise<Response>((resolve) => { resolveRefresh = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderPanel();
+    const refreshBtn = document.querySelector(`button[title="${t.egs.refresh}"]`) as HTMLButtonElement;
+    act(() => {
+      fireEvent.click(refreshBtn);
+      fireEvent.click(refreshBtn);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveRefresh?.(json({ game: apiGame({ gamename: 'Refreshed Once' }), source: 'manual' }));
+    await waitFor(() => expect(screen.getByText('Refreshed Once')).toBeInTheDocument());
+  });
+
+  it('ignores a refresh response after the panel identity changes', async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url).endsWith('?refresh=1')) {
+        return new Promise<Response>((resolve) => { resolveRefresh = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    const view = renderPanel();
+    const refreshBtn = document.querySelector(`button[title="${t.egs.refresh}"]`) as HTMLButtonElement;
+    fireEvent.click(refreshBtn);
+    view.rerender(
+      <EgsPanel
+        vnId="v90002"
+        vndbRating={82}
+        vndbVoteCount={120}
+        vndbLengthMinutes={720}
+        myPlaytimeMinutes={180}
+        searchSeed="Seed"
+        initialGame={panelGame({ gamename: 'Other VN Game' })}
+        initialSource="manual"
+      />,
+    );
+    resolveRefresh?.(json({ game: apiGame({ gamename: 'Late Refresh' }), source: 'manual' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Other VN Game')).toBeInTheDocument();
+    expect(screen.queryByText('Late Refresh')).toBeNull();
+  });
+
+  it('skips refresh state cleanup after unmount with the same identity', async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url).endsWith('?refresh=1')) {
+        return new Promise<Response>((resolve) => { resolveRefresh = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    const { unmount } = renderPanel();
+    const refreshBtn = document.querySelector(`button[title="${t.egs.refresh}"]`) as HTMLButtonElement;
+    fireEvent.click(refreshBtn);
+    unmount();
+    resolveRefresh?.(json({ game: apiGame({ gamename: 'Late Refresh' }), source: 'manual' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Late Refresh')).toBeNull();
+  });
+
+  it('ignores a mount load response after the panel identity changes', async () => {
+    let resolveLoad: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveLoad = resolve; })) as unknown as typeof fetch;
+    const view = renderPanel({ initialGame: null, initialSource: null });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    view.rerender(
+      <EgsPanel
+        vnId="v90002"
+        vndbRating={82}
+        vndbVoteCount={120}
+        vndbLengthMinutes={720}
+        myPlaytimeMinutes={180}
+        searchSeed="Seed"
+        initialGame={panelGame({ gamename: 'Replacement Game' })}
+        initialSource="manual"
+      />,
+    );
+    resolveLoad?.(json({ game: apiGame({ gamename: 'Late Load' }), source: 'manual' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Replacement Game')).toBeInTheDocument();
+    expect(screen.queryByText('Late Load')).toBeNull();
+  });
+
+  it('silently ignores a mount load rejection after unmount', async () => {
+    let rejectLoad: ((error: Error) => void) | undefined;
+    global.fetch = vi.fn(() => new Promise<Response>((_, reject) => { rejectLoad = reject; })) as unknown as typeof fetch;
+    const { unmount } = renderPanel({ initialGame: null, initialSource: null });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    unmount();
+    rejectLoad?.(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('guards duplicate unlink clicks and leaves one confirmation dialog', async () => {
+    renderPanel({ initialSource: 'manual' });
+    const unlinkBtn = document.querySelector(`button[title="${t.egs.unlink}"]`) as HTMLButtonElement;
+    act(() => {
+      fireEvent.click(unlinkBtn);
+      fireEvent.click(unlinkBtn);
+    });
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+  });
+
+  it('does nothing when unlink confirmation is cancelled', async () => {
+    renderPanel({ initialSource: 'manual' });
+    const unlinkBtn = document.querySelector(`button[title="${t.egs.unlink}"]`) as HTMLButtonElement;
+    fireEvent.click(unlinkBtn);
+    const confirmDialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.cancel }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(screen.getByText('Game Y')).toBeInTheDocument();
+  });
+
+  it('ignores an unlink response after the panel unmounts', async () => {
+    let resolveDelete: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        return new Promise<Response>((resolve) => { resolveDelete = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    const { unmount } = renderPanel({ initialSource: 'manual' });
+    const unlinkBtn = document.querySelector(`button[title="${t.egs.unlink}"]`) as HTMLButtonElement;
+    fireEvent.click(unlinkBtn);
+    const confirmDialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    unmount();
+    resolveDelete?.(json({ ok: true }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText(t.egs.noMatch)).toBeNull();
+  });
+
+  it('silently ignores an aborted unlink request', async () => {
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        return Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialSource: 'manual' });
+    const unlinkBtn = document.querySelector(`button[title="${t.egs.unlink}"]`) as HTMLButtonElement;
+    fireEvent.click(unlinkBtn);
+    const confirmDialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(screen.getByText('Game Y')).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('toasts when picker search returns a non-ok response', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).includes('/api/egs/search')) return json({ error: 'search failed' }, 500);
+      return json({ game: null, source: null });
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    expect(await screen.findByText('search failed')).toBeInTheDocument();
+  });
+
+  it('ignores picker search results after the picker closes', async () => {
+    let resolveSearch: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url).includes('/api/egs/search')) {
+        return new Promise<Response>((resolve) => { resolveSearch = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.close }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    resolveSearch?.(json({ candidates: [{ id: 1001, gamename: 'Late Candidate', gamename_furigana: null, median: 70, count: 10, sellday: '2024-01-01' }] }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Late Candidate')).toBeNull();
+  });
+
+  it('guards duplicate picker link clicks while a link is already in flight', async () => {
+    let resolveLink: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/api/egs/search')) {
+        return Promise.resolve(json({ candidates: [{ id: 31426, gamename: 'Candidate One', gamename_furigana: null, median: 70, count: 10, sellday: '2024-01-01' }] }));
+      }
+      if (init?.method === 'POST') {
+        return new Promise<Response>((resolve) => { resolveLink = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    const linkBtn = await within(dialog).findByRole('button', { name: t.egs.linkAction });
+    act(() => {
+      fireEvent.click(linkBtn);
+      fireEvent.click(linkBtn);
+    });
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((call) => (call[1] as RequestInit | undefined)?.method === 'POST')).toHaveLength(1);
+    resolveLink?.(json({ game: apiGame({ gamename: 'Linked Once' }), source: 'manual' }));
+    await waitFor(() => expect(screen.getByText('Linked Once')).toBeInTheDocument());
+  });
+
+  it('toasts the generic error when picker link returns no game', async () => {
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/api/egs/search')) {
+        return Promise.resolve(json({ candidates: [{ id: 31426, gamename: 'Candidate One', gamename_furigana: null, median: 70, count: 10, sellday: '2024-01-01' }] }));
+      }
+      if (init?.method === 'POST') return Promise.resolve(json({ game: null, source: 'manual' }));
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await within(dialog).findByRole('button', { name: t.egs.linkAction }));
+    expect(await screen.findByText(t.common.error)).toBeInTheDocument();
+  });
+
+  it('ignores picker link success after the picker closes', async () => {
+    let resolveLink: ((response: Response) => void) | undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/api/egs/search')) {
+        return Promise.resolve(json({ candidates: [{ id: 31426, gamename: 'Candidate One', gamename_furigana: null, median: 70, count: 10, sellday: '2024-01-01' }] }));
+      }
+      if (init?.method === 'POST') {
+        return new Promise<Response>((resolve) => { resolveLink = resolve; });
+      }
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await within(dialog).findByRole('button', { name: t.egs.linkAction }));
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.close }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    resolveLink?.(json({ game: apiGame({ gamename: 'Late Link' }), source: 'manual' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Late Link')).toBeNull();
+  });
+
+  it('silently ignores an aborted picker link request', async () => {
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/api/egs/search')) {
+        return Promise.resolve(json({ candidates: [{ id: 31426, gamename: 'Candidate One', gamename_furigana: null, median: 70, count: 10, sellday: '2024-01-01' }] }));
+      }
+      if (init?.method === 'POST') return Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      return Promise.resolve(json({ game: null, source: null }));
+    }) as unknown as typeof fetch;
+    renderPanel({ initialGame: null, initialSource: 'manual-none', searchSeed: 'seed-term' });
+    fireEvent.click(screen.getByRole('button', { name: t.egs.searchEgs }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await within(dialog).findByRole('button', { name: t.egs.linkAction }));
+    await waitFor(() => expect(within(dialog).getByText('Candidate One')).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

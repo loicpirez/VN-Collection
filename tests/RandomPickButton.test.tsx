@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { RandomPickButton } from '@/components/RandomPickButton';
@@ -92,5 +93,25 @@ describe('RandomPickButton', () => {
     );
     await user.click(screen.getByRole('button', { name: /Random/ }));
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/vn/v90100'));
+  });
+
+  it('ignores same-frame duplicate pick clicks while the full fetch is pending', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    renderWithProviders(
+      <RandomPickButton
+        candidates={[{ id: 'v90101', title: 'Only Pending Candidate' }]}
+        queryParams={new URLSearchParams()}
+      />,
+      { locale: 'en' },
+    );
+    const button = screen.getByRole('button', { name: /Random/ });
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    resolveFetch(pageResponse([{ id: 'v90102', title: 'Resolved Candidate' }]));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/vn/v90102'));
   });
 });

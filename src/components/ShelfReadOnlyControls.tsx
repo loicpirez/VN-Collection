@@ -199,8 +199,7 @@ export function ShelfReadOnlyControls({
     const firstFocusable = popRef.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])');
     firstFocusable?.focus({ preventScroll: true });
     function onClick(e: MouseEvent) {
-      if (!popRef.current) return;
-      if (!popRef.current.contains(e.target as Node)) setOpen(false);
+      if (!popRef.current!.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -284,7 +283,7 @@ export function ShelfReadOnlyControls({
         }
       }
     });
-    saveQueueRef.current = task.catch(() => undefined);
+    saveQueueRef.current = task;
   }, [applyOverrides, t.common.error, toast]);
 
   /**
@@ -299,12 +298,7 @@ export function ShelfReadOnlyControls({
       const normalized = validateShelfViewPrefsV1(next);
       const current = overridesRef.current;
       if (scope === 'shelf' && activeShelfId) {
-        const partial: Partial<ShelfViewPrefsV1> = {};
-        for (const k of Object.keys(normalized) as Array<keyof ShelfViewPrefsV1>) {
-          if (normalized[k] !== current.global[k]) {
-            (partial as Record<string, unknown>)[k as string] = normalized[k];
-          }
-        }
+        const partial = partialShelfPrefsFromDiff(normalized, current.global);
         const nextOverrides: ShelfDisplayOverridesV1 = {
           global: current.global,
           shelves: { ...current.shelves, [activeShelfId]: partial },
@@ -612,7 +606,7 @@ export function ShelfReadOnlyControls({
                                 void persist({
                                   ...prefs,
                                   displayRowOrientations: {
-                                    ...(prefs.displayRowOrientations ?? {}),
+                                    ...prefs.displayRowOrientations,
                                     [zoneKey]: o,
                                   },
                                 })
@@ -678,6 +672,51 @@ export function ShelfReadOnlyControls({
       )}
     </div>
   );
+}
+
+function displayRowOrientationsEqual(
+  a: Record<string, ShelfDisplayOrientation>,
+  b: Record<string, ShelfDisplayOrientation>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+function partialShelfPrefsFromDiff(
+  next: ShelfViewPrefsV1,
+  global: ShelfViewPrefsV1,
+): Partial<ShelfViewPrefsV1> {
+  const partial: Partial<ShelfViewPrefsV1> = {};
+  if (next.coverScale !== global.coverScale) partial.coverScale = next.coverScale;
+  if (next.fitMode !== global.fitMode) partial.fitMode = next.fitMode;
+  if (next.cellWidthPx !== global.cellWidthPx) {
+    partial.cellWidthPx = next.cellWidthPx;
+    if (next.cellSizePx !== global.cellSizePx) partial.cellSizePx = next.cellSizePx;
+  }
+  if (next.cellHeightPx !== global.cellHeightPx) partial.cellHeightPx = next.cellHeightPx;
+  if (next.rowGapPx !== global.rowGapPx) {
+    partial.rowGapPx = next.rowGapPx;
+    if (next.gapPx !== global.gapPx) partial.gapPx = next.gapPx;
+  }
+  if (next.sectionGapPx !== global.sectionGapPx) partial.sectionGapPx = next.sectionGapPx;
+  if (next.frontDisplaySizePx !== global.frontDisplaySizePx) {
+    partial.frontDisplaySizePx = next.frontDisplaySizePx;
+  }
+  if (next.textDensity !== global.textDensity) partial.textDensity = next.textDensity;
+  if (next.showLabels !== global.showLabels) partial.showLabels = next.showLabels;
+  if (next.compact !== global.compact) partial.compact = next.compact;
+  if (next.displayOrientation !== global.displayOrientation) {
+    partial.displayOrientation = next.displayOrientation;
+  }
+  if (!displayRowOrientationsEqual(next.displayRowOrientations, global.displayRowOrientations)) {
+    partial.displayRowOrientations = next.displayRowOrientations;
+  }
+  return partial;
 }
 
 function Toggle({

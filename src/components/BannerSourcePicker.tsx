@@ -109,89 +109,93 @@ export function BannerSourcePicker({
     setBusy(false);
   }
 
-  async function applySource(source: 'url' | 'screenshot' | 'release' | 'path' | 'cover', value?: string) {
+  function runMutation(task: (ownerVnId: string, controller: AbortController) => Promise<void>) {
     const ownerVnId = vnId;
     const controller = beginMutation();
     if (!controller) return;
-    try {
-      const r = await fetch(`/api/collection/${ownerVnId}/banner`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(value ? { source, value } : { source }),
-        signal: controller.signal,
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (!ownsMutation(ownerVnId, controller)) return;
-      // Broadcast for the HeroBanner mounted above us. `cover` is a
-      // server-resolved source (the route picks the right path from
-      // the row), so we don't have a precise newSrc/newLocal here -
-      // fire null/null and let the router.refresh deliver the
-      // truth on the next paint. For `url`/`screenshot`/`release`/
-      // `path` we DO have `value`, so listeners can repaint instantly.
-      const isRemote = typeof value === 'string' && /^https?:\/\//i.test(value);
-      dispatchBannerChanged({
-        vnId: ownerVnId,
-        newSrc: source === 'cover' ? null : (isRemote ? value ?? null : null),
-        newLocal: source === 'cover' ? null : (isRemote ? null : value ?? null),
-      });
-      toast.success(t.toast.bannerSaved);
-      setOpen(false);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.error((e as Error).message);
-    } finally {
-      finishMutation(ownerVnId, controller);
-    }
+    void task(ownerVnId, controller);
   }
 
-  async function resetBanner() {
-    const ownerVnId = vnId;
-    const controller = beginMutation();
-    if (!controller) return;
-    try {
-      const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'DELETE', signal: controller.signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (!ownsMutation(ownerVnId, controller)) return;
-      // Reset → null src + null rotation so HeroBanner clears the backdrop.
-      dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
-      toast.success(t.toast.bannerReset);
-      setOpen(false);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.error((e as Error).message);
-    } finally {
-      finishMutation(ownerVnId, controller);
-    }
+  function applySource(source: 'url' | 'screenshot' | 'release' | 'path' | 'cover', value = '') {
+    runMutation(async (ownerVnId, controller) => {
+      try {
+        const r = await fetch(`/api/collection/${ownerVnId}/banner`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(value ? { source, value } : { source }),
+          signal: controller.signal,
+        });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!ownsMutation(ownerVnId, controller)) return;
+        // Broadcast for the HeroBanner mounted above us. `cover` is a
+        // server-resolved source (the route picks the right path from
+        // the row), so we don't have a precise newSrc/newLocal here -
+        // fire null/null and let the router.refresh deliver the
+        // truth on the next paint. For `url`/`screenshot`/`release`/
+        // `path` we DO have `value`, so listeners can repaint instantly.
+        const isRemote = typeof value === 'string' && /^https?:\/\//i.test(value);
+        dispatchBannerChanged({
+          vnId: ownerVnId,
+          newSrc: source === 'cover' ? null : (isRemote ? value : null),
+          newLocal: source === 'cover' ? null : (isRemote ? null : value),
+        });
+        toast.success(t.toast.bannerSaved);
+        setOpen(false);
+        startTransition(() => router.refresh());
+      } catch (e) {
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.error((e as Error).message);
+      } finally {
+        finishMutation(ownerVnId, controller);
+      }
+    });
   }
 
-  async function uploadFile(file: File) {
+  function resetBanner() {
+    runMutation(async (ownerVnId, controller) => {
+      try {
+        const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'DELETE', signal: controller.signal });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!ownsMutation(ownerVnId, controller)) return;
+        // Reset → null src + null rotation so HeroBanner clears the backdrop.
+        dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, position: null, rotation: 0 });
+        toast.success(t.toast.bannerReset);
+        setOpen(false);
+        startTransition(() => router.refresh());
+      } catch (e) {
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.error((e as Error).message);
+      } finally {
+        finishMutation(ownerVnId, controller);
+      }
+    });
+  }
+
+  function uploadFile(file: File) {
     if (!file.type.startsWith('image/')) {
       toast.error(t.cover.mustBeImage);
       return;
     }
-    const ownerVnId = vnId;
-    const controller = beginMutation();
-    if (!controller) return;
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'POST', body: fd, signal: controller.signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const banner = decodeUploadedBannerPath(await r.json().catch(() => null));
-      if (!banner) throw new Error(t.common.error);
-      if (!ownsMutation(ownerVnId, controller)) return;
-      dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: banner });
-      toast.success(t.toast.bannerSaved);
-      setOpen(false);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      if (!ownsMutation(ownerVnId, controller)) return;
-      toast.error((e as Error).message);
-    } finally {
-      finishMutation(ownerVnId, controller);
-    }
+    runMutation(async (ownerVnId, controller) => {
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const r = await fetch(`/api/collection/${ownerVnId}/banner`, { method: 'POST', body: fd, signal: controller.signal });
+        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const banner = decodeUploadedBannerPath(await r.json().catch(() => null));
+        if (!banner) throw new Error(t.common.error);
+        if (!ownsMutation(ownerVnId, controller)) return;
+        dispatchBannerChanged({ vnId: ownerVnId, newSrc: null, newLocal: banner });
+        toast.success(t.toast.bannerSaved);
+        setOpen(false);
+        startTransition(() => router.refresh());
+      } catch (e) {
+        if (!ownsMutation(ownerVnId, controller)) return;
+        toast.error((e as Error).message);
+      } finally {
+        finishMutation(ownerVnId, controller);
+      }
+    });
   }
 
   const galleryItems = [
@@ -433,7 +437,6 @@ export function BannerSourcePicker({
 function TabButton({
   active,
   onClick,
-  disabled,
   id,
   controls,
   children,
@@ -442,25 +445,21 @@ function TabButton({
   onClick: () => void;
   id?: string;
   controls?: string;
-  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
       role="tab"
       id={id}
       aria-controls={controls}
       aria-selected={active}
       tabIndex={active ? 0 : -1}
       className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors sm:min-h-0 ${
-        disabled
-          ? 'cursor-not-allowed text-muted/40'
-          : active
-            ? 'text-white'
-            : 'text-muted hover:text-white'
+        active
+          ? 'text-white'
+          : 'text-muted hover:text-white'
       }`}
     >
       {children}

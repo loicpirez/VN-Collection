@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { ProducerRefreshButton } from '@/components/ProducerRefreshButton';
@@ -81,5 +82,48 @@ describe('ProducerRefreshButton', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(okJson({ developers: 1, publishers: 1, owned: 1, stale: false }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).not.toBeNull());
+  });
+
+  it('ignores same-frame duplicate refresh clicks', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(<ProducerRefreshButton producerId="p90007" />, { locale: 'en' });
+    const button = screen.getByRole('button', { name: 'Refresh' });
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(okJson({ developers: 1, publishers: 1, owned: 1, stale: false }));
+    expect(await screen.findByText('Updated / 1 dev / 1 pub / 1 owned')).not.toBeNull();
+  });
+
+  it('suppresses stale success and failure completions after the producer changes', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const { user, rerender } = renderWithProviders(<ProducerRefreshButton producerId="p90008" />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    rerender(<ProducerRefreshButton producerId="p90009" />);
+    resolveFetch(okJson({ developers: 1, publishers: 1, owned: 1, stale: false }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('Updated / 1 dev / 1 pub / 1 owned')).toBeNull();
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }),
+    );
+    rerender(<ProducerRefreshButton producerId="p90010" />);
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    rerender(<ProducerRefreshButton producerId="p90011" />);
+    rejectFetch(new Error('stale producer refresh'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale producer refresh')).toBeNull();
   });
 });

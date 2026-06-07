@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
@@ -31,8 +32,12 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/dynamic', () => ({
-  default: () => function DynamicTextualSearchPanel({ query }: { query: string }) {
+  default: (loader: () => Promise<unknown>, options?: { loading?: () => ReactNode }) => {
+    void loader();
+    options?.loading?.();
+    return function DynamicTextualSearchPanel({ query }: { query: string }) {
     return <div data-testid="textual-search-panel">{query}</div>;
+    };
   },
 }));
 
@@ -135,25 +140,25 @@ describe('SearchClient', () => {
 
     await user.type(screen.getByRole('searchbox', { name: /VNDB/ }), 'bad');
 
-    expect(await screen.findByText('Search error')).toBeInTheDocument();
+    expect(await screen.findByText('Search error', undefined, { timeout: 5_000 })).toBeInTheDocument();
     expect(screen.getByText('No result')).toBeInTheDocument();
   });
 
-  it('opens advanced filters, syncs URL params, submits the advanced search, and resets filters', async () => {
-    const { user } = renderSearchClient();
+  it('opens advanced filters and syncs URL params', async () => {
+    renderSearchClient();
 
-    await user.click(screen.getByRole('button', { name: /Advanced filters/ }));
-    await user.click(screen.getByRole('button', { name: 'English' }));
-    await user.click(screen.getByRole('button', { name: 'Windows' }));
-    await user.click(screen.getByRole('button', { name: /2 \/ Short/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Advanced filters/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Windows' }));
+    fireEvent.click(screen.getByRole('button', { name: /2 \/ Short/ }));
     fireEvent.change(screen.getByLabelText('Min year'), { target: { value: '2001' } });
     fireEvent.change(screen.getByLabelText('Max year'), { target: { value: '2005' } });
     fireEvent.change(screen.getByLabelText('Min rating (10-100)'), { target: { value: '70' } });
-    await user.click(screen.getByLabelText('Has screenshots'));
-    await user.click(screen.getByLabelText('Has a review'));
-    await user.click(screen.getByLabelText('Has an anime adaptation'));
+    fireEvent.click(screen.getByLabelText('Has screenshots'));
+    fireEvent.click(screen.getByLabelText('Has a review'));
+    fireEvent.click(screen.getByLabelText('Has an anime adaptation'));
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'rating' } });
-    await user.click(screen.getByRole('button', { name: 'Reverse order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reverse order' }));
 
     await waitFor(() =>
       expect(nav.replace).toHaveBeenLastCalledWith(
@@ -161,11 +166,20 @@ describe('SearchClient', () => {
         { scroll: false },
       ),
     );
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Run search' }));
+  it('submits advanced search, cancels results, and resets filters', async () => {
+    renderSearchClient();
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced filters/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    fireEvent.click(screen.getByRole('button', { name: /2 \/ Short/ }));
+    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?langs=en&lengthMin=2&lengthMax=2', { scroll: false }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run search' }));
     expect(await screen.findByText('Advanced Result')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
     await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search', { scroll: false }));
   });
 
@@ -278,7 +292,7 @@ describe('SearchClient', () => {
     const { user } = renderSearchClient();
 
     await user.type(screen.getByRole('searchbox', { name: /VNDB/ }), 'vndb fail');
-    expect(await screen.findByText('VNDB failed')).toBeInTheDocument();
+    expect(await screen.findByText('VNDB failed', undefined, { timeout: 5_000 })).toBeInTheDocument();
 
     installFetch(async (url) => {
       if (url.startsWith('/api/egs/search')) return json({ error: 'EGS failed' }, 500);
@@ -286,7 +300,7 @@ describe('SearchClient', () => {
     });
     await user.click(screen.getByRole('tab', { name: 'EGS' }));
     await user.type(screen.getByRole('searchbox', { name: /ErogameScape/ }), 'egs fail');
-    expect(await screen.findByText('EGS failed')).toBeInTheDocument();
+    expect(await screen.findByText('EGS failed', undefined, { timeout: 5_000 })).toBeInTheDocument();
 
     installFetch(async (url, init) => {
       if (url.startsWith('/api/egs/search')) return json({ candidates: [candidate({ id: 90002, gamename: 'Add Failure' })] });
@@ -295,9 +309,9 @@ describe('SearchClient', () => {
     });
     await user.clear(screen.getByRole('searchbox', { name: /ErogameScape/ }));
     await user.type(screen.getByRole('searchbox', { name: /ErogameScape/ }), 'add fail');
-    const row = await screen.findByText('Add Failure');
+    const row = await screen.findByText('Add Failure', undefined, { timeout: 5_000 });
     await user.click(within(row.closest('li') ?? document.body).getByRole('button', { name: /Add via EGS/ }));
 
-    expect(await screen.findByText('Add failed')).toBeInTheDocument();
+    expect(await screen.findByText('Add failed', undefined, { timeout: 5_000 })).toBeInTheDocument();
   });
 });

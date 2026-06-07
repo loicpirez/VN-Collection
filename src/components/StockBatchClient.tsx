@@ -20,9 +20,14 @@ const PROVIDER_GROUPS = {
   online: ['ebten', 'gamecity', 'amazon_jp', 'amiami', 'neowing', 'yodobashi', 'bikkuri_takarajima'] as string[],
 } as const;
 
-interface QueueEntry {
+export interface QueueEntry {
   vnId: string;
   title?: string;
+}
+
+export interface StockBatchQueueMergeResult {
+  entries: QueueEntry[];
+  capped: boolean;
 }
 
 const STOCK_BATCH_QUEUE_CAP = 5000;
@@ -30,6 +35,30 @@ const STOCK_BATCH_QUEUE_PAGE_SIZE = 50;
 const STOCK_BATCH_SCOPE_PAGE_SIZE = 500;
 const STOCK_BATCH_SCOPES = ['collection', 'reading_queue', 'recent_stock', 'wishlist'] as const;
 type StockBatchScope = (typeof STOCK_BATCH_SCOPES)[number];
+
+/**
+ * Merges newly loaded stock-batch candidates into the current queue while
+ * preserving order, removing duplicate VN ids, and enforcing the queue cap.
+ */
+export function mergeStockBatchQueue(
+  current: QueueEntry[],
+  loaded: QueueEntry[],
+  cap: number,
+): StockBatchQueueMergeResult {
+  const existing = new Set(current.map((entry) => entry.vnId));
+  const entries = [...current];
+  let capped = false;
+  for (const entry of loaded) {
+    if (existing.has(entry.vnId)) continue;
+    if (entries.length >= cap) {
+      capped = true;
+      break;
+    }
+    existing.add(entry.vnId);
+    entries.push(entry);
+  }
+  return { entries, capped };
+}
 
 /**
  * Single queued VN entry. Memoized with a primitive prop signature and
@@ -149,7 +178,7 @@ export function StockBatchClient() {
       } catch (e) {
         if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       }
-      if (!controller.signal.aborted) timer = setTimeout(poll, 2_000);
+      timer = setTimeout(poll, 2_000);
     };
     void poll();
     return () => {
@@ -221,21 +250,13 @@ export function StockBatchClient() {
         page = data.nextPage;
         scopeHasMore = page !== null;
       }
-      if (controller.signal.aborted) return;
       setQueue((prev) => {
-        const existing = new Set(prev.map((entry) => entry.vnId));
-        const merged = [...prev];
-        for (const entry of loaded) {
-          if (existing.has(entry.vnId)) continue;
-          if (merged.length >= STOCK_BATCH_QUEUE_CAP) {
-            scopeHasMore = true;
-            setError((t.stock.batchQueueCapacity as string).replace('{count}', String(STOCK_BATCH_QUEUE_CAP)));
-            break;
-          }
-          existing.add(entry.vnId);
-          merged.push(entry);
+        const merged = mergeStockBatchQueue(prev, loaded, STOCK_BATCH_QUEUE_CAP);
+        if (merged.capped) {
+          scopeHasMore = true;
+          setError((t.stock.batchQueueCapacity as string).replace('{count}', String(STOCK_BATCH_QUEUE_CAP)));
         }
-        return merged;
+        return merged.entries;
       });
       if (scopeHasMore || loaded.length > STOCK_BATCH_QUEUE_CAP) {
         setError((t.stock.batchQueueCapacity as string).replace('{count}', String(STOCK_BATCH_QUEUE_CAP)));
@@ -293,11 +314,9 @@ export function StockBatchClient() {
       if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       setError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
-      if (startAbortRef.current === controller) {
-        startAbortRef.current = null;
-        startInFlightRef.current = false;
-        if (mountedRef.current) setRunning(false);
-      }
+      startAbortRef.current = null;
+      startInFlightRef.current = false;
+      if (mountedRef.current) setRunning(false);
     }
   }
 
@@ -318,10 +337,8 @@ export function StockBatchClient() {
       if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       setError(e instanceof Error && e.message ? e.message : t.common.error);
     } finally {
-      if (stopAbortRef.current === controller) {
-        stopAbortRef.current = null;
-        stopInFlightRef.current = false;
-      }
+      stopAbortRef.current = null;
+      stopInFlightRef.current = false;
     }
   }
 

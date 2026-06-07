@@ -235,8 +235,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     return controller;
   }
 
-  function beginCollectionAction(ownerVnId: string): AbortController | null {
-    if (identityRef.current !== ownerVnId || collectionMutationKindRef.current === 'action') return null;
+  function beginCollectionAction(): AbortController {
     collectionAbortRef.current?.abort();
     const controller = new AbortController();
     collectionAbortRef.current = controller;
@@ -262,8 +261,8 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
     pendingCommitRef.current = null;
   }
 
-  function beginSeriesMutation(ownerVnId: string): AbortController | null {
-    if (identityRef.current !== ownerVnId || seriesAbortRef.current) return null;
+  function beginSeriesMutation(): AbortController {
+    seriesAbortRef.current?.abort();
     const controller = new AbortController();
     seriesAbortRef.current = controller;
     return controller;
@@ -275,8 +274,8 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       && !controller.signal.aborted;
   }
 
-  function finishSeriesMutation(controller: AbortController) {
-    if (seriesAbortRef.current === controller) seriesAbortRef.current = null;
+  function finishSeriesMutation() {
+    seriesAbortRef.current = null;
   }
 
   useEffect(() => {
@@ -457,7 +456,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           lastSavedRef.current = serialized;
           prevDumpedRef.current = dumped;
           prevFavoriteRef.current = favorite;
-          if (unmountedRef.current) return;
           setPendingFields(new Set<SaveField>());
           if (dumpedJustEnabled) toast.success(t.toast.markedDumped);
           if (favoriteChanged) toast.success(favorite ? t.toast.favoriteAdded : t.toast.favoriteRemoved);
@@ -466,7 +464,6 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           startTransition(() => router.refresh());
           if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
           idleTimerRef.current = setTimeout(() => {
-            if (unmountedRef.current) return;
             setSaveStatus('idle');
           }, 2000);
         })
@@ -542,15 +539,14 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   function handleAdd() {
     const ownerVnId = vn.id;
-    const controller = beginCollectionAction(ownerVnId);
-    if (!controller) return;
+    const controller = beginCollectionAction();
     setAddingItem(true);
     withCollectionTransition(
       ownerVnId,
       controller,
       () => call('POST', { status: 'planning' }, { signal: controller.signal }).then(() => {
         if (!ownsCollectionMutation(ownerVnId, controller)) return;
-        if (identityRef.current === ownerVnId) toast.success(t.toast.added);
+        toast.success(t.toast.added);
       }),
     );
   }
@@ -568,13 +564,16 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   async function handleRemove() {
     const ownerVnId = vn.id;
-    const controller = beginCollectionAction(ownerVnId);
-    if (!controller) return;
+    const controller = beginCollectionAction();
     setRemovingItem(true);
     const ok = await confirm({ message: t.form.removeConfirm, tone: 'danger' });
-    if (!ok || !ownsCollectionMutation(ownerVnId, controller)) {
+    if (!ok) {
       finishCollectionMutation(controller);
-      if (!unmountedRef.current && identityRef.current === ownerVnId) setRemovingItem(false);
+      setRemovingItem(false);
+      return;
+    }
+    if (!ownsCollectionMutation(ownerVnId, controller)) {
+      finishCollectionMutation(controller);
       return;
     }
     clearPendingAutosave();
@@ -591,8 +590,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
 
   async function addSeries(seriesId: number) {
     const ownerVnId = vn.id;
-    const controller = beginSeriesMutation(ownerVnId);
-    if (!controller) return;
+    const controller = beginSeriesMutation();
     setError(null);
     setAddingSeries(true);
     try {
@@ -614,16 +612,15 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       toast.error(message);
     } finally {
       if (ownsSeriesMutation(ownerVnId, controller)) {
-        finishSeriesMutation(controller);
-        if (!unmountedRef.current) setAddingSeries(false);
+        finishSeriesMutation();
+        setAddingSeries(false);
       }
     }
   }
 
   async function removeSeries(seriesId: number) {
     const ownerVnId = vn.id;
-    const controller = beginSeriesMutation(ownerVnId);
-    if (!controller) return;
+    const controller = beginSeriesMutation();
     setError(null);
     setRemovingSeriesId(seriesId);
     try {
@@ -642,8 +639,8 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
       toast.error(message);
     } finally {
       if (ownsSeriesMutation(ownerVnId, controller)) {
-        finishSeriesMutation(controller);
-        if (!unmountedRef.current) setRemovingSeriesId(null);
+        finishSeriesMutation();
+        setRemovingSeriesId(null);
       }
     }
   }
@@ -808,7 +805,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
             </>
           )}
           {saveStatus === 'idle' && (
-            <span className="opacity-50">{t.form.autoSaveHint ?? t.form.save}</span>
+            <span className="opacity-50">{t.form.autoSaveHint}</span>
           )}
         </span>
         <button

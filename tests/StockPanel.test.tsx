@@ -709,6 +709,30 @@ describe('StockPanel', () => {
     await waitFor(() => expect(input.getAttribute('aria-invalid')).toBeNull());
   });
 
+  it('surfaces malformed successful alias add payloads', async () => {
+    const aliasPost = vi.fn(() => json({ ok: true }));
+    global.fetch = routeFetch({ aliasPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    const input = await screen.findByLabelText(t.stock.aliasPlaceholder as string);
+    fireEvent.change(input, { target: { value: 'Bad Shape Alias' } });
+    const aliasForm = input.closest('form') as HTMLFormElement;
+    fireEvent.click(within(aliasForm).getByRole('button', { name: t.stock.aliasAdd as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes(t.common.error as string))).toBe(true));
+  });
+
+  it('surfaces malformed successful alias deletion payloads', async () => {
+    const aliasPost = vi.fn(() => json({ ok: true }));
+    global.fetch = routeFetch({ aliases: ['Existing Alias'], aliasPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    fireEvent.click(await screen.findByRole('button', { name: t.stock.aliasRemoveTerm as string }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes(t.common.error as string))).toBe(true));
+  });
+
   it('shows source mutation errors, previews known providers, and clears the error on edit', async () => {
     const snap = snapshot({
       providers: [provider(), provider({ id: 'melonbooks', label: 'Melonbooks' })],
@@ -730,6 +754,19 @@ describe('StockPanel', () => {
     expect(screen.queryByText((t.stock.manualSourceDetected as string).replace('{provider}', 'Melonbooks'))).toBeNull();
   });
 
+  it('surfaces malformed successful manual source add payloads', async () => {
+    const sourcePost = vi.fn(() => json({ ok: true }));
+    global.fetch = routeFetch({ sourcePost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    const input = await screen.findByLabelText(t.stock.manualSourcePlaceholder as string);
+    fireEvent.change(input, { target: { value: 'https://www.suruga-ya.jp/product/detail/1' } });
+    const sourceForm = input.closest('form') as HTMLFormElement;
+    fireEvent.click(within(sourceForm).getByRole('button', { name: t.stock.manualSourceAdd as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes(t.common.error as string))).toBe(true));
+  });
+
   it('surfaces single-provider refresh errors', async () => {
     const onPost = vi.fn(() => json({ error: 'Shop down' }, 503));
     global.fetch = routeFetch({ onPost });
@@ -738,6 +775,16 @@ describe('StockPanel', () => {
     fireEvent.click(screen.getByText(t.stock.providers as string));
     fireEvent.click(screen.getByRole('button', { name: (t.stock.refreshOnlyProvider as string).replace('{provider}', 'Studio X Shop') }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Shop down'));
+  });
+
+  it('surfaces malformed successful single-provider refresh payloads', async () => {
+    const onPost = vi.fn(() => json({ ok: true }));
+    global.fetch = routeFetch({ onPost });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+
+    fireEvent.click(screen.getByText(t.stock.providers as string));
+    fireEvent.click(screen.getByRole('button', { name: (t.stock.refreshOnlyProvider as string).replace('{provider}', 'Studio X Shop') }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(t.common.error as string));
   });
 
   it('falls back to a fresh GET when clear-cache returns no snapshot', async () => {
@@ -751,6 +798,18 @@ describe('StockPanel', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: t.stock.clearCache as string }));
     await waitFor(() => expect(onDelete).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText('Reloaded offer')).toBeTruthy());
+  });
+
+  it('surfaces malformed successful manual source deletion payloads', async () => {
+    const withSources = snapshot({ sources: [source()] });
+    const sourceDelete = vi.fn(() => json({ ok: true }));
+    global.fetch = routeFetch({ snapshot: withSources, sourceDelete });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={withSources} />);
+
+    fireEvent.click(screen.getByText(t.stock.searchSetup as string));
+    fireEvent.click(await screen.findByRole('button', { name: `${t.stock.manualSourceDelete}: Studio X Shop` }));
+    fireEvent.click(await screen.findByRole('button', { name: t.common.confirm as string }));
+    await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes(t.common.error as string))).toBe(true));
   });
 
   it('renders classified offer groups and translated offer metadata', async () => {

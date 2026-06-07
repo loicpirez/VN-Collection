@@ -168,7 +168,7 @@ export function WishlistClient() {
   // `?density=N` override still wins thanks to `resolveScopedDensity`.
   const search = useSearchParams();
   const router = useRouter();
-  const density = resolveScopedDensity(settings, 'wishlist', search?.get('density') ?? null);
+  const density = resolveScopedDensity(settings, 'wishlist', search.get('density') ?? null);
   const wishlistGridStyle: React.CSSProperties = useMemo(
     () => ({ gridTemplateColumns: cardGridColumns(density) }),
     [density],
@@ -176,7 +176,7 @@ export function WishlistClient() {
 
   const replaceParams = useCallback(
     (mutator: (sp: URLSearchParams) => void) => {
-      const next = new URLSearchParams(search?.toString() ?? '');
+      const next = new URLSearchParams(search.toString());
       mutator(next);
       const qs = next.toString();
       router.replace(qs ? `/wishlist?${qs}` : '/wishlist', { scroll: false });
@@ -200,17 +200,17 @@ export function WishlistClient() {
     [setParam],
   );
 
-  const q = search?.get('q') ?? '';
-  const filterLang = search?.get('lang') ?? '';
-  const filterPlatform = search?.get('platform') ?? '';
-  const filterRatingMin = search?.get('ratingMin') ?? '';
-  const filterRatingMax = search?.get('ratingMax') ?? '';
-  const filterYearMin = search?.get('yearMin') ?? '';
-  const filterYearMax = search?.get('yearMax') ?? '';
-  const urlSort = search?.get('sort') ?? null;
-  const urlGroup = search?.get('group') ?? null;
-  const urlHideOwned = search?.get('hideOwned');
-  const requestedPage = readPageFromUrl(search?.get('page') ?? null);
+  const q = search.get('q') ?? '';
+  const filterLang = search.get('lang') ?? '';
+  const filterPlatform = search.get('platform') ?? '';
+  const filterRatingMin = search.get('ratingMin') ?? '';
+  const filterRatingMax = search.get('ratingMax') ?? '';
+  const filterYearMin = search.get('yearMin') ?? '';
+  const filterYearMax = search.get('yearMax') ?? '';
+  const urlSort = search.get('sort') ?? null;
+  const urlGroup = search.get('group') ?? null;
+  const urlHideOwned = search.get('hideOwned');
+  const requestedPage = readPageFromUrl(search.get('page') ?? null);
   const sort = readSortFromUrl(urlSort, 'added_desc');
   const group = readGroupFromUrl(urlGroup, 'none');
   const hideOwned = urlHideOwned != null ? urlHideOwned !== '0' : true;
@@ -299,7 +299,6 @@ export function WishlistClient() {
   }, [load]);
 
   const onRefresh = useCallback(async () => {
-    if (mutationInFlightRef.current) return;
     const refreshId = manualRefreshIdRef.current + 1;
     manualRefreshIdRef.current = refreshId;
     setRefreshing(true);
@@ -332,9 +331,7 @@ export function WishlistClient() {
   }, []);
 
   async function deleteSelected() {
-    if (mutationInFlightRef.current) return;
     const list = Array.from(selectedRef.current);
-    if (list.length === 0) return;
     const ownerSelectionKey = selectionKey(list);
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -353,11 +350,9 @@ export function WishlistClient() {
       || controller.signal.aborted
       || selectionKey(selectedRef.current) !== ownerSelectionKey
     ) {
-      if (mutationAbortRef.current === controller) {
-        mutationAbortRef.current = null;
-        mutationInFlightRef.current = false;
-        if (mountedRef.current) setDeleting(false);
-      }
+      mutationAbortRef.current = null;
+      mutationInFlightRef.current = false;
+      setDeleting(false);
       return;
     }
     try {
@@ -391,7 +386,7 @@ export function WishlistClient() {
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationInFlightRef.current = false;
-        if (mountedRef.current) setDeleting(false);
+        setDeleting(false);
       }
     }
   }
@@ -469,18 +464,14 @@ export function WishlistClient() {
     const arr = [...filtered];
     arr.sort((a, b) => {
       switch (sort) {
-        case 'added_desc': return (b.added ?? 0) - (a.added ?? 0);
-        case 'added_asc': return (a.added ?? 0) - (b.added ?? 0);
+        case 'added_desc': return b.added - a.added;
+        case 'added_asc': return a.added - b.added;
         case 'title': return collator.compare(a.vn.title, b.vn.title);
         case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
         case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
         case 'egs_rating_desc': return (b.egs?.median ?? 0) - (a.egs?.median ?? 0);
-        default: {
-          const _exhaustive: never = sort;
-          return String(_exhaustive).localeCompare('');
-        }
       }
     });
     return arr;
@@ -497,14 +488,13 @@ export function WishlistClient() {
     if (group === 'none') return [{ key: '', items: pageItems }];
     const buckets = new Map<string, WishlistClientItem[]>();
     for (const it of pageItems) {
-      let key: string;
+      let key = '';
       switch (group) {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
         case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0], locale) : t.wishlist.groupUnknown; break;
         case 'platform': key = it.vn.platforms[0] ? platformLabel(it.vn.platforms[0]) : t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
-        default: key = '';
       }
       const list = buckets.get(key);
       if (list) list.push(it);
@@ -542,7 +532,7 @@ export function WishlistClient() {
           mutationAbortRef.current = null;
           mutationInFlightRef.current = false;
           removingIdRef.current = null;
-          if (mountedRef.current) setRemovingId(null);
+          setRemovingId(null);
         }
       }
     },

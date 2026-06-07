@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { TextualSearchPanel } from '@/components/TextualSearchPanel';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -83,6 +83,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -191,5 +192,59 @@ describe('TextualSearchPanel branches', () => {
     const { container } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
     await waitFor(() => expect((console.error as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
     expect(container.firstChild).toBeNull();
+  });
+
+  it('drops stale results after the query changes while requests are pending', async () => {
+    vi.useFakeTimers();
+    let resolveLibrary: (response: Response) => void = () => {};
+    let resolveTextual: (response: Response) => void = () => {};
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) {
+        return new Promise<Response>((resolve) => { resolveLibrary = resolve; });
+      }
+      if (u.startsWith('/api/search/textual')) {
+        return new Promise<Response>((resolve) => { resolveTextual = resolve; });
+      }
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const { container, rerender } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
+    act(() => {
+      vi.advanceTimersByTime(280);
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+
+    rerender(<TextualSearchPanel query="other" />);
+    await act(async () => {
+      resolveLibrary(json(libraryPayload()));
+      resolveTextual(json(textualPayload()));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain('Lib Title');
+    expect(container.textContent).not.toContain('Notes Hit');
+  });
+
+  it('suppresses AbortError search failures without logging', async () => {
+    vi.useFakeTimers();
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) return Promise.reject(abortError);
+      if (u.startsWith('/api/search/textual')) return Promise.resolve(json({ hits: [] }));
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<TextualSearchPanel query="memo" mode="standalone" />, { locale: 'en' });
+    await act(async () => {
+      vi.advanceTimersByTime(280);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(console.error).not.toHaveBeenCalled();
   });
 });

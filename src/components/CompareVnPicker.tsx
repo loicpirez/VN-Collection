@@ -120,7 +120,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
           alttitle: r.alttitle,
           released: null,
           developer: null,
-          image: url ? { url, thumbnail: url, sexual: r.image_sexual ?? null } : null,
+          image: url ? { url, thumbnail: url, sexual: r.image_sexual } : null,
           inCollection: true,
         };
       });
@@ -135,7 +135,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
           released: r.released,
           developer: r.developers?.[0]?.name ?? null,
           image: r.image ?? null,
-          inCollection: r.in_collection ?? false,
+          inCollection: r.in_collection,
         }));
 
       const currentSelectedIds = new Set(selected.map((s) => s.id));
@@ -163,7 +163,6 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   }
 
   function addHit(hit: VnHit) {
-    if (selected.length >= 4) return;
     const next = [
       ...selected,
       { id: hit.id, title: hit.title, alttitle: hit.alttitle, image: hit.image },
@@ -176,7 +175,6 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   }
 
   function compare() {
-    if (selected.length < 2) return;
     router.push(`/compare?ids=${encodeURIComponent(selected.map((s) => s.id).join(','))}`);
   }
 

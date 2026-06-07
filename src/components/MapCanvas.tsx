@@ -126,10 +126,8 @@ export function MapCanvas({
     return () => {
       if (saveTimer) clearTimeout(saveTimer);
       markersRef.current.clear();
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
+      map.remove();
+      mapRef.current = null;
     };
   }, [externalNetworkAllowed]);
 

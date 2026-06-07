@@ -19,8 +19,14 @@ interface Props {
   inCollection: boolean;
 }
 
-const ROLE_PRIORITY: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
+const ROLE_PRIORITY = { main: 0, primary: 1 } as const;
 const ROUTES_PAGE_SIZE = 40;
+type RouteSuggestionRole = keyof typeof ROLE_PRIORITY;
+type RouteSuggestion = VndbCharacter & { role: RouteSuggestionRole };
+
+function isRouteSuggestion(c: VndbCharacter & { role: string }): c is RouteSuggestion {
+  return c.role === 'main' || c.role === 'primary';
+}
 
 interface RouteRowProps {
   r: RouteRow;
@@ -41,7 +47,7 @@ interface RouteRowProps {
   onToggleComplete: (r: RouteRow) => void;
   onStartEdit: (r: RouteRow) => void;
   onEditNameChange: (value: string) => void;
-  onSaveEdit: () => void;
+  onSaveEdit: (id: number) => void;
   onCancelEdit: () => void;
   onMoveUp: (id: number) => void;
   onMoveDown: (id: number) => void;
@@ -114,10 +120,10 @@ const RouteRowItem = memo(function RouteRowItem({
           aria-label={t.routes.addPlaceholder}
           onChange={(e) => onEditNameChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onSaveEdit();
+            if (e.key === 'Enter') onSaveEdit(r.id);
             else if (e.key === 'Escape') onCancelEdit();
           }}
-          onBlur={onSaveEdit}
+          onBlur={() => onSaveEdit(r.id)}
           autoFocus
         />
       ) : (
@@ -339,8 +345,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   routesRef.current = routes;
   const editingNameRef = useRef(editingName);
   editingNameRef.current = editingName;
-  const editingIdRef = useRef(editingId);
-  editingIdRef.current = editingId;
   const notesDraftRef = useRef(notesDraft);
   notesDraftRef.current = notesDraft;
   const notesOpenRef = useRef(notesOpen);
@@ -355,7 +359,6 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     mutationInFlightRef.current = false;
     identityRef.current = vnId;
     routesRef.current = [];
-    editingIdRef.current = null;
     editingNameRef.current = '';
     notesOpenRef.current = null;
     notesDraftRef.current = '';
@@ -439,8 +442,8 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     };
     return [...characters]
       .map((c) => ({ ...c, role: pickRole(c) }))
-      .filter((c) => c.role === 'main' || c.role === 'primary')
-      .sort((a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9))
+      .filter(isRouteSuggestion)
+      .sort((a, b) => ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role])
       .filter((c) => {
         const k = c.name.trim().toLowerCase();
         if (!k || seen.has(k)) return false;
@@ -449,8 +452,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       });
   }, [characters, usedNames, vnId]);
 
-  const startMutation = useCallback((): AbortController | null => {
-    if (mutationInFlightRef.current) return null;
+  const createMutationController = useCallback((): AbortController => {
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = controller;
@@ -458,20 +460,23 @@ export function RoutesSection({ vnId, inCollection }: Props) {
     return controller;
   }, []);
 
+  const startMutation = useCallback((): AbortController | null => {
+    if (mutationInFlightRef.current) return null;
+    return createMutationController();
+  }, [createMutationController]);
+
   const ownsMutation = useCallback((ownerVnId: string, controller: AbortController): boolean => (
     identityRef.current === ownerVnId
     && mutationAbortRef.current === controller
     && !controller.signal.aborted
   ), []);
 
-  const finishMutation = useCallback((ownerVnId: string, controller: AbortController) => {
+  const finishMutation = useCallback((controller: AbortController) => {
     if (mutationAbortRef.current !== controller) return;
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
-    if (identityRef.current === ownerVnId) {
-      setBusy(false);
-      setPendingAction(null);
-    }
+    setBusy(false);
+    setPendingAction(null);
   }, []);
 
   const add = useCallback(async (name: string): Promise<boolean> => {
@@ -502,7 +507,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       toast.error((err as Error).message);
       return false;
     } finally {
-      finishMutation(ownerVnId, controller);
+      finishMutation(controller);
     }
   }, [finishMutation, ownsMutation, router, startMutation, toast, t.common.error, t.routes.added, vnId]);
 
@@ -544,20 +549,19 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       toast.error((err as Error).message);
       return false;
     } finally {
-      finishMutation(ownerVnId, controller);
+      finishMutation(controller);
     }
   }, [finishMutation, ownsMutation, reload, router, startMutation, toast, t.common.error, t.routes.updated, vnId]);
 
   const remove = useCallback(async (id: number) => {
     const ownerVnId = vnId;
-    const controller = startMutation();
-    if (!controller) return;
+    const controller = createMutationController();
     setBusy(true);
     setPendingAction({ id, kind: 'remove' });
     setError(null);
     const ok = await confirm({ message: t.routes.removeConfirm, tone: 'danger' });
     if (!ok || !ownsMutation(ownerVnId, controller)) {
-      finishMutation(ownerVnId, controller);
+      finishMutation(controller);
       return;
     }
     try {
@@ -573,18 +577,16 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       setError((err as Error).message);
       toast.error((err as Error).message);
     } finally {
-      finishMutation(ownerVnId, controller);
+      finishMutation(controller);
     }
-  }, [confirm, finishMutation, ownsMutation, reload, router, startMutation, toast, t.common.error, t.routes.removed, t.routes.removeConfirm, vnId]);
+  }, [confirm, createMutationController, finishMutation, ownsMutation, reload, router, toast, t.common.error, t.routes.removed, t.routes.removeConfirm, vnId]);
 
   const move = useCallback(async (id: number, direction: -1 | 1) => {
     const ownerVnId = vnId;
     const current = routesRef.current;
     const idx = current.findIndex((r) => r.id === id);
     const target = idx + direction;
-    if (idx === -1 || target < 0 || target >= current.length) return;
-    const controller = startMutation();
-    if (!controller) return;
+    const controller = createMutationController();
     const next = [...current];
     [next[idx], next[target]] = [next[target], next[idx]];
     setRoutes(next);
@@ -609,36 +611,27 @@ export function RoutesSection({ vnId, inCollection }: Props) {
       setError((err as Error).message);
       toast.error((err as Error).message);
     } finally {
-      finishMutation(ownerVnId, controller);
+      finishMutation(controller);
     }
-  }, [finishMutation, ownsMutation, reload, startMutation, t.common.error, t.routes.reordered, toast, vnId]);
+  }, [createMutationController, finishMutation, ownsMutation, reload, t.common.error, t.routes.reordered, toast, vnId]);
 
   const startEdit = useCallback((r: RouteRow) => {
-    editingIdRef.current = r.id;
     setEditingId(r.id);
     setEditingName(r.name);
   }, []);
 
-  const saveEdit = useCallback(async () => {
-    const ownerVnId = vnId;
-    const id = editingIdRef.current;
-    if (id == null) return;
+  const saveEdit = useCallback(async (id: number) => {
     const next = editingNameRef.current.trim();
     if (!next) {
-      editingIdRef.current = null;
       setEditingId(null);
       return;
     }
     if (await patch(id, { name: next })) {
-      if (identityRef.current === ownerVnId) {
-        editingIdRef.current = null;
-        setEditingId(null);
-      }
+      setEditingId(null);
     }
-  }, [patch, vnId]);
+  }, [patch]);
 
   const cancelEdit = useCallback(() => {
-    editingIdRef.current = null;
     setEditingId(null);
   }, []);
 
@@ -671,14 +664,11 @@ export function RoutesSection({ vnId, inCollection }: Props) {
   }, []);
 
   const saveNotes = useCallback(async (r: RouteRow) => {
-    const ownerVnId = vnId;
     if (await patch(r.id, { notes: notesDraftRef.current.trim() || null }, { id: r.id, kind: 'notes' })) {
-      if (identityRef.current === ownerVnId) {
-        notesOpenRef.current = null;
-        setNotesOpen(null);
-      }
+      notesOpenRef.current = null;
+      setNotesOpen(null);
     }
-  }, [patch, vnId]);
+  }, [patch]);
 
   const moveUp = useCallback((id: number) => move(id, -1), [move]);
   const moveDown = useCallback((id: number) => move(id, 1), [move]);

@@ -29,10 +29,9 @@ function translatedCurrentItem(t: ReturnType<typeof useT>, job: Job): string {
   return interpolate(templates[job.current_item_code] ?? job.current_item, job.current_item_params);
 }
 
-function CurrentItemText({ t, job }: { t: ReturnType<typeof useT>; job: Job }) {
-  if (!job.current_item) return null;
+function CurrentItemText({ t, job, currentItem }: { t: ReturnType<typeof useT>; job: Job; currentItem: string }) {
   if (job.current_item_code) return <span>{translatedCurrentItem(t, job)}</span>;
-  return <EntityLink id={job.current_item} name={job.current_item_name} />;
+  return <EntityLink id={currentItem} name={job.current_item_name} />;
 }
 
 /** Maps a VNDB entity id prefix to its local app route. */
@@ -147,7 +146,6 @@ export function DownloadStatusBar() {
     let useSse = typeof window !== 'undefined' && 'EventSource' in window;
 
     async function pollOnce() {
-      if (!alive) return;
       const controller = new AbortController();
       pollAbort?.abort();
       pollAbort = controller;
@@ -181,7 +179,7 @@ export function DownloadStatusBar() {
 
     function startSse() {
       try {
-        if (pollTimer) clearTimeout(pollTimer);
+        clearTimeout(pollTimer ?? undefined);
         pollTimer = null;
         pollAbort?.abort();
         pollAbort = null;
@@ -217,29 +215,24 @@ export function DownloadStatusBar() {
     else startPolling();
 
     const onVisible = () => {
-      if (typeof document === 'undefined') return;
       if (document.visibilityState !== 'visible') return;
       if (useSse) {
         // EventSource normally reconnects on its own when the tab
         // wakes up, but recreating ensures we get a fresh snapshot
         // immediately rather than waiting for the next event.
-        if (es) es.close();
+        es!.close();
         startSse();
       } else {
         startPolling();
       }
     };
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisible);
-    }
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
       if (pollTimer) clearTimeout(pollTimer);
       pollAbort?.abort();
       if (es) es.close();
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisible);
-      }
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
@@ -271,8 +264,7 @@ export function DownloadStatusBar() {
 
   if (!hasAnything) return null;
 
-  const labelKind = (k: Job['kind']): string =>
-    k in t.downloadStatus.kinds ? t.downloadStatus.kinds[k as keyof typeof t.downloadStatus.kinds] : k;
+  const labelKind = (k: Job['kind']): string => t.downloadStatus.kinds[k];
   const currentItemText = (j: Job): string => {
     return translatedCurrentItem(t, j);
   };
@@ -444,7 +436,7 @@ export function DownloadStatusBar() {
                         current_item is set (queue tail / finished).
                       */}
                       {!finished && j.current_item ? (
-                        <>{labelKind(j.kind)} - <CurrentItemText t={t} job={j} /></>
+	                        <>{labelKind(j.kind)} - <CurrentItemText t={t} job={j} currentItem={j.current_item} /></>
                       ) : (
                         <span>
                           {labelKind(j.kind)} /{' '}

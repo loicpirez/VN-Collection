@@ -80,6 +80,23 @@ describe('CompareWithButton', () => {
     expect(rowY.getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('does not select more than three comparison rows', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(jsonResponse(collectionPage([
+      compareRow('v90001', 'Title A'),
+      compareRow('v90002', 'Title B'),
+      compareRow('v90003', 'Title C'),
+      compareRow('v90004', 'Title D'),
+    ])));
+    renderWithProviders(<CompareWithButton currentVnId="v90099" />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    const rows = await screen.findAllByRole('button', { name: /Title/ });
+    for (const row of rows) fireEvent.click(row);
+    expect(rows[0].getAttribute('aria-pressed')).toBe('true');
+    expect(rows[1].getAttribute('aria-pressed')).toBe('true');
+    expect(rows[2].getAttribute('aria-pressed')).toBe('true');
+    expect(rows[3].getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('navigates to /compare with the picked ids when Compare is clicked', async () => {
     renderWithProviders(<CompareWithButton currentVnId="v90099" />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
@@ -128,6 +145,53 @@ describe('CompareWithButton', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: t.common.cancel }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('closes via the header close button and via Escape', async () => {
+    renderWithProviders(<CompareWithButton currentVnId="v90099" />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    await screen.findByRole('button', { name: /Title Y/ });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t.common.close }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    await screen.findByRole('button', { name: /Title Y/ });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('suppresses a collection response that resolves after the dialog closes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    renderWithProviders(<CompareWithButton currentVnId="v90099" />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    await screen.findByRole('status');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t.common.cancel }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    resolveFetch(jsonResponse(collectionPage([compareRow('v90001', 'Late Title')])));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('Late Title')).toBeNull();
+  });
+
+  it('suppresses an AbortError from a collection request after closing', async () => {
+    let rejectFetch: (error: Error) => void = () => {};
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }),
+    );
+    renderWithProviders(<CompareWithButton currentVnId="v90099" />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    await screen.findByRole('status');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t.common.cancel }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const error = new Error('aborted compare load');
+    error.name = 'AbortError';
+    rejectFetch(error);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('aborted compare load')).toBeNull();
   });
 
   it('renders the empty state when the collection has no other VNs', async () => {

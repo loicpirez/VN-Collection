@@ -16,12 +16,8 @@ import { fmtDate } from '@/lib/locale-number';
  * Settings panel; the schema page is for inspection only.
  */
 function fmt(ts: number | null, neverLabel: string, locale: Locale): string {
-  if (!ts) return neverLabel;
-  try {
-    return fmtDate(new Date(ts), locale);
-  } catch {
-    return neverLabel;
-  }
+  if (!ts || !Number.isFinite(ts)) return neverLabel;
+  return fmtDate(new Date(ts), locale);
 }
 
 export async function SchemaEgsSection() {
@@ -39,10 +35,6 @@ export async function SchemaEgsSection() {
         return dict.tableVnEgsLink;
       case 'egs_vn_link':
         return dict.tableEgsVnLink;
-      default: {
-        const _exhaustive: never = table.key;
-        return _exhaustive;
-      }
     }
   };
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSettingsTab';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -16,6 +16,19 @@ vi.mock('next/navigation', () => ({
   notFound: vi.fn(),
   redirect: vi.fn(),
 }));
+
+vi.mock('@/lib/stock-provider-constants', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/stock-provider-constants')>('@/lib/stock-provider-constants');
+  const ids = ['sofmap', 'surugaya'] as const;
+  return {
+    ...actual,
+    STOCK_PROVIDER_IDS: ids,
+    STOCK_PROVIDER_LABELS: {
+      sofmap: actual.STOCK_PROVIDER_LABELS.sofmap,
+      surugaya: actual.STOCK_PROVIDER_LABELS.surugaya,
+    },
+  };
+});
 
 const t = dictionaries.en;
 
@@ -47,7 +60,6 @@ function serverSettings(over: Partial<ServerSettings> = {}): ServerSettings {
     vndb_proxy_config: proxyConfig(),
     vndbmirror_proxy_config: proxyConfig(),
     egs_proxy_config: proxyConfig(),
-    alicenet_proxy_config: proxyConfig(),
     stock_proxy_config: proxyConfig(),
     stock_disabled_providers: [],
     stock_retry_without_proxy: false,
@@ -118,6 +130,12 @@ describe('IntegrationsSettingsTab branches', () => {
     expect(saveServer).toHaveBeenCalledWith({ steam_id: null });
   });
 
+  it('saves a SteamID from null defaults', () => {
+    const { saveServer } = render(null);
+    fireEvent.blur(screen.getByLabelText(t.settings.steamIdLabel), { target: { value: '987654' } });
+    expect(saveServer).toHaveBeenCalledWith({ steam_id: '987654' });
+  });
+
   it('shows the EGS username badge + reset control and clears it', async () => {
     const { saveServer, user } = render(serverSettings({ egs_username: 'egs-user' }));
     const egsSection = screen.getByText(t.settings.egsTitle).closest('section') as HTMLElement;
@@ -130,6 +148,21 @@ describe('IntegrationsSettingsTab branches', () => {
     const { saveServer } = render(serverSettings({ egs_username: '' }));
     fireEvent.blur(screen.getByLabelText(t.settings.egsUsernameLabel), { target: { value: 'newuser' } });
     expect(saveServer).toHaveBeenCalledWith({ egs_username: 'newuser' });
+  });
+
+  it('skips an unchanged EGS username and clears via blur', () => {
+    const { saveServer } = render(serverSettings({ egs_username: 'egs-user' }));
+    const input = screen.getByLabelText(t.settings.egsUsernameLabel);
+    fireEvent.blur(input, { target: { value: 'egs-user' } });
+    expect(saveServer).not.toHaveBeenCalled();
+    fireEvent.blur(input, { target: { value: '' } });
+    expect(saveServer).toHaveBeenCalledWith({ egs_username: null });
+  });
+
+  it('saves an EGS username from null defaults', () => {
+    const { saveServer } = render(null);
+    fireEvent.blur(screen.getByLabelText(t.settings.egsUsernameLabel), { target: { value: 'fresh_egs' } });
+    expect(saveServer).toHaveBeenCalledWith({ egs_username: 'fresh_egs' });
   });
 
   it('toggles the proxy-enabled checkbox and persists protocol / host / port / username', () => {
@@ -150,6 +183,18 @@ describe('IntegrationsSettingsTab branches', () => {
     expect(saveServer).toHaveBeenCalledWith({ egs_proxy_config: { port: null } });
     fireEvent.blur(within(section).getByLabelText(t.settings.proxyUsername), { target: { value: 'puser' } });
     expect(saveServer).toHaveBeenCalledWith({ egs_proxy_config: { username: 'puser' } });
+    fireEvent.blur(within(section).getByLabelText(t.settings.proxyUsername), { target: { value: '  ' } });
+    expect(saveServer).toHaveBeenCalledWith({ egs_proxy_config: { username: null } });
+  });
+
+  it('blurs the proxy port field on wheel input', () => {
+    render(serverSettings());
+    const section = egsProxySection();
+    const port = within(section).getByLabelText(t.settings.proxyPort) as HTMLInputElement;
+    port.focus();
+    expect(document.activeElement).toBe(port);
+    fireEvent.wheel(port);
+    expect(document.activeElement).not.toBe(port);
   });
 
   it('renders the stored-password chip and supports Replace and Clear', async () => {
@@ -208,8 +253,54 @@ describe('IntegrationsSettingsTab branches', () => {
     await waitFor(() => expect(within(section).getByRole('status')).toHaveTextContent('9'));
   });
 
+  it('guards a synchronous duplicate Test click before React disables the button', async () => {
+    let resolveProbe: ((r: Response) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((res) => { resolveProbe = res; }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(serverSettings({ egs_proxy_config: proxyConfig({ enabled: true }) }));
+    const section = egsProxySection();
+    const testBtn = within(section).getByRole('button', { name: t.settings.proxyTestButton });
+    act(() => {
+      fireEvent.click(testBtn);
+      fireEvent.click(testBtn);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveProbe?.(jsonOk({ ok: true, latencyMs: 11, status: 200 }));
+    await waitFor(() => expect(within(section).getByRole('status')).toHaveTextContent('11'));
+  });
+
+  it('ignores a proxy-test success that resolves after unmount', async () => {
+    let resolveProbe: ((r: Response) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((res) => { resolveProbe = res; }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { user, unmount } = render(serverSettings({ egs_proxy_config: proxyConfig({ enabled: true }) }));
+    const section = egsProxySection();
+    await user.click(within(section).getByRole('button', { name: t.settings.proxyTestButton }));
+    unmount();
+    resolveProbe?.(jsonOk({ ok: true, latencyMs: 12, status: 200 }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an aborted proxy-test failure after unmount', async () => {
+    let rejectProbe: ((e: Error) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((_, rej) => { rejectProbe = rej; }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { user, unmount } = render(serverSettings({ egs_proxy_config: proxyConfig({ enabled: true }) }));
+    const section = egsProxySection();
+    await user.click(within(section).getByRole('button', { name: t.settings.proxyTestButton }));
+    unmount();
+    rejectProbe?.(new DOMException('aborted', 'AbortError'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('renders a successful probe with a zero-latency fallback when ms is absent', async () => {
-    // ok:true with latencyMs:0 exercises the `ms ?? 0` template branch.
     global.fetch = vi.fn(async () => jsonOk({ ok: true, latencyMs: 0, status: 204 })) as unknown as typeof fetch;
     const { user } = render(serverSettings({ egs_proxy_config: proxyConfig({ enabled: true }) }));
     const section = egsProxySection();
@@ -241,6 +332,16 @@ describe('IntegrationsSettingsTab branches', () => {
     const section = egsProxySection();
     await user.click(within(section).getByRole('button', { name: t.settings.proxyTestButton }));
     await waitFor(() => expect(within(section).getByRole('status')).toHaveTextContent(t.common.unknownError));
+  });
+
+  it('uses the generic string fallback for non-Error proxy-test throws', async () => {
+    global.fetch = vi.fn(async () => {
+      throw 'plain failure';
+    }) as unknown as typeof fetch;
+    const { user } = render(serverSettings({ egs_proxy_config: proxyConfig({ enabled: true }) }));
+    const section = egsProxySection();
+    await user.click(within(section).getByRole('button', { name: t.settings.proxyTestButton }));
+    await waitFor(() => expect(within(section).getByRole('status')).toHaveTextContent('plain failure'));
   });
 
   it('disables stock providers individually and via enable-all / disable-all', async () => {
@@ -282,7 +383,6 @@ describe('IntegrationsSettingsTab branches', () => {
     const cases: Array<[string, string]> = [
       [t.settings.proxyProviderVndb, 'vndb_proxy_config'],
       [t.settings.proxyProviderVndbmirror, 'vndbmirror_proxy_config'],
-      [t.settings.proxyProviderAliceNet, 'alicenet_proxy_config'],
       [t.settings.proxyProviderStock, 'stock_proxy_config'],
     ];
     for (const [label, key] of cases) {
@@ -290,6 +390,7 @@ describe('IntegrationsSettingsTab branches', () => {
       fireEvent.click(within(section).getByRole('checkbox'));
       expect(saveServer).toHaveBeenCalledWith({ [key]: { enabled: true } });
     }
+    expect(screen.queryByText(`${t.settings.proxyTitle} / ${t.settings.proxyProviderAliceNet}`)).toBeNull();
   });
 
   it('wires a per-shop override section onSave to its shop DB key', () => {

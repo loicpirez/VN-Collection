@@ -188,15 +188,57 @@ export function SearchClient() {
     if (!initialQ && !isAdvActive(initialAdv)) inputRef.current?.focus();
   }, [initialQ, initialAdv]);
 
-  // Auto-run on first mount when arriving with advanced filters in the URL.
-  const advAutoRunRef = useRef(false);
-  const runAdvancedRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    if (advAutoRunRef.current) return;
-    if (isAdvActive(initialAdv)) {
-      advAutoRunRef.current = true;
-      runAdvancedRef.current();
+  async function runAdvanced() {
+    advancedAbortRef.current?.abort();
+    const controller = new AbortController();
+    advancedAbortRef.current = controller;
+    setTouched(true);
+    setVndbLoading(true);
+    setError(null);
+    try {
+      const body = {
+        q: q.trim() || undefined,
+        langs: adv.langs.length ? adv.langs : undefined,
+        platforms: adv.platforms.length ? adv.platforms : undefined,
+        lengthMin: adv.lengthMin ?? undefined,
+        lengthMax: adv.lengthMax ?? undefined,
+        yearMin: adv.yearMin ? Number(adv.yearMin) : undefined,
+        yearMax: adv.yearMax ? Number(adv.yearMax) : undefined,
+        ratingMin: adv.ratingMin ? Number(adv.ratingMin) : undefined,
+        hasScreenshot: adv.hasScreenshot || undefined,
+        hasReview: adv.hasReview || undefined,
+        hasAnime: adv.hasAnime || undefined,
+        sort: adv.sort || undefined,
+        reverse: adv.sort ? adv.reverse : undefined,
+      };
+      const r = await fetch('/api/search/advanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!r.ok) throw new Error(await readApiError(r, t.search.errorPrefix));
+      const results = decodeVndbSearchResults(await r.json());
+      if (!results) throw new Error(t.search.errorPrefix);
+      if (controller.signal.aborted || advancedAbortRef.current !== controller) return;
+      setResults(results);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError' || controller.signal.aborted || advancedAbortRef.current !== controller) return;
+      console.error('[SearchClient] advanced search failed:', e);
+      setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
+      setResults([]);
+    } finally {
+      if (advancedAbortRef.current === controller) {
+        advancedAbortRef.current = null;
+        setVndbLoading(false);
+      }
     }
+  }
+
+  const runAdvancedRef = useRef(runAdvanced);
+  runAdvancedRef.current = runAdvanced;
+  useEffect(() => {
+    if (isAdvActive(initialAdv)) runAdvancedRef.current();
   }, [initialAdv]);
 
   // Sync state → URL (debounced for q, immediate for adv toggles).
@@ -225,8 +267,10 @@ export function SearchClient() {
       const qs = sp.toString();
       ownedUrlKeysRef.current.add(qs);
       if (ownedUrlKeysRef.current.size > 20) {
-        const oldest = ownedUrlKeysRef.current.values().next().value;
-        if (oldest !== undefined) ownedUrlKeysRef.current.delete(oldest);
+        for (const oldest of ownedUrlKeysRef.current) {
+          ownedUrlKeysRef.current.delete(oldest);
+          break;
+        }
       }
       router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
     },
@@ -262,6 +306,7 @@ export function SearchClient() {
   useEffect(() => () => {
     mountedRef.current = false;
     egsAddAbortRef.current?.abort();
+    egsAddAbortRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -375,59 +420,10 @@ export function SearchClient() {
       if (egsAddAbortRef.current === controller) {
         egsAddAbortRef.current = null;
         egsAddInFlightRef.current = false;
-        if (mountedRef.current) setAddingEgsId(null);
+        setAddingEgsId(null);
       }
     }
   }
-
-  async function runAdvanced() {
-    advancedAbortRef.current?.abort();
-    const controller = new AbortController();
-    advancedAbortRef.current = controller;
-    setTouched(true);
-    setVndbLoading(true);
-    setError(null);
-    try {
-      const body = {
-        q: q.trim() || undefined,
-        langs: adv.langs.length ? adv.langs : undefined,
-        platforms: adv.platforms.length ? adv.platforms : undefined,
-        lengthMin: adv.lengthMin ?? undefined,
-        lengthMax: adv.lengthMax ?? undefined,
-        yearMin: adv.yearMin ? Number(adv.yearMin) : undefined,
-        yearMax: adv.yearMax ? Number(adv.yearMax) : undefined,
-        ratingMin: adv.ratingMin ? Number(adv.ratingMin) : undefined,
-        hasScreenshot: adv.hasScreenshot || undefined,
-        hasReview: adv.hasReview || undefined,
-        hasAnime: adv.hasAnime || undefined,
-        sort: adv.sort || undefined,
-        reverse: adv.sort ? adv.reverse : undefined,
-      };
-      const r = await fetch('/api/search/advanced', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (!r.ok) throw new Error(await readApiError(r, t.search.errorPrefix));
-      const results = decodeVndbSearchResults(await r.json());
-      if (!results) throw new Error(t.search.errorPrefix);
-      if (controller.signal.aborted || advancedAbortRef.current !== controller) return;
-      setResults(results);
-    } catch (e) {
-      if ((e as Error).name === 'AbortError' || controller.signal.aborted || advancedAbortRef.current !== controller) return;
-      console.error('[SearchClient] advanced search failed:', e);
-      setError(e instanceof Error && e.message ? e.message : t.search.errorPrefix);
-      setResults([]);
-    } finally {
-      if (advancedAbortRef.current === controller) {
-        advancedAbortRef.current = null;
-        setVndbLoading(false);
-      }
-    }
-  }
-
-  runAdvancedRef.current = runAdvanced;
 
   useEffect(() => {
     if (!pendingUrlAdvancedRunRef.current) return;
@@ -602,7 +598,7 @@ export function SearchClient() {
                         setAdv((s) => ({ ...s, lengthMin: n, lengthMax: n }));
                       }}
                     >
-                      {n} / {t.search.lengthLabels[n - 1] ?? ''}
+                      {n} / {t.search.lengthLabels[n - 1]}
                     </button>
                   );
                 })}

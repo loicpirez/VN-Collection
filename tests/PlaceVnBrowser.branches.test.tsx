@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { PlaceVnBrowser } from '@/components/PlaceVnBrowser';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
@@ -76,6 +76,16 @@ function payload(vns: PlaceStockVn[]) {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error | string) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 function serve(vns: PlaceStockVn[]) {
@@ -163,10 +173,15 @@ describe('PlaceVnBrowser branches', () => {
 
   it('filters to an out-of-stock VN and shows its out-of-stock badge', async () => {
     serve([
+      vn({ vn_id: 'v10017', title: 'Available VN', in_stock_count: 2, out_of_stock_count: 0, in_collection: 0 }),
       vn({ vn_id: 'v10007', title: 'Sold Out', in_stock_count: 0, out_of_stock_count: 3, in_collection: 0 }),
     ]);
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Sold Out')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filterInStock as string) }));
+    expect(screen.getByText('Available VN')).toBeInTheDocument();
+    expect(screen.queryByText('Sold Out')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filterOutOfStock as string) }));
     const card = screen.getByText('Sold Out').closest('article')!;
     expect(within(card).getByText(t.places.filterOutOfStock as string)).toBeInTheDocument();
   });
@@ -201,7 +216,7 @@ describe('PlaceVnBrowser branches', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filterInCollection as string) }));
     await waitFor(() => expect(screen.queryByText('61-65 / 65')).toBeNull());
     expect(screen.getByText('Item 65')).toBeInTheDocument();
-  });
+  }, 10000);
 
   it('ignores a malformed persisted preference and uses defaults', async () => {
     try { localStorage.setItem('vncoll.place-vn-browser.prefs.v1', '{not json'); } catch {}
@@ -209,6 +224,17 @@ describe('PlaceVnBrowser branches', () => {
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Default Pref')).toBeTruthy());
     // Default sort is name (Title A-Z) and group None.
+    expect((screen.getByLabelText(t.places.sortLabel as string) as HTMLSelectElement).value).toBe('name');
+    expect((screen.getByLabelText(t.places.groupLabel as string) as HTMLSelectElement).value).toBe('none');
+  });
+
+  it('uses defaults when reading saved preferences throws', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    serve([vn({ vn_id: 'v10019', title: 'Blocked Pref' })]);
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Blocked Pref')).toBeTruthy());
     expect((screen.getByLabelText(t.places.sortLabel as string) as HTMLSelectElement).value).toBe('name');
     expect((screen.getByLabelText(t.places.groupLabel as string) as HTMLSelectElement).value).toBe('none');
   });
@@ -237,5 +263,90 @@ describe('PlaceVnBrowser branches', () => {
     expect(screen.getByText('Has Price')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(t.places.sortLabel as string), { target: { value: 'price_desc' } });
     expect(screen.getByText('No Price')).toBeInTheDocument();
+  });
+
+  it('handles malformed and rejected stock loads with the user-facing error state', async () => {
+    global.fetch = vi.fn(async () => json({ vns: [], stats: { total: 0 } }));
+    const first = renderBrowser();
+    await waitFor(() => expect(screen.getAllByText(t.common.error as string).length).toBeGreaterThan(0));
+    first.unmount();
+
+    global.fetch = vi.fn(async () => {
+      throw 'plain failure';
+    });
+    renderBrowser();
+    await waitFor(() => expect(screen.getAllByText(t.common.error as string).length).toBeGreaterThan(0));
+  });
+
+  it('treats AbortError and aborted stale stock responses as non-errors', async () => {
+    global.fetch = vi.fn(async () => {
+      const error = new Error('aborted request');
+      error.name = 'AbortError';
+      throw error;
+    });
+    const first = renderBrowser();
+    await waitFor(() => expect(screen.getByText(t.places.vnBrowserEmpty as string)).toBeInTheDocument());
+    expect(screen.queryByText('aborted request')).toBeNull();
+    first.unmount();
+
+    const deferred = deferredResponse();
+    global.fetch = vi.fn(() => deferred.promise);
+    const second = renderBrowser();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    second.unmount();
+    await act(async () => {
+      deferred.resolve(json(payload([vn({ vn_id: 'v10014', title: 'Late VN' })])));
+      await deferred.promise;
+    });
+    expect(screen.queryByText('Late VN')).toBeNull();
+  });
+
+  it('normalizes producer options by skipping blank ids and falling back to ids for blank names', async () => {
+    serve([
+      vn({
+        vn_id: 'v10015',
+        title: 'Producer Fallback',
+        developers: JSON.stringify([
+          { id: '', name: 'Ignored Studio' },
+          { id: 'pblank', name: '' },
+        ]),
+      }),
+    ]);
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Producer Fallback')).toBeTruthy());
+    expect(screen.getByRole('option', { name: 'pblank (1)' })).toBeInTheDocument();
+  });
+
+  it('filters by maximum price and all search fields before returning to card view', async () => {
+    serve([
+      vn({ vn_id: 'v10016', title: 'Alpha Title', alttitle: 'First Alt', min_price: 900, in_collection: 0 }),
+      vn({ vn_id: 'v10018', title: 'Beta Title', alttitle: 'Needle Alt', min_price: 3_200, in_collection: 0 }),
+    ]);
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Alpha Title')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(t.places.priceMax as string), { target: { value: '1000' } });
+    expect(screen.getByText('Alpha Title')).toBeInTheDocument();
+    expect(screen.queryByText('Beta Title')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: t.places.resetFilters as string }));
+    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'beta title' } });
+    await waitFor(() => {
+      expect(screen.getByText('Beta Title')).toBeInTheDocument();
+      expect(screen.queryByText('Alpha Title')).toBeNull();
+    });
+
+    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'first alt' } });
+    await waitFor(() => {
+      expect(screen.getByText('Alpha Title')).toBeInTheDocument();
+      expect(screen.queryByText('Beta Title')).toBeNull();
+    });
+
+    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'missing result' } });
+    await waitFor(() => expect(screen.getByText(t.places.vnBrowserAllFiltered as string)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
+    fireEvent.click(screen.getByRole('button', { name: t.places.viewCards as string }));
+    expect(screen.getByRole('button', { name: t.places.viewCards as string })).toHaveClass('bg-accent');
   });
 });

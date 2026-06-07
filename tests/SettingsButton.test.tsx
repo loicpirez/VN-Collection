@@ -85,7 +85,6 @@ function serverSettings() {
     vndb_proxy_config: proxyConfig(),
     vndbmirror_proxy_config: proxyConfig(),
     egs_proxy_config: proxyConfig(),
-    alicenet_proxy_config: proxyConfig(),
     stock_proxy_config: proxyConfig(),
     stock_disabled_providers: [],
     stock_retry_without_proxy: true,
@@ -108,6 +107,14 @@ function pullStatusPayload() {
     changes: [{ vn_id: 'v90001', title: 'Title Y', from: 'planning', to: 'completed' }],
     unmatched: [{ vn_id: 'v90002', status: 'playing' }],
   };
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 function renderSettings() {
@@ -320,6 +327,11 @@ describe('SettingsButton', () => {
     fireEvent.click(hideImages);
     expect(hideImages.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(within(dialog).getByRole('button', { name: t.settings.resetDisplay as string }));
+    const cancelDialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(cancelDialog).getByRole('button', { name: t.common.cancel as string }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(hideImages.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.resetDisplay as string }));
     const confirmDialog = await screen.findByRole('alertdialog');
     fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.confirm as string }));
     await waitFor(() => expect(hideImages.getAttribute('aria-checked')).toBe('false'));
@@ -344,6 +356,11 @@ describe('SettingsButton', () => {
     expect(backdrop).toBeTruthy();
     fireEvent.click(backdrop as HTMLElement);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    await screen.findByRole('dialog');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('continues rendering local preferences when settings load fails', async () => {
@@ -355,6 +372,10 @@ describe('SettingsButton', () => {
     expect(within(dialog).getByRole('switch', { name: t.settings.hideImages as string })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
     expect(screen.queryByText('abc...')).toBeNull();
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.library as string }));
+    expect((within(dialog).getByRole('combobox', { name: t.settings.defaultSortTitle as string }) as HTMLSelectElement).value).toBe('updated_at');
+    expect((within(dialog).getByRole('combobox', { name: t.settings.defaultOrderTitle as string }) as HTMLSelectElement).value).toBe('desc');
+    expect((within(dialog).getByRole('combobox', { name: t.settings.defaultGroupTitle as string }) as HTMLSelectElement).value).toBe('none');
   });
 
   it('shows save errors from the settings API', async () => {
@@ -368,5 +389,252 @@ describe('SettingsButton', () => {
     fireEvent.change(within(dialog).getByLabelText(t.settings.vndbTokenPlaceholder as string), { target: { value: 'new-token' } });
     fireEvent.click(within(dialog).getByRole('button', { name: t.common.save as string }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('patch failed'));
+  });
+
+  it('renders account fallbacks and empty pull results', async () => {
+    const envServer = {
+      ...serverSettings(),
+      vndb_token: { hasToken: true, preview: null, envFallback: true },
+      vndb_backup_url: { hasUrl: true, host: 'api.yorhel.org', isDefault: true },
+    };
+    pullBody = {
+      ok: true,
+      needsAuth: false,
+      scanned: 2,
+      updated: 0,
+      unchanged: 2,
+      skippedNotInCollection: 0,
+      changes: [{ vn_id: 'v90003', title: 'No Previous Status', from: null, to: 'playing' }],
+      unmatched: [],
+    };
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return json(envServer);
+      if (u === '/api/settings' && init?.method === 'PATCH') return json(envServer);
+      if (u === '/api/vndb/pull-statuses') return json(pullBody, pullStatus);
+      return json({});
+    });
+
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText(t.settings.vndbTokenEnv as string)).toBeTruthy());
+    expect(dialog.textContent).toContain(t.settings.vndbBackupCurrentHost.replace('{host}', 'api.yorhel.org'));
+    expect(dialog.textContent).toContain(`(${t.settings.vndbBackupDefaultSuffix})`);
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    await waitFor(() => {
+      expect(screen.getByText(
+        t.settings.vndbPullDiffSummary
+          .replace('{updated}', '0')
+          .replace('{unchanged}', '2')
+          .replace('{skipped}', '0')
+          .replace('{scanned}', '2'),
+      )).toBeTruthy();
+    });
+    expect(screen.getByRole('link', { name: 'No Previous Status' })).toBeTruthy();
+    expect(dialog.textContent).toContain('-');
+  });
+
+  it('ignores stale save and pull completions after unmount', async () => {
+    const settingsGet = deferredResponse();
+    const settingsPatch = deferredResponse();
+    const pull = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return settingsGet.promise;
+      if (u === '/api/settings' && init?.method === 'PATCH') return settingsPatch.promise;
+      if (u === '/api/vndb/pull-statuses') return pull.promise;
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const view = renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    await act(async () => {
+      settingsGet.resolve(json(serverSettings()));
+      await Promise.resolve();
+    });
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.change(within(dialog).getByLabelText(t.settings.vndbTokenPlaceholder as string), { target: { value: 'queued-token' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.save as string }));
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[1]?.method === 'PATCH')).toBe(true));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((c) => String(c[0]) === '/api/vndb/pull-statuses')).toBe(true));
+    view.unmount();
+    await act(async () => {
+      settingsPatch.resolve(json(serverSettings()));
+      pull.resolve(json(pullStatusPayload()));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('drops queued saves after the settings modal unmounts', async () => {
+    const firstPatch = deferredResponse();
+    let patchCount = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return Promise.resolve(json(serverSettings()));
+      if (u === '/api/settings' && init?.method === 'PATCH') {
+        patchCount += 1;
+        return patchCount === 1 ? firstPatch.promise : Promise.resolve(json(serverSettings()));
+      }
+      if (u === '/api/vndb/pull-statuses') return Promise.resolve(json(pullBody, pullStatus));
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const view = renderSettings();
+    act(() => {
+      window.dispatchEvent(new CustomEvent('vn:open-settings', { detail: { tab: 'integrations' } }));
+    });
+    await screen.findByRole('dialog');
+    await waitFor(() => expect(screen.getByText('integrations tab mock')).toBeTruthy());
+    fireEvent.click(screen.getByText('integrations tab mock'));
+    fireEvent.click(screen.getByText('integrations tab mock'));
+    await waitFor(() => expect(patchCount).toBe(1));
+    view.unmount();
+    await act(async () => {
+      firstPatch.resolve(json(serverSettings()));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(patchCount).toBe(1);
+  });
+
+  it('ignores a saved settings reload that completes after unmount', async () => {
+    const reload = deferredResponse();
+    let getCount = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) {
+        getCount += 1;
+        return getCount === 1 ? Promise.resolve(json(serverSettings())) : reload.promise;
+      }
+      if (u === '/api/settings' && init?.method === 'PATCH') return Promise.resolve(json(serverSettings()));
+      if (u === '/api/vndb/pull-statuses') return Promise.resolve(json(pullBody, pullStatus));
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const view = renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.change(within(dialog).getByLabelText(t.settings.vndbTokenPlaceholder as string), { target: { value: 'reload-token' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.save as string }));
+    await waitFor(() => expect(getCount).toBe(2));
+    view.unmount();
+    await act(async () => {
+      reload.resolve(json(serverSettings()));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('ignores a save error after unmount and handles malformed pull JSON', async () => {
+    const patch = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return Promise.resolve(json(serverSettings()));
+      if (u === '/api/settings' && init?.method === 'PATCH') return patch.promise;
+      if (u === '/api/vndb/pull-statuses') return Promise.resolve(new Response('not json', { status: 500 }));
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const view = renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(t.common.error as string));
+    fireEvent.change(within(dialog).getByLabelText(t.settings.vndbTokenPlaceholder as string), { target: { value: 'error-token' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.save as string }));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[1]?.method === 'PATCH')).toBe(true));
+    view.unmount();
+    await act(async () => {
+      patch.resolve(json({ error: 'late patch failed' }, 500));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('ignores pull errors that settle after unmount and blocks duplicate pull starts', async () => {
+    const pull = deferredResponse();
+    let pullCount = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return Promise.resolve(json(serverSettings()));
+      if (u === '/api/settings' && init?.method === 'PATCH') return Promise.resolve(json(serverSettings()));
+      if (u === '/api/vndb/pull-statuses') {
+        pullCount += 1;
+        return pull.promise;
+      }
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const view = renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    const pullButton = within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string });
+    act(() => {
+      fireEvent.click(pullButton);
+      fireEvent.click(pullButton);
+    });
+    await waitFor(() => expect(pullCount).toBe(1));
+    view.unmount();
+    await act(async () => {
+      pull.resolve(json({ ok: false, message: 'late pull failed' }, 500));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('treats malformed server settings as unavailable account state', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return json({});
+      if (u === '/api/settings' && init?.method === 'PATCH') return json(serverSettings());
+      if (u === '/api/vndb/pull-statuses') return json(pullBody, pullStatus);
+      return json({});
+    });
+
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText('abc...')).toBeNull();
+  });
+
+  it('does not clear an empty custom backup URL when the server has no URL', async () => {
+    const noBackupUrl = {
+      ...serverSettings(),
+      vndb_backup_url: { hasUrl: false, host: null, isDefault: false },
+    };
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/settings' && (!init?.method || init.method === 'GET')) return json(noBackupUrl);
+      if (u === '/api/settings' && init?.method === 'PATCH') return json(noBackupUrl);
+      if (u === '/api/vndb/pull-statuses') return json(pullBody, pullStatus);
+      return json({});
+    });
+
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.blur(within(dialog).getByLabelText(t.settings.vndbBackupTitle as string));
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[1]?.method === 'PATCH')).toBe(false);
   });
 });

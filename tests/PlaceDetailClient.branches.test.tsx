@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import type { PlaceWithLinks } from '@/lib/db';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 const pushMock = vi.fn();
 const refreshMock = vi.fn();
+let latestEditSaved: (() => void) | null = null;
+let latestAssignSaved: (() => void) | null = null;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), refresh: refreshMock, back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/',
@@ -21,20 +23,26 @@ vi.mock('@/components/PlaceVnBrowser', () => ({
   PlaceVnBrowser: ({ placeId }: { placeId: number }) => <div data-testid="vn-browser">{placeId}</div>,
 }));
 vi.mock('@/components/AddEditPlaceModal', () => ({
-  AddEditPlaceModal: ({ onClose, onSaved }: { onClose: () => void; onSaved: (id?: number) => void }) => (
-    <div data-testid="edit-modal">
-      <button type="button" onClick={onClose}>close-edit</button>
-      <button type="button" onClick={() => onSaved()}>save-edit</button>
-    </div>
-  ),
+  AddEditPlaceModal: ({ onClose, onSaved }: { onClose: () => void; onSaved: (id?: number) => void }) => {
+    latestEditSaved = () => onSaved();
+    return (
+      <div data-testid="edit-modal">
+        <button type="button" onClick={onClose}>close-edit</button>
+        <button type="button" onClick={() => onSaved()}>save-edit</button>
+      </div>
+    );
+  },
 }));
 vi.mock('@/components/AssignProviderDialog', () => ({
-  AssignProviderDialog: ({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) => (
-    <div data-testid="assign-dialog">
-      <button type="button" onClick={onClose}>close-assign</button>
-      <button type="button" onClick={onSaved}>save-assign</button>
-    </div>
-  ),
+  AssignProviderDialog: ({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) => {
+    latestAssignSaved = onSaved;
+    return (
+      <div data-testid="assign-dialog">
+        <button type="button" onClick={onClose}>close-assign</button>
+        <button type="button" onClick={onSaved}>save-assign</button>
+      </div>
+    );
+  },
 }));
 
 const t = dictionaries.en;
@@ -62,10 +70,18 @@ function place(overrides: Partial<PlaceWithLinks> = {}): PlaceWithLinks {
   };
 }
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe('PlaceDetailClient branches', () => {
   beforeEach(() => {
     pushMock.mockReset();
     refreshMock.mockReset();
+    latestEditSaved = null;
+    latestAssignSaved = null;
     global.fetch = vi.fn(async () => json({ ok: true }));
   });
   afterEach(() => {
@@ -170,6 +186,69 @@ describe('PlaceDetailClient branches', () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it('ignores rapid duplicate delete attempts while the first confirmation is pending', async () => {
+    const fetchSpy = vi.fn(async () => json({ ok: true }));
+    global.fetch = fetchSpy;
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    const deleteButton = screen.getByRole('button', { name: new RegExp(t.places.deletePlace as string) });
+    act(() => {
+      deleteButton.click();
+      deleteButton.click();
+    });
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('drops a confirmed delete when the place identity changed before confirmation resolves', async () => {
+    const fetchSpy = vi.fn(async () => json({ ok: true }));
+    global.fetch = fetchSpy;
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { user, rerender } = renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: new RegExp(t.places.deletePlace as string) }));
+    await screen.findByRole('alertdialog');
+    rerender(<PlaceDetailClient place={place({ id: 13, name: 'Second Shop' })} />);
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('drops a successful delete response when the place identity changed mid-request', async () => {
+    let resolveDelete: (response: Response) => void = () => {};
+    const fetchSpy = vi.fn(() => new Promise<Response>((resolve) => { resolveDelete = resolve; }));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { user, rerender } = renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: new RegExp(t.places.deletePlace as string) }));
+    await screen.findByRole('alertdialog');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    rerender(<PlaceDetailClient place={place({ id: 14, name: 'Third Shop' })} />);
+    resolveDelete(json({ ok: true }));
+    await flushMicrotasks();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(t.places.deleteSuccess as string)).toBeNull();
+  });
+
+  it('drops a failed delete response when the place identity changed mid-request', async () => {
+    let resolveDelete: (response: Response) => void = () => {};
+    const fetchSpy = vi.fn(() => new Promise<Response>((resolve) => { resolveDelete = resolve; }));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { user, rerender } = renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: new RegExp(t.places.deletePlace as string) }));
+    await screen.findByRole('alertdialog');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    rerender(<PlaceDetailClient place={place({ id: 15, name: 'Fourth Shop' })} />);
+    resolveDelete(json({ error: 'stale delete failed' }, 500));
+    await flushMicrotasks();
+    expect(screen.queryByText('stale delete failed')).toBeNull();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it('shows an error toast when the delete request fails', async () => {
     global.fetch = vi.fn(async () => json({ error: 'delete failed' }, 500));
     const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
@@ -179,6 +258,24 @@ describe('PlaceDetailClient branches', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(await screen.findByText('delete failed')).toBeInTheDocument();
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores stale edit and assign save callbacks after the place changes', async () => {
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { user, rerender } = renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    await user.click(screen.getByRole('button', { name: new RegExp(t.places.editPlace as string) }));
+    expect(latestEditSaved).not.toBeNull();
+    const staleEditSaved = latestEditSaved;
+    rerender(<PlaceDetailClient place={place({ id: 16, name: 'Fifth Shop' })} />);
+    act(() => staleEditSaved?.());
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: new RegExp(t.places.assignDialog as string) }));
+    expect(latestAssignSaved).not.toBeNull();
+    const staleAssignSaved = latestAssignSaved;
+    rerender(<PlaceDetailClient place={place({ id: 17, name: 'Sixth Shop' })} />);
+    act(() => staleAssignSaved?.());
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it('falls back to the raw kind when no localized label exists', async () => {

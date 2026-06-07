@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
@@ -74,5 +75,48 @@ describe('StaffDownloadButton', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(okJson(GOOD_BODY));
     await waitFor(() => expect(btn.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('ignores same-frame duplicate download clicks', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(<StaffDownloadButton sid="s90006" />, { locale: 'en' });
+    const button = screen.getByRole('button');
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveFetch(okJson(GOOD_BODY));
+    expect(await screen.findByText(/\(7\)/)).not.toBeNull();
+  });
+
+  it('suppresses stale success and failure completions after the staff id changes', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+    );
+    const { user, rerender } = renderWithProviders(<StaffDownloadButton sid="s90007" />, { locale: 'en' });
+    await user.click(screen.getByRole('button'));
+    rerender(<StaffDownloadButton sid="s90008" />);
+    resolveFetch(okJson(GOOD_BODY));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText(/\(7\)/)).toBeNull();
+
+    let rejectFetch: (error: Error) => void = () => {};
+    global.fetch = vi.fn().mockImplementation(
+      () => new Promise<Response>((_resolve, reject) => { rejectFetch = reject; }),
+    );
+    rerender(<StaffDownloadButton sid="s90009" />);
+    await user.click(screen.getByRole('button'));
+    rerender(<StaffDownloadButton sid="s90010" />);
+    rejectFetch(new Error('stale staff download'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('stale staff download')).toBeNull();
   });
 });

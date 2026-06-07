@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CompareVnPicker, type CompareVn } from '@/components/CompareVnPicker';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -67,14 +67,16 @@ function vndbPayload() {
 }
 
 /** Route both autocomplete endpoints; allow per-endpoint failure injection. */
-function routedFetch(opts: { local?: unknown; vndb?: unknown; failLocal?: boolean; failVndb?: boolean } = {}) {
+function routedFetch(opts: { local?: unknown; vndb?: unknown; failLocal?: boolean; failVndb?: boolean; rejectLocal?: boolean; rejectVndb?: boolean } = {}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const u = String(input);
     if (u.startsWith('/api/collection/find')) {
+      if (opts.rejectLocal) throw new Error('local rejected');
       if (opts.failLocal) return new Response('err', { status: 500 });
       return json(opts.local ?? { matches: [] });
     }
     if (u.startsWith('/api/search?')) {
+      if (opts.rejectVndb) throw new Error('vndb rejected');
       if (opts.failVndb) return new Response('err', { status: 500 });
       return json(opts.vndb ?? { results: [] });
     }
@@ -90,6 +92,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.restoreAllMocks();
 });
@@ -133,12 +136,36 @@ describe('CompareVnPicker branches', () => {
     expect(nav.push).not.toHaveBeenCalled();
   });
 
+  it('clears pending add-focus timers on prop sync, replacement, and unmount', () => {
+    vi.useFakeTimers();
+    const first = [seed('v90001', 'A'), seed('v90002', 'B')];
+    const second = [seed('v90003', 'C'), seed('v90004', 'D')];
+    const { rerender, unmount } = renderWithProviders(<CompareVnPicker initialVns={first} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.common.cancel }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareView.addVn) }));
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    rerender(<CompareVnPicker initialVns={second} />);
+    fireEvent.click(screen.getByRole('button', { name: t.common.cancel }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareView.addVn) }));
+    fireEvent.click(screen.getByRole('button', { name: t.common.cancel }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareView.addVn) }));
+    unmount();
+  });
+
   it('searches both sources, merges local + vndb hits, and filters already-selected ids', async () => {
+    vi.useFakeTimers();
     global.fetch = routedFetch({ local: localPayload(), vndb: vndbPayload() });
     renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
     const input = screen.getByRole('combobox');
     fireEvent.change(input, { target: { value: 'one' } });
-    expect(await screen.findByText('Lib One')).toBeInTheDocument();
+    await act(async () => {
+      vi.advanceTimersByTime(301);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Lib One')).toBeInTheDocument();
     expect(screen.getByText('Vndb One')).toBeInTheDocument();
     // Both the local (always in collection) and the in_collection VNDB hit
     // render the owned badge.
@@ -170,7 +197,75 @@ describe('CompareVnPicker branches', () => {
     global.fetch = routedFetch({ failLocal: true, failVndb: true });
     renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'broken' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(t.recommend.seedPicker.noResults)).toBeInTheDocument();
+  });
+
+  it('treats rejected autocomplete requests as empty result sets', async () => {
+    global.fetch = routedFetch({ rejectLocal: true, rejectVndb: true });
+    renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'reject' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(t.recommend.seedPicker.noResults)).toBeInTheDocument();
+  });
+
+  it('shows the spinner while autocomplete requests are pending', async () => {
+    let resolveLocal: (response: Response) => void = () => undefined;
+    let resolveVndb: (response: Response) => void = () => undefined;
+    const localResponse = new Promise<Response>((resolve) => {
+      resolveLocal = resolve;
+    });
+    const vndbResponse = new Promise<Response>((resolve) => {
+      resolveVndb = resolve;
+    });
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) return localResponse;
+      if (u.startsWith('/api/search?')) return vndbResponse;
+      return Promise.resolve(json({}));
+    });
+    renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'slow' } });
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeNull());
+    await act(async () => {
+      resolveLocal(json({ matches: [] }));
+      resolveVndb(json({ results: [] }));
+    });
+    expect(await screen.findByText(t.recommend.seedPicker.noResults)).toBeInTheDocument();
+  });
+
+  it('ignores stale autocomplete results after a newer query starts', async () => {
+    let resolveOldLocal: (response: Response) => void = () => undefined;
+    let resolveOldVndb: (response: Response) => void = () => undefined;
+    const oldLocalResponse = new Promise<Response>((resolve) => {
+      resolveOldLocal = resolve;
+    });
+    const oldVndbResponse = new Promise<Response>((resolve) => {
+      resolveOldVndb = resolve;
+    });
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.includes('old')) {
+        if (u.startsWith('/api/collection/find')) return oldLocalResponse;
+        if (u.startsWith('/api/search?')) return oldVndbResponse;
+      }
+      if (u.startsWith('/api/collection/find')) return Promise.resolve(json({ matches: [] }));
+      if (u.startsWith('/api/search?')) return Promise.resolve(json(vndbPayload()));
+      return Promise.resolve(json({}));
+    });
+    renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'old' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    fireEvent.change(input, { target: { value: 'new' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+    await act(async () => {
+      resolveOldLocal(json({ matches: [{ id: 'v90060', title: 'Old Local', alttitle: null, image_url: null, image_thumb: null, local_image: null, local_image_thumb: null, image_sexual: null }] }));
+      resolveOldVndb(json({ results: [{ id: 'v90061', title: 'Old Vndb', alttitle: null, aliases: [], titles: [], released: null, rating: null, votecount: null, length_minutes: null, languages: ['ja'], platforms: ['win'], image: null, developers: [], in_collection: false }] }));
+    });
+    expect(await screen.findByText('Vndb One')).toBeInTheDocument();
+    expect(screen.queryByText('Old Local')).not.toBeInTheDocument();
+    expect(screen.queryByText('Old Vndb')).not.toBeInTheDocument();
   });
 
   it('navigates the dropdown with the keyboard and selects with Enter', async () => {
@@ -292,7 +387,16 @@ describe('CompareVnPicker branches', () => {
     global.fetch = routedFetch({ local: { matches: 'bad' }, vndb: { results: 'bad' } });
     renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'malformed' } });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(t.recommend.seedPicker.noResults)).toBeInTheDocument();
+  });
+
+  it('keeps inert keyboard input from changing selection', () => {
+    renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
+    const input = screen.getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Tab' });
+    expect(screen.queryAllByText(/^v\\d+$/)).toHaveLength(0);
   });
 
   it('filters out a VNDB hit that is already in the local results', async () => {
@@ -320,10 +424,13 @@ describe('CompareVnPicker branches', () => {
     global.fetch = routedFetch({ local: localPayload(), vndb: vndbPayload() });
     renderWithProviders(<CompareVnPicker initialVns={[]} />, { locale: 'en' });
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'one' } });
-    const vndbRow = (await screen.findByText('Vndb One')).closest('button')!;
-    const option = vndbRow.closest('[role="option"]')!;
+    await screen.findByText('Vndb One');
+    const option = screen.getAllByRole('option').find((row) => within(row).queryByText('Vndb One'))!;
+    const vndbRow = within(option).getByRole('button');
     // Local hit is highlighted by default (index 0); hovering the second row moves it.
-    fireEvent.mouseEnter(vndbRow);
-    await waitFor(() => expect(option.getAttribute('aria-selected')).toBe('true'));
+    fireEvent.mouseOver(vndbRow);
+    await waitFor(() => expect(option).toHaveAttribute('aria-selected', 'true'));
+    fireEvent.click(vndbRow);
+    expect(screen.getByText('Vndb One')).toBeInTheDocument();
   });
 });

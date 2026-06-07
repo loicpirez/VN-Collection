@@ -89,6 +89,7 @@ export function VnSourcePicker({
     }
     const ctrl = new AbortController();
     debounceRef.current = setTimeout(async () => {
+      debounceRef.current = null;
       setError(null);
       setLoading({ library: enabled('library'), vndb: enabled('vndb'), egs: enabled('egs') });
       const promises: Promise<void>[] = [];

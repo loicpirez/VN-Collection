@@ -9,7 +9,7 @@ describe('settings layout persistence contract', () => {
     expect(SETTINGS).toContain('export type SaveServer = (patch: ServerSettingsPatch) => Promise<boolean>');
     expect(SETTINGS).toContain('const saveQueueRef = useRef<Promise<void>>(Promise.resolve())');
     expect(SETTINGS).toContain('const task = saveQueueRef.current.then(async () =>');
-    expect(SETTINGS).toContain('saveQueueRef.current = task.then(() => undefined, () => undefined)');
+    expect(SETTINGS).toContain('saveQueueRef.current = task.then(() => undefined)');
     expect(SETTINGS).toContain('return true');
     expect(SETTINGS).toContain('return false');
   });

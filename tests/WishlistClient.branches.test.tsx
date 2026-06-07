@@ -46,6 +46,16 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function item(id: string, title: string, overrides: Partial<WishlistClientItem> = {}): WishlistClientItem {
   return {
     id, added: 1700000000, voted: null, vote: null, started: null, finished: null, notes: null,
@@ -190,5 +200,240 @@ describe('WishlistClient branches', () => {
     // Exit select mode.
     await user.click(screen.getByRole('button', { name: 'Exit selection' }));
     expect(screen.getByRole('button', { name: 'Remove Alpha' })).toBeInTheDocument();
+  });
+
+  it('commits a blank search and ignores non-Enter numeric key presses', async () => {
+    nav.searchParams = new URLSearchParams('hideOwned=0&q=alpha');
+    installFetch(state([item('v90001', 'Alpha')]));
+    renderWishlist();
+    await screen.findByText('Alpha');
+
+    nav.replace.mockClear();
+    fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });
+    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false }));
+
+    nav.replace.mockClear();
+    fireEvent.keyDown(screen.getByLabelText('Min rating'), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByLabelText('Max rating'), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByLabelText('Min year'), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByLabelText('Max year'), { key: 'Escape' });
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it('renders a wishlist API error response', async () => {
+    global.fetch = vi.fn(async (): Promise<Response> => json({ error: 'wishlist upstream failed' }, 503));
+    renderWishlist();
+    expect(await screen.findByRole('alert')).toHaveTextContent('wishlist upstream failed');
+  });
+
+  it('drops a successful load that resolves after unmount', async () => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn(() => pending.promise);
+    const rendered = renderWishlist();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+
+    rendered.unmount();
+    pending.resolve(json(state([item('v90001', 'Late')]))); 
+    await pending.promise;
+    await Promise.resolve();
+  });
+
+  it('ignores an aborted load rejection after unmount', async () => {
+    const abortError = new DOMException('aborted', 'AbortError');
+    global.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const pending = deferred<Response>();
+      init?.signal?.addEventListener('abort', () => pending.reject(abortError), { once: true });
+      return pending.promise;
+    });
+    const rendered = renderWishlist();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+
+    rendered.unmount();
+    await Promise.resolve();
+  });
+
+  it('leaves refresh state alone when a manual refresh completes after unmount', async () => {
+    const refresh = deferred<Response>();
+    let requestCount = 0;
+    global.fetch = vi.fn(async (): Promise<Response> => {
+      requestCount += 1;
+      if (requestCount === 1) return json(state([item('v90001', 'Alpha')]));
+      return refresh.promise;
+    });
+    const rendered = renderWishlist();
+    const { user } = rendered;
+    await screen.findByText('Alpha');
+
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(requestCount).toBe(2));
+    rendered.unmount();
+    refresh.resolve(json(state([item('v90002', 'Beta')])));
+    await refresh.promise;
+    await Promise.resolve();
+  });
+
+  it('guards card selection while a bulk delete confirmation is open and supports deselection', async () => {
+    installFetch(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+    const { user } = renderWishlist();
+    await screen.findByText('Beta');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    await screen.findByRole('alertdialog');
+
+    await user.click(screen.getByRole('button', { name: 'Select Beta' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('guards rapid refresh, duplicate bulk deletion, and stale empty selection events', async () => {
+    installFetch(state([item('v90001', 'Alpha')]));
+    renderWishlist();
+    await screen.findByText('Alpha');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    const bulkDelete = await screen.findByRole('button', { name: 'Remove from VNDB wishlist' });
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+
+    fireEvent.click(bulkDelete);
+    fireEvent.click(refresh);
+    fireEvent.click(bulkDelete);
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    installFetch(state([item('v90001', 'Alpha')]));
+    renderWishlist();
+    await screen.findByText('Alpha');
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    const staleBulkDelete = await screen.findByRole('button', { name: 'Remove from VNDB wishlist' });
+    fireEvent.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    fireEvent.click(staleBulkDelete);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('does not log AbortError during bulk deletion and reports the failed row', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') throw new DOMException('aborted', 'AbortError');
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Alpha');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('Failed on 1 VN(s) - check the console.')).toBeInTheDocument();
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('keeps selection after all bulk deletes fail without showing a success toast', async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') return json({ error: 'no' }, 500);
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Beta');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Select Beta' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('Failed on 2 VN(s) - check the console.')).toBeInTheDocument();
+    expect(screen.queryByText('2 VN(s) removed from VNDB wishlist')).not.toBeInTheDocument();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+  });
+
+  it('drops bulk delete results that resolve after unmount', async () => {
+    const deleteAlpha = deferred<Response>();
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return deleteAlpha.promise;
+      return json({ ok: true });
+    });
+    const rendered = renderWishlist();
+    const { user } = rendered;
+    await screen.findByText('Alpha');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/wishlist/v90001', expect.objectContaining({ method: 'DELETE', signal: expect.any(AbortSignal) })));
+
+    rendered.unmount();
+    deleteAlpha.resolve(json({ ok: true }));
+    await deleteAlpha.promise;
+    await Promise.resolve();
+  });
+
+  it('guards another single-card delete while one delete is in flight', async () => {
+    const deleteAlpha = deferred<Response>();
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') {
+        calls.push(url);
+        return deleteAlpha.promise;
+      }
+      if (url === '/api/wishlist/v90002' && init?.method === 'DELETE') {
+        calls.push(url);
+        return json({ ok: true });
+      }
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Beta');
+
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Remove Beta' }));
+    expect(calls).toEqual(['/api/wishlist/v90001']);
+
+    deleteAlpha.resolve(json({ ok: true }));
+    await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+  });
+
+  it('drops single-card success and error results after unmount', async () => {
+    for (const status of [200, 500]) {
+      cleanup();
+      const pendingDelete = deferred<Response>();
+      global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+        if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return pendingDelete.promise;
+        return json({ ok: true });
+      });
+      const rendered = renderWishlist();
+      const { user } = rendered;
+      await screen.findByText('Alpha');
+
+      await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
+      rendered.unmount();
+      pendingDelete.resolve(status === 200 ? json({ ok: true }) : json({ error: 'late error' }, 500));
+      await pendingDelete.promise;
+      await Promise.resolve();
+    }
   });
 });

@@ -123,6 +123,55 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     await waitFor(() => expect(screen.queryByRole('menu', { name: t.nav.groupInsights })).not.toBeInTheDocument());
   });
 
+  it('keeps the dropdown open when the pointer event originates inside the portal menu', async () => {
+    const u = userEvent.setup();
+    renderWithProviders(<GroupedNav />, { locale: 'en' });
+    await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
+    const menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
+    fireEvent.mouseDown(menu);
+    expect(screen.getByRole('menu', { name: t.nav.groupInsights })).toBeInTheDocument();
+  });
+
+  it('clamps and scrolls a tall dropdown when there is no room below the trigger', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: HTMLElement) {
+      if (this.getAttribute('aria-label') === t.nav.groupInsights) {
+        return {
+          x: 900,
+          y: 20,
+          left: 900,
+          top: 20,
+          right: 940,
+          bottom: 40,
+          width: 40,
+          height: 20,
+          toJSON: () => ({}),
+        };
+      }
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      };
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 300 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 100 });
+    const u = userEvent.setup();
+    renderWithProviders(<GroupedNav />, { locale: 'en' });
+    await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
+    const menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
+    expect(menu.style.left).toBe('68px');
+    expect(menu.style.top).toBe('8px');
+    expect(menu.style.maxHeight).toBe('84px');
+    expect(menu.style.overflowY).toBe('auto');
+    rectSpy.mockRestore();
+  });
+
   it('closes the dropdown after selecting a menu item', async () => {
     const u = userEvent.setup();
     renderWithProviders(<GroupedNav />, { locale: 'en' });
@@ -142,19 +191,12 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     expect(within(menu).getByRole('menuitem', { name: t.nav.series })).not.toHaveAttribute('aria-current');
   });
 
-  it('omits the AliceNet entry by default and includes it when enabled', async () => {
+  it('keeps AliceNet out of the global nav because it lives in stock', async () => {
     const u = userEvent.setup();
-    const { rerender } = renderWithProviders(<GroupedNav />, { locale: 'en' });
+    renderWithProviders(<GroupedNav />, { locale: 'en' });
     await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
-    let menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
+    const menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
     expect(within(menu).queryByRole('menuitem', { name: t.nav.alicenet })).not.toBeInTheDocument();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('menu', { name: t.nav.groupInsights })).not.toBeInTheDocument());
-
-    rerender(<GroupedNav alicenetEnabled />);
-    await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
-    menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
-    expect(within(menu).getByRole('menuitem', { name: t.nav.alicenet })).toBeInTheDocument();
   });
 
   it('opens and closes the mobile sheet with grouped links', async () => {

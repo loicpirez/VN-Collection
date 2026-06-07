@@ -22,8 +22,7 @@ export function ShelfScrollFrame({ children }: ShelfScrollFrameProps) {
   const [edges, setEdges] = useState<ShelfScrollEdges>({ left: false, right: false });
 
   const updateEdges = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    const el = scrollRef.current as HTMLDivElement;
     const maxScroll = el.scrollWidth - el.clientWidth;
     const next: ShelfScrollEdges = {
       left: el.scrollLeft > 1,
@@ -33,8 +32,7 @@ export function ShelfScrollFrame({ children }: ShelfScrollFrameProps) {
   }, []);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    const el = scrollRef.current as HTMLDivElement;
     updateEdges();
     el.addEventListener('scroll', updateEdges, { passive: true });
     window.addEventListener('resize', updateEdges);

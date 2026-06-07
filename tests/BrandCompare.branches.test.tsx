@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { BrandCompare } from '@/components/BrandCompare';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -99,6 +99,74 @@ describe('BrandCompare branches', () => {
       expect(JSON.parse(call![1].body)).toEqual({ brand: 'egs' });
     });
     await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
+  });
+
+  it('ignores a second source pick while the first save is still in flight', async () => {
+    let resolvePatch: (response: Response) => void = () => {};
+    const fetchMock = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolvePatch = resolve;
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(
+      <BrandCompare vnId="v90001" current="vndb" vndbDevs={devs} egsBrand="Brand Q" label="Developer" />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    const egsButton = screen.getByRole('button', { name: t.compare.useEgs });
+
+    act(() => {
+      egsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      egsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolvePatch(ok());
+      await Promise.resolve();
+    });
+  });
+
+  it('drops a successful save after the VN identity changes', async () => {
+    let resolvePatch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolvePatch = resolve;
+    }));
+    const { rerender } = renderWithProviders(
+      <BrandCompare vnId="v90001" current="vndb" vndbDevs={devs} egsBrand="Brand Q" label="Developer" />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(<BrandCompare vnId="v90002" current="vndb" vndbDevs={devs} egsBrand="Brand Q" label="Developer" />);
+
+    await act(async () => {
+      resolvePatch(ok());
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+  });
+
+  it('drops a failed save after the VN identity changes', async () => {
+    let resolvePatch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolvePatch = resolve;
+    }));
+    const { rerender } = renderWithProviders(
+      <BrandCompare vnId="v90001" current="vndb" vndbDevs={devs} egsBrand="Brand Q" label="Developer" />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(<BrandCompare vnId="v90002" current="vndb" vndbDevs={devs} egsBrand="Brand Q" label="Developer" />);
+
+    await act(async () => {
+      resolvePatch(new Response(JSON.stringify({ error: 'late brand failure' }), { status: 500, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('late brand failure')).toBeNull();
   });
 
   it('sets the auto preference via the bottom button', async () => {

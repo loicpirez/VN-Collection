@@ -132,10 +132,63 @@ describe('CoverCompare branches', () => {
       <CoverCompare vnId="v90001" current="vndb" vndb={vndb} egs={egs} custom={custom} sexual={0} alt="Title Y" />,
     );
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compare.compareBtn) }));
-    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
-    fireEvent.click(screen.getByRole('button', { name: t.compare.useCustom }));
+    const egsButton = screen.getByRole('button', { name: t.compare.useEgs });
+    const customButton = screen.getByRole('button', { name: t.compare.useCustom });
+    act(() => {
+      egsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      customButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     resolveFetch(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
     await waitFor(() => expect(screen.getByText(t.toast.saved)).toBeInTheDocument());
+  });
+
+  it('drops a successful persist after the VN identity changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const { rerender } = renderCompare(
+      <CoverCompare vnId="v90001" current="vndb" vndb={vndb} egs={egs} custom={custom} sexual={0} alt="Title Y" />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compare.compareBtn) }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(
+      <DisplaySettingsProvider>
+        <CoverCompare vnId="v90002" current="vndb" vndb={vndb} egs={egs} custom={custom} sexual={0} alt="Title Y" />
+      </DisplaySettingsProvider>,
+    );
+
+    await act(async () => {
+      resolveFetch(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+  });
+
+  it('drops a failed persist after the VN identity changes', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const { rerender } = renderCompare(
+      <CoverCompare vnId="v90001" current="vndb" vndb={vndb} egs={egs} custom={custom} sexual={0} alt="Title Y" />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compare.compareBtn) }));
+    fireEvent.click(screen.getByRole('button', { name: t.compare.useEgs }));
+    rerender(
+      <DisplaySettingsProvider>
+        <CoverCompare vnId="v90002" current="vndb" vndb={vndb} egs={egs} custom={custom} sexual={0} alt="Title Y" />
+      </DisplaySettingsProvider>,
+    );
+
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ error: 'late cover failure' }), { status: 500, headers: { 'content-type': 'application/json' } }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('late cover failure')).toBeNull();
   });
 });

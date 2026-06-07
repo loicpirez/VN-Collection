@@ -193,7 +193,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
       if (saveAbortRef.current === controller) {
         saveAbortRef.current = null;
         saveInFlightRef.current = false;
-        if (identityRef.current === ownerVnId) setSaving(false);
+        setSaving(false);
       }
     }
   }, [draft, toast, t.common.error, t.toast.saved, router, vnId]);
@@ -324,8 +324,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
       ) : (
         <div className="space-y-4">
           {visibleIds.map((id) => {
-            const node = sectionMap.get(id);
-            if (!node) return null;
+            const node = sectionMap.get(id)!;
             const state = active.sections[id];
             // `id="section-<id>"` lets the identity metadata row link
             // to each section (e.g. "#section-aspect-override").

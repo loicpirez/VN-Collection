@@ -27,7 +27,7 @@ type SortKey = 'name' | 'stock' | 'fresh';
 type ViewMode = 'cards' | 'list';
 type GpsFilter = 'all' | 'gps' | 'no_gps';
 
-function loadPrefs(): { sort?: SortKey; view?: ViewMode } {
+export function loadPrefs(): { sort?: SortKey; view?: ViewMode } {
   if (typeof window === 'undefined') return {};
   try {
     const raw = window.localStorage.getItem(PREFS_KEY);
@@ -46,11 +46,15 @@ function loadPrefs(): { sort?: SortKey; view?: ViewMode } {
 
 function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
   const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
-  return (t.places as Record<string, unknown>)[key] as string ?? kind;
+  return (t.places as Record<string, string>)[key];
 }
 
 function freshnessStale(updatedAt: number): boolean {
   return Date.now() - updatedAt > STALE_MS;
+}
+
+function hasGps(place: PlaceWithLinks): boolean {
+  return place.lat != null && place.lng != null;
 }
 
 export function PlaceBrowser() {
@@ -80,7 +84,6 @@ export function PlaceBrowser() {
   const assignBranchLinkAbortRef = useRef<AbortController | null>(null);
 
   const reload = useCallback(async () => {
-    if (!mountedRef.current) return;
     reloadAbortRef.current?.abort();
     const controller = new AbortController();
     reloadAbortRef.current = controller;
@@ -103,7 +106,6 @@ export function PlaceBrowser() {
       setUnassigned(ud);
     } catch (error) {
       if (signal.aborted || error instanceof Error && error.name === 'AbortError') return;
-      if (!mountedRef.current || reloadAbortRef.current !== controller) return;
       setLoadError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
       if (!signal.aborted && mountedRef.current && reloadAbortRef.current === controller) setLoading(false);
@@ -130,7 +132,6 @@ export function PlaceBrowser() {
   }, [assignBranchTarget]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     try { window.localStorage.setItem(PREFS_KEY, JSON.stringify({ sort, view })); } catch { }
   }, [sort, view]);
 
@@ -145,7 +146,7 @@ export function PlaceBrowser() {
     [places],
   );
 
-  const withGps = useMemo(() => places.filter((p) => p.lat != null && p.lng != null).length, [places]);
+  const withGps = useMemo(() => places.filter(hasGps).length, [places]);
   const noGpsCount = useMemo(() => places.length - withGps, [places, withGps]);
   const withBranches = useMemo(() => places.filter((p) => p.provider_labels.length > 0).length, [places]);
   const totalVns = useMemo(() => places.reduce((s, p) => s + p.stock_count, 0), [places]);
@@ -175,8 +176,8 @@ export function PlaceBrowser() {
             ? []
             : places;
     if (kindFilter) list = list.filter((p) => p.kind === kindFilter);
-    if (gpsFilter === 'gps') list = list.filter((p) => p.lat != null && p.lng != null);
-    if (gpsFilter === 'no_gps') list = list.filter((p) => p.lat == null || p.lng == null);
+    if (gpsFilter === 'gps') list = list.filter(hasGps);
+    if (gpsFilter === 'no_gps') list = list.filter((p) => !hasGps(p));
     if (hideStale) list = list.filter((p) => !(p.provider_labels.length > 0 && freshnessStale(p.updated_at)));
     if (q) {
       list = list.filter(
@@ -693,7 +694,7 @@ export function PlaceBrowser() {
               }
             } catch (e) {
               if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
-              if (mountedRef.current && assignBranchTargetRef.current === ownerBranch && assignBranchLinkAbortRef.current === controller) toast.error((e as Error).message);
+              toast.error((e as Error).message);
             } finally {
               if (!mountedRef.current || assignBranchTargetRef.current !== ownerBranch || assignBranchLinkAbortRef.current !== controller) return;
               assignBranchLinkAbortRef.current = null;

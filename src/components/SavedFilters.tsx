@@ -104,8 +104,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
     function key(e: KeyboardEvent) {
       if (e.key === 'Escape') { setOpen(false); return; }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
-      if (items.length === 0) return;
+      const items = Array.from(ref.current!.querySelectorAll<HTMLElement>('[role="menu"] button:not([disabled])'));
       e.preventDefault();
       const idx = items.indexOf(document.activeElement as HTMLElement);
       let next: HTMLElement | undefined;
@@ -189,7 +188,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
     }
   }
@@ -213,13 +212,12 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
     }
   }
 
   async function reorder(orderedIds: number[], previous: Filter[]) {
-    if (mutationRef.current) return;
     mutationRef.current = true;
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -242,7 +240,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
       if (mutationAbortRef.current === controller) {
         mutationAbortRef.current = null;
         mutationRef.current = false;
-        if (mountedRef.current) setBusy(null);
+        setBusy(null);
       }
     }
   }

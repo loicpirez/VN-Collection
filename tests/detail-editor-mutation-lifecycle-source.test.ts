@@ -20,13 +20,17 @@ describe('VN detail editor mutation lifecycle', () => {
   });
 
   it.each([
-    ['custom synopsis', SYNOPSIS, 'const controller = beginMutation()'],
+    ['custom synopsis', SYNOPSIS, 'runMutation(async (ownerVnId, controller) => {'],
     ['activity timeline', ACTIVITY, 'const controller = beginMutation()'],
     ['game log', GAME_LOG, "const controller = beginMutation('remove')"],
   ])('reserves the %s destructive owner before awaiting confirmation', (_label, body, acquire) => {
-    const removeStart = body.indexOf('async function clear()') >= 0
-      ? body.indexOf('async function clear()')
-      : body.indexOf('async function remove(id: number)');
+    const asyncClearStart = body.indexOf('async function clear()');
+    const clearStart = body.indexOf('function clear()');
+    const removeStart = asyncClearStart >= 0
+      ? asyncClearStart
+      : clearStart >= 0
+        ? clearStart
+        : body.indexOf('async function remove(id: number)');
     const removeBody = body.slice(removeStart);
     expect(removeBody.indexOf(acquire)).toBeLessThan(removeBody.indexOf('await confirm('));
     expect(removeBody).toContain('!ownsMutation(ownerVnId, controller)');
@@ -36,7 +40,8 @@ describe('VN detail editor mutation lifecycle', () => {
     expect(GAME_LOG).toContain("const controller = beginMutation('add')");
     expect(GAME_LOG).toContain("const controller = beginMutation('edit')");
     expect(GAME_LOG).toContain("const controller = beginMutation('remove')");
-    expect(GAME_LOG).toContain('const ownerEditingId = editingId');
+    expect(GAME_LOG).toContain('async function saveEdit(ownerEditingId: number)');
+    expect(GAME_LOG).toContain('saveEdit(entry.id)');
   });
 
   it('uses plain shared metadata separators and missing-value tokens', () => {

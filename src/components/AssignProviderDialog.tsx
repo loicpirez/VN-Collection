@@ -64,7 +64,6 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
       setOthers(otherRows);
     } catch (error) {
       if (signal.aborted || error instanceof Error && error.name === 'AbortError') return;
-      if (placeIdentityRef.current !== ownerId || refreshAbortRef.current !== controller) return;
       setError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
       if (!signal.aborted && placeIdentityRef.current === ownerId && refreshAbortRef.current === controller) setLoading(false);
@@ -93,8 +92,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
     };
   }, [place.id, linkedIdentity, refresh]);
 
-  function beginMutation(): AbortController | null {
-    if (mutationRef.current) return null;
+  function beginMutation(): AbortController {
     mutationRef.current = true;
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -117,7 +115,6 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
 
   async function link(label: string) {
     const controller = beginMutation();
-    if (!controller) return;
     const ownerId = place.id;
     setBusy(label);
     setError(null);
@@ -142,7 +139,6 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
 
   async function unlink(label: string) {
     const controller = beginMutation();
-    if (!controller) return;
     const ownerId = place.id;
     setBusy(label);
     setError(null);
@@ -167,7 +163,6 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
 
   async function moveFromOther(branch: OtherPlaceBranch) {
     const controller = beginMutation();
-    if (!controller) return;
     const ownerId = place.id;
     setBusy(branch.provider_label);
     try {

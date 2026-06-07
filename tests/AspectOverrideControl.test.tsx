@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import type { AspectKey } from '@/lib/aspect-ratio';
@@ -24,6 +24,16 @@ function aspectResponse(
     status: 200,
     headers: { 'content-type': 'application/json' },
   });
+}
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason?: Error) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 describe('AspectOverrideControl', () => {
@@ -119,5 +129,96 @@ describe('AspectOverrideControl', () => {
     renderWithProviders(<AspectOverrideControl vnId="v90001" initialDerived="unknown" />);
     fireEvent.click(screen.getByRole('button', { name: 'other' }));
     await waitFor(() => expect(screen.getByText('save failed')).toBeTruthy());
+  });
+
+  it('leaves the derived fallback visible when the initial load fails', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ error: 'load failed' }), { status: 500, headers: { 'content-type': 'application/json' } }),
+    );
+    renderWithProviders(<AspectOverrideControl vnId="v90001" />);
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(screen.getByText(t.aspectOverride.noDataHint as string)).toBeTruthy();
+  });
+
+  it('leaves the derived fallback visible when the initial payload is invalid', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ derived: 'bogus', override: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    renderWithProviders(<AspectOverrideControl vnId="v90001" />);
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(screen.getByText(t.aspectOverride.noDataHint as string)).toBeTruthy();
+  });
+
+  it('ignores an abort error from the initial load', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(abortError);
+    renderWithProviders(<AspectOverrideControl vnId="v90001" />);
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(screen.getByRole('button', { name: '16:9' })).toBeTruthy();
+  });
+
+  it('does not start a second save while one is already pending', async () => {
+    const pendingPatch = deferredResponse();
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(aspectResponse('unknown', null))
+      .mockReturnValueOnce(pendingPatch.promise);
+    renderWithProviders(<AspectOverrideControl vnId="v90001" initialDerived="unknown" />);
+    const first = screen.getByRole('button', { name: '16:9' });
+    const second = screen.getByRole('button', { name: '4:3' });
+    act(() => {
+      first.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      second.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const patchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[1]?.method === 'PATCH');
+    expect(patchCalls).toHaveLength(1);
+    await act(async () => {
+      pendingPatch.resolve(aspectResponse('unknown', { aspect_key: '16:9', note: null }));
+    });
+    await waitFor(() => expect(screen.getByText(t.toast.saved as string)).toBeTruthy());
+  });
+
+  it('toasts the generic error when a save response cannot be decoded', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(aspectResponse('unknown', null))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ derived: 'bad', override: null }), { status: 200 }));
+    renderWithProviders(<AspectOverrideControl vnId="v90001" initialDerived="unknown" />);
+    fireEvent.click(screen.getByRole('button', { name: '16:10' }));
+    await waitFor(() => expect(screen.getByText(t.common.error as string)).toBeTruthy());
+  });
+
+  it('ignores a successful save that resolves after the VN changes', async () => {
+    const pendingPatch = deferredResponse();
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(aspectResponse('unknown', null))
+      .mockReturnValueOnce(pendingPatch.promise)
+      .mockResolvedValue(aspectResponse('16:10', null));
+    const view = renderWithProviders(<AspectOverrideControl vnId="v90001" initialDerived="unknown" />);
+    fireEvent.click(screen.getByRole('button', { name: '16:9' }));
+    view.rerender(<AspectOverrideControl vnId="v90002" initialDerived="16:10" />);
+    await act(async () => {
+      pendingPatch.resolve(aspectResponse('unknown', { aspect_key: '16:9', note: null }));
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: '16:10' })).toBeTruthy());
+    expect(screen.queryByText(t.toast.saved as string)).toBeNull();
+  });
+
+  it('ignores a failed save that rejects after the VN changes', async () => {
+    const pendingPatch = deferredResponse();
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(aspectResponse('unknown', null))
+      .mockReturnValueOnce(pendingPatch.promise)
+      .mockResolvedValue(aspectResponse('4:3', null));
+    const view = renderWithProviders(<AspectOverrideControl vnId="v90001" initialDerived="unknown" />);
+    fireEvent.click(screen.getByRole('button', { name: 'other' }));
+    view.rerender(<AspectOverrideControl vnId="v90002" initialDerived="4:3" />);
+    await act(async () => {
+      pendingPatch.reject(new Error('late failure'));
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: '4:3' })).toBeTruthy());
+    expect(screen.queryByText('late failure')).toBeNull();
   });
 });
