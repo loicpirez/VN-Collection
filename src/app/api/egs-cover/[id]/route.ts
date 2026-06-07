@@ -256,12 +256,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const cacheKey = `egs:cover-resolved:${egsId}`;
   const cached = readCached(cacheKey);
   if (cached === null) return new NextResponse(null, { status: 404 });
-  if (
-    typeof cached === 'string'
-    && cached.length > 0
-    && (isLocalOrRelativeTarget(cached, origin) || isProxyImageTargetAllowed(cached, origin))
-  ) {
-    return proxyImage(cached, origin);
+  if (typeof cached === 'string' && cached.length > 0) {
+    if (isLocalOrRelativeTarget(cached, origin)) return proxyImage(cached, origin);
+    const proxied = await proxyImage(cached, origin);
+    if (proxied.status !== 403) return proxied;
   }
 
   const raw = await readRawWithFallback(egsId);
