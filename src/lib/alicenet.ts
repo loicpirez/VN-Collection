@@ -1,9 +1,10 @@
 import 'server-only';
 import { searchVn } from './vndb';
 import { fetchEgsGame, searchEgsByName, searchEgsCandidates, type EgsCandidate, type EgsGame } from './erogamescape';
-import { providerFetch } from './proxy-fetch';
+import { stockProviderFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
 import { countAliceNetNoVndbResult, countAliceNetNoVndbNoEgs, countAliceNetNoVndbWithEgs, countAliceNetUnmatchedQueue, listAliceNetNoVndbWithEgs, listAliceNetNoVndbNoEgs, listAliceNetNoVndbResult, listAliceNetUnmatched, resetAliceNetAutoMatches as dbResetAliceNetAutoMatches, setAliceNetEgsLink, setAliceNetVnLink, upsertAliceNetStock, type AliceNetStockRow } from './db'
+import { ALICENET_PROVIDER_ID } from './stock-provider-constants';
 
 const ALICENET_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -680,10 +681,10 @@ export function parseAliceNetHtml(
  * Only called on explicit user action — never auto-fetched on page load.
  */
 export async function fetchAliceNetHtml(): Promise<string> {
-  const res = await providerFetch(
+  const res = await stockProviderFetch(
     ALICENET_URL,
     { headers: { 'User-Agent': 'vndb-collection/1.0 (personal use)' } },
-    'alicenet',
+    ALICENET_PROVIDER_ID,
   );
   if (!res.ok) throw new Error(`AliceNet fetch failed: HTTP ${res.status}`);
   // Cap buffered response. The AliceNet stock page is ~500 KB; even a

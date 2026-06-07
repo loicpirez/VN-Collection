@@ -83,6 +83,7 @@ export async function runAliceNetWholeRefresh(opts: RunAliceNetRefreshOptions): 
   if (!scrapeResponse.ok) throw new Error(await readApiError(scrapeResponse, opts.errorFallback));
   const scraped = decodeAliceNetStockSyncResult(await scrapeResponse.json());
   if (!scraped) throw new Error(opts.errorFallback);
+  opts.onProgress?.({ phase: 'scrape', done: 1, total: 1 });
   let matched = 0;
   for (const step of MATCH_PHASES) {
     if (opts.signal?.aborted) break;
