@@ -28,7 +28,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Export, import, and back up the local SQLite database.
 - Print QR label sheets for physical editions via `/labels`.
 - Check per-VN shop stock and prices across Eroge Price, Sofmap, Suruga-ya, Mandarake, Melonbooks, Unoya, Trader, WonderGOO, and other linked retailers.
-- Browse and match second-hand stock from AliceNet against VNDB/EGS inside the stock workspace.
+- Browse and match second-hand stock from AliceNet against VNDB/EGS on the AliceNet shop's page.
 
 ---
 
@@ -115,7 +115,7 @@ changing the opt-in state.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
 - Six-step "Download all": stock, VNDB + EGS match, retry no-result, match VNDB from EGS, VNDB data download, EGS resolution. Three of those operations are also exposed as standalone single ops (`match-vndb-from-egs`, `retry-vndb-aggressive`, `search-egs-no-vndb`).
 - Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In wishlist.
-- The AliceNet controls live inside `/stock` so generic VN shop lookup and mirrored second-hand inventory stay in one stock surface.
+- The AliceNet controls live on the AliceNet shop's place page (`/places/[id]`), separate from the generic `/stock` per-VN lookup.
 - Outbound fetch can route through the stock SOCKS5/HTTP proxy settings.
 
 ### Per-VN stock and price lookup

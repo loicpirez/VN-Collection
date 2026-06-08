@@ -730,8 +730,9 @@ and `alicenet_*`. On first open,
 databases created before this rename migrate their prior local table,
 settings, cached stock rows, and activity rows forward automatically.
 
-AliceNet has no page-enable environment flag. It is part of the `/stock`
-surface, rendered by `StockLookupClient` as the mirrored-inventory browser, and
+AliceNet has no page-enable environment flag. As a shop, it renders on the
+AliceNet shop's place page (`/places/[id]`) via `AliceNetClient` when the
+`AliceNet` branch is linked to that place, not on the generic `/stock` lookup, and
 is not mounted inside individual VN detail pages. It uses the stored Stock
 proxy settings and has no `ALICENET_*` or `STOCK_*` environment prefix.
 
