@@ -625,74 +625,6 @@ describe('AliceNetClient branches', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('ignores a sync-stock response that resolves after Stop', async () => {
-    const syncRequest = deferredResponse();
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/alicenet/fetch')).toBe(true));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-    expect(screen.queryByText('1 processed, 0 matched.')).toBeNull();
-  });
-
-  it('ignores a match-loop response that resolves after Stop', async () => {
-    const matchRequest = deferredResponse();
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return matchRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 },
-      })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/alicenet/match-next')).toBe(true));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      matchRequest.resolve(json({ processed: 1, matched: 1, remaining: 0 }));
-      await flushAsyncWork();
-    });
-    expect(screen.queryByText('1 processed, 1 matched.')).toBeNull();
-  });
-
-  it('does not continue the download-all pipeline after Stop', async () => {
-    const syncRequest = deferredResponse();
-    const postCalls: string[] = [];
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    renderClient();
-    fireEvent.click(screen.getByRole('button', { name: 'Download all' }));
-    await waitFor(() => expect(postCalls).toContain('/api/alicenet/fetch'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-    expect(postCalls).toEqual(['/api/alicenet/fetch']);
-  });
-
   it('ignores reset-auto-match completion after unmount', async () => {
     const resetRequest = deferredResponse();
     const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -738,6 +670,39 @@ describe('AliceNetClient branches', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
+  it('reports a failed reset-auto-match with the upstream message', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/reset-matches' && init?.method === 'POST') return json({ error: 'reset failed' }, 500);
+      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Collection Title');
+    await user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(screen.getAllByText(/reset failed/).length).toBeGreaterThan(0));
+  });
+
+  it('cancels a reset-auto-match without calling the route', async () => {
+    let resetCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/reset-matches' && init?.method === 'POST') {
+        resetCalls += 1;
+        return json({ cleared: 1 });
+      }
+      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Collection Title');
+    await user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(resetCalls).toBe(0);
+  });
+
   it('ignores clear-link completion after unmount', async () => {
     const clearRequest = deferredResponse();
     const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -781,90 +746,6 @@ describe('AliceNetClient branches', () => {
     view.unmount();
     await act(flushAsyncWork);
     expect(screen.queryByText('Collection Title')).toBeNull();
-  });
-
-  it.each([
-    { name: 'recover no-result rows', button: /Recover no-result rows/, endpoint: '/api/alicenet/match-next' },
-    { name: 'smart VNDB retry', button: /Smart VNDB retry/, endpoint: '/api/alicenet/retry-vndb-aggressive' },
-    { name: 'VNDB from EGS', tab: /EGS only/, button: /VNDB from EGS/, endpoint: '/api/alicenet/match-vndb-from-egs' },
-    { name: 'search EGS', tab: /No VNDB result/, button: /^Search on EGS$/, endpoint: '/api/alicenet/search-egs-no-vndb' },
-    { name: 'search EGS aggressive', tab: /No VNDB result/, button: /Search on EGS \(aggressive filter\)/, endpoint: '/api/alicenet/search-egs-no-vndb' },
-    { name: 'download VNDB data', button: /Download VNDB data/, endpoint: '/api/alicenet/download-vndb' },
-    { name: 'resolve EGS', button: /Resolve EGS via VNDB/, endpoint: '/api/alicenet/resolve-egs' },
-  ])('runs the AliceNet $name action branch', async (action) => {
-    const item = makeItem({
-      code: '001-000008-001',
-      title: 'Action Branch Title',
-      vn_id: 'v90008',
-      vn_match_source: 'auto',
-      egs_id: 90008,
-      egs_match_source: 'auto',
-    });
-    let hit = false;
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === action.endpoint && init?.method === 'POST') {
-        hit = true;
-        return json({ processed: 0, matched: 0, remaining: 0 });
-      }
-      return json(snapshot({
-        items: [item],
-        stats: { total: 1, matched: 1, vndb_matched: 1, egs_only: 1, none_found: 1, unprocessed: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      }));
-    });
-    renderClient();
-    await screen.findByText('Action Branch Title');
-    if (action.tab) {
-      fireEvent.click(within(tabsGroup()).getByRole('button', { name: action.tab }));
-    }
-    const buttons = screen.getAllByRole('button', { name: action.button });
-    fireEvent.click(buttons[0]!);
-    await waitFor(() => expect(hit).toBe(true));
-    await waitFor(() => expect(screen.getByText('0 processed, 0 matched.')).toBeInTheDocument());
-  });
-
-  it('ignores duplicate single-operation and download-all clicks while the first request is active', async () => {
-    let syncCalls = 0;
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        syncCalls += 1;
-        return new Promise<Response>((_, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-        });
-      }
-      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const first = renderClient();
-    await screen.findByText('Collection Title');
-    const syncButton = screen.getByRole('button', { name: 'Sync stock' });
-    fireEvent.click(syncButton);
-    fireEvent.click(syncButton);
-    await waitFor(() => expect(syncCalls).toBe(1));
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
-    first.unmount();
-    cleanup();
-
-    let downloadAllCalls = 0;
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        downloadAllCalls += 1;
-        return new Promise<Response>((_, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-        });
-      }
-      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const second = renderClient();
-    await screen.findByText('Collection Title');
-    const downloadAll = screen.getByRole('button', { name: 'Download all' });
-    fireEvent.click(downloadAll);
-    fireEvent.click(downloadAll);
-    await waitFor(() => expect(downloadAllCalls).toBe(1));
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
-    second.unmount();
   });
 
   it('shows a specific malformed snapshot error instead of a generic loading failure', async () => {
@@ -929,77 +810,33 @@ describe('AliceNetClient branches', () => {
     await waitFor(() => expect(screen.getAllByText(/candidate boom/).length).toBeGreaterThan(0));
   });
 
-  it('shows removed-stock progress when AliceNet sync deletes sold rows', async () => {
+  it('starts a server operation and falls back to the common error label for a non-Error rejection', async () => {
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/run' && init?.method === 'POST') return Promise.reject('raw run failure');
+      return Promise.resolve(json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+    const { user } = renderClient();
+    await screen.findByText('Collection Title');
+    await user.click(screen.getByRole('button', { name: 'Match VNDB' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+  });
+
+  it('re-enables the operation buttons after a run start resolves', async () => {
+    const posts: string[] = [];
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return json({ count: 1, added: 0, updated: 1, removed: 2, fetched_at: 1700000001 });
+      if (u === '/api/alicenet/run' && init?.method === 'POST') {
+        posts.push(JSON.parse(String(init.body)).op);
+        return json({ jobId: 'job-1', op: JSON.parse(String(init.body)).op }, 202);
       }
       return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
     });
     const { user } = renderClient();
     await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(screen.getAllByText('2 item(s) removed from stock.').length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getByText('1 processed, 0 matched.')).toBeInTheDocument());
-  });
-
-  it('completes AliceNet sync without a removed-stock toast when no sold rows disappear', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000001 });
-      }
-      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(screen.getByText('1 processed, 0 matched.')).toBeInTheDocument());
-    expect(screen.queryByText(/item\(s\) removed from stock/)).toBeNull();
-  });
-
-  it('reports malformed stock-sync progress from the AliceNet sync route', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return json({ count: 'bad' });
-      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() =>
-      expect(screen.getAllByText(/AliceNet sync returned a malformed response/).length).toBeGreaterThan(0),
-    );
-  });
-
-  it('reports HTTP errors from the AliceNet sync route', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return json({ error: 'sync HTTP boom' }, 502);
-      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(screen.getAllByText(/sync HTTP boom/).length).toBeGreaterThan(0));
-  });
-
-  it('reports malformed loop progress from AliceNet processing routes', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ processed: 'bad', remaining: 1 });
-      return json(snapshot({
-        items: [makeItem({ title: 'Needs Match Title' })],
-        stats: { total: 1, unmatched: 1, unprocessed: 1 },
-      }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Needs Match Title');
-    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    await waitFor(() =>
-      expect(screen.getAllByText(/AliceNet processing returned malformed progress/).length).toBeGreaterThan(0),
-    );
+    await user.click(screen.getByRole('button', { name: 'Match EGS' }));
+    await waitFor(() => expect(posts).toEqual(['match-egs']));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Match VNDB' })).toBeEnabled());
   });
 
   it('uses the virtualized card grid for large AliceNet stock lists', async () => {
@@ -1218,235 +1055,6 @@ describe('AliceNetClient branches', () => {
     expect(rafSpy).not.toHaveBeenCalled();
   });
 
-  it('ignores duplicate operation clicks while the first request is in flight', async () => {
-    const syncRequest = deferredResponse();
-    const postCalls: string[] = [];
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    const sync = screen.getByRole('button', { name: 'Sync stock' });
-    fireEvent.click(sync);
-    fireEvent.click(sync);
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch']));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-  });
-
-  it('ignores duplicate download-all clicks while the pipeline is already running', async () => {
-    const syncRequest = deferredResponse();
-    const postCalls: string[] = [];
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    const downloadAll = screen.getByRole('button', { name: 'Download all' });
-    fireEvent.click(downloadAll);
-    fireEvent.click(downloadAll);
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch']));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-  });
-
-  it('ignores a second operation started before the busy UI settles', async () => {
-    const syncRequest = deferredResponse();
-    const postCalls: string[] = [];
-    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
-    }) as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    const sync = screen.getByRole('button', { name: 'Sync stock' });
-    const downloadAll = screen.getByRole('button', { name: 'Download all' });
-    act(() => {
-      fireEvent.click(sync);
-      fireEvent.click(downloadAll);
-    });
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch']));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-  });
-
-  it('ignores a second single operation started during download-all startup', async () => {
-    const syncRequest = deferredResponse();
-    const postCalls: string[] = [];
-    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return syncRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      })));
-    }) as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    const downloadAll = screen.getByRole('button', { name: 'Download all' });
-    const sync = screen.getByRole('button', { name: 'Sync stock' });
-    act(() => {
-      fireEvent.click(downloadAll);
-      fireEvent.click(sync);
-    });
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch']));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      syncRequest.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-  });
-
-  it('does not write a last-run summary after unmounting during the post-operation reload', async () => {
-    const reloadRequest = deferredResponse();
-    let loadCount = 0;
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') {
-        return Promise.resolve(json({ processed: 1, matched: 1, remaining: 0 }));
-      }
-      loadCount += 1;
-      if (loadCount === 2) return reloadRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 },
-      })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const view = renderClient();
-    await screen.findByText('Collection Title');
-    fireEvent.click(screen.getByRole('button', { name: /Match new rows/ }));
-    await waitFor(() => expect(loadCount).toBe(2));
-    view.unmount();
-    await act(async () => {
-      reloadRequest.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1 },
-      })));
-      await flushAsyncWork();
-    });
-    expect(screen.queryByText('Last run')).toBeNull();
-  });
-
-  it('stops download-all after the first match stage without starting later stages', async () => {
-    const matchRequest = deferredResponse();
-    const postCalls: string[] = [];
-    const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return Promise.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      }
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return matchRequest.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      })));
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Download all' }));
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch', '/api/alicenet/match-next']));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      matchRequest.resolve(json({ processed: 1, matched: 1, remaining: 0 }));
-      await flushAsyncWork();
-    });
-    expect(postCalls).toEqual(['/api/alicenet/fetch', '/api/alicenet/match-next']);
-  });
-
-  it.each([
-    {
-      name: 'retry stage',
-      target: 'retry',
-      expected: ['/api/alicenet/fetch', '/api/alicenet/match-next', '/api/alicenet/match-next'],
-    },
-    {
-      name: 'VNDB-from-EGS stage',
-      target: 'vndb-from-egs',
-      expected: ['/api/alicenet/fetch', '/api/alicenet/match-next', '/api/alicenet/match-next', '/api/alicenet/match-vndb-from-egs'],
-    },
-    {
-      name: 'VNDB data stage',
-      target: 'download-vndb',
-      expected: ['/api/alicenet/fetch', '/api/alicenet/match-next', '/api/alicenet/match-next', '/api/alicenet/match-vndb-from-egs', '/api/alicenet/download-vndb'],
-    },
-    {
-      name: 'EGS resolve stage',
-      target: 'resolve-egs',
-      expected: ['/api/alicenet/fetch', '/api/alicenet/match-next', '/api/alicenet/match-next', '/api/alicenet/match-vndb-from-egs', '/api/alicenet/download-vndb', '/api/alicenet/resolve-egs'],
-    },
-  ])('stops download-all after the $name', async ({ target, expected }) => {
-    const pendingStage = deferredResponse();
-    const postCalls: string[] = [];
-    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return Promise.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      }
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') {
-        const body = JSON.parse(String(init.body)) as { retry_none?: boolean };
-        if (target === 'retry' && body.retry_none === true) return pendingStage.promise;
-        return Promise.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      }
-      if (u === '/api/alicenet/match-vndb-from-egs' && init?.method === 'POST') {
-        if (target === 'vndb-from-egs') return pendingStage.promise;
-        return Promise.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      }
-      if (u === '/api/alicenet/download-vndb' && init?.method === 'POST') {
-        if (target === 'download-vndb') return pendingStage.promise;
-        return Promise.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      }
-      if (u === '/api/alicenet/resolve-egs' && init?.method === 'POST') {
-        if (target === 'resolve-egs') return pendingStage.promise;
-        return Promise.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      }
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1, none_found: 1, egs_only: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      })));
-    }) as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Download all' }));
-    await waitFor(() => expect(postCalls).toEqual(expected));
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      pendingStage.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      await flushAsyncWork();
-    });
-    expect(postCalls).toEqual(expected);
-  });
-
   it('ignores duplicate reset, clear-link, and bulk-clear actions while confirmation is pending', async () => {
     let deletes = 0;
     let resets = 0;
@@ -1556,37 +1164,6 @@ describe('AliceNetClient branches', () => {
     await user.click(screen.getByRole('button', { name: 'List' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
     expect(screen.getByText('Searched as: Normalized lookup name')).toBeInTheDocument();
-  });
-
-  it('shows indeterminate progress after download-all enters a zero-total loop stage', async () => {
-    const fetchDone = deferredResponse();
-    const matchPending = deferredResponse();
-    const postCalls: string[] = [];
-    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') postCalls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') return fetchDone.promise;
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return matchPending.promise;
-      return Promise.resolve(json(snapshot({
-        items: [COLLECTION_ITEM],
-        stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 0 },
-      })));
-    }) as unknown as typeof fetch;
-    const { user } = renderClient();
-    await screen.findByText('Collection Title');
-    await user.click(screen.getByRole('button', { name: 'Download all' }));
-    await waitFor(() => expect(postCalls).toContain('/api/alicenet/fetch'));
-    await act(async () => {
-      fetchDone.resolve(json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 }));
-      await flushAsyncWork();
-    });
-    await waitFor(() => expect(postCalls).toEqual(['/api/alicenet/fetch', '/api/alicenet/match-next']));
-    expect(screen.getByText('Preparing')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await act(async () => {
-      matchPending.resolve(json({ processed: 0, matched: 0, remaining: 0 }));
-      await flushAsyncWork();
-    });
   });
 
   it('keeps bulk-clear current-item progress visible while a row delete is pending', async () => {

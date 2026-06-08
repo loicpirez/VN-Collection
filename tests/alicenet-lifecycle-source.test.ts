@@ -8,19 +8,17 @@ describe('AliceNet lifecycle', () => {
   it('owns page reloads and aborts every active channel on teardown', () => {
     expect(CLIENT).toContain('const loadAbortRef = useRef<AbortController | null>(null)');
     expect(CLIENT).toContain('loadAbortRef.current?.abort()');
-    expect(CLIENT).toContain('activeOpAbortRef.current?.abort()');
     expect(CLIENT).toContain('bulkAbortRef.current?.abort()');
     expect(CLIENT).toContain('resetAbortRef.current?.abort()');
     expect(CLIENT).toContain('clearAbortRef.current?.abort()');
   });
 
-  it('locks pipeline and bulk work synchronously and wires Stop to cancellation', () => {
-    expect(CLIENT).toContain('if (opInFlightRef.current) return null');
+  it('dispatches operations to the server-side job and locks bulk work synchronously', () => {
+    expect(CLIENT).toContain("fetch('/api/alicenet/run'");
+    expect(CLIENT).toContain('if (startingRef.current) return');
     expect(CLIENT).toContain('if (bulkInFlightRef.current) return');
-    expect(CLIENT).toContain('activeOpAbortRef.current?.abort()');
     expect(CLIENT).toContain('bulkAbortRef.current?.abort()');
     expect(CLIENT).toContain("signal: controller.signal");
-    expect(CLIENT).toContain('if (!ownsOp(token) || stopRef.current) return');
     expect(CLIENT).toContain('if (!ownsBulk(token)) return');
   });
 

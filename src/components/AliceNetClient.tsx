@@ -6,7 +6,6 @@ import {
   Building2,
   CheckCircle2,
   CheckSquare,
-  Database,
   ExternalLink,
   Filter,
   Grid3X3,
@@ -17,7 +16,6 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  SlidersHorizontal,
   ShoppingBag,
   Square,
   Trash2,
@@ -68,9 +66,7 @@ import {
 import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
 import {
   decodeAliceNetClientSnapshot,
-  decodeAliceNetLoopResult,
   decodeAliceNetStockPage,
-  decodeAliceNetStockSyncResult,
   type AliceNetPendingCounts,
 } from '@/lib/alicenet-client-shape';
 
@@ -195,20 +191,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
   );
 }
 
-type ActiveOp =
-  | 'idle'
-  | 'downloading'
-  | 'matching'
-  | 'retrying'
-  | 'vndb-from-egs'
-  | 'retry-vndb-aggressive'
-  | 'search-egs'
-  | 'search-egs-aggressive'
-  | 'download-vndb'
-  | 'resolve-egs'
-  | 'download-all';
-
-interface RunTotals { processed: number; matched: number }
+type AliceNetRunOp = 'download' | 'pipeline' | 'match-vndb' | 'match-egs';
 
 /**
  * Toolbar search field. Owns its own draft and debounces upward so a
@@ -255,14 +238,11 @@ const AliceNetSearchInput = memo(function AliceNetSearchInput({
 /**
  * Client-side panel for the AliceNet second-hand stock browser.
  *
- * Download sequence (manual or via "Download all"):
- *   1. Download stock from AliceNET (uses configured proxy if set)
- *   2. Find VNDB + EGS matches (VNDB throttled at 1 req/s; EGS runs concurrently)
- *   3. Download VNDB metadata for matched VNs
- *   4. Resolve EGS via VNDB ext-links + title search
- *
- * All steps can be run individually or chained with "Download all".
- * Any step can be stopped with the Stop button.
+ * Operations (download, pipeline, match-vndb, match-egs) are dispatched to
+ * `POST /api/alicenet/run`, which runs them as detached server-side
+ * download-status jobs. Progress surfaces in the global Downloads bar and
+ * survives a browser refresh, so this component renders no progress or stop
+ * UI of its own. Refresh the page to pull in newly matched rows.
  */
 interface AliceNetClientProps {
   basePath?: string;
@@ -309,11 +289,8 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
   const [pending, setPending] = useState<AliceNetPendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeOp, setActiveOp] = useState<ActiveOp>('idle');
-  const [opDone, setOpDone] = useState(0);
-  const [opTotal, setOpTotal] = useState(0);
-  const [opLabel, setOpLabel] = useState('');
-  const [lastRun, setLastRun] = useState<{ label: string; processed: number; matched: number; error?: string } | null>(null);
+  const [starting, setStarting] = useState<AliceNetRunOp | null>(null);
+  const startingRef = useRef(false);
   const [filter, setFilter] = useState<FilterTab>(() => {
     const v = urlSearch?.get('filter') ?? null;
     return isFilterTab(v) ? v : 'all';
@@ -342,12 +319,8 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
   const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
   const commitSearch = useCallback((next: string) => setSearch(next), []);
   const [linkTarget, setLinkTarget] = useState<AliceNetItem | null>(null);
-  const stopRef = useRef(false);
   const mountedRef = useRef(true);
   const loadAbortRef = useRef<AbortController | null>(null);
-  const opTokenRef = useRef(0);
-  const opInFlightRef = useRef(false);
-  const activeOpAbortRef = useRef<AbortController | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -427,13 +400,10 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
     return () => {
       mountedRef.current = false;
       loadAbortRef.current?.abort();
-      activeOpAbortRef.current?.abort();
       bulkAbortRef.current?.abort();
       resetAbortRef.current?.abort();
       clearAbortRef.current?.abort();
-      opTokenRef.current += 1;
       bulkTokenRef.current += 1;
-      opInFlightRef.current = false;
       bulkInFlightRef.current = false;
       resetInFlightRef.current = false;
       clearInFlightRef.current = false;
@@ -476,183 +446,19 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
     }
   }, [basePath, filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
 
-  function ownsOp(token: number): boolean {
-    return mountedRef.current && opInFlightRef.current && opTokenRef.current === token;
-  }
-
-  function beginOp(op: Exclude<ActiveOp, 'idle'>): number | null {
-    if (opInFlightRef.current) return null;
-    opInFlightRef.current = true;
-    stopRef.current = false;
-    const token = opTokenRef.current + 1;
-    opTokenRef.current = token;
-    setActiveOp(op);
-    return token;
-  }
-
-  function stopActiveOp() {
-    stopRef.current = true;
-    activeOpAbortRef.current?.abort();
-  }
-
-  function finishOp(token: number) {
-    if (opTokenRef.current !== token) return;
-    activeOpAbortRef.current = null;
-    opInFlightRef.current = false;
-    setActiveOp('idle');
-  }
-
-  async function downloadStock(token: number): Promise<RunTotals> {
-    const controller = new AbortController();
-    activeOpAbortRef.current = controller;
-    setOpDone(0);
-    setOpTotal(1);
-    const r = await fetch('/api/alicenet/fetch', { method: 'POST', signal: controller.signal });
-    if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-    const d = decodeAliceNetStockSyncResult(await r.json());
-    if (!d) throw new Error(t.alicenet.alicenetInvalidSync);
-    if (!ownsOp(token) || controller.signal.aborted) return { processed: 0, matched: 0 };
-    activeOpAbortRef.current = null;
-    setOpDone(1);
-    setOpTotal(1);
-    if (d.removed > 0) {
-      toast.success(t.alicenet.alicenetStockRemoved.replace('{n}', String(d.removed)));
-    }
-    return { processed: d.count, matched: 0 };
-  }
-
-  async function runLoop(
-    endpoint: string,
-    body: Record<string, unknown>,
-    label: string,
-    getRemaining: (d: { processed: number; remaining: number }) => number,
-    token: number,
-    initialTotal = 0,
-    batchSize = 5,
-  ): Promise<RunTotals> {
-    let done = 0;
-    let matched = 0;
-    const runStartedAt = Date.now();
-    setOpDone(0);
-    setOpTotal(initialTotal);
-    setOpLabel(label);
-    while (ownsOp(token) && !stopRef.current) {
-      const controller = new AbortController();
-      activeOpAbortRef.current = controller;
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, batch: batchSize, run_started_at: runStartedAt }),
-        signal: controller.signal,
-      });
+  async function startServerOp(op: AliceNetRunOp) {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setStarting(op);
+    try {
+      const r = await fetch('/api/alicenet/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      const d = decodeAliceNetLoopResult(await r.json());
-      if (!d) throw new Error(t.alicenet.alicenetInvalidLoop);
-      if (!ownsOp(token) || controller.signal.aborted) return { processed: done, matched };
-      activeOpAbortRef.current = null;
-      done += d.processed;
-      matched += d.matched ?? 0;
-      setOpDone(done);
-      setOpTotal(done + getRemaining(d));
-      if (d.processed === 0 || d.remaining === 0) break;
-    }
-    return { processed: done, matched };
-  }
-
-  async function runSingleOp(op: Exclude<ActiveOp, 'idle' | 'download-all'>) {
-    const token = beginOp(op);
-    if (token == null) return;
-    let label = '';
-    let totals: RunTotals = { processed: 0, matched: 0 };
-    try {
-      switch (op) {
-        case 'downloading':
-          label = t.alicenet.alicenetDownloading;
-          setOpLabel(label);
-          setOpDone(0);
-          setOpTotal(1);
-          totals = await downloadStock(token);
-          break;
-        case 'matching':
-          label = t.alicenet.alicenetMatchVndbEgs;
-          totals = await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
-          break;
-        case 'retrying':
-          label = t.alicenet.alicenetRetryNone;
-          totals = await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
-          break;
-        case 'vndb-from-egs':
-          label = t.alicenet.alicenetMatchVndbFromEgs;
-          totals = await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
-          break;
-        case 'retry-vndb-aggressive':
-          label = t.alicenet.alicenetRetryVndbAggressive;
-          totals = await runLoop('/api/alicenet/retry-vndb-aggressive', {}, label, (d) => d.remaining, token, stats.none_found, 4);
-          break;
-        case 'search-egs':
-          label = t.alicenet.alicenetSearchEgsForNoVndb;
-          totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: false }, label, (d) => d.remaining, token, stats.none_found, 10);
-          break;
-        case 'search-egs-aggressive':
-          label = t.alicenet.alicenetSearchEgsForNoVndbAggressive;
-          totals = await runLoop('/api/alicenet/search-egs-no-vndb', { aggressive: true }, label, (d) => d.remaining, token, stats.none_found, 10);
-          break;
-        case 'download-vndb':
-          label = t.alicenet.alicenetDownloadVndb;
-          totals = await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
-          break;
-        case 'resolve-egs':
-          label = t.alicenet.alicenetResolveEgs;
-          totals = await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
-          break;
-      }
-      if (!ownsOp(token) || stopRef.current) return;
-      await load();
-      if (!ownsOp(token)) return;
-      setLastRun({ label, ...totals });
+      if (mountedRef.current) toast.success(t.alicenet.alicenetRunStarted);
     } catch (e) {
-      if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
-      const message = `${label}: ${(e as Error).message}`;
-      setLastRun({ label, ...totals, error: (e as Error).message });
-      toast.error(message, 0);
+      if (mountedRef.current) toast.error((e as Error).message);
     } finally {
-      finishOp(token);
-    }
-  }
-
-  async function runDownloadAll() {
-    const token = beginOp('download-all');
-    if (token == null) return;
-    const phases: { label: string; run: () => Promise<RunTotals> }[] = [
-      { label: t.alicenet.alicenetDownloading, run: () => downloadStock(token) },
-      { label: t.alicenet.alicenetMatchVndbEgs, run: () => runLoop('/api/alicenet/match-next', { retry_none: false }, t.alicenet.alicenetMatchVndbEgs, (d) => d.remaining, token, stats.unprocessed, 5) },
-      { label: t.alicenet.alicenetRetryNone, run: () => runLoop('/api/alicenet/match-next', { retry_none: true }, t.alicenet.alicenetRetryNone, (d) => d.remaining, token, stats.none_found, 4) },
-      { label: t.alicenet.alicenetMatchVndbFromEgs, run: () => runLoop('/api/alicenet/match-vndb-from-egs', {}, t.alicenet.alicenetMatchVndbFromEgs, (d) => d.remaining, token, stats.egs_only, 10) },
-      { label: t.alicenet.alicenetDownloadVndb, run: () => runLoop('/api/alicenet/download-vndb', {}, t.alicenet.alicenetDownloadVndb, (d) => d.remaining, token, pending.vndb_pending, 10) },
-      { label: t.alicenet.alicenetResolveEgs, run: () => runLoop('/api/alicenet/resolve-egs', {}, t.alicenet.alicenetResolveEgs, (d) => d.remaining, token, pending.egs_pending, 10) },
-    ];
-    const failures: string[] = [];
-    try {
-      setOpLabel(phases[0].label);
-      setOpDone(0);
-      setOpTotal(1);
-      for (const phase of phases) {
-        if (!ownsOp(token) || stopRef.current) return;
-        setOpLabel(phase.label);
-        try {
-          await phase.run();
-        } catch (e) {
-          if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
-          failures.push(`${phase.label}: ${(e as Error).message}`);
-        }
-      }
-      if (!ownsOp(token) || stopRef.current) return;
-      await load();
-      if (failures.length > 0) {
-        toast.warning(t.alicenet.alicenetPartialFailure.replace('{details}', failures.join('; ')), 0);
-      }
-    } finally {
-      finishOp(token);
+      startingRef.current = false;
+      if (mountedRef.current) setStarting(null);
     }
   }
 
@@ -717,11 +523,6 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
     }
   }
 
-  const isBusy = activeOp !== 'idle';
-  const opPct = opTotal > 0 ? Math.round((opDone / opTotal) * 100) : 0;
-  const opPercentLabel = opTotal > 0
-    ? t.alicenet.alicenetProgressPercent.replace('{percent}', String(opPct))
-    : t.alicenet.alicenetProgressPreparing;
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
   const showStatsSkeleton = loading && items.length === 0 && stats.total === 0;
 
@@ -1244,169 +1045,55 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
       </div>
 
       {/* Toolbar */}
-      <div className={`mb-5 rounded-xl border border-border bg-bg-card p-3 ${isBusy ? 'sticky top-2 z-30 shadow-card' : ''}`}>
-        {isBusy ? (
-          <div className="flex flex-wrap items-start gap-3">
-            <button
-              type="button"
-              onClick={stopActiveOp}
-              className="min-h-[44px] shrink-0 rounded-md border border-border px-3 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
-            >
-              {t.alicenet.alicenetStopMatch}
-            </button>
-            <div className="min-w-0 flex-1" role="status" aria-live="polite">
-              <div className="flex items-center gap-2 text-xs text-muted">
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
-                <span className="truncate">{opLabel}</span>
-                <span className="shrink-0 rounded border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
-                  {opPercentLabel}
-                </span>
-                {opTotal > 0 && (
-                  <span className="ml-auto shrink-0 tabular-nums">{opDone}/{opTotal}</span>
-                )}
-              </div>
-              <p className="mt-1 text-[11px] text-muted/80">{t.alicenet.alicenetProgressBackground}</p>
-              {opTotal > 0 && (
-                <div
-                  role="progressbar"
-                  aria-valuenow={Math.round(opPct)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={opLabel}
-                  className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
-                >
-                  <div
-                    className="h-full bg-accent transition-[width] duration-200"
-                    style={{ width: `${opPct}%` }}
-                  />
-                </div>
-              )}
-              {opTotal === 0 && (
-                <div
-                  role="progressbar"
-                  aria-label={opLabel}
-                  className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-elev"
-                >
-                  <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-[1.1fr_1.1fr_1.25fr_1.15fr_auto]">
-            <section className="min-w-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionPipeline}</div>
-              <button
-                type="button"
-                onClick={runDownloadAll}
-                className="btn btn-primary btn-sm w-full sm:w-auto"
-                title={t.alicenet.alicenetDownloadAllHint}
-              >
-                <Zap className="h-3.5 w-3.5" aria-hidden />
-                {t.alicenet.alicenetDownloadAll}
-              </button>
-              <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetDownloadAllHint}</p>
-            </section>
-
-            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionStock}</div>
-              <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => runSingleOp('downloading')}
-                className="btn btn-sm"
-              >
-                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                {t.alicenet.alicenetSyncStock}
-              </button>
-              <button
-                type="button"
-                onClick={() => runSingleOp('matching')}
-                disabled={stats.unprocessed === 0}
-                className="btn btn-sm"
-              >
-                <Search className="h-3.5 w-3.5" aria-hidden />
-                {t.alicenet.alicenetMatchVndbEgs}
-                {stats.unprocessed > 0 && (
-                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{stats.unprocessed}</span>
-                )}
-              </button>
-              </div>
-            </section>
-
-            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionRecovery}</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => runSingleOp('retrying')}
-                  disabled={stats.none_found === 0}
-                  className="btn btn-sm btn-primary w-full sm:w-auto"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                  {t.alicenet.alicenetRetryNone}
-                  {stats.none_found > 0 && (
-                    <span className="ml-1 rounded bg-bg/20 px-1 text-[10px] text-bg">{stats.none_found}</span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runSingleOp('retry-vndb-aggressive')}
-                  disabled={stats.none_found === 0}
-                  className="btn btn-sm w-full sm:w-auto"
-                  title={t.alicenet.alicenetRetryVndbAggressiveHint}
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-                  {t.alicenet.alicenetRetryVndbAggressive}
-                </button>
-              </div>
-              <p className="mt-1 text-[11px] leading-snug text-muted">{t.alicenet.alicenetSmartRetryHint}</p>
-            </section>
-
-            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionData}</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => runSingleOp('download-vndb')}
-                  disabled={pending.vndb_pending === 0}
-                  className="btn btn-sm"
-                >
-                  <Database className="h-3.5 w-3.5" aria-hidden />
-                  {t.alicenet.alicenetDownloadVndb}
-                  {pending.vndb_pending > 0 && (
-                    <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.vndb_pending}</span>
-                  )}
-                </button>
-              <button
-                type="button"
-                onClick={() => runSingleOp('resolve-egs')}
-                disabled={pending.egs_pending === 0}
-                className="btn btn-sm"
-              >
-                <Link2 className="h-3.5 w-3.5" aria-hidden />
-                {t.alicenet.alicenetResolveEgs}
-                {pending.egs_pending > 0 && (
-                  <span className="ml-1 rounded bg-bg-elev px-1 text-[10px] text-muted">{pending.egs_pending}</span>
-                )}
-              </button>
-              </div>
-            </section>
-
-            <section className="min-w-0 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetActionMaintenance}</div>
-              <button
-                type="button"
-                onClick={resetAutoMatches}
-                disabled={stats.matched === 0 || resettingMatches}
-                className="btn btn-sm text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50"
-              >
-                {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
-                {t.alicenet.alicenetResetAutoMatches}
-              </button>
-            </section>
-          </div>
-        )}
+      <div className="mb-5 rounded-xl border border-border bg-bg-card p-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => startServerOp('download')}
+            disabled={starting !== null}
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+          >
+            {starting === 'download' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+            {t.alicenet.alicenetSyncStock}
+          </button>
+          <button
+            type="button"
+            onClick={() => startServerOp('pipeline')}
+            disabled={starting !== null}
+            className="btn btn-primary btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+          >
+            {starting === 'pipeline' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Zap className="h-3.5 w-3.5" aria-hidden />}
+            {t.alicenet.alicenetDownloadAll}
+          </button>
+          <button
+            type="button"
+            onClick={() => startServerOp('match-vndb')}
+            disabled={starting !== null}
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+          >
+            {starting === 'match-vndb' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Search className="h-3.5 w-3.5" aria-hidden />}
+            {t.alicenet.alicenetMatchVndb}
+          </button>
+          <button
+            type="button"
+            onClick={() => startServerOp('match-egs')}
+            disabled={starting !== null}
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+          >
+            {starting === 'match-egs' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Link2 className="h-3.5 w-3.5" aria-hidden />}
+            {t.alicenet.alicenetMatchEgs}
+          </button>
+          <button
+            type="button"
+            onClick={resetAutoMatches}
+            disabled={stats.matched === 0 || resettingMatches}
+            className="btn btn-sm min-h-[44px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 sm:min-h-0"
+          >
+            {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
+            {t.alicenet.alicenetResetAutoMatches}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] leading-snug text-muted">{t.alicenet.alicenetRunHint}</p>
       </div>
 
       {/* Browsing controls */}
@@ -1555,49 +1242,6 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
           <button type="button" onClick={clearSelection} className="btn btn-sm">
             <X className="h-3.5 w-3.5" aria-hidden />
             {t.alicenet.alicenetClearSelection}
-          </button>
-        </div>
-      )}
-
-      {lastRun && (
-        <div className={`mb-4 rounded-lg border p-3 text-sm ${
-          lastRun.error
-            ? 'border-status-dropped/40 bg-status-dropped/10 text-status-dropped'
-            : 'border-border bg-bg-card text-muted'
-        }`}>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t.alicenet.alicenetLastRunTitle}</div>
-          <div className="mt-1 font-semibold text-white">{lastRun.label}</div>
-          <div className="mt-1 text-xs">
-            {lastRun.error
-              ? t.alicenet.alicenetLastRunFailed.replace('{error}', lastRun.error)
-              : t.alicenet.alicenetLastRunSummary
-                .replace('{processed}', String(lastRun.processed))
-                .replace('{matched}', String(lastRun.matched))}
-          </div>
-        </div>
-      )}
-
-      {(filter === 'unmatched' || filter === 'none_found' || filter === 'egs_only') && (stats.none_found > 0 || stats.egs_only > 0) && (
-        <div className="mb-4 grid gap-2 rounded-xl border border-border bg-bg-card p-3 md:grid-cols-2 xl:grid-cols-5">
-          <button type="button" onClick={() => runSingleOp('retrying')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <Search className="h-3.5 w-3.5" aria-hidden />
-            <span className="min-w-0 truncate">{t.alicenet.alicenetRetryNone}</span>
-          </button>
-          <button type="button" onClick={() => runSingleOp('retry-vndb-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-            <span className="min-w-0 truncate">{t.alicenet.alicenetRetryVndbAggressive}</span>
-          </button>
-          <button type="button" onClick={() => runSingleOp('vndb-from-egs')} disabled={isBusy || stats.egs_only === 0} className="btn btn-sm justify-start">
-            <Link2 className="h-3.5 w-3.5" aria-hidden />
-            <span className="min-w-0 truncate">{t.alicenet.alicenetMatchVndbFromEgs}</span>
-          </button>
-          <button type="button" onClick={() => runSingleOp('search-egs')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-            <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndb}</span>
-          </button>
-          <button type="button" onClick={() => runSingleOp('search-egs-aggressive')} disabled={isBusy || stats.none_found === 0} className="btn btn-sm justify-start">
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-            <span className="min-w-0 truncate">{t.alicenet.alicenetSearchEgsForNoVndbAggressive}</span>
           </button>
         </div>
       )}

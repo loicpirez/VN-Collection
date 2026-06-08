@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { AliceNetClient } from '@/components/AliceNetClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
@@ -108,6 +108,22 @@ function tabsGroup(): HTMLElement {
   return screen.getByRole('group', { name: 'All' });
 }
 
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function flushAsyncWork() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 const VNDB_ITEM = makeItem({
   code: '001-000002-001',
   title: 'Matched Title Two',
@@ -171,6 +187,18 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Egs Title Three')).toBeInTheDocument();
     expect(screen.getAllByText('VNDB').length).toBeGreaterThan(0);
     expect(screen.getAllByText('EGS only').length).toBeGreaterThan(0);
+  });
+
+  it('shows the not-yet-matched breakdown in the no-result stat tile', async () => {
+    global.fetch = vi.fn(async () =>
+      json(snapshot({
+        items: [VNDB_ITEM],
+        stats: { total: 3, matched: 1, vndb_matched: 1, unmatched: 2, unprocessed: 2, none_found: 1 },
+      })),
+    );
+    renderClient();
+    await screen.findByText('Matched Title Two');
+    expect(await screen.findByText('2 Not yet matched')).toBeInTheDocument();
   });
 
   it('loads a second page when the first snapshot reports has_more', async () => {
@@ -321,200 +349,127 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
   });
 
-  it('runs the sync-stock single operation', async () => {
-    const calls: string[] = [];
+  it('starts each server operation from its toolbar button', async () => {
+    const posts: { op: unknown }[] = [];
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        calls.push(u);
-        return json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000001 });
+      if (u === '/api/alicenet/run' && init?.method === 'POST') {
+        posts.push(JSON.parse(String(init.body)));
+        return json({ jobId: 'job-1', op: JSON.parse(String(init.body)).op }, 202);
       }
       return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
     });
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
+
     await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(calls).toContain('/api/alicenet/fetch'));
-    expect(await screen.findByText('Last run')).toBeInTheDocument();
-    expect(await screen.findByText('1 processed, 0 matched.')).toBeInTheDocument();
+    expect(await screen.findByText('Started in the background. Track it in the Downloads bar.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Download all' }));
+    await user.click(screen.getByRole('button', { name: 'Match VNDB' }));
+    await user.click(screen.getByRole('button', { name: 'Match EGS' }));
+
+    await waitFor(() => expect(posts.length).toBe(4));
+    expect(posts.map((p) => p.op)).toEqual(['download', 'pipeline', 'match-vndb', 'match-egs']);
   });
 
-  it('runs the match operation loop and renders the last-run summary', async () => {
-    const matchCalls: unknown[] = [];
+  it('shows an error toast when the run route rejects the operation', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') {
-        matchCalls.push(JSON.parse(String(init.body)));
-        return json({ processed: 3, matched: 2, remaining: 0 });
+      if (u === '/api/alicenet/run' && init?.method === 'POST') {
+        return json({ error: 'an AliceNet operation is already running', code: 'queue_full' }, 429);
       }
-      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1, unprocessed: 3 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Matched Title Two');
-    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    await waitFor(() => expect(matchCalls.length).toBeGreaterThan(0));
-    expect(await screen.findByText(/3 processed, 2 matched/)).toBeInTheDocument();
-  });
-
-  it('runs the full download-all pipeline in order', async () => {
-    const calls: string[] = [];
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') calls.push(u);
-      if (u === '/api/alicenet/fetch') return json({ count: 2, added: 1, updated: 1, removed: 1, fetched_at: 1700000002 });
-      if (
-        u === '/api/alicenet/match-next' ||
-        u === '/api/alicenet/match-vndb-from-egs' ||
-        u === '/api/alicenet/download-vndb' ||
-        u === '/api/alicenet/resolve-egs'
-      ) {
-        return json({ processed: 1, matched: 1, remaining: 0 });
-      }
-      return json(snapshot({
-        items: [VNDB_ITEM, EGS_ITEM],
-        stats: { matched: 2, vndb_matched: 1, egs_only: 1, unprocessed: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      }));
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
     });
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Download all' }));
-    await waitFor(() => expect(calls).toContain('/api/alicenet/resolve-egs'));
-    expect(calls).toEqual([
-      '/api/alicenet/fetch',
-      '/api/alicenet/match-next',
-      '/api/alicenet/match-next',
-      '/api/alicenet/match-vndb-from-egs',
-      '/api/alicenet/download-vndb',
-      '/api/alicenet/resolve-egs',
-    ]);
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('an AliceNet operation is already running');
   });
 
-  it('stops an active operation through the progress toolbar', async () => {
-    let aborted = false;
+  it('issues a single POST when an operation button is double-clicked', async () => {
+    const runRequest = deferredResponse();
+    const posts: string[] = [];
     global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return new Promise<Response>((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () => {
-            aborted = true;
-            reject(new DOMException('Aborted', 'AbortError'));
-          });
-        });
+      if (u === '/api/alicenet/run' && init?.method === 'POST') {
+        posts.push(u);
+        return runRequest.promise;
       }
       return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    const sync = screen.getByRole('button', { name: 'Sync stock' });
+    act(() => {
+      fireEvent.click(sync);
+      fireEvent.click(sync);
     });
+    await waitFor(() => expect(posts).toEqual(['/api/alicenet/run']));
+    await act(async () => {
+      runRequest.resolve(json({ jobId: 'job-1', op: 'download' }, 202));
+      await flushAsyncWork();
+    });
+  });
+
+  it('disables every operation button while a run is starting', async () => {
+    const runRequest = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/run' && init?.method === 'POST') return runRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    expect(await screen.findByText('0%')).toBeInTheDocument();
-    expect(screen.getByText('The job runs in the background. You can keep browsing this page.')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
-    await waitFor(() => expect(aborted).toBe(true));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Download all' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Sync stock' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Match VNDB' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Match EGS' })).toBeDisabled();
+    await act(async () => {
+      runRequest.resolve(json({ jobId: 'job-1', op: 'download' }, 202));
+      await flushAsyncWork();
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Download all' })).toBeEnabled());
   });
 
-  it('runs recovery and data operation variants from visible controls', async () => {
-    const endpoints: string[] = [];
-    const noneItem = makeItem({
-      code: '001-000010-001',
-      title: 'No Result Title',
-      vn_match_source: 'none',
-    });
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+  it('ignores a run-start success that resolves after unmount', async () => {
+    const runRequest = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
-      if (init?.method === 'POST') endpoints.push(u);
-      if (
-        u === '/api/alicenet/match-next' ||
-        u === '/api/alicenet/match-vndb-from-egs' ||
-        u === '/api/alicenet/search-egs-no-vndb' ||
-        u === '/api/alicenet/download-vndb' ||
-        u === '/api/alicenet/resolve-egs'
-      ) {
-        return json({ processed: 1, matched: 1, remaining: 0 });
-      }
-      return json(snapshot({
-        items: [EGS_ITEM, noneItem],
-        stats: { total: 2, matched: 1, egs_only: 1, unmatched: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Egs Title Three');
-    await user.click(screen.getAllByRole('button', { name: /Recover no-result rows/ })[0]);
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-next'));
-    await user.click(screen.getByRole('button', { name: /Download VNDB data/ }));
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/download-vndb'));
-    await user.click(screen.getByRole('button', { name: /Resolve EGS via VNDB/ }));
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/resolve-egs'));
-  });
-
-  it('runs the smart VNDB retry operation from the recovery toolbar', async () => {
-    const endpoints: string[] = [];
-    const noneItem = makeItem({
-      code: '001-000015-001',
-      title: 'Aggressive Retry Title',
-      vn_match_source: 'none',
-    });
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') endpoints.push(u);
-      if (u === '/api/alicenet/retry-vndb-aggressive') return json({ processed: 1, matched: 0, remaining: 0 });
-      return json(snapshot({
-        items: [noneItem],
-        stats: { total: 1, unmatched: 1, none_found: 1 },
-      }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Aggressive Retry Title');
-    await user.click(within(tabsGroup()).getByRole('button', { name: /^No VNDB result/ }));
-    await user.click(screen.getAllByRole('button', { name: /Smart VNDB retry/ })[0]);
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/retry-vndb-aggressive'));
-  });
-
-  it('runs no-result recovery variants from visible controls', async () => {
-    const endpoints: string[] = [];
-    const noneItem = makeItem({
-      code: '001-000010-001',
-      title: 'No Result Title',
-      vn_match_source: 'none',
-    });
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') endpoints.push(u);
-      if (
-        u === '/api/alicenet/match-vndb-from-egs' ||
-        u === '/api/alicenet/search-egs-no-vndb'
-      ) {
-        return json({ processed: 1, matched: 1, remaining: 0 });
-      }
-      return json(snapshot({
-        items: [EGS_ITEM, noneItem],
-        stats: { total: 2, matched: 1, egs_only: 1, unmatched: 1, none_found: 1 },
-        pending: { vndb_pending: 1, egs_pending: 1 },
-      }));
-    });
-    renderClient();
-    await screen.findByText('Egs Title Three');
-    fireEvent.click(within(tabsGroup()).getByRole('button', { name: /No VNDB result/ }));
-    fireEvent.click(screen.getByRole('button', { name: /VNDB from EGS/ }));
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-vndb-from-egs'));
-    fireEvent.click(screen.getByRole('button', { name: /^Search on EGS$/ }));
-    await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole('button', { name: /Search on EGS \(aggressive filter\)/ }));
-    await waitFor(() => expect(endpoints.filter((endpoint) => endpoint === '/api/alicenet/search-egs-no-vndb').length).toBeGreaterThan(1));
-  });
-
-  it('renders operation errors as the last-run summary', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'match-loop-failed' }, 500);
-      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1, unprocessed: 1 } }));
-    });
-    const { user } = renderClient();
+      if (u === '/api/alicenet/run' && init?.method === 'POST') return runRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+    const view = renderClient();
     await screen.findByText('Matched Title Two');
-    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    expect(await screen.findAllByText(/match-loop-failed/)).toHaveLength(2);
-    expect(screen.getByText('Failed: match-loop-failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sync stock' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sync stock' })).toBeDisabled());
+    view.unmount();
+    await act(async () => {
+      runRequest.resolve(json({ jobId: 'job-1', op: 'download' }, 202));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByText('Started in the background. Track it in the Downloads bar.')).toBeNull();
+  });
+
+  it('ignores a run-start error that rejects after unmount', async () => {
+    const runRequest = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === '/api/alicenet/run' && init?.method === 'POST') return runRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+    const view = renderClient();
+    await screen.findByText('Matched Title Two');
+    fireEvent.click(screen.getByRole('button', { name: 'Match EGS' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Match EGS' })).toBeDisabled());
+    view.unmount();
+    await act(async () => {
+      runRequest.reject(new Error('late run failure'));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByText('late run failure')).toBeNull();
   });
 
   it('resets auto matches after confirmation', async () => {
@@ -836,95 +791,6 @@ describe('AliceNetClient', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The local AliceNet response is malformed.');
   });
 
-  it('reports malformed operation payloads and loop results without matched counts', async () => {
-    const calls: string[] = [];
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') calls.push(u);
-      if (u === '/api/alicenet/fetch') return json({ broken: true });
-      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
-    });
-    const first = renderClient();
-    await screen.findByText('Matched Title Two');
-    await first.user.click(screen.getByRole('button', { name: 'Sync stock' }));
-    await waitFor(() => expect(screen.getAllByText(/AliceNet sync returned a malformed response/).length).toBeGreaterThan(0));
-    first.unmount();
-
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ processed: 1, remaining: 0 });
-      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
-    });
-    const second = renderClient();
-    await screen.findByText('Matched Title Two');
-    await second.user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    expect(await screen.findByText('1 processed, 0 matched.')).toBeInTheDocument();
-    expect(calls).toContain('/api/alicenet/fetch');
-  });
-
-  it('reports malformed loop payloads with the AliceNet pipeline diagnostic', async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ broken: true });
-      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Matched Title Two');
-    await user.click(screen.getByRole('button', { name: /Match new rows/ }));
-    await waitFor(() => expect(screen.getAllByText(/AliceNet processing returned malformed progress/).length).toBeGreaterThan(0));
-  });
-
-  it('continues download-all past a failing step and summarizes the skipped steps', async () => {
-    const calls: string[] = [];
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') calls.push(u);
-      if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
-        return json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 });
-      }
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'match step failed' }, 500);
-      if (
-        u === '/api/alicenet/match-vndb-from-egs' ||
-        u === '/api/alicenet/download-vndb' ||
-        u === '/api/alicenet/resolve-egs'
-      ) {
-        return json({ processed: 1, matched: 1, remaining: 0 });
-      }
-      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
-    });
-    const { user } = renderClient();
-    await screen.findByText('Matched Title Two');
-    await user.click(screen.getByRole('button', { name: 'Download all' }));
-    // A failing match step no longer aborts the run: later phases still execute.
-    await waitFor(() => expect(calls).toContain('/api/alicenet/resolve-egs'));
-    // The skipped step is surfaced in a non-fatal summary rather than a hard error.
-    expect(await screen.findByText(/match step failed/)).toBeInTheDocument();
-  });
-
-  it('cancels and fails reset-auto-match flows cleanly', async () => {
-    let resetCalls = 0;
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (u === '/api/alicenet/reset-matches' && init?.method === 'POST') {
-        resetCalls += 1;
-        return json({ error: 'reset failed' }, 500);
-      }
-      return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
-    });
-    const first = renderClient();
-    await screen.findByText('Matched Title Two');
-    await first.user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
-    let confirm = await screen.findByRole('alertdialog');
-    await first.user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-    expect(resetCalls).toBe(0);
-
-    await first.user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
-    confirm = await screen.findByRole('alertdialog');
-    await first.user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(screen.getAllByText(/reset failed/).length).toBeGreaterThan(0));
-  });
-
   it('toggles filters, returns from list view to cards, and exits select mode', async () => {
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
     renderClient();
@@ -1005,31 +871,5 @@ describe('AliceNetClient', () => {
     fireEvent.click(rowToggle);
     await waitFor(() => expect(rowToggle).toHaveAttribute('aria-pressed', 'true'));
     expect(within(row).getByRole('button', { name: 'Link' })).toBeEnabled();
-  });
-
-  it('runs contextual no-result recovery buttons', async () => {
-    const endpoints: string[] = [];
-    const noneItem = makeItem({
-      code: '001-000021-001',
-      title: 'Contextual No Result Title',
-      vn_match_source: 'none',
-    });
-    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const u = String(url);
-      if (init?.method === 'POST') endpoints.push(u);
-      if (u === '/api/alicenet/match-next' || u === '/api/alicenet/retry-vndb-aggressive') {
-        return json({ processed: 1, matched: 0, remaining: 0 });
-      }
-      return json(snapshot({ items: [noneItem], stats: { total: 1, unmatched: 1, none_found: 1 } }));
-    });
-    renderClient();
-    await screen.findByText('Contextual No Result Title');
-    fireEvent.click(within(tabsGroup()).getByRole('button', { name: /^No VNDB result/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^Recover no-result rows$/ }));
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/match-next'));
-    const smartRetryButtons = screen.getAllByRole('button', { name: /^Smart VNDB retry$/ });
-    expect(smartRetryButtons.length).toBeGreaterThan(1);
-    fireEvent.click(smartRetryButtons[smartRetryButtons.length - 1]!);
-    await waitFor(() => expect(endpoints).toContain('/api/alicenet/retry-vndb-aggressive'));
   });
 });
