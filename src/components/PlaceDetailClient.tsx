@@ -21,6 +21,8 @@ import type { PlaceWithLinks } from '@/lib/db';
 import { AddEditPlaceModal } from './AddEditPlaceModal';
 import { AssignProviderDialog } from './AssignProviderDialog';
 import { PlaceVnBrowser } from './PlaceVnBrowser';
+import { AliceNetClient } from './AliceNetClient';
+import { ALICENET_BRANCH_LABEL } from '@/lib/stock-provider-constants';
 import { safeHref } from '@/lib/safe-href';
 
 interface Props {
@@ -46,6 +48,7 @@ export function PlaceDetailClient({ place }: Props) {
 
   const hasGps = place.lat != null && place.lng != null;
   const placeHref = safeHref(place.url);
+  const isAliceNetPlace = place.provider_labels.includes(ALICENET_BRANCH_LABEL);
 
   useEffect(() => {
     deleteAbortRef.current?.abort();
@@ -202,6 +205,8 @@ export function PlaceDetailClient({ place }: Props) {
 
       {/* VN browser */}
       <PlaceVnBrowser placeId={place.id} placeName={place.name} />
+
+      {isAliceNetPlace && <AliceNetClient embedded basePath={`/places/${place.id}`} />}
 
       {showEdit && (
         <AddEditPlaceModal

@@ -44,6 +44,11 @@ vi.mock('@/components/AssignProviderDialog', () => ({
     );
   },
 }));
+vi.mock('@/components/AliceNetClient', () => ({
+  AliceNetClient: ({ embedded, basePath }: { embedded?: boolean; basePath?: string }) => (
+    <div data-testid="alicenet-client" data-embedded={String(embedded)} data-base-path={basePath ?? ''} />
+  ),
+}));
 
 const t = dictionaries.en;
 
@@ -276,6 +281,16 @@ describe('PlaceDetailClient branches', () => {
     rerender(<PlaceDetailClient place={place({ id: 17, name: 'Sixth Shop' })} />);
     act(() => staleAssignSaved?.());
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it('mounts the AliceNet browser only on the shop that owns the AliceNet branch', async () => {
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { rerender } = renderWithProviders(<PlaceDetailClient place={place()} />, { locale: 'en' });
+    expect(screen.queryByTestId('alicenet-client')).toBeNull();
+    rerender(<PlaceDetailClient place={place({ id: 21, provider_labels: ['AliceNet'] })} />);
+    const browser = screen.getByTestId('alicenet-client');
+    expect(browser.getAttribute('data-embedded')).toBe('true');
+    expect(browser.getAttribute('data-base-path')).toBe('/places/21');
   });
 
   it('falls back to the raw kind when no localized label exists', async () => {

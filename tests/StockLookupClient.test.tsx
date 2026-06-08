@@ -40,12 +40,6 @@ vi.mock('@/components/StockBatchClient', () => ({
   StockBatchClient: () => <div data-testid="batch-client" />,
 }));
 
-vi.mock('@/components/AliceNetClient', () => ({
-  AliceNetClient: ({ embedded, basePath }: { embedded?: boolean; basePath?: string }) => (
-    <div data-testid="alicenet-client" data-embedded={String(embedded)} data-base-path={basePath ?? ''} />
-  ),
-}));
-
 const t = dictionaries[DEFAULT_LOCALE];
 
 function json(body: unknown, status = 200) {
@@ -98,8 +92,7 @@ describe('StockLookupClient', () => {
     // The provider-map fetch still fires on mount.
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getByTestId('batch-client')).toBeTruthy();
-    expect(screen.getByTestId('alicenet-client').getAttribute('data-embedded')).toBe('true');
-    expect(screen.getByTestId('alicenet-client').getAttribute('data-base-path')).toBe('/stock');
+    expect(screen.queryByTestId('alicenet-client')).toBeNull();
   });
 
   it('renders the panel inside the boundary and resolves the VN title when initialVnId is set', async () => {
