@@ -228,6 +228,13 @@ describe('POST /api/alicenet/match-next', () => {
     expect(matchNextAliceNetItemsMock).toHaveBeenCalledWith(5, false, 1700000000000);
   });
 
+  it('502 with a sanitized actionable error when matching throws', async () => {
+    matchNextAliceNetItemsMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    const res = await matchNextPOST(localReq('POST', { batch: 5 }) as never);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'AliceNet request timed out. Check the network or proxy, then retry.' });
+  });
+
   it('400 when batch exceeds the route maximum', async () => {
     const res = await matchNextPOST(localReq('POST', { batch: 21 }) as never);
     expect(res.status).toBe(400);
@@ -262,6 +269,13 @@ describe('POST /api/alicenet/match-vndb-from-egs', () => {
     expect(await res.json()).toEqual({ processed: 4, matched: 1, remaining: 0 });
   });
 
+  it('502 with a sanitized actionable error when VNDB-from-EGS matching throws', async () => {
+    matchVndbFromEgsForAliceNetMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+    const res = await matchVndbFromEgsPOST(localReq('POST', { batch: 10 }) as never);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'AliceNet host could not be resolved. Check DNS, network, or proxy settings.' });
+  });
+
   it('400 when run_started_at is fractional', async () => {
     const res = await matchVndbFromEgsPOST(localReq('POST', { run_started_at: 1.5 }) as never);
     expect(res.status).toBe(400);
@@ -290,6 +304,13 @@ describe('POST /api/alicenet/retry-vndb-aggressive', () => {
     expect(retryVndbForAliceNetAggressiveMock).toHaveBeenCalledWith(4, 1700000000001);
   });
 
+  it('502 with a sanitized actionable error when the aggressive retry throws', async () => {
+    retryVndbForAliceNetAggressiveMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await retryAggressivePOST(localReq('POST', { batch: 4 }) as never);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'AliceNet connection was refused. Check the configured proxy or source availability.' });
+  });
+
   it('400 when batch exceeds the route maximum', async () => {
     const res = await retryAggressivePOST(localReq('POST', { batch: 21 }) as never);
     expect(res.status).toBe(400);
@@ -316,6 +337,13 @@ describe('POST /api/alicenet/search-egs-no-vndb', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ processed: 10, matched: 3, remaining: 2 });
     expect(searchEgsForAliceNetNoVndbMock).toHaveBeenCalledWith(10, true, undefined);
+  });
+
+  it('502 with a sanitized actionable error when the EGS search throws', async () => {
+    searchEgsForAliceNetNoVndbMock.mockRejectedValue(new Error('socket hang up'));
+    const res = await searchEgsPOST(localReq('POST', { batch: 10 }) as never);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'socket hang up' });
   });
 
   it('400 when aggressive is not a boolean', async () => {

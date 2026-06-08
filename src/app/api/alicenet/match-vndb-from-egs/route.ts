@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { matchVndbFromEgsForAliceNet } from '@/lib/alicenet';
 import { readJsonObject } from '@/lib/api-body';
 import { parseAliceNetBatch, parseAliceNetRunStartedAt } from '@/lib/alicenet-route-input';
+import { aliceNetApiError } from '@/lib/alicenet-api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +21,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsedBatch.ok) return NextResponse.json({ error: parsedBatch.error }, { status: 400 });
   const parsedRunStartedAt = parseAliceNetRunStartedAt(body.run_started_at);
   if (!parsedRunStartedAt.ok) return NextResponse.json({ error: parsedRunStartedAt.error }, { status: 400 });
-  const result = await matchVndbFromEgsForAliceNet(parsedBatch.value, parsedRunStartedAt.value);
-  return NextResponse.json(result);
+  try {
+    const result = await matchVndbFromEgsForAliceNet(parsedBatch.value, parsedRunStartedAt.value);
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error('[alicenet/match-vndb-from-egs] failed', (e as Error).message);
+    return aliceNetApiError(e, 'AliceNet VNDB-from-EGS matching failed.', 502);
+  }
 }

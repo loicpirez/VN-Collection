@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { matchNextAliceNetItems } from '@/lib/alicenet';
 import { readJsonObject } from '@/lib/api-body';
 import { parseAliceNetBatch, parseAliceNetBoolean, parseAliceNetRunStartedAt } from '@/lib/alicenet-route-input';
+import { aliceNetApiError } from '@/lib/alicenet-api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -17,6 +18,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsedRunStartedAt.ok) return NextResponse.json({ error: parsedRunStartedAt.error }, { status: 400 });
   const retryNone = parseAliceNetBoolean(body.retry_none, 'retry_none');
   if (!retryNone.ok) return NextResponse.json({ error: retryNone.error }, { status: 400 });
-  const result = await matchNextAliceNetItems(parsedBatch.value, retryNone.value, parsedRunStartedAt.value);
-  return NextResponse.json(result);
+  try {
+    const result = await matchNextAliceNetItems(parsedBatch.value, retryNone.value, parsedRunStartedAt.value);
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error('[alicenet/match-next] failed', (e as Error).message);
+    return aliceNetApiError(e, 'AliceNet matching failed.', 502);
+  }
 }

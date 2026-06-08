@@ -3,6 +3,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { searchEgsForAliceNetNoVndb } from '@/lib/alicenet';
 import { readJsonObject } from '@/lib/api-body';
 import { parseAliceNetBatch, parseAliceNetBoolean, parseAliceNetRunStartedAt } from '@/lib/alicenet-route-input';
+import { aliceNetApiError } from '@/lib/alicenet-api-error';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsedRunStartedAt.ok) return NextResponse.json({ error: parsedRunStartedAt.error }, { status: 400 });
   const aggressive = parseAliceNetBoolean(body.aggressive, 'aggressive');
   if (!aggressive.ok) return NextResponse.json({ error: aggressive.error }, { status: 400 });
-  const result = await searchEgsForAliceNetNoVndb(parsedBatch.value, aggressive.value, parsedRunStartedAt.value);
-  return NextResponse.json(result);
+  try {
+    const result = await searchEgsForAliceNetNoVndb(parsedBatch.value, aggressive.value, parsedRunStartedAt.value);
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error('[alicenet/search-egs-no-vndb] failed', (e as Error).message);
+    return aliceNetApiError(e, 'AliceNet EGS search failed.', 502);
+  }
 }
