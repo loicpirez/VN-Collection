@@ -22,7 +22,7 @@ vi.mock('@/lib/alicenet', async (importOriginal) => {
 import { DELETE, POST } from '@/app/api/alicenet/run/route';
 import { getJob } from '@/lib/download-status';
 
-const SCRAPE = { count: 0, added: 0, updated: 0, removed: 0, fetched_at: 1700000000 };
+const SCRAPE = { count: 3, added: 1, updated: 1, removed: 1, fetched_at: 1700000000 };
 const DONE = { processed: 0, matched: 0, remaining: 0 };
 
 function req(path: string, method: string, body?: unknown): NextRequest {
@@ -84,7 +84,8 @@ describe('alicenet run route branches', () => {
     expect(matchNextMock).not.toHaveBeenCalled();
     const job = getJob(jobId);
     expect(job?.errors).toEqual([]);
-    expect(job?.done).toBe(job?.total);
+    expect(job?.total).toBe(3);
+    expect(job?.done).toBe(3);
     expect(job?.cancelled ?? false).toBe(false);
   });
 

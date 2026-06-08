@@ -24,14 +24,14 @@ interface PhaseResult {
 }
 
 interface Phase {
-  run: (runStartedAt: number) => Promise<PhaseResult | null>;
+  run: (runStartedAt: number) => Promise<PhaseResult>;
 }
 
 const scrapePhase: Phase = {
   run: async () => {
     const result = await refreshAliceNetStock();
     setAppSetting('alicenet_last_fetch', String(result.fetched_at));
-    return null;
+    return { processed: result.count, remaining: 0 };
   },
 };
 
@@ -95,7 +95,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           for (;;) {
             if (isJobCancelled(job.id)) break;
             const result = await phase.run(runStartedAt);
-            if (!result) break;
             if (!counted) {
               total += result.processed + result.remaining;
               setJobTotal(job.id, total);
