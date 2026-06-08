@@ -203,10 +203,11 @@ export function PlaceDetailClient({ place }: Props) {
         </div>
       )}
 
-      {/* VN browser */}
-      <PlaceVnBrowser placeId={place.id} placeName={place.name} />
-
-      {isAliceNetPlace && <AliceNetClient embedded basePath={`/places/${place.id}`} />}
+      {isAliceNetPlace ? (
+        <AliceNetClient embedded basePath={`/places/${place.id}`} />
+      ) : (
+        <PlaceVnBrowser placeId={place.id} placeName={place.name} />
+      )}
 
       {showEdit && (
         <AddEditPlaceModal
