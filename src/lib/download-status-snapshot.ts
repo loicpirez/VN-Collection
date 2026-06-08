@@ -9,6 +9,7 @@ const JOB_KINDS: ReadonlySet<string> = new Set([
   'vn-fetch',
   'cache-refresh',
   'stock-batch',
+  'alicenet',
 ]);
 
 /**
@@ -30,7 +31,8 @@ export type DownloadStatusJobKind =
   | 'egs-sync'
   | 'vn-fetch'
   | 'cache-refresh'
-  | 'stock-batch';
+  | 'stock-batch'
+  | 'alicenet';
 
 /**
  * One normalized background job rendered in the download-status panel.

@@ -16,6 +16,7 @@ const productionProducers = [
   'src/lib/release-full.ts',
   'src/app/api/refresh/global/route.ts',
   'src/app/api/stock/batch/route.ts',
+  'src/app/api/alicenet/run/route.ts',
 ] as const;
 
 describe('download status label codes', () => {

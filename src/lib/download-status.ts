@@ -23,7 +23,8 @@ export type JobKind =
   | 'egs-sync'
   | 'vn-fetch'
   | 'cache-refresh'
-  | 'stock-batch';
+  | 'stock-batch'
+  | 'alicenet';
 
 export type JobLabelCode =
   | 'staff_for_vn'
@@ -41,7 +42,11 @@ export type JobLabelCode =
   | 'global_refresh'
   | 'pull_statuses_for_account'
   | 'stock_refresh'
-  | 'stock_providers_for_vn';
+  | 'stock_providers_for_vn'
+  | 'alicenet_download'
+  | 'alicenet_pipeline'
+  | 'alicenet_match_vndb'
+  | 'alicenet_match_egs';
 
 export type JobCurrentItemCode =
   | 'vndb_label'
@@ -116,6 +121,10 @@ const JOB_LABEL_CODES: ReadonlySet<string> = new Set<JobLabelCode>([
   'pull_statuses_for_account',
   'stock_refresh',
   'stock_providers_for_vn',
+  'alicenet_download',
+  'alicenet_pipeline',
+  'alicenet_match_vndb',
+  'alicenet_match_egs',
 ]);
 
 const JOB_CURRENT_ITEM_CODES: ReadonlySet<string> = new Set<JobCurrentItemCode>([

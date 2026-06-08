@@ -414,6 +414,7 @@ route file or exported HTTP method changes.
 | /api/alicenet/reset-matches | POST |
 | /api/alicenet/resolve-egs | POST |
 | /api/alicenet/retry-vndb-aggressive | POST |
+| /api/alicenet/run | POST, DELETE |
 | /api/alicenet | GET |
 | /api/alicenet/search-egs-no-vndb | POST |
 | /api/backup/restore | POST |
