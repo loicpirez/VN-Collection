@@ -12,6 +12,7 @@ import {
   listJobs,
   recordError,
   setJobCurrent,
+  setJobTotal,
   startJob,
   subscribeStatus,
   tickJob,
@@ -156,8 +157,17 @@ describe('download-status pub/sub', () => {
     });
   });
 
+  it('replaces a job total and clamps negatives to zero', () => {
+    const job = startJob('alicenet', 'resize', 0);
+    setJobTotal(job.id, 1387);
+    expect(getJob(job.id)?.total).toBe(1387);
+    setJobTotal(job.id, -5);
+    expect(getJob(job.id)?.total).toBe(0);
+  });
+
   it('treats missing job lifecycle mutations as no-ops', () => {
     expect(() => tickJob('missing-job')).not.toThrow();
+    expect(() => setJobTotal('missing-job', 5)).not.toThrow();
     expect(() => setJobCurrent('missing-job', 'ignored')).not.toThrow();
     expect(() => recordError('missing-job', 'item', 'ignored')).not.toThrow();
     expect(() => finishJob('missing-job')).not.toThrow();

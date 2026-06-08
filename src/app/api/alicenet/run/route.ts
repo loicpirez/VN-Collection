@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
-import { cancelJob, finishJob, isJobCancelled, jobLabel, recordError, startJob, tickJob, type JobLabelCode } from '@/lib/download-status';
+import { cancelJob, finishJob, isJobCancelled, jobLabel, recordError, setJobTotal, startJob, tickJob, type JobLabelCode } from '@/lib/download-status';
 import { matchNextAliceNetItems, matchVndbFromEgsForAliceNet, refreshAliceNetStock, searchEgsForAliceNetNoVndb } from '@/lib/alicenet';
 import { setAppSetting } from '@/lib/db';
 
@@ -81,24 +81,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   const phases = phasesForOp(op);
   const labelSpec = OP_LABEL[op];
-  const job = startJob('alicenet', jobLabel(labelSpec.code, labelSpec.fallback), phases.length, null);
+  const job = startJob('alicenet', jobLabel(labelSpec.code, labelSpec.fallback), 0, null);
   activeJobs.add(job.id);
 
   void (async () => {
     const runStartedAt = Date.now();
+    let total = 0;
     try {
       for (const phase of phases) {
         if (isJobCancelled(job.id)) break;
         try {
+          let counted = false;
           for (;;) {
             if (isJobCancelled(job.id)) break;
             const result = await phase.run(runStartedAt);
-            if (!result || result.processed === 0 || result.remaining === 0) break;
+            if (!result) break;
+            if (!counted) {
+              total += result.processed + result.remaining;
+              setJobTotal(job.id, total);
+              counted = true;
+            }
+            tickJob(job.id, result.processed);
+            if (result.processed === 0 || result.remaining === 0) break;
           }
         } catch (e) {
           if (!isJobCancelled(job.id)) recordError(job.id, labelSpec.fallback, sanitizeUnknownError(e));
         }
-        if (!isJobCancelled(job.id)) tickJob(job.id);
       }
     } finally {
       activeJobs.delete(job.id);

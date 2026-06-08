@@ -300,6 +300,20 @@ export function tickJob(jobId: string, by = 1): void {
 }
 
 /**
+ * Replace a job's total work estimate when the real item count is discovered
+ * after the job starts (clamped to zero so progress never goes negative).
+ *
+ * @param jobId The job identifier returned by `startJob`.
+ * @param total New total work-item count.
+ */
+export function setJobTotal(jobId: string, total: number): void {
+  const j = jobs.get(jobId);
+  if (!j) return;
+  j.total = Math.max(0, total);
+  emit();
+}
+
+/**
  * Update the "what's downloading right now" hint for a job. Called by
  * each fan-out helper at the start of its per-item iteration so the
  * status bar can surface the specific staff / character / producer id
