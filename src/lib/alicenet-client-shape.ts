@@ -105,6 +105,10 @@ function isNullableFiniteNumber(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isFinite(value));
 }
 
+function isNullableNonNegativeNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
+}
+
 function isBinaryNumber(value: unknown): value is number {
   return value === 0 || value === 1;
 }
@@ -149,7 +153,7 @@ function decodeAliceNetItem(value: unknown): AliceNetClientItem | null {
     !isIntegerAtLeast(record.updated_at, 0) ||
     !isNullableString(record.vn_image_url) ||
     !isNullableString(record.vn_local_image) ||
-    !(record.vn_image_sexual === null || isIntegerAtLeast(record.vn_image_sexual, 0)) ||
+    !isNullableNonNegativeNumber(record.vn_image_sexual) ||
     !isNullableString(record.vn_developers)
   ) {
     return null;

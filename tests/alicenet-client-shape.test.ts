@@ -58,6 +58,20 @@ describe('AliceNet client response adapters', () => {
     expect(result?.pending.egs_pending).toBe(1);
   });
 
+  it('accepts a fractional VNDB sexual rating and rejects out-of-shape ones', () => {
+    const withSexual = (value: unknown) => decodeAliceNetClientSnapshot({
+      items: [{ ...item, vn_image_sexual: value }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: 1,
+    });
+    expect(withSexual(0.76)?.items[0]?.vn_image_sexual).toBe(0.76);
+    expect(withSexual(2)?.items[0]?.vn_image_sexual).toBe(2);
+    expect(withSexual(-1)).toBeNull();
+    expect(withSexual(Number.NaN)).toBeNull();
+    expect(withSexual('0.5')).toBeNull();
+  });
+
   it('decodes stock-sync and loop results', () => {
     expect(decodeAliceNetStockSyncResult({
       count: 4,
