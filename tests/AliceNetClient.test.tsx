@@ -874,19 +874,31 @@ describe('AliceNetClient', () => {
     await waitFor(() => expect(screen.getAllByText(/AliceNet processing returned malformed progress/).length).toBeGreaterThan(0));
   });
 
-  it('reports download-all failures with the active step label', async () => {
+  it('continues download-all past a failing step and summarizes the skipped steps', async () => {
+    const calls: string[] = [];
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
+      if (init?.method === 'POST') calls.push(u);
       if (u === '/api/alicenet/fetch' && init?.method === 'POST') {
         return json({ count: 1, added: 0, updated: 1, removed: 0, fetched_at: 1700000002 });
       }
-      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'download all failed' }, 500);
+      if (u === '/api/alicenet/match-next' && init?.method === 'POST') return json({ error: 'match step failed' }, 500);
+      if (
+        u === '/api/alicenet/match-vndb-from-egs' ||
+        u === '/api/alicenet/download-vndb' ||
+        u === '/api/alicenet/resolve-egs'
+      ) {
+        return json({ processed: 1, matched: 1, remaining: 0 });
+      }
       return json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1, unprocessed: 1 } }));
     });
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Download all' }));
-    expect(await screen.findByText(/download all failed/)).toBeInTheDocument();
+    // A failing match step no longer aborts the run: later phases still execute.
+    await waitFor(() => expect(calls).toContain('/api/alicenet/resolve-egs'));
+    // The skipped step is surfaced in a non-fatal summary rather than a hard error.
+    expect(await screen.findByText(/match step failed/)).toBeInTheDocument();
   });
 
   it('cancels and fails reset-auto-match flows cleanly', async () => {

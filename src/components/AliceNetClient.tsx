@@ -623,32 +623,34 @@ export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceN
   async function runDownloadAll() {
     const token = beginOp('download-all');
     if (token == null) return;
-    let label = t.alicenet.alicenetDownloading;
+    const phases: { label: string; run: () => Promise<RunTotals> }[] = [
+      { label: t.alicenet.alicenetDownloading, run: () => downloadStock(token) },
+      { label: t.alicenet.alicenetMatchVndbEgs, run: () => runLoop('/api/alicenet/match-next', { retry_none: false }, t.alicenet.alicenetMatchVndbEgs, (d) => d.remaining, token, stats.unprocessed, 5) },
+      { label: t.alicenet.alicenetRetryNone, run: () => runLoop('/api/alicenet/match-next', { retry_none: true }, t.alicenet.alicenetRetryNone, (d) => d.remaining, token, stats.none_found, 4) },
+      { label: t.alicenet.alicenetMatchVndbFromEgs, run: () => runLoop('/api/alicenet/match-vndb-from-egs', {}, t.alicenet.alicenetMatchVndbFromEgs, (d) => d.remaining, token, stats.egs_only, 10) },
+      { label: t.alicenet.alicenetDownloadVndb, run: () => runLoop('/api/alicenet/download-vndb', {}, t.alicenet.alicenetDownloadVndb, (d) => d.remaining, token, pending.vndb_pending, 10) },
+      { label: t.alicenet.alicenetResolveEgs, run: () => runLoop('/api/alicenet/resolve-egs', {}, t.alicenet.alicenetResolveEgs, (d) => d.remaining, token, pending.egs_pending, 10) },
+    ];
+    const failures: string[] = [];
     try {
-      setOpLabel(label);
+      setOpLabel(phases[0].label);
       setOpDone(0);
       setOpTotal(1);
-      await downloadStock(token);
-      if (!ownsOp(token) || stopRef.current) return;
-      label = t.alicenet.alicenetMatchVndbEgs;
-      await runLoop('/api/alicenet/match-next', { retry_none: false }, label, (d) => d.remaining, token, stats.unprocessed, 5);
-      if (!ownsOp(token) || stopRef.current) return;
-      label = t.alicenet.alicenetRetryNone;
-      await runLoop('/api/alicenet/match-next', { retry_none: true }, label, (d) => d.remaining, token, stats.none_found, 4);
-      if (!ownsOp(token) || stopRef.current) return;
-      label = t.alicenet.alicenetMatchVndbFromEgs;
-      await runLoop('/api/alicenet/match-vndb-from-egs', {}, label, (d) => d.remaining, token, stats.egs_only, 10);
-      if (!ownsOp(token) || stopRef.current) return;
-      label = t.alicenet.alicenetDownloadVndb;
-      await runLoop('/api/alicenet/download-vndb', {}, label, (d) => d.remaining, token, pending.vndb_pending, 10);
-      if (!ownsOp(token) || stopRef.current) return;
-      label = t.alicenet.alicenetResolveEgs;
-      await runLoop('/api/alicenet/resolve-egs', {}, label, (d) => d.remaining, token, pending.egs_pending, 10);
+      for (const phase of phases) {
+        if (!ownsOp(token) || stopRef.current) return;
+        setOpLabel(phase.label);
+        try {
+          await phase.run();
+        } catch (e) {
+          if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
+          failures.push(`${phase.label}: ${(e as Error).message}`);
+        }
+      }
       if (!ownsOp(token) || stopRef.current) return;
       await load();
-    } catch (e) {
-      if (!ownsOp(token) || (e instanceof Error && e.name === 'AbortError')) return;
-      toast.error(`${label}: ${(e as Error).message}`, 0);
+      if (failures.length > 0) {
+        toast.warning(t.alicenet.alicenetPartialFailure.replace('{details}', failures.join('; ')), 0);
+      }
     } finally {
       finishOp(token);
     }
