@@ -272,6 +272,19 @@ describe('PlaceBrowser', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'place modal' })).toBeNull());
   });
 
+  it('opens unassigned branches by default when no registered place exists', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === '/api/places') return json({ places: [], known_places: [] });
+      if (u === '/api/places/unassigned') return json({ branches: ['AliceNet'] });
+      return json({});
+    });
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('AliceNet')).toBeTruthy());
+    expect(screen.queryByText(t.places.noPlaces as string)).toBeNull();
+    expect(screen.getByRole('button', { name: t.places.unassignedAssignCta as string })).toBeTruthy();
+  });
+
   it('closes unassigned creation and reports link failures without dropping the modal state early', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);

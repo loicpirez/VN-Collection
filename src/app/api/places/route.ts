@@ -7,9 +7,10 @@ import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 import { validateText } from '@/lib/input-validators';
 import { parseOptionalPlaceKind, parseOptionalPlaceText, parseOptionalPlaceUrl } from '@/lib/place-input';
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
   try {

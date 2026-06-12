@@ -2,7 +2,7 @@
 
 This directory contains the implementation backlog produced by a project-wide
 audit of `vndb-collection-new`. Existing historical audit material remains in
-place. The reports below contain 478 tracked tasks. Statuses must be updated only
+place. The reports below contain 487 tracked tasks. Statuses must be updated only
 after direct source inspection and fresh verification.
 
 Each task uses the same five-column format:
@@ -25,6 +25,7 @@ Each task uses the same five-column format:
 | Typing | [typing-report-tasks.md](typing-report-tasks.md) | 68 |
 | Testing | [testing-report-tasks.md](testing-report-tasks.md) | 20 |
 | Documentation | [documentation-report-tasks.md](documentation-report-tasks.md) | 20 |
+| Round 7 stock, shop, and map | [round7-stock-shop-map-report-tasks.md](round7-stock-shop-map-report-tasks.md) | 9 |
 
 ## Status vocabulary
 
@@ -327,10 +328,34 @@ skipped), and `yarn build`.
 
 Current status:
 
-- `DONE_WITH_DIFF`: 474
-- `VERIFIED_EXISTING`: 4
+- `DONE_WITH_DIFF`: 481
+- `VERIFIED_EXISTING`: 6
 - `IN_PROGRESS`: 0
 - `TODO`: 0
+
+## Fresh audit - 2026-06-12
+
+The stock, shop, and map audit rechecked the real QA SQLite snapshot under the
+project directory, the generic stock page, the AliceNet mirror, the places
+registry, and the map privacy boundary. It added nine evidence-backed rows in
+`round7-stock-shop-map-report-tasks.md`.
+
+Findings and fixes:
+
+- `/stock` now owns the AliceNet mirror controls and keeps generic stock
+  refreshes scoped to all providers by default.
+- AliceNet cached-offer stale badges now explain that the mirror must be synced
+  from the AliceNet section instead of implying the per-VN provider refresh
+  failed.
+- `GET /api/alicenet` now has a bounded wishlist-enrichment budget, so a slow
+  VNDB wishlist call cannot block the local stock snapshot.
+- `/places` opens the unassigned-branch view automatically when there are no
+  registered places but imported stock branches exist.
+- Public-read route markers no longer leak as unsupported Next route exports,
+  while the marker remains present for auditability.
+- Browser QA at 390 px confirmed `/stock`, `/places`, and `/map` have no
+  horizontal overflow. `/map` keeps external tiles disabled by default and the
+  source still isolates Leaflet below the shared modal layer.
 
 ## Working method
 

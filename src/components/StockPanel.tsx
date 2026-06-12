@@ -119,6 +119,7 @@ export function StockPanel({
   showErogePrice = true,
   placeMap = {},
   bare = false,
+  defaultProviderScope = 'physical',
 }: {
   vnId: string;
   title?: string;
@@ -128,6 +129,7 @@ export function StockPanel({
   initialSnapshot?: StockSnapshot;
   showErogePrice?: boolean;
   placeMap?: Record<string, number>;
+  defaultProviderScope?: 'all' | 'physical';
   /**
    * Drop the outer card chrome (border / background / rounding) so the
    * panel sits flush inside a host that already provides a card - e.g.
@@ -351,11 +353,11 @@ export function StockPanel({
   const providers = snapshot?.providers ?? EMPTY_PROVIDERS;
 
   useEffect(() => {
-    if (initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
+    if (defaultProviderScope === 'all' || initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
     physicalDefaultRef.current = true;
     const physicalIds = providers.filter((p) => p.physical && !p.disabled).map((p) => p.id);
     if (physicalIds.length > 0) setSelectedProviders(physicalIds);
-  }, [initialSnapshot, providers.length]);
+  }, [defaultProviderScope, initialSnapshot, providers.length]);
 
   async function refresh() {
     const ctrl = beginSnapshotMutation(abortRef);
@@ -1818,6 +1820,9 @@ const OfferCard = memo(function OfferCard({
   const listPrice = offer.list_price;
   const notCounted = notCountedReason(t, offer);
   const offerHref = safeHref(offer.url);
+  const staleHint = offer.source === 'alicenet'
+    ? (t.stock.cachedStaleHint as string)
+    : (t.stock.staleHint as string);
 
   return (
     <li
@@ -1921,9 +1926,9 @@ const OfferCard = memo(function OfferCard({
           {Date.now() - offer.fetched_at > STALE_MS && (
             <span
               className="ml-1.5 inline-flex items-center rounded border border-status-on_hold/40 bg-status-on_hold/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-status-on_hold"
-              title={t.stock.staleHint as string}
+              title={staleHint}
             >
-              {t.stock.staleHint as string}
+              {staleHint}
             </span>
           )}
         </span>

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPlace, listBranchesAtOtherPlaces } from '@/lib/db';
 import { internalError } from '@/lib/api-error';
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 type Ctx = { params: Promise<{ id: string }> };
 

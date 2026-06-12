@@ -213,6 +213,12 @@ export function PlaceBrowser() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  useEffect(() => {
+    if (!loading && tab === 'all' && places.length === 0 && unassigned.length > 0) {
+      setTab('unassigned');
+    }
+  }, [loading, places.length, tab, unassigned.length]);
+
   const showStatsSkeleton = loading && places.length === 0;
 
   const TABS: { id: Tab; label: string; count: number }[] = [

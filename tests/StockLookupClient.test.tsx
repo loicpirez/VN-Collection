@@ -26,11 +26,22 @@ vi.mock('@/components/VnSourcePicker', () => ({
 
 /** StockPanel is a separate assigned component; render a prop-echoing stub. */
 vi.mock('@/components/StockPanel', () => ({
-  StockPanel: ({ vnId, title, placeMap }: { vnId: string; title?: string; placeMap?: Record<string, number> }) => (
+  StockPanel: ({
+    vnId,
+    title,
+    placeMap,
+    defaultProviderScope,
+  }: {
+    vnId: string;
+    title?: string;
+    placeMap?: Record<string, number>;
+    defaultProviderScope?: 'all' | 'physical';
+  }) => (
     <div data-testid="stock-panel">
       <span data-testid="panel-vn">{vnId}</span>
       <span data-testid="panel-title">{title ?? ''}</span>
       <span data-testid="panel-places">{Object.keys(placeMap ?? {}).join(',')}</span>
+      <span data-testid="panel-provider-scope">{defaultProviderScope ?? ''}</span>
     </div>
   ),
 }));
@@ -38,6 +49,12 @@ vi.mock('@/components/StockPanel', () => ({
 /** The batch client mounts its own network lifecycle; stub it out. */
 vi.mock('@/components/StockBatchClient', () => ({
   StockBatchClient: () => <div data-testid="batch-client" />,
+}));
+
+vi.mock('@/components/AliceNetClient', () => ({
+  AliceNetClient: ({ embedded, basePath }: { embedded?: boolean; basePath?: string }) => (
+    <div data-testid="alicenet-client" data-embedded={String(embedded)} data-base-path={basePath ?? ''} />
+  ),
 }));
 
 const t = dictionaries[DEFAULT_LOCALE];
@@ -92,7 +109,8 @@ describe('StockLookupClient', () => {
     // The provider-map fetch still fires on mount.
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getByTestId('batch-client')).toBeTruthy();
-    expect(screen.queryByTestId('alicenet-client')).toBeNull();
+    expect(screen.getByTestId('alicenet-client').getAttribute('data-base-path')).toBe('/stock');
+    expect(screen.getByTestId('alicenet-client').getAttribute('data-embedded')).toBe('true');
   });
 
   it('renders the panel inside the boundary and resolves the VN title when initialVnId is set', async () => {
@@ -100,6 +118,7 @@ describe('StockLookupClient', () => {
     renderWithProviders(<StockLookupClient initialVnId="v90042" />);
     expect(screen.getByTestId('stock-panel')).toBeTruthy();
     expect(screen.getByTestId('panel-vn').textContent).toBe('v90042');
+    expect(screen.getByTestId('panel-provider-scope').textContent).toBe('all');
     // Title arrives from /api/vn/[id].
     await waitFor(() => expect(screen.getByTestId('panel-title').textContent).toBe('Resolved Title'));
     const urls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));

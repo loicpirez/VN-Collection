@@ -18,9 +18,10 @@ import type { CollectionCardApiItem } from '@/lib/types';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'updated_at',

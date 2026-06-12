@@ -12,9 +12,10 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { validateSafeInt, validateText } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const includePool = req.nextUrl.searchParams.get('pool') === '1';

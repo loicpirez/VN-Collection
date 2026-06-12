@@ -20,9 +20,10 @@ import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { parsePhysicalLocations } from '@/lib/physical-location-input';
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 const VALID_CONDITIONS = new Set(['new', 'used', 'sealed', 'opened', 'damaged']);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

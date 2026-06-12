@@ -32,9 +32,10 @@ function logGameLogActivity(
   }
 }
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 /**
  * Game log — timestamped free-form notes scoped to a VN. Separate from

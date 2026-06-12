@@ -12,9 +12,10 @@ import { readJsonObject } from '@/lib/api-body';
 import { internalError } from '@/lib/api-error';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
-export { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
   try {

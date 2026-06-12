@@ -115,7 +115,7 @@ changing the opt-in state.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
 - Six-step "Download all": stock, VNDB + EGS match, retry no-result, match VNDB from EGS, VNDB data download, EGS resolution. Three of those operations are also exposed as standalone single ops (`match-vndb-from-egs`, `retry-vndb-aggressive`, `search-egs-no-vndb`).
 - Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In wishlist.
-- The AliceNet controls live on the AliceNet shop's place page (`/places/[id]`), separate from the generic `/stock` per-VN lookup.
+- The AliceNet controls live in `/stock` with the generic stock tools, and may also appear on a linked AliceNet shop place page. AliceNet is not mounted inside individual VN detail pages.
 - Outbound fetch can route through the stock SOCKS5/HTTP proxy settings.
 
 ### Per-VN stock and price lookup
@@ -233,9 +233,10 @@ Proxy passwords are never logged or echoed by the settings API.
 
 `AliceNet` is the canonical label and identifier prefix. The `/api/alicenet/*`
 routes and `alicenet_*` SQLite identifiers are used by the `/stock` page. The
-UI is embedded in Stock & prices and is not mounted on individual VN pages. On
-first open, databases created before this rename migrate their prior local
-table, settings, cached stock rows, and activity rows forward automatically.
+UI is embedded in Stock & prices, may appear on the linked AliceNet shop page,
+and is not mounted on individual VN pages. On first open, databases created
+before this rename migrate their prior local table, settings, cached stock
+rows, and activity rows forward automatically.
 
 ---
 

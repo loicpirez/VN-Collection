@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { AliceNetClient } from './AliceNetClient';
 import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 import { StockPanelBoundary } from './StockPanelBoundary';
@@ -81,7 +82,12 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
             fallbackMessage={t.stock.boundaryFallback as string}
             retryLabel={t.stock.boundaryRetry as string}
           >
-            <StockPanel vnId={initialVnId} title={resolvedTitle ?? undefined} placeMap={placeMap} />
+            <StockPanel
+              vnId={initialVnId}
+              title={resolvedTitle ?? undefined}
+              placeMap={placeMap}
+              defaultProviderScope="all"
+            />
           </StockPanelBoundary>
         </div>
       ) : (
@@ -91,6 +97,10 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
       )}
 
       <StockBatchClient />
+
+      <div className="mt-5">
+        <AliceNetClient embedded basePath="/stock" />
+      </div>
     </div>
   );
 }

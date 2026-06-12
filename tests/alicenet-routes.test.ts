@@ -182,6 +182,27 @@ describe('GET /api/alicenet', () => {
     expect(body.stats.in_wishlist).toBe(0);
   });
 
+  it('200 does not block the stock snapshot on a slow wishlist request', async () => {
+    vi.useFakeTimers();
+    try {
+      seedRow('100-000000-006');
+      setAliceNetVnLink('100-000000-006', 'v60006', 'auto');
+      fetchAuthenticatedWishlistMock.mockReturnValue(new Promise(() => undefined));
+
+      const pending = listGET(localReq('GET'));
+      await vi.advanceTimersByTimeAsync(1500);
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.stats.total).toBe(1);
+      expect(body.stats.in_wishlist).toBe(0);
+      expect(body.items.find((i: { code: string }) => i.code === '100-000000-006')?.in_wishlist).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('403 for a non-loopback host', async () => {
     const res = await listGET(remoteReq('GET'));
     expect(res.status).toBe(403);

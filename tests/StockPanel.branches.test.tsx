@@ -213,7 +213,7 @@ describe('StockPanel branches', () => {
     expect(screen.getByText(t.stock.editionLabels.limited_edition as string)).toBeTruthy();
     expect(screen.getByText(t.stock.matchWarnings.bonus_only_item as string)).toBeTruthy();
     expect(screen.getByText('untranslated-warning')).toBeTruthy();
-    expect(screen.getByText(t.stock.staleHint as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.cachedStaleHint as string)).toBeTruthy();
     expect(screen.getByText(t.stock.notCountedReasons.outOfStock as string)).toBeTruthy();
     expect(screen.getByText('Unrelated goods copy')).toBeTruthy();
     expect(screen.getByText(t.stock.notCountedReasons.unrelatedTitle as string)).toBeTruthy();

@@ -15,6 +15,7 @@ export const runtime = 'nodejs';
 
 const DEFAULT_PAGE_SIZE = 200;
 const MAX_PAGE_SIZE = 1000;
+const WISHLIST_ENRICHMENT_TIMEOUT_MS = 1200;
 
 /**
  * Build the set of VN ids currently on the user's VNDB wishlist (Label 5).
@@ -31,6 +32,17 @@ async function loadVndbWishlistIds(): Promise<Set<string> | null> {
   } catch {
     return null;
   }
+}
+
+async function loadVndbWishlistIdsWithinBudget(): Promise<Set<string> | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const wishlist = loadVndbWishlistIds().catch(() => null);
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
+  });
+  const result = await Promise.race([wishlist, timeout]);
+  if (timeoutId) clearTimeout(timeoutId);
+  return result;
 }
 
 function parseBoundedInt(raw: string | null, fallback: number, min: number, max: number): number {
@@ -52,7 +64,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const [rawItems, total, wishlistIds] = await Promise.all([
     Promise.resolve(listAliceNetStockPage(limit, offset)),
     Promise.resolve(countAliceNetStockTotal()),
-    loadVndbWishlistIds(),
+    loadVndbWishlistIdsWithinBudget(),
   ]);
 
   const items = rawItems.map((row) => ({

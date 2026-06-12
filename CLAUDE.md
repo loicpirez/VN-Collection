@@ -890,10 +890,12 @@ and `alicenet_*`. The SQLite bootstrap
 migrates databases created before this rename forward on first open; keep
 those migration inputs isolated to the migration block in `src/lib/db.ts`.
 
-AliceNet is a shop: its controls render on the AliceNet shop's place page
-(`/places/[id]`) via `<AliceNetClient>` when the `AliceNet` provider branch is
-linked to that place, not on the generic `/stock` lookup. AliceNet never auto-fetches; every stock,
-match, and download operation starts from an explicit user action.
+AliceNet is a shop mirrored from the Stock & prices surface. Its canonical UI
+renders on `/stock` via `<AliceNetClient embedded basePath="/stock" />`; the
+same client may also render on the linked AliceNet shop's place page
+(`/places/[id]`) when the `AliceNet` provider branch is linked to that place.
+AliceNet never auto-fetches; every stock, match, and download operation starts
+from an explicit user action.
 There is no AliceNet enable environment flag and the AliceNet browser is not
 mounted on individual VN pages. AliceNet uses the stored Stock proxy setting
 and has no `ALICENET_*` or `STOCK_*` environment prefix.
