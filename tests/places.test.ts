@@ -13,7 +13,7 @@
  *   - kind column default + persistence
  *   - ON DELETE CASCADE on place_provider_link
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   db,
   createPlace,
@@ -314,6 +314,48 @@ describe('stock_count subquery in listPlaces/getPlace', () => {
     linkProviderToPlace(id, 'BranchA');
     expect(getPlace(id)!.stock_count).toBe(2);
     expect(listPlaces().find((place) => place.id === id)!.stock_count).toBe(2);
+  });
+
+  it('renders places without stock counts when the stock-count aggregation hits SQLite corruption', () => {
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}corrupt_stock_count` });
+    linkProviderToPlace(id, 'BranchA');
+    const realDb = globalThis.__vndb_db;
+    if (!realDb) throw new Error('database handle was not opened');
+    const originalPrepare = realDb.prepare.bind(realDb);
+    const error = Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' });
+    Reflect.defineProperty(realDb, 'prepare', { configurable: true, value: ((sql: string) => {
+      if (sql.includes('WITH stock_by_place')) throw error;
+      return originalPrepare(sql);
+    }) as typeof realDb.prepare });
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const listed = listPlaces().find((place) => place.id === id);
+      expect(listed).toMatchObject({ id, stock_count: 0, provider_labels: ['BranchA'] });
+      expect(getPlace(id)).toMatchObject({ id, stock_count: 0, provider_labels: ['BranchA'] });
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked place stock-count aggregation'));
+    } finally {
+      Reflect.deleteProperty(realDb, 'prepare');
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it('rethrows ordinary getPlace stock-count aggregation failures', () => {
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}ordinary_stock_count_error` });
+    const realDb = globalThis.__vndb_db;
+    if (!realDb) throw new Error('database handle was not opened');
+    const originalPrepare = realDb.prepare.bind(realDb);
+    const error = new Error('ordinary prepare failure');
+    Reflect.defineProperty(realDb, 'prepare', { configurable: true, value: ((sql: string) => {
+      if (sql.includes('WITH stock_by_place')) throw error;
+      return originalPrepare(sql);
+    }) as typeof realDb.prepare });
+
+    try {
+      expect(() => getPlace(id)).toThrow(error);
+    } finally {
+      Reflect.deleteProperty(realDb, 'prepare');
+    }
   });
 });
 
