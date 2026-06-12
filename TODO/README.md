@@ -342,8 +342,9 @@ registry, and the map privacy boundary. It added nine evidence-backed rows in
 
 Findings and fixes:
 
-- `/stock` now owns the AliceNet mirror controls and keeps generic stock
-  refreshes scoped to all providers by default.
+- `/stock` stays the generic per-VN stock lookup and keeps generic stock
+  refreshes scoped to all providers by default. AliceNet mirror controls stay
+  only on the linked AliceNet shop place page.
 - AliceNet cached-offer stale badges now explain that the mirror must be synced
   from the AliceNet section instead of implying the per-VN provider refresh
   failed.

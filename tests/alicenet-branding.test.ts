@@ -39,7 +39,7 @@ describe('AliceNet branding', () => {
       .filter((path) => LEGACY_IDENTIFIER_RE.test(path));
     expect(files).toEqual([]);
     expect(existsSync(join(ROOT, 'src/app/alicenet/page.tsx'))).toBe(false);
-    expect(source('src/components/StockLookupClient.tsx')).toContain('<AliceNetClient embedded basePath="/stock" />');
+    expect(source('src/components/StockLookupClient.tsx')).not.toContain('AliceNetClient');
     expect(source('src/components/PlaceDetailClient.tsx')).toContain('<AliceNetClient embedded basePath={`/places/${place.id}`} />');
     expect(existsSync(join(ROOT, 'src/components/AliceNetClient.tsx'))).toBe(true);
     expect(existsSync(join(ROOT, 'src/lib/alicenet.ts'))).toBe(true);

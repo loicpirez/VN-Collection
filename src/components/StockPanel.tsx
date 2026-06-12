@@ -109,6 +109,22 @@ const EMPTY_OFFERS: StockOffer[] = [];
 const EMPTY_PROVIDERS: StockProvider[] = [];
 const EMPTY_SOURCES: StockSnapshot['sources'] = [];
 
+function isStaleTimestamp(now: number, fetchedAt: number | null | undefined): boolean {
+  return typeof fetchedAt === 'number' && fetchedAt > 0 && now - fetchedAt > STALE_MS;
+}
+
+function isAliceNetOffer(offer: StockOffer): boolean {
+  return offer.source === 'alicenet' || offer.provider === 'alicenet';
+}
+
+function stockOfferStaleHint(t: TDict, offer: StockOffer, status: StockStatus | undefined): string {
+  if (isAliceNetOffer(offer)) return t.stock.cachedStaleHint as string;
+  if ((status?.cached_offers_available ?? 0) > 0 && (status?.fresh_offers_found ?? 0) === 0) {
+    return t.stock.providerCachedStaleHint as string;
+  }
+  return t.stock.staleHint as string;
+}
+
 export function StockPanel({
   vnId,
   title,
@@ -658,17 +674,9 @@ export function StockPanel({
   const now = useMemo(() => Date.now(), [snapshot]);
   const allOffers = snapshot?.offers ?? EMPTY_OFFERS;
   const sources = snapshot?.sources ?? EMPTY_SOURCES;
-  const staleProviderIds = useMemo(() => {
-    if (!hideStale) return new Set<string>();
-    return new Set(
-      (snapshot?.statuses ?? [])
-        .filter((s) => now - s.fetched_at > STALE_MS)
-        .map((s) => s.provider),
-    );
-  }, [hideStale, snapshot?.statuses, now]);
   const offers = useMemo(
-    () => (hideStale ? allOffers.filter((o) => !staleProviderIds.has(o.provider)) : allOffers),
-    [hideStale, allOffers, staleProviderIds],
+    () => (hideStale ? allOffers.filter((o) => !isStaleTimestamp(now, o.fetched_at)) : allOffers),
+    [hideStale, allOffers, now],
   );
   const refreshableProviders = useMemo(() => providers.filter((p) => p.kind !== 'cached' && !p.disabled), [providers]);
   const refreshableProviderIds = useMemo(() => refreshableProviders.map((p) => p.id), [refreshableProviders]);
@@ -723,6 +731,22 @@ export function StockPanel({
   const needsReview = snapshot?.summary.needs_review ?? 0;
   const rejectedCount = snapshot?.summary.rejected ?? 0;
   const checkedStatuses = snapshot?.statuses ?? [];
+  const liveLastRefresh = useMemo(() => {
+    const candidates = [
+      ...allOffers.filter((offer) => !isAliceNetOffer(offer)).map((offer) => offer.fetched_at),
+      ...(snapshot?.statuses ?? []).map((status) => status.fetched_at),
+    ].filter((value) => typeof value === 'number' && value > 0);
+    if (candidates.length === 0) return null;
+    return Math.max(...candidates);
+  }, [allOffers, snapshot?.statuses]);
+  const hasStaleAliceNetOffers = useMemo(
+    () => offers.some((offer) => isAliceNetOffer(offer) && isStaleTimestamp(now, offer.fetched_at)),
+    [offers, now],
+  );
+  const showLiveStaleBanner =
+    liveLastRefresh != null &&
+    isStaleTimestamp(now, liveLastRefresh) &&
+    offers.some((offer) => !isAliceNetOffer(offer));
   const displayDiagnostics = diagnostics.filter(
     (diag) =>
       diag.kind !== 'ok' &&
@@ -1142,12 +1166,19 @@ export function StockPanel({
         </div>
       )}
 
-      {!loading && lastRefresh != null && (now - lastRefresh > STALE_MS) && offers.length > 0 && (
+      {!loading && showLiveStaleBanner && liveLastRefresh != null && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs text-status-on_hold" role="status">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-on_hold" aria-hidden />
           <span>
-            {(t.stock.staleBanner as string).replace('{ago}', timeAgo(lastRefresh, t))}
+            {(t.stock.staleBanner as string).replace('{ago}', timeAgo(liveLastRefresh, t))}
           </span>
+        </div>
+      )}
+
+      {!loading && hasStaleAliceNetOffers && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs text-status-on_hold" role="status">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-on_hold" aria-hidden />
+          <span>{t.stock.cachedStaleBanner as string}</span>
         </div>
       )}
 
@@ -1166,7 +1197,7 @@ export function StockPanel({
       )}
 
       {!loading && offers.length > 0 && (
-        <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
+        <OffersGrouped offers={offers} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} />
       )}
 
       {!loading && confirmedPhysicalIds.size > 0 && (
@@ -1805,6 +1836,8 @@ const OfferCard = memo(function OfferCard({
   t,
   locale,
   placeMap,
+  status,
+  now,
 }: {
   offer: StockOffer;
   best: number | null;
@@ -1812,6 +1845,8 @@ const OfferCard = memo(function OfferCard({
   t: TDict;
   locale: Locale;
   placeMap: Record<string, number>;
+  status?: StockStatus;
+  now: number;
 }) {
   const isBest = offer.price != null && offer.price === best && best != null;
   const warnings = parseClientStringList(offer.match_warnings_json);
@@ -1820,9 +1855,7 @@ const OfferCard = memo(function OfferCard({
   const listPrice = offer.list_price;
   const notCounted = notCountedReason(t, offer);
   const offerHref = safeHref(offer.url);
-  const staleHint = offer.source === 'alicenet'
-    ? (t.stock.cachedStaleHint as string)
-    : (t.stock.staleHint as string);
+  const staleHint = stockOfferStaleHint(t, offer, status);
 
   return (
     <li
@@ -1923,7 +1956,7 @@ const OfferCard = memo(function OfferCard({
           {t.stock.source.replace('{source}', stockSourceLabel(t, offer.source))}
           {' / '}
           {timeAgo(offer.fetched_at, t)}
-          {Date.now() - offer.fetched_at > STALE_MS && (
+          {isStaleTimestamp(now, offer.fetched_at) && (
             <span
               className="ml-1.5 inline-flex items-center rounded border border-status-on_hold/40 bg-status-on_hold/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-status-on_hold"
               title={staleHint}
@@ -1958,6 +1991,8 @@ function OfferGroup({
   t,
   locale,
   placeMap,
+  statusByProvider,
+  now,
   defaultCollapsed = false,
 }: {
   label: string;
@@ -1968,6 +2003,8 @@ function OfferGroup({
   t: TDict;
   locale: Locale;
   placeMap: Record<string, number>;
+  statusByProvider: Map<string, StockStatus>;
+  now: number;
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(() => {
@@ -2040,7 +2077,7 @@ function OfferGroup({
             className="grid gap-3 lg:grid-cols-2"
           >
             {visibleOffers.map((offer) => (
-              <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
+              <OfferCard key={`${offer.provider}:${offer.provider_offer_id}`} offer={offer} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} status={statusByProvider.get(offer.provider)} now={now} />
             ))}
           </ul>
           {totalPages > 1 && (
@@ -2084,6 +2121,8 @@ function OffersGrouped({
   t,
   locale,
   placeMap,
+  statusByProvider,
+  now,
 }: {
   offers: StockOffer[];
   best: number | null;
@@ -2091,6 +2130,8 @@ function OffersGrouped({
   t: TDict;
   locale: Locale;
   placeMap: Record<string, number>;
+  statusByProvider: Map<string, StockStatus>;
+  now: number;
 }) {
   // Single pass instead of 5 separate .filter() calls. classifyGroup is pure;
   // result depends only on the offer's classification fields. Memoised across
@@ -2125,11 +2166,11 @@ function OffersGrouped({
           </span>
         )}
       </div>
-      <OfferGroup label={t.stock.groupGame as string} groupKey="game" offers={game} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} />
-      <OfferGroup label={t.stock.groupNeedsReview as string} groupKey="needs_review" offers={needsReview} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
-      <OfferGroup label={t.stock.groupSameSeries as string} groupKey="series" offers={series} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRelated as string} groupKey="related" offers={related} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
-      <OfferGroup label={t.stock.groupRejected as string} groupKey="rejected" offers={rejected} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} defaultCollapsed />
+      <OfferGroup label={t.stock.groupGame as string} groupKey="game" offers={game} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} />
+      <OfferGroup label={t.stock.groupNeedsReview as string} groupKey="needs_review" offers={needsReview} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} defaultCollapsed />
+      <OfferGroup label={t.stock.groupSameSeries as string} groupKey="series" offers={series} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRelated as string} groupKey="related" offers={related} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} defaultCollapsed />
+      <OfferGroup label={t.stock.groupRejected as string} groupKey="rejected" offers={rejected} best={best} currency={currency} t={t} locale={locale} placeMap={placeMap} statusByProvider={statusByProvider} now={now} defaultCollapsed />
     </div>
   );
 }

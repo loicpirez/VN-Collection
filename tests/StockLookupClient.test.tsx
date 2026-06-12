@@ -109,8 +109,7 @@ describe('StockLookupClient', () => {
     // The provider-map fetch still fires on mount.
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getByTestId('batch-client')).toBeTruthy();
-    expect(screen.getByTestId('alicenet-client').getAttribute('data-base-path')).toBe('/stock');
-    expect(screen.getByTestId('alicenet-client').getAttribute('data-embedded')).toBe('true');
+    expect(screen.queryByTestId('alicenet-client')).toBeNull();
   });
 
   it('renders the panel inside the boundary and resolves the VN title when initialVnId is set', async () => {

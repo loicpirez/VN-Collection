@@ -249,7 +249,7 @@ interface AliceNetClientProps {
   embedded?: boolean;
 }
 
-export function AliceNetClient({ basePath = '/stock', embedded = false }: AliceNetClientProps = {}) {
+export function AliceNetClient({ basePath = '/places', embedded = false }: AliceNetClientProps = {}) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();

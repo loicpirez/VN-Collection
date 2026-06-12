@@ -730,11 +730,13 @@ and `alicenet_*`. On first open,
 databases created before this rename migrate their prior local table,
 settings, cached stock rows, and activity rows forward automatically.
 
-AliceNet has no page-enable environment flag. As a shop mirror, it renders on
-`/stock` via `AliceNetClient` and may also render on the linked AliceNet shop's
-place page (`/places/[id]`) when the `AliceNet` branch is linked to that
-place. It is not mounted inside individual VN detail pages. It uses the stored
-Stock proxy settings and has no `ALICENET_*` or `STOCK_*` environment prefix.
+AliceNet has no page-enable environment flag. As a shop mirror, its controls
+render only on the linked AliceNet shop's place page (`/places/[id]`) when the
+`AliceNet` branch is linked to that place. `/stock` may show cached AliceNet
+offers as part of generic per-VN stock lookup, but it does not mount the
+mirror-wide AliceNet controls. It is not mounted inside individual VN detail
+pages. It uses the stored Stock proxy settings and has no `ALICENET_*` or
+`STOCK_*` environment prefix.
 
 ## Shop map privacy
 
@@ -823,10 +825,11 @@ Each `fetchShopText` call has a 15s timeout backed by an
 slow shop cannot stall the sequential refresh loop.
 
 ### Stock download ✅
-The AliceNet mirror is part of `/stock`, next to the generic per-VN shop
-lookup. It lists all items currently in stock at AliceNet (a specialist
-second-hand game retailer). Data is fetched **only** on explicit button press
-via `POST /api/alicenet/fetch`; the page never auto-fetches on load.
+The AliceNet mirror controls live on the linked AliceNet shop place page, not
+inside `/stock`. They list all items currently in stock at AliceNet (a
+specialist second-hand game retailer). Data is fetched **only** on explicit
+button press via `POST /api/alicenet/fetch`; the page never auto-fetches on
+load.
 
 Each download is a full sync:
 - Items absent from the new snapshot (sold) are **deleted** from the local

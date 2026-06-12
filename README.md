@@ -115,7 +115,7 @@ changing the opt-in state.
 - Top-3 VNDB candidates stored per item for quick remapping without re-searching.
 - Six-step "Download all": stock, VNDB + EGS match, retry no-result, match VNDB from EGS, VNDB data download, EGS resolution. Three of those operations are also exposed as standalone single ops (`match-vndb-from-egs`, `retry-vndb-aggressive`, `search-egs-no-vndb`).
 - Filter tabs: All, Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In wishlist.
-- The AliceNet controls live in `/stock` with the generic stock tools, and may also appear on a linked AliceNet shop place page. AliceNet is not mounted inside individual VN detail pages.
+- The AliceNet controls live only on the linked AliceNet shop place page (`/places/[id]` when that place is assigned to AliceNet). `/stock` shows generic per-VN stock lookup and cached AliceNet offers, but it does not mount mirror-wide AliceNet controls; individual VN detail pages do not mount them either.
 - Outbound fetch can route through the stock SOCKS5/HTTP proxy settings.
 
 ### Per-VN stock and price lookup
@@ -227,16 +227,17 @@ EGS_PROXY_USERNAME=user
 EGS_PROXY_PASSWORD=pass
 ```
 
-Same pattern for the `VNDBMIRROR_` prefix. AliceNet is always part of Stock & prices, is not controlled by an environment flag, and uses the stored Stock proxy settings rather than an `ALICENET_` or `STOCK_` env prefix.
+Same pattern for the `VNDBMIRROR_` prefix. AliceNet has no page-enable environment flag and uses the stored Stock proxy settings rather than an `ALICENET_` or `STOCK_` env prefix.
 
 Proxy passwords are never logged or echoed by the settings API.
 
 `AliceNet` is the canonical label and identifier prefix. The `/api/alicenet/*`
-routes and `alicenet_*` SQLite identifiers are used by the `/stock` page. The
-UI is embedded in Stock & prices, may appear on the linked AliceNet shop page,
-and is not mounted on individual VN pages. On first open, databases created
-before this rename migrate their prior local table, settings, cached stock
-rows, and activity rows forward automatically.
+routes and `alicenet_*` SQLite identifiers are used by the linked AliceNet shop
+place page. `/stock` can display cached AliceNet offers as part of per-VN stock
+lookup, but the mirror controls stay on the shop page and are not mounted on
+individual VN pages. On first open, databases created before this rename
+migrate their prior local table, settings, cached stock rows, and activity rows
+forward automatically.
 
 ---
 

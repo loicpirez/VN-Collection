@@ -219,7 +219,7 @@ vndb-collection/
 │   │   ├── stats/page.tsx              # Charts + cache panel + import/export
 │   │   ├── character/[id]/page.tsx     # Character detail with "appears in" gallery
 │   │   ├── vn/[id]/page.tsx            # The big VN detail page
-│   │   ├── stock/page.tsx              # Generic stock / price lookup + AliceNet mirror
+│   │   ├── stock/page.tsx              # Generic stock / price lookup
 │   │   ├── not-found.tsx
 │   │   └── api/                        # see "API surface" below
 │   ├── components/
@@ -769,7 +769,7 @@ alicenet_stock PK code (format "###-######-###")
                   fetched_at, updated_at
                   — AliceNet second-hand stock mirror. Full-sync on every download:
                   items absent from the new snapshot are DELETED (sold). Route:
-                  POST /api/alicenet/fetch from the /stock AliceNet controls.
+                  POST /api/alicenet/fetch from the linked AliceNet shop page controls.
 ```
 
 ---
@@ -890,10 +890,11 @@ and `alicenet_*`. The SQLite bootstrap
 migrates databases created before this rename forward on first open; keep
 those migration inputs isolated to the migration block in `src/lib/db.ts`.
 
-AliceNet is a shop mirrored from the Stock & prices surface. Its canonical UI
-renders on `/stock` via `<AliceNetClient embedded basePath="/stock" />`; the
-same client may also render on the linked AliceNet shop's place page
-(`/places/[id]`) when the `AliceNet` provider branch is linked to that place.
+AliceNet is a shop mirror whose controls render only on the linked AliceNet
+shop's place page (`/places/[id]`) when the `AliceNet` provider branch is
+linked to that place. `/stock` may show cached AliceNet offers as part of
+generic per-VN stock lookup, but it must not mount the mirror-wide AliceNet
+controls.
 AliceNet never auto-fetches; every stock, match, and download operation starts
 from an explicit user action.
 There is no AliceNet enable environment flag and the AliceNet browser is not
@@ -1872,10 +1873,12 @@ After non-trivial changes, walk through these in the browser
     default inner sub-tab of the Layout tab (alongside VN, Character,
     Staff, Producer, Series). Includes the deep-link from /data's
     "Manage in Settings -> Integrations" button.
-  - `/stock`: generic per-VN shop lookup plus AliceNet mirrored stock
-    controls, all eight AliceNet filter tabs (All, Matched, VNDB, EGS only,
-    Unmatched, No VNDB result, In collection, In wishlist), Download Stock,
-    Find VNDB & EGS Matches, Reset, candidate chips, manual link dialog.
+  - `/stock`: generic per-VN shop lookup, cached offers, provider refresh,
+    stock batch controls, source management, and per-VN offer diagnostics.
+  - Linked AliceNet shop place page: all eight AliceNet filter tabs (All,
+    Matched, VNDB, EGS only, Unmatched, No VNDB result, In collection, In
+    wishlist), Download Stock, Find VNDB & EGS Matches, Reset, candidate chips,
+    manual link dialog.
   - Mobile (≤ 640px): navbar is a Menu sheet, density slider
     accessible, advanced filter drawer fits, no horizontal
     scroll on any listing grid.

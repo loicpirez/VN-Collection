@@ -143,6 +143,48 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
   }
 }
 
+function isSqliteCorruptionError(error: unknown): boolean {
+  const code = typeof error === 'object' && error != null && 'code' in error
+    ? (error as { code?: unknown }).code
+    : null;
+  const message = error instanceof Error ? error.message : '';
+  return code === 'SQLITE_CORRUPT' || code === 'SQLITE_CORRUPT_INDEX' || message.includes('database disk image is malformed');
+}
+
+/**
+ * Apply the one-shot staff and voice-credit uniqueness migration.
+ *
+ * @param db Open SQLite handle.
+ * @returns Nothing. The function mutates the schema and marker row when needed.
+ */
+export function runStaffCreditUniqueMigration(db: Database.Database): void {
+  const marker = (db.prepare(`SELECT value FROM app_setting WHERE key = 'migration_staff_credit_unique_v1'`).get() as { value: string } | undefined)?.value;
+  if (marker === '1') return;
+  try {
+    db.transaction(() => {
+      db.exec(`
+        DELETE FROM vn_staff_credit WHERE rowid NOT IN (
+          SELECT MIN(rowid) FROM vn_staff_credit GROUP BY vn_id, sid, role
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_staff_credit_unique
+          ON vn_staff_credit(vn_id, sid, role);
+        DROP INDEX IF EXISTS idx_vn_va_credit_unique;
+        DELETE FROM vn_va_credit WHERE rowid NOT IN (
+          SELECT MIN(rowid)
+          FROM vn_va_credit
+          GROUP BY vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, '')
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_va_credit_unique
+          ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
+      `);
+      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_staff_credit_unique_v1', '1')`).run();
+    })();
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked staff credit uniqueness migration. Run PRAGMA integrity_check and restore or recover data/collection.db.');
+  }
+}
+
 function open(): Database.Database {
   tableColsCache = null;
   // HMR resilience: reuse the cached connection if it exists, but
@@ -724,21 +766,7 @@ function open(): Database.Database {
   db.exec(`DROP INDEX IF EXISTS idx_shelf_slot_item`);
 
   // AUD-DB-011: deduplicate vn_staff_credit / vn_va_credit rows before
-  db.exec(`
-    DELETE FROM vn_staff_credit WHERE rowid NOT IN (
-      SELECT MIN(rowid) FROM vn_staff_credit GROUP BY vn_id, sid, role
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_staff_credit_unique
-      ON vn_staff_credit(vn_id, sid, role);
-    DROP INDEX IF EXISTS idx_vn_va_credit_unique;
-    DELETE FROM vn_va_credit WHERE rowid NOT IN (
-      SELECT MIN(rowid)
-      FROM vn_va_credit
-      GROUP BY vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, '')
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_va_credit_unique
-      ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
-  `);
+  runStaffCreditUniqueMigration(db);
 
   // Legacy identifier migration for databases created before AliceNet became canonical.
   {
@@ -7785,67 +7813,111 @@ export interface PlacePayload {
   notes?: string | null;
 }
 
-export function listPlaces(): PlaceWithLinks[] {
-  const rows = db
-    .prepare(`
-      WITH stock_by_place AS (
-        SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
-        FROM place_provider_link ppl2
-        JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
-          vso.location_branch = ppl2.provider_label
-          OR vso.location_label = ppl2.provider_label
-        )
-        WHERE vso.availability IN ('in_stock', 'limited')
-        GROUP BY ppl2.place_id
-      )
-      SELECT
-        p.*,
-        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        COALESCE(sbp.stock_count, 0) AS stock_count
-      FROM place_registry p
-      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
-      LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
-      GROUP BY p.id
-      ORDER BY p.name COLLATE NOCASE ASC
-    `)
-    .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
-  return rows.map((r) => ({
-    ...r,
-    kind: r.kind as PlaceRow['kind'],
-    provider_labels: r.labels_concat ? r.labels_concat.split('|||') : [],
-  }));
-}
-
-export function getPlace(id: number): PlaceWithLinks | null {
-  const row = db
-    .prepare(`
-      WITH stock_by_place AS (
-        SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
-        FROM place_provider_link ppl2
-        JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
-          vso.location_branch = ppl2.provider_label
-          OR vso.location_label = ppl2.provider_label
-        )
-        WHERE vso.availability IN ('in_stock', 'limited')
-        GROUP BY ppl2.place_id
-      )
-      SELECT
-        p.*,
-        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        COALESCE(sbp.stock_count, 0) AS stock_count
-      FROM place_registry p
-      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
-      LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
-      WHERE p.id = ?
-      GROUP BY p.id
-    `)
-    .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
-  if (!row) return null;
+function placeWithLinks(row: PlaceRow & { labels_concat: string | null; stock_count?: number | null }): PlaceWithLinks {
   return {
     ...row,
     kind: row.kind as PlaceRow['kind'],
     provider_labels: row.labels_concat ? row.labels_concat.split('|||') : [],
+    stock_count: row.stock_count ?? 0,
   };
+}
+
+function listPlacesWithoutStockCounts(): PlaceWithLinks[] {
+  const rows = db
+    .prepare(`
+      SELECT
+        p.*,
+        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+        0 AS stock_count
+      FROM place_registry p
+      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      GROUP BY p.id
+      ORDER BY p.name COLLATE NOCASE ASC
+    `)
+    .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
+  return rows.map(placeWithLinks);
+}
+
+function getPlaceWithoutStockCount(id: number): PlaceWithLinks | null {
+  const row = db
+    .prepare(`
+      SELECT
+        p.*,
+        GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+        0 AS stock_count
+      FROM place_registry p
+      LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+      WHERE p.id = ?
+      GROUP BY p.id
+    `)
+    .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
+  return row ? placeWithLinks(row) : null;
+}
+
+export function listPlaces(): PlaceWithLinks[] {
+  try {
+    const rows = db
+      .prepare(`
+        WITH stock_by_place AS (
+          SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+          FROM place_provider_link ppl2
+          JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
+            vso.location_branch = ppl2.provider_label
+            OR vso.location_label = ppl2.provider_label
+          )
+          WHERE vso.availability IN ('in_stock', 'limited')
+          GROUP BY ppl2.place_id
+        )
+        SELECT
+          p.*,
+          GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+          COALESCE(sbp.stock_count, 0) AS stock_count
+        FROM place_registry p
+        LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+        LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
+        GROUP BY p.id
+        ORDER BY p.name COLLATE NOCASE ASC
+      `)
+      .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
+    return rows.map(placeWithLinks);
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked place stock-count aggregation. Rendering places without stock counts.');
+    return listPlacesWithoutStockCounts();
+  }
+}
+
+export function getPlace(id: number): PlaceWithLinks | null {
+  try {
+    const row = db
+      .prepare(`
+        WITH stock_by_place AS (
+          SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+          FROM place_provider_link ppl2
+          JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
+            vso.location_branch = ppl2.provider_label
+            OR vso.location_label = ppl2.provider_label
+          )
+          WHERE vso.availability IN ('in_stock', 'limited')
+          GROUP BY ppl2.place_id
+        )
+        SELECT
+          p.*,
+          GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
+          COALESCE(sbp.stock_count, 0) AS stock_count
+        FROM place_registry p
+        LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
+        LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
+        WHERE p.id = ?
+        GROUP BY p.id
+      `)
+      .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
+    return row ? placeWithLinks(row) : null;
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked place stock-count aggregation. Rendering place without stock count.');
+    return getPlaceWithoutStockCount(id);
+  }
 }
 
 export function createPlace(payload: PlacePayload): number {

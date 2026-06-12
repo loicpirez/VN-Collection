@@ -8,7 +8,7 @@
  * per-worker temp SQLite from `tests/setup.ts`. No network. Synthetic ids.
  */
 import Database from 'better-sqlite3';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addToCollection,
   clearCache,
@@ -37,6 +37,7 @@ import {
   pruneExpiredCache,
   putCacheRow,
   removeFromCollection,
+  runStaffCreditUniqueMigration,
   setAppSetting,
   setVnPublishers,
   setQuotesForVn,
@@ -72,6 +73,76 @@ function wipe(): void {
 beforeAll(wipe);
 afterAll(() => db.close());
 beforeEach(wipe);
+
+function staffMigrationDb(over: {
+  marker?: string;
+  exec?: (sql: string) => void;
+} = {}): { handle: Database.Database; markerWritten: () => boolean; execCount: () => number } {
+  let markerWritten = false;
+  let execCount = 0;
+  const handle = {
+    prepare(sql: string) {
+      if (sql.includes("key = 'migration_staff_credit_unique_v1'")) {
+        return { get: () => over.marker != null ? { value: over.marker } : undefined };
+      }
+      if (sql.includes("VALUES ('migration_staff_credit_unique_v1', '1')")) {
+        return { run: () => { markerWritten = true; } };
+      }
+      throw new Error(`unexpected SQL: ${sql}`);
+    },
+    transaction(fn: () => void) {
+      return () => fn();
+    },
+    exec(sql: string) {
+      execCount += 1;
+      over.exec?.(sql);
+    },
+  };
+  return {
+    handle: handle as unknown as Database.Database,
+    markerWritten: () => markerWritten,
+    execCount: () => execCount,
+  };
+}
+
+describe('staff credit uniqueness migration helper', () => {
+  it('skips the migration when the marker is already present', () => {
+    const fake = staffMigrationDb({ marker: '1' });
+
+    runStaffCreditUniqueMigration(fake.handle);
+
+    expect(fake.execCount()).toBe(0);
+    expect(fake.markerWritten()).toBe(false);
+  });
+
+  it('runs once and writes the marker on a healthy database', () => {
+    const fake = staffMigrationDb();
+
+    runStaffCreditUniqueMigration(fake.handle);
+
+    expect(fake.execCount()).toBe(1);
+    expect(fake.markerWritten()).toBe(true);
+  });
+
+  it('logs SQLite corruption without rethrowing so unrelated routes can open the DB', () => {
+    const error = Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT_INDEX' });
+    const fake = staffMigrationDb({ exec: () => { throw error; } });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(() => runStaffCreditUniqueMigration(fake.handle)).not.toThrow();
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked staff credit uniqueness migration'));
+    expect(fake.markerWritten()).toBe(false);
+
+    spy.mockRestore();
+  });
+
+  it('rethrows non-corruption migration failures', () => {
+    const error = new Error('ordinary failure');
+    const fake = staffMigrationDb({ exec: () => { throw error; } });
+
+    expect(() => runStaffCreditUniqueMigration(fake.handle)).toThrow(error);
+  });
+});
 
 function seedEgs(vnId: string, over: Partial<Parameters<typeof upsertEgsForVn>[0]> = {}): void {
   upsertEgsForVn({

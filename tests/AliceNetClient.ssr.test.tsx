@@ -9,7 +9,7 @@ import { dictionaries } from '@/lib/i18n/dictionaries';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => '/stock',
+  usePathname: () => '/places/7',
   useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
   redirect: vi.fn(),

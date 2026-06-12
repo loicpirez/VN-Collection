@@ -287,6 +287,51 @@ describe('StockPanel', () => {
     await waitFor(() => expect(screen.getByText(t.stock.emptyAfterCheck as string)).toBeTruthy());
   });
 
+  it('hides stale offers by offer timestamp even when the provider status is fresh', async () => {
+    const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = snapshot({
+      offers: [offer({ fetched_at: oldTime })],
+      statuses: [status({ fetched_at: Date.now(), status: 'protected', fresh_offers_found: 0, cached_offers_available: 1 })],
+      summary: { total: 1, available: 1, best_price: 1980, related_available: 0, needs_review: 0, rejected: 0, last_refresh: Date.now() },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+
+    await waitFor(() => expect(screen.getByText('Title Y')).toBeTruthy());
+    expect(screen.getByText(t.stock.providerCachedStaleHint as string)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.hideStale as string) }));
+    await waitFor(() => expect(screen.getByText(t.stock.emptyAfterCheck as string)).toBeTruthy());
+  });
+
+  it('separates stale AliceNet cache messaging from live provider refresh messaging', async () => {
+    const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = snapshot({
+      offers: [
+        offer({
+          provider: 'alicenet',
+          provider_label: 'AliceNet',
+          provider_offer_id: 'alice-1',
+          source: 'alicenet',
+          title: 'AliceNet cached title',
+          fetched_at: oldTime,
+        }),
+      ],
+      statuses: [],
+      providers: [provider({ id: 'alicenet', label: 'AliceNet', kind: 'cached' })],
+      summary: { total: 1, available: 1, best_price: 1980, related_available: 0, needs_review: 0, rejected: 0, last_refresh: oldTime },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+
+    await waitFor(() => expect(screen.getByText('AliceNet cached title')).toBeTruthy());
+    expect(screen.getByText(t.stock.cachedStaleBanner as string)).toBeTruthy();
+    expect(screen.getByText(t.stock.cachedStaleHint as string)).toBeTruthy();
+    const stalePrefix = (t.stock.staleBanner as string).split('{ago}')[0];
+    expect(screen.queryByText((content) => content.startsWith(stalePrefix.slice(0, 20)))).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.hideStale as string) }));
+    await waitFor(() => expect(screen.getByText(t.stock.empty as string)).toBeTruthy());
+  });
+
   it('opens the provider setup, selects the aggregate group, and toggles a provider tile', async () => {
     global.fetch = routeFetch({
       snapshot: snapshot({

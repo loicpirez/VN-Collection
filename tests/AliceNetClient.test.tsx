@@ -11,7 +11,7 @@ const replace = vi.fn();
 let mockedSearchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace, refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => '/stock',
+  usePathname: () => '/places/7',
   useSearchParams: () => mockedSearchParams,
   notFound: vi.fn(),
   redirect: vi.fn(),
@@ -93,11 +93,11 @@ function renderClient() {
   );
 }
 
-/** Render the embedded stock-page variant with the same providers. */
+/** Render the embedded shop-page variant with the same providers. */
 function renderEmbeddedClient() {
   return renderWithProviders(
     <DisplaySettingsProvider>
-      <AliceNetClient embedded basePath="/stock" />
+      <AliceNetClient embedded basePath="/places/7" />
     </DisplaySettingsProvider>,
     { locale: 'en' },
   );
@@ -315,7 +315,7 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
   });
 
-  it('restores invalid saved preferences as defaults and renders the embedded stock section', async () => {
+  it('restores invalid saved preferences as defaults and renders the embedded shop section', async () => {
     window.localStorage.setItem('vncoll.alicenet.prefs.v1', JSON.stringify({ sort: 'bad-sort', group: 'bad-group', view: 'bad-view' }));
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
     renderEmbeddedClient();
@@ -765,12 +765,12 @@ describe('AliceNetClient', () => {
     expect(screen.getByLabelText('Sort')).toHaveValue('match_status');
   });
 
-  it('cleans default URL state from the stock route', async () => {
+  it('cleans default URL state from the shop route', async () => {
     mockedSearchParams = new URLSearchParams('filter=all&sort=match_status&group=none&view=cards&q=&producer=&yearMin=&yearMax=&priceMin=&priceMax=&filters=1');
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
     renderClient();
     await screen.findByText('Matched Title Two');
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/stock', { scroll: false }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/places', { scroll: false }));
   });
 
   it('reports malformed initial and follow-up stock payloads', async () => {

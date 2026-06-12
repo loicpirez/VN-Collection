@@ -12,7 +12,7 @@ import { VIRTUAL_GRID_THRESHOLD } from '@/lib/virtual-grid';
 const replace = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace, refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => '/stock',
+  usePathname: () => '/places/7',
   useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
   redirect: vi.fn(),
