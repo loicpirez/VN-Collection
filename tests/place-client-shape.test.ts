@@ -23,6 +23,7 @@ const place = {
   updated_at: 2,
   provider_labels: ['Branch'],
   stock_count: 1,
+  stock_updated_at: 3,
 };
 
 const offer = {

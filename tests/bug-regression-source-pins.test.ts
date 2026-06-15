@@ -17,13 +17,18 @@ describe('metadata title template composition', () => {
 });
 
 describe('stock-price navigation race', () => {
-  it('hydrates from snapshots where mounted and keeps stock prices off VN detail pages', () => {
+  it('hydrates from snapshots where mounted while VN detail uses the full stock panel', () => {
     const body = source('src/components/StockPricesSection.tsx');
     const page = source('src/app/vn/[id]/page.tsx');
     expect(body).toContain('extrasFromStockSnapshot(initialSnapshot)');
     expect(body).toContain('if (initialSnapshot)');
     expect(body).toContain('setLoading(false)');
     expect(page).not.toContain('<StockPricesSection');
+    expect(page).toContain("const StockPanel = nextDynamic(() => import('@/components/StockPanel').then((m) => m.StockPanel)");
+    expect(page).toContain("sectionNodes['stock'] = (");
+    expect(page).toContain('<StockPanelBoundary');
+    expect(page).toContain('<StockPanel');
+    expect(page).toContain('bare');
     expect(body).toContain('const controller = new AbortController()');
     expect(body).toContain('fetchStockPriceExtras(vnId, controller.signal)');
     expect(body).toContain('setExtras(data)');

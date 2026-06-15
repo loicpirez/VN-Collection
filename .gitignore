@@ -46,3 +46,15 @@ coverage/
 *.swp
 vndb-colection-data.zip
 .claude/
+
+.audit-tmp/data/collection.db
+
+.audit-tmp/data/collection.db-shm
+
+.audit-tmp/data/collection.db-wal
+
+.tmp/server-collection.db
+
+.tmp/server-collection.db-shm
+
+.tmp/server-collection.db-wal

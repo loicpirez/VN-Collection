@@ -71,6 +71,7 @@ function place(overrides: Partial<PlaceWithLinks> = {}): PlaceWithLinks {
     updated_at: 1,
     provider_labels: ['Branch A'],
     stock_count: 0,
+    stock_updated_at: null,
     ...overrides,
   };
 }

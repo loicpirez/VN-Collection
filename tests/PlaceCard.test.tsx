@@ -67,6 +67,7 @@ function place(overrides: Partial<PlaceWithLinks> = {}): PlaceWithLinks {
     updated_at: Date.now(),
     provider_labels: [],
     stock_count: 0,
+    stock_updated_at: null,
     ...overrides,
   };
 }
@@ -128,6 +129,7 @@ describe('PlaceCard', () => {
           lng: 139,
           url: ' https://example.com/shop ',
           updated_at: Date.now() - 8 * DAY,
+          stock_updated_at: Date.now() - 8 * DAY,
           provider_labels: ['Tokyo', 'Akiba'],
           stock_count: 3,
         })}
@@ -139,16 +141,51 @@ describe('PlaceCard', () => {
     expect(screen.getByText('1 Chiyoda')).toBeInTheDocument();
     expect(screen.getByText('GPS')).toBeInTheDocument();
     expect(screen.getByText('3 VN in stock')).toBeInTheDocument();
-    expect(screen.getByText('2 branch(es)')).toBeInTheDocument();
+    expect(screen.getByText('2 branches')).toBeInTheDocument();
     expect(screen.getByText('Stale (8d)')).toBeInTheDocument();
     expect(screen.getByText(t.places.kindChain)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: t.places.urlPlaceholder })).toHaveAttribute('href', 'https://example.com/shop');
     expect(screen.getByRole('link', { name: t.places.viewOnMap })).toHaveAttribute('href', '/map?place=1');
 
-    rendered.rerender(<PlaceCard place={place({ id: 2, kind: 'storage', updated_at: Date.now() - DAY, url: 'javascript:alert(1)' })} {...actions} />);
+    rendered.rerender(<PlaceCard place={place({ id: 2, kind: 'storage', updated_at: Date.now() - 30 * DAY, stock_updated_at: Date.now() - DAY, url: 'javascript:alert(1)' })} {...actions} />);
     expect(screen.getByText(t.places.kindStorage)).toBeInTheDocument();
     expect(screen.queryByText(/Stale/)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: t.places.urlPlaceholder })).not.toBeInTheDocument();
+  });
+
+  it('uses stock freshness instead of place metadata freshness for stale badges', () => {
+    const actions = callbacks();
+    renderWithProviders(
+      <PlaceCard
+        place={place({
+          updated_at: Date.now() - 30 * DAY,
+          stock_updated_at: Date.now(),
+          provider_labels: ['Fresh Branch'],
+          stock_count: 1,
+        })}
+        {...actions}
+      />,
+      { locale: 'en' },
+    );
+
+    expect(screen.queryByText(/Stale/)).not.toBeInTheDocument();
+  });
+
+  it('uses singular branch labels for one linked branch', () => {
+    const actions = callbacks();
+    renderWithProviders(
+      <PlaceCard
+        place={place({
+          provider_labels: ['Only Branch'],
+          stock_count: 1,
+          stock_updated_at: Date.now(),
+        })}
+        {...actions}
+      />,
+      { locale: 'en' },
+    );
+
+    expect(screen.getByText('1 branch')).toBeInTheDocument();
   });
 
   it('cancels deletion and locks duplicate confirmation clicks', async () => {

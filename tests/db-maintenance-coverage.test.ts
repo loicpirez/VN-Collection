@@ -21,6 +21,7 @@ import {
   getCacheRow,
   getCacheRows,
   getCollectionItem,
+  getCoOccurringTags,
   getEgsForVn,
   getEgsForVns,
   getRandomLocalQuote,
@@ -33,6 +34,8 @@ import {
   listOwnedReleasesForVn,
   listSettingAudit,
   markReleaseOwned,
+  materializeReleaseAspectsForVn,
+  materializeReleaseMetaForVn,
   migrateVnId,
   pruneExpiredCache,
   putCacheRow,
@@ -141,6 +144,89 @@ describe('staff credit uniqueness migration helper', () => {
     const fake = staffMigrationDb({ exec: () => { throw error; } });
 
     expect(() => runStaffCreditUniqueMigration(fake.handle)).toThrow(error);
+  });
+});
+
+function withPatchedPrepare(
+  matcher: (sql: string) => boolean,
+  replacementError: Error,
+  action: () => void,
+): void {
+  const realDb = globalThis.__vndb_db;
+  if (!realDb) throw new Error('database handle was not opened');
+  const originalPrepare = realDb.prepare.bind(realDb);
+  Reflect.defineProperty(realDb, 'prepare', {
+    configurable: true,
+    value: ((sql: string) => {
+      if (matcher(sql)) throw replacementError;
+      return originalPrepare(sql);
+    }) as typeof realDb.prepare,
+  });
+  try {
+    action();
+  } finally {
+    Reflect.deleteProperty(realDb, 'prepare');
+  }
+}
+
+describe('optional page-data corruption guards', () => {
+  it('returns no co-occurring tags when SQLite corruption blocks the tag index', () => {
+    const error = Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    withPatchedPrepare(
+      (sql) => sql.includes('vn_tag_index'),
+      error,
+      () => {
+        expect(getCoOccurringTags('v90001')).toEqual([]);
+      },
+    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked tag co-occurrence lookup'));
+
+    spy.mockRestore();
+  });
+
+  it('still rethrows ordinary co-occurring tag lookup failures', () => {
+    const error = new Error('ordinary tag failure');
+
+    expect(() => withPatchedPrepare(
+      (sql) => sql.includes('vn_tag_index'),
+      error,
+      () => getCoOccurringTags('v90001'),
+    )).toThrow(error);
+  });
+
+  it('skips release materialization when SQLite corruption blocks release cache reads', () => {
+    const error = Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    withPatchedPrepare(
+      (sql) => sql.includes('release_resolution_cache') || sql.includes('release_meta_cache'),
+      error,
+      () => {
+        expect(() => materializeReleaseAspectsForVn('v90001')).not.toThrow();
+        expect(() => materializeReleaseMetaForVn('v90001')).not.toThrow();
+      },
+    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked release aspect materialization'));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked release metadata materialization'));
+
+    spy.mockRestore();
+  });
+
+  it('still rethrows ordinary release materialization failures', () => {
+    const error = new Error('ordinary release failure');
+
+    expect(() => withPatchedPrepare(
+      (sql) => sql.includes('release_resolution_cache'),
+      error,
+      () => materializeReleaseAspectsForVn('v90001'),
+    )).toThrow(error);
+    expect(() => withPatchedPrepare(
+      (sql) => sql.includes('release_meta_cache'),
+      error,
+      () => materializeReleaseMetaForVn('v90001'),
+    )).toThrow(error);
   });
 });
 

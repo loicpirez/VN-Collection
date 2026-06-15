@@ -94,6 +94,18 @@ describe('AliceNet client response adapters', () => {
       pending: { vndb_pending: 0, egs_pending: 0 },
       last_fetch: null,
     })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, egs_id: 1.5 }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, fetched_at: '1' }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
     expect(decodeAliceNetStockSyncResult({ count: -1, added: 0, updated: 0, removed: 0, fetched_at: 1 })).toBeNull();
     expect(decodeAliceNetLoopResult({ processed: 1, remaining: Number.NaN })).toBeNull();
   });

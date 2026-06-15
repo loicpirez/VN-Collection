@@ -84,6 +84,7 @@ const place: PlaceWithLinks = {
   updated_at: 2,
   provider_labels: [],
   stock_count: 0,
+  stock_updated_at: null,
 };
 
 const series: SeriesRow = {

@@ -318,6 +318,21 @@ describe('StockPanel', () => {
     expect(screen.queryByText(t.stock.providerCachedStaleHint as string)).toBeNull();
   });
 
+  it('uses the generic stale hint when a provider has cached and fresh offers', async () => {
+    const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = snapshot({
+      offers: [offer({ fetched_at: oldTime })],
+      statuses: [status({ fetched_at: Date.now(), cached_offers_available: 1, fresh_offers_found: 1 })],
+      summary: { total: 1, available: 1, best_price: 1980, related_available: 0, needs_review: 0, rejected: 0, last_refresh: Date.now() },
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+
+    await waitFor(() => expect(screen.getByText('Title Y')).toBeTruthy());
+    expect(screen.getByText(t.stock.staleHint as string)).toBeTruthy();
+    expect(screen.queryByText(t.stock.providerCachedStaleHint as string)).toBeNull();
+  });
+
   it('separates stale AliceNet cache messaging from live provider refresh messaging', async () => {
     const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const snap = snapshot({

@@ -87,6 +87,7 @@ function place(overrides: Partial<PlaceWithLinks>): PlaceWithLinks {
     updated_at: now,
     provider_labels: ['Sofmap Tokyo'],
     stock_count: 3,
+    stock_updated_at: now,
     ...overrides,
   };
 }
@@ -94,7 +95,7 @@ function place(overrides: Partial<PlaceWithLinks>): PlaceWithLinks {
 function placesPayload() {
   return {
     places: [
-      place({ id: 1, name: 'Akiba Shop', provider_labels: ['Sofmap Tokyo'], stock_count: 3, updated_at: now - 9 * 86_400_000 }),
+      place({ id: 1, name: 'Akiba Shop', provider_labels: ['Sofmap Tokyo'], stock_count: 3, stock_updated_at: now - 9 * 86_400_000 }),
       place({
         id: 2,
         name: 'No GPS Chain',
@@ -120,6 +121,7 @@ function manyPlacesPayload() {
       name_ja: null,
       provider_labels: index % 2 === 0 ? [`Provider ${index + 1}`] : [],
       stock_count: index,
+      stock_updated_at: now - index * 1000,
       updated_at: now - index * 1000,
     })),
     known_places: [],
@@ -203,6 +205,48 @@ describe('PlaceBrowser', () => {
     expect(screen.getByText('Akiba Shop')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: t.places.viewCards as string }));
     expect(screen.getByRole('list')).toBeTruthy();
+  });
+
+  it('uses singular branch labels and metadata freshness fallback in list mode', async () => {
+    localStorage.setItem('vncoll.places.prefs.v1', JSON.stringify({ sort: 'fresh', view: 'list' }));
+    const newerMetadata = now + 5_000;
+    const olderStock = now - 5_000;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === '/api/places') {
+        return json({
+          places: [
+            place({
+              id: 1,
+              name: 'Metadata Fresh',
+              name_ja: null,
+              provider_labels: ['Single Branch'],
+              stock_count: 1,
+              stock_updated_at: 0,
+              updated_at: newerMetadata,
+            }),
+            place({
+              id: 2,
+              name: 'Stock Fresh',
+              name_ja: null,
+              provider_labels: ['A', 'B'],
+              stock_count: 2,
+              stock_updated_at: olderStock,
+              updated_at: now - 20_000,
+            }),
+          ],
+          known_places: [],
+        });
+      }
+      if (u === '/api/places/unassigned') return json({ branches: [] });
+      return json({});
+    });
+
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Metadata Fresh')).toBeTruthy());
+    const rows = screen.getAllByRole('listitem');
+    expect(within(rows[0]).getByText('Metadata Fresh')).toBeTruthy();
+    expect(within(rows[0]).getByText((t.places.linkedBranch as string).replace('{n}', '1'))).toBeTruthy();
   });
 
   it('paginates long registries and caps the page when a filter shrinks the result', async () => {
@@ -473,8 +517,8 @@ describe('PlaceBrowser', () => {
       const u = String(url);
       if (u === '/api/places') return json({
         places: [
-          place({ id: 1, name: 'Stale Linked', provider_labels: ['Old Branch'], updated_at: now - 9 * 86_400_000 }),
-          place({ id: 2, name: 'Fresh Linked', provider_labels: ['Fresh Branch'], updated_at: now }),
+          place({ id: 1, name: 'Stale Linked', provider_labels: ['Old Branch'], updated_at: now, stock_updated_at: now - 9 * 86_400_000 }),
+          place({ id: 2, name: 'Fresh Linked', provider_labels: ['Fresh Branch'], updated_at: now - 30 * 86_400_000, stock_updated_at: now }),
         ],
         known_places: [],
       });
@@ -487,6 +531,32 @@ describe('PlaceBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: (t.places.hideStale as string).replace('{n}', '1') }));
     expect(screen.queryByText('Stale Linked')).toBeNull();
     expect(screen.getByText('Fresh Linked')).toBeTruthy();
+  });
+
+  it('does not mark a linked place stale when only its metadata edit time is old', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === '/api/places') return json({
+        places: [
+          place({
+            id: 1,
+            name: 'Fresh Stock Old Metadata',
+            provider_labels: ['Synced Branch'],
+            updated_at: now - 30 * 86_400_000,
+            stock_updated_at: now,
+          }),
+        ],
+        known_places: [],
+      });
+      if (u === '/api/places/unassigned') return json({ branches: [] });
+      return json({});
+    });
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Fresh Stock Old Metadata')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
+    expect(screen.queryByText(/Stale|Périmé/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filtersLabel as string) }));
+    expect(screen.getByRole('button', { name: (t.places.hideStale as string).replace('{n}', '0') })).toBeTruthy();
   });
 
   it('shows load errors for unassigned and malformed payloads', async () => {

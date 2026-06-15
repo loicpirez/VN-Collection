@@ -33,6 +33,7 @@ function makePlace(overrides: Partial<PlaceWithLinks> = {}): PlaceWithLinks {
     updated_at: 1700000000,
     provider_labels: ['Linked Branch A'],
     stock_count: 0,
+    stock_updated_at: null,
     ...overrides,
   };
 }

@@ -35,12 +35,16 @@ async function loadVndbWishlistIds(): Promise<Set<string> | null> {
 }
 
 async function loadVndbWishlistIdsWithinBudget(): Promise<Set<string> | null> {
-  const wishlist = loadVndbWishlistIds().catch(() => null);
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<null>((resolve) => {
     const timeoutId = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
     wishlist.finally(() => clearTimeout(timeoutId));
   });
-  return Promise.race([wishlist, timeout]);
+  try {
+    return await Promise.race([loadVndbWishlistIds(), timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function parseBoundedInt(raw: string | null, fallback: number, min: number, max: number): number {

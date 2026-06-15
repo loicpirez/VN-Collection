@@ -331,12 +331,31 @@ describe('stock_count subquery in listPlaces/getPlace', () => {
 
     try {
       const listed = listPlaces().find((place) => place.id === id);
-      expect(listed).toMatchObject({ id, stock_count: 0, provider_labels: ['BranchA'] });
-      expect(getPlace(id)).toMatchObject({ id, stock_count: 0, provider_labels: ['BranchA'] });
+      expect(listed).toMatchObject({ id, stock_count: 0, stock_updated_at: null, provider_labels: ['BranchA'] });
+      expect(getPlace(id)).toMatchObject({ id, stock_count: 0, stock_updated_at: null, provider_labels: ['BranchA'] });
+      expect(getPlace(-999_999)).toBeNull();
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('SQLite corruption blocked place stock-count aggregation'));
     } finally {
       Reflect.deleteProperty(realDb, 'prepare');
       consoleSpy.mockRestore();
+    }
+  });
+
+  it('rethrows non-corruption place stock-count aggregation failures', () => {
+    const realDb = globalThis.__vndb_db;
+    if (!realDb) throw new Error('database handle was not opened');
+    const originalPrepare = realDb.prepare.bind(realDb);
+    const error = new Error('ordinary place stock failure');
+    Reflect.defineProperty(realDb, 'prepare', { configurable: true, value: ((sql: string) => {
+      if (sql.includes('WITH stock_by_place')) throw error;
+      return originalPrepare(sql);
+    }) as typeof realDb.prepare });
+
+    try {
+      expect(() => listPlaces()).toThrow(error);
+      expect(() => getPlace(1)).toThrow(error);
+    } finally {
+      Reflect.deleteProperty(realDb, 'prepare');
     }
   });
 
@@ -404,7 +423,26 @@ describe('AliceNet as a place-assignable cached provider', () => {
     const id = createPlace({ name: `${PLACE_NAME_PREFIX}alice_count` });
     linkProviderToPlace(id, ALICENET_BRANCH_LABEL);
     expect(getPlace(id)!.stock_count).toBe(1);
+    expect(getPlace(id)!.stock_updated_at).toBeGreaterThan(0);
     expect(listPlaces().find((p) => p.id === id)!.stock_count).toBe(1);
+    expect(listPlaces().find((p) => p.id === id)!.stock_updated_at).toBeGreaterThan(0);
+  });
+
+  it('tracks stock freshness even when linked offers are currently out of stock', () => {
+    seedVn(VN_ID_A, 'Game A');
+    const updatedAt = Date.now() - 2_000;
+    seedOffer({
+      vnId: VN_ID_A,
+      provider: 'p1',
+      offerId: 'sold',
+      branch: 'BranchA',
+      label: 'BranchA',
+      availability: 'out_of_stock',
+      updatedAt,
+    });
+    const id = createPlace({ name: `${PLACE_NAME_PREFIX}out_stock_freshness` });
+    linkProviderToPlace(id, 'BranchA');
+    expect(getPlace(id)).toMatchObject({ stock_count: 0, stock_updated_at: updatedAt });
   });
 
   it('surfaces AliceNet stock through listVnsAtPlace with the parsed yen price', () => {

@@ -30,6 +30,8 @@ describe('VN detail compact artwork and platform disclosure', () => {
     const body = source('src/app/vn/[id]/page.tsx');
     expect(body).toContain('const hiddenPlatforms = vn.platforms.slice(10)');
     expect(body).toContain("title={hiddenLabels.join(', ')}");
+    expect(body).toContain('inline-flex min-h-[44px] cursor-pointer');
+    expect(body).toContain('sm:min-h-[28px]');
     expect(body).toContain('className="absolute right-0 top-full z-20');
     expect(body).toContain('group-open:flex group-hover:flex group-focus-within:flex');
     expect(body).toContain('href={`/search?platforms=${encodeURIComponent(p)}`}');

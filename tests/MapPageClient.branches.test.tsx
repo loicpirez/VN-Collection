@@ -43,6 +43,7 @@ vi.mock('next/dynamic', () => ({
           >
             <button type="button" onClick={() => onMarkerFocus?.(77)}>marker focus</button>
             <span>{popupStockLabel?.(3)}</span>
+            <span>{popupBranchesLabel?.(1)}</span>
             <span>{popupBranchesLabel?.(2)}</span>
           </div>
         </>
@@ -72,6 +73,7 @@ function place(overrides: Partial<PlaceWithLinks> = {}): PlaceWithLinks {
     updated_at: 1,
     provider_labels: [],
     stock_count: 0,
+    stock_updated_at: null,
     ...overrides,
   };
 }
@@ -336,6 +338,7 @@ describe('MapPageClient branches', () => {
     );
     const canvas = await screen.findByTestId('map-canvas');
     expect(canvas).toHaveTextContent((t.map.popupStock as string).replace('{n}', '3'));
+    expect(canvas).toHaveTextContent((t.map.popupBranch as string).replace('{n}', '1'));
     expect(canvas).toHaveTextContent((t.map.popupBranches as string).replace('{n}', '2'));
     expect(screen.getByText('マーカー店')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'marker focus' }));
