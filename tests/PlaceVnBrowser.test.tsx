@@ -178,6 +178,7 @@ describe('PlaceVnBrowser', () => {
   });
 
   it('paginates long stock lists forward and back', async () => {
+    localStorage.setItem('vncoll.place-vn-browser.prefs.v1', JSON.stringify({ view: 'list' }));
     const rows = Array.from({ length: 61 }, (_, index) => vn({
       vn_id: `v${20000 + index}`,
       title: `VN ${String(index + 1).padStart(2, '0')}`,

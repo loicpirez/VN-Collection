@@ -322,7 +322,7 @@ describe('stock_count subquery in listPlaces/getPlace', () => {
     const realDb = globalThis.__vndb_db;
     if (!realDb) throw new Error('database handle was not opened');
     const originalPrepare = realDb.prepare.bind(realDb);
-    const error = Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' });
+    const error = { code: 'SQLITE_CORRUPT' };
     Reflect.defineProperty(realDb, 'prepare', { configurable: true, value: ((sql: string) => {
       if (sql.includes('WITH stock_by_place')) throw error;
       return originalPrepare(sql);

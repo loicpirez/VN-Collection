@@ -386,6 +386,7 @@ async function renderPage(id: string, searchParams: Record<string, string | stri
     searchParams: Promise.resolve(searchParams),
   }));
   await stream.allReady;
+  await Promise.all(dynamicMocks.loads);
   return new Response(stream).text();
 }
 
