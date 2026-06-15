@@ -37,8 +37,7 @@ async function loadVndbWishlistIds(): Promise<Set<string> | null> {
 async function loadVndbWishlistIdsWithinBudget(): Promise<Set<string> | null> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<null>((resolve) => {
-    const timeoutId = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
-    wishlist.finally(() => clearTimeout(timeoutId));
+    timeoutId = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
   });
   try {
     return await Promise.race([loadVndbWishlistIds(), timeout]);
