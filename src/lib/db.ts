@@ -4652,41 +4652,46 @@ function parseReleaseCacheBody(cacheKey: string, body: string): { results: VndbR
  */
 export function materializeReleaseAspectsForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
-  // Short-circuit when this VN already has any non-unknown signal
-  // — no point scanning the cache when we already know the answer.
-  const existing = db
-    .prepare(
-      `SELECT 1 FROM release_resolution_cache WHERE vn_id = ? AND aspect_key <> 'unknown' LIMIT 1`,
-    )
-    .get(vnId);
-  if (existing) return;
-  const rows = db
-    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ cache_key: string; body: string }>;
-  let wrote = 0;
-  for (const row of rows) {
-    const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-    if (!parsed) continue;
-    for (const rel of parsed.results) {
-      // Match if any vn in the release.vns array equals our vnId.
-      const linkedToThisVn =
-        rel.vns.some((v) => v.id === vnId);
-      if (!linkedToThisVn) continue;
-      // The resolution field is shaped [w, h] | string | null on VNDB.
-      // upsertReleaseResolutionCache normalises everything.
-      try {
-        upsertReleaseResolutionCache({
-          releaseId: rel.id.toLowerCase(),
-          resolution: rel.resolution,
-          vnId,
-        });
-        wrote += 1;
-      } catch {
-        // Schema error / malformed input — keep scanning.
+  try {
+    // Short-circuit when this VN already has any non-unknown signal
+    // — no point scanning the cache when we already know the answer.
+    const existing = db
+      .prepare(
+        `SELECT 1 FROM release_resolution_cache WHERE vn_id = ? AND aspect_key <> 'unknown' LIMIT 1`,
+      )
+      .get(vnId);
+    if (existing) return;
+    const rows = db
+      .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+      .all() as Array<{ cache_key: string; body: string }>;
+    let wrote = 0;
+    for (const row of rows) {
+      const parsed = parseReleaseCacheBody(row.cache_key, row.body);
+      if (!parsed) continue;
+      for (const rel of parsed.results) {
+        // Match if any vn in the release.vns array equals our vnId.
+        const linkedToThisVn =
+          rel.vns.some((v) => v.id === vnId);
+        if (!linkedToThisVn) continue;
+        // The resolution field is shaped [w, h] | string | null on VNDB.
+        // upsertReleaseResolutionCache normalises everything.
+        try {
+          upsertReleaseResolutionCache({
+            releaseId: rel.id.toLowerCase(),
+            resolution: rel.resolution,
+            vnId,
+          });
+          wrote += 1;
+        } catch {
+          // Schema error / malformed input — keep scanning.
+        }
       }
     }
+    void wrote;
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked release aspect materialization. Restore or recover data/collection.db.');
   }
-  void wrote;
 }
 
 /**
@@ -4875,89 +4880,94 @@ export function getReleaseMeta(releaseId: string): ReleaseMetaRow | null {
  */
 export function materializeReleaseMetaForVn(vnId: string): void {
   if (!isVndbVnId(vnId)) return;
-  const vnNewest = db
-    .prepare(`SELECT MAX(fetched_at) AS latest FROM release_meta_cache WHERE vn_id = ?`)
-    .get(vnId) as { latest: number | null };
-  const cacheNewest = db
-    .prepare(`SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .get() as { latest: number | null };
-  if (vnNewest?.latest && cacheNewest?.latest && vnNewest.latest >= cacheNewest.latest) return;
-  const rows = db
-    .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
-    .all() as Array<{ cache_key: string; body: string }>;
-  const now = Date.now();
-  const upsert = db.prepare(`
-    INSERT INTO release_meta_cache (
-      release_id, vn_id, title, alttitle, platforms, languages, released,
-      minage, patch, freeware, uncensored, official, has_ero, voiced,
-      engine, notes, gtin, catalog, resolution, media, producers, extlinks,
-      fetched_at
-    ) VALUES (
-      @release_id, @vn_id, @title, @alttitle, @platforms, @languages, @released,
-      @minage, @patch, @freeware, @uncensored, @official, @has_ero, @voiced,
-      @engine, @notes, @gtin, @catalog, @resolution, @media, @producers, @extlinks,
-      @fetched_at
-    )
-    ON CONFLICT(release_id) DO UPDATE SET
-      vn_id = excluded.vn_id,
-      title = excluded.title,
-      alttitle = excluded.alttitle,
-      platforms = excluded.platforms,
-      languages = excluded.languages,
-      released = excluded.released,
-      minage = excluded.minage,
-      patch = excluded.patch,
-      freeware = excluded.freeware,
-      uncensored = excluded.uncensored,
-      official = excluded.official,
-      has_ero = excluded.has_ero,
-      voiced = excluded.voiced,
-      engine = excluded.engine,
-      notes = excluded.notes,
-      gtin = excluded.gtin,
-      catalog = excluded.catalog,
-      resolution = excluded.resolution,
-      media = excluded.media,
-      producers = excluded.producers,
-      extlinks = excluded.extlinks,
-      fetched_at = excluded.fetched_at
-  `);
-  for (const row of rows) {
-    const parsed = parseReleaseCacheBody(row.cache_key, row.body);
-    if (!parsed) continue;
-    for (const rel of parsed.results) {
-      const linked = rel.vns.some((v) => v.id === vnId);
-      if (!linked) continue;
-      try {
-        upsert.run(releaseMetaUpsertParams(rel, vnId, now));
-      } catch {
-        // Schema/SQL/JSON failure — skip this row but keep scanning.
+  try {
+    const vnNewest = db
+      .prepare(`SELECT MAX(fetched_at) AS latest FROM release_meta_cache WHERE vn_id = ?`)
+      .get(vnId) as { latest: number | null };
+    const cacheNewest = db
+      .prepare(`SELECT MAX(fetched_at) AS latest FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+      .get() as { latest: number | null };
+    if (vnNewest?.latest && cacheNewest?.latest && vnNewest.latest >= cacheNewest.latest) return;
+    const rows = db
+      .prepare(`SELECT cache_key, body FROM vndb_cache WHERE cache_key LIKE 'POST /release|%'`)
+      .all() as Array<{ cache_key: string; body: string }>;
+    const now = Date.now();
+    const upsert = db.prepare(`
+      INSERT INTO release_meta_cache (
+        release_id, vn_id, title, alttitle, platforms, languages, released,
+        minage, patch, freeware, uncensored, official, has_ero, voiced,
+        engine, notes, gtin, catalog, resolution, media, producers, extlinks,
+        fetched_at
+      ) VALUES (
+        @release_id, @vn_id, @title, @alttitle, @platforms, @languages, @released,
+        @minage, @patch, @freeware, @uncensored, @official, @has_ero, @voiced,
+        @engine, @notes, @gtin, @catalog, @resolution, @media, @producers, @extlinks,
+        @fetched_at
+      )
+      ON CONFLICT(release_id) DO UPDATE SET
+        vn_id = excluded.vn_id,
+        title = excluded.title,
+        alttitle = excluded.alttitle,
+        platforms = excluded.platforms,
+        languages = excluded.languages,
+        released = excluded.released,
+        minage = excluded.minage,
+        patch = excluded.patch,
+        freeware = excluded.freeware,
+        uncensored = excluded.uncensored,
+        official = excluded.official,
+        has_ero = excluded.has_ero,
+        voiced = excluded.voiced,
+        engine = excluded.engine,
+        notes = excluded.notes,
+        gtin = excluded.gtin,
+        catalog = excluded.catalog,
+        resolution = excluded.resolution,
+        media = excluded.media,
+        producers = excluded.producers,
+        extlinks = excluded.extlinks,
+        fetched_at = excluded.fetched_at
+    `);
+    for (const row of rows) {
+      const parsed = parseReleaseCacheBody(row.cache_key, row.body);
+      if (!parsed) continue;
+      for (const rel of parsed.results) {
+        const linked = rel.vns.some((v) => v.id === vnId);
+        if (!linked) continue;
+        try {
+          upsert.run(releaseMetaUpsertParams(rel, vnId, now));
+        } catch {
+          // Schema/SQL/JSON failure — skip this row but keep scanning.
+        }
       }
     }
-  }
-  // Layer C autofill — after materializing release_meta_cache rows
-  // for this VN, retroactively fill any owned_release row whose
-  // release just gained a singleton platform list. Idempotent.
-  // This is what makes the platform chip populate "for free" once
-  // the user opens /vn/[id] and the release fan-out has run.
-  db.prepare(`
-    UPDATE owned_release
-    SET owned_platform = (
-      SELECT json_extract(rm.platforms, '$[0]')
-      FROM release_meta_cache rm
-      WHERE rm.release_id = owned_release.release_id
-        AND json_valid(rm.platforms)
-        AND json_array_length(rm.platforms) = 1
-    )
-    WHERE vn_id = ?
-      AND owned_platform IS NULL
-      AND EXISTS (
-        SELECT 1 FROM release_meta_cache rm
+    // Layer C autofill — after materializing release_meta_cache rows
+    // for this VN, retroactively fill any owned_release row whose
+    // release just gained a singleton platform list. Idempotent.
+    // This is what makes the platform chip populate "for free" once
+    // the user opens /vn/[id] and the release fan-out has run.
+    db.prepare(`
+      UPDATE owned_release
+      SET owned_platform = (
+        SELECT json_extract(rm.platforms, '$[0]')
+        FROM release_meta_cache rm
         WHERE rm.release_id = owned_release.release_id
           AND json_valid(rm.platforms)
           AND json_array_length(rm.platforms) = 1
       )
-  `).run(vnId);
+      WHERE vn_id = ?
+        AND owned_platform IS NULL
+        AND EXISTS (
+          SELECT 1 FROM release_meta_cache rm
+          WHERE rm.release_id = owned_release.release_id
+            AND json_valid(rm.platforms)
+            AND json_array_length(rm.platforms) = 1
+        )
+    `).run(vnId);
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked release metadata materialization. Restore or recover data/collection.db.');
+  }
 }
 
 /**
@@ -5603,37 +5613,43 @@ export interface CoOccurringTag {
  * you see adjacent tags only.
  */
 export function getCoOccurringTags(vnId: string, limit = 24): CoOccurringTag[] {
-  return (db
-    .prepare(`
-      WITH seedTags AS (
-        SELECT tag_id
-        FROM vn_tag_index
-        WHERE vn_id = ?
-          AND spoiler = 0
-      ),
-      seedMatchedVns AS (
-        SELECT DISTINCT ti.vn_id
+  try {
+    return (db
+      .prepare(`
+        WITH seedTags AS (
+          SELECT tag_id
+          FROM vn_tag_index
+          WHERE vn_id = ?
+            AND spoiler = 0
+        ),
+        seedMatchedVns AS (
+          SELECT DISTINCT ti.vn_id
+          FROM vn_tag_index ti
+          JOIN collection c ON c.vn_id = ti.vn_id
+          WHERE ti.vn_id <> ?
+            AND ti.spoiler = 0
+            AND ti.tag_id IN (SELECT tag_id FROM seedTags)
+        )
+        SELECT
+          ti.tag_id AS tag_id,
+          COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
+          MAX(ti.category) AS tag_category,
+          COUNT(DISTINCT ti.vn_id) AS shared_count
         FROM vn_tag_index ti
-        JOIN collection c ON c.vn_id = ti.vn_id
-        WHERE ti.vn_id <> ?
-          AND ti.spoiler = 0
-          AND ti.tag_id IN (SELECT tag_id FROM seedTags)
-      )
-      SELECT
-        ti.tag_id AS tag_id,
-        COALESCE(MAX(ti.tag_name), ti.tag_id) AS tag_name,
-        MAX(ti.category) AS tag_category,
-        COUNT(DISTINCT ti.vn_id) AS shared_count
-      FROM vn_tag_index ti
-      JOIN seedMatchedVns sm ON sm.vn_id = ti.vn_id
-      WHERE ti.spoiler = 0
-        AND ti.tag_id NOT IN (SELECT tag_id FROM seedTags)
-      GROUP BY tag_id
-      ORDER BY shared_count DESC, tag_name COLLATE NOCASE ASC
-      LIMIT ?
-    `)
-    .all(vnId, vnId, limit) as { tag_id: string; tag_name: string; tag_category: string | null; shared_count: number }[])
-    .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, shared: r.shared_count }));
+        JOIN seedMatchedVns sm ON sm.vn_id = ti.vn_id
+        WHERE ti.spoiler = 0
+          AND ti.tag_id NOT IN (SELECT tag_id FROM seedTags)
+        GROUP BY tag_id
+        ORDER BY shared_count DESC, tag_name COLLATE NOCASE ASC
+        LIMIT ?
+      `)
+      .all(vnId, vnId, limit) as { tag_id: string; tag_name: string; tag_category: string | null; shared_count: number }[])
+      .map((r) => ({ id: r.tag_id, name: r.tag_name, category: r.tag_category, shared: r.shared_count }));
+  } catch (error) {
+    if (!isSqliteCorruptionError(error)) throw error;
+    console.error('[db] SQLite corruption blocked tag co-occurrence lookup. Restore or recover data/collection.db.');
+    return [];
+  }
 }
 
 // Routes per VN
