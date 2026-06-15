@@ -35,6 +35,11 @@ function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): st
   return labels[kind];
 }
 
+function linkedBranchesLabel(t: ReturnType<typeof useT>, count: number): string {
+  const template = count === 1 ? t.places.linkedBranch : t.places.linkedBranches;
+  return template.replace('{n}', String(count));
+}
+
 export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const t = useT();
   const { confirm } = useConfirm();
@@ -165,7 +170,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
           {place.provider_labels.length > 0 && (
             <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
               <Link2 className="h-3 w-3" aria-hidden />
-              {(t.places.linkedBranches as string).replace('{n}', String(place.provider_labels.length))}
+              {linkedBranchesLabel(t, place.provider_labels.length)}
             </span>
           )}
           <span className="rounded border border-border bg-bg-elev/30 px-2 py-0.5 text-[11px] text-muted">

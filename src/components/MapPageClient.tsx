@@ -296,7 +296,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           onMarkerFocus={(id) => setActivePlaceId(id)}
           popupOpenLabel={t.map.popupOpen as string}
           popupStockLabel={(n) => (t.map.popupStock as string).replace('{n}', String(n))}
-          popupBranchesLabel={(n) => (t.map.popupBranches as string).replace('{n}', String(n))}
+          popupBranchesLabel={(n) => (n === 1 ? t.map.popupBranch : t.map.popupBranches).replace('{n}', String(n))}
           sizeClass={SIZE_CLASSES[mapSize]}
           externalNetworkAllowed={externalNetworkAllowed}
         />

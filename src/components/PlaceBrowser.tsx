@@ -277,7 +277,7 @@ export function PlaceBrowser() {
                 {place.provider_labels.length > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
                     <Link2 className="h-3 w-3" aria-hidden />
-                    {(t.places.linkedBranches as string).replace('{n}', String(place.provider_labels.length))}
+                    {linkedBranchesLabel(t, place.provider_labels.length)}
                   </span>
                 )}
                 {stale && (
