@@ -7816,6 +7816,7 @@ export interface PlaceRow {
 export interface PlaceWithLinks extends PlaceRow {
   provider_labels: string[];
   stock_count: number;
+  stock_updated_at: number | null;
 }
 
 export interface PlacePayload {
@@ -7829,12 +7830,13 @@ export interface PlacePayload {
   notes?: string | null;
 }
 
-function placeWithLinks(row: PlaceRow & { labels_concat: string | null; stock_count?: number | null }): PlaceWithLinks {
+function placeWithLinks(row: PlaceRow & { labels_concat: string | null; stock_count: number; stock_updated_at: number | null }): PlaceWithLinks {
   return {
     ...row,
     kind: row.kind as PlaceRow['kind'],
     provider_labels: row.labels_concat ? row.labels_concat.split('|||') : [],
-    stock_count: row.stock_count ?? 0,
+    stock_count: row.stock_count,
+    stock_updated_at: row.stock_updated_at ?? null,
   };
 }
 
@@ -7844,13 +7846,14 @@ function listPlacesWithoutStockCounts(): PlaceWithLinks[] {
       SELECT
         p.*,
         GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        0 AS stock_count
+        0 AS stock_count,
+        NULL AS stock_updated_at
       FROM place_registry p
       LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
       GROUP BY p.id
       ORDER BY p.name COLLATE NOCASE ASC
     `)
-    .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
+    .all() as (PlaceRow & { labels_concat: string | null; stock_count: number; stock_updated_at: null })[];
   return rows.map(placeWithLinks);
 }
 
@@ -7860,13 +7863,14 @@ function getPlaceWithoutStockCount(id: number): PlaceWithLinks | null {
       SELECT
         p.*,
         GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-        0 AS stock_count
+        0 AS stock_count,
+        NULL AS stock_updated_at
       FROM place_registry p
       LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
       WHERE p.id = ?
       GROUP BY p.id
     `)
-    .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
+    .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number; stock_updated_at: null }) | undefined;
   return row ? placeWithLinks(row) : null;
 }
 
@@ -7875,26 +7879,29 @@ export function listPlaces(): PlaceWithLinks[] {
     const rows = db
       .prepare(`
         WITH stock_by_place AS (
-          SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+          SELECT
+            ppl2.place_id,
+            COUNT(DISTINCT CASE WHEN vso.availability IN ('in_stock', 'limited') THEN vso.vn_id ELSE NULL END) AS stock_count,
+            MAX(vso.updated_at) AS stock_updated_at
           FROM place_provider_link ppl2
           JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
             vso.location_branch = ppl2.provider_label
             OR vso.location_label = ppl2.provider_label
           )
-          WHERE vso.availability IN ('in_stock', 'limited')
           GROUP BY ppl2.place_id
         )
         SELECT
           p.*,
           GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-          COALESCE(sbp.stock_count, 0) AS stock_count
+          COALESCE(sbp.stock_count, 0) AS stock_count,
+          sbp.stock_updated_at AS stock_updated_at
         FROM place_registry p
         LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
         LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
         GROUP BY p.id
         ORDER BY p.name COLLATE NOCASE ASC
       `)
-      .all() as (PlaceRow & { labels_concat: string | null; stock_count: number })[];
+      .all() as (PlaceRow & { labels_concat: string | null; stock_count: number; stock_updated_at: number | null })[];
     return rows.map(placeWithLinks);
   } catch (error) {
     if (!isSqliteCorruptionError(error)) throw error;
@@ -7908,26 +7915,29 @@ export function getPlace(id: number): PlaceWithLinks | null {
     const row = db
       .prepare(`
         WITH stock_by_place AS (
-          SELECT ppl2.place_id, COUNT(DISTINCT vso.vn_id) AS stock_count
+          SELECT
+            ppl2.place_id,
+            COUNT(DISTINCT CASE WHEN vso.availability IN ('in_stock', 'limited') THEN vso.vn_id ELSE NULL END) AS stock_count,
+            MAX(vso.updated_at) AS stock_updated_at
           FROM place_provider_link ppl2
           JOIN (${PLACE_STOCK_OFFER_SOURCE}) vso ON (
             vso.location_branch = ppl2.provider_label
             OR vso.location_label = ppl2.provider_label
           )
-          WHERE vso.availability IN ('in_stock', 'limited')
           GROUP BY ppl2.place_id
         )
         SELECT
           p.*,
           GROUP_CONCAT(ppl.provider_label, '|||') AS labels_concat,
-          COALESCE(sbp.stock_count, 0) AS stock_count
+          COALESCE(sbp.stock_count, 0) AS stock_count,
+          sbp.stock_updated_at AS stock_updated_at
         FROM place_registry p
         LEFT JOIN place_provider_link ppl ON ppl.place_id = p.id
         LEFT JOIN stock_by_place sbp ON sbp.place_id = p.id
         WHERE p.id = ?
         GROUP BY p.id
       `)
-      .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number }) | undefined;
+      .get(id) as (PlaceRow & { labels_concat: string | null; stock_count: number; stock_updated_at: number | null }) | undefined;
     return row ? placeWithLinks(row) : null;
   } catch (error) {
     if (!isSqliteCorruptionError(error)) throw error;

@@ -79,6 +79,7 @@ function decodePlace(value: unknown): PlaceWithLinks | null {
     !isNullableString(record.notes) ||
     !isFiniteNumber(record.created_at) ||
     !isFiniteNumber(record.updated_at) ||
+    (record.stock_updated_at !== undefined && !isNullableNumber(record.stock_updated_at)) ||
     !providerLabels ||
     !isIntegerAtLeast(record.stock_count, 0)
   ) {
@@ -98,6 +99,7 @@ function decodePlace(value: unknown): PlaceWithLinks | null {
     notes: record.notes,
     created_at: record.created_at,
     updated_at: record.updated_at,
+    stock_updated_at: record.stock_updated_at === undefined ? null : record.stock_updated_at,
     provider_labels: providerLabels,
     stock_count: record.stock_count,
   };
