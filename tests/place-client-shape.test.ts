@@ -70,6 +70,8 @@ const stats = {
 describe('place client response adapters', () => {
   it('decodes registry, autocomplete, branches, maps, and creation ids', () => {
     expect(decodePlacesResponse({ places: [place], known_places: ['Shelf'] })?.places).toHaveLength(1);
+    const { stock_updated_at: _stockUpdatedAt, ...placeWithoutStockTimestamp } = place;
+    expect(decodePlacesResponse({ places: [placeWithoutStockTimestamp], known_places: [] })?.places[0]?.stock_updated_at).toBeNull();
     expect(decodeKnownPlacesResponse({ known_places: ['Shelf'] })).toEqual(['Shelf']);
     expect(decodeUnassignedBranchesResponse({ branches: ['Branch'] })).toEqual(['Branch']);
     expect(decodeOtherPlaceBranchesResponse({
