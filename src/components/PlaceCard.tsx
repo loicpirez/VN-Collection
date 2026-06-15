@@ -19,8 +19,9 @@ interface Props {
   onAssign: (place: PlaceWithLinks) => void;
 }
 
-function freshnessInfo(updatedAt: number): { label: string; stale: boolean } {
-  const days = Math.floor((Date.now() - updatedAt) / MS_PER_DAY);
+function freshnessInfo(stockUpdatedAt: number | null): { label: string; stale: boolean } {
+  if (stockUpdatedAt == null || stockUpdatedAt <= 0) return { label: '', stale: false };
+  const days = Math.floor((Date.now() - stockUpdatedAt) / MS_PER_DAY);
   if (days === 0) return { label: '', stale: false };
   if (days < STALE_DAYS) return { label: '', stale: false };
   return { label: String(days), stale: true };
@@ -48,7 +49,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const placeIdentityRef = useRef<number | null>(place.id);
   const deleteInFlightRef = useRef(false);
   const deleteAbortRef = useRef<AbortController | null>(null);
-  const { stale, label: staleDays } = freshnessInfo(place.updated_at);
+  const { stale, label: staleDays } = freshnessInfo(place.stock_updated_at);
   const hasGps = place.lat != null && place.lng != null;
   const placeHref = safeHref(place.url);
 

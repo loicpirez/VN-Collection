@@ -49,8 +49,18 @@ function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): st
   return (t.places as Record<string, string>)[key];
 }
 
-function freshnessStale(updatedAt: number): boolean {
-  return Date.now() - updatedAt > STALE_MS;
+function linkedBranchesLabel(t: ReturnType<typeof useT>, count: number): string {
+  const template = count === 1 ? t.places.linkedBranch : t.places.linkedBranches;
+  return template.replace('{n}', String(count));
+}
+
+function placeStockFreshnessAt(place: PlaceWithLinks): number | null {
+  return place.stock_updated_at && place.stock_updated_at > 0 ? place.stock_updated_at : null;
+}
+
+function freshnessStale(place: PlaceWithLinks): boolean {
+  const stockUpdatedAt = placeStockFreshnessAt(place);
+  return stockUpdatedAt != null && Date.now() - stockUpdatedAt > STALE_MS;
 }
 
 function hasGps(place: PlaceWithLinks): boolean {
@@ -142,7 +152,7 @@ export function PlaceBrowser() {
   const q = search.trim().toLowerCase();
 
   const staleCount = useMemo(
-    () => places.filter((p) => p.provider_labels.length > 0 && freshnessStale(p.updated_at)).length,
+    () => places.filter((p) => p.provider_labels.length > 0 && freshnessStale(p)).length,
     [places],
   );
 
@@ -178,7 +188,7 @@ export function PlaceBrowser() {
     if (kindFilter) list = list.filter((p) => p.kind === kindFilter);
     if (gpsFilter === 'gps') list = list.filter(hasGps);
     if (gpsFilter === 'no_gps') list = list.filter((p) => !hasGps(p));
-    if (hideStale) list = list.filter((p) => !(p.provider_labels.length > 0 && freshnessStale(p.updated_at)));
+    if (hideStale) list = list.filter((p) => !(p.provider_labels.length > 0 && freshnessStale(p)));
     if (q) {
       list = list.filter(
         (p) =>
@@ -189,7 +199,7 @@ export function PlaceBrowser() {
     }
     return [...list].sort((a, b) => {
       if (sort === 'stock') return b.stock_count - a.stock_count;
-      if (sort === 'fresh') return b.updated_at - a.updated_at;
+      if (sort === 'fresh') return (placeStockFreshnessAt(b) ?? b.updated_at) - (placeStockFreshnessAt(a) ?? a.updated_at);
       return a.name.localeCompare(b.name);
     });
   }, [places, tab, kindFilter, gpsFilter, hideStale, q, sort]);
@@ -237,8 +247,9 @@ export function PlaceBrowser() {
   function renderPlaceRow(place: PlaceWithLinks) {
     const hasGps = place.lat != null && place.lng != null;
     const placeHref = safeHref(place.url);
-    const stale = place.provider_labels.length > 0 && freshnessStale(place.updated_at);
-    const staleDays = Math.floor((Date.now() - place.updated_at) / 86_400_000);
+    const stockFreshnessAt = placeStockFreshnessAt(place);
+    const stale = place.provider_labels.length > 0 && freshnessStale(place);
+    const staleDays = stockFreshnessAt == null ? 0 : Math.floor((Date.now() - stockFreshnessAt) / 86_400_000);
     return (
       <li key={place.id} className="rounded-xl border border-border bg-bg-card p-3 transition-shadow hover:shadow-card">
         <div className="flex gap-3">
