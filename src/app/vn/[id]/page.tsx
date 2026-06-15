@@ -654,7 +654,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       return (
                         <details className="group relative">
                           <summary
-                            className="inline-flex min-h-[28px] cursor-pointer list-none items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+                            className="inline-flex min-h-[44px] cursor-pointer list-none items-center rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-[28px] sm:px-1.5 sm:py-0.5 [&::-webkit-details-marker]:hidden"
                             title={hiddenLabels.join(', ')}
                             aria-label={`${moreLabel}: ${hiddenLabels.join(', ')}`}
                           >
