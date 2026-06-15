@@ -132,6 +132,8 @@ describe('AliceNet client response adapters', () => {
       last_fetch: null,
     })).toBeNull();
     expect(decodeAliceNetStockSyncResult({ count: -1, added: 0, updated: 0, removed: 0, fetched_at: 1 })).toBeNull();
+    expect(decodeAliceNetStockSyncResult({ count: 0, added: 0, updated: 0, removed: 0, fetched_at: Number.NaN })).toBeNull();
+    expect(decodeAliceNetStockSyncResult({ count: 0, added: 0, updated: 0, removed: 0, fetched_at: Number.POSITIVE_INFINITY })).toBeNull();
     expect(decodeAliceNetLoopResult({ processed: 1, remaining: Number.NaN })).toBeNull();
   });
 });
