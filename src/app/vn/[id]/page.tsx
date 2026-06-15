@@ -12,6 +12,7 @@ import {
   getCollectionItem,
   getCoOccurringTags,
   getEgsForVn,
+  getPlaceProviderMap,
   getSourcePref,
   getVnAspectOverride,
   isEgsOnly,
@@ -71,6 +72,7 @@ import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
+import { StockPanelBoundary } from '@/components/StockPanelBoundary';
 import { FieldCompare } from '@/components/FieldCompare';
 import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
@@ -107,6 +109,10 @@ const ReleasesSection = nextDynamic(() => import('@/components/ReleasesSection')
   loading: () => <SkeletonRows count={4} />,
 });
 
+const StockPanel = nextDynamic(() => import('@/components/StockPanel').then((m) => m.StockPanel), {
+  loading: () => <SkeletonRows count={3} withThumb={false} />,
+});
+
 export const dynamic = 'force-dynamic';
 
 function combinedScore(vndb: number | null, egs: number | null): number | null {
@@ -137,6 +143,15 @@ function displayTitleForVn(vn: CollectionItem): string {
     })
     .sort((a, b) => a.length - b.length)[0];
   return longerContainingCurrent ?? current;
+}
+
+function safePlaceProviderMap(): Record<string, number> {
+  try {
+    return getPlaceProviderMap();
+  } catch (error) {
+    console.warn('[vn/detail] failed to load place provider map:', error);
+    return {};
+  }
 }
 
 /**
@@ -1020,6 +1035,24 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               </Link>
             </div>
           );
+        }
+        sectionNodes['stock'] = (
+          <StockPanelBoundary
+            title={t.vnLayout.sectionLabels.stock}
+            fallbackMessage={t.stock.boundaryFallback as string}
+            retryLabel={t.stock.boundaryRetry as string}
+          >
+            <StockPanel
+              vnId={vn.id}
+              title={displayTitle}
+              altTitle={displayAltTitle}
+              vndbAliases={vn.aliases}
+              placeMap={safePlaceProviderMap()}
+              bare
+            />
+          </StockPanelBoundary>
+        );
+        if (inCol) {
           sectionNodes['my-editions'] = (
             <OwnedEditionsSection
               vnId={vn.id}

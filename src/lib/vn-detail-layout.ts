@@ -30,6 +30,7 @@ export const VN_SECTION_IDS = [
   'staff',
   'tag-overlap',
   'similar',
+  'stock',
   'aspect-override',
   'my-editions',
   'releases',
