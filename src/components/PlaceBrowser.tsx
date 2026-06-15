@@ -63,6 +63,11 @@ function freshnessStale(place: PlaceWithLinks): boolean {
   return stockUpdatedAt != null && Date.now() - stockUpdatedAt > STALE_MS;
 }
 
+function placeFreshSortValue(place: PlaceWithLinks): number {
+  const stockUpdatedAt = placeStockFreshnessAt(place);
+  return stockUpdatedAt != null ? stockUpdatedAt : place.updated_at;
+}
+
 function hasGps(place: PlaceWithLinks): boolean {
   return place.lat != null && place.lng != null;
 }
@@ -199,7 +204,7 @@ export function PlaceBrowser() {
     }
     return [...list].sort((a, b) => {
       if (sort === 'stock') return b.stock_count - a.stock_count;
-      if (sort === 'fresh') return (placeStockFreshnessAt(b) ?? b.updated_at) - (placeStockFreshnessAt(a) ?? a.updated_at);
+      if (sort === 'fresh') return placeFreshSortValue(b) - placeFreshSortValue(a);
       return a.name.localeCompare(b.name);
     });
   }, [places, tab, kindFilter, gpsFilter, hideStale, q, sort]);
