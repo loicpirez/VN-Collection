@@ -35,14 +35,14 @@ async function loadVndbWishlistIds(): Promise<Set<string> | null> {
 }
 
 async function loadVndbWishlistIdsWithinBudget(): Promise<Set<string> | null> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutRef: { id?: ReturnType<typeof setTimeout> } = {};
   const timeout = new Promise<null>((resolve) => {
-    timeoutId = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
+    timeoutRef.id = setTimeout(() => resolve(null), WISHLIST_ENRICHMENT_TIMEOUT_MS);
   });
   try {
     return await Promise.race([loadVndbWishlistIds(), timeout]);
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    clearTimeout(timeoutRef.id);
   }
 }
 

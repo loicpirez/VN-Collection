@@ -98,7 +98,10 @@ function isNullableString(value: unknown): value is string | null {
 }
 
 function isIntegerAtLeast(value: unknown, min: number): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+  if (typeof value !== 'number') return false;
+  if (!Number.isSafeInteger(value)) return false;
+  if (value < min) return false;
+  return true;
 }
 
 function isNullableFiniteNumber(value: unknown): value is number | null {

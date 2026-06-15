@@ -119,7 +119,7 @@ function isAliceNetOffer(offer: StockOffer): boolean {
 
 function stockOfferStaleHint(t: TDict, offer: StockOffer, status: StockStatus | undefined): string {
   if (isAliceNetOffer(offer)) return t.stock.cachedStaleHint as string;
-  if ((status?.cached_offers_available ?? 0) > 0 && (status?.fresh_offers_found ?? 0) === 0) {
+  if (status && status.cached_offers_available > 0 && status.fresh_offers_found === 0) {
     return t.stock.providerCachedStaleHint as string;
   }
   return t.stock.staleHint as string;
