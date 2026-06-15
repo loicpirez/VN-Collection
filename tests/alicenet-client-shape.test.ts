@@ -49,12 +49,13 @@ const stats = {
 describe('AliceNet client response adapters', () => {
   it('decodes the browser snapshot and canonicalizes VN ids', () => {
     const result = decodeAliceNetClientSnapshot({
-      items: [item],
+      items: [{ ...item, egs_id: 123 }],
       stats,
       pending: { vndb_pending: 0, egs_pending: 1 },
       last_fetch: 1,
     });
     expect(result?.items[0]?.vn_id).toBe('v90001');
+    expect(result?.items[0]?.egs_id).toBe(123);
     expect(result?.pending.egs_pending).toBe(1);
   });
 
@@ -101,7 +102,31 @@ describe('AliceNet client response adapters', () => {
       last_fetch: null,
     })).toBeNull();
     expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, egs_id: 0 }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, egs_id: Number.MAX_SAFE_INTEGER + 1 }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
       items: [{ ...item, fetched_at: '1' }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, fetched_at: 1.5 }],
+      stats,
+      pending: { vndb_pending: 0, egs_pending: 0 },
+      last_fetch: null,
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [{ ...item, updated_at: Number.MAX_SAFE_INTEGER + 1 }],
       stats,
       pending: { vndb_pending: 0, egs_pending: 0 },
       last_fetch: null,
