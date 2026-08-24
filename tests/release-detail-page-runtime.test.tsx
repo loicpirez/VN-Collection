@@ -1,13 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReleasePage, { generateMetadata as generateReleaseMetadata } from '@/app/release/[id]/page';
-import {
-  getCollectionItem,
-  getOwnedRelease,
-  isInCollectionMany,
-  upsertReleaseResolutionCache,
-  type OwnedReleaseRow,
-} from '@/lib/db';
+import type { OwnedReleaseRow } from '@/lib/db';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
 import type { CollectionItem } from '@/lib/types';
 
@@ -21,6 +15,13 @@ const serverMocks = vi.hoisted(() => ({
   after: vi.fn((callback: () => void) => callback()),
 }));
 
+const repositoryMocks = vi.hoisted(() => ({
+  containsMany: vi.fn(),
+  getCollectionItem: vi.fn(),
+  getOwnedRelease: vi.fn(),
+  upsertResolutionCache: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
@@ -29,11 +30,19 @@ vi.mock('next/server', () => ({
   after: serverMocks.after,
 }));
 
-vi.mock('@/lib/db', () => ({
-  getCollectionItem: vi.fn(),
-  getOwnedRelease: vi.fn(),
-  isInCollectionMany: vi.fn(),
-  upsertReleaseResolutionCache: vi.fn(),
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => ({ containsMany: repositoryMocks.containsMany }),
+}));
+
+vi.mock('@/lib/db/repositories/owned-release', () => ({
+  getOwnedReleaseRepository: () => ({
+    get: repositoryMocks.getOwnedRelease,
+    upsertResolutionCache: repositoryMocks.upsertResolutionCache,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/vn-read', () => ({
+  getVnReadRepository: () => ({ getCollectionItem: repositoryMocks.getCollectionItem }),
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -187,10 +196,10 @@ function ownedRelease(overrides: Partial<OwnedReleaseRow> = {}): OwnedReleaseRow
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
   serverMocks.after.mockClear();
-  vi.mocked(getCollectionItem).mockReset().mockReturnValue(null);
-  vi.mocked(getOwnedRelease).mockReset().mockReturnValue(null);
-  vi.mocked(isInCollectionMany).mockReset().mockReturnValue(new Set());
-  vi.mocked(upsertReleaseResolutionCache).mockReset();
+  repositoryMocks.getCollectionItem.mockReset().mockResolvedValue(null);
+  repositoryMocks.getOwnedRelease.mockReset().mockResolvedValue(null);
+  repositoryMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  repositoryMocks.upsertResolutionCache.mockReset().mockResolvedValue(undefined);
   vi.mocked(getRelease).mockReset().mockResolvedValue(null);
 });
 
@@ -222,14 +231,14 @@ describe('release detail page runtime', () => {
     expect(html).toContain('Release');
     expect(html).toContain('href="/"');
     expect(html).toContain('No artwork for this edition.');
-    expect(upsertReleaseResolutionCache).toHaveBeenCalledWith({ releaseId: 'r1', resolution: null });
+    expect(repositoryMocks.upsertResolutionCache).toHaveBeenCalledWith({ releaseId: 'r1', resolution: null });
   });
 
   it('renders parent VN cover fallback when the release has no artwork', async () => {
     vi.mocked(getRelease).mockResolvedValueOnce(release({
       vns: [{ id: 'v1', rtype: 'complete', title: 'Linked visual novel' }],
     }));
-    vi.mocked(getCollectionItem).mockReturnValueOnce(collectionItem({
+    repositoryMocks.getCollectionItem.mockResolvedValueOnce(collectionItem({
       image_url: 'https://example.test/parent.jpg',
       local_image_thumb: '/local/parent.jpg',
       image_sexual: 1,
@@ -240,14 +249,14 @@ describe('release detail page runtime', () => {
     expect(html).toContain('href="/vn/v1"');
     expect(html).toContain('/local/parent.jpg');
     expect(html).toContain('Parent VN cover');
-    expect(upsertReleaseResolutionCache).toHaveBeenCalledWith({ releaseId: 'r1', vnId: 'v1', resolution: null });
+    expect(repositoryMocks.upsertResolutionCache).toHaveBeenCalledWith({ releaseId: 'r1', vnId: 'v1', resolution: null });
   });
 
   it('renders the no-artwork notice when a linked parent VN has no cover', async () => {
     vi.mocked(getRelease).mockResolvedValueOnce(release({
       vns: [{ id: 'v1', rtype: 'complete' }],
     }));
-    vi.mocked(getCollectionItem).mockReturnValueOnce(collectionItem());
+    repositoryMocks.getCollectionItem.mockResolvedValueOnce(collectionItem());
 
     const html = renderToStaticMarkup(await ReleasePage({ params: Promise.resolve({ id: 'r1' }) }));
 
@@ -296,9 +305,9 @@ describe('release detail page runtime', () => {
         { id: 'i3', url: 'https://example.test/digital.jpg', type: 'dig', languages: [] },
       ],
     }));
-    vi.mocked(getCollectionItem).mockReturnValueOnce(collectionItem());
-    vi.mocked(isInCollectionMany).mockReturnValueOnce(new Set(['v1']));
-    vi.mocked(getOwnedRelease).mockReturnValueOnce(ownedRelease());
+    repositoryMocks.getCollectionItem.mockResolvedValueOnce(collectionItem());
+    repositoryMocks.containsMany.mockResolvedValueOnce(new Set(['v1']));
+    repositoryMocks.getOwnedRelease.mockResolvedValueOnce(ownedRelease());
 
     const html = renderToStaticMarkup(await ReleasePage({ params: Promise.resolve({ id: 'r1' }) }));
 

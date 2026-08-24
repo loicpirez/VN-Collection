@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { after } from 'next/server';
 import { ArrowLeft, Boxes, ExternalLink, Globe, Languages, Mic2, Package, Shield } from 'lucide-react';
 import { getRelease, type VndbRelease } from '@/lib/vndb';
-import { getCollectionItem, getOwnedRelease, isInCollectionMany, upsertReleaseResolutionCache } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getOwnedReleaseRepository } from '@/lib/db/repositories/owned-release';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
@@ -59,13 +61,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const releaseId = release.id;
   const resolution = release.resolution;
   const releaseVns = release.vns;
-  after(() => {
-    for (const vn of releaseVns) {
-      upsertReleaseResolutionCache({ releaseId, vnId: vn.id, resolution });
-    }
-    if (releaseVns.length === 0) {
-      upsertReleaseResolutionCache({ releaseId, resolution });
-    }
+  after(async () => {
+    const repository = getOwnedReleaseRepository();
+    await Promise.all(releaseVns.length > 0
+      ? releaseVns.map((vn) => repository.upsertResolutionCache({ releaseId, vnId: vn.id, resolution }))
+      : [repository.upsertResolutionCache({ releaseId, resolution })]);
   });
 
   const voicedKey = release.voiced && VOICED_KEY[release.voiced] ? VOICED_KEY[release.voiced] : null;
@@ -85,7 +85,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   // of its own (common for digital / EGS-only releases that VNDB
   // hasn't mirrored a `pkgfront` for). `getCollectionItem` returns
   // any VN known locally regardless of collection membership.
-  const parentVn = firstVnId ? getCollectionItem(firstVnId) : null;
+  const parentVn = firstVnId ? await getVnReadRepository().getCollectionItem(firstVnId) : null;
   const parentCover = parentVn
     ? {
         url: parentVn.image_url ?? null,
@@ -97,14 +97,16 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
   // the collection, surface a quick toggle/edit panel here.
-  const ownedSet = isInCollectionMany(release.vns.map((v) => v.id));
-  const ownedContexts = release.vns
-    .map((v) => ({
+  const [ownedSet, ownedRows] = await Promise.all([
+    getCollectionCoreRepository().containsMany(release.vns.map((vn) => vn.id)),
+    Promise.all(release.vns.map((vn) => getOwnedReleaseRepository().get(vn.id, release.id))),
+  ]);
+  const ownedContexts = release.vns.map((v, index) => ({
       vnId: v.id,
       vnTitle: v.title || v.id,
       vnRelation: v.rtype,
       inCollection: ownedSet.has(v.id),
-      owned: getOwnedRelease(v.id, release.id),
+      owned: ownedRows[index] ?? null,
     }));
 
   return (
@@ -169,7 +171,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 <Globe className="mr-1 inline h-3 w-3" aria-hidden />
                 {t.detail.platforms}
               </dt>
-              <dd className="font-semibold">{release.platforms.map(platformLabel).join(', ')}</dd>
+              <dd className="font-semibold">{release.platforms.map((code) => platformLabel(code, locale)).join(', ')}</dd>
             </div>
           )}
           {release.minage != null && (
