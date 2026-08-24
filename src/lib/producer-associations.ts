@@ -1,10 +1,11 @@
 import 'server-only';
-import { db } from './db';
 import { cachedFetch, TTL, type CachePayloadDecoder } from './vndb-cache';
 import {
   decodeProducerAssociationReleasePage,
   decodeProducerAssociationVnPage,
 } from './vndb-feed-cache-shape';
+import { getCacheRepository } from './db/repositories/cache';
+import { getCollectionCoreRepository } from './db/repositories/collection-core';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -246,7 +247,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   const publisherOnly = Array.from(pubMap.values()).filter((v) => !devIds.has(v.id));
 
   const allIds = new Set<string>([...devIds, ...publisherOnly.map((v) => v.id)]);
-  const ownedSet = lookupOwned(allIds);
+  const ownedSet = await getCollectionCoreRepository().containsMany([...allIds]);
 
   const developerVns: ProducerVnRef[] = devs.map((v) => ({ ...summarize(v), owned: ownedSet.has(v.id) }));
   const publisherVns: ProducerVnRef[] = publisherOnly.map((v) => ({ ...v, owned: ownedSet.has(v.id) }));
@@ -263,25 +264,6 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   };
 }
 
-function lookupOwned(ids: Set<string>): Set<string> {
-  if (ids.size === 0) return new Set();
-  const arr = Array.from(ids);
-  // Chunk so we never approach SQLite's `SQLITE_MAX_VARIABLE_NUMBER`
-  // limit, matching the convention in `isInCollectionMany` and
-  // `getEgsForVns`.
-  const CHUNK = 500;
-  const out = new Set<string>();
-  for (let i = 0; i < arr.length; i += CHUNK) {
-    const chunk = arr.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-      .all(...chunk) as { vn_id: string }[];
-    for (const r of rows) out.add(r.vn_id);
-  }
-  return out;
-}
-
 /**
  * Bust the VNDB cache rows powering `fetchProducerAssociations` so the
  * next call goes upstream. Used by the "Refresh" button on the producer
@@ -294,12 +276,10 @@ function lookupOwned(ids: Set<string>): Set<string> {
  * /producer page incur a multi-second blocking re-fetch on the next
  * visit.
  */
-export function invalidateProducerAssociations(producerId: string): void {
+export async function invalidateProducerAssociations(producerId: string): Promise<void> {
   if (!/^p\d+$/i.test(producerId)) return;
-  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE ?").run(
+  await getCacheRepository().deleteByPatterns([
     `POST /vn:producer:${producerId}|%`,
-  );
-  db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE ?").run(
     `POST /release:producer:${producerId}|%`,
-  );
+  ]);
 }

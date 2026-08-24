@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!/^p\d+$/i.test(id)) {
     return NextResponse.json({ error: 'invalid producer id' }, { status: 400 });
   }
-  invalidateProducerAssociations(id);
+  await invalidateProducerAssociations(id);
   const result = await fetchProducerAssociations(id);
   // Distinguish "VNDB really has no credits for this producer" from
   // "every upstream call we tried threw". Without this signal the
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
   }
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'producer.refresh',
       entity: 'producer',
       entityId: id,

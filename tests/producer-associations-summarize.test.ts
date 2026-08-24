@@ -295,7 +295,7 @@ describe('invalidateProducerAssociations', () => {
       VALUES ('POST /vn:producer:p90031|POST|abc', '{}', NULL, NULL, ?, ?)
     `).run(Date.now(), Date.now() + 1000);
 
-    invalidateProducerAssociations('p90030');
+    await invalidateProducerAssociations('p90030');
 
     const survivors = db
       .prepare(`SELECT cache_key FROM vndb_cache WHERE cache_key LIKE 'POST /%producer:p9003%'`)
@@ -303,7 +303,7 @@ describe('invalidateProducerAssociations', () => {
     expect(survivors.map((r) => r.cache_key)).toEqual(['POST /vn:producer:p90031|POST|abc']);
   });
 
-  it('is a no-op on a malformed producer id', () => {
-    expect(() => invalidateProducerAssociations('garbage')).not.toThrow();
+  it('is a no-op on a malformed producer id', async () => {
+    await expect(invalidateProducerAssociations('garbage')).resolves.toBeUndefined();
   });
 });

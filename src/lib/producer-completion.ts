@@ -1,7 +1,7 @@
 import 'server-only';
-import { db } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
 import { decodeProducerCompletionResults } from './vndb-feed-cache-shape';
+import { getCollectionCoreRepository } from './db/repositories/collection-core';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -55,20 +55,8 @@ export async function fetchProducerCompletion(producerId: string): Promise<Produ
   if (all.length === 0) {
     return { totalKnown: 0, ownedCount: 0, pct: 0, vns: [] };
   }
-  // Chunk so a brand with thousands of VNs never bumps SQLite's
-  // bound-parameter cap. Matches the convention in
-  // `isInCollectionMany` / `getEgsForVns`.
-  const CHUNK = 500;
   const ids = all.map((v) => v.id);
-  const owned = new Set<string>();
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-      .all(...chunk) as { vn_id: string }[];
-    for (const r of rows) owned.add(r.vn_id);
-  }
+  const owned = await getCollectionCoreRepository().containsMany(ids);
   const ownedCount = all.filter((v) => owned.has(v.id)).length;
   return {
     totalKnown: all.length,
