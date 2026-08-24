@@ -1,4 +1,5 @@
-import { activityHeatmap, type DailyCount } from '@/lib/db';
+import type { DailyCount } from '@/lib/db';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { formatIsoDateString } from '@/lib/locale-number';
 import { ScrollFadeRight } from './ScrollFadeRight';
@@ -14,7 +15,7 @@ const GAP = 'gap-[3px]';
  */
 export async function ActivityHeatmap({ year }: { year: number }) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  const data = activityHeatmap(year);
+  const data = await getActivityRepository().heatmap(year);
   const byDay = new Map<string, number>(data.map((d) => [d.day, d.count]));
 
   const start = new Date(`${year}-01-01T00:00:00Z`);
