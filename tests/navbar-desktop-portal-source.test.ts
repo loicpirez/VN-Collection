@@ -48,4 +48,8 @@ describe('desktop grouped navigation portal', () => {
     expect(cssSource).toContain('@container (min-width: 72rem)');
     expect(cssSource).toContain('@container (min-width: 88rem)');
   });
+
+  it('lets mobile links dispatch navigation before closing the sheet', () => {
+    expect(source).toContain('onClick={() => window.setTimeout(onClose, 0)}');
+  });
 });

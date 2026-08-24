@@ -465,7 +465,7 @@ function MobileSheet({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={onClose}
+                    onClick={() => window.setTimeout(onClose, 0)}
                     aria-current={active ? 'page' : undefined}
                     className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
                       active
