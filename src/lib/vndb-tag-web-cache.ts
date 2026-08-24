@@ -1,5 +1,5 @@
 import 'server-only';
-import { getCacheRow, putCacheRow } from './db';
+import { getCacheRepository } from './db/repositories/cache';
 import { asJsonRecord } from './json-shape';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { fetchVndbWebHtml } from './vndb-scrape';
@@ -175,8 +175,8 @@ function isVndbSourceUrl(value: unknown): value is string {
     && new URL(value).hostname.toLowerCase() === 'vndb.org';
 }
 
-function readParsed<T>(cacheKey: string, decode: (value: unknown) => T | null): VndbTagWebCacheResult<T> | null {
-  const row = getCacheRow(cacheKey);
+async function readParsed<T>(cacheKey: string, decode: (value: unknown) => T | null): Promise<VndbTagWebCacheResult<T> | null> {
+  const row = await getCacheRepository().get(cacheKey);
   if (!row) return null;
   try {
     const parsed = asJsonRecord(JSON.parse(row.body));
@@ -195,9 +195,9 @@ function readParsed<T>(cacheKey: string, decode: (value: unknown) => T | null): 
   }
 }
 
-function writeParsed<T>(cacheKey: string, sourceUrl: string, data: T): VndbTagWebCacheResult<T> {
+async function writeParsed<T>(cacheKey: string, sourceUrl: string, data: T): Promise<VndbTagWebCacheResult<T>> {
   const fetchedAt = now();
-  putCacheRow({
+  await getCacheRepository().put({
     cache_key: cacheKey,
     body: JSON.stringify({ data, source_url: sourceUrl } satisfies Stored<T>),
     etag: null,
@@ -209,12 +209,12 @@ function writeParsed<T>(cacheKey: string, sourceUrl: string, data: T): VndbTagWe
 }
 
 /** Read the cached `/g` home-tree payload without issuing a network fetch. */
-export function readVndbTagHomeTreeCache(): VndbTagWebCacheResult<VndbTagHomeTree> | null {
+export async function readVndbTagHomeTreeCache(): Promise<VndbTagWebCacheResult<VndbTagHomeTree> | null> {
   return readParsed(HOME_KEY, decodeTagHomeTree);
 }
 
 /** Read the cached `/g<id>` detail payload without issuing a network fetch. */
-export function readVndbTagWebDetailCache(tagId: string): VndbTagWebCacheResult<VndbTagWebDetail> | null {
+export async function readVndbTagWebDetailCache(tagId: string): Promise<VndbTagWebCacheResult<VndbTagWebDetail> | null> {
   return readParsed(`${DETAIL_KEY_PREFIX}${tagId.toLowerCase()}`, decodeTagWebDetail);
 }
 
@@ -225,7 +225,7 @@ export function readVndbTagWebDetailCache(tagId: string): VndbTagWebCacheResult<
  * showing nothing.
  */
 export async function getVndbTagHomeTree(opts: { force?: boolean } = {}): Promise<VndbTagWebCacheResult<VndbTagHomeTree>> {
-  const cached = readVndbTagHomeTreeCache();
+  const cached = await readVndbTagHomeTreeCache();
   if (cached && !cached.stale && !opts.force) return cached;
 
   const html = await fetchVndbWebHtml('/g', { force: opts.force });
@@ -246,7 +246,7 @@ export async function getVndbTagWebDetail(
 ): Promise<VndbTagWebCacheResult<VndbTagWebDetail>> {
   const id = tagId.toLowerCase();
   const key = `${DETAIL_KEY_PREFIX}${id}`;
-  const cached = readParsed(key, decodeTagWebDetail);
+  const cached = await readParsed(key, decodeTagWebDetail);
   if (cached && !cached.stale && !opts.force) return cached;
 
   const html = await fetchVndbWebHtml(`/${id}`, { force: opts.force });

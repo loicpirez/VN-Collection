@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe('VNDB tag-web cache structure validation', () => {
-  it('accepts a valid home-tree envelope', () => {
+  it('accepts a valid home-tree envelope', async () => {
     writeCacheRow('vndb-tag-web:home', {
       source_url: 'https://vndb.org/g',
       data: {
@@ -52,26 +52,26 @@ describe('VNDB tag-web cache structure validation', () => {
         recentlyTaggedHref: '/g/links',
       },
     });
-    expect(readVndbTagHomeTreeCache()?.data.groups).toHaveLength(1);
+    expect((await readVndbTagHomeTreeCache())?.data.groups).toHaveLength(1);
   });
 
-  it('rejects non-array home-tree groups', () => {
+  it('rejects non-array home-tree groups', async () => {
     writeCacheRow('vndb-tag-web:home', {
       source_url: 'https://vndb.org/g',
       data: { groups: {}, recentlyAdded: [], popular: [] },
     });
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 
-  it('rejects unsafe cached source URLs', () => {
+  it('rejects unsafe cached source URLs', async () => {
     writeCacheRow('vndb-tag-web:home', {
       source_url: 'http://127.0.0.1/internal',
       data: { groups: [], recentlyAdded: [], popular: [] },
     });
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 
-  it('rejects non-canonical nested tag links', () => {
+  it('rejects non-canonical nested tag links', async () => {
     writeCacheRow('vndb-tag-web:home', {
       source_url: 'https://vndb.org/g',
       data: {
@@ -89,10 +89,10 @@ describe('VNDB tag-web cache structure validation', () => {
         popular: [],
       },
     });
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 
-  it('rejects malformed tag-detail child groups', () => {
+  it('rejects malformed tag-detail child groups', async () => {
     writeCacheRow('vndb-tag-web:detail:g990050', {
       source_url: 'https://vndb.org/g990050',
       data: {
@@ -103,10 +103,10 @@ describe('VNDB tag-web cache structure validation', () => {
         childGroups: {},
       },
     });
-    expect(readVndbTagWebDetailCache('g990050')).toBeNull();
+    expect(await readVndbTagWebDetailCache('g990050')).toBeNull();
   });
 
-  it('accepts canonical and null tag breadcrumb links', () => {
+  it('accepts canonical and null tag breadcrumb links', async () => {
     writeCacheRow('vndb-tag-web:detail:g990050', {
       source_url: 'https://vndb.org/g990050',
       data: validDetail({
@@ -117,15 +117,15 @@ describe('VNDB tag-web cache structure validation', () => {
         ],
       }),
     });
-    expect(readVndbTagWebDetailCache('g990050')?.data.breadcrumb).toHaveLength(3);
+    expect((await readVndbTagWebDetailCache('g990050'))?.data.breadcrumb).toHaveLength(3);
   });
 
-  it('rejects malformed breadcrumbs and over-deep trees', () => {
+  it('rejects malformed breadcrumbs and over-deep trees', async () => {
     writeCacheRow('vndb-tag-web:detail:g990050', {
       source_url: 'https://vndb.org/g990050',
       data: validDetail({ breadcrumb: [null] }),
     });
-    expect(readVndbTagWebDetailCache('g990050')).toBeNull();
+    expect(await readVndbTagWebDetailCache('g990050')).toBeNull();
     writeCacheRow('vndb-tag-web:home', {
       source_url: 'https://vndb.org/g',
       data: {
@@ -139,14 +139,14 @@ describe('VNDB tag-web cache structure validation', () => {
         popular: [],
       },
     });
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 
-  it('rejects malformed cached JSON', () => {
+  it('rejects malformed cached JSON', async () => {
     db.prepare(`
       INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
       VALUES (?, ?, NULL, NULL, ?, ?)
     `).run('vndb-tag-web:home', '{', NOW, NOW + 60_000);
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 });

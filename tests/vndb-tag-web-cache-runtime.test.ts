@@ -94,7 +94,7 @@ describe('getVndbTagHomeTree', () => {
     expect(r.data.groups[0].id).toBe('g90001');
     // The cache row was written and is now directly readable.
     expect(getCacheRow(HOME_KEY)).not.toBeNull();
-    const cached = readVndbTagHomeTreeCache();
+    const cached = await readVndbTagHomeTreeCache();
     expect(cached?.data.popular[0].id).toBe('g90004');
   });
 
@@ -175,7 +175,7 @@ describe('getVndbTagWebDetail', () => {
 });
 
 describe('source_url validation', () => {
-  it('treats a cached row with a non-vndb.org origin as a miss', () => {
+  it('treats a cached row with a non-vndb.org origin as a miss', async () => {
     // A poisoned cache row whose stored source_url points off-site must be
     // rejected by readParsed even though the payload shape is otherwise valid.
     putCacheRow({
@@ -186,10 +186,10 @@ describe('source_url validation', () => {
       fetched_at: Date.now(),
       expires_at: Date.now() + 60_000,
     });
-    expect(readVndbTagHomeTreeCache()).toBeNull();
+    expect(await readVndbTagHomeTreeCache()).toBeNull();
   });
 
-  it('treats a structurally invalid cached detail payload as a miss', () => {
+  it('treats a structurally invalid cached detail payload as a miss', async () => {
     putCacheRow({
       cache_key: DETAIL_KEY('g90200'),
       body: JSON.stringify({ data: { id: 'not-a-tag' }, source_url: 'https://vndb.org/g90200' }),
@@ -198,7 +198,7 @@ describe('source_url validation', () => {
       fetched_at: Date.now(),
       expires_at: Date.now() + 60_000,
     });
-    expect(readVndbTagWebDetailCache('g90200')).toBeNull();
+    expect(await readVndbTagWebDetailCache('g90200')).toBeNull();
   });
 });
 
