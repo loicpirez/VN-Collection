@@ -319,6 +319,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET | `/api/release/[id]` | Single release |
 | GET | `/api/staff?q=` | Staff search |
 | GET | `/api/tags?q=&category=` | Tag search/browse |
+| GET | `/api/tags/[id]/hydrate` | Populate one tag page's VNDB snapshots after the cache-only shell paints |
 | GET | `/api/traits?q=` | Trait search/browse |
 | GET | `/api/producer/[id]` | Producer detail (cache 24 h) |
 | POST | `/api/producer/[id]/refresh` | Bust the dev (`POST /vn:producer`) + pub (`POST /release:producer`) cache rows then re-fetch. Used by the per-page Refresh button on `/producer/[id]`. |
@@ -503,6 +504,7 @@ route file or exported HTTP method changes.
 | /api/stock/resolve-titles | GET |
 | /api/stock/summary | GET, POST |
 | /api/tags | GET |
+| /api/tags/[id]/hydrate | GET |
 | /api/tags/web-tree | GET |
 | /api/traits | GET |
 | /api/vn/[id]/aspect | GET, PATCH, DELETE |
@@ -2326,3 +2328,13 @@ requires. Three similar lines are better than a premature abstraction.
 - Check that filters / sort / new state lives in the URL, not in `useState`.
 - Don't introduce a new dependency unless absolutely necessary; we've kept
   it deliberately tiny.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

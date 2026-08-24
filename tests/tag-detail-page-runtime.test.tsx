@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToReadableStream } from 'react-dom/server';
 import TagPage, { generateMetadata as generateTagMetadata } from '@/app/tag/[id]/page';
-import { fetchTopVnsByTag, getTag, type VndbTag } from '@/lib/vndb';
-import { getVndbTagWebDetail } from '@/lib/vndb-tag-web-cache';
+import {
+  readCachedTag,
+  readCachedTopVnsByTag,
+  type CachedTagVnPage,
+  type CachedVndbTag,
+  type VndbTag,
+} from '@/lib/vndb';
+import { readVndbTagWebDetailCache, type VndbTagWebCacheResult } from '@/lib/vndb-tag-web-cache';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { CollectionCardItem, VndbSearchHit } from '@/lib/types';
 import type { VndbTagWebDetail } from '@/lib/vndb-tag-web-parser';
@@ -32,12 +38,12 @@ vi.mock('@/lib/db/repositories/collection-list', () => ({
 }));
 
 vi.mock('@/lib/vndb', () => ({
-  fetchTopVnsByTag: vi.fn(),
-  getTag: vi.fn(),
+  readCachedTag: vi.fn(),
+  readCachedTopVnsByTag: vi.fn(),
 }));
 
 vi.mock('@/lib/vndb-tag-web-cache', () => ({
-  getVndbTagWebDetail: vi.fn(),
+  readVndbTagWebDetailCache: vi.fn(),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -69,6 +75,12 @@ vi.mock('@/components/VndbMarkup', () => ({
   VndbMarkup: ({ text }: { text: string }) => <div data-testid="markup">{text}</div>,
 }));
 
+vi.mock('@/components/TagRemoteLoader', () => ({
+  TagRemoteLoader: ({ enabled, mode }: { enabled: boolean; mode: string }) => (
+    <div data-testid="remote-loader">{String(enabled)}:{mode}</div>
+  ),
+}));
+
 function tag(overrides: Partial<VndbTag> = {}): VndbTag {
   return {
     id: 'g1',
@@ -90,6 +102,43 @@ function detail(overrides: Partial<VndbTagWebDetail> = {}): VndbTagWebDetail {
     breadcrumb: [],
     properties: {},
     childGroups: [],
+    ...overrides,
+  };
+}
+
+function cachedTag(value: VndbTag | null = tag(), overrides: Partial<CachedVndbTag> = {}): CachedVndbTag {
+  return {
+    tag: value,
+    fetchedAt: 1,
+    expiresAt: 2,
+    stale: false,
+    ...overrides,
+  };
+}
+
+function cachedDetail(
+  value: VndbTagWebDetail = detail(),
+  overrides: Partial<VndbTagWebCacheResult<VndbTagWebDetail>> = {},
+): VndbTagWebCacheResult<VndbTagWebDetail> {
+  return {
+    data: value,
+    fetched_at: 1,
+    stale: false,
+    source_url: 'https://vndb.org/g1',
+    ...overrides,
+  };
+}
+
+function cachedVns(
+  results: CachedTagVnPage['results'] = [],
+  overrides: Partial<CachedTagVnPage> = {},
+): CachedTagVnPage {
+  return {
+    results,
+    more: false,
+    fetchedAt: 1,
+    expiresAt: 2,
+    stale: false,
     ...overrides,
   };
 }
@@ -151,14 +200,9 @@ beforeEach(() => {
   collectionRepositoryMocks.listCards.mockReset().mockResolvedValue([]);
   collectionRepositoryMocks.listMembershipCounts.mockReset().mockResolvedValue(new Map());
   collectionRepositoryMocks.readingQueueIds.mockReset().mockResolvedValue(new Set());
-  vi.mocked(getTag).mockReset().mockResolvedValue(tag());
-  vi.mocked(fetchTopVnsByTag).mockReset().mockResolvedValue({ results: [], more: false });
-  vi.mocked(getVndbTagWebDetail).mockReset().mockResolvedValue({
-    data: detail(),
-    fetched_at: 1,
-    stale: false,
-    source_url: 'https://vndb.org/g1',
-  });
+  vi.mocked(readCachedTag).mockReset().mockResolvedValue(cachedTag());
+  vi.mocked(readCachedTopVnsByTag).mockReset().mockResolvedValue(cachedVns());
+  vi.mocked(readVndbTagWebDetailCache).mockReset().mockResolvedValue(cachedDetail());
 });
 
 describe('tag detail page runtime', () => {
@@ -166,9 +210,9 @@ describe('tag detail page runtime', () => {
     expect(await generateTagMetadata({ params: Promise.resolve({ id: 'G1' }) })).toEqual({
       title: `Drama - ${dictionaries.en.nav.tags}`,
     });
-    expect(getTag).toHaveBeenCalledWith('g1');
+    expect(readCachedTag).toHaveBeenCalledWith('g1');
 
-    vi.mocked(getTag).mockRejectedValueOnce(new Error('offline'));
+    vi.mocked(readCachedTag).mockResolvedValueOnce(null);
     expect(await generateTagMetadata({ params: Promise.resolve({ id: 'G2' }) })).toEqual({
       title: `G2 - ${dictionaries.en.nav.tags}`,
     });
@@ -182,7 +226,7 @@ describe('tag detail page runtime', () => {
   });
 
   it('renders the local empty state and external escape hatch', async () => {
-    vi.mocked(getTag).mockResolvedValueOnce(null);
+    vi.mocked(readCachedTag).mockResolvedValueOnce(cachedTag(null));
 
     const html = await renderTag({ id: 'G1' }, {});
 
@@ -192,12 +236,13 @@ describe('tag detail page runtime', () => {
     expect(html).toContain('>g1</h1>');
   });
 
-  it('falls back to the tag id when the header tag lookup rejects', async () => {
-    vi.mocked(getTag).mockRejectedValueOnce(new Error('header offline'));
+  it('falls back to the tag id and starts hydration on a cache miss', async () => {
+    vi.mocked(readCachedTag).mockResolvedValueOnce(null);
 
     const html = await renderTag({ id: 'g1' }, {});
 
     expect(html).toContain('>g1</h1>');
+    expect(html).toContain('true<!-- -->:<!-- -->local');
   });
 
   it('renders enriched local cards, the library action, and the local cap warning', async () => {
@@ -214,15 +259,15 @@ describe('tag detail page runtime', () => {
   });
 
   it('renders VNDB hierarchy, child chips, top cards, and both pagination links', async () => {
-    vi.mocked(getTag).mockResolvedValue(tag({
+    vi.mocked(readCachedTag).mockResolvedValue(cachedTag(tag({
       aliases: ['Alias'],
       description: 'Description',
       category: 'ero',
       searchable: false,
       applicable: false,
-    }));
-    vi.mocked(getVndbTagWebDetail).mockResolvedValueOnce({
-      data: detail({
+    })));
+    vi.mocked(readVndbTagWebDetailCache).mockResolvedValueOnce(cachedDetail(
+      detail({
         breadcrumb: [
           { id: 'g2', name: 'Parent', href: '/tag/g2?tab=vndb' },
           { id: null, name: 'Self', href: null },
@@ -237,18 +282,12 @@ describe('tag detail page runtime', () => {
           ],
         }],
       }),
-      fetched_at: 1,
-      stale: true,
-      source_url: 'https://vndb.org/g1',
-      warning: 'stale hierarchy',
-    });
-    vi.mocked(fetchTopVnsByTag).mockResolvedValueOnce({
-      results: [
+      { stale: true, warning: 'stale hierarchy' },
+    ));
+    vi.mocked(readCachedTopVnsByTag).mockResolvedValueOnce(cachedVns([
         hit('v1', { image: { thumbnail: 'thumb.jpg', url: 'full.jpg' }, rating: 85, released: '2026-01-02' }),
         hit('v2', { image: { thumbnail: '', url: 'fallback.jpg' } }),
-      ],
-      more: true,
-    });
+      ], { more: true }));
 
     const html = await renderTag({ id: 'g1' }, { tab: 'vndb', page: '2' });
 
@@ -264,25 +303,25 @@ describe('tag detail page runtime', () => {
     expect(html).toContain('href="/tag/g1?tab=vndb&amp;page=3"');
   });
 
-  it('renders hierarchy and VNDB-result upstream errors and empty VNDB results', async () => {
-    vi.mocked(getVndbTagWebDetail).mockRejectedValueOnce(new Error('hierarchy offline'));
-    vi.mocked(fetchTopVnsByTag).mockRejectedValueOnce(new Error('results offline'));
+  it('renders skeletons and starts client hydration when VNDB snapshots are absent', async () => {
+    vi.mocked(readVndbTagWebDetailCache).mockResolvedValueOnce(null);
+    vi.mocked(readCachedTopVnsByTag).mockResolvedValueOnce(null);
 
-    let html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
-    expect(html).toContain('hierarchy offline');
-    expect(html).toContain('results offline');
+    const html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('true<!-- -->:<!-- -->vndb');
+  });
 
-    html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
+  it('renders a resolved empty VNDB result after cache hydration', async () => {
+    const html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
     expect(html).toContain(dictionaries.en.search.noResults);
+    expect(html).toContain('false<!-- -->:<!-- -->vndb');
   });
 
   it('renders previous-only VNDB pagination and image/rating fallbacks', async () => {
-    vi.mocked(fetchTopVnsByTag).mockResolvedValueOnce({
-      results: [
+    vi.mocked(readCachedTopVnsByTag).mockResolvedValueOnce(cachedVns([
         hit('v3', { released: null, rating: null, image: null }),
-      ],
-      more: false,
-    });
+      ]));
 
     const html = await renderTag({ id: 'g1' }, { tab: 'vndb', page: '2' });
 
@@ -293,18 +332,14 @@ describe('tag detail page runtime', () => {
   });
 
   it('renders true searchable and false applicable hierarchy chips on first-page VNDB results', async () => {
-    vi.mocked(getVndbTagWebDetail).mockResolvedValueOnce({
-      data: detail({
+    vi.mocked(readVndbTagWebDetailCache).mockResolvedValueOnce(cachedDetail(
+      detail({
         properties: { searchable: true, applicable: false },
       }),
-      fetched_at: 1,
-      stale: false,
-      source_url: 'https://vndb.org/g1',
-    });
-    vi.mocked(fetchTopVnsByTag).mockResolvedValueOnce({
-      results: [hit('v4', { rating: 70, released: '2025-05-01' })],
-      more: false,
-    });
+    ));
+    vi.mocked(readCachedTopVnsByTag).mockResolvedValueOnce(cachedVns([
+      hit('v4', { rating: 70, released: '2025-05-01' }),
+    ]));
 
     const html = await renderTag({ id: 'g1' }, { tab: 'vndb' });
 

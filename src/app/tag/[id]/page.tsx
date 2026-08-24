@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
@@ -9,9 +8,17 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { tagPageEmptyState } from '@/lib/tag-page-empty-state';
 import { parseTagPageParams, tagPageTabHref } from '@/lib/tags-page-modes';
-import { getTag, fetchTopVnsByTag } from '@/lib/vndb';
-import { getVndbTagWebDetail } from '@/lib/vndb-tag-web-cache';
-import type { VndbTagTreeNode } from '@/lib/vndb-tag-web-parser';
+import {
+  readCachedTag,
+  readCachedTopVnsByTag,
+  type CachedTagVnPage,
+  type VndbTag,
+} from '@/lib/vndb';
+import {
+  readVndbTagWebDetailCache,
+  type VndbTagWebCacheResult,
+} from '@/lib/vndb-tag-web-cache';
+import type { VndbTagTreeNode, VndbTagWebDetail } from '@/lib/vndb-tag-web-parser';
 import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -19,6 +26,7 @@ import { VnCard } from '@/components/VnCard';
 import { toCardData } from '@/components/cardData';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { TagRemoteLoader } from '@/components/TagRemoteLoader';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +42,10 @@ const TAG_VNDB_SKELETON_NODES = Array.from({ length: 12 }, (_, i) => (
 ));
 
 const TAG_META_HEADER_SKELETON = (
-  <div aria-busy="true">
-    <SkeletonBlock className="h-8 w-2/5" />
-    <div className="mt-2 flex gap-2">
-      <SkeletonBlock className="h-5 w-16 rounded" />
-      <SkeletonBlock className="h-5 w-20 rounded" />
-      <SkeletonBlock className="h-5 w-20 rounded" />
-    </div>
+  <div className="mt-2 flex gap-2" aria-busy="true">
+    <SkeletonBlock className="h-5 w-16 rounded" />
+    <SkeletonBlock className="h-5 w-20 rounded" />
+    <SkeletonBlock className="h-5 w-20 rounded" />
   </div>
 );
 
@@ -57,8 +62,8 @@ const TAG_WEB_DETAIL_SKELETON = (
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const dict = await getDict();
-  const tagInfo = await getTag(id.toLowerCase()).catch(() => null);
-  const baseTitle = tagInfo?.name ?? id;
+  const tagInfo = await readCachedTag(id.toLowerCase());
+  const baseTitle = tagInfo?.tag?.name ?? id;
   return { title: `${baseTitle} - ${dict.nav.tags}` };
 }
 
@@ -96,10 +101,13 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // (badge, density, list-count chip, reading-queue chip, aspect badge,
   // EGS score, etc.) renders consistently with the rest of the app.
   const collectionRepository = getCollectionListRepository();
-  const [rawLocalItems, listCounts, queueIds] = await Promise.all([
+  const [rawLocalItems, listCounts, queueIds, tagCache, webDetailCache, topVndbCache] = await Promise.all([
     collectionRepository.listCards({ tag: tagId, limit: LOCAL_LIMIT }),
     collectionRepository.listMembershipCounts(),
     collectionRepository.readingQueueIds(),
+    readCachedTag(tagId),
+    tab === 'vndb' ? readVndbTagWebDetailCache(tagId) : Promise.resolve(null),
+    tab === 'vndb' ? readCachedTopVnsByTag(tagId, { results: 24, page }) : Promise.resolve(null),
   ]);
   const localItems = rawLocalItems.map((it) => ({
     ...it,
@@ -108,6 +116,9 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   }));
   const count = localItems.length;
   const state = tagPageEmptyState({ tagId, collectionCount: count });
+  const needsRemoteRefresh = tagCache == null
+    || tagCache.stale
+    || (tab === 'vndb' && (webDetailCache == null || webDetailCache.stale || topVndbCache == null || topVndbCache.stale));
 
   return (
     <DensityScopeProvider scope="tagPage" className="w-full">
@@ -116,15 +127,8 @@ export default async function TagPage({ params, searchParams }: PageProps) {
       </Link>
 
       <header className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        {/*
-          `getTag` awaits a VNDB API call - isolate it so the page
-          shell (count, tabs, action buttons) streams before VNDB
-          responds. loading.tsx covers the initial navigation;
-          this Suspense handles the intra-page streaming.
-        */}
-        <Suspense fallback={TAG_META_HEADER_SKELETON}>
-          <TagMetaHeaderAsync tagId={tagId} t={t} />
-        </Suspense>
+        <TagMetaHeader tagId={tagId} tagInfo={tagCache?.tag ?? null} t={t} locale={locale} />
+        {!tagCache && TAG_META_HEADER_SKELETON}
         <p className="mt-3 text-sm text-muted">
           {state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
           {count >= LOCAL_LIMIT && (
@@ -186,6 +190,12 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           )}
           <CardDensitySlider scope="tagPage" />
         </div>
+        <TagRemoteLoader
+          enabled={needsRemoteRefresh}
+          tagId={tagId}
+          page={page}
+          mode={tab}
+        />
       </header>
 
       {/*
@@ -195,11 +205,9 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         the Local tab, making the IA misleading. The Local tab is
         now exclusively about the operator's collection matches.
       */}
-      {tab === 'vndb' && (
-        <Suspense fallback={TAG_WEB_DETAIL_SKELETON}>
-          <TagWebDetailBlock tagId={tagId} />
-        </Suspense>
-      )}
+      {tab === 'vndb' && (webDetailCache
+        ? <TagWebDetailBlock tagId={tagId} detail={webDetailCache} t={t} locale={locale} />
+        : TAG_WEB_DETAIL_SKELETON)}
 
       {tab === 'local' && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -229,14 +237,9 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
             {t.tagPage.topVns}
           </h2>
-          {/*
-            Skeleton-first VNDB block. The page shell (header,
-            description, tab strip, local list) paints immediately.
-            The VNDB POST happens inside the Suspense boundary so
-            the operator sees skeleton cards instead of a frozen
-            blank page while the upstream call is in flight.
-          */}
-          <Suspense fallback={(
+          {topVndbCache ? (
+            <TagVndbResults tagId={tagId} page={page} result={topVndbCache} t={t} locale={locale} />
+          ) : (
             <ul
               className="grid gap-3"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
@@ -244,18 +247,24 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             >
               {TAG_VNDB_SKELETON_NODES}
             </ul>
-          )}>
-            <TagVndbResults tagId={tagId} page={page} />
-          </Suspense>
+          )}
         </section>
       )}
     </DensityScopeProvider>
   );
 }
 
-async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<ReturnType<typeof getDict>> }) {
-  const locale = await getLocale();
-  const tagInfo = await getTag(tagId).catch(() => null);
+function TagMetaHeader({
+  tagId,
+  tagInfo,
+  t,
+  locale,
+}: {
+  tagId: string;
+  tagInfo: VndbTag | null;
+  t: Awaited<ReturnType<typeof getDict>>;
+  locale: Locale;
+}) {
   return (
     <>
       <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
@@ -294,19 +303,17 @@ async function TagMetaHeaderAsync({ tagId, t }: { tagId: string; t: Awaited<Retu
   );
 }
 
-async function TagWebDetailBlock({ tagId }: { tagId: string }) {
-  const t = await getDict();
-  const locale = await getLocale();
-  let detail: Awaited<ReturnType<typeof getVndbTagWebDetail>>;
-  try {
-    detail = await getVndbTagWebDetail(tagId);
-  } catch (e) {
-    return (
-      <section className="mt-6 rounded-xl border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
-        {(e as Error).message}
-      </section>
-    );
-  }
+function TagWebDetailBlock({
+  tagId,
+  detail,
+  t,
+  locale,
+}: {
+  tagId: string;
+  detail: VndbTagWebCacheResult<VndbTagWebDetail>;
+  t: Awaited<ReturnType<typeof getDict>>;
+  locale: Locale;
+}) {
   const data = detail.data;
   return (
     <section className="mt-6 space-y-4 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -380,39 +387,21 @@ function TagChildChip({ tag, locale }: { tag: VndbTagTreeNode; locale: Locale })
   );
 }
 
-/**
- * Async server component that awaits the VNDB POST and renders the
- * resolved grid. Failures fall through to a status-dropped error
- * card so the operator can see WHY the panel is empty (offline /
- * 429 / 502) rather than just "no results".
- */
-async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) {
-  const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  let topVndb: Array<{
-    id: string;
-    title: string;
-    image: { url: string; thumbnail: string } | null;
-    rating: number | null;
-    released: string | null;
-  }> = [];
-  let vndbError: string | null = null;
-  let more = false;
-  try {
-    const r = await fetchTopVnsByTag(tagId, { results: 24, page });
-    more = r.more;
-    topVndb = r.results.map((v) => ({
-      id: v.id,
-      title: v.title,
-      image: v.image ?? null,
-      rating: v.rating,
-      released: v.released,
-    }));
-  } catch (e) {
-    vndbError = (e as Error).message;
-  }
-  if (vndbError) {
-    return <p className="text-sm text-status-dropped">{vndbError}</p>;
-  }
+/** Render a cache-only page of ranked VNDB tag results. */
+function TagVndbResults({
+  tagId,
+  page,
+  result,
+  t,
+  locale,
+}: {
+  tagId: string;
+  page: number;
+  result: CachedTagVnPage;
+  t: Awaited<ReturnType<typeof getDict>>;
+  locale: Locale;
+}) {
+  const topVndb = result.results;
   if (topVndb.length === 0) {
     return <p className="text-sm text-muted">{t.search.noResults}</p>;
   }
@@ -457,7 +446,7 @@ async function TagVndbResults({ tagId, page }: { tagId: string; page: number }) 
       <nav className="flex items-center justify-between gap-3 text-sm" aria-label={t.tagPage.paginationLabel}>
         {page > 1 ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page - 1)}>{t.common.prev}</Link> : <span />}
         <span className="text-xs text-muted">{t.tagPage.pageLabel.replace('{n}', String(page))}</span>
-        {more ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page + 1)}>{t.common.next}</Link> : <span />}
+        {result.more ? <Link className="btn" href={tagPageTabHref(tagId, 'vndb', page + 1)}>{t.common.next}</Link> : <span />}
       </nav>
     </div>
   );

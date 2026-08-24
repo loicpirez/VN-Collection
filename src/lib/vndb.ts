@@ -1,5 +1,13 @@
 import 'server-only';
-import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, readCachedJsonMany, TTL } from './vndb-cache';
+import {
+  cachedFetch,
+  invalidateByPath,
+  invalidateKey,
+  readCachedJson,
+  readCachedJsonEntry,
+  readCachedJsonMany,
+  TTL,
+} from './vndb-cache';
 import { getAppSettingRepository } from './db/repositories/app-setting';
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
@@ -954,6 +962,74 @@ export interface VndbTag {
   vn_count: number;
 }
 
+/** One cache-only tag lookup and its freshness metadata. */
+export interface CachedVndbTag {
+  /** Structurally validated tag, or `null` when VNDB returned no match. */
+  tag: VndbTag | null;
+  /** Time at which VNDB returned the cached response. */
+  fetchedAt: number;
+  /** Time after which a client-side refresh should be requested. */
+  expiresAt: number;
+  /** Whether the cached response has passed its configured TTL. */
+  stale: boolean;
+}
+
+/** One cache-only page of VNDB tag results and its freshness metadata. */
+export interface CachedTagVnPage {
+  /** Structurally validated VN rows for the requested page. */
+  results: Array<Omit<VndbSearchHit, 'in_collection'>>;
+  /** Whether VNDB reported another page after this one. */
+  more: boolean;
+  /** Time at which VNDB returned the cached response. */
+  fetchedAt: number;
+  /** Time after which a client-side refresh should be requested. */
+  expiresAt: number;
+  /** Whether the cached response has passed its configured TTL. */
+  stale: boolean;
+}
+
+/**
+ * Build the canonical Kana request body used for one tag lookup.
+ *
+ * @param id Normalized or mixed-case VNDB tag identifier.
+ * @returns Stable request body shared by live and cache-only reads.
+ */
+function tagByIdBody(id: string): Record<string, unknown> {
+  return {
+    filters: ['id', '=', id.toLowerCase()],
+    fields: TAG_FIELDS,
+    results: 1,
+  };
+}
+
+/**
+ * Build the canonical Kana request body used for a tag's ranked VN page.
+ *
+ * @param tagId VNDB tag identifier.
+ * @param options Result count, page, minimum tag level, and spoiler ceiling.
+ * @returns Stable request body shared by live and cache-only reads.
+ */
+function topVnsByTagBody(
+  tagId: string,
+  {
+    results = 24,
+    page = 1,
+    lieThreshold = 1.2,
+    spoiler = 1,
+  }: { results?: number; page?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
+): Record<string, unknown> {
+  return {
+    // Order per KANA.md example `["g505", 2, 1.2]`:
+    // maxSpoiler (integer 0/1/2) precedes minTagLevel (float [0, 3]).
+    filters: ['tag', '=', [tagId.toLowerCase(), spoiler, lieThreshold]],
+    fields: VN_SEARCH_FIELDS,
+    sort: 'rating',
+    reverse: true,
+    results: Math.min(results, 100),
+    page: Math.max(1, Math.floor(page)),
+  };
+}
+
 /** Search VNDB-wide for tags by name. `category` filters to `cont`/`ero`/`tech` when set. */
 export async function searchTags(query: string, { results = 50, category }: { results?: number; category?: string } = {}): Promise<VndbTag[]> {
   const trimmed = query.trim();
@@ -979,12 +1055,30 @@ export async function searchTags(query: string, { results = 50, category }: { re
  * when VNDB doesn't recognise the id.
  */
 export async function getTag(id: string): Promise<VndbTag | null> {
-  const r = await vndbPost<VndbTag>('/tag', {
-    filters: ['id', '=', id],
-    fields: TAG_FIELDS,
-    results: 1,
-  }, TTL.tag, decodeVndbTag);
+  const r = await vndbPost<VndbTag>('/tag', tagByIdBody(id), TTL.tag, decodeVndbTag);
   return r.results[0] ?? null;
+}
+
+/**
+ * Read one tag from the local VNDB response cache without issuing a request.
+ *
+ * @param id VNDB tag identifier.
+ * @returns Cached tag and freshness metadata, or `null` on a cache miss.
+ */
+export async function readCachedTag(id: string): Promise<CachedVndbTag | null> {
+  const entry = await readCachedJsonEntry(
+    'POST',
+    'POST /tag',
+    tagByIdBody(id),
+    createVndbResultsEnvelopeDecoder(decodeVndbTag),
+  );
+  if (!entry) return null;
+  return {
+    tag: entry.data.results[0] ?? null,
+    fetchedAt: entry.fetchedAt,
+    expiresAt: entry.expiresAt,
+    stale: entry.expiresAt <= Date.now(),
+  };
 }
 
 /**
@@ -1003,18 +1097,44 @@ export async function fetchTopVnsByTag(
   tagId: string,
   { results = 24, page = 1, lieThreshold = 1.2, spoiler = 1 }: { results?: number; page?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
 ): Promise<VndbResponse<Omit<import('./types').VndbSearchHit, 'in_collection'>>> {
-  return vndbPost('/vn', {
-    // Order per KANA.md example `["g505", 2, 1.2]`:
-    //   1. tag id
-    //   2. maxSpoiler (integer 0/1/2)
-    //   3. minTagLevel (float [0, 3])
-    filters: ['tag', '=', [tagId.toLowerCase(), spoiler, lieThreshold]],
-    fields: VN_SEARCH_FIELDS,
-    sort: 'rating',
-    reverse: true,
-    results: Math.min(results, 100),
-    page: Math.max(1, Math.floor(page)),
-  }, TTL.vnSearch, decodeVndbSearchRow);
+  return vndbPost(
+    '/vn',
+    topVnsByTagBody(tagId, { results, page, lieThreshold, spoiler }),
+    TTL.vnSearch,
+    decodeVndbSearchRow,
+  );
+}
+
+/**
+ * Read one ranked tag-result page from cache without issuing a request.
+ *
+ * @param tagId VNDB tag identifier.
+ * @param options Result count, page, minimum tag level, and spoiler ceiling.
+ * @returns Cached page and freshness metadata, or `null` on a cache miss.
+ */
+export async function readCachedTopVnsByTag(
+  tagId: string,
+  {
+    results = 24,
+    page = 1,
+    lieThreshold = 1.2,
+    spoiler = 1,
+  }: { results?: number; page?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
+): Promise<CachedTagVnPage | null> {
+  const entry = await readCachedJsonEntry(
+    'POST',
+    'POST /vn',
+    topVnsByTagBody(tagId, { results, page, lieThreshold, spoiler }),
+    createVndbResultsEnvelopeDecoder(decodeVndbSearchRow),
+  );
+  if (!entry) return null;
+  return {
+    results: entry.data.results,
+    more: entry.data.more,
+    fetchedAt: entry.fetchedAt,
+    expiresAt: entry.expiresAt,
+    stale: entry.expiresAt <= Date.now(),
+  };
 }
 
 // Trait

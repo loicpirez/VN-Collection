@@ -22,6 +22,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 // the entire `cachedFetch` module so the tag-filter call resolves
 // against an in-process spy without ever touching the network.
 const requestBodies: unknown[] = [];
+const cacheEntryMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/vndb-cache', () => ({
   cachedFetch: async (_url: string, init: RequestInit) => {
@@ -31,6 +32,9 @@ vi.mock('@/lib/vndb-cache', () => ({
   TTL: new Proxy({}, { get: () => 0 }),
   invalidateByPath: () => undefined,
   invalidateVnCache: () => undefined,
+  readCachedJsonEntry: cacheEntryMock,
+  readCachedJson: vi.fn(),
+  readCachedJsonMany: vi.fn(),
 }));
 
 // `lib/vndb-throttle` is reached by the live `cachedFetch` path; the
@@ -41,10 +45,11 @@ vi.mock('@/lib/vndb-throttle', () => ({
   getVndbThrottleStats: () => ({ inFlight: 0, queued: 0 }),
 }));
 
-import { fetchTopVnsByTag } from '@/lib/vndb';
+import { fetchTopVnsByTag, readCachedTag, readCachedTopVnsByTag } from '@/lib/vndb';
 
 afterEach(() => {
   requestBodies.length = 0;
+  cacheEntryMock.mockReset();
 });
 
 describe('fetchTopVnsByTag — KANA tag-filter contract', () => {
@@ -72,5 +77,59 @@ describe('fetchTopVnsByTag — KANA tag-filter contract', () => {
     const [, , tuple] = body.filters;
     expect(Number.isInteger(tuple[1])).toBe(true);
     expect(typeof tuple[2]).toBe('number');
+  });
+
+  it('uses the live tag body for cache-only tag reads', async () => {
+    cacheEntryMock.mockResolvedValueOnce({
+      data: { results: [{ id: 'g9999', name: 'Fixture' }], more: false },
+      fetchedAt: 10,
+      expiresAt: Date.now() + 60_000,
+    });
+    await expect(readCachedTag('G9999')).resolves.toEqual({
+      tag: { id: 'g9999', name: 'Fixture' },
+      fetchedAt: 10,
+      expiresAt: expect.any(Number),
+      stale: false,
+    });
+    expect(cacheEntryMock).toHaveBeenCalledWith(
+      'POST',
+      'POST /tag',
+      expect.objectContaining({ filters: ['id', '=', 'g9999'], results: 1 }),
+      expect.any(Function),
+    );
+  });
+
+  it('returns null for cache misses and preserves expired ranked pages', async () => {
+    cacheEntryMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    await expect(readCachedTag('g9998')).resolves.toBeNull();
+    await expect(readCachedTopVnsByTag('g9998')).resolves.toBeNull();
+
+    cacheEntryMock.mockResolvedValueOnce({
+      data: { results: [{ id: 'v9998' }], more: true },
+      fetchedAt: 20,
+      expiresAt: Date.now() - 1,
+    });
+    await expect(readCachedTopVnsByTag('G9998', {
+      results: 250,
+      page: 0,
+      spoiler: 2,
+      lieThreshold: 0.5,
+    })).resolves.toEqual({
+      results: [{ id: 'v9998' }],
+      more: true,
+      fetchedAt: 20,
+      expiresAt: expect.any(Number),
+      stale: true,
+    });
+    expect(cacheEntryMock).toHaveBeenLastCalledWith(
+      'POST',
+      'POST /vn',
+      expect.objectContaining({
+        filters: ['tag', '=', ['g9998', 2, 0.5]],
+        results: 100,
+        page: 1,
+      }),
+      expect.any(Function),
+    );
   });
 });

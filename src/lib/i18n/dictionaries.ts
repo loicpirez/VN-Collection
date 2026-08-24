@@ -2703,6 +2703,8 @@ export const dictionaries = {
       vndbCount: '{n} VN sur VNDB',
       pageLabel: 'Page {n}',
       paginationLabel: 'Pagination des résultats du tag',
+      refreshPartial: 'Certaines données VNDB n’ont pas pu être actualisées. Les données en cache restent affichées.',
+      refreshFailed: 'Les données VNDB de ce tag n’ont pas pu être chargées. Réessaie dans un instant.',
     },
     vnTags: {
       viewLabel: 'Affichage',
@@ -6409,6 +6411,8 @@ export const dictionaries = {
       vndbCount: '{n} VNDB VNs',
       pageLabel: 'Page {n}',
       paginationLabel: 'Tag results pagination',
+      refreshPartial: 'Some VNDB details could not be refreshed. Cached data remains visible.',
+      refreshFailed: 'This tag’s VNDB data could not be loaded. Try again in a moment.',
     },
     vnTags: {
       viewLabel: 'View',
@@ -10112,6 +10116,8 @@ export const dictionaries = {
       vndbCount: 'VNDB {n} 件',
       pageLabel: 'ページ {n}',
       paginationLabel: 'タグ結果のページ送り',
+      refreshPartial: '一部の VNDB データを更新できませんでした。キャッシュ済みデータを表示しています。',
+      refreshFailed: 'このタグの VNDB データを読み込めませんでした。しばらくしてから再試行してください。',
     },
     vnTags: {
       viewLabel: '表示',
