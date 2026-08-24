@@ -19,7 +19,7 @@ describe('VN integration panel request ownership', () => {
 
   it('only announces EGS refresh success after a successful read', () => {
     const body = source('src/components/EgsPanel.tsx');
-    expect(body).toContain('const refreshed = await load(true)');
+    expect(body).toContain('const refreshed = await load(true, false)');
     expect(body).toContain('if (!refreshed || !ownsPanel(ownerVnId)) return');
     expect(body.indexOf('if (!refreshed || !ownsPanel(ownerVnId)) return')).toBeLessThan(body.indexOf('toast.success(t.toast.saved)'));
   });
