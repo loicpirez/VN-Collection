@@ -1,8 +1,8 @@
 import 'server-only';
-import { db } from './db';
 import { fetchProducerCompletion } from './producer-completion';
 import { getProducer } from './vndb';
 import { decodeStaffFullPayload } from './staff-full';
+import { getDiscoveryRepository } from './db/repositories/discovery';
 
 /**
  * For two brands (developers), surface every staff member / VA who has
@@ -81,39 +81,19 @@ export async function findBrandStaffOverlap(brandA: string, brandB: string): Pro
   const allVnIds = Array.from(new Set([...setA, ...setB]));
   if (allVnIds.length === 0) return { a, b, entries: [], needsMoreData: true };
 
-  const candidateSids = new Set<string>();
-  const CHUNK = 500;
-  for (let i = 0; i < allVnIds.length; i += CHUNK) {
-    const chunk = allVnIds.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const found = db
-      .prepare(`SELECT DISTINCT sid FROM staff_credit_index WHERE vn_id IN (${placeholders})`)
-      .all(...chunk) as { sid: string }[];
-    for (const r of found) candidateSids.add(r.sid);
-  }
-  if (candidateSids.size === 0) {
-    const cacheRowCount = (db
-      .prepare(`SELECT COUNT(*) AS n FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
-      .get() as { n: number }).n;
+  const discovery = getDiscoveryRepository();
+  const candidateSids = await discovery.listStaffIdsForVns(allVnIds);
+  if (candidateSids.length === 0) {
+    const cacheRowCount = await discovery.countStaffFullCache();
     return { a, b, entries: [], needsMoreData: cacheRowCount === 0 };
   }
 
-  const sidList = Array.from(candidateSids);
-  const cacheKeys = sidList.map((s) => `staff_full:${s.toLowerCase()}`);
-  const rows: { body: string }[] = [];
-  for (let i = 0; i < cacheKeys.length; i += CHUNK) {
-    const chunk = cacheKeys.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    rows.push(
-      ...(db
-        .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
-        .all(...chunk) as { body: string }[]),
-    );
-  }
+  const cacheKeys = candidateSids.map((sid) => `staff_full:${sid.toLowerCase()}`);
+  const rows = await discovery.listCacheBodies(cacheKeys);
 
   const entries: BrandOverlapEntry[] = [];
-  for (const r of rows) {
-    const payload = decodeStaffFullPayload(r.body, 0);
+  for (const body of rows) {
+    const payload = decodeStaffFullPayload(body, 0);
     if (!payload) continue;
     if (!payload.profile) continue;
 

@@ -101,8 +101,8 @@ describe('collection enrichment query shape', () => {
 
 describe('collection-scale placeholder lists', () => {
   it('chunks brand-overlap staff cache hydration', () => {
-    const body = source('src/lib/brand-overlap.ts');
-    expect(body).toContain('cacheKeys.slice(i, i + CHUNK)');
+    const body = source('src/lib/db/repositories/discovery.ts');
+    expect(body).toContain('cacheKeys.slice(index, index + DISCOVERY_CHUNK_SIZE)');
     expect(body).toContain('.all(...chunk)');
     expect(body).not.toContain('.all(...cacheKeys)');
   });

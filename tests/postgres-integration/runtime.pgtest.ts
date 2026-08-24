@@ -56,6 +56,7 @@ import { createPostgresProducerRepository } from '@/lib/db/repositories/producer
 import { createPostgresSavedFilterRepository } from '@/lib/db/repositories/saved-filter';
 import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route';
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
+import { createPostgresDiscoveryRepository } from '@/lib/db/repositories/discovery';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresEgsRepository } from '@/lib/db/repositories/egs';
 import { createPostgresVnAssetRepository } from '@/lib/db/repositories/vn-assets';
@@ -138,6 +139,10 @@ import {
   RECOMMENDATION_READ_CONTRACT_IDS,
   registerRecommendationReadRepositoryContract,
 } from '../database-contract/recommendation-read.contract';
+import {
+  DISCOVERY_CONTRACT_IDS,
+  registerDiscoveryRepositoryContract,
+} from '../database-contract/discovery.contract';
 import {
   MAINTENANCE_CONTRACT_IDS,
   registerMaintenanceRepositoryContract,
@@ -1645,6 +1650,62 @@ registerRecommendationReadRepositoryContract('PostgreSQL', {
       process.env.DATABASE_APPLICATION_NAME = 'vndb-recommendation-read-contract';
       try {
         await run(createPostgresRecommendationReadRepository());
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+    });
+  },
+});
+
+registerDiscoveryRepositoryContract('PostgreSQL', {
+  async withRepository(run) {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const ids = DISCOVERY_CONTRACT_IDS;
+      await pool.query(`
+        INSERT INTO vn (id, title, developers, fetched_at) VALUES
+          ($1, 'Discovery One', $2, 1),
+          ($3, 'Discovery Two', NULL, 1),
+          ($4, 'Discovery Unowned', '[{"id":"p994799"}]', 1)
+      `, [
+        ids.firstVn,
+        '[{"id":"p994701","name":"Discovery Studio"}]',
+        ids.secondVn,
+        ids.unownedVn,
+      ]);
+      await pool.query(`
+        INSERT INTO collection (vn_id, status, added_at, updated_at) VALUES
+          ($1, 'completed', 1, 1),
+          ($2, 'planning', 1, 2)
+      `, [ids.firstVn, ids.secondVn]);
+      await pool.query(`
+        INSERT INTO staff_credit_index (sid, vn_id, is_va) VALUES
+          ($1, $2, 0),
+          ($1, $3, 1),
+          ($4, $3, 0)
+      `, [ids.firstStaff, ids.firstVn, ids.secondVn, ids.secondStaff]);
+      await pool.query(`
+        INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+          ($1, '{"staff":1}', 1, 2),
+          ($2, '{"staff":2}', 1, 2)
+      `, [`staff_full:${ids.firstStaff}`, `staff_full:${ids.secondStaff}`]);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-discovery-contract';
+      try {
+        await run(createPostgresDiscoveryRepository());
       } finally {
         await closePostgresPool();
         if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;

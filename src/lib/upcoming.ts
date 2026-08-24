@@ -1,8 +1,8 @@
 import 'server-only';
-import { db } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
 import { decodeUpcomingReleasePage } from './vndb-feed-cache-shape';
 import { asJsonRecord, parseJsonArray } from './json-shape';
+import { getDiscoveryRepository } from './db/repositories/discovery';
 
 const VNDB_API = 'https://api.vndb.org/kana';
 
@@ -40,13 +40,11 @@ const REL_FIELDS = [
  * new entries are the most useful "what's next" signal for a personal
  * library.
  */
-function watchedProducerIds(): string[] {
-  const rows = db
-    .prepare(`SELECT developers FROM vn WHERE id IN (SELECT vn_id FROM collection)`)
-    .all() as { developers: string | null }[];
+async function watchedProducerIds(): Promise<string[]> {
+  const payloads = await getDiscoveryRepository().listCollectionDeveloperPayloads();
   const set = new Set<string>();
-  for (const r of rows) {
-    for (const developer of parseJsonArray(r.developers)) {
+  for (const payload of payloads) {
+    for (const developer of parseJsonArray(payload)) {
       const id = asJsonRecord(developer)?.id;
       if (typeof id === 'string' && /^p\d+$/i.test(id)) {
         set.add(id.toLowerCase());
@@ -65,7 +63,7 @@ function watchedProducerIds(): string[] {
  * month for the UI.
  */
 export async function fetchUpcomingForCollection(): Promise<UpcomingRelease[]> {
-  const ids = watchedProducerIds();
+  const ids = await watchedProducerIds();
   if (ids.length === 0) return [];
   const batchSize = 50;
   const today = new Date().toISOString().slice(0, 10);
