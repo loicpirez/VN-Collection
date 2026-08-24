@@ -15,6 +15,8 @@ describe('BannerPickerTrigger', () => {
     const trigger = screen.getByRole('button', { name: t.bannerPicker.open });
     expect(trigger.className).toContain('custom-trigger');
     expect(trigger.getAttribute('title')).toBe(t.bannerPicker.openTitle);
+    fireEvent.pointerEnter(trigger);
+    fireEvent.focus(trigger);
     fireEvent.click(trigger);
     expect(listener).toHaveBeenCalledTimes(1);
     expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({ vnId: 'v90001' });
