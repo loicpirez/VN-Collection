@@ -21,10 +21,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(import.meta.dirname, 'src'),
       // `server-only` is a Next.js shim that throws when imported
       // from a Client Component bundle. In Vitest we want a noop.
-      'server-only': path.resolve(__dirname, 'tests/stubs/server-only.ts'),
+      'server-only': path.resolve(import.meta.dirname, 'tests/stubs/server-only.ts'),
     },
   },
 });
