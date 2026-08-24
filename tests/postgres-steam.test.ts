@@ -112,10 +112,14 @@ describe('PostgreSQL Steam repository', () => {
       { vn_id: 'v90001', playtime_minutes: 30 },
       { vn_id: 'v90001', playtime_minutes: 60 },
     ])).resolves.toBe(1);
-    const payload = String(clientQueryMock.mock.calls[0]?.[1]?.[0]);
-    expect(JSON.parse(payload)).toEqual([
-      { vn_id: 'v90001', playtime_minutes: 30, index: 0 },
-      { vn_id: 'v90001', playtime_minutes: 60, index: 1 },
+    const [query, params] = clientQueryMock.mock.calls[0] ?? [];
+    expect(query).toContain('UNNEST($1::text[], $2::bigint[], $3::bigint[])');
+    expect(query).toContain('updated_at = $4');
+    expect(params).toEqual([
+      ['v90001', 'v90001'],
+      [30, 60],
+      [0, 1],
+      expect.any(Number),
     ]);
     await expect(repository.applyPlaytime([])).resolves.toBe(0);
   });
