@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ArrowLeftRight, Mic2, Star, Users } from 'lucide-react';
 import { findBrandStaffOverlap } from '@/lib/brand-overlap';
-import { isInCollectionMany } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getDict } from '@/lib/i18n/server';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -95,7 +95,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
     );
   }
 
-  const ownedSet = isInCollectionMany(
+  const ownedSet = await getCollectionCoreRepository().containsMany(
     result.entries.flatMap((e) => [...e.aCredits, ...e.bCredits].map((c) => c.vn_id)),
   );
   const totalPages = Math.max(1, Math.ceil(result.entries.length / BRAND_OVERLAP_PAGE_SIZE));
