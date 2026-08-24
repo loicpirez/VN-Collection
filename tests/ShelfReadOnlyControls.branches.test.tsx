@@ -321,10 +321,12 @@ describe('ShelfReadOnlyControls branches', () => {
     await waitForFetchCount(fetchMock, 11);
     fireEvent.click(within(region).getByRole('button', { name: 'Mode compact' }));
     await waitForFetchCount(fetchMock, 12);
-    fireEvent.click(within(region).getAllByRole('button', { name: 'Paysage' })[0]);
+    fireEvent.click(within(region).getByRole('button', { name: 'Géométrique' }));
     await waitForFetchCount(fetchMock, 13);
-    fireEvent.click(within(region).getAllByRole('button', { name: 'Paysage' }).at(-1)!);
+    fireEvent.click(within(region).getAllByRole('button', { name: 'Paysage' })[0]);
     await waitForFetchCount(fetchMock, 14);
+    fireEvent.click(within(region).getAllByRole('button', { name: 'Paysage' }).at(-1)!);
+    await waitForFetchCount(fetchMock, 15);
 
     const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string);
     const partial = body.shelf_display_overrides_v1.shelves['42'];
@@ -341,6 +343,7 @@ describe('ShelfReadOnlyControls branches', () => {
       textDensity: 'lg',
       showLabels: false,
       compact: true,
+      displayLayout: 'geometric',
       displayOrientation: 'landscape',
       displayRowOrientations: { '0': 'landscape' },
     });

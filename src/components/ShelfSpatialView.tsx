@@ -2,13 +2,11 @@ import React, { type ReactNode } from 'react';
 import Link from 'next/link';
 import { Box, ChevronLeft, ChevronRight, Layers, MapPin } from 'lucide-react';
 import {
-  listShelves,
-  listShelfDisplaySlots,
-  listShelfSlots,
   type ShelfDisplaySlotEntry,
   type ShelfSlotEntry,
   type ShelfUnitWithCount,
 } from '@/lib/db';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { SafeImage } from '@/components/SafeImage';
 import { ShelfScrollFrame } from '@/components/ShelfScrollFrame';
 import { ShelfSpatialFullscreen } from '@/components/ShelfSpatialFullscreen';
@@ -69,7 +67,7 @@ export async function ShelfSpatialView({
   controlsSlot?: ReactNode;
 }) {
   const t = await getDict();
-  const shelves = listShelves();
+  const shelves = await getShelfRepository().list();
   if (shelves.length === 0) {
     return (
       <section className="rounded-2xl border border-border bg-bg-card p-6 text-center">
@@ -87,6 +85,10 @@ export async function ShelfSpatialView({
   const total = shelves.length;
   const active = Math.max(1, Math.min(total, Math.floor(activeShelf ?? 1)));
   const current = shelves[active - 1];
+  const [slots, displays] = await Promise.all([
+    getShelfRepository().listSlots(current.id),
+    getShelfRepository().listDisplaySlots(current.id),
+  ]);
   const prevHref = active > 1 ? `/shelf?shelf=${active - 1}` : null;
   const nextHref = active < total ? `/shelf?shelf=${active + 1}` : null;
 
@@ -137,6 +139,8 @@ export async function ShelfSpatialView({
       </nav>
       <ShelfBlock
         shelf={current}
+        slots={slots}
+        displays={displays}
         t={t}
         defaultOrientation={defaultOrientation}
         displayRowOrientations={displayRowOrientations}
@@ -147,18 +151,19 @@ export async function ShelfSpatialView({
 
 function ShelfBlock({
   shelf,
+  slots,
+  displays,
   t,
   defaultOrientation,
   displayRowOrientations,
 }: {
   shelf: ShelfUnitWithCount;
+  slots: ShelfSlotEntry[];
+  displays: ShelfDisplaySlotEntry[];
   t: Dictionary;
   defaultOrientation: 'portrait' | 'landscape';
   displayRowOrientations: Record<string, 'portrait' | 'landscape'>;
 }) {
-  const slots = listShelfSlots(shelf.id);
-  const displays = listShelfDisplaySlots(shelf.id);
-
   // Map placements to (row, col) and (after_row, position) for O(1)
   // lookup while rendering the grid.
   const cellMap = new Map<string, ShelfSlotEntry>();
@@ -183,6 +188,10 @@ function ShelfBlock({
       <style>{`
         .shelf-view-root[data-shelf-labels="off"] .shelf-card-label { display: none; }
         .shelf-view-root .shelf-card-label { font-size: var(--shelf-label-font-px, 10px); }
+        .shelf-view-root[data-shelf-display-layout="compact"] [data-shelf-display-empty] { display: none; }
+        .shelf-view-root[data-shelf-display-layout="compact"] [data-shelf-display-grid] {
+          grid-template-columns: repeat(var(--shelf-display-count), minmax(${SHELF_TRACK_WIDTH}, ${SHELF_TRACK_WIDTH})) !important;
+        }
       `}</style>
       <header className="mb-5 flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-3">
         <div className="min-w-0 flex-1">
@@ -343,6 +352,7 @@ function DisplayRow({
           gap: 'var(--shelf-row-gap-px, 6px)',
           gridTemplateColumns: `repeat(${cols}, minmax(${SHELF_TRACK_WIDTH}, ${SHELF_TRACK_WIDTH}))`,
           justifyItems: 'center',
+          '--shelf-display-count': String(row.length),
           '--row-display-aspect': `var(--display-aspect-row-${afterRow}, var(--display-aspect-ratio, ${serverAspect}))`,
         } as React.CSSProperties}
       >
@@ -353,6 +363,7 @@ function DisplayRow({
           ) : (
             <div
               key={position}
+              data-shelf-display-empty
               className="rounded-md bg-accent-blue/5"
               style={{ width: 'var(--shelf-front-size-px, 140px)', aspectRatio: 'var(--row-display-aspect, 2/3)' }}
               aria-hidden
@@ -374,14 +385,14 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
         height: 'var(--shelf-cell-h-px, 180px)',
         padding: 'var(--shelf-card-pad, 0px)',
       }}
-      title={`${slot.vn_title}${slot.edition_label ? ` / ${slot.edition_label}` : ''}`}
-      aria-label={slot.vn_title}
+      title={`${slot.bundle_name ?? slot.vn_title}${slot.edition_label ? ` / ${slot.edition_label}` : ''}`}
+      aria-label={slot.bundle_name ?? slot.vn_title}
     >
       <div className="relative h-full w-full">
         <SafeImage
-          src={slot.vn_image_url || slot.vn_image_thumb}
-          localSrc={slot.vn_local_image_thumb}
-          sexual={slot.vn_image_sexual}
+          src={slot.rel_image_url || slot.rel_image_thumb || slot.vn_image_url || slot.vn_image_thumb}
+          localSrc={slot.rel_local_image_thumb || slot.vn_local_image_thumb}
+          sexual={slot.rel_image_sexual ?? slot.vn_image_sexual}
           alt={slot.vn_title}
           className="h-full w-full"
           style={{
@@ -390,7 +401,7 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
           }}
         />
         <span className="shelf-card-label pointer-events-none absolute inset-x-0 bottom-0 line-clamp-2 bg-bg/80 px-1 py-0.5 text-[10px] font-medium text-white">
-          {slot.vn_title}
+          {slot.bundle_name ?? slot.vn_title}
         </span>
         {slot.dumped && (
           <span
@@ -420,14 +431,14 @@ function DisplayCard({
         width: 'var(--shelf-front-size-px, 140px)',
         aspectRatio: 'var(--row-display-aspect, 2/3)',
       }}
-      title={`${entry.vn_title}${entry.edition_label ? ` / ${entry.edition_label}` : ''}`}
-      aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.vn_title}`}
+      title={`${entry.bundle_name ?? entry.vn_title}${entry.edition_label ? ` / ${entry.edition_label}` : ''}`}
+      aria-label={`${t.shelfSpatial.displayItemPrefix} ${entry.bundle_name ?? entry.vn_title}`}
     >
       <div className="relative h-full w-full">
         <SafeImage
-          src={entry.vn_image_url || entry.vn_image_thumb}
-          localSrc={entry.vn_local_image_thumb}
-          sexual={entry.vn_image_sexual}
+          src={entry.rel_image_url || entry.rel_image_thumb || entry.vn_image_url || entry.vn_image_thumb}
+          localSrc={entry.rel_local_image_thumb || entry.vn_local_image_thumb}
+          sexual={entry.rel_image_sexual ?? entry.vn_image_sexual}
           alt={entry.vn_title}
           className="h-full w-full"
           style={{
@@ -436,7 +447,7 @@ function DisplayCard({
           }}
         />
         <span className="shelf-card-label pointer-events-none absolute inset-x-0 bottom-0 line-clamp-1 bg-bg/80 px-1 py-0.5 text-[10px] font-medium text-white">
-          {entry.vn_title}
+          {entry.bundle_name ?? entry.vn_title}
         </span>
       </div>
     </Link>

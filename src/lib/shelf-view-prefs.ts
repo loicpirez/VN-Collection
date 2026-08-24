@@ -35,6 +35,7 @@
 
 export type ShelfTextDensity = 'sm' | 'md' | 'lg';
 export type ShelfDisplayOrientation = 'portrait' | 'landscape';
+export type ShelfDisplayLayout = 'geometric' | 'compact';
 
 export interface ShelfViewPrefsV1 {
   // V0 keys kept for back-compat — read+written by the validator so
@@ -52,6 +53,8 @@ export interface ShelfViewPrefsV1 {
   textDensity: ShelfTextDensity;
   showLabels: boolean;
   compact: boolean;
+  /** Geometric preserves physical positions; compact removes empty display cells. */
+  displayLayout: ShelfDisplayLayout;
   /** Aspect ratio for face-out display-row items. Default portrait (2:3). */
   displayOrientation: ShelfDisplayOrientation;
   /**
@@ -90,6 +93,7 @@ export function defaultShelfViewPrefsV1(): ShelfViewPrefsV1 {
     textDensity: 'md',
     showLabels: true,
     compact: false,
+    displayLayout: 'compact',
     displayOrientation: 'portrait',
     displayRowOrientations: {},
   };
@@ -188,6 +192,7 @@ export function validateShelfViewPrefsV1(input: unknown): ShelfViewPrefsV1 {
   const textDensity = pickTextDensity(obj, fallback.textDensity);
   const showLabels = pickBool(obj, 'showLabels', fallback.showLabels);
   const compact = pickBool(obj, 'compact', fallback.compact);
+  const displayLayout: ShelfDisplayLayout = obj.displayLayout === 'geometric' ? 'geometric' : 'compact';
   const displayOrientation: ShelfDisplayOrientation =
     obj.displayOrientation === 'landscape' ? 'landscape' : 'portrait';
 
@@ -212,6 +217,7 @@ export function validateShelfViewPrefsV1(input: unknown): ShelfViewPrefsV1 {
     textDensity,
     showLabels,
     compact,
+    displayLayout,
     displayOrientation,
     displayRowOrientations,
   };
@@ -263,6 +269,7 @@ export function shelfViewPrefsDataAttrs(prefs: ShelfViewPrefsV1): Record<string,
   return {
     'data-shelf-labels': prefs.showLabels ? 'on' : 'off',
     'data-shelf-compact': prefs.compact ? 'on' : 'off',
+    'data-shelf-display-layout': prefs.displayLayout,
     'data-shelf-text-density': prefs.textDensity,
     'data-shelf-fit': prefs.fitMode,
   };
@@ -368,6 +375,9 @@ function pickPartialShelfPrefs(raw: Record<string, unknown>): Partial<ShelfViewP
   }
   if (typeof raw.showLabels === 'boolean') out.showLabels = raw.showLabels;
   if (typeof raw.compact === 'boolean') out.compact = raw.compact;
+  if (raw.displayLayout === 'geometric' || raw.displayLayout === 'compact') {
+    out.displayLayout = raw.displayLayout;
+  }
   if (raw.displayOrientation === 'portrait' || raw.displayOrientation === 'landscape') {
     out.displayOrientation = raw.displayOrientation;
   }

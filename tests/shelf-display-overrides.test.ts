@@ -78,6 +78,7 @@ describe('validateShelfDisplayOverridesV1', () => {
           textDensity: 'sm',
           showLabels: false,
           compact: true,
+          displayLayout: 'compact',
           displayOrientation: 'landscape',
           displayRowOrientations: { '0': 'portrait', '1': 'landscape', '2': 'bad' },
         },
@@ -88,6 +89,7 @@ describe('validateShelfDisplayOverridesV1', () => {
       textDensity: 'sm',
       showLabels: false,
       compact: true,
+      displayLayout: 'compact',
       displayOrientation: 'landscape',
       displayRowOrientations: { '0': 'portrait', '1': 'landscape' },
     });

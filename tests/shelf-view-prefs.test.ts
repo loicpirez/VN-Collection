@@ -100,6 +100,13 @@ describe('validateShelfViewPrefsV1', () => {
       },
     });
   });
+
+  it('defaults display rows to compact layout and accepts exact geometric placement', () => {
+    expect(validateShelfViewPrefsV1({}).displayLayout).toBe('compact');
+    expect(validateShelfViewPrefsV1({ displayLayout: 'compact' }).displayLayout).toBe('compact');
+    expect(validateShelfViewPrefsV1({ displayLayout: 'geometric' }).displayLayout).toBe('geometric');
+    expect(validateShelfViewPrefsV1({ displayLayout: 'invalid' }).displayLayout).toBe('compact');
+  });
 });
 
 describe('shelfViewPrefsCssVars', () => {
@@ -117,6 +124,7 @@ describe('shelfViewPrefsCssVars', () => {
       textDensity: 'lg',
       showLabels: false,
       compact: true,
+      displayLayout: 'compact',
       displayOrientation: 'portrait',
       displayRowOrientations: {},
     });
@@ -147,11 +155,13 @@ describe('shelfViewPrefsCssVars', () => {
       textDensity: 'lg',
       showLabels: false,
       compact: true,
+      displayLayout: 'compact',
       displayOrientation: 'portrait',
       displayRowOrientations: {},
     })).toEqual({
       'data-shelf-labels': 'off',
       'data-shelf-compact': 'on',
+      'data-shelf-display-layout': 'compact',
       'data-shelf-text-density': 'lg',
       'data-shelf-fit': 'cover',
     });
@@ -174,6 +184,7 @@ describe('shelfViewPrefsCssVars', () => {
     expect(shelfViewPrefsDataAttrs(defaultShelfViewPrefsV1())).toMatchObject({
       'data-shelf-labels': 'on',
       'data-shelf-compact': 'off',
+      'data-shelf-display-layout': 'compact',
     });
   });
 });

@@ -356,6 +356,7 @@ export function ShelfReadOnlyControls({
     <div className="relative inline-flex" data-shelf-controls-id={id}>
       <button
         type="button"
+        data-shortcut="shelf-options"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={dict.title}
@@ -566,6 +567,29 @@ export function ShelfReadOnlyControls({
             <>
               <div className="mt-3">
                 <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
+                  {dict.displayLayout}
+                </div>
+                <p className="mb-1.5 text-[10px] text-muted">{dict.displayLayoutHint}</p>
+                <div className="inline-flex overflow-hidden rounded-md border border-border">
+                  {(['geometric', 'compact'] as const).map((layout) => (
+                    <button
+                      key={layout}
+                      type="button"
+                      onClick={() => void persist({ ...prefs, displayLayout: layout })}
+                      aria-pressed={prefs.displayLayout === layout}
+                      className={`min-h-[36px] px-3 py-1 text-xs ${
+                        prefs.displayLayout === layout
+                          ? 'bg-accent text-bg'
+                          : 'bg-bg-elev/40 text-muted hover:text-white'
+                      }`}
+                    >
+                      {layout === 'geometric' ? dict.displayLayoutGeometric : dict.displayLayoutCompact}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
                   {dict.displayOrientation}
                 </div>
                 <div className="inline-flex overflow-hidden rounded-md border border-border">
@@ -710,6 +734,7 @@ function partialShelfPrefsFromDiff(
   if (next.textDensity !== global.textDensity) partial.textDensity = next.textDensity;
   if (next.showLabels !== global.showLabels) partial.showLabels = next.showLabels;
   if (next.compact !== global.compact) partial.compact = next.compact;
+  if (next.displayLayout !== global.displayLayout) partial.displayLayout = next.displayLayout;
   if (next.displayOrientation !== global.displayOrientation) {
     partial.displayOrientation = next.displayOrientation;
   }

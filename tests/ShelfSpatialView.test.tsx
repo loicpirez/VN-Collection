@@ -16,9 +16,20 @@ vi.mock('next/navigation', () => ({
 // SafeImage reads DisplaySettings context which the shared render helper
 // does not provide; swap it for a plain img so the spatial grid renders.
 vi.mock('@/components/SafeImage', () => ({
-  SafeImage: ({ alt, src }: { alt: string; src?: string | null }) => (
+  SafeImage: ({ alt, localSrc, sexual, src }: {
+    alt: string;
+    localSrc?: string | null;
+    sexual?: number | null;
+    src?: string | null;
+  }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={alt} src={src ?? ''} data-mock-safe-image />
+    <img
+      alt={alt}
+      src={src ?? ''}
+      data-local-src={localSrc ?? ''}
+      data-mock-safe-image
+      data-sexual={sexual ?? ''}
+    />
   ),
 }));
 
@@ -35,6 +46,14 @@ vi.mock('@/lib/db', () => ({
   listShelves: () => listShelvesMock(),
   listShelfSlots: (id: number) => listShelfSlotsMock(id),
   listShelfDisplaySlots: (id: number) => listShelfDisplaySlotsMock(id),
+}));
+
+vi.mock('@/lib/db/repositories/shelf', () => ({
+  getShelfRepository: () => ({
+    list: () => listShelvesMock(),
+    listSlots: (id: number) => listShelfSlotsMock(id),
+    listDisplaySlots: (id: number) => listShelfDisplaySlotsMock(id),
+  }),
 }));
 
 // Import after the mocks are registered.
@@ -87,6 +106,9 @@ function slot(overrides: Partial<ShelfSlotEntry> = {}): ShelfSlotEntry {
     rel_released: null,
     rel_resolution: null,
     dumped: false,
+    bundle_id: null,
+    bundle_name: null,
+    bundle_member_count: 0,
     ...overrides,
   };
 }
@@ -187,7 +209,12 @@ describe('ShelfSpatialView', () => {
     expect(cards).toHaveLength(2);
     expect(cards[1].getAttribute('title')).toBe('Display B / Limited');
     expect((within(cards[1]).getByRole('img', { name: 'Display B' }) as HTMLImageElement).src).toContain('display-thumb.jpg');
-    expect(container.querySelector('[data-shelf-display-grid]')?.getAttribute('style')).toContain('2/3');
+    const grid = container.querySelector('[data-shelf-display-grid]');
+    expect(grid?.getAttribute('style')).toContain('2/3');
+    expect(grid?.getAttribute('style')).toContain('--shelf-display-count: 2');
+    expect(grid?.children).toHaveLength(3);
+    expect(grid?.querySelectorAll('[data-shelf-display-empty]')).toHaveLength(1);
+    expect(container.querySelector('style')?.textContent).toContain('data-shelf-display-layout="compact"');
   });
 
   it('renders shelf card edition title, thumbnail fallback, and dumped marker', async () => {
@@ -205,6 +232,41 @@ describe('ShelfSpatialView', () => {
     expect(card.getAttribute('title')).toBe('Title Y / Box');
     expect((within(card).getByRole('img', { name: 'Title Y' }) as HTMLImageElement).src).toContain('thumb.jpg');
     expect(within(card).getByTitle(dictionaries.fr.shelf.dumped)).toBeTruthy();
+  });
+
+  it('prefers each exact release cover over the shared VN cover in cells and displays', async () => {
+    listShelvesMock.mockReturnValue([shelf({ placed_count: 2 })]);
+    listShelfSlotsMock.mockReturnValue([
+      slot({
+        vn_image_url: 'https://example.test/shared-vn.jpg',
+        vn_local_image_thumb: '/shared-vn-thumb.jpg',
+        vn_image_sexual: 2,
+        rel_image_url: 'https://example.test/release-cell.jpg',
+        rel_local_image_thumb: '/release-cell-thumb.jpg',
+        rel_image_sexual: 1,
+      }),
+    ]);
+    listShelfDisplaySlotsMock.mockReturnValue([
+      display({
+        vn_image_url: 'https://example.test/shared-vn.jpg',
+        vn_local_image_thumb: '/shared-vn-thumb.jpg',
+        vn_image_sexual: 2,
+        rel_image_thumb: 'https://example.test/release-display-thumb.jpg',
+        rel_image_sexual: 0,
+      }),
+    ]);
+
+    await renderView();
+
+    const cellImage = screen.getByRole('img', { name: 'Title Y' });
+    expect(cellImage.getAttribute('src')).toBe('https://example.test/release-cell.jpg');
+    expect(cellImage.getAttribute('data-local-src')).toBe('/release-cell-thumb.jpg');
+    expect(cellImage.getAttribute('data-sexual')).toBe('1');
+
+    const displayImage = screen.getByRole('img', { name: 'Title Z' });
+    expect(displayImage.getAttribute('src')).toBe('https://example.test/release-display-thumb.jpg');
+    expect(displayImage.getAttribute('data-local-src')).toBe('/shared-vn-thumb.jpg');
+    expect(displayImage.getAttribute('data-sexual')).toBe('0');
   });
 
   it('honors a per-row orientation override map', async () => {

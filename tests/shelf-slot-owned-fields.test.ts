@@ -183,3 +183,76 @@ describe('listShelfDisplaySlots forwards owned-release annotations', () => {
     expect(slot.acquired_date).toBe('2026-01-02');
   });
 });
+
+describe('shelf slot release artwork priority', () => {
+  it('keeps distinct release covers for two boxed editions of the same VN', () => {
+    const fields = {
+      physical_location: [],
+      price_paid: null,
+      currency: null,
+      acquired_date: null,
+    };
+    seed('v90320', 'r903201', fields);
+    seed('v90320', 'r903202', fields);
+    db.prepare(
+      'UPDATE vn SET image_url = ?, image_thumb = ?, local_image_thumb = ?, image_sexual = ?, release_images = ? WHERE id = ?',
+    ).run(
+      'https://example.invalid/shared-vn.jpg',
+      'https://example.invalid/shared-vn-thumb.jpg',
+      '/shared-vn-thumb.jpg',
+      2,
+      JSON.stringify([
+        {
+          release_id: 'r903201',
+          release_title: 'Edition A',
+          type: 'pkgside',
+          url: 'https://example.invalid/edition-a-side.jpg',
+          thumbnail: 'https://example.invalid/edition-a-side-thumb.jpg',
+        },
+        {
+          release_id: 'r903201',
+          release_title: 'Edition A',
+          type: 'pkgfront',
+          url: 'https://example.invalid/edition-a-front.jpg',
+          thumbnail: 'https://example.invalid/edition-a-front-thumb.jpg',
+          local_thumb: '/edition-a-front-thumb.jpg',
+          sexual: 1,
+        },
+        {
+          release_id: 'r903202',
+          release_title: 'Edition B',
+          type: 'pkgfront',
+          url: 'https://example.invalid/edition-b-front.jpg',
+          thumbnail: 'https://example.invalid/edition-b-front-thumb.jpg',
+          local_thumb: '/edition-b-front-thumb.jpg',
+          sexual: 0,
+        },
+      ]),
+      'v90320',
+    );
+    const shelf = createShelf({ name: 'Duplicate-edition artwork', cols: 2, rows: 2 });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v90320', releaseId: 'r903201' });
+    placeShelfDisplayItem({
+      shelfId: shelf.id,
+      afterRow: 0,
+      position: 1,
+      vnId: 'v90320',
+      releaseId: 'r903202',
+    });
+
+    expect(listShelfSlots(shelf.id)[0]).toMatchObject({
+      vn_image_url: 'https://example.invalid/shared-vn.jpg',
+      rel_image_url: 'https://example.invalid/edition-a-front.jpg',
+      rel_image_thumb: 'https://example.invalid/edition-a-front-thumb.jpg',
+      rel_local_image_thumb: '/edition-a-front-thumb.jpg',
+      rel_image_sexual: 1,
+    });
+    expect(listShelfDisplaySlots(shelf.id)[0]).toMatchObject({
+      vn_image_url: 'https://example.invalid/shared-vn.jpg',
+      rel_image_url: 'https://example.invalid/edition-b-front.jpg',
+      rel_image_thumb: 'https://example.invalid/edition-b-front-thumb.jpg',
+      rel_local_image_thumb: '/edition-b-front-thumb.jpg',
+      rel_image_sexual: 0,
+    });
+  });
+});

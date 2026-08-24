@@ -94,7 +94,10 @@ describe('ShelfReadOnlyControls', () => {
     fireEvent.click(within(region).getByRole('button', { name: 'Contenir' }));
     fireEvent.click(within(region).getByRole('button', { name: 'Portrait' }));
     fireEvent.click(within(region).getByRole('button', { name: 'Paysage' }));
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(4));
+    fireEvent.click(within(region).getByRole('button', { name: 'Géométrique' }));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(5));
+    const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as RequestInit).body as string);
+    expect(body.shelf_display_overrides_v1.global.displayLayout).toBe('geometric');
   });
 
   it('toggles showLabels and fit mode buttons', async () => {

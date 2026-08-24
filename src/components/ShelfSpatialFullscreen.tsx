@@ -16,7 +16,9 @@ interface FullscreenLabels {
  * component only owns the fullscreen overlay state and keyboard
  * navigation between shelves.
  *
- * - Fullscreen uses `fixed inset-0 z-50` + `body { overflow: hidden }`
+ * - Fullscreen uses the shared `z-layer-fullscreen` overlay layer and
+ *   `body { overflow: hidden }` so global status, popover, and dialog
+ *   surfaces retain their defined stacking order.
  *   so the underlying page can't scroll behind the overlay.
  * - `Escape` exits. The toggle button is also focusable.
  * - Focus is restored to the originating button when fullscreen
@@ -85,7 +87,7 @@ export function ShelfSpatialFullscreen({
   }, [fullscreen, navigate]);
 
   const shellClass = fullscreen
-    ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'
+    ? 'fixed inset-0 z-layer-fullscreen overflow-auto bg-bg p-3 sm:p-6'
     : 'relative';
 
   return (
@@ -102,6 +104,7 @@ export function ShelfSpatialFullscreen({
         {fullscreen && controlsSlot}
         <button
           type="button"
+          data-shortcut="shelf-fullscreen"
           onClick={() => setFullscreen((v) => !v)}
           aria-pressed={fullscreen}
           aria-label={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
