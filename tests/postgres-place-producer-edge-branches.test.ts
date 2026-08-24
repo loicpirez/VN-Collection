@@ -91,11 +91,12 @@ describe('PostgreSQL place and producer edge branches', () => {
       producerStat({ id: 'p90004', name: 'Fourth', vn_count: 2 }),
       producerStat({ id: 'p90003', name: 'Same', vn_count: 1 }),
       producerStat({ id: 'p90002', name: 'Same', vn_count: 1 }),
-      producerStat({ id: 'p90001', name: 'p90001', vn_count: 1, name_sources: null }),
+      producerStat({ id: 'p90001', name: 'p90001', vn_count: 1, name_sources: ['[]'] }),
+      producerStat({ id: 'p90005', name: 'p90005', vn_count: 0, name_sources: null }),
     ] });
 
     const stats = await createPostgresProducerRepository().listDeveloperStats();
-    expect(stats.map((row) => row.id)).toEqual(['p90004', 'p90001', 'p90002', 'p90003']);
+    expect(stats.map((row) => row.id)).toEqual(['p90004', 'p90001', 'p90002', 'p90003', 'p90005']);
     expect(stats.find((row) => row.id === 'p90001')?.name).toBe('p90001');
   });
 
