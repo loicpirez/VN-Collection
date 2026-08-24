@@ -19,6 +19,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { BCP47, fmtDate as fmtDateShared } from '@/lib/locale-number';
+import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 import { readApiError } from '@/lib/api-error-read';
 import {
@@ -38,10 +39,11 @@ const ICONS: Record<Kind, typeof History> = {
   manual: FileText,
 };
 
-function fmtDate(ts: number, locale: string): string {
+function fmtDate(ts: number, locale: string, timeZone: string): string {
   return fmtDateShared(new Date(ts), locale as Locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone,
   });
 }
 
@@ -112,6 +114,7 @@ interface Props {
 export function ActivityTimeline({ vnId, initial }: Props) {
   const t = useT();
   const locale = useLocale();
+  const timeZone = useHydrationSafeTimeZone();
   const toast = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -257,7 +260,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="whitespace-pre-wrap text-xs text-white/85">{summary(e, t, locale)}</p>
                   <span className="flex items-center gap-2 text-[10px] text-muted">
-                    {fmtDate(e.occurred_at, locale)}
+                    {fmtDate(e.occurred_at, locale, timeZone)}
                     {e.kind === 'manual' && (
                       <button
                         type="button"

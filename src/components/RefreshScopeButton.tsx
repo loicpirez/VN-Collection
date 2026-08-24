@@ -7,6 +7,7 @@ import { fmtDate } from '@/lib/locale-number';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
+import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 /**
  * R5-058 / R5-106 / R5-215 - context-specific refresh button.
@@ -46,7 +47,8 @@ export function RefreshScopeButton({
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState<number>(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
+  const timeZone = useHydrationSafeTimeZone();
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const identityKey = `${scope}|${JSON.stringify(params ?? {})}`;
@@ -122,7 +124,7 @@ export function RefreshScopeButton({
   const showChip = lastUpdatedAt !== undefined;
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
-      {showChip && <FreshnessChip lastUpdatedAt={effectiveLastUpdated} now={now} />}
+      {showChip && <FreshnessChip lastUpdatedAt={effectiveLastUpdated} now={now} timeZone={timeZone} />}
       <button
         type="button"
         onClick={run}
@@ -138,13 +140,13 @@ export function RefreshScopeButton({
   );
 }
 
-function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; now: number }) {
+function FreshnessChip({ lastUpdatedAt, now, timeZone }: { lastUpdatedAt: number | null; now: number | null; timeZone: string }) {
   const t = useT();
   const locale = useLocale();
   const stale =
-    lastUpdatedAt == null || now - lastUpdatedAt > 7 * 86_400_000;
-  const label = timeAgo(lastUpdatedAt, t, now);
-  const absolute = lastUpdatedAt == null ? '' : fmtDate(new Date(lastUpdatedAt), locale);
+    lastUpdatedAt == null || (now != null && now - lastUpdatedAt > 7 * 86_400_000);
+  const label = timeAgo(lastUpdatedAt, t, now ?? lastUpdatedAt ?? 0);
+  const absolute = lastUpdatedAt == null ? '' : fmtDate(new Date(lastUpdatedAt), locale, { timeZone });
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-wider ${
@@ -153,7 +155,6 @@ function FreshnessChip({ lastUpdatedAt, now }: { lastUpdatedAt: number | null; n
           : 'border-border bg-bg-elev/40 text-muted'
       }`}
       title={absolute || undefined}
-      suppressHydrationWarning
     >
       <Clock className="h-3 w-3 opacity-70" aria-hidden />
       <span className="opacity-70">{t.refreshPage.lastUpdatedLabel}</span>

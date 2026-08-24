@@ -132,7 +132,7 @@ export function SettingsButton() {
   // the gear icon (or "All settings..." from the spoiler popover) on a
   // specific concern and the freshest landing is Display.
   const [activeTab, setActiveTab] = useState<SettingsTab>('display');
-  const shortcutYear = new Date().getFullYear();
+  const shortcutYear = new Date().getUTCFullYear();
   const shortcutGlobalRows = globalShortcutRows(t);
   const shortcutRouteRows = routeShortcutRows(t, shortcutYear);
   const shortcutPageSections = pageShortcutSections(t);

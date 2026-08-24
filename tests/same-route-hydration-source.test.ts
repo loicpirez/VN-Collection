@@ -60,4 +60,20 @@ describe('same-route client-island hydration', () => {
       expect(body).toContain('identityRef.current');
     }
   });
+
+  it('keeps pre-rendered date text deterministic until the browser timezone is known', () => {
+    const activity = source('src/components/ActivityTimeline.tsx');
+    const gameLog = source('src/components/GameLog.tsx');
+    const refresh = source('src/components/RefreshScopeButton.tsx');
+    const erogePrice = source('src/components/ErogePricePanel.tsx');
+
+    expect(activity).toContain('useHydrationSafeTimeZone()');
+    expect(activity).toContain('timeZone,');
+    expect(gameLog).toContain('useHydrationSafeTimeZone()');
+    expect(gameLog).toContain('groupByDay(entries, locale, timeZone)');
+    expect(refresh).toContain('useState<number | null>(null)');
+    expect(refresh).not.toContain('suppressHydrationWarning');
+    expect(erogePrice).toContain("timeZone: 'UTC'");
+    expect(erogePrice).toContain('opt.ms == null || now == null');
+  });
 });

@@ -6,6 +6,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47 } from '@/lib/locale-number';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { timeAgo } from '@/lib/time-ago';
+import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
@@ -38,6 +39,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   const t = useT();
   const { confirm } = useConfirm();
   const locale = useLocale();
+  const timeZone = useHydrationSafeTimeZone();
   const toast = useToast();
   const router = useRouter();
   const [entries, setEntries] = useState<GameLogEntry[]>(initial);
@@ -209,7 +211,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
     }
   }
 
-  const grouped = useMemo(() => groupByDay(entries, locale), [entries, locale]);
+  const grouped = useMemo(() => groupByDay(entries, locale, timeZone), [entries, locale, timeZone]);
 
   return (
     <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -290,7 +292,7 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
                       <div className="mb-1 flex flex-wrap items-baseline gap-2 text-[10px] text-muted">
                         <span className="inline-flex items-center gap-1 rounded bg-bg-card px-1.5 py-0.5 uppercase tracking-wider text-accent">
                           <Clock className="h-3 w-3" aria-hidden />
-                          {fmtTime(entry.logged_at, locale)}
+                          {fmtTime(entry.logged_at, locale, timeZone)}
                         </span>
                         <span className="opacity-70">/</span>
                         <span>{relative(entry.logged_at, now, t)}</span>
@@ -379,10 +381,11 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   );
 }
 
-function fmtTime(ts: number, locale: Locale): string {
+function fmtTime(ts: number, locale: Locale, timeZone: string): string {
   return new Date(ts).toLocaleTimeString(BCP47[locale], {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone,
   });
 }
 
@@ -391,26 +394,23 @@ function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): s
   return timeAgo(ts, t, now);
 }
 
-function groupByDay(entries: GameLogEntry[], locale: Locale): { day: string; items: GameLogEntry[] }[] {
+function groupByDay(entries: GameLogEntry[], locale: Locale, timeZone: string): { day: string; items: GameLogEntry[] }[] {
   const fmt = new Intl.DateTimeFormat(BCP47[locale], {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone,
   });
   const map = new Map<string, GameLogEntry[]>();
-  const keyOf = (ts: number): string => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  };
   for (const e of entries) {
-    const k = keyOf(e.logged_at);
+    const k = fmt.format(new Date(e.logged_at));
     const cur = map.get(k);
     if (cur) cur.push(e);
     else map.set(k, [e]);
   }
-  return Array.from(map.entries()).map(([k, items]) => ({
-    day: fmt.format(new Date(items[0].logged_at)),
+  return Array.from(map.entries()).map(([day, items]) => ({
+    day,
     items,
   }));
 }

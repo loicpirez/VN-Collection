@@ -67,6 +67,7 @@ function fmtIsoDate(iso: string, locale: 'fr' | 'en' | 'ja'): string {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: 'UTC',
     }).format(new Date(iso));
   } catch {
     return iso;
@@ -281,13 +282,18 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
     : null;
   const [range, setRange] = useState<RangeKey>('2Y');
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   const filteredHistory = useMemo(() => {
     const opt = RANGE_OPTIONS.find((o) => o.key === range)!;
-    if (opt.ms == null) return bundle.priceHistory;
-    const cutoff = Date.now() - opt.ms;
+    if (opt.ms == null || now == null) return bundle.priceHistory;
+    const cutoff = now - opt.ms;
     return bundle.priceHistory.filter((p) => new Date(p.scrapedAt).getTime() >= cutoff);
-  }, [bundle.priceHistory, range]);
+  }, [bundle.priceHistory, now, range]);
 
   const allSeries: SparklineSeries[] = useMemo(() => {
     const raw = pointsToSeries(filteredHistory);

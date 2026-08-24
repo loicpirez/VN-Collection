@@ -78,7 +78,7 @@ export function GroupedNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileSheetId = useId();
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const navigation = useMemo(() => buildNavigationRegistry(currentYear), [currentYear]);
 
   // i18n labels live here so they update under the same render cycle as the
