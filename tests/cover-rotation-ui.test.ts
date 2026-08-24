@@ -102,11 +102,14 @@ describe('HeroBanner — rotation buttons', () => {
     expect(src).toContain('absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end');
   });
 
-  it('collapses the resting mobile banner toolbar to one edit entry', () => {
-    expect(src).toContain('min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white');
-    expect(src).toContain('md:hidden');
+  it('keeps the resting banner toolbar off mobile and delegates edits to the responsive media menu', () => {
+    const actions = read('src/components/VnDetailActionsBar.tsx');
     expect(src).toContain('hidden flex-wrap items-center justify-end gap-1.5');
     expect(src).toContain('md:flex');
+    expect(src).not.toContain('md:hidden');
+    expect(actions).toContain('<ArtworkActionMenu');
+    expect(actions).toContain('<ArtworkTransformControls vnId={vn.id} />');
+    expect(actions).toContain('min-w-[44px] px-0 sm:px-3');
   });
 });
 
