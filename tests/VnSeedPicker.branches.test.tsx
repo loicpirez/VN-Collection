@@ -155,6 +155,8 @@ describe('VnSeedPicker branches', () => {
     await waitFor(() => expect(nav.replace).toHaveBeenCalled());
     const url = nav.replace.mock.calls.at(-1)![0] as string;
     expect(url).toContain('seed=v90011');
+    expect(screen.getByTestId('vn-seed-chip')).toHaveAttribute('data-seed-id', 'v90011');
+    expect(screen.getByText('Vndb One')).toBeInTheDocument();
   });
 
   it('shows the no-results panel for an empty query result', async () => {

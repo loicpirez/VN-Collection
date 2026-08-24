@@ -79,13 +79,15 @@ export function VnSeedPicker({
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [editing, setEditing] = useState(!initialSeed);
+  const [optimisticSeed, setOptimisticSeed] = useState<SeedChipData | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastQueryRef = useRef<string>('');
   const searchAbortRef = useRef<AbortController | null>(null);
 
   const seedId = searchParams.get('seed');
-  const showChip = !!initialSeed && !editing;
+  const displayedSeed = initialSeed ?? optimisticSeed;
+  const showChip = !!displayedSeed && !editing;
 
   useEffect(() => {
     searchAbortRef.current?.abort();
@@ -98,6 +100,7 @@ export function VnSeedPicker({
     setOpen(false);
     setHighlight(0);
     setEditing(!initialSeed);
+    setOptimisticSeed(null);
   }, [seedId, initialSeed?.id]);
 
   /** Hit the two endpoints in parallel; render local rows the moment they land. */
@@ -210,6 +213,17 @@ export function VnSeedPicker({
 
   const selectVn = useCallback(
     (vnId: string) => {
+      const selected = hits.find((hit) => hit.id === vnId);
+      if (selected) {
+        setOptimisticSeed({
+          id: selected.id,
+          title: selected.title,
+          alttitle: selected.alttitle,
+          released: selected.released,
+          developer: selected.developer,
+          image: selected.image,
+        });
+      }
       const nextParams = setSeed(searchParams, vnId);
       setOpen(false);
       setQuery('');
@@ -217,11 +231,12 @@ export function VnSeedPicker({
       setEditing(false);
       navigateTo(nextParams);
     },
-    [navigateTo, searchParams],
+    [hits, navigateTo, searchParams],
   );
 
   const clearCurrentSeed = useCallback(() => {
     const nextParams = clearSeed(searchParams);
+    setOptimisticSeed(null);
     setEditing(true);
     navigateTo(nextParams);
   }, [navigateTo, searchParams]);
@@ -264,7 +279,7 @@ export function VnSeedPicker({
       aria-busy={isPending || undefined}
       data-testid="vn-seed-picker"
     >
-      {showChip && initialSeed && (
+      {showChip && displayedSeed && (
         <div
           className={
             'mb-2 flex flex-wrap items-center gap-2 rounded-lg border p-2 ' +
@@ -273,22 +288,22 @@ export function VnSeedPicker({
               : 'border-border bg-bg-elev/40')
           }
           data-testid="vn-seed-chip"
-          data-seed-id={initialSeed.id}
+          data-seed-id={displayedSeed.id}
         >
           <div className="relative h-12 w-8 shrink-0 overflow-hidden rounded">
             <SafeImage
-              src={initialSeed.image?.thumbnail || initialSeed.image?.url || null}
-              sexual={initialSeed.image?.sexual ?? null}
-              alt={initialSeed.title}
+              src={displayedSeed.image?.thumbnail || displayedSeed.image?.url || null}
+              sexual={displayedSeed.image?.sexual ?? null}
+              alt={displayedSeed.title}
               className="h-12 w-8 rounded"
             />
           </div>
           <div className="min-w-0 flex-1">
             <p className="line-clamp-1 text-sm font-semibold">
-              <span title={initialSeed.id}>{initialSeed.title}</span>
+              <span title={displayedSeed.id}>{displayedSeed.title}</span>
             </p>
-            {initialSeed.alttitle && initialSeed.alttitle !== initialSeed.title && (
-              <p title={initialSeed.alttitle} className="line-clamp-1 text-[11px] text-muted">{initialSeed.alttitle}</p>
+            {displayedSeed.alttitle && displayedSeed.alttitle !== displayedSeed.title && (
+              <p title={displayedSeed.alttitle} className="line-clamp-1 text-[11px] text-muted">{displayedSeed.alttitle}</p>
             )}
             {invalid && (
               <p role="alert" className="text-[11px] text-status-dropped">
