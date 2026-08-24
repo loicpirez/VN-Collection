@@ -7,7 +7,12 @@
  * the user-facing label widens.
  */
 import { describe, expect, it } from 'vitest';
-import { platformLabel, PLATFORM_LABELS } from '@/lib/platform-label';
+import {
+  COMMON_PLATFORM_CODES,
+  PLATFORM_CODES,
+  platformLabel,
+  PLATFORM_LABELS,
+} from '@/lib/platform-label';
 
 describe('platformLabel', () => {
   it('returns the friendly name for known codes', () => {
@@ -46,6 +51,20 @@ describe('platformLabel', () => {
     expect(platformLabel('SWI')).toBe('Nintendo Switch');
   });
 
+  it('localizes translatable labels while preserving official brand names', () => {
+    expect(platformLabel('bdp', 'fr')).toBe('Lecteur Blu-ray');
+    expect(platformLabel('oth', 'fr')).toBe('Autre');
+    expect(platformLabel('win', 'fr')).toBe('Windows');
+    expect(platformLabel('n3d', 'ja')).toBe('ニンテンドー3DS');
+    expect(platformLabel('sfc', 'ja')).toBe('スーパーファミコン');
+    expect(platformLabel('win', 'ja')).toBe('Windows');
+  });
+
+  it('keeps the uppercase fallback for unknown codes in every locale', () => {
+    expect(platformLabel('zzz', 'fr')).toBe('ZZZ');
+    expect(platformLabel('zzz', 'ja')).toBe('ZZZ');
+  });
+
   it('empty string round-trips unchanged so the caller can decide', () => {
     expect(platformLabel('')).toBe('');
   });
@@ -55,5 +74,15 @@ describe('platformLabel', () => {
       expect(code.length).toBeGreaterThan(0);
       expect(label.length).toBeGreaterThan(0);
     }
+  });
+
+  it('exposes every canonical platform exactly once with common choices first', () => {
+    expect(PLATFORM_CODES.slice(0, COMMON_PLATFORM_CODES.length)).toEqual(COMMON_PLATFORM_CODES);
+    expect(new Set(PLATFORM_CODES).size).toBe(PLATFORM_CODES.length);
+    expect(PLATFORM_CODES).toContain('dos');
+    expect(PLATFORM_CODES).toContain('p98');
+    expect(PLATFORM_CODES).not.toContain('3ds');
+    expect(PLATFORM_CODES).not.toContain('xb3');
+    expect(PLATFORM_CODES.every((code) => Object.hasOwn(PLATFORM_LABELS, code))).toBe(true);
   });
 });

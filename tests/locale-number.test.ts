@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currencyFormatter, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, isoCalendarDay, yearOnly } from '@/lib/locale-number';
+import { currencyFormatter, currentCalendarYear, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, isoCalendarDay, yearOnly } from '@/lib/locale-number';
 
 describe('locale date formatting', () => {
   it('formats VNDB partial dates without inventing missing precision', () => {
@@ -40,6 +40,10 @@ describe('locale date formatting', () => {
     expect(fmtDate(date, 'en', opts)).toBe('May 21, 2020');
     expect(fmtDate(date, 'fr', opts)).toContain('2020');
     expect(fmtDate(date, 'ja', opts)).toContain('2020');
+  });
+
+  it('returns a stable current-year value from an injected date', () => {
+    expect(currentCalendarYear(new Date(2026, 5, 15))).toBe(2026);
   });
 });
 

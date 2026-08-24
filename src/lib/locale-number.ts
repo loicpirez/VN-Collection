@@ -11,6 +11,11 @@ export const BCP47: Record<Locale, string> = {
   ja: 'ja-JP',
 };
 
+/** Return the calendar year used for current-year navigation routes. */
+export function currentCalendarYear(now: Date = new Date()): number {
+  return now.getFullYear();
+}
+
 /** Format a number using locale-appropriate thousands separators. */
 export function fmtNum(n: number, locale: Locale, fractionDigits?: number): string {
   return n.toLocaleString(BCP47[locale], {

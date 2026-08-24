@@ -19,6 +19,8 @@
  * enumeration (https://api.vndb.org/kana#enumerated-fields).
  */
 
+import type { Locale } from '@/lib/i18n/dictionaries';
+
 export const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   win: 'Windows',
   mac: 'macOS',
@@ -73,13 +75,62 @@ export const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   oth: 'Other',
 };
 
+const PLATFORM_LABEL_OVERRIDES: Readonly<Partial<Record<Locale, Readonly<Record<string, string>>>>> = {
+  fr: {
+    bdp: 'Lecteur Blu-ray',
+    dvd: 'Lecteur DVD',
+    oth: 'Autre',
+  },
+  ja: {
+    n3d: 'ニンテンドー3DS',
+    '3ds': 'ニンテンドー3DS',
+    nds: 'ニンテンドーDS',
+    ps1: 'プレイステーション',
+    psp: 'プレイステーション・ポータブル',
+    mob: 'モバイル',
+    bdp: 'Blu-ray プレーヤー',
+    web: 'ウェブ',
+    dvd: 'DVDプレーヤー',
+    drc: 'ドリームキャスト',
+    gba: 'ゲームボーイアドバンス',
+    gbc: 'ゲームボーイカラー',
+    pce: 'PCエンジン',
+    sat: 'セガサターン',
+    sfc: 'スーパーファミコン',
+    smd: 'メガドライブ',
+    oth: 'その他',
+  },
+};
+
+/** Platform codes kept visible first in dense search and filter controls. */
+export const COMMON_PLATFORM_CODES: readonly string[] = [
+  'win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d',
+];
+
+const PLATFORM_ALIASES = new Set(['3ds', 'xb3']);
+
 /**
- * Return the human-readable label for a VNDB platform code.
+ * Complete canonical VNDB platform catalog in UI order. Compatibility aliases
+ * remain valid in {@link platformLabel} but are excluded from query controls.
+ */
+export const PLATFORM_CODES: readonly string[] = [
+  ...COMMON_PLATFORM_CODES,
+  ...Object.keys(PLATFORM_LABELS)
+    .filter((code) => !COMMON_PLATFORM_CODES.includes(code) && !PLATFORM_ALIASES.has(code))
+    .sort((a, b) => PLATFORM_LABELS[a].localeCompare(PLATFORM_LABELS[b], 'en')),
+];
+
+/**
+ * Return the locale-aware human-readable label for a VNDB platform code.
  * Case-insensitive. Unknown codes fall back to their uppercase form
  * so the caller can render the raw token unchanged.
+ *
+ * @param code - VNDB platform code.
+ * @param locale - Active UI locale; English is the compatibility default.
+ * @returns Localized platform name or an uppercase raw-code fallback.
  */
-export function platformLabel(code: string): string {
+export function platformLabel(code: string, locale: Locale = 'en'): string {
   if (!code) return code;
   const norm = code.toLowerCase();
-  return PLATFORM_LABELS[norm] ?? code.toUpperCase();
+  return PLATFORM_LABEL_OVERRIDES[locale]?.[norm] ?? PLATFORM_LABELS[norm] ?? code.toUpperCase();
 }
