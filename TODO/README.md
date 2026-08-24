@@ -10,6 +10,7 @@ This folder separates active audit work from historical reports.
 | `round9-postgresql-migration-report-tasks.md` | Complete PostgreSQL migration: async persistence architecture, 52-table schema, 263 DB functions, 369 consumers, real-data migration, backup/restore, operations, and parity validation. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 | `round10-final-full-app-audit-report-tasks.md` | Final cross-check of UI/UX, functionality, responsive behavior, accessibility, i18n, security, performance, typing, tests, documentation, production data, and deployment readiness. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 | `round11-skeleton-and-full-app-audit-report-tasks.md` | Loading-skeleton coherence pass plus a repeated app-wide audit of UI/UX, functionality, responsive behavior, accessibility, i18n, security, performance, typing, tests, documentation, production data, and deployment evidence. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
+| `round11-vndb-integration-report-tasks.md` | Personal-data synchronization contract covering local/VNDB conflict resolution, per-field choices, safe global status preview/apply, concurrency, privacy, and known upstream limits. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 
 ## Historical reports
 
