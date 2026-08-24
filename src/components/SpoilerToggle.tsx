@@ -1,9 +1,41 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Eye, EyeOff, Settings2, ShieldAlert } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
+
+const CONTENT_PANEL_WIDTH = 320;
+const CONTENT_PANEL_GUTTER = 12;
+
+export interface ContentPanelPosition {
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+}
+
+export function calculateContentPanelPosition(
+  trigger: Pick<DOMRect, 'right' | 'bottom'>,
+  viewportWidth: number,
+  viewportHeight: number,
+): ContentPanelPosition {
+  const availableWidth = Math.max(0, viewportWidth - CONTENT_PANEL_GUTTER * 2);
+  const width = Math.min(CONTENT_PANEL_WIDTH, availableWidth);
+  const maximumLeft = Math.max(CONTENT_PANEL_GUTTER, viewportWidth - width - CONTENT_PANEL_GUTTER);
+  const left = Math.min(
+    Math.max(CONTENT_PANEL_GUTTER, trigger.right - width),
+    maximumLeft,
+  );
+  const top = Math.max(CONTENT_PANEL_GUTTER, trigger.bottom + 4);
+  return {
+    left,
+    top,
+    width,
+    maxHeight: Math.max(0, viewportHeight - top - CONTENT_PANEL_GUTTER),
+  };
+}
 
 /**
  * Content-safety hub. The closed-eye icon in the navbar opens a
@@ -31,16 +63,36 @@ export function SpoilerToggle() {
   const popRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const focusedForOpenRef = useRef(false);
   const popoverId = useId();
+  const [panelPosition, setPanelPosition] = useState<ContentPanelPosition | null>(null);
+
+  const positionPanel = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    setPanelPosition(calculateContentPanelPosition(
+      trigger.getBoundingClientRect(),
+      window.innerWidth,
+      window.innerHeight,
+    ));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    positionPanel();
+    window.addEventListener('resize', positionPanel);
+    window.addEventListener('scroll', positionPanel, true);
+    return () => {
+      window.removeEventListener('resize', positionPanel);
+      window.removeEventListener('scroll', positionPanel, true);
+    };
+  }, [open, positionPanel]);
 
   useEffect(() => {
     if (!open) return;
-    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    firstFocusable?.focus({ preventScroll: true });
     function outside(e: MouseEvent) {
-      if (!popRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!popRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
     }
     function esc(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -50,9 +102,19 @@ export function SpoilerToggle() {
     return () => {
       window.removeEventListener('mousedown', outside);
       window.removeEventListener('keydown', esc);
+      focusedForOpenRef.current = false;
       triggerRef.current?.focus({ preventScroll: true });
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !panelPosition || focusedForOpenRef.current) return;
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    firstFocusable?.focus({ preventScroll: true });
+    focusedForOpenRef.current = true;
+  }, [open, panelPosition]);
 
   const labelByLevel: Record<0 | 1 | 2, string> = {
     0: t.spoiler.lvl0,
@@ -83,11 +145,12 @@ export function SpoilerToggle() {
         {lit ? <Eye className="h-3.5 w-3.5" aria-hidden /> : <EyeOff className="h-3.5 w-3.5" aria-hidden />}
         <span>{labelByLevel[settings.spoilerLevel]}</span>
       </button>
-      {open && (
+      {open && panelPosition && createPortal(
         <div
           ref={panelRef}
           id={popoverId}
-          className="absolute right-0 top-full z-40 mt-1 w-[min(95vw,20rem)] rounded-lg border border-border bg-bg-card p-3 shadow-card"
+          className="fixed z-layer-popover overflow-y-auto overscroll-contain rounded-lg border border-border bg-bg-card p-3 shadow-card"
+          style={panelPosition}
           role="region"
           aria-label={t.contentControls.title}
         >
@@ -178,7 +241,8 @@ export function SpoilerToggle() {
             <Settings2 className="h-3.5 w-3.5" aria-hidden />
             {t.contentControls.openSettings}
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

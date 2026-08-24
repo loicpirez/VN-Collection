@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SpoilerChip } from '@/components/SpoilerChip';
 import { SpoilerReveal } from '@/components/SpoilerReveal';
-import { SpoilerToggle } from '@/components/SpoilerToggle';
+import { calculateContentPanelPosition, SpoilerToggle } from '@/components/SpoilerToggle';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { DisplaySettings } from '@/lib/settings/client';
 import { renderWithProviders } from './helpers/render-component';
@@ -215,6 +215,24 @@ describe('SpoilerChip', () => {
 });
 
 describe('SpoilerToggle', () => {
+  it('keeps the content panel inside narrow and wide viewports', () => {
+    expect(calculateContentPanelPosition(
+      { right: 90, bottom: 52 },
+      390,
+      844,
+    )).toEqual({ left: 12, top: 56, width: 320, maxHeight: 776 });
+    expect(calculateContentPanelPosition(
+      { right: 20, bottom: 40 },
+      240,
+      120,
+    )).toEqual({ left: 12, top: 44, width: 216, maxHeight: 64 });
+    expect(calculateContentPanelPosition(
+      { right: 1180, bottom: 64 },
+      1200,
+      900,
+    )).toEqual({ left: 860, top: 68, width: 320, maxHeight: 820 });
+  });
+
   it('opens, focuses, mutates all content controls, and dispatches the full-settings event', () => {
     const openSettings = vi.fn();
     window.addEventListener('vn:open-settings', openSettings);
