@@ -154,7 +154,7 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
 
   return (
     <DialogPortal>
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center" onClick={onClose}>
+      <div className="fixed inset-0 z-layer-modal flex items-center justify-center" onClick={onClose}>
         <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
         <div
           ref={panelRef}
@@ -213,7 +213,7 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
               >
                 <ExternalLink className="h-3 w-3" aria-hidden />
               </a>
-              <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary min-h-[44px] sm:min-h-0">
+              <button type="button" onClick={() => link(h.id)} disabled={busy != null} className="btn btn-primary min-h-[44px] can-hover:sm:min-h-0">
                 {busy === h.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2 className="h-3 w-3" aria-hidden />}
                 {t.mapEgs.useThis}
               </button>
@@ -222,7 +222,7 @@ export function AliceNetLinkDialog({ item, onClose, onLinked }: LinkDialogProps)
         </ul>
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-          <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0">
+          <button type="button" onClick={() => link(null)} disabled={busy != null} className="btn btn-danger btn-xs min-h-[44px] can-hover:sm:min-h-0">
             {busy === 'none' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Link2Off className="h-3 w-3" aria-hidden />}
             {t.alicenet.alicenetNoMatch}
           </button>

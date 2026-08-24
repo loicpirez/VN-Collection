@@ -167,7 +167,12 @@ afterEach(() => {
 describe('AliceNetClient', () => {
   it('shows skeletons while the initial snapshot loads, then the empty state', async () => {
     let resolve!: (r: Response) => void;
-    global.fetch = vi.fn(() => new Promise<Response>((r) => { resolve = r; }));
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        return Promise.resolve(json({ throttle: { active: 0, queued: 0 }, jobs: [] }));
+      }
+      return new Promise<Response>((r) => { resolve = r; });
+    }) as unknown as typeof fetch;
     const { container } = renderClient();
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
     expect(screen.getByRole('status')).toBeInTheDocument();
@@ -189,6 +194,19 @@ describe('AliceNetClient', () => {
     expect(screen.getAllByText('EGS only').length).toBeGreaterThan(0);
   });
 
+  it('uses the producer facets returned by the server snapshot', async () => {
+    global.fetch = vi.fn(async () => json({
+      ...snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }),
+      producers: [{ id: 'p-server', name: 'Server Producer', count: 7 }],
+    }));
+
+    renderClient();
+    await screen.findByText('Matched Title Two');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Producer' }));
+    expect(screen.getByRole('option', { name: /^Server Producer\s*7$/ })).toBeInTheDocument();
+  });
+
   it('shows the not-yet-matched breakdown in the no-result stat tile', async () => {
     global.fetch = vi.fn(async () =>
       json(snapshot({
@@ -201,19 +219,56 @@ describe('AliceNetClient', () => {
     expect(await screen.findByText('2 Not yet matched')).toBeInTheDocument();
   });
 
-  it('loads a second page when the first snapshot reports has_more', async () => {
+  it('loads the next server page only after the operator requests it', async () => {
     const page1 = {
       ...snapshot({ items: [VNDB_ITEM], stats: { total: 2, matched: 1, vndb_matched: 1 } }),
       page: { offset: 0, limit: 1, total: 2, has_more: true },
     };
-    const page2 = { items: [EGS_ITEM], page: { offset: 1, limit: 1, total: 2, has_more: false } };
+    const page2 = {
+      ...snapshot({ items: [EGS_ITEM], stats: { total: 2, matched: 2, vndb_matched: 1, egs_only: 1 } }),
+      page: { offset: 96, limit: 96, total: 97, has_more: false },
+    };
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url).includes('offset=1')) return json(page2);
+      if (String(url).includes('offset=96')) return json(page2);
       return json(page1);
     });
-    renderClient();
+    const { user } = renderClient();
     expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.queryByText('Egs Title Three')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
     expect(await screen.findByText('Egs Title Three')).toBeInTheDocument();
+    expect(screen.queryByText('Matched Title Two')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.queryByText('Egs Title Three')).toBeNull();
+  });
+
+  it('normalizes an invalid page query to the first server page', async () => {
+    mockedSearchParams = new URLSearchParams('page=invalid');
+    const requestedUrls: string[] = [];
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const value = String(url);
+      if (value.startsWith('/api/alicenet')) requestedUrls.push(value);
+      if (value === '/api/download-status') {
+        return json({ throttle: { active: 0, queued: 0 }, jobs: [] });
+      }
+      return json(snapshot());
+    });
+
+    renderClient();
+    await screen.findByText('No stock downloaded yet. Click "Download" to fetch the latest AliceNet inventory.');
+    expect(requestedUrls).toContain('/api/alicenet');
+    expect(requestedUrls.some((url) => url.includes('offset='))).toBe(false);
+  });
+
+  it('labels a snapshot whose wishlist source was unavailable', async () => {
+    global.fetch = vi.fn(async () => json({
+      ...snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }),
+      wishlist_available: false,
+    }));
+
+    renderClient();
+    expect(await screen.findByText('VNDB wishlist unavailable for this refresh')).toBeInTheDocument();
   });
 
   it('filters by the VNDB tab', async () => {
@@ -287,6 +342,7 @@ describe('AliceNetClient', () => {
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM, old] })));
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
     await user.type(screen.getByLabelText('Min year'), '2010');
     await waitFor(() => expect(screen.queryByText('Old Title')).toBeNull());
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
@@ -299,6 +355,7 @@ describe('AliceNetClient', () => {
     global.fetch = vi.fn(async () => json(snapshot({ items: [oldCheap, oldExpensive, modern], stats: { total: 3 } })));
     const { user } = renderClient();
     await screen.findByText('Old Cheap Title');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
     await user.type(screen.getByLabelText('Max year'), '2010');
     await waitFor(() => expect(screen.queryByText('Modern Title')).toBeNull());
     await user.type(screen.getByLabelText('Min price'), '2000');
@@ -385,7 +442,306 @@ describe('AliceNetClient', () => {
     await screen.findByText('Matched Title Two');
     await user.click(screen.getByRole('button', { name: 'Download all' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('an AliceNet operation is already running');
+    expect(alert.textContent).toContain('An AliceNet operation is already running. Wait for it to finish or stop it.');
+  });
+
+  it('reports a malformed accepted-operation response', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/alicenet/run' && init?.method === 'POST') return json({ accepted: true });
+      if (value === '/api/download-status') {
+        return json({ throttle: { active: 0, queued: 0 }, jobs: [] });
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Sync stock' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server accepted the operation but returned an invalid response.');
+  });
+
+  it('renders active job progress, errors, current item, and sends a stop request', async () => {
+    const deletes: string[] = [];
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-1', kind: 'alicenet', vn_id: null, label: 'AliceNet pipeline',
+            total: 10, done: 4, current_item: 'Batch 5', errors: [{ item: 'row', message: 'failed' }],
+            started_at: 10, finished_at: null,
+          }, {
+            id: 'alice-job-older', kind: 'alicenet', vn_id: null, label: 'Older AliceNet pipeline',
+            total: 10, done: 1, current_item: null, errors: [], started_at: 5, finished_at: null,
+          }],
+        });
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-1' && init?.method === 'DELETE') {
+        deletes.push(value);
+        return json({ cancelled: 'alice-job-1' });
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    expect(await screen.findByText('AliceNet pipeline')).toBeInTheDocument();
+    expect(screen.queryByText('Older AliceNet pipeline')).toBeNull();
+    expect(screen.getByText('Batch 5')).toBeInTheDocument();
+    expect(screen.getByText('4/10 (40%)')).toBeInTheDocument();
+    expect(screen.getByText('1 error(s)')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'AliceNet progress' })).toHaveAttribute('aria-valuenow', '4');
+
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    await waitFor(() => expect(deletes).toEqual(['/api/alicenet/run?jobId=alice-job-1']));
+    expect(await screen.findByText('Stop requested. The operation will stop after the current batch.')).toBeInTheDocument();
+  });
+
+  it('shows the localized fallback when stopping a job rejects with a non-Error value', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-stop-error', kind: 'alicenet', vn_id: null, label: 'AliceNet stop failure',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        });
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-stop-error' && init?.method === 'DELETE') {
+        throw 'raw stop failure';
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    await screen.findByText('AliceNet stop failure');
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Error');
+  });
+
+  it('shows the localized operation fallback when the stop route returns a legacy error', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-http-error', kind: 'alicenet', vn_id: null, label: 'AliceNet HTTP stop failure',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        });
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-http-error' && init?.method === 'DELETE') {
+        return json({ error: 'Unable to stop this operation' }, 503);
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    await screen.findByText('AliceNet HTTP stop failure');
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The AliceNet operation could not be stopped.');
+  });
+
+  it('deduplicates stop requests while the first request is pending', async () => {
+    const stopRequest = deferredResponse();
+    let deleteCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-stop-pending', kind: 'alicenet', vn_id: null, label: 'AliceNet pending stop',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        }));
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-stop-pending' && init?.method === 'DELETE') {
+        deleteCalls += 1;
+        return stopRequest.promise;
+      }
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+
+    renderClient();
+    await screen.findByText('AliceNet pending stop');
+    const stopButton = screen.getByRole('button', { name: 'Stop' });
+    act(() => {
+      fireEvent.click(stopButton);
+      fireEvent.click(stopButton);
+    });
+    expect(deleteCalls).toBe(1);
+    await act(async () => {
+      stopRequest.resolve(json({ cancelled: 'alice-job-stop-pending' }));
+      await flushAsyncWork();
+    });
+    expect(await screen.findByText('Stop requested. The operation will stop after the current batch.')).toBeInTheDocument();
+  });
+
+  it('does not update the UI when a stop request succeeds after unmount', async () => {
+    const stopRequest = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-stop-unmounted', kind: 'alicenet', vn_id: null, label: 'AliceNet unmounted stop',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        }));
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-stop-unmounted' && init?.method === 'DELETE') return stopRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+
+    const view = renderClient();
+    await screen.findByText('AliceNet unmounted stop');
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    view.unmount();
+    await act(async () => {
+      stopRequest.resolve(json({ cancelled: 'alice-job-stop-unmounted' }));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByText('AliceNet unmounted stop')).toBeNull();
+  });
+
+  it('does not report a stop error that arrives after unmount', async () => {
+    const stopRequest = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-stop-error-unmounted', kind: 'alicenet', vn_id: null, label: 'AliceNet unmounted stop error',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        }));
+      }
+      if (value === '/api/alicenet/run?jobId=alice-job-stop-error-unmounted' && init?.method === 'DELETE') return stopRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+
+    const view = renderClient();
+    await screen.findByText('AliceNet unmounted stop error');
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    view.unmount();
+    await act(async () => {
+      stopRequest.reject(new Error('late stop failure'));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows the localized fallback when polling an active job rejects with a non-Error value', async () => {
+    let statusCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        statusCalls += 1;
+        if (statusCalls > 1) return Promise.reject('raw polling failure');
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-poll-error', kind: 'alicenet', vn_id: null, label: 'AliceNet polling failure',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        }));
+      }
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+
+    renderClient();
+    await screen.findByText('AliceNet polling failure');
+    expect(await screen.findByText('Error', {}, { timeout: 3_000 })).toBeInTheDocument();
+    expect(statusCalls).toBeGreaterThan(1);
+  });
+
+  it('ignores a status snapshot that resolves after unmount', async () => {
+    const statusRequest = deferredResponse();
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') return statusRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const view = renderClient();
+    await screen.findByText('Matched Title Two');
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) => String(call[0]) === '/api/download-status')).toBe(true));
+    view.unmount();
+    await act(async () => {
+      statusRequest.resolve(json({ throttle: { active: 0, queued: 0 }, jobs: [] }));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByText('Matched Title Two')).toBeNull();
+  });
+
+  it('does not schedule another poll when unmounted during the completion reload', async () => {
+    const reloadRequest = deferredResponse();
+    let collectionCalls = 0;
+    let statusCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        statusCalls += 1;
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-finished-unmount', kind: 'alicenet', vn_id: null, label: 'AliceNet finished before unmount',
+            total: 1, done: statusCalls > 1 ? 1 : 0, current_item: null, errors: [], started_at: 10,
+            finished_at: statusCalls > 1 ? 20 : null,
+          }],
+        }));
+      }
+      collectionCalls += 1;
+      if (collectionCalls > 1) return reloadRequest.promise;
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    }) as unknown as typeof fetch;
+
+    const view = renderClient();
+    await screen.findByText('Matched Title Two');
+    await waitFor(() => expect(collectionCalls).toBe(2), { timeout: 3_500 });
+    view.unmount();
+    await act(async () => {
+      reloadRequest.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+      await flushAsyncWork();
+    });
+    expect(screen.queryByText('AliceNet finished before unmount')).toBeNull();
+  });
+
+  it('reloads the stock snapshot when a tracked job finishes', async () => {
+    let statusCalls = 0;
+    let collectionCalls = 0;
+    const baseJob = {
+      id: 'alice-job-finish', kind: 'alicenet' as const, vn_id: null, label: 'AliceNet sync',
+      total: 2, done: 1, current_item: 'Final batch', errors: [], started_at: 10,
+    };
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        statusCalls += 1;
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            ...baseJob,
+            done: statusCalls > 1 ? 2 : 1,
+            finished_at: statusCalls > 1 ? 20 : null,
+          }],
+        });
+      }
+      collectionCalls += 1;
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    expect(await screen.findByText('AliceNet sync')).toBeInTheDocument();
+    await waitFor(() => expect(collectionCalls).toBeGreaterThanOrEqual(2), { timeout: 3_500 });
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('AliceNet sync')).toBeNull();
   });
 
   it('issues a single POST when an operation button is double-clicked', async () => {
@@ -551,10 +907,21 @@ describe('AliceNetClient', () => {
     await user.click(screen.getByRole('button', { name: 'Select' }));
     await user.click(screen.getByRole('button', { name: 'Select VNDB-linked' }));
     expect(screen.getAllByText('1 selected').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Select Matched Title Two' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Select Egs Title Three' })).toHaveAttribute('aria-pressed', 'false');
+    const matchedToggle = screen.getByRole('button', { name: 'Select Matched Title Two' });
+    const unmatchedToggle = screen.getByRole('button', { name: 'Select Egs Title Three' });
+    expect(matchedToggle).toHaveAttribute('aria-pressed', 'true');
+    expect(unmatchedToggle).toHaveAttribute('aria-pressed', 'false');
+    const matchedItem = matchedToggle.closest('[role="listitem"]');
+    const unmatchedItem = unmatchedToggle.closest('[role="listitem"]');
+    const matchedDescription = matchedItem?.getAttribute('aria-describedby');
+    const unmatchedDescription = unmatchedItem?.getAttribute('aria-describedby');
+    expect(matchedDescription).toBeTruthy();
+    expect(unmatchedDescription).toBeTruthy();
+    expect(document.getElementById(matchedDescription ?? '')).toHaveTextContent('Item selected');
+    expect(document.getElementById(unmatchedDescription ?? '')).toHaveTextContent('Item not selected');
     await user.click(screen.getAllByRole('button', { name: 'Clear selection' })[0]);
     await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
+    expect(matchedItem).not.toHaveAttribute('aria-describedby');
   });
 
   it('toggles an individual selected card off and on', async () => {
@@ -583,10 +950,15 @@ describe('AliceNetClient', () => {
     );
     const { user } = renderClient();
     await screen.findByText('Matched Title Two');
-    await user.selectOptions(screen.getByLabelText('Producer'), 'p90001');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByLabelText('Min year')).toHaveAttribute('placeholder', 'YYYY');
+    expect(screen.getByLabelText('Max year')).toHaveAttribute('placeholder', 'YYYY');
+    await user.click(screen.getByRole('combobox', { name: 'Producer' }));
+    await user.click(screen.getByRole('option', { name: /^Studio X\s*1$/ }));
     await waitFor(() => expect(screen.queryByText('Egs Title Three')).toBeNull());
     expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Producer'), '');
+    await user.click(screen.getByRole('combobox', { name: 'Producer' }));
+    await user.click(screen.getByRole('option', { name: 'All producers' }));
     await user.type(screen.getByLabelText('Max price'), '2000');
     await waitFor(() => expect(screen.queryByText('Matched Title Two')).toBeNull());
     expect(screen.getByText('Cheap Brand Title')).toBeInTheDocument();
@@ -688,14 +1060,14 @@ describe('AliceNetClient', () => {
     const card = (await screen.findByText('Candidate Detail Title')).closest('article')!;
     expect(within(card).getByRole('button', { name: 'v90002' })).toHaveAttribute('title', expect.stringContaining('Alt Two'));
     await user.click(within(card).getByRole('button', { name: 'v90002' }));
-    await waitFor(() => expect(screen.getAllByText(/candidate failed/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('The AliceNet link for this item could not be changed.').length).toBeGreaterThan(0));
   });
 
   it('shows an error toast when the initial load fails', async () => {
     global.fetch = vi.fn(async () => json({ error: 'load failed' }, 500));
     renderClient();
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('load failed');
+    expect(alert.textContent).toContain('AliceNet stock could not be loaded. Retry or check the server.');
   });
 
   it('renders the empty-for-filter state when the filter excludes everything', async () => {
@@ -766,14 +1138,14 @@ describe('AliceNetClient', () => {
   });
 
   it('cleans default URL state from the shop route', async () => {
-    mockedSearchParams = new URLSearchParams('filter=all&sort=match_status&group=none&view=cards&q=&producer=&yearMin=&yearMax=&priceMin=&priceMax=&filters=1');
+    mockedSearchParams = new URLSearchParams('filter=all&sort=match_status&group=none&view=cards&q=&producer=&yearMin=&yearMax=&priceMin=&priceMax=&filters=0');
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
     renderClient();
     await screen.findByText('Matched Title Two');
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/places', { scroll: false }));
   });
 
-  it('reports malformed initial and follow-up stock payloads', async () => {
+  it('reports malformed initial and next-page stock payloads', async () => {
     global.fetch = vi.fn(async () => json({ broken: true }));
     const first = renderClient();
     expect(await screen.findByRole('alert')).toHaveTextContent('The local AliceNet response is malformed.');
@@ -784,10 +1156,12 @@ describe('AliceNetClient', () => {
       page: { offset: 0, limit: 1, total: 2, has_more: true },
     };
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url).includes('offset=1')) return json({ broken: true });
+      if (String(url).includes('offset=96')) return json({ broken: true });
       return json(page1);
     });
-    renderClient();
+    const { user } = renderClient();
+    await screen.findByText('Matched Title Two');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('The local AliceNet response is malformed.');
   });
 
@@ -795,10 +1169,11 @@ describe('AliceNetClient', () => {
     global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
     renderClient();
     await screen.findByText('Matched Title Two');
-    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
-    await waitFor(() => expect(screen.queryByLabelText('Producer')).toBeNull());
+    expect(screen.queryByLabelText('Producer')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     await waitFor(() => expect(screen.getByLabelText('Producer')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await waitFor(() => expect(screen.queryByLabelText('Producer')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'List' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
     fireEvent.click(screen.getByRole('button', { name: 'Cards' }));
@@ -806,6 +1181,34 @@ describe('AliceNetClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select' }));
     fireEvent.click(screen.getByRole('button', { name: 'Exit selection' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Select' })).toHaveAttribute('aria-pressed', 'false'));
+  });
+
+  it('persists the filter panel state and restores it on the next mount', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    const first = renderClient();
+    await screen.findByText('Matched Title Two');
+    expect(screen.queryByLabelText('Producer')).toBeNull();
+    await first.user.click(screen.getByRole('button', { name: 'Filters' }));
+    await waitFor(() => expect(window.localStorage.getItem('vncoll.alicenet.prefs.v1')).toContain('"showFilters":true'));
+    first.unmount();
+
+    renderClient();
+    expect(await screen.findByLabelText('Producer')).toBeInTheDocument();
+  });
+
+  it('opens filters when an advanced URL filter is active', async () => {
+    mockedSearchParams = new URLSearchParams('priceMin=2000&filters=0');
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    expect(await screen.findByLabelText('Min price')).toHaveValue('2000');
+  });
+
+  it('honors an explicitly open filter panel URL over saved preferences', async () => {
+    window.localStorage.setItem('vncoll.alicenet.prefs.v1', JSON.stringify({ showFilters: false }));
+    mockedSearchParams = new URLSearchParams('filters=1');
+    global.fetch = vi.fn(async () => json(snapshot({ items: [VNDB_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } })));
+    renderClient();
+    expect(await screen.findByLabelText('Producer')).toBeInTheDocument();
   });
 
   it('measures and window-renders large card lists deterministically', async () => {

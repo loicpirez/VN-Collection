@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookHeart,
   Building2,
+  CircleStop,
   CheckCircle2,
   CheckSquare,
   ExternalLink,
@@ -38,9 +39,11 @@ import {
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 import { timeAgo } from '@/lib/time-ago';
-import { readApiError } from '@/lib/api-error-read';
+import { readApiErrorLocalized } from '@/lib/api-error-read';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
+import { AcronymLabel } from './AcronymLabel';
+import { FacetCombobox } from './library/FacetCombobox';
 
 import type {
   AliceNetCandidate,
@@ -54,6 +57,10 @@ import type {
 import {
   ALICENET_SORTS,
   ALICENET_GROUPS,
+  isAliceNetSort,
+  isAliceNetGroup,
+  isAliceNetView,
+  parseAliceNetQueryState,
   parseAliceNetPrice as parsePrice,
   comparableAliceNetDate as comparableDate,
   formatAliceNetDate,
@@ -66,9 +73,61 @@ import {
 import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
 import {
   decodeAliceNetClientSnapshot,
-  decodeAliceNetStockPage,
+  decodeAliceNetRunAccepted,
+  type AliceNetPageMeta,
   type AliceNetPendingCounts,
+  type AliceNetProducerOption,
 } from '@/lib/alicenet-client-shape';
+import {
+  decodeDownloadStatusSnapshot,
+  type DownloadStatusJob,
+} from '@/lib/download-status-snapshot';
+
+async function readAliceNetApiError(
+  response: Response,
+  t: ReturnType<typeof useT>,
+  fallback: string,
+): Promise<string> {
+  return readApiErrorLocalized(response, {
+    alicenet_dns_failure: t.alicenet.alicenetDnsFailure,
+    alicenet_timeout: t.alicenet.alicenetTimeout,
+    alicenet_connection_refused: t.alicenet.alicenetConnectionRefused,
+    alicenet_forbidden: t.alicenet.alicenetForbidden,
+    alicenet_not_found: t.alicenet.alicenetNotFound,
+    alicenet_parse_failed: t.alicenet.alicenetParseFailed,
+    alicenet_operation_failed: fallback,
+    upstream_unavailable: fallback,
+    internal_error: fallback,
+  }, fallback);
+}
+
+const ALICENET_PREFS_KEY = 'vncoll.alicenet.prefs.v1';
+
+/**
+ * Read persisted AliceNet view preferences when browser storage is available.
+ *
+ * @returns Validated AliceNet preferences, or an empty object during SSR and
+ * when storage is missing or malformed.
+ */
+export function loadAliceNetPrefs(): { sort?: AliceNetSort; group?: AliceNetGroup; view?: AliceNetView; showFilters?: boolean } {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ALICENET_PREFS_KEY);
+    if (!raw) return {};
+    const obj = parseClientPreferenceRecord(raw);
+    const savedSort = typeof obj.sort === 'string' ? obj.sort : null;
+    const savedGroup = typeof obj.group === 'string' ? obj.group : null;
+    const savedView = typeof obj.view === 'string' ? obj.view : null;
+    return {
+      sort: isAliceNetSort(savedSort) ? savedSort : undefined,
+      group: isAliceNetGroup(savedGroup) ? savedGroup : undefined,
+      view: isAliceNetView(savedView) ? savedView : undefined,
+      showFilters: typeof obj.showFilters === 'boolean' ? obj.showFilters : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Format a raw alicenet price string ("¥4,270", "4,270円") as locale-native
@@ -93,7 +152,7 @@ const AliceNetLinkDialog = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center" aria-hidden>
+      <div className="fixed inset-0 z-layer-modal flex items-center justify-center" aria-hidden>
         <div className="absolute inset-0 bg-bg/80 backdrop-blur" />
         <div className="relative w-[min(92vw,640px)] max-h-[85vh] rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card">
           <SkeletonBlock className="mb-3 h-5 w-40" />
@@ -114,6 +173,11 @@ interface CandidateChipsProps {
   currentId: string | null;
   code: string;
   onRemapped: () => void;
+}
+
+interface AliceNetListPosition {
+  position: number;
+  setSize: number;
 }
 
 function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateChipsProps) {
@@ -150,7 +214,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
         body: JSON.stringify({ vn_id: vnId }),
         signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readAliceNetApiError(r, t, t.alicenet.alicenetLinkFailed));
       if (controller.signal.aborted || !mountedRef.current || codeRef.current !== owner || mutationAbortRef.current !== controller) return;
       onRemapped();
     } catch (e) {
@@ -176,7 +240,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
             onClick={() => pick(c.id)}
             disabled={busy != null || isActive}
             title={`${c.title}${c.alttitle ? ` / ${c.alttitle}` : ''}${c.released ? ` (${formatVndbDateString(c.released, locale)})` : ''}`}
-            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors sm:min-h-0 ${
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors can-hover:sm:min-h-0 ${
               isActive
                 ? 'bg-accent/20 text-accent cursor-default'
                 : 'border border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -240,9 +304,9 @@ const AliceNetSearchInput = memo(function AliceNetSearchInput({
  *
  * Operations (download, pipeline, match-vndb, match-egs) are dispatched to
  * `POST /api/alicenet/run`, which runs them as detached server-side
- * download-status jobs. Progress surfaces in the global Downloads bar and
- * survives a browser refresh, so this component renders no progress or stop
- * UI of its own. Refresh the page to pull in newly matched rows.
+ * download-status jobs. Progress survives a browser refresh and is shown both
+ * in the global Downloads bar and in this shop panel, where the active job can
+ * be stopped without leaving the AliceNet place page.
  */
 interface AliceNetClientProps {
   basePath?: string;
@@ -256,68 +320,55 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
   const { confirm } = useConfirm();
   const urlSearch = useSearchParams();
   const router = useRouter();
-  const isFilterTab = (v: string | null): v is FilterTab =>
-    v === 'all' || v === 'matched' || v === 'vndb' || v === 'egs_only' ||
-    v === 'unmatched' || v === 'none_found' || v === 'collection' || v === 'wishlist';
-  const isAliceNetSort = (v: string | null): v is AliceNetSort =>
-    v != null && (ALICENET_SORTS as readonly string[]).includes(v);
-  const isAliceNetGroup = (v: string | null): v is AliceNetGroup =>
-    v != null && (ALICENET_GROUPS as readonly string[]).includes(v);
-  const isAliceNetView = (v: string | null): v is AliceNetView => v === 'cards' || v === 'list';
+  const initialQuery = parseAliceNetQueryState(urlSearch);
 
-  const ALICENET_PREFS_KEY = 'vncoll.alicenet.prefs.v1';
-  function loadAliceNetPrefs(): { sort?: AliceNetSort; group?: AliceNetGroup; view?: AliceNetView } {
-    if (typeof window === 'undefined') return {};
-    try {
-      const raw = window.localStorage.getItem(ALICENET_PREFS_KEY);
-      if (!raw) return {};
-      const obj = parseClientPreferenceRecord(raw);
-      const savedSort = typeof obj.sort === 'string' ? obj.sort : null;
-      const savedGroup = typeof obj.group === 'string' ? obj.group : null;
-      const savedView = typeof obj.view === 'string' ? obj.view : null;
-      return {
-        sort: isAliceNetSort(savedSort) ? savedSort : undefined,
-        group: isAliceNetGroup(savedGroup) ? savedGroup : undefined,
-        view: isAliceNetView(savedView) ? savedView : undefined,
-      };
-    } catch {
-      return {};
-    }
-  }
   const [items, setItems] = useState<AliceNetItem[]>([]);
   const [stats, setStats] = useState<AliceNetStats>({ total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 });
   const [pending, setPending] = useState<AliceNetPendingCounts>({ vndb_pending: 0, egs_pending: 0 });
   const [lastFetch, setLastFetch] = useState<number | null>(null);
+  const [pageMeta, setPageMeta] = useState<AliceNetPageMeta>({ offset: 0, limit: 96, total: 0, has_more: false });
+  const [producerOptions, setProducerOptions] = useState<AliceNetProducerOption[]>([]);
+  const [wishlistAvailable, setWishlistAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<AliceNetRunOp | null>(null);
   const startingRef = useRef(false);
+  const [activeJob, setActiveJob] = useState<DownloadStatusJob | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
+  const completedReloadRef = useRef<Set<string>>(new Set());
+  const [jobStatusError, setJobStatusError] = useState<string | null>(null);
+  const [jobPollKey, setJobPollKey] = useState(0);
+  const [stoppingJob, setStoppingJob] = useState(false);
+  const stopJobInFlightRef = useRef(false);
   const [filter, setFilter] = useState<FilterTab>(() => {
-    const v = urlSearch?.get('filter') ?? null;
-    return isFilterTab(v) ? v : 'all';
+    return initialQuery.filter;
   });
   const [sort, setSort] = useState<AliceNetSort>(() => {
-    const v = urlSearch?.get('sort') ?? null;
-    if (isAliceNetSort(v)) return v;
+    if (initialQuery.sort) return initialQuery.sort;
     return loadAliceNetPrefs().sort ?? 'match_status';
   });
   const [group, setGroup] = useState<AliceNetGroup>(() => {
-    const v = urlSearch?.get('group') ?? null;
-    if (isAliceNetGroup(v)) return v;
+    if (initialQuery.group) return initialQuery.group;
     return loadAliceNetPrefs().group ?? 'none';
   });
   const [view, setView] = useState<AliceNetView>(() => {
-    const v = urlSearch?.get('view') ?? null;
-    if (isAliceNetView(v)) return v;
+    if (initialQuery.view) return initialQuery.view;
     return loadAliceNetPrefs().view ?? 'cards';
   });
-  const [showFilters, setShowFilters] = useState(() => urlSearch?.get('filters') !== '0');
-  const [producerFilter, setProducerFilter] = useState(() => urlSearch?.get('producer') ?? '');
-  const [yearMin, setYearMin] = useState(() => urlSearch?.get('yearMin') ?? '');
-  const [yearMax, setYearMax] = useState(() => urlSearch?.get('yearMax') ?? '');
-  const [priceMin, setPriceMin] = useState(() => urlSearch?.get('priceMin') ?? '');
-  const [priceMax, setPriceMax] = useState(() => urlSearch?.get('priceMax') ?? '');
-  const [search, setSearch] = useState(() => urlSearch?.get('q') ?? '');
-  const commitSearch = useCallback((next: string) => setSearch(next), []);
+  const [showFilters, setShowFilters] = useState(() => {
+    if (initialQuery.showFilters != null) return initialQuery.showFilters;
+    return loadAliceNetPrefs().showFilters ?? false;
+  });
+  const [producerFilter, setProducerFilter] = useState(() => initialQuery.producer);
+  const [yearMin, setYearMin] = useState(() => initialQuery.yearMin);
+  const [yearMax, setYearMax] = useState(() => initialQuery.yearMax);
+  const [priceMin, setPriceMin] = useState(() => initialQuery.priceMin);
+  const [priceMax, setPriceMax] = useState(() => initialQuery.priceMax);
+  const [search, setSearch] = useState(() => initialQuery.search);
+  const [page, setPage] = useState(() => initialQuery.page);
+  const commitSearch = useCallback((next: string) => {
+    setSearch(next);
+    setPage(1);
+  }, []);
   const [linkTarget, setLinkTarget] = useState<AliceNetItem | null>(null);
   const mountedRef = useRef(true);
   const loadAbortRef = useRef<AbortController | null>(null);
@@ -362,27 +413,30 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     const { signal } = controller;
     setLoading(true);
     try {
-      const r = await fetch('/api/alicenet', { cache: 'no-store', signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      const params = new URLSearchParams();
+      if (page > 1) params.set('offset', String((page - 1) * 96));
+      if (filter !== 'all') params.set('filter', filter);
+      if (sort !== 'match_status') params.set('sort', sort);
+      if (group !== 'none') params.set('group', group);
+      if (search.trim()) params.set('q', search.trim());
+      if (producerFilter) params.set('producer', producerFilter);
+      if (yearMin) params.set('yearMin', yearMin);
+      if (yearMax) params.set('yearMax', yearMax);
+      if (priceMin) params.set('priceMin', priceMin);
+      if (priceMax) params.set('priceMax', priceMax);
+      const query = params.toString();
+      const r = await fetch(`/api/alicenet${query ? `?${query}` : ''}`, { cache: 'no-store', signal });
+      if (!r.ok) throw new Error(await readAliceNetApiError(r, t, t.alicenet.alicenetLoadFailed));
       const first = decodeAliceNetClientSnapshot(await r.json());
       if (!first) throw new Error(t.alicenet.alicenetInvalidSnapshot);
       if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
-      const accumulated = [...first.items];
-      let next = first.page;
-      while (next?.has_more && !signal.aborted) {
-        const offset = next.offset + next.limit;
-        const pr = await fetch(`/api/alicenet?offset=${offset}&limit=${next.limit}`, { cache: 'no-store', signal });
-        if (!pr.ok) throw new Error(await readApiError(pr, t.common.error));
-        const pageResult = decodeAliceNetStockPage(await pr.json());
-        if (!pageResult) throw new Error(t.alicenet.alicenetInvalidSnapshot);
-        if (signal.aborted || !mountedRef.current || loadAbortRef.current !== controller) return;
-        accumulated.push(...pageResult.items);
-        next = pageResult.page;
-      }
-      setItems(accumulated);
+      setItems(first.items);
       setStats(first.stats);
       setPending(first.pending);
       setLastFetch(first.last_fetch);
+      setPageMeta(first.page ?? { offset: 0, limit: Math.max(1, first.items.length), total: first.items.length, has_more: false });
+      setProducerOptions(first.producers);
+      setWishlistAvailable(first.wishlist_available);
     } catch (error) {
       if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
       toast.error(error instanceof Error ? error.message : t.common.error);
@@ -392,7 +446,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         setLoading(false);
       }
     }
-  }, [t, toast]);
+  }, [filter, group, page, priceMax, priceMin, producerFilter, search, sort, t, toast, yearMax, yearMin]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -411,12 +465,54 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
   }, [load]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async (): Promise<void> => {
+      let nextDelay = 10_000;
+      try {
+        const response = await fetch('/api/download-status', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error(await readAliceNetApiError(response, t, t.alicenet.alicenetJobStatusInvalid));
+        const snapshot = decodeDownloadStatusSnapshot(await response.json());
+        if (!snapshot) throw new Error(t.alicenet.alicenetJobStatusInvalid);
+        if (controller.signal.aborted || !mountedRef.current) return;
+        const trackedId = activeJobIdRef.current;
+        const tracked = trackedId ? snapshot.jobs.find((job) => job.id === trackedId) : null;
+        const discovered = snapshot.jobs
+          .filter((job) => job.kind === 'alicenet' && job.finished_at === null)
+          .sort((a, b) => b.started_at - a.started_at)[0] ?? null;
+        const job = tracked ?? discovered;
+        setJobStatusError(null);
+        if (job) {
+          setActiveJob(job);
+          activeJobIdRef.current = job.finished_at === null ? job.id : null;
+          nextDelay = job.finished_at === null ? 1_500 : 10_000;
+          if (job.finished_at !== null && !completedReloadRef.current.has(job.id)) {
+            completedReloadRef.current.add(job.id);
+            await load();
+          }
+        }
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+        if (mountedRef.current && activeJobIdRef.current) {
+          setJobStatusError(error instanceof Error ? error.message : t.common.error);
+        }
+      }
+      if (!controller.signal.aborted) timer = setTimeout(poll, nextDelay);
+    };
+    void poll();
+    return () => {
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [jobPollKey, load, t.alicenet.alicenetJobStatusInvalid, t.common.error]);
+
+  useEffect(() => {
     try {
-      window.localStorage.setItem(ALICENET_PREFS_KEY, JSON.stringify({ sort, group, view }));
+      window.localStorage.setItem(ALICENET_PREFS_KEY, JSON.stringify({ sort, group, view, showFilters }));
     } catch {
       // Quota / private-mode - ignore.
     }
-  }, [sort, group, view]);
+  }, [sort, group, view, showFilters]);
 
   useEffect(() => {
     const params = new URLSearchParams(urlSearch.toString());
@@ -439,12 +535,13 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     setOrDelete('yearMax', yearMax, '');
     setOrDelete('priceMin', priceMin, '');
     setOrDelete('priceMax', priceMax, '');
-    setOrDelete('filters', showFilters ? '1' : '0', '1');
+    setOrDelete('filters', showFilters ? '1' : '0', '0');
+    setOrDelete('page', String(page), '1');
     if (dirty) {
       const next = params.toString();
       router.replace(`${basePath}${next ? `?${next}` : ''}`, { scroll: false });
     }
-  }, [basePath, filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, urlSearch, router]);
+  }, [basePath, filter, sort, group, view, search, producerFilter, yearMin, yearMax, priceMin, priceMax, showFilters, page, urlSearch, router]);
 
   async function startServerOp(op: AliceNetRunOp) {
     if (startingRef.current) return;
@@ -452,13 +549,58 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     setStarting(op);
     try {
       const r = await fetch('/api/alicenet/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (mountedRef.current) toast.success(t.alicenet.alicenetRunStarted);
-    } catch (e) {
-      if (mountedRef.current) toast.error((e as Error).message);
+      if (!r.ok) {
+        throw new Error(await readApiErrorLocalized(r, {
+          queue_full: t.alicenet.alicenetRunQueueFull,
+          invalid_operation: t.alicenet.alicenetRunInvalidOperation,
+          run_unavailable: t.alicenet.alicenetRunUnavailable,
+        }, t.alicenet.alicenetRunUnavailable));
+      }
+      const accepted = decodeAliceNetRunAccepted(await r.json());
+      if (!accepted) throw new Error(t.alicenet.alicenetRunInvalidResponse);
+      if (mountedRef.current) {
+        activeJobIdRef.current = accepted.jobId;
+        setActiveJob({
+          id: accepted.jobId,
+          kind: 'alicenet',
+          vn_id: null,
+          label: t.alicenet.alicenetRunStarting,
+          total: 0,
+          done: 0,
+          errors: [],
+          started_at: Date.now(),
+          finished_at: null,
+        });
+        setJobStatusError(null);
+        setJobPollKey((value) => value + 1);
+        toast.success(t.alicenet.alicenetRunStarted);
+      }
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(error instanceof Error && error.message ? error.message : t.common.error);
+      }
     } finally {
       startingRef.current = false;
       if (mountedRef.current) setStarting(null);
+    }
+  }
+
+  async function stopActiveJob(jobId: string): Promise<void> {
+    if (stopJobInFlightRef.current) return;
+    stopJobInFlightRef.current = true;
+    setStoppingJob(true);
+    try {
+      const response = await fetch(`/api/alicenet/run?jobId=${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(await readAliceNetApiError(response, t, t.alicenet.alicenetStopFailed));
+      if (mountedRef.current) {
+        setJobPollKey((value) => value + 1);
+        toast.success(t.alicenet.alicenetStopRequested);
+      }
+    } catch (error) {
+      if (mountedRef.current) toast.error(error instanceof Error ? error.message : t.common.error);
+    } finally {
+      stopJobInFlightRef.current = false;
+      if (mountedRef.current) setStoppingJob(false);
     }
   }
 
@@ -478,7 +620,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     }
     try {
       const r = await fetch('/api/alicenet/reset-matches', { method: 'POST', signal: controller.signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readAliceNetApiError(r, t, t.alicenet.alicenetResetFailed));
       if (controller.signal.aborted || !mountedRef.current || resetAbortRef.current !== controller) return;
       await load();
     } catch (e) {
@@ -510,7 +652,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     }
     try {
       const r = await fetch(`/api/alicenet/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) throw new Error(await readAliceNetApiError(r, t, t.alicenet.alicenetClearFailed));
       if (controller.signal.aborted || !mountedRef.current || clearAbortRef.current !== controller) return;
       await load();
     } catch (e) {
@@ -525,113 +667,105 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
   const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
   const showStatsSkeleton = loading && items.length === 0 && stats.total === 0;
+  const pageCount = Math.max(1, Math.ceil(pageMeta.total / Math.max(1, pageMeta.limit)));
+  const shownThrough = Math.min(pageMeta.total, pageMeta.offset + items.length);
 
   const producers = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; count: number }>();
+    if (producerOptions.length > 0) return producerOptions;
+    const fallback = new Map<string, AliceNetProducerOption>();
     for (const item of items) {
       const devs = parseDevs(item.vn_developers);
-      for (const d of devs) {
-        if (!d.id) continue;
-        const prev = map.get(d.id);
-        map.set(d.id, { id: d.id, name: d.name || d.id, count: (prev?.count ?? 0) + 1 });
+      for (const developer of devs) {
+        if (!developer.id) continue;
+        const previous = fallback.get(developer.id);
+        fallback.set(developer.id, {
+          id: developer.id,
+          name: developer.name || developer.id,
+          count: (previous?.count ?? 0) + 1,
+        });
       }
       if (devs.length === 0 && item.egs_brand) {
         const id = `egs:${item.egs_brand}`;
-        const prev = map.get(id);
-        map.set(id, { id, name: item.egs_brand, count: (prev?.count ?? 0) + 1 });
+        const previous = fallback.get(id);
+        fallback.set(id, { id, name: item.egs_brand, count: (previous?.count ?? 0) + 1 });
       }
     }
-    return Array.from(map.values())
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [items]);
+    return [...fallback.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [items, producerOptions]);
+  const producerFacetOptions = useMemo(
+    () => producers.map((producer) => ({
+      value: producer.id,
+      label: producer.name,
+      count: producer.count,
+    })),
+    [producers],
+  );
 
   const filtered = useMemo(() => {
-    let list = items;
-    if (filter === 'matched') list = list.filter((i) => i.vn_id !== null || i.egs_id !== null);
-    else if (filter === 'vndb') list = list.filter((i) => i.vn_id !== null);
-    else if (filter === 'egs_only') list = list.filter((i) => i.vn_id === null && i.egs_id !== null);
-    else if (filter === 'unmatched') list = list.filter((i) => i.vn_id === null && i.egs_id === null);
-    else if (filter === 'none_found') list = list.filter((i) => i.vn_id === null && i.egs_id === null && i.vn_match_source === 'none');
-    else if (filter === 'collection') list = list.filter((i) => i.in_collection === 1);
-    else if (filter === 'wishlist') list = list.filter((i) => i.in_wishlist === 1);
+    let visible = items;
+    if (filter === 'matched') visible = visible.filter((item) => item.vn_id !== null || item.egs_id !== null);
+    else if (filter === 'vndb') visible = visible.filter((item) => item.vn_id !== null);
+    else if (filter === 'egs_only') visible = visible.filter((item) => item.vn_id === null && item.egs_id !== null);
+    else if (filter === 'unmatched') visible = visible.filter((item) => item.vn_id === null && item.egs_id === null);
+    else if (filter === 'none_found') visible = visible.filter((item) => item.vn_id === null && item.egs_id === null && item.vn_match_source === 'none');
+    else if (filter === 'collection') visible = visible.filter((item) => item.in_collection === 1);
+    else if (filter === 'wishlist') visible = visible.filter((item) => item.in_wishlist === 1);
     if (producerFilter) {
-      list = list.filter((i) => {
-        if (producerFilter.startsWith('egs:')) return `egs:${i.egs_brand ?? ''}` === producerFilter;
-        return parseDevs(i.vn_developers).some((d) => d.id === producerFilter);
-      });
+      visible = visible.filter((item) => producerFilter.startsWith('egs:')
+        ? `egs:${item.egs_brand ?? ''}` === producerFilter
+        : parseDevs(item.vn_developers).some((developer) => developer.id === producerFilter));
     }
-    const yMin = yearMin ? Number(yearMin) : null;
-    const yMax = yearMax ? Number(yearMax) : null;
-    const pMin = priceMin ? Number(priceMin) : null;
-    const pMax = priceMax ? Number(priceMax) : null;
-    if (yMin != null || yMax != null) {
-      list = list.filter((i) => {
-        const year = Number((i.release_date || i.egs_release_date || '').slice(0, 4));
-        if (!Number.isFinite(year)) return false;
-        if (yMin != null && year < yMin) return false;
-        if (yMax != null && year > yMax) return false;
-        return true;
-      });
-    }
-    if (pMin != null || pMax != null) {
-      list = list.filter((i) => {
-        const price = parsePrice(i.sale_price);
-        if (price == null) return false;
-        if (pMin != null && price < pMin) return false;
-        if (pMax != null && price > pMax) return false;
-        return true;
-      });
-    }
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (i) =>
-          i.title.toLowerCase().includes(q) ||
-          (i.egs_title?.toLowerCase().includes(q) ?? false) ||
-          (i.egs_brand?.toLowerCase().includes(q) ?? false) ||
-          (i.search_title?.toLowerCase().includes(q) ?? false) ||
-          i.code.includes(q) ||
-          (i.vn_id?.toLowerCase().includes(q) ?? false) ||
-          String(i.egs_id ?? '').includes(q),
-      );
-    }
-    return list;
-  }, [items, filter, producerFilter, search, yearMin, yearMax, priceMin, priceMax]);
+    const minimumYear = yearMin ? Number(yearMin) : null;
+    const maximumYear = yearMax ? Number(yearMax) : null;
+    const minimumPrice = priceMin ? Number(priceMin) : null;
+    const maximumPrice = priceMax ? Number(priceMax) : null;
+    return visible.filter((item) => {
+      const haystack = [item.title, item.egs_title, item.egs_brand, item.search_title, item.code, item.vn_id, item.egs_id]
+        .filter((value) => value !== null)
+        .join(' ')
+        .toLowerCase();
+      if (search.trim() && !haystack.includes(search.trim().toLowerCase())) return false;
+      const year = Number((item.release_date || item.egs_release_date || '').slice(0, 4));
+      if ((minimumYear !== null || maximumYear !== null) && !Number.isFinite(year)) return false;
+      if (minimumYear !== null && year < minimumYear) return false;
+      if (maximumYear !== null && year > maximumYear) return false;
+      const price = parsePrice(item.sale_price);
+      if ((minimumPrice !== null || maximumPrice !== null) && price === null) return false;
+      if (minimumPrice !== null && price !== null && price < minimumPrice) return false;
+      if (maximumPrice !== null && price !== null && price > maximumPrice) return false;
+      return true;
+    });
+  }, [filter, items, priceMax, priceMin, producerFilter, search, yearMax, yearMin]);
 
-  const sortComparators = useMemo<Record<AliceNetSort, (a: AliceNetItem, b: AliceNetItem) => number>>(() => ({
-    title: (a, b) => displayTitle(a).localeCompare(displayTitle(b)),
-    release_desc: (a, b) => comparableDate(b.release_date || b.egs_release_date).localeCompare(comparableDate(a.release_date || a.egs_release_date)),
-    release_asc: (a, b) => comparableDate(a.release_date || a.egs_release_date).localeCompare(comparableDate(b.release_date || b.egs_release_date)),
-    price_asc: (a, b) => (parsePrice(a.sale_price) ?? Number.MAX_SAFE_INTEGER) - (parsePrice(b.sale_price) ?? Number.MAX_SAFE_INTEGER),
-    price_desc: (a, b) => (parsePrice(b.sale_price) ?? 0) - (parsePrice(a.sale_price) ?? 0),
-    updated_desc: (a, b) => b.updated_at - a.updated_at,
-    match_status: (a, b) => {
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
+    if (sort === 'release_desc') return comparableDate(b.release_date || b.egs_release_date).localeCompare(comparableDate(a.release_date || a.egs_release_date));
+    if (sort === 'release_asc') return comparableDate(a.release_date || a.egs_release_date).localeCompare(comparableDate(b.release_date || b.egs_release_date));
+    if (sort === 'price_asc') return (parsePrice(a.sale_price) ?? Number.MAX_SAFE_INTEGER) - (parsePrice(b.sale_price) ?? Number.MAX_SAFE_INTEGER);
+    if (sort === 'price_desc') return (parsePrice(b.sale_price) ?? 0) - (parsePrice(a.sale_price) ?? 0);
+    if (sort === 'updated_desc') return b.updated_at - a.updated_at;
+    if (sort === 'match_status') {
       const rank = { unresolved: 0, new: 1, egs: 2, vndb: 3 } as const;
       return rank[matchKind(a)] - rank[matchKind(b)] || displayTitle(a).localeCompare(displayTitle(b));
-    },
-  }), []);
+    }
+    return displayTitle(a).localeCompare(displayTitle(b));
+  }), [filtered, sort]);
 
-  const sorted = useMemo(() => {
-    const out = [...filtered];
-    out.sort(sortComparators[sort]);
-    return out;
-  }, [filtered, sort, sortComparators]);
-
-  const grouped = useMemo<{ key: string; items: AliceNetItem[] }[]>(() => {
-    if (group === 'none') return [{ key: '', items: sorted }];
+  const grouped = useMemo<{ key: string; items: AliceNetItem[]; total: number }[]>(() => {
+    if (group === 'none') return [{ key: '', items: sorted, total: pageMeta.total }];
     const buckets = new Map<string, AliceNetItem[]>();
     for (const item of sorted) {
       let key = '';
       if (group === 'match') {
-        key = matchKind(item) === 'vndb'
+        const matchGroup = item.server_group_key || matchKind(item);
+        key = matchGroup === 'vndb'
           ? t.alicenet.alicenetVndbMatched
-          : matchKind(item) === 'egs'
+          : matchGroup === 'egs'
             ? t.alicenet.alicenetEgsOnly
             : t.alicenet.alicenetNeedsMatch;
       } else if (group === 'producer') {
-        key = displayProducer(item) || t.wishlist.groupUnknown;
+        key = item.server_group_key || displayProducer(item) || t.wishlist.groupUnknown;
       } else {
-        key = (item.release_date || item.egs_release_date)?.slice(0, 4) || t.wishlist.groupUnknown;
+        key = item.server_group_key || (item.release_date || item.egs_release_date)?.slice(0, 4) || t.wishlist.groupUnknown;
       }
       const bucket = buckets.get(key);
       if (bucket) bucket.push(item);
@@ -639,8 +773,12 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     }
     return Array.from(buckets.entries())
       .sort(([a], [b]) => (group === 'year' ? b.localeCompare(a) : a.localeCompare(b)))
-      .map(([key, items]) => ({ key, items }));
-  }, [sorted, group, t.alicenet.alicenetVndbMatched, t.alicenet.alicenetEgsOnly, t.alicenet.alicenetNeedsMatch, t.wishlist.groupUnknown]);
+      .map(([key, sectionItems]) => ({
+        key,
+        items: sectionItems,
+        total: sectionItems[0]?.server_group_count || sectionItems.length,
+      }));
+  }, [sorted, group, pageMeta.total, t.alicenet.alicenetVndbMatched, t.alicenet.alicenetEgsOnly, t.alicenet.alicenetNeedsMatch, t.wishlist.groupUnknown]);
 
   const tabs: { id: FilterTab; label: string; count: number; icon?: React.ReactNode }[] = [
     { id: 'all', label: t.alicenet.alicenetFilterAll, count: stats.total },
@@ -688,6 +826,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     setPriceMin('');
     setPriceMax('');
     setSearch('');
+    setPage(1);
   }
 
   function selectAllVisible() {
@@ -737,7 +876,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         bulkAbortRef.current = controller;
         try {
           const r = await fetch(`/api/alicenet/${encodeURIComponent(code)}/link`, { method: 'DELETE', signal: controller.signal });
-          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+          if (!r.ok) throw new Error(await readAliceNetApiError(r, t, t.alicenet.alicenetClearFailed));
         } catch (e) {
           if (controller.signal.aborted && bulkStopRef.current) break;
           throw e;
@@ -797,7 +936,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         {item.vn_id && (
           <a
             href={`/vn/${item.vn_id}`}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20 sm:min-h-[32px]"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20 can-hover:sm:min-h-[32px]"
           >
             <Link2 className="h-3 w-3" aria-hidden />
             {item.vn_id}
@@ -808,25 +947,38 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${item.egs_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-[32px]"
             title={`${t.alicenet.alicenetEgsId} ${item.egs_id}`}
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
-            EGS {item.egs_id}
+            <AcronymLabel acronym="egs" /> {item.egs_id}
           </a>
         )}
       </div>
     );
   }
 
-  function renderAliceNetCard(item: AliceNetItem) {
+  function renderAliceNetCard(item: AliceNetItem, listPosition: AliceNetListPosition) {
     const candidates = parseAliceNetCandidates(item.vn_candidates);
     const producer = displayProducer(item);
     const image = item.vn_image_url || item.egs_image_url;
     const date = item.release_date || item.egs_release_date;
     const isSelected = selected.has(item.code);
+    const selectionDescriptionId = `alicenet-card-selection-${item.code}`;
     return (
-      <article key={item.code} role="listitem" className={`group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border bg-bg-card transition-all hover:-translate-y-0.5 hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'}`}>
+      <article
+        key={item.code}
+        role="listitem"
+        aria-posinset={listPosition.position}
+        aria-setsize={listPosition.setSize}
+        aria-describedby={selectMode ? selectionDescriptionId : undefined}
+        className={`group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border bg-bg-card transition-all hover:-translate-y-0.5 hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'}`}
+      >
+        {selectMode && (
+          <span id={selectionDescriptionId} className="sr-only">
+            {isSelected ? t.alicenet.alicenetItemSelected : t.alicenet.alicenetItemNotSelected}
+          </span>
+        )}
         <div className="relative aspect-[2/3] bg-bg-elev">
           <SafeImage
             src={image}
@@ -879,8 +1031,10 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               onClick={() => {
                 const id = item.vn_developers ? parseDevs(item.vn_developers)[0]?.id : null;
                 setProducerFilter(id || (item.egs_brand ? `egs:${item.egs_brand}` : ''));
+                setShowFilters(true);
+                setPage(1);
               }}
-              className="inline-flex min-h-[44px] w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+              className="inline-flex min-h-[44px] w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             >
               <Building2 className="h-3 w-3" aria-hidden />
               {producer}
@@ -896,7 +1050,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             <CandidateChips candidates={candidates} currentId={item.vn_id} code={item.code} onRemapped={load} />
           )}
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-            <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
+            <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0">
               <Search className="h-3 w-3" aria-hidden />
               {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
             </button>
@@ -905,7 +1059,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
                 type="button"
                 onClick={() => clearLink(item.code)}
                 disabled={clearingCode === item.code}
-                className="btn btn-xs min-h-[44px] min-w-[44px] text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
+                className="btn btn-xs min-h-[44px] min-w-[44px] text-muted hover:text-status-dropped disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 title={t.alicenet.alicenetClearMatch}
               >
                 {clearingCode === item.code ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
@@ -917,12 +1071,24 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     );
   }
 
-  function renderAliceNetRow(item: AliceNetItem) {
+  function renderAliceNetRow(item: AliceNetItem, listPosition: AliceNetListPosition) {
     const producer = displayProducer(item);
     const date = item.release_date || item.egs_release_date;
     const isSelected = selected.has(item.code);
+    const selectionDescriptionId = `alicenet-row-selection-${item.code}`;
     return (
-      <li key={item.code} className={`rounded-xl border bg-bg-card p-3 transition-shadow hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border'}`}>
+      <li
+        key={item.code}
+        aria-posinset={listPosition.position}
+        aria-setsize={listPosition.setSize}
+        aria-describedby={selectMode ? selectionDescriptionId : undefined}
+        className={`rounded-xl border bg-bg-card p-3 transition-shadow hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border'}`}
+      >
+        {selectMode && (
+          <span id={selectionDescriptionId} className="sr-only">
+            {isSelected ? t.alicenet.alicenetItemSelected : t.alicenet.alicenetItemNotSelected}
+          </span>
+        )}
         <div className="flex gap-3">
           {selectMode && (
             <button
@@ -962,7 +1128,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {statusBadge(item)}
                 {quickLinks(item)}
-                <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] sm:min-h-0">
+                <button type="button" onClick={() => setLinkTarget(item)} className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0">
                   <Search className="h-3 w-3" aria-hidden />
                   {item.vn_id ? t.alicenet.alicenetRemap : t.alicenet.alicenetFindMatch}
                 </button>
@@ -975,20 +1141,99 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
   }
 
   const HeadingTag = embedded ? 'h2' : 'h1';
+  const displayedJob = jobStatusError ? null : activeJob;
 
   return (
     <DensityScopeProvider scope="aliceNet" className={embedded ? 'mt-8' : 'page-space mx-auto max-w-screen-2xl px-4 py-6'}>
 
       {/* Header */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <ShoppingBag className="h-5 w-5 text-accent" aria-hidden />
-        <HeadingTag className="text-xl font-bold">{t.alicenet.alicenetTitle}</HeadingTag>
-        {lastFetch && (
-          <span className="text-xs text-muted">
-            {t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))}
-          </span>
-        )}
+      <div className="mb-5 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <ShoppingBag className="h-5 w-5 text-accent" aria-hidden />
+          <HeadingTag className="text-xl font-bold">{t.alicenet.alicenetTitle}</HeadingTag>
+          <a
+            href="https://www.alice-kobe.com/html/page4.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center gap-1 text-xs font-semibold text-accent hover:underline can-hover:sm:min-h-0"
+          >
+            {t.alicenet.alicenetSourceLabel}
+            <ExternalLink className="h-3 w-3" aria-hidden />
+          </a>
+        </div>
+        <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+          {t.alicenet.alicenetSourceDescription}
+        </p>
+        <p className="mt-1 text-[11px] text-muted/80">
+          {lastFetch
+            ? t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))
+            : t.alicenet.alicenetNoSnapshot}
+        </p>
       </div>
+
+      {(displayedJob || jobStatusError) && (
+        <section
+          className="mb-5 rounded-lg border border-accent/35 bg-accent/5 p-3"
+          aria-label={t.alicenet.alicenetJobStatus}
+          aria-live="polite"
+        >
+          {displayedJob ? (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-white" title={displayedJob.label}>{displayedJob.label}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted">
+                    {displayedJob.current_item || t.alicenet.alicenetProgressBackground}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs tabular-nums text-muted">
+                    {displayedJob.total > 0
+                      ? `${Math.min(displayedJob.done, displayedJob.total)}/${displayedJob.total} (${Math.round(Math.min(1, displayedJob.done / displayedJob.total) * 100)}%)`
+                      : t.alicenet.alicenetProgressPreparing}
+                  </span>
+                  {displayedJob.finished_at === null && (
+                    <button
+                      type="button"
+                      onClick={() => { void stopActiveJob(displayedJob.id); }}
+                      disabled={stoppingJob}
+                      className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/50 px-2.5 py-1.5 text-xs text-status-dropped hover:bg-status-dropped/10 disabled:opacity-50"
+                    >
+                      {stoppingJob ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <CircleStop className="h-3.5 w-3.5" aria-hidden />}
+                      {t.alicenet.alicenetStopMatch}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div
+                className="mt-2 h-2 overflow-hidden rounded-full bg-bg"
+                role="progressbar"
+                aria-label={t.alicenet.alicenetJobStatus}
+                aria-valuemin={0}
+                aria-valuemax={displayedJob.total > 0 ? displayedJob.total : undefined}
+                aria-valuenow={displayedJob.total > 0 ? Math.min(displayedJob.done, displayedJob.total) : undefined}
+              >
+                <div
+                  className={`h-full rounded-full bg-accent transition-[width] duration-300 ${displayedJob.total === 0 ? 'w-1/3 animate-pulse' : ''}`}
+                  style={displayedJob.total > 0 ? { width: `${Math.round(Math.min(1, displayedJob.done / displayedJob.total) * 100)}%` } : undefined}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className={displayedJob.errors.length > 0 ? 'text-status-dropped' : 'text-muted'}>
+                  {t.alicenet.alicenetJobErrors.replace('{count}', String(displayedJob.errors.length))}
+                </span>
+                {displayedJob.finished_at !== null && (
+                  <button type="button" onClick={() => setActiveJob(null)} className="min-h-[44px] px-2 text-muted hover:text-white">
+                    {t.common.close}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-status-dropped">{jobStatusError}</p>
+          )}
+        </section>
+      )}
 
       {/* Stats grid */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -1039,6 +1284,11 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
                 {t.alicenet.alicenetInWishlist}
               </div>
               <div className="text-2xl font-bold text-status-dropped">{stats.in_wishlist}</div>
+              {!wishlistAvailable && (
+                <div className="mt-1 text-[10px] leading-tight text-status-on_hold">
+                  {t.alicenet.alicenetWishlistUnavailable}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1051,7 +1301,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             type="button"
             onClick={() => startServerOp('download')}
             disabled={starting !== null}
-            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'download' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
             {t.alicenet.alicenetSyncStock}
@@ -1060,7 +1310,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             type="button"
             onClick={() => startServerOp('pipeline')}
             disabled={starting !== null}
-            className="btn btn-primary btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+            className="btn btn-primary btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'pipeline' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Zap className="h-3.5 w-3.5" aria-hidden />}
             {t.alicenet.alicenetDownloadAll}
@@ -1069,7 +1319,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             type="button"
             onClick={() => startServerOp('match-vndb')}
             disabled={starting !== null}
-            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'match-vndb' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Search className="h-3.5 w-3.5" aria-hidden />}
             {t.alicenet.alicenetMatchVndb}
@@ -1078,7 +1328,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             type="button"
             onClick={() => startServerOp('match-egs')}
             disabled={starting !== null}
-            className="btn btn-sm min-h-[44px] disabled:opacity-50 sm:min-h-0"
+            className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'match-egs' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Link2 className="h-3.5 w-3.5" aria-hidden />}
             {t.alicenet.alicenetMatchEgs}
@@ -1087,7 +1337,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             type="button"
             onClick={resetAutoMatches}
             disabled={stats.matched === 0 || resettingMatches}
-            className="btn btn-sm min-h-[44px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 sm:min-h-0"
+            className="btn btn-sm min-h-[44px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {resettingMatches ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
             {t.alicenet.alicenetResetAutoMatches}
@@ -1104,9 +1354,9 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setFilter(tab.id)}
+                onClick={() => { setFilter(tab.id); setPage(1); }}
                 aria-pressed={filter === tab.id}
-                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors sm:min-h-[36px] ${
+                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors can-hover:sm:min-h-[36px] ${
                   filter === tab.id
                     ? 'border-accent bg-accent/10 font-semibold text-accent'
                     : 'border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'
@@ -1131,13 +1381,13 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetSortLabel}
-              <select value={sort} onChange={(e) => setSort(e.target.value as AliceNetSort)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+              <select value={sort} onChange={(e) => { setSort(e.target.value as AliceNetSort); setPage(1); }} className="input min-h-[44px] text-xs normal-case tracking-normal">
                 {ALICENET_SORTS.map((id) => <option key={id} value={id}>{sortLabels[id]}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetGroupLabel}
-              <select value={group} onChange={(e) => setGroup(e.target.value as AliceNetGroup)} className="input min-h-[44px] text-xs normal-case tracking-normal">
+              <select value={group} onChange={(e) => { setGroup(e.target.value as AliceNetGroup); setPage(1); }} className="input min-h-[44px] text-xs normal-case tracking-normal">
                 {ALICENET_GROUPS.map((id) => <option key={id} value={id}>{groupLabels[id]}</option>)}
               </select>
             </label>
@@ -1191,30 +1441,37 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
         {showFilters && (
           <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-5">
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted sm:col-span-2 lg:col-span-1">
-              {t.alicenet.alicenetFilterProducer}
-              <select value={producerFilter} onChange={(e) => setProducerFilter(e.target.value)} className="input min-h-[44px] text-xs normal-case tracking-normal">
-                <option value="">{t.alicenet.alicenetFilterProducerAll}</option>
-                {producers.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.count})</option>
-                ))}
-              </select>
-            </label>
+            <div className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted sm:col-span-2 lg:col-span-1">
+              <span>{t.alicenet.alicenetFilterProducer}</span>
+              <FacetCombobox
+                value={producerFilter}
+                options={producerFacetOptions}
+                label={t.alicenet.alicenetFilterProducer}
+                searchPlaceholder={t.library.facetSearchPlaceholder}
+                clearLabel={t.alicenet.alicenetFilterProducerAll}
+                resultLabel={t.library.facetResults}
+                noResultsLabel={t.library.facetNoResults}
+                onChange={(value) => {
+                  setProducerFilter(value);
+                  setPage(1);
+                }}
+              />
+            </div>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetYearMin}
-              <input value={yearMin} onChange={(e) => setYearMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="1999" />
+              <input value={yearMin} onChange={(e) => { setYearMin(e.target.value); setPage(1); }} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder={t.alicenet.alicenetYearPlaceholder} />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetYearMax}
-              <input value={yearMax} onChange={(e) => setYearMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="2026" />
+              <input value={yearMax} onChange={(e) => { setYearMax(e.target.value); setPage(1); }} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder={t.alicenet.alicenetYearPlaceholder} />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetPriceMin}
-              <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="0" />
+              <input value={priceMin} onChange={(e) => { setPriceMin(e.target.value); setPage(1); }} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="0" />
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t.alicenet.alicenetPriceMax}
-              <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="5000" />
+              <input value={priceMax} onChange={(e) => { setPriceMax(e.target.value); setPage(1); }} inputMode="numeric" className="input min-h-[44px] text-xs normal-case tracking-normal" placeholder="5000" />
             </label>
             <div className="flex items-end sm:col-span-2 lg:col-span-5">
               <button type="button" onClick={resetFilters} disabled={activeFilterCount === 0} className="btn btn-sm">
@@ -1280,7 +1537,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               {group !== 'none' && (
                 <div className="flex items-center gap-2 border-b border-border pb-1">
                   <h2 className="min-w-0 truncate text-sm font-semibold">{section.key}</h2>
-                  <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{section.items.length}</span>
+                  <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted">{section.total}</span>
                 </div>
               )}
               {view === 'cards' ? (
@@ -1293,9 +1550,49 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         </div>
       )}
 
+      {!loading && pageMeta.total > 0 && (
+        <nav
+          className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+          aria-label={t.alicenet.alicenetPaginationLabel}
+        >
+          <p className="text-xs tabular-nums text-muted">
+            {t.alicenet.alicenetShowingCount
+              .replace('{shown}', new Intl.NumberFormat(BCP47[locale]).format(shownThrough))
+              .replace('{total}', new Intl.NumberFormat(BCP47[locale]).format(pageMeta.total))}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn min-h-[44px] min-w-[44px]"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1}
+              aria-label={t.alicenet.alicenetPreviousPage}
+              title={t.alicenet.alicenetPreviousPage}
+            >
+              {t.alicenet.alicenetPreviousPage}
+            </button>
+            <span className="min-w-[7rem] text-center text-xs tabular-nums text-muted">
+              {t.alicenet.alicenetPageLabel
+                .replace('{current}', String(Math.min(page, pageCount)))
+                .replace('{total}', String(pageCount))}
+            </span>
+            <button
+              type="button"
+              className="btn min-h-[44px] min-w-[44px]"
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              disabled={!pageMeta.has_more || page >= pageCount}
+              aria-label={t.alicenet.alicenetNextPage}
+              title={t.alicenet.alicenetNextPage}
+            >
+              {t.alicenet.alicenetNextPage}
+            </button>
+          </div>
+        </nav>
+      )}
+
       {selectMode && selected.size > 0 && (
         <div
-          className="fixed bottom-16 left-1/2 z-50 w-[min(96vw,720px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-2 shadow-card backdrop-blur sm:bottom-4 sm:p-3"
+          className="fixed bottom-16 left-1/2 z-layer-status w-[min(96vw,720px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-2 shadow-card backdrop-blur sm:bottom-4 sm:p-3"
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -1390,7 +1687,7 @@ const ALICENET_GRID_GAP_PX = 12;
  * every item remains scroll-reachable. Below the threshold every item
  * renders directly with no measurement cost.
  */
-function AliceNetCardGrid({ items, renderCard }: { items: AliceNetItem[]; renderCard: (item: AliceNetItem) => React.ReactNode }) {
+function AliceNetCardGrid({ items, renderCard }: { items: AliceNetItem[]; renderCard: (item: AliceNetItem, position: AliceNetListPosition) => React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureFrameRef = useRef<number | null>(null);
   const [measurements, setMeasurements] = useState<AliceNetGridMeasurements>(ALICENET_DEFAULT_MEASUREMENTS);
@@ -1453,14 +1750,16 @@ function AliceNetCardGrid({ items, renderCard }: { items: AliceNetItem[]; render
       className="grid gap-3"
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       data-virtualized-alicenet-grid={virtual.enabled ? true : undefined}
-      aria-rowcount={virtual.enabled ? virtual.totalRows : undefined}
     >
       {virtual.enabled && virtual.topSpacer > 0 && (
-        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
       )}
-      {renderedItems.map(renderCard)}
+      {renderedItems.map((item, index) => renderCard(item, {
+        position: (virtual.enabled ? virtual.startIndex : 0) + index + 1,
+        setSize: items.length,
+      }))}
       {virtual.enabled && virtual.bottomSpacer > 0 && (
-        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
       )}
     </div>
   );
@@ -1477,7 +1776,7 @@ const ALICENET_ROW_OVERSCAN = 6;
  * scrollbar so nothing is silently dropped; below the threshold every
  * row renders directly.
  */
-function AliceNetRowList({ items, renderRow }: { items: AliceNetItem[]; renderRow: (item: AliceNetItem) => React.ReactNode }) {
+function AliceNetRowList({ items, renderRow }: { items: AliceNetItem[]; renderRow: (item: AliceNetItem, position: AliceNetListPosition) => React.ReactNode }) {
   const containerRef = useRef<HTMLUListElement>(null);
   const frameRef = useRef<number | null>(null);
   const [range, setRange] = useState({ start: 0, end: items.length });
@@ -1527,9 +1826,12 @@ function AliceNetRowList({ items, renderRow }: { items: AliceNetItem[]; renderRo
   const rendered = enabled ? items.slice(start, end) : items;
   return (
     <ul ref={containerRef} className="space-y-2">
-      {topSpacer > 0 && <li aria-hidden style={{ height: topSpacer }} />}
-      {rendered.map(renderRow)}
-      {bottomSpacer > 0 && <li aria-hidden style={{ height: bottomSpacer }} />}
+      {topSpacer > 0 && <li role="presentation" aria-hidden style={{ height: topSpacer }} />}
+      {rendered.map((item, index) => renderRow(item, {
+        position: start + index + 1,
+        setSize: items.length,
+      }))}
+      {bottomSpacer > 0 && <li role="presentation" aria-hidden style={{ height: bottomSpacer }} />}
     </ul>
   );
 }

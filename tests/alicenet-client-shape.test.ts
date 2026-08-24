@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeAliceNetClientSnapshot,
+  decodeAliceNetRunAccepted,
   decodeAliceNetLoopResult,
   decodeAliceNetStockSyncResult,
 } from '@/lib/alicenet-client-shape';
@@ -86,6 +87,13 @@ describe('AliceNet client response adapters', () => {
       matched: 1,
       remaining: 3,
     });
+  });
+
+  it('decodes accepted background runs and rejects malformed operation handles', () => {
+    expect(decodeAliceNetRunAccepted({ jobId: 'job-1', op: 'pipeline' })).toEqual({ jobId: 'job-1', op: 'pipeline' });
+    expect(decodeAliceNetRunAccepted({ jobId: '', op: 'pipeline' })).toBeNull();
+    expect(decodeAliceNetRunAccepted({ jobId: 'job-1', op: 'other' })).toBeNull();
+    expect(decodeAliceNetRunAccepted(null)).toBeNull();
   });
 
   it('rejects malformed nested rows and counters', () => {

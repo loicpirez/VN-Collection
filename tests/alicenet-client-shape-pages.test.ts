@@ -85,6 +85,30 @@ describe('decodeAliceNetClientSnapshot paging window', () => {
     expect(result?.last_fetch).toBe(42);
   });
 
+  it('decodes producer facets, explicit wishlist availability, and server grouping metadata', () => {
+    const result = decodeAliceNetClientSnapshot({
+      items: [{ ...baseItem, server_group_key: 'Producer', server_group_count: 2 }],
+      stats,
+      pending,
+      last_fetch: null,
+      producers: [{ id: 'p1', name: 'Producer', count: 2 }],
+      wishlist_available: false,
+    });
+
+    expect(result?.items[0]).toMatchObject({ server_group_key: 'Producer', server_group_count: 2 });
+    expect(result?.producers).toEqual([{ id: 'p1', name: 'Producer', count: 2 }]);
+    expect(result?.wishlist_available).toBe(false);
+  });
+
+  it('rejects malformed producer facets and wishlist availability flags', () => {
+    expect(decodeAliceNetClientSnapshot({
+      items: [baseItem], stats, pending, last_fetch: null, producers: [{ id: 'p1', name: 4, count: 1 }],
+    })).toBeNull();
+    expect(decodeAliceNetClientSnapshot({
+      items: [baseItem], stats, pending, last_fetch: null, wishlist_available: 'no',
+    })).toBeNull();
+  });
+
   it('returns null when the supplied page window is malformed', () => {
     const result = decodeAliceNetClientSnapshot({
       items: [baseItem],
@@ -138,7 +162,7 @@ describe('decodeAliceNetItem field-level rejections', () => {
 
   it('accepts a populated row and lowercases the VN id', () => {
     const result = decodeAliceNetStockPage({
-      items: [{ ...baseItem, vn_id: 'V42', egs_id: 7, vn_match_source: 'manual', egs_match_source: 'auto' }],
+      items: [{ ...baseItem, vn_id: 'V42', egs_id: 7, vn_match_source: 'manual', egs_match_source: 'auto', egs_title: 'EGS title' }],
       page,
     });
     expect(result?.items[0]?.vn_id).toBe('v42');

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
-import { AliceNetClient } from '@/components/AliceNetClient';
+import { AliceNetClient, loadAliceNetPrefs } from '@/components/AliceNetClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import type { AliceNetClientItem, AliceNetClientStats } from '@/lib/alicenet-client-shape';
 import { VIRTUAL_GRID_THRESHOLD } from '@/lib/virtual-grid';
@@ -161,6 +161,16 @@ afterEach(() => {
 });
 
 describe('AliceNetClient branches', () => {
+  it('returns empty persisted preferences during server rendering', () => {
+    const browserWindow = window;
+    vi.stubGlobal('window', undefined);
+    try {
+      expect(loadAliceNetPrefs()).toEqual({});
+    } finally {
+      vi.stubGlobal('window', browserWindow);
+    }
+  });
+
   it('filters by the in-collection tab', async () => {
     global.fetch = vi.fn(async () =>
       json(snapshot({ items: [COLLECTION_ITEM, WISHLIST_ITEM], stats: { matched: 2, vndb_matched: 1, egs_only: 1, in_collection: 1, in_wishlist: 1 } })),
@@ -269,7 +279,7 @@ describe('AliceNetClient branches', () => {
     await user.click(within(card).getByRole('button', { name: 'Clear' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(screen.getAllByText(/clear boom/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('The AliceNet match could not be removed.').length).toBeGreaterThan(0));
   });
 
   it('covers advanced sort fallbacks for mixed AliceNet metadata', async () => {
@@ -280,7 +290,7 @@ describe('AliceNetClient branches', () => {
     fireEvent.change(sort, { target: { value: 'release_desc' } });
     fireEvent.change(sort, { target: { value: 'release_asc' } });
     fireEvent.change(sort, { target: { value: 'updated_desc' } });
-    expect(screen.getByText('Fallback Date Title')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Fallback Date Title')).toBeInTheDocument());
   });
 
   it('filters mixed AliceNet metadata by EGS producer and EGS id text', async () => {
@@ -290,7 +300,8 @@ describe('AliceNetClient branches', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       producerFilter = await screen.findByRole('combobox', { name: 'Producer' });
     }
-    fireEvent.change(producerFilter, { target: { value: 'egs:Brand Only' } });
+    fireEvent.focus(producerFilter);
+    fireEvent.click(await screen.findByRole('option', { name: /^Brand Only\s*1$/ }));
     await waitFor(() => expect(screen.queryByText('Collection Title')).toBeNull());
     expect(screen.getByText('Fallback Date Title')).toBeInTheDocument();
 
@@ -414,7 +425,7 @@ describe('AliceNetClient branches', () => {
     await user.click(screen.getByRole('button', { name: 'Clear VN links' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(screen.getAllByText(/bulk clear boom/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('The AliceNet match could not be removed.').length).toBeGreaterThan(0));
     expect(reloads).toBeGreaterThan(1);
   });
 
@@ -579,37 +590,41 @@ describe('AliceNetClient branches', () => {
     expect(screen.queryByText('Collection Title')).toBeNull();
   });
 
-  it('reports an HTTP error from a follow-up AliceNet page', async () => {
+  it('reports an HTTP error from a requested next AliceNet page', async () => {
     const pageOne = {
       ...snapshot({ items: [makeItem({ title: 'First Follow Page Title' })], stats: { total: 2 } }),
       page: { offset: 0, limit: 1, total: 2, has_more: true },
     };
     global.fetch = vi.fn((url: RequestInfo | URL) => {
-      if (String(url).includes('offset=1')) return Promise.resolve(json({ error: 'follow page failed' }, 500));
+      if (String(url).includes('offset=96')) return Promise.resolve(json({ error: 'follow page failed' }, 500));
       return Promise.resolve(json(pageOne));
     }) as unknown as typeof fetch;
     renderClient();
-    await waitFor(() => expect(screen.getAllByText(/follow page failed/).length).toBeGreaterThan(0));
+    await screen.findByText('First Follow Page Title');
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(screen.getAllByText('AliceNet stock could not be loaded. Retry or check the server.').length).toBeGreaterThan(0));
   });
 
-  it('ignores a follow-up AliceNet page that resolves after unmount', async () => {
+  it('ignores a requested next AliceNet page that resolves after unmount', async () => {
     const pageOne = {
       ...snapshot({ items: [makeItem({ title: 'Paged Stale Title' })], stats: { total: 2 } }),
       page: { offset: 0, limit: 1, total: 2, has_more: true },
     };
     const pageTwo = deferredResponse();
     const fetchMock = vi.fn((url: RequestInfo | URL) => {
-      if (String(url).includes('offset=1')) return pageTwo.promise;
+      if (String(url).includes('offset=96')) return pageTwo.promise;
       return Promise.resolve(json(pageOne));
     });
     global.fetch = fetchMock as unknown as typeof fetch;
     const view = renderClient();
-    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('offset=1'))).toBe(true));
+    await screen.findByText('Paged Stale Title');
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('offset=96'))).toBe(true));
     view.unmount();
     await act(async () => {
       pageTwo.resolve(json({
         items: [makeItem({ code: '001-000018-001', title: 'Second Follow Page Title' })],
-        page: { offset: 1, limit: 1, total: 2, has_more: false },
+        page: { offset: 96, limit: 96, total: 97, has_more: false },
       }));
       await flushAsyncWork();
     });
@@ -670,7 +685,7 @@ describe('AliceNetClient branches', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
-  it('reports a failed reset-auto-match with the upstream message', async () => {
+  it('reports a failed reset-auto-match with the localized operation fallback', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const u = String(url);
       if (u === '/api/alicenet/reset-matches' && init?.method === 'POST') return json({ error: 'reset failed' }, 500);
@@ -681,7 +696,7 @@ describe('AliceNetClient branches', () => {
     await user.click(screen.getByRole('button', { name: 'Reset auto-matches' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(screen.getAllByText(/reset failed/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('Automatic AliceNet matches could not be reset.').length).toBeGreaterThan(0));
   });
 
   it('cancels a reset-auto-match without calling the route', async () => {
@@ -762,16 +777,18 @@ describe('AliceNetClient branches', () => {
     await waitFor(() => expect(screen.getAllByText('Error').length).toBeGreaterThan(0));
   });
 
-  it('shows a malformed follow-up page error when pagination returns an invalid shape', async () => {
+  it('shows a malformed next-page error when pagination returns an invalid shape', async () => {
     const pageOne = {
       ...snapshot({ items: [makeItem({ title: 'Paged First Title' })], stats: { total: 2 } }),
       page: { offset: 0, limit: 1, total: 2, has_more: true },
     };
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url).includes('offset=1')) return json({ items: 'bad page' });
+      if (String(url).includes('offset=96')) return json({ items: 'bad page' });
       return json(pageOne);
     });
     renderClient();
+    await screen.findByText('Paged First Title');
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() =>
       expect(screen.getAllByText(/The local AliceNet response is malformed/).length).toBeGreaterThan(0),
     );
@@ -788,7 +805,7 @@ describe('AliceNetClient branches', () => {
     expect(screen.getByRole('button', { name: 'Cards' })).toHaveClass('bg-accent');
   });
 
-  it('reports candidate remap failures with the upstream message', async () => {
+  it('reports candidate remap failures with the localized operation fallback', async () => {
     const remapItem = makeItem({
       code: '001-000009-001',
       title: 'Remap Error Title',
@@ -807,7 +824,7 @@ describe('AliceNetClient branches', () => {
     const { user } = renderClient();
     const card = (await screen.findByText('Remap Error Title')).closest('article')!;
     await user.click(within(card).getByRole('button', { name: 'v90002' }));
-    await waitFor(() => expect(screen.getAllByText(/candidate boom/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('The AliceNet link for this item could not be changed.').length).toBeGreaterThan(0));
   });
 
   it('starts a server operation and falls back to the common error label for a non-Error rejection', async () => {
@@ -819,7 +836,23 @@ describe('AliceNetClient branches', () => {
     const { user } = renderClient();
     await screen.findByText('Collection Title');
     await user.click(screen.getByRole('button', { name: 'Match VNDB' }));
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Error'));
+  });
+
+  it('maps a durable-run failure code to localized operator guidance', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const value = String(url);
+      if (value === '/api/alicenet/run' && init?.method === 'POST') {
+        return json({ error: 'internal lock details', code: 'run_unavailable' }, 503);
+      }
+      return json(snapshot({ items: [COLLECTION_ITEM], stats: { total: 1, matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
+    await screen.findByText('Collection Title');
+    await user.click(screen.getByRole('button', { name: 'Download all' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('The AliceNet operation could not be started.');
+    expect(alert).not.toHaveTextContent('internal lock details');
   });
 
   it('re-enables the operation buttons after a run start resolves', async () => {
@@ -961,7 +994,15 @@ describe('AliceNetClient branches', () => {
     act(() => {
       frames.splice(0).forEach((frame) => frame(0));
     });
-    await waitFor(() => expect(container.querySelector('[data-virtualized-alicenet-grid="true"] [aria-hidden="true"]')).not.toBeNull());
+    const grid = await waitFor(() => {
+      const node = container.querySelector('[data-virtualized-alicenet-grid="true"]');
+      expect(node?.querySelector('[role="presentation"][aria-hidden="true"]')).not.toBeNull();
+      return node;
+    });
+    const cardItems = within(grid as HTMLElement).getAllByRole('listitem');
+    expect(cardItems.length).toBeLessThan(180);
+    expect(cardItems[0]).toHaveAttribute('aria-setsize', '180');
+    expect(Number(cardItems[0].getAttribute('aria-posinset'))).toBeGreaterThan(1);
     act(() => {
       window.dispatchEvent(new Event('resize'));
     });
@@ -1030,7 +1071,15 @@ describe('AliceNetClient branches', () => {
     act(() => {
       frames.splice(0).forEach((frame) => frame(0));
     });
-    await waitFor(() => expect(container.querySelector('ul > li[aria-hidden="true"]')).not.toBeNull());
+    const list = await waitFor(() => {
+      const node = container.querySelector('ul');
+      expect(node?.querySelector(':scope > li[role="presentation"][aria-hidden="true"]')).not.toBeNull();
+      return node;
+    });
+    const rowItems = within(list as HTMLElement).getAllByRole('listitem');
+    expect(rowItems.length).toBeLessThan(180);
+    expect(rowItems[0]).toHaveAttribute('aria-setsize', '180');
+    expect(Number(rowItems[0].getAttribute('aria-posinset'))).toBeGreaterThan(1);
     act(() => {
       window.dispatchEvent(new Event('resize'));
     });

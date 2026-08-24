@@ -38,11 +38,104 @@ export type AliceNetSort =
 export type AliceNetGroup = 'none' | 'match' | 'producer' | 'year';
 export type AliceNetView = 'cards' | 'list';
 
+export const ALICENET_FILTER_TABS: AliceNetFilterTab[] = [
+  'all', 'matched', 'vndb', 'egs_only', 'unmatched', 'none_found', 'collection', 'wishlist',
+];
 export const ALICENET_SORTS: AliceNetSort[] = [
   'match_status', 'release_desc', 'release_asc',
   'price_asc', 'price_desc', 'title', 'updated_desc',
 ];
 export const ALICENET_GROUPS: AliceNetGroup[] = ['none', 'match', 'producer', 'year'];
+export const ALICENET_VIEWS: AliceNetView[] = ['cards', 'list'];
+
+interface SearchParamReader {
+  get(name: string): string | null;
+}
+
+export interface AliceNetQueryState {
+  filter: AliceNetFilterTab;
+  sort: AliceNetSort | null;
+  group: AliceNetGroup | null;
+  view: AliceNetView | null;
+  showFilters: boolean | null;
+  producer: string;
+  yearMin: string;
+  yearMax: string;
+  priceMin: string;
+  priceMax: string;
+  search: string;
+  page: number;
+}
+
+function includesValue<T extends string>(values: readonly T[], value: string | null): value is T {
+  return value != null && values.some((candidate) => candidate === value);
+}
+
+/**
+ * Return whether a raw value is a supported AliceNet sort key.
+ *
+ * @param value Raw persisted or URL-provided value.
+ * @returns Whether the value belongs to the supported sort union.
+ */
+export function isAliceNetSort(value: string | null): value is AliceNetSort {
+  return includesValue(ALICENET_SORTS, value);
+}
+
+/**
+ * Return whether a raw value is a supported AliceNet group key.
+ *
+ * @param value Raw persisted or URL-provided value.
+ * @returns Whether the value belongs to the supported group union.
+ */
+export function isAliceNetGroup(value: string | null): value is AliceNetGroup {
+  return includesValue(ALICENET_GROUPS, value);
+}
+
+/**
+ * Return whether a raw value is a supported AliceNet view key.
+ *
+ * @param value Raw persisted or URL-provided value.
+ * @returns Whether the value belongs to the supported view union.
+ */
+export function isAliceNetView(value: string | null): value is AliceNetView {
+  return includesValue(ALICENET_VIEWS, value);
+}
+
+/**
+ * Parse and validate the complete AliceNet browser query state.
+ *
+ * @param search URL-compatible search parameter reader.
+ * @returns Canonical initial state with invalid enums omitted and invalid pages reset to one.
+ */
+export function parseAliceNetQueryState(search: SearchParamReader): AliceNetQueryState {
+  const rawFilter = search.get('filter');
+  const rawSort = search.get('sort');
+  const rawGroup = search.get('group');
+  const rawView = search.get('view');
+  const producer = search.get('producer') ?? '';
+  const yearMin = search.get('yearMin') ?? '';
+  const yearMax = search.get('yearMax') ?? '';
+  const priceMin = search.get('priceMin') ?? '';
+  const priceMax = search.get('priceMax') ?? '';
+  const explicitFilters = search.get('filters');
+  const hasAdvancedFilter = [producer, yearMin, yearMax, priceMin, priceMax].some(Boolean);
+  const rawPage = Number(search.get('page') ?? '1');
+
+  return {
+    filter: includesValue(ALICENET_FILTER_TABS, rawFilter) ? rawFilter : 'all',
+    sort: isAliceNetSort(rawSort) ? rawSort : null,
+    group: isAliceNetGroup(rawGroup) ? rawGroup : null,
+    view: isAliceNetView(rawView) ? rawView : null,
+    showFilters: hasAdvancedFilter ? true : explicitFilters === '1' ? true : explicitFilters === '0' ? false : null,
+    producer,
+    yearMin,
+    yearMax,
+    priceMin,
+    priceMax,
+    search: search.get('q') ?? '',
+    page: Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+  };
+}
 
 /**
  * Parse a raw alicenet price string ("¥4,270", "4,270円") to its integer

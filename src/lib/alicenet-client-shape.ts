@@ -1,5 +1,6 @@
 import { asJsonRecord } from './json-shape';
 import { isVndbVnId } from './vn-id-shape';
+import { decodeOffsetPageMeta, type OffsetPageMeta } from './server-pagination';
 
 /** One AliceNet stock row rendered by the client browser. */
 export interface AliceNetClientItem {
@@ -29,6 +30,8 @@ export interface AliceNetClientItem {
   vn_local_image: string | null;
   vn_image_sexual: number | null;
   vn_developers: string | null;
+  server_group_key?: string;
+  server_group_count?: number;
 }
 
 /** Header counters returned with the AliceNet stock list. */
@@ -51,11 +54,13 @@ export interface AliceNetPendingCounts {
 }
 
 /** Paging window returned with each AliceNet stock page. */
-export interface AliceNetPageMeta {
-  offset: number;
-  limit: number;
-  total: number;
-  has_more: boolean;
+export type AliceNetPageMeta = OffsetPageMeta;
+
+/** Producer option calculated from the full AliceNet result set. */
+export interface AliceNetProducerOption {
+  id: string;
+  name: string;
+  count: number;
 }
 
 /** First AliceNet stock-browser page: items plus header counters and paging window. */
@@ -65,6 +70,8 @@ export interface AliceNetClientSnapshot {
   pending: AliceNetPendingCounts;
   last_fetch: number | null;
   page?: AliceNetPageMeta;
+  producers: AliceNetProducerOption[];
+  wishlist_available: boolean;
 }
 
 /** A follow-up AliceNet stock page: items plus the paging window only. */
@@ -87,6 +94,12 @@ export interface AliceNetLoopResult {
   processed: number;
   matched?: number;
   remaining: number;
+}
+
+/** AliceNet background operation accepted by the server job queue. */
+export interface AliceNetRunAccepted {
+  jobId: string;
+  op: 'download' | 'pipeline' | 'match-vndb' | 'match-egs';
 }
 
 function isString(value: unknown): value is string {
@@ -116,6 +129,20 @@ function isNullableNonNegativeNumber(value: unknown): value is number | null {
 
 function isBinaryNumber(value: unknown): value is number {
   return value === 0 || value === 1;
+}
+
+/** Decode the accepted response from `POST /api/alicenet/run`. */
+export function decodeAliceNetRunAccepted(value: unknown): AliceNetRunAccepted | null {
+  const record = asJsonRecord(value);
+  if (
+    !record ||
+    typeof record.jobId !== 'string' ||
+    record.jobId.length === 0 ||
+    !(record.op === 'download' || record.op === 'pipeline' || record.op === 'match-vndb' || record.op === 'match-egs')
+  ) {
+    return null;
+  }
+  return { jobId: record.jobId, op: record.op };
 }
 
 function decodeArray<T>(value: unknown, decodeRow: (row: unknown) => T | null): T[] | null {
@@ -190,7 +217,16 @@ function decodeAliceNetItem(value: unknown): AliceNetClientItem | null {
     vn_local_image: record.vn_local_image,
     vn_image_sexual: record.vn_image_sexual,
     vn_developers: record.vn_developers,
+    server_group_key: isString(record.server_group_key) ? record.server_group_key : '',
+    server_group_count: isIntegerAtLeast(record.server_group_count, 0) ? record.server_group_count : 0,
   };
+}
+
+function decodeProducerOption(value: unknown): AliceNetProducerOption | null {
+  const record = asJsonRecord(value);
+  return record && isString(record.id) && isString(record.name) && isIntegerAtLeast(record.count, 0)
+    ? { id: record.id, name: record.name, count: record.count }
+    : null;
 }
 
 function decodeAliceNetStats(value: unknown): AliceNetClientStats | null {
@@ -234,14 +270,7 @@ function isBoolean(value: unknown): value is boolean {
 }
 
 function decodeAliceNetPageMeta(value: unknown): AliceNetPageMeta | null {
-  const record = asJsonRecord(value);
-  return record &&
-    isIntegerAtLeast(record.offset, 0) &&
-    isIntegerAtLeast(record.limit, 1) &&
-    isIntegerAtLeast(record.total, 0) &&
-    isBoolean(record.has_more)
-    ? { offset: record.offset, limit: record.limit, total: record.total, has_more: record.has_more }
-    : null;
+  return decodeOffsetPageMeta(value, 240);
 }
 
 /**
@@ -256,11 +285,15 @@ export function decodeAliceNetClientSnapshot(value: unknown): AliceNetClientSnap
   const stats = decodeAliceNetStats(record?.stats);
   const pending = decodePendingCounts(record?.pending);
   if (!items || !stats || !pending || !isNullableFiniteNumber(record?.last_fetch)) return null;
+  const producers = record.producers === undefined ? [] : decodeArray(record.producers, decodeProducerOption);
+  if (!producers) return null;
+  const wishlistAvailable = record.wishlist_available === undefined ? true : record.wishlist_available;
+  if (!isBoolean(wishlistAvailable)) return null;
   if (record.page === undefined) {
-    return { items, stats, pending, last_fetch: record.last_fetch };
+    return { items, stats, pending, last_fetch: record.last_fetch, producers, wishlist_available: wishlistAvailable };
   }
   const page = decodeAliceNetPageMeta(record.page);
-  return page ? { items, stats, pending, last_fetch: record.last_fetch, page } : null;
+  return page ? { items, stats, pending, last_fetch: record.last_fetch, page, producers, wishlist_available: wishlistAvailable } : null;
 }
 
 /**
