@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/egs/[id]/add/route';
 import { db } from '@/lib/db';
 import { EgsUnreachable, type EgsGame } from '@/lib/erogamescape';
+import { getCachedCollectionVnIds, invalidateCollectionVnIdsCache } from '@/lib/collection-vn-ids-cache';
 
 const { fetchEgsGameMock, linkEgsToVnMock, recordActivityMock } = vi.hoisted(() => ({
   fetchEgsGameMock: vi.fn(),
@@ -25,6 +26,14 @@ vi.mock('@/lib/activity', () => ({
 
 function req(id: number | string, body: unknown): NextRequest {
   return new NextRequest(`http://127.0.0.1/api/egs/${id}/add`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+function remoteReq(id: number | string, body: unknown): NextRequest {
+  return new NextRequest(`http://evil.example/api/egs/${id}/add`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -64,11 +73,19 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  db.prepare("DELETE FROM collection WHERE vn_id LIKE 'egs_9905%'").run();
-  db.prepare("DELETE FROM vn WHERE id LIKE 'egs_9905%'").run();
+  invalidateCollectionVnIdsCache();
+  db.prepare("DELETE FROM collection WHERE vn_id LIKE 'egs_9905%' OR vn_id LIKE 'v9905%'").run();
+  db.prepare('DELETE FROM egs_vn_link WHERE egs_id BETWEEN 990500 AND 990599').run();
+  db.prepare("DELETE FROM vn WHERE id LIKE 'egs_9905%' OR id LIKE 'v9905%'").run();
 });
 
 describe('POST /api/egs/[id]/add', () => {
+  it('rejects non-local requests before reading route parameters', async () => {
+    const response = await POST(remoteReq(990501, {}), ctx(990501));
+    expect(response.status).toBe(403);
+    expect(fetchEgsGameMock).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed identifiers and status before contacting EGS', async () => {
     expect((await POST(req('bad', {}), ctx('bad'))).status).toBe(400);
     expect((await POST(req(0, {}), ctx(0))).status).toBe(400);
@@ -80,7 +97,12 @@ describe('POST /api/egs/[id]/add', () => {
     fetchEgsGameMock.mockResolvedValue(null);
     const res = await POST(req(990501, {}), ctx(990501));
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'EGS game not found' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'EGS game not found',
+      code: 'egs_game_not_found',
+      context: 'egs/990501/add',
+    });
   });
 
   it('sanitizes EGS unreachable failures as upstream errors', async () => {
@@ -88,7 +110,7 @@ describe('POST /api/egs/[id]/add', () => {
     fetchEgsGameMock.mockRejectedValue(new EgsUnreachable('server', 'HTTP 503', 503));
     const res = await POST(req(990501, {}), ctx(990501));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'egs/990501/add (server)' });
     consoleSpy.mockRestore();
   });
 
@@ -117,11 +139,14 @@ describe('POST /api/egs/[id]/add', () => {
   it('adds an EGS-only VN with an explicit valid status and records activity', async () => {
     fetchEgsGameMock.mockResolvedValue(game(990502, 'EGS Title'));
     linkEgsToVnMock.mockResolvedValue(null);
+    invalidateCollectionVnIdsCache();
+    await expect(getCachedCollectionVnIds()).resolves.not.toContain('egs_990502');
 
     const res = await POST(req(990502, { status: 'completed' }), ctx(990502));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.item).toMatchObject({ id: 'egs_990502', status: 'completed' });
+    await expect(getCachedCollectionVnIds()).resolves.toContain('egs_990502');
     expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'collection.add',
       entity: 'vn',
@@ -129,5 +154,59 @@ describe('POST /api/egs/[id]/add', () => {
       label: 'EGS Title',
       payload: { source: 'egs', egs_id: 990502, status: 'completed' },
     }));
+  });
+
+  it('returns already_exists before contacting EGS for a collected synthetic game', async () => {
+    fetchEgsGameMock.mockResolvedValue(game(990503, 'Existing EGS Title'));
+    linkEgsToVnMock.mockResolvedValue(null);
+    expect((await POST(req(990503, {}), ctx(990503))).status).toBe(200);
+    fetchEgsGameMock.mockClear();
+
+    const response = await POST(req(990503, {}), ctx(990503));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'game is already in the collection',
+      code: 'already_exists',
+      context: 'egs/990503/add',
+      detail: 'egs_990503',
+    });
+    expect(fetchEgsGameMock).not.toHaveBeenCalled();
+  });
+
+  it('adds an existing local VNDB target from the EGS mapping without an upstream lookup', async () => {
+    db.prepare('INSERT INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('v990504', 'Mapped VN', Date.now());
+    db.prepare('INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (?, ?, NULL, ?)').run(990504, 'v990504', Date.now());
+    recordActivityMock.mockImplementation(() => {
+      throw new Error('activity unavailable');
+    });
+
+    const response = await POST(req(990504, { status: 'playing' }), ctx(990504));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ vn_id: 'v990504', item: { id: 'v990504', status: 'playing' } });
+    expect(fetchEgsGameMock).not.toHaveBeenCalled();
+    expect(linkEgsToVnMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
+      entityId: 'v990504',
+      payload: { source: 'egs', egs_id: 990504, status: 'playing' },
+    }));
+  });
+
+  it('returns needs_mapping when the mapped VNDB target is not available locally', async () => {
+    db.prepare('INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (?, ?, NULL, ?)').run(990505, 'v990505', Date.now());
+
+    const response = await POST(req(990505, {}), ctx(990505));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'mapped VN is not available locally',
+      code: 'needs_mapping',
+      context: 'egs/990505/add',
+      detail: 'v990505',
+    });
+    expect(fetchEgsGameMock).not.toHaveBeenCalled();
   });
 });

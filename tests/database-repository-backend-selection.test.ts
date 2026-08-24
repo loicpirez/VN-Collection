@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   setStockProviderExtras: vi.fn(),
   upsertStockAlias: vi.fn(),
   upsertStockSource: vi.fn(),
+  upsertEgsOnlyVn: vi.fn(),
   upsertVn: vi.fn(),
   updateCollection: vi.fn(),
   resetCollectionCustomOrder: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock('@/lib/db', () => ({
   setStockProviderExtras: mocks.setStockProviderExtras,
   upsertStockAlias: mocks.upsertStockAlias,
   upsertStockSource: mocks.upsertStockSource,
+  upsertEgsOnlyVn: mocks.upsertEgsOnlyVn,
   upsertVn: mocks.upsertVn,
   updateCollection: mocks.updateCollection,
   resetCollectionCustomOrder: mocks.resetCollectionCustomOrder,
@@ -241,12 +243,28 @@ describe('database repository backend selection', () => {
     await expect(getAppJobLockRepository().renew('job', 'owner', 110, 50)).resolves.toBe(true);
     await expect(getAppJobLockRepository().release('job', 'owner')).resolves.toBe(false);
     await getVnWriteRepository().upsert(payload);
+    await getVnWriteRepository().upsertEgsOnly({
+      vnId: 'egs_90001',
+      title: 'Synthetic payload',
+      alttitle: null,
+      released: null,
+      description: null,
+      imageUrl: null,
+    });
 
     expect(mocks.setAppSetting).toHaveBeenCalledWith('key', 'value');
     expect(mocks.acquireAppJobLock).toHaveBeenCalledWith('job', 'owner', 100, 50);
     expect(mocks.renewAppJobLock).toHaveBeenCalledWith('job', 'owner', 110, 50);
     expect(mocks.releaseAppJobLock).toHaveBeenCalledWith('job', 'owner');
     expect(mocks.upsertVn).toHaveBeenCalledWith(payload);
+    expect(mocks.upsertEgsOnlyVn).toHaveBeenCalledWith({
+      vnId: 'egs_90001',
+      title: 'Synthetic payload',
+      alttitle: null,
+      released: null,
+      description: null,
+      imageUrl: null,
+    });
   });
 
   it('delegates the collection core contract to SQLite', async () => {

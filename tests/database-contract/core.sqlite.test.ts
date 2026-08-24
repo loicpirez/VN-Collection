@@ -12,18 +12,19 @@ import {
 
 listCollection({});
 const database = new Database(process.env.DB_PATH!);
-const contractVnIds = [CORE_CONTRACT_IDS.firstVn, CORE_CONTRACT_IDS.secondVn] as const;
+const contractVnIds = [CORE_CONTRACT_IDS.firstVn, CORE_CONTRACT_IDS.secondVn, CORE_CONTRACT_IDS.syntheticVn] as const;
 
 function reset(): void {
-  database.prepare('DELETE FROM user_list_vn WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM collection_place_index WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn_quote WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM collection WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn_tag_index WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn_developer_index WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn_language_index WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn_platform_index WHERE vn_id IN (?, ?)').run(...contractVnIds);
-  database.prepare('DELETE FROM vn WHERE id IN (?, ?)').run(...contractVnIds);
+  const placeholders = contractVnIds.map(() => '?').join(', ');
+  database.prepare(`DELETE FROM user_list_vn WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM collection_place_index WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn_quote WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM collection WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn_tag_index WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn_developer_index WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn_language_index WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn_platform_index WHERE vn_id IN (${placeholders})`).run(...contractVnIds);
+  database.prepare(`DELETE FROM vn WHERE id IN (${placeholders})`).run(...contractVnIds);
 }
 
 registerCoreRepositoryContract('SQLite', {
@@ -53,7 +54,7 @@ registerCoreRepositoryContract('SQLite', {
               FROM collection
               WHERE vn_id IN (?, ?)
               ORDER BY vn_id
-            `).all(...contractVnIds) as Array<{ vn_id: string; custom_order: number }>;
+            `).all(CORE_CONTRACT_IDS.firstVn, CORE_CONTRACT_IDS.secondVn) as Array<{ vn_id: string; custom_order: number }>;
             return Object.fromEntries(rows.map((row) => [row.vn_id, row.custom_order]));
           },
         },

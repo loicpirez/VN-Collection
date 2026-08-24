@@ -9,6 +9,7 @@ import type { VnWriteRepository } from '@/lib/db/repositories/vn-write';
 export const CORE_CONTRACT_IDS = {
   firstVn: 'v991301',
   secondVn: 'v991302',
+  syntheticVn: 'egs_991303',
   firstTag: 'g991301',
   secondTag: 'g991302',
 } as const;
@@ -182,6 +183,37 @@ export function registerCoreRepositoryContract(label: string, harness: CoreContr
         const item = await read.getCollectionItem(CORE_CONTRACT_IDS.firstVn);
         expect(item?.id).toBe(CORE_CONTRACT_IDS.firstVn);
         expect(item?.status).toBeUndefined();
+      });
+    });
+
+    it('round-trips synthetic EGS-only rows and preserves absent optional values', async () => {
+      await harness.withRepositories(async (_collection, read, write) => {
+        await write.upsertEgsOnly({
+          vnId: CORE_CONTRACT_IDS.syntheticVn,
+          title: 'Synthetic EGS title',
+          alttitle: 'Synthetic reading',
+          released: '2026-08-24',
+          description: 'Synthetic description',
+          imageUrl: 'https://example.test/egs-cover.jpg',
+        });
+        await write.upsertEgsOnly({
+          vnId: CORE_CONTRACT_IDS.syntheticVn,
+          title: 'Updated EGS title',
+          alttitle: null,
+          released: null,
+          description: null,
+          imageUrl: null,
+        });
+
+        await expect(read.isEgsOnly(CORE_CONTRACT_IDS.syntheticVn)).resolves.toBe(true);
+        await expect(read.getCollectionItem(CORE_CONTRACT_IDS.syntheticVn)).resolves.toMatchObject({
+          id: CORE_CONTRACT_IDS.syntheticVn,
+          title: 'Updated EGS title',
+          alttitle: null,
+          released: '2026-08-24',
+          description: 'Synthetic description',
+          image_url: 'https://example.test/egs-cover.jpg',
+        });
       });
     });
   });

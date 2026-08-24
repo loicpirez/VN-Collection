@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { RawVnPayload } from '@/lib/db';
 import { readDatabaseConfig } from '../postgres-config';
-import { withPostgresTransaction, type PostgresParameter } from '../postgres';
+import { postgresQuery, withPostgresTransaction, type PostgresParameter } from '../postgres';
 
 interface StaffEntry {
   eid?: number | null;
@@ -45,10 +45,28 @@ function hasVaIdentity(entry: VaEntry): entry is CompleteVaEntry {
   return Boolean(entry?.staff?.id && entry.character?.id && entry.character.name && entry.staff.name);
 }
 
-/** Asynchronous persistence contract for canonical VNDB VN payloads. */
+/** Fields required to materialize a synthetic EGS-only VN. */
+export interface EgsOnlyVnInput {
+  /** Stable synthetic identifier using the `egs_<number>` format. */
+  vnId: string;
+  /** Display title sourced from ErogameScape. */
+  title: string;
+  /** Optional reading or alternate title. */
+  alttitle: string | null;
+  /** Optional release date in VNDB-compatible text form. */
+  released: string | null;
+  /** Optional synopsis sourced from ErogameScape. */
+  description: string | null;
+  /** Optional remote package image URL. */
+  imageUrl: string | null;
+}
+
+/** Asynchronous persistence contract for canonical and synthetic VN payloads. */
 export interface VnWriteRepository {
   /** Upsert one VN and rebuild all materialized indexes atomically. */
   upsert(vn: RawVnPayload): Promise<void>;
+  /** Create or refresh one synthetic EGS-only VN while preserving absent optional fields. */
+  upsertEgsOnly(vn: EgsOnlyVnInput): Promise<void>;
 }
 
 async function insertRows(
@@ -250,12 +268,46 @@ export function createPostgresVnWriteRepository(): VnWriteRepository {
         await rebuildIndexes(client, vn);
       });
     },
+    async upsertEgsOnly(vn) {
+      await postgresQuery(`
+        INSERT INTO vn (
+          id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
+          released, olang, languages, platforms, length_minutes, length, rating,
+          votecount, description, developers, tags, screenshots, relations, raw,
+          fetched_at, egs_only
+        ) VALUES (
+          $1, $2, $3, $4, NULL, NULL, NULL,
+          $5, NULL, '[]', '[]', NULL, NULL, NULL,
+          NULL, $6, '[]', '[]', '[]', '[]', '{}',
+          $7, 1
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          title = EXCLUDED.title,
+          alttitle = EXCLUDED.alttitle,
+          image_url = COALESCE(EXCLUDED.image_url, vn.image_url),
+          released = COALESCE(EXCLUDED.released, vn.released),
+          description = COALESCE(EXCLUDED.description, vn.description),
+          fetched_at = EXCLUDED.fetched_at,
+          egs_only = 1
+      `, [
+        vn.vnId,
+        vn.title,
+        vn.alttitle,
+        vn.imageUrl,
+        vn.released,
+        vn.description,
+        Date.now(),
+      ]);
+    },
   };
 }
 
 const sqliteRepository: VnWriteRepository = {
   async upsert(vn) {
     (await import('@/lib/db')).upsertVn(vn);
+  },
+  async upsertEgsOnly(vn) {
+    (await import('@/lib/db')).upsertEgsOnlyVn(vn);
   },
 };
 

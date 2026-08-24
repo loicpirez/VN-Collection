@@ -7,6 +7,7 @@ const { clientQueryMock, withTransactionMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/db/postgres', () => ({
+  postgresQuery: clientQueryMock,
   withPostgresTransaction: withTransactionMock,
 }));
 
@@ -134,5 +135,28 @@ describe('PostgreSQL VN writer', () => {
     clientQueryMock.mockReset().mockResolvedValueOnce({ rows: [], rowCount: null });
     await createPostgresVnWriteRepository().upsert({ id: 'v90021', title: 'Unknown result' });
     expect(clientQueryMock).toHaveBeenCalledOnce();
+  });
+
+  it('upserts a synthetic EGS-only VN with preservation semantics', async () => {
+    await createPostgresVnWriteRepository().upsertEgsOnly({
+      vnId: 'egs_90030',
+      title: 'Synthetic title',
+      alttitle: null,
+      released: null,
+      description: null,
+      imageUrl: null,
+    });
+
+    expect(clientQueryMock).toHaveBeenCalledOnce();
+    expect(String(clientQueryMock.mock.calls[0]?.[0])).toContain('egs_only = 1');
+    expect(clientQueryMock.mock.calls[0]?.[1]).toEqual([
+      'egs_90030',
+      'Synthetic title',
+      null,
+      null,
+      null,
+      null,
+      expect.any(Number),
+    ]);
   });
 });
