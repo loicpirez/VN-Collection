@@ -21,7 +21,7 @@ export function LanguageSwitcher() {
       </span>
       <select
         id="locale-select"
-        className="min-h-[44px] rounded-lg border border-border bg-bg-card px-2 py-1 text-sm text-white outline-none focus:border-accent disabled:opacity-50"
+        className="h-11 rounded-lg border border-border bg-bg-card px-2 py-1 text-sm text-white outline-none focus:border-accent disabled:opacity-50"
         value={current}
         disabled={pending}
         aria-describedby={hintId}

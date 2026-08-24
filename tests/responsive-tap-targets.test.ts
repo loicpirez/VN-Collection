@@ -35,6 +35,10 @@ describe('responsive tap targets', () => {
     expect(source('src/components/DateInput.tsx')).toContain('min-h-[44px]');
   });
 
+  it('uses an explicit touch height for the native language selector in WebKit', () => {
+    expect(source('src/components/LanguageSwitcher.tsx')).toContain('className="h-11 rounded-lg');
+  });
+
   it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {
     const dumped = source('src/app/dumped/page.tsx');
     const ignore = source('src/components/DumpIgnoreButton.tsx');
