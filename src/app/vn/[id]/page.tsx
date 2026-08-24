@@ -71,7 +71,6 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
-import { scheduleVndbBackgroundRefresh } from '@/lib/vndb-background-refresh';
 
 const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then((m) => m.MediaGallery), {
   loading: () => (
@@ -121,15 +120,6 @@ async function safePlaceProviderMap(): Promise<{ map: Record<string, number>; av
   }
 }
 
-async function revalidateCachedVn(id: string): Promise<void> {
-  try {
-    const fresh = await getVn(id);
-    if (fresh) await getVnWriteRepository().upsert(fresh);
-  } catch (error) {
-    console.warn(OPERATION_LOG_CODES.vnDetailUpstreamLookupFailed, id, error);
-  }
-}
-
 /**
  * Resolve a VN id to its on-screen detail data.
  *
@@ -158,7 +148,6 @@ const loadVn = cache(
     }
     if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return { vn: cached, error: null };
     if (cached) {
-      scheduleVndbBackgroundRefresh(() => revalidateCachedVn(id));
       return { vn: cached, error: null };
     }
     try {

@@ -152,24 +152,16 @@ describe('producer detail page runtime', () => {
     expect(html).toContain('data-section="stats"');
   });
 
-  it('serves stale cache when VNDB returns no row or rejects', async () => {
+  it('serves stale cache without starting an implicit VNDB refresh', async () => {
     const stale = producer({ fetched_at: 1 });
     producerRepositoryMocks.get.mockResolvedValue(stale);
 
-    let html = renderToStaticMarkup(await ProducerPage({
+    const html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),
       searchParams: Promise.resolve({}),
     }));
     expect(html).toContain('Producer');
-    await vi.waitFor(() => expect(fetchProducer).toHaveBeenCalledTimes(1));
-
-    vi.mocked(fetchProducer).mockRejectedValueOnce(new Error('offline'));
-    html = renderToStaticMarkup(await ProducerPage({
-      params: Promise.resolve({ id: 'p1' }),
-      searchParams: Promise.resolve({}),
-    }));
-    expect(html).toContain('Producer');
-    await vi.waitFor(() => expect(fetchProducer).toHaveBeenCalledTimes(2));
+    expect(fetchProducer).not.toHaveBeenCalled();
   });
 
   it('upserts a fetched producer and reads back its mirrored row', async () => {

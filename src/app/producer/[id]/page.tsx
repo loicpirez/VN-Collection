@@ -18,7 +18,6 @@ import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { safeHref } from '@/lib/safe-href';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
-import { scheduleVndbBackgroundRefresh } from '@/lib/vndb-background-refresh';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
@@ -32,13 +31,7 @@ async function loadProducer(id: string): Promise<ProducerRow | null> {
   const repository = getProducerRepository();
   const cached = await repository.get(id);
   if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return cached;
-  if (cached) {
-    scheduleVndbBackgroundRefresh(async () => {
-      const fresh = await fetchProducer(id);
-      if (fresh) await repository.upsert(fresh);
-    });
-    return cached;
-  }
+  if (cached) return cached;
   try {
     const fresh = await fetchProducer(id);
     if (!fresh) return null;

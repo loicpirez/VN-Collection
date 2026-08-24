@@ -510,40 +510,13 @@ describe('VN detail page runtime', () => {
     expect(getVn).not.toHaveBeenCalled();
   });
 
-  it('falls back to stale cached rows when VNDB returns no row or throws', async () => {
+  it('serves stale cached rows without starting an implicit VNDB refresh', async () => {
     vi.mocked(isCacheFresh).mockReturnValue(false);
     vi.mocked(getCollectionItem).mockImplementation((id) => collectionItem(id));
-    vi.mocked(getVn).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('offline'));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     expect(await renderPage('v90005')).toContain('recent:v90005');
     expect(await renderPage('v90006')).toContain('recent:v90006');
-    await vi.waitFor(() => expect(getVn).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(
-      '[VN_DETAIL_UPSTREAM_LOOKUP_FAILED]',
-      'v90006',
-      expect.objectContaining({ message: 'offline' }),
-    ));
-    warn.mockRestore();
-  });
-
-  it('renders a stale local VN before its background refresh completes', async () => {
-    vi.mocked(isCacheFresh).mockReturnValue(false);
-    vi.mocked(getCollectionItem).mockImplementation((id) => collectionItem(id));
-    let resolveRefresh!: (value: VndbVn | null) => void;
-    vi.mocked(getVn).mockReturnValueOnce(new Promise((resolve) => {
-      resolveRefresh = resolve;
-    }));
-
-    const html = await renderPage('v90026');
-    expect(html).toContain('recent:v90026');
-    expect(upsertVn).not.toHaveBeenCalled();
-
-    expect(await renderPage('v90027')).toContain('recent:v90027');
-    expect(getVn).toHaveBeenCalledTimes(1);
-
-    resolveRefresh(vndbVn('v90026'));
-    await vi.waitFor(() => expect(upsertVn).toHaveBeenCalledWith(vndbVn('v90026')));
+    expect(getVn).not.toHaveBeenCalled();
   });
 
   it('upserts a freshly fetched VN cache row and re-reads the materialized row', async () => {
