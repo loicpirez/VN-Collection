@@ -50,6 +50,7 @@ describe('user activity', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].entity).toBeNull();
     await expect(listUserActivity()).resolves.toHaveLength(1);
+    await expect(getActivityRepository().listUser()).resolves.toHaveLength(1);
   });
 
   it('does not disrupt a completed mutation when activity persistence rejects asynchronously', async () => {
