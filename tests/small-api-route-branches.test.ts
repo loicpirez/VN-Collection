@@ -264,7 +264,7 @@ describe('GET /api/tags and /api/traits', () => {
     mocks.searchTags.mockRejectedValue(new Error('tag upstream failed'));
     const errorResponse = await tagsGET(jsonReq('/api/tags?q=test'));
     expect(errorResponse.status).toBe(502);
-    await expect(errorResponse.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(errorResponse.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'tags' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:tags] tag upstream failed');
     consoleSpy.mockRestore();
   });
@@ -294,7 +294,7 @@ describe('GET /api/tags and /api/traits', () => {
     mocks.searchTraits.mockRejectedValue(new Error('trait upstream failed'));
     const errorResponse = await traitsGET(jsonReq('/api/traits?q=test'));
     expect(errorResponse.status).toBe(502);
-    await expect(errorResponse.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(errorResponse.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'traits' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:traits] trait upstream failed');
     consoleSpy.mockRestore();
   });

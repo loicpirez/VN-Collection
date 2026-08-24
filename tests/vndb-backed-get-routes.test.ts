@@ -230,7 +230,7 @@ describe('GET /api/tags/web-tree', () => {
     getTreeMock.mockRejectedValue(new Error('tag tree unavailable'));
     const res = await tagTreeGET(loopbackReq('/api/tags/web-tree', '10.5.0.3'));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'tags/web-tree' });
     consoleSpy.mockRestore();
   });
 });
