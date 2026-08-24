@@ -8,6 +8,13 @@ import type { VndbUlistEntry, VndbUlistEntryDetail, VndbUlistLabel } from './vnd
 import type { WishlistFacets, WishlistPageMetadata, WishlistSummary } from './wishlist-pagination';
 import { decodeNumberedPageMeta } from './server-pagination';
 import { isValidVnId, normalizeVnId } from './vn-id-shape';
+import { isValidStatus } from './types';
+import {
+  VNDB_SYNC_FIELDS,
+  type LocalVndbUserData,
+  type VndbSyncField,
+  type VndbUserDataDifference,
+} from './vndb-user-data-sync';
 
 const MAX_WISHLIST_ROWS = 1_000;
 
@@ -16,6 +23,8 @@ export interface VndbStatusClientState {
   entry: VndbUlistEntryDetail | null;
   labels: VndbUlistLabel[];
   needsAuth: boolean;
+  local: LocalVndbUserData | null;
+  differences: VndbUserDataDifference[];
 }
 
 /** EGS summary attached to a VNDB wishlist row. */
@@ -87,11 +96,75 @@ export function decodeVndbStatusClientState(value: unknown): VndbStatusClientSta
   ) {
     return null;
   }
+  const local = decodeLocalVndbUserData(record.local);
+  const differences = decodeVndbUserDataDifferences(record.differences);
+  if (local === undefined || differences === null) return null;
   return {
     entry,
     labels: labels.labels,
     needsAuth: record.needsAuth === true,
+    local,
+    differences,
   };
+}
+
+function decodeLocalVndbUserData(value: unknown): LocalVndbUserData | null | undefined {
+  if (value === undefined || value === null) return null;
+  const record = asJsonRecord(value);
+  if (
+    !record ||
+    !(record.status === null || isValidStatus(record.status)) ||
+    !(record.vote === null || typeof record.vote === 'number' && Number.isSafeInteger(record.vote) && record.vote >= 10 && record.vote <= 100) ||
+    !(record.started === null || typeof record.started === 'string') ||
+    !(record.finished === null || typeof record.finished === 'string') ||
+    !(record.notes === null || typeof record.notes === 'string')
+  ) {
+    return undefined;
+  }
+  return {
+    status: record.status,
+    vote: record.vote,
+    started: record.started,
+    finished: record.finished,
+    notes: record.notes,
+  };
+}
+
+function decodeSyncValue(field: VndbSyncField, value: unknown): string | number | null | undefined {
+  if (value === null) return null;
+  if (field === 'status') return isValidStatus(value) ? value : undefined;
+  if (field === 'vote') {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 10 && value <= 100
+      ? value
+      : undefined;
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+function decodeVndbUserDataDifferences(rawValue: unknown): VndbUserDataDifference[] | null {
+  if (rawValue === undefined) return [];
+  if (!Array.isArray(rawValue) || rawValue.length > VNDB_SYNC_FIELDS.length) return null;
+  const allowed = new Set<string>(VNDB_SYNC_FIELDS);
+  const differences: VndbUserDataDifference[] = [];
+  for (const value of rawValue) {
+    const row = asJsonRecord(value);
+    if (!row || typeof row.field !== 'string' || !allowed.has(row.field)) return null;
+    const field = row.field as VndbSyncField;
+    const local = decodeSyncValue(field, row.local);
+    const remote = decodeSyncValue(field, row.remote);
+    if (
+      local === undefined ||
+      remote === undefined ||
+      typeof row.canPullRemote !== 'boolean' ||
+      typeof row.canPushLocal !== 'boolean'
+    ) {
+      return null;
+    }
+    differences.push({ field, local, remote, canPullRemote: row.canPullRemote, canPushLocal: row.canPushLocal });
+  }
+  return new Set(differences.map((difference) => difference.field)).size === differences.length
+    ? differences
+    : null;
 }
 
 /**

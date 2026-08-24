@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpToLine, CheckCircle2, ExternalLink, KeyRound, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { DateInput } from './DateInput';
@@ -17,6 +17,8 @@ import { decodeVndbStatusClientState, type VndbStatusClientState } from '@/lib/v
 import { clearVndbStatusRequest, requestVndbStatus } from '@/lib/vndb-status-client';
 import type { VndbUlistEntryDetail } from '@/lib/vndb';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
+import type { Status } from '@/lib/types';
+import type { VndbSyncField } from '@/lib/vndb-user-data-sync';
 
 /**
  * Maps the API routes' stable error codes to the active locale's
@@ -51,6 +53,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   const [loading, setLoading] = useState(true);
   const [pendingLabel, setPendingLabel] = useState<number | null>(null);
   const [pendingClear, setPendingClear] = useState(false);
+  const [pendingSync, setPendingSync] = useState<'local_to_vndb' | 'vndb_to_local' | null>(null);
   const loadAbortRef = useRef<AbortController | null>(null);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
@@ -79,6 +82,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     mutationInFlightRef.current = false;
     setPendingLabel(null);
     setPendingClear(false);
+    setPendingSync(null);
   }
 
   const load = useCallback(async (showLoading: boolean, fresh = false): Promise<boolean> => {
@@ -88,7 +92,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     if (showLoading) setLoading(true);
     try {
       if (fresh) clearVndbStatusRequest(vnId);
-      const r = await requestVndbStatus(vnId);
+      const r = await requestVndbStatus(vnId, fresh);
       if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       const d = decodeVndbStatusClientState(await r.json());
       if (!d) throw new Error(t.common.error);
@@ -121,6 +125,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     setLoading(true);
     setPendingLabel(null);
     setPendingClear(false);
+    setPendingSync(null);
     return () => {
       mountedRef.current = false;
       mutationAbortRef.current?.abort();
@@ -185,7 +190,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
   }
 
   const currentLabelIds = new Set((state.entry?.labels ?? []).map((l) => l.id));
-  const mutationBusy = pendingLabel != null || pendingClear;
+  const mutationBusy = pendingLabel != null || pendingClear || pendingSync != null;
   // VNDB's `Voted` label (id 7) is automatic, hide it from manual toggles.
   // Same with the user's custom-only labels (id >= 10) - keep them visible
   // since they may matter to the user.
@@ -246,6 +251,55 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     }
   }
 
+  async function resolveDifferences(
+    direction: 'local_to_vndb' | 'vndb_to_local',
+    fields: VndbSyncField[],
+  ) {
+    const controller = beginMutation();
+    if (!controller) return;
+    const ownerVnId = vnId;
+    setPendingSync(direction);
+    try {
+      const response = await fetch(`/api/vn/${vnId}/vndb-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction, fields }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(await readApiErrorLocalized(response, apiErrorMessages(t), t.common.error));
+      }
+      if (!ownsMutation(ownerVnId, controller)) return;
+      toast.success(t.toast.saved);
+      await load(false, true);
+      if (!ownsMutation(ownerVnId, controller)) return;
+      startTransition(() => router.refresh());
+    } catch (error) {
+      if (!ownsMutation(ownerVnId, controller) || (error instanceof Error && error.name === 'AbortError')) return;
+      toast.error((error as Error).message);
+    } finally {
+      finishMutation(ownerVnId, controller);
+    }
+  }
+
+  function fieldLabel(field: VndbSyncField): string {
+    if (field === 'status') return t.vndbStatus.fieldStatus;
+    if (field === 'vote') return t.vndbStatus.fieldVote;
+    if (field === 'started') return t.vndbStatus.fieldStarted;
+    if (field === 'finished') return t.vndbStatus.fieldFinished;
+    return t.vndbStatus.fieldNotes;
+  }
+
+  function displayValue(field: VndbSyncField, value: Status | number | string | null): string {
+    if (value === null) return t.vndbStatus.noValue;
+    if (field === 'status') return t.status[value as Status];
+    if (field === 'vote') return `${fmtNum((value as number) / 10, locale, 1)}/10`;
+    return String(value);
+  }
+
+  const pushableFields = state.differences.filter((difference) => difference.canPushLocal).map((difference) => difference.field);
+  const pullableFields = state.differences.filter((difference) => difference.canPullRemote).map((difference) => difference.field);
+
   return (
     <div className="p-4 sm:p-5">
       <header className="mb-3 flex flex-wrap items-center justify-end gap-2">
@@ -288,6 +342,80 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         <p className="mb-2 text-[11px] text-muted">
           {t.vndbStatus.currentVote}: <b className="text-accent">{fmtNum(state.entry.vote / 10, locale, 1)}/10</b>
         </p>
+      )}
+
+      {state.local && state.differences.length > 0 && (
+        <section className="mb-3 border-y border-status-on-hold/35 bg-status-on-hold/5 py-3" aria-labelledby={`vndb-conflicts-${vnId}`}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 id={`vndb-conflicts-${vnId}`} className="text-xs font-bold text-status-on-hold">
+                {t.vndbStatus.conflictTitle}
+              </h3>
+              <p className="mt-0.5 text-[10px] text-muted">{t.vndbStatus.conflictDesc}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {pushableFields.length > 1 && (
+                <button
+                  type="button"
+                  className="btn btn-sm min-h-[44px] sm:min-h-0"
+                  disabled={mutationBusy}
+                  onClick={() => void resolveDifferences('local_to_vndb', pushableFields)}
+                >
+                  {pendingSync === 'local_to_vndb' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <ArrowUpToLine className="h-3.5 w-3.5" aria-hidden />}
+                  {t.vndbStatus.useAllLocal}
+                </button>
+              )}
+              {pullableFields.length > 1 && (
+                <button
+                  type="button"
+                  className="btn btn-sm min-h-[44px] sm:min-h-0"
+                  disabled={mutationBusy}
+                  onClick={() => void resolveDifferences('vndb_to_local', pullableFields)}
+                >
+                  {pendingSync === 'vndb_to_local' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />}
+                  {t.vndbStatus.useAllRemote}
+                </button>
+              )}
+            </div>
+          </div>
+          <ul className="mt-3 divide-y divide-border/60">
+            {state.differences.map((difference) => (
+              <li key={difference.field} className="grid min-w-0 gap-2 py-2 sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+                <span className="text-[10px] font-bold uppercase text-muted">{fieldLabel(difference.field)}</span>
+                <div className="min-w-0">
+                  <span className="block text-[9px] uppercase text-muted/70">{t.vndbStatus.localValue}</span>
+                  <span className="line-clamp-3 break-words whitespace-pre-wrap text-xs">{displayValue(difference.field, difference.local)}</span>
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-[9px] uppercase text-muted/70">{t.vndbStatus.remoteValue}</span>
+                  <span className="line-clamp-3 break-words whitespace-pre-wrap text-xs">{displayValue(difference.field, difference.remote)}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 sm:justify-end">
+                  <button
+                    type="button"
+                    className="tap-target inline-flex items-center justify-center rounded-md border border-border px-2 py-1 text-[10px] hover:border-accent hover:text-accent"
+                    disabled={mutationBusy || !difference.canPushLocal}
+                    title={!difference.canPushLocal ? t.vndbStatus.syncBlockedNoteLength : t.vndbStatus.useLocal}
+                    onClick={() => void resolveDifferences('local_to_vndb', [difference.field])}
+                  >
+                    <ArrowUpToLine className="h-3.5 w-3.5" aria-hidden />
+                    {t.vndbStatus.useLocal}
+                  </button>
+                  <button
+                    type="button"
+                    className="tap-target inline-flex items-center justify-center rounded-md border border-border px-2 py-1 text-[10px] hover:border-accent hover:text-accent"
+                    disabled={mutationBusy || !difference.canPullRemote}
+                    title={!difference.canPullRemote ? t.vndbStatus.syncBlockedNoStatus : t.vndbStatus.useRemote}
+                    onClick={() => void resolveDifferences('vndb_to_local', [difference.field])}
+                  >
+                    <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />
+                    {t.vndbStatus.useRemote}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <UlistDetailsEditor vnId={vnId} entry={state.entry} disabled={mutationBusy} onSaved={async () => { await load(false, true); }} />

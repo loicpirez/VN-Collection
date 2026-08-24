@@ -54,6 +54,7 @@ import { GET as steamLibraryGET } from '@/app/api/steam/library/route';
 import { GET as steamSyncGET, POST as steamSyncPOST } from '@/app/api/steam/sync/route';
 import { POST as steamLinkPOST, DELETE as steamLinkDELETE } from '@/app/api/steam/link/route';
 import {
+  POST as vndbStatusPOST,
   PATCH as vndbStatusPATCH,
   DELETE as vndbStatusDELETE,
 } from '@/app/api/vn/[id]/vndb-status/route';
@@ -427,6 +428,9 @@ describe('NEW-TCO-002 — NEW-SECA-001..019: newly-gated routes return 403 from 
 
   it('PATCH /api/vn/[id]/vndb-status', async () => {
     expect((await vndbStatusPATCH(externalReq('/api/vn/v1/vndb-status', 'PATCH'), ctx())).status).toBe(403);
+  });
+  it('POST /api/vn/[id]/vndb-status', async () => {
+    expect((await vndbStatusPOST(externalReq('/api/vn/v1/vndb-status', 'POST'), ctx())).status).toBe(403);
   });
   it('DELETE /api/vn/[id]/vndb-status', async () => {
     expect((await vndbStatusDELETE(externalReq('/api/vn/v1/vndb-status', 'DELETE'), ctx())).status).toBe(403);

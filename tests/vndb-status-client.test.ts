@@ -75,4 +75,13 @@ describe('VNDB status client request coalescing', () => {
     expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status`, { cache: 'no-store' });
     expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_TWO}/vndb-status`, { cache: 'no-store' });
   });
+
+  it('keeps explicit fresh reads separate from cached in-flight reads', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response('{}'));
+
+    await Promise.all([requestVndbStatus(VN_ONE), requestVndbStatus(VN_ONE, true)]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status?fresh=1`, { cache: 'no-store' });
+  });
 });

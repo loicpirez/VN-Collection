@@ -8,6 +8,7 @@ import { getCollectionCoreRepository } from './db/repositories/collection-core';
 import { getVnReadRepository } from './db/repositories/vn-read';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { statusFromVndbLabels, VNDB_STATUS_LABELS } from './vndb-user-data-sync';
 /**
  * Two-way sync between local status and VNDB list labels.
  * The mapping is one-way directional but consistent so reading remote
@@ -26,13 +27,7 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  * local state mirrored remotely can leave the setting off (default).
  */
 
-export const VNDB_LABELS: Record<Status, number> = {
-  planning: 5,
-  playing: 1,
-  completed: 2,
-  on_hold: 3,
-  dropped: 4,
-};
+export const VNDB_LABELS = VNDB_STATUS_LABELS;
 
 export const VNDB_LABELS_REVERSE: Record<number, Status> = Object.fromEntries(
   Object.entries(VNDB_LABELS).map(([k, v]) => [v, k as Status]),
@@ -125,13 +120,8 @@ export interface PullResult {
  * outcome of having played and finished the game; "dropped" / "on_hold" reflect
  * abandonment so they outrank "playing" which itself outranks "planning".
  */
-const STATUS_PRECEDENCE: Status[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
-
 function pickStatusFromLabels(labelIds: number[]): Status | null {
-  for (const status of STATUS_PRECEDENCE) {
-    if (labelIds.includes(VNDB_LABELS[status])) return status;
-  }
-  return null;
+  return statusFromVndbLabels(labelIds);
 }
 
 /**

@@ -1636,7 +1636,10 @@ export interface VndbUlistEntryDetail {
   labels: { id: number; label: string }[];
 }
 
-export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetail | null | { needsAuth: true }> {
+export async function fetchUlistEntry(
+  vnId: string,
+  options: { fresh?: boolean } = {},
+): Promise<VndbUlistEntryDetail | null | { needsAuth: true }> {
   const auth = await getAuthInfo();
   if (!auth) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
@@ -1648,8 +1651,9 @@ export async function fetchUlistEntry(vnId: string): Promise<VndbUlistEntryDetai
       fields: 'id, added, voted, lastmod, vote, started, finished, notes, labels{id,label}',
       results: 1,
     },
-    // 5-minute TTL — list state changes when the user mutates it elsewhere.
-    5 * 60 * 1000,
+    // Explicit refreshes bypass both cache reads and stale fallback so the
+    // conflict resolver never acts on a five-minute-old ulist snapshot.
+    options.fresh ? 0 : 5 * 60 * 1000,
     decodeVndbUlistEntryDetailRow,
   );
   return r.results[0] ?? null;

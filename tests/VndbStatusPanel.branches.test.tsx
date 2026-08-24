@@ -53,6 +53,20 @@ function statePayload(opts: {
   started?: string | null;
   finished?: string | null;
   notes?: string | null;
+  local?: {
+    status: 'planning' | 'playing' | 'completed' | 'on_hold' | 'dropped' | null;
+    vote: number | null;
+    started: string | null;
+    finished: string | null;
+    notes: string | null;
+  } | null;
+  differences?: Array<{
+    field: 'status' | 'vote' | 'started' | 'finished' | 'notes';
+    local: string | number | null;
+    remote: string | number | null;
+    canPullRemote: boolean;
+    canPushLocal: boolean;
+  }>;
 } = {}) {
   const entry = opts.entry
     ? {
@@ -67,7 +81,13 @@ function statePayload(opts: {
         labels: (opts.labelIds ?? [1]).map((id) => ({ id, label: LABELS.find((l) => l.id === id)?.label ?? `L${id}` })),
       }
     : null;
-  return { entry, labels: LABELS, needsAuth: opts.needsAuth ?? false };
+  return {
+    entry,
+    labels: LABELS,
+    needsAuth: opts.needsAuth ?? false,
+    local: opts.local,
+    differences: opts.differences,
+  };
 }
 
 function render(vnId = 'v90001') {
@@ -170,6 +190,94 @@ describe('VndbStatusPanel branches', () => {
     render();
     // 85 / 10 -> 8.5/10
     expect(await screen.findByText('8.5/10')).toBeInTheDocument();
+  });
+
+  it('shows local and VNDB differences and resolves one field in either direction', async () => {
+    const bodies: unknown[] = [];
+    const conflict = statePayload({
+      entry: true,
+      labelIds: [1],
+      local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    });
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        bodies.push(JSON.parse(String(init.body)));
+        return json({ ok: true });
+      }
+      return json(conflict);
+    });
+    render();
+    expect(await screen.findByText(t.vndbStatus.conflictTitle)).toBeInTheDocument();
+    expect(screen.getByText(t.status.completed)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useLocal }));
+    await waitFor(() => expect(bodies[0]).toEqual({ direction: 'local_to_vndb', fields: ['status'] }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useRemote }));
+    await waitFor(() => expect(bodies[1]).toEqual({ direction: 'vndb_to_local', fields: ['status'] }));
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(2));
+  });
+
+  it('supports bulk local resolution and explains blocked directions', async () => {
+    let body: unknown = null;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        body = JSON.parse(String(init.body));
+        return json({ ok: true });
+      }
+      return json(statePayload({
+        entry: true,
+        labelIds: [],
+        local: {
+          status: 'completed',
+          vote: 90,
+          started: null,
+          finished: null,
+          notes: 'x'.repeat(10_001),
+        },
+        differences: [
+          { field: 'status', local: 'completed', remote: null, canPullRemote: false, canPushLocal: true },
+          { field: 'vote', local: 90, remote: null, canPullRemote: true, canPushLocal: true },
+          { field: 'notes', local: 'x'.repeat(10_001), remote: null, canPullRemote: true, canPushLocal: false },
+        ],
+      }));
+    });
+    render();
+    expect(await screen.findByTitle(t.vndbStatus.syncBlockedNoStatus)).toBeDisabled();
+    expect(screen.getByTitle(t.vndbStatus.syncBlockedNoteLength)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useAllLocal }));
+    await waitFor(() => expect(body).toEqual({ direction: 'local_to_vndb', fields: ['status', 'vote'] }));
+  });
+
+  it('surfaces a conflict-resolution API failure without refreshing the route', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return json({ error: 'changed', code: 'vndb_sync_changed' }, 409);
+      }
+      return json(statePayload({
+        entry: true,
+        local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+        differences: [{
+          field: 'status',
+          local: 'completed',
+          remote: 'playing',
+          canPullRemote: true,
+          canPushLocal: true,
+        }],
+      }));
+    });
+    render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    expect(await screen.findByText(t.common.error)).toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it('sets a label that is not yet active (labels_set path)', async () => {

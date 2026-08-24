@@ -6,13 +6,14 @@ const inFlightStatusRequests = new Map<string, Promise<Response>>();
  * @param vnId Canonical VNDB visual novel identifier.
  * @returns An independent response clone for the caller to decode.
  */
-export function requestVndbStatus(vnId: string): Promise<Response> {
-  let request = inFlightStatusRequests.get(vnId);
+export function requestVndbStatus(vnId: string, fresh = false): Promise<Response> {
+  const key = `${vnId}:${fresh ? 'fresh' : 'cached'}`;
+  let request = inFlightStatusRequests.get(key);
   if (!request) {
-    request = fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store' });
-    inFlightStatusRequests.set(vnId, request);
+    request = fetch(`/api/vn/${vnId}/vndb-status${fresh ? '?fresh=1' : ''}`, { cache: 'no-store' });
+    inFlightStatusRequests.set(key, request);
     const release = () => {
-      if (inFlightStatusRequests.get(vnId) === request) inFlightStatusRequests.delete(vnId);
+      if (inFlightStatusRequests.get(key) === request) inFlightStatusRequests.delete(key);
     };
     void request.then(release, release);
   }
@@ -26,5 +27,6 @@ export function requestVndbStatus(vnId: string): Promise<Response> {
  * @returns Nothing.
  */
 export function clearVndbStatusRequest(vnId: string): void {
-  inFlightStatusRequests.delete(vnId);
+  inFlightStatusRequests.delete(`${vnId}:cached`);
+  inFlightStatusRequests.delete(`${vnId}:fresh`);
 }

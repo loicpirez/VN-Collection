@@ -168,6 +168,7 @@ const NEW_KINDS = [
   'egs.sync-apply',
   'vndb-status.update',
   'vndb-status.remove',
+  'vndb.data.resolve',
 ] as const;
 
 describe('round-four activity kinds', () => {

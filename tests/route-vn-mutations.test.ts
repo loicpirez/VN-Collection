@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { addToCollection, db, setVnEgsLink, upsertVn } from '@/lib/db';
+import { addToCollection, db, getCollectionItem, setVnEgsLink, upsertVn } from '@/lib/db';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 
 const { getVnMock, labelsMock, entryMock, patchMock, deleteMock } = vi.hoisted(() => ({
@@ -50,6 +50,7 @@ vi.mock('@/lib/activity', () => ({
 import { POST as linkVndbPOST } from '@/app/api/vn/[id]/link-vndb/route';
 import {
   GET as statusGET,
+  POST as statusPOST,
   PATCH as statusPATCH,
   DELETE as statusDELETE,
 } from '@/app/api/vn/[id]/vndb-status/route';
@@ -202,14 +203,43 @@ describe('GET /api/vn/[id]/vndb-status', () => {
     expect(await res.json()).toEqual({ needsAuth: true, entry: null, labels: [] });
   });
 
-  it('200 with entry + labels when authenticated', async () => {
+  it('returns local differences and bypasses the entry cache on an explicit refresh', async () => {
+    upsertVn({ id: REAL_VN, title: 'Fixture' });
+    addToCollection(REAL_VN, {
+      status: 'completed',
+      user_rating: 90,
+      started_date: '2025-01-01',
+      finished_date: '2025-01-02',
+      notes: 'local note',
+    });
     labelsMock.mockResolvedValue([{ id: 1, label: 'Playing', private: false, count: 0 }]);
-    entryMock.mockResolvedValue({ id: REAL_VN, vote: null, labels: [] });
-    const res = await statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
+    entryMock.mockResolvedValue({
+      id: REAL_VN,
+      vote: null,
+      started: '2025-01-01',
+      finished: null,
+      notes: null,
+      labels: [{ id: 1, label: 'Playing' }],
+    });
+    const res = await statusGET(localReq('/api/vn/v90402/vndb-status?fresh=1', 'GET'), ctx(REAL_VN));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.labels).toHaveLength(1);
     expect(body.entry.id).toBe(REAL_VN);
+    expect(body.local).toEqual({
+      status: 'completed',
+      vote: 90,
+      started: '2025-01-01',
+      finished: '2025-01-02',
+      notes: 'local note',
+    });
+    expect(body.differences.map((difference: { field: string }) => difference.field)).toEqual([
+      'status',
+      'vote',
+      'finished',
+      'notes',
+    ]);
+    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true });
   });
 
   it('200 with needsAuth when entry loading reports missing auth after labels resolve', async () => {
@@ -231,6 +261,191 @@ describe('GET /api/vn/[id]/vndb-status', () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/vndb-status' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/vndb-status] ulist labels failed');
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('POST /api/vn/[id]/vndb-status', () => {
+  function seedLocal(fields: Parameters<typeof addToCollection>[1] = {}): void {
+    upsertVn({ id: REAL_VN, title: 'Fixture' });
+    addToCollection(REAL_VN, {
+      status: 'completed',
+      user_rating: 90,
+      started_date: '2025-01-01',
+      finished_date: '2025-01-02',
+      notes: 'local note',
+      ...fields,
+    });
+  }
+
+  function remotePlaying(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: REAL_VN,
+      vote: null,
+      started: null,
+      finished: null,
+      notes: null,
+      labels: [{ id: 1, label: 'Playing' }],
+      ...overrides,
+    };
+  }
+
+  it('rejects malformed requests and non-VNDB ids', async () => {
+    const invalidId = await statusPOST(
+      localReq('/api/vn/egs_90401/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(EGS_VN),
+    );
+    expect(invalidId.status).toBe(400);
+    expect(await invalidId.json()).toEqual({ error: 'invalid id' });
+
+    const invalidBody = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status', 'status'] }),
+      ctx(REAL_VN),
+    );
+    expect(invalidBody.status).toBe(400);
+    expect(await invalidBody.json()).toEqual({ error: 'invalid sync request' });
+  });
+
+  it('returns 404 when the VN is not in the local collection', async () => {
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'not in collection' });
+    expect(entryMock).not.toHaveBeenCalled();
+  });
+
+  it('copies only selected local fields to VNDB and preserves custom labels', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({ labels: [{ id: 1, label: 'Playing' }, { id: 42, label: 'Custom' }] }));
+    patchMock.mockResolvedValue({ ok: true });
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        fields: ['status', 'vote', 'started', 'finished', 'notes'],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      direction: 'local_to_vndb',
+      fields: ['status', 'vote', 'started', 'finished', 'notes'],
+    });
+    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true });
+    expect(patchMock).toHaveBeenCalledWith(REAL_VN, {
+      labels_set: [2],
+      labels_unset: [5, 1, 3, 4],
+      vote: 90,
+      started: '2025-01-01',
+      finished: '2025-01-02',
+      notes: 'local note',
+    });
+    expect(getCollectionItem(REAL_VN)).toMatchObject({ status: 'completed', user_rating: 90 });
+  });
+
+  it('copies selected VNDB fields to the local collection', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({
+      vote: 70,
+      started: '2024-02-01',
+      finished: null,
+      notes: 'remote note',
+    }));
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'vndb_to_local',
+        fields: ['status', 'vote', 'started', 'finished', 'notes'],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(200);
+    expect(getCollectionItem(REAL_VN)).toMatchObject({
+      status: 'playing',
+      user_rating: 70,
+      started_date: '2024-02-01',
+      finished_date: null,
+      notes: 'remote note',
+    });
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a decision when the selected field no longer differs', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({ vote: 90 }));
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['vote'] }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'selected fields are no longer different',
+      code: 'vndb_sync_changed',
+    });
+  });
+
+  it('blocks pulling an absent remote status and pushing an overlong local note', async () => {
+    seedLocal({ notes: 'x'.repeat(10_001) });
+    entryMock.mockResolvedValue(remotePlaying({ labels: [] }));
+    const pullResponse = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'vndb_to_local', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+    expect(pullResponse.status).toBe(409);
+    expect((await pullResponse.json()).code).toBe('vndb_sync_direction_unavailable');
+
+    const pushResponse = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['notes'] }),
+      ctx(REAL_VN),
+    );
+    expect(pushResponse.status).toBe(409);
+    expect((await pushResponse.json()).code).toBe('vndb_sync_direction_unavailable');
+  });
+
+  it('returns 401 when conflict resolution needs VNDB authentication', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue({ needsAuth: true });
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'VNDB token required', code: 'vndb_token_required' });
+  });
+
+  it('keeps a completed resolution successful when activity logging fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying());
+    patchMock.mockResolvedValue({ ok: true });
+    recordActivityMock.mockRejectedValueOnce(new Error('activity failed'));
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, direction: 'local_to_vndb', fields: ['status'] });
+    expect(consoleSpy).toHaveBeenCalledWith('[vndb-status:v90402] activity log failed:', 'activity failed');
+    consoleSpy.mockRestore();
+  });
+
+  it('returns a sanitized upstream failure when the fresh VNDB read fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    seedLocal();
+    entryMock.mockRejectedValue(new Error('private upstream detail'));
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'upstream service unavailable',
+      code: 'upstream_unavailable',
+      context: 'vn/[id]/vndb-status/sync',
+    });
+    expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/vndb-status/sync] private upstream detail');
     consoleSpy.mockRestore();
   });
 });

@@ -44,12 +44,29 @@ describe('VNDB UI client response adapters', () => {
       entry: { ...DETAIL, id: 'v90001' },
       labels: [{ id: 5, label: 'Wishlist', private: false, count: 1 }],
       needsAuth: false,
+      local: null,
+      differences: [],
     });
     expect(decodeVndbStatusClientState({
       entry: null,
       labels: [],
       needsAuth: true,
-    })).toEqual({ entry: null, labels: [], needsAuth: true });
+    })).toEqual({ entry: null, labels: [], needsAuth: true, local: null, differences: [] });
+    expect(decodeVndbStatusClientState({
+      entry: DETAIL,
+      labels: [],
+      local: { status: 'completed', vote: 90, started: null, finished: '2025-01-01', notes: 'local' },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    })).toMatchObject({
+      local: { status: 'completed', vote: 90 },
+      differences: [{ field: 'status', local: 'completed', remote: 'playing' }],
+    });
   });
 
   it('decodes locally enriched wishlist rows', () => {
@@ -79,6 +96,13 @@ describe('VNDB UI client response adapters', () => {
   it('rejects malformed local payloads', () => {
     expect(decodeVndbStatusClientState({ entry: null, labels: null })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: { id: 'bad' }, labels: [] })).toBeNull();
+    expect(decodeVndbStatusClientState({ entry: null, labels: [], local: { status: 'invalid' } })).toBeNull();
+    expect(decodeVndbStatusClientState({ entry: null, labels: [], differences: [{ field: 'other' }] })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
+      differences: [{ field: 'vote', local: 9, remote: null, canPullRemote: true, canPushLocal: true }],
+    })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, in_collection: 'false' }] })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, egs: { median: '75' } }] })).toBeNull();
     expect(decodeWishlistClientState(null)).toBeNull();
