@@ -104,6 +104,9 @@ describe('EgsPanel branches', () => {
     // combinedScore(null, 60) === 60.
     expect(screen.getByText(t.egs.combined)).toBeInTheDocument();
     expect(screen.getAllByText('60 / 100').length).toBeGreaterThan(0);
+    const legend = screen.getByRole('list', { name: t.detail.scoreLegendLabel });
+    expect(within(legend).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(legend).queryByText(t.detail.myRatingLabel)).toBeNull();
   });
 
   it('omits the rating block entirely when both VNDB rating and EGS median are absent', () => {
@@ -277,10 +280,11 @@ describe('EgsPanel branches', () => {
       myPlaytimeMinutes: 180,
       initialGame: panelGame({ playtime_median_minutes: 600 }),
     });
-    expect(screen.getByText(t.egs.playtimeTitle)).toBeInTheDocument();
-    expect(screen.getByText(t.egs.playtimeVndb)).toBeInTheDocument();
-    expect(screen.getByText(t.egs.playtimeEgs)).toBeInTheDocument();
-    expect(screen.getByText(t.egs.playtimeMine)).toBeInTheDocument();
+    const playtimeSection = screen.getByText(t.egs.playtimeTitle).parentElement;
+    if (!playtimeSection) throw new Error('Missing playtime section');
+    expect(within(playtimeSection).getByText(t.egs.playtimeVndb)).toBeInTheDocument();
+    expect(within(playtimeSection).getByText(t.egs.playtimeEgs)).toBeInTheDocument();
+    expect(within(playtimeSection).getByText(t.egs.playtimeMine)).toBeInTheDocument();
     // myPlaytime + egs both > 0 -> the accent sum chip renders.
     expect(screen.getByText(t.egs.playtimeSum, { exact: false })).toBeInTheDocument();
   });

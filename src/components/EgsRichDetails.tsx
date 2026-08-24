@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Film, Gamepad2, ShoppingBag, Twitter, Users } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { safeHref } from '@/lib/safe-href';
 import { SkeletonBlock } from './Skeleton';
@@ -97,7 +97,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
   const povA = n(raw.total_pov_enrollment_of_a);
   const povB = n(raw.total_pov_enrollment_of_b);
   const povC = n(raw.total_pov_enrollment_of_c);
-  const tourokubi = raw.tourokubi || null;
+  const registeredDate = raw.tourokubi ? formatIsoDateString(raw.tourokubi, locale) : null;
 
   const links: { href: string; label: string; icon: React.ReactNode }[] = [];
   if (trailerUrl) links.push({ href: trailerUrl, label: 'EroGameTrailers', icon: <Film className="h-3 w-3" aria-hidden /> });
@@ -119,7 +119,7 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
     hasPov ||
     sales != null ||
     fun != null ||
-    tourokubi;
+    registeredDate;
   if (!hasAny) return null;
 
   return (
@@ -169,8 +169,8 @@ export function EgsRichDetails({ vnId }: { vnId: string }) {
         {sales != null && sales > 0 && (
           <Stat label={t.egsRich.salesRank} value={fmtNum(sales, locale)} />
         )}
-        {tourokubi && (
-          <Stat label={t.egsRich.registered} value={tourokubi} />
+        {registeredDate && (
+          <Stat label={t.egsRich.registered} value={registeredDate} />
         )}
       </dl>
 

@@ -8,6 +8,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
 import { SkeletonBlock } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
+import { ScoreSourceLegend } from './ScoreSourceLegend';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
@@ -443,6 +444,10 @@ export function EgsPanel({
 
         {(vndbRating != null || combined != null) && (
           <div className="mt-4 grid gap-3 rounded-lg border border-border bg-bg-elev/40 p-3 sm:grid-cols-3">
+            <ScoreSourceLegend
+              sources={['unified', 'vndb', 'egs']}
+              className="sm:col-span-3"
+            />
             <Stat
               label={t.egs.vndbRating}
               value={vndbRating != null ? `${fmtNum(vndbRating / 10, locale, 1)} / 10` : '-'}
@@ -627,7 +632,7 @@ function EgsPicker({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto p-2 sm:p-6"
+      className="fixed inset-0 z-layer-modal flex items-start justify-center overflow-y-auto p-2 sm:p-6"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

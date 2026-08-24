@@ -5,6 +5,7 @@ import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { formatIsoDateString } from '@/lib/locale-number';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -188,7 +189,7 @@ describe('EgsRichDetails branches', () => {
     expect(screen.getByText(t.egsRich.timeToFun)).toBeInTheDocument();
     expect(screen.getByText(t.egsRich.salesRank)).toBeInTheDocument();
     expect(screen.getByText(t.egsRich.registered)).toBeInTheDocument();
-    expect(screen.getByText('2020-04-01')).toBeInTheDocument();
+    expect(screen.getByText(formatIsoDateString('2020-04-01', 'en'))).toBeInTheDocument();
 
     // POV breakdown panel rendered with the three bars (A/B/C).
     expect(screen.getByText(t.egsRich.povBreakdown)).toBeInTheDocument();
