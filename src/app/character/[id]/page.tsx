@@ -15,6 +15,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { readScrapedCharacterInfo } from '@/lib/scrape-character-instances';
+import { readCharacterFullCache } from '@/lib/character-full';
 import { dedupAppearances } from '@/lib/character-appearances';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
@@ -67,7 +68,8 @@ export default async function CharacterPage({
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let char: VndbCharacter | null = null;
   try {
-    char = await getCharacter(id);
+    const cached = await readCharacterFullCache(id).catch(() => null);
+    char = cached ? cached.profile : await getCharacter(id);
   } catch {
     // VNDB unreachable / throttled / payload malformed - fall through
     // to `notFound()` below rather than 500ing. The user sees the

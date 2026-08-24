@@ -6,6 +6,7 @@ import type {
   CharacterVoiceCredit,
 } from '@/lib/db';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
+import { readCharacterFullCache } from '@/lib/character-full';
 import { readScrapedCharacterInfo, type ScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { DetailSection } from '@/components/DetailReorderLayout';
@@ -39,6 +40,10 @@ vi.mock('@/lib/db/repositories/collection-core', () => ({
 
 vi.mock('@/lib/vndb', () => ({
   getCharacter: vi.fn(),
+}));
+
+vi.mock('@/lib/character-full', () => ({
+  readCharacterFullCache: vi.fn(),
 }));
 
 vi.mock('@/lib/scrape-character-instances', () => ({
@@ -138,6 +143,7 @@ beforeEach(() => {
   peopleMocks.voiceActorsForCharacter.mockReset().mockResolvedValue([]);
   collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
   vi.mocked(getCharacter).mockReset().mockResolvedValue(character());
+  vi.mocked(readCharacterFullCache).mockReset().mockResolvedValue(null);
   vi.mocked(readScrapedCharacterInfo).mockReset().mockResolvedValue(null);
 });
 
@@ -159,6 +165,29 @@ describe('character detail page runtime', () => {
     expect(html).toContain('data-section="meta"');
     expect(html).not.toContain('data-section="description"');
     expect(getCharacter).toHaveBeenCalledWith('C1');
+  });
+
+  it('uses the validated local full-character cache without waiting on VNDB', async () => {
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce({
+      profile: character({ name: 'Cached character' }),
+      fetched_at: 1,
+    });
+
+    const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
+
+    expect(html).toContain('Cached character');
+    expect(getCharacter).not.toHaveBeenCalled();
+  });
+
+  it('honours a cached not-found profile and falls back when the cache read fails', async () => {
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce({ profile: null, fetched_at: 1 });
+    await expect(CharacterPage({ params: Promise.resolve({ id: 'c404' }) })).rejects.toThrow('not-found');
+    expect(getCharacter).not.toHaveBeenCalled();
+
+    vi.mocked(readCharacterFullCache).mockRejectedValueOnce(new Error('cache unavailable'));
+    const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
+    expect(html).toContain('Character');
+    expect(getCharacter).toHaveBeenCalledWith('c1');
   });
 
   it('renders all optional metadata pivots and detail sections', async () => {
