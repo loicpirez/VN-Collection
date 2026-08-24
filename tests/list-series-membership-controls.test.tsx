@@ -214,7 +214,9 @@ describe('SeriesRemoveVn', () => {
       </div>,
       { locale: 'en' },
     );
-    fireEvent.click(screen.getByRole('button', { name: t.series.removeFromSeries }));
+    const remove = screen.getByRole('button', { name: t.series.removeFromSeries });
+    expect(remove).toHaveAttribute('type', 'button');
+    fireEvent.click(remove);
     await waitFor(() => expect(confirmMocks.confirm).toHaveBeenCalled());
     expect(fetch).not.toHaveBeenCalled();
     expect(parentClick).not.toHaveBeenCalled();
