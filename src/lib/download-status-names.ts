@@ -1,11 +1,6 @@
 import 'server-only';
 import type { DownloadJob } from './download-status';
-import {
-  batchGetCharNames,
-  batchGetProducerNames,
-  batchGetStaffNames,
-  batchGetVnTitles,
-} from './db';
+import { getEntityNameRepository } from './db/repositories/entity-name';
 import { STOCK_PROVIDER_LABELS, type StockProviderId } from './stock-provider-constants';
 import { isVndbVnId } from './vn-id-shape';
 
@@ -25,7 +20,7 @@ export interface EnrichedJob extends DownloadJob {
  * because those entities either lack a dedicated local table or the
  * id is not a VNDB entity reference.
  */
-export function enrichJobs(jobs: DownloadJob[]): EnrichedJob[] {
+export async function enrichJobs(jobs: DownloadJob[]): Promise<EnrichedJob[]> {
   const vnIds = new Set<string>();
   const producerIds = new Set<string>();
   const staffIds = new Set<string>();
@@ -42,10 +37,13 @@ export function enrichJobs(jobs: DownloadJob[]): EnrichedJob[] {
     }
   }
 
-  const vnTitles = batchGetVnTitles([...vnIds]);
-  const producerNames = batchGetProducerNames([...producerIds]);
-  const staffNames = batchGetStaffNames([...staffIds]);
-  const charNames = batchGetCharNames([...charIds]);
+  const repository = getEntityNameRepository();
+  const [vnTitles, producerNames, staffNames, charNames] = await Promise.all([
+    repository.vnTitles([...vnIds]),
+    repository.producerNames([...producerIds]),
+    repository.staffNames([...staffIds]),
+    repository.characterNames([...charIds]),
+  ]);
 
   return jobs.map((j) => {
     const ci = j.current_item ?? null;

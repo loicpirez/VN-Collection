@@ -13,6 +13,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (deny) return deny;
   return NextResponse.json({
     throttle: getVndbThrottleStats(),
-    jobs: enrichJobs(mergeDurableStockBatchJobs(listJobs())),
+    jobs: await enrichJobs(await mergeDurableStockBatchJobs(listJobs())),
   });
 }

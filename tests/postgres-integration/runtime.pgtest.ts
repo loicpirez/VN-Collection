@@ -57,6 +57,7 @@ import { createPostgresSavedFilterRepository } from '@/lib/db/repositories/saved
 import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route';
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
 import { createPostgresDiscoveryRepository } from '@/lib/db/repositories/discovery';
+import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity-name';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresEgsRepository } from '@/lib/db/repositories/egs';
 import { createPostgresVnAssetRepository } from '@/lib/db/repositories/vn-assets';
@@ -151,6 +152,10 @@ import {
   EGS_CONTRACT_IDS,
   registerEgsRepositoryContract,
 } from '../database-contract/egs.contract';
+import {
+  ENTITY_NAME_CONTRACT_IDS,
+  registerEntityNameRepositoryContract,
+} from '../database-contract/entity-name.contract';
 
 interface CountRow extends QueryResultRow {
   count: number;
@@ -1715,6 +1720,48 @@ registerDiscoveryRepositoryContract('PostgreSQL', {
         if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
         else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
       }
+    });
+  },
+});
+
+registerEntityNameRepositoryContract('PostgreSQL', {
+  async withRepository(run) {
+    await withIsolatedSchema(async (pool) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const ids = ENTITY_NAME_CONTRACT_IDS;
+      await pool.query(`
+        INSERT INTO vn (id, title, developers, fetched_at) VALUES
+          ($1, 'Named VN', NULL, 1),
+          ($2, 'Developer Host', $3, 1)
+      `, [
+        ids.vn,
+        ids.developerHost,
+        JSON.stringify([{ id: ids.embeddedProducer, name: 'Embedded Producer' }]),
+      ]);
+      await pool.query('INSERT INTO producer (id, name, fetched_at) VALUES ($1, $2, 1)', [
+        ids.directProducer,
+        'Direct Producer',
+      ]);
+      await pool.query('INSERT INTO vn_developer_index (vn_id, producer_id) VALUES ($1, $2)', [
+        ids.developerHost,
+        ids.embeddedProducer,
+      ]);
+      await pool.query(`
+        INSERT INTO vn_staff_credit (vn_id, sid, role, name) VALUES ($1, $2, 'staff', $3)
+      `, [ids.vn, ids.productionStaff, 'Production Staff']);
+      await pool.query(`
+        INSERT INTO vn_va_credit (vn_id, sid, c_id, c_name, va_name) VALUES
+          ($1, $2, $3, 'Contract Character', 'Voice Alias'),
+          ($4, $5, 'c994802', 'Other Character', 'Voice Only Staff')
+      `, [ids.vn, ids.productionStaff, ids.character, ids.developerHost, ids.voiceOnlyStaff]);
+      const query = async <Row extends QueryResultRow>(
+        text: string,
+        values: readonly PostgresParameter[] = [],
+      ): Promise<{ rows: Row[] }> => {
+        const result = await pool.query<Row>(text, [...values]);
+        return { rows: result.rows };
+      };
+      await run(createPostgresEntityNameRepository(query));
     });
   },
 });

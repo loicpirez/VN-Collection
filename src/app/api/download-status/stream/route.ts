@@ -8,10 +8,17 @@ import { mergeDurableStockBatchJobs } from '@/lib/stock-batch-store';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function buildSnapshot(): string {
+async function buildSnapshot(): Promise<string> {
+  const liveJobs = listJobs();
+  let jobs = liveJobs;
+  try {
+    jobs = await mergeDurableStockBatchJobs(liveJobs);
+  } catch (error) {
+    console.error('[download-status] durable stock jobs unavailable', error);
+  }
   const data = {
     throttle: getVndbThrottleStats(),
-    jobs: enrichJobs(mergeDurableStockBatchJobs(listJobs())),
+    jobs: await enrichJobs(jobs),
   };
   return `data: ${JSON.stringify(data)}\n\n`;
 }
@@ -66,10 +73,16 @@ export async function GET(req: NextRequest): Promise<Response> {
         }
       }
 
-      push(buildSnapshot());
+      const pushSnapshot = async () => {
+        const snapshot = await buildSnapshot();
+        push(snapshot);
+      };
+      void pushSnapshot();
       if (cleanedUp) return;
 
-      unsubscribe = subscribeStatus(() => push(buildSnapshot()));
+      unsubscribe = subscribeStatus(() => {
+        void pushSnapshot();
+      });
 
       keepAlive = setInterval(() => {
         push(': keep-alive\n\n');
