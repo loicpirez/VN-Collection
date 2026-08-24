@@ -216,7 +216,10 @@ describe('SavedFilters branches', () => {
     global.fetch = vi.fn().mockReturnValue(load.promise);
     const { user } = renderWithProviders(<SavedFilters />, { locale: 'en' });
     await user.click(screen.getByRole('button', { name: /Presets/ }));
-    expect(screen.getByRole('menu', { name: 'Presets' })).toBeInTheDocument();
+    const menu = screen.getByRole('menu', { name: 'Presets' });
+    expect(menu).toBeInTheDocument();
+    expect(within(menu).getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(menu.querySelectorAll('.animate-pulse')).toHaveLength(6);
     await act(async () => {
       await Promise.resolve();
     });

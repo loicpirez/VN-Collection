@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { asJsonRecord } from '@/lib/json-shape';
 import { useT } from '@/lib/i18n/client';
 import type { RecommendMode } from '@/lib/recommend-types';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 type LoadState = 'idle' | 'loading' | 'partial' | 'error' | 'complete';
 
@@ -77,10 +78,9 @@ export function RecommendationRemoteLoader({
   if (!enabled || state === 'complete') return null;
   if (state === 'idle' || state === 'loading') {
     return (
-      <div className="mb-4 inline-flex min-h-[44px] items-center gap-2 text-xs text-muted" role="status" aria-live="polite">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        {t.recommend.refreshing}
-      </div>
+      <SkeletonBoundary label={t.recommend.refreshing} className="mb-4 flex min-h-[44px] items-center">
+        <SkeletonBlock className="h-3.5 w-56 max-w-full" />
+      </SkeletonBoundary>
     );
   }
   return (

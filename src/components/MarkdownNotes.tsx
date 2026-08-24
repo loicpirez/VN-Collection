@@ -1,8 +1,21 @@
 'use client';
 import { useId, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Edit3, Eye, Loader2 } from 'lucide-react';
+import { Edit3, Eye } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
+
+function MarkdownPreviewSkeleton() {
+  const t = useT();
+  return (
+    <SkeletonBoundary label={t.common.loading} className="space-y-2">
+      <SkeletonBlock className="h-3 w-full" />
+      <SkeletonBlock className="h-3 w-11/12" />
+      <SkeletonBlock className="h-3 w-full" />
+      <SkeletonBlock className="h-3 w-2/3" />
+    </SkeletonBoundary>
+  );
+}
 
 /**
  * `react-markdown` + `remark-gfm` together weigh ~100 kB gzipped and
@@ -14,11 +27,7 @@ const MarkdownView = dynamic(
   () => import('./MarkdownView').then((m) => m.MarkdownView),
   {
     ssr: false,
-    loading: () => (
-      <p className="inline-flex items-center gap-2 text-xs text-muted">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-      </p>
-    ),
+    loading: () => <MarkdownPreviewSkeleton />,
   },
 );
 

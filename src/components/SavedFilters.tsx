@@ -21,6 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Bookmark, BookmarkPlus, ChevronDown, Filter as FilterIcon, GripVertical, Loader2, Pin, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -301,11 +302,14 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
               {loadError}
             </p>
           ) : !filtersLoaded ? (
-            <div className="flex min-h-[120px] items-center px-2 py-1.5">
-              <p className="inline-flex items-center gap-1.5 text-muted">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-              </p>
-            </div>
+            <SkeletonBoundary label={t.common.loading} className="space-y-1 py-1">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="flex min-h-[44px] items-center gap-2 rounded-md px-2 py-1.5">
+                  <SkeletonBlock className="h-3 flex-1" />
+                  <SkeletonBlock className="h-8 w-8 shrink-0" />
+                </div>
+              ))}
+            </SkeletonBoundary>
           ) : filters.length === 0 ? (
             <div className="space-y-2 px-1 py-1">
               <p className="text-muted">{t.savedFilters.popoverEmpty}</p>

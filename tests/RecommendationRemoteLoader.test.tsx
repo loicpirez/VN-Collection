@@ -59,7 +59,9 @@ describe('RecommendationRemoteLoader', () => {
   it('hydrates the active filters and refreshes the server snapshot', async () => {
     global.fetch = vi.fn().mockResolvedValue(response({ ok: true, complete: true, results: 3 }));
     renderWithProviders(loader(), { locale: 'en' });
-    expect(screen.getByRole('status').textContent).toContain('Refreshing VNDB recommendations');
+    const loading = screen.getByRole('status');
+    expect(loading.textContent).toContain('Refreshing VNDB recommendations');
+    expect(loading.querySelector('.animate-pulse')).not.toBeNull();
     await vi.waitFor(() => expect(navigationMocks.refresh).toHaveBeenCalledTimes(1));
     expect(global.fetch).toHaveBeenCalledWith('/api/recommendations/hydrate', expect.objectContaining({
       method: 'POST',

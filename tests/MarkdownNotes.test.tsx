@@ -79,7 +79,8 @@ describe('MarkdownNotes runtime', () => {
 
   it('exposes a deferred renderer loader and loading placeholder', async () => {
     expect(await dynamicState.loader!()).toBeTypeOf('function');
-    render(<>{dynamicState.loading!()}</>);
-    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    render(withLocale(<>{dynamicState.loading!()}</>));
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(document.querySelectorAll('.animate-pulse')).toHaveLength(4);
   });
 });
