@@ -1,7 +1,7 @@
 import 'server-only';
-import { db } from './db';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { safeFetch } from './safe-fetch';
+import { getCacheRepository } from './db/repositories/cache';
 
 /**
  * Lightweight HTML scraper for vndb.org pages, covering fields the
@@ -63,11 +63,6 @@ function key(path: string): string {
   return `scrape:${path}`;
 }
 
-interface ScrapeCacheRow {
-  body: string;
-  fetched_at: number;
-}
-
 /**
  * Fetch a vndb.org HTML page. Returns the raw HTML body (string). Cache
  * keyed on `path` (e.g. "/p126") and hits the existing vndb_cache table
@@ -78,10 +73,8 @@ interface ScrapeCacheRow {
 export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } = {}): Promise<string | null> {
   const k = key(path);
   if (!opts.force) {
-    const cached = db
-      .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ? AND expires_at > ?')
-      .get(k, Date.now()) as ScrapeCacheRow | undefined;
-    if (cached) return cached.body;
+    const cached = await getCacheRepository().get(k);
+    if (cached && cached.expires_at > Date.now()) return cached.body;
   }
 
   const target = `${VNDB_WEB}${path}`;
@@ -142,14 +135,14 @@ export async function fetchVndbWebHtml(path: string, opts: { force?: boolean } =
   if (!html) return null;
 
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(k, html, now, now + SCRAPE_TTL_MS);
+  await getCacheRepository().put({
+    cache_key: k,
+    body: html,
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + SCRAPE_TTL_MS,
+  });
 
   return html;
 }
