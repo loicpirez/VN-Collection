@@ -15,6 +15,7 @@ export interface RouteShortcut {
 
 /** Labelled group of shortcuts rendered by help and settings panels. */
 export interface ShortcutSection {
+  id: 'vn' | 'library' | 'tags' | 'shelf' | 'map' | 'compare' | 'search' | 'stock';
   label: string;
   rows: ShortcutRow[];
 }
@@ -74,6 +75,7 @@ export function globalShortcutRows(t: Dictionary): ShortcutRow[] {
 export function pageShortcutSections(t: Dictionary): ShortcutSection[] {
   return [
     {
+      id: 'vn',
       label: t.shortcuts.vnPage,
       rows: [
         { key: 'f', label: t.shortcuts.vnToggleFavorite },
@@ -82,16 +84,59 @@ export function pageShortcutSections(t: Dictionary): ShortcutSection[] {
       ],
     },
     {
+      id: 'library',
       label: t.shortcuts.libPage,
       rows: [
         { key: 'f', label: t.shortcuts.libOpenFilter },
       ],
     },
     {
+      id: 'tags',
       label: t.shortcuts.tagsPage,
       rows: [
         { key: '1', label: t.shortcuts.tagsTabLocal },
         { key: '2', label: t.shortcuts.tagsTabVndb },
+      ],
+    },
+    {
+      id: 'shelf',
+      label: t.shortcuts.shelfPage,
+      rows: [
+        { key: 'f', label: t.shortcuts.shelfFullscreen },
+        { key: 'o', label: t.shortcuts.shelfOptions },
+      ],
+    },
+    {
+      id: 'map',
+      label: t.shortcuts.mapPage,
+      rows: [
+        { key: 'a', label: t.shortcuts.mapAddPlace },
+        { key: 'r', label: t.shortcuts.mapResetView },
+      ],
+    },
+    {
+      id: 'compare',
+      label: t.shortcuts.comparePage,
+      rows: [
+        { key: 'a', label: t.shortcuts.compareAddVn },
+        { key: 'c', label: t.shortcuts.compareRun },
+      ],
+    },
+    {
+      id: 'search',
+      label: t.shortcuts.searchPage,
+      rows: [
+        { key: '1', label: t.shortcuts.searchTabVndb },
+        { key: '2', label: t.shortcuts.searchTabEgs },
+        { key: '3', label: t.shortcuts.searchTabLocal },
+      ],
+    },
+    {
+      id: 'stock',
+      label: t.shortcuts.stockPage,
+      rows: [
+        { key: 'r', label: t.shortcuts.stockRefresh },
+        { key: 'b', label: t.shortcuts.stockBatch },
       ],
     },
   ];

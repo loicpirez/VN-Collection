@@ -93,6 +93,21 @@ describe('KeyboardShortcuts', () => {
     expect(screen.getByDisplayValue('query')).toHaveFocus();
     expect(select).toHaveBeenCalledTimes(1);
 
+    const typeSearchSelect = vi.fn();
+    rerender(
+      <>
+        <input type="search" defaultValue="typed search" ref={(input) => {
+          if (input) input.select = typeSearchSelect;
+        }} />
+        <KeyboardShortcuts />
+      </>,
+    );
+    key('/');
+    const typedSearch = document.querySelector<HTMLInputElement>('input[type="search"]');
+    if (!typedSearch) throw new Error('missing type search input');
+    expect(typedSearch).toHaveFocus();
+    expect(typeSearchSelect).toHaveBeenCalledTimes(1);
+
     rerender(<KeyboardShortcuts />);
     key('/');
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
@@ -192,5 +207,101 @@ describe('KeyboardShortcuts', () => {
     expect(navigationMocks.push).toHaveBeenCalledTimes(1);
     key('g');
     rendered.unmount();
+  });
+
+  it('gives an armed global navigation prefix priority over page shortcuts', () => {
+    navigationMocks.pathname = '/vn/v1';
+    const favorite = vi.fn();
+    renderWithProviders(
+      <>
+        <button type="button" data-shortcut="vn-favorite" onClick={favorite}>favorite</button>
+        <KeyboardShortcuts />
+      </>,
+      { locale: 'en' },
+    );
+    key('g');
+    key('f');
+    expect(navigationMocks.push).toHaveBeenCalledWith('/staff');
+    expect(favorite).not.toHaveBeenCalled();
+  });
+
+  it('runs shelf, map, compare, search, and stock shortcuts', () => {
+    const handlers = {
+      shelfFullscreen: vi.fn(),
+      shelfOptions: vi.fn(),
+      mapAdd: vi.fn(),
+      mapReset: vi.fn(),
+      compareAdd: vi.fn(),
+      compareRun: vi.fn(),
+      searchVndb: vi.fn(),
+      searchEgs: vi.fn(),
+      searchLocal: vi.fn(),
+      stockRefresh: vi.fn(),
+    };
+    const scroll = vi.fn();
+    const controls = (
+      <>
+        <button type="button" data-shortcut="shelf-fullscreen" onClick={handlers.shelfFullscreen}>shelf fullscreen</button>
+        <button type="button" data-shortcut="shelf-options" onClick={handlers.shelfOptions}>shelf options</button>
+        <button type="button" data-shortcut="map-add-place" onClick={handlers.mapAdd}>map add</button>
+        <button type="button" data-shortcut="map-reset-view" onClick={handlers.mapReset}>map reset</button>
+        <button type="button" data-shortcut="compare-add-vn" onClick={handlers.compareAdd}>compare add</button>
+        <button type="button" data-shortcut="compare-run" onClick={handlers.compareRun}>compare run</button>
+        <button type="button" data-shortcut="search-tab-1" onClick={handlers.searchVndb}>search VNDB</button>
+        <button type="button" data-shortcut="search-tab-2" onClick={handlers.searchEgs}>search EGS</button>
+        <button type="button" data-shortcut="search-tab-3" onClick={handlers.searchLocal}>search local</button>
+        <button type="button" data-shortcut="stock-refresh" onClick={handlers.stockRefresh}>stock refresh</button>
+        <div id="stock-batch" ref={(element) => {
+          if (element) element.scrollIntoView = scroll;
+        }} />
+        <KeyboardShortcuts />
+      </>
+    );
+    const rendered = renderWithProviders(controls, { locale: 'en' });
+
+    navigationMocks.pathname = '/shelf';
+    rendered.rerender(controls);
+    key('f');
+    key('o');
+    expect(handlers.shelfFullscreen).toHaveBeenCalledTimes(1);
+    expect(handlers.shelfOptions).toHaveBeenCalledTimes(1);
+
+    navigationMocks.pathname = '/map';
+    rendered.rerender(controls);
+    key('a');
+    key('r');
+    expect(handlers.mapAdd).toHaveBeenCalledTimes(1);
+    expect(handlers.mapReset).toHaveBeenCalledTimes(1);
+
+    navigationMocks.pathname = '/compare';
+    rendered.rerender(controls);
+    key('a');
+    key('c');
+    expect(handlers.compareAdd).toHaveBeenCalledTimes(1);
+    expect(handlers.compareRun).toHaveBeenCalledTimes(1);
+
+    navigationMocks.pathname = '/search';
+    rendered.rerender(controls);
+    key('1');
+    key('2');
+    key('3');
+    expect(handlers.searchVndb).toHaveBeenCalledTimes(1);
+    expect(handlers.searchEgs).toHaveBeenCalledTimes(1);
+    expect(handlers.searchLocal).toHaveBeenCalledTimes(1);
+
+    navigationMocks.pathname = '/stock';
+    rendered.rerender(controls);
+    key('r');
+    key('b');
+    expect(handlers.stockRefresh).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+  });
+
+  it('shows only the active page shortcut section in contextual help', () => {
+    navigationMocks.pathname = '/map';
+    renderWithProviders(<KeyboardShortcuts />, { locale: 'en' });
+    key('?');
+    expect(screen.getByText(t.shortcuts.mapPage)).toBeInTheDocument();
+    expect(screen.queryByText(t.shortcuts.stockPage)).not.toBeInTheDocument();
   });
 });

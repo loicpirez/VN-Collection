@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Keyboard, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { currentCalendarYear } from '@/lib/locale-number';
 import {
   globalShortcutRows,
   pageShortcutSections,
@@ -14,7 +15,7 @@ import { Dialog } from './Dialog';
 /**
  * Global keyboard shortcuts. Two patterns:
  *
- *   - "/" focuses the first input/[role=search] on the page, falling back
+ *   - "/" focuses the first search input on the page, falling back
  *     to scrolling to the top so the user can type into the library
  *     search box.
  *   - "g <key>" is the prefix navigation (gmail-style): `g h` → home,
@@ -36,6 +37,12 @@ import { Dialog } from './Dialog';
  *   /tags :
  *     1 → switch to local tab
  *     2 → switch to VNDB tab
+ *
+ *   /shelf : f → fullscreen, o → display options
+ *   /map : a → add place, r → reset view
+ *   /compare : a → add VN, c → compare selected VNs
+ *   /search : 1 / 2 / 3 → VNDB / EGS / local source
+ *   /stock : r → refresh visible VN, b → batch section
  */
 export function KeyboardShortcuts() {
   const t = useT();
@@ -46,15 +53,25 @@ export function KeyboardShortcuts() {
   const isVnPage = pathname.startsWith('/vn/');
   const isLibrary = pathname === '/';
   const isTagsPage = pathname === '/tags' || pathname.startsWith('/tags?');
-  const year = new Date().getFullYear();
+  const isShelfPage = pathname === '/shelf';
+  const isMapPage = pathname === '/map';
+  const isComparePage = pathname === '/compare';
+  const isSearchPage = pathname === '/search';
+  const isStockPage = pathname === '/stock';
+  const year = currentCalendarYear();
   const globalRows = globalShortcutRows(t);
   const routeRows = routeShortcutRows(t, year);
-  const visibleSectionLabels = new Set([
-    ...(isVnPage ? [t.shortcuts.vnPage] : []),
-    ...(isLibrary ? [t.shortcuts.libPage] : []),
-    ...(isTagsPage ? [t.shortcuts.tagsPage] : []),
+  const visibleSectionIds = new Set([
+    ...(isVnPage ? ['vn'] : []),
+    ...(isLibrary ? ['library'] : []),
+    ...(isTagsPage ? ['tags'] : []),
+    ...(isShelfPage ? ['shelf'] : []),
+    ...(isMapPage ? ['map'] : []),
+    ...(isComparePage ? ['compare'] : []),
+    ...(isSearchPage ? ['search'] : []),
+    ...(isStockPage ? ['stock'] : []),
   ]);
-  const scopedSections = pageShortcutSections(t).filter((section) => visibleSectionLabels.has(section.label));
+  const scopedSections = pageShortcutSections(t).filter((section) => visibleSectionIds.has(section.id));
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -91,12 +108,23 @@ export function KeyboardShortcuts() {
       }
       if (e.key === '/') {
         e.preventDefault();
-        const candidate = document.querySelector<HTMLInputElement>('input[data-vn-search], input[role="search"]');
+        const candidate = document.querySelector<HTMLInputElement>('input[data-vn-search], input[type="search"], input[inputmode="search"], input[role="search"]');
         if (candidate) {
           candidate.focus();
           candidate.select();
         } else {
           window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return;
+      }
+
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        const route = routeForShortcutKey(e.key, currentCalendarYear());
+        if (route) {
+          e.preventDefault();
+          router.push(route);
         }
         return;
       }
@@ -140,15 +168,64 @@ export function KeyboardShortcuts() {
         }
       }
 
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-        const route = routeForShortcutKey(e.key, new Date().getFullYear());
-        if (route) {
+      if (isShelfPage) {
+        if (e.key === 'f') {
           e.preventDefault();
-          router.push(route);
+          clickShortcut('shelf-fullscreen');
+          return;
         }
-        return;
+        if (e.key === 'o') {
+          e.preventDefault();
+          clickShortcut('shelf-options');
+          return;
+        }
+      }
+
+      if (isMapPage) {
+        if (e.key === 'a') {
+          e.preventDefault();
+          clickShortcut('map-add-place');
+          return;
+        }
+        if (e.key === 'r') {
+          e.preventDefault();
+          clickShortcut('map-reset-view');
+          return;
+        }
+      }
+
+      if (isComparePage) {
+        if (e.key === 'a') {
+          e.preventDefault();
+          clickShortcut('compare-add-vn');
+          return;
+        }
+        if (e.key === 'c') {
+          e.preventDefault();
+          clickShortcut('compare-run');
+          return;
+        }
+      }
+
+      if (isSearchPage) {
+        if (e.key === '1' || e.key === '2' || e.key === '3') {
+          e.preventDefault();
+          clickShortcut(`search-tab-${e.key}`);
+          return;
+        }
+      }
+
+      if (isStockPage) {
+        if (e.key === 'r') {
+          e.preventDefault();
+          clickShortcut('stock-refresh');
+          return;
+        }
+        if (e.key === 'b') {
+          e.preventDefault();
+          scrollToAnchor('stock-batch');
+          return;
+        }
       }
       if (e.key === 'g') {
         timer = setTimeout(() => { timer = null; }, 1200);
@@ -159,7 +236,7 @@ export function KeyboardShortcuts() {
       window.removeEventListener('keydown', onKey);
       if (timer) clearTimeout(timer);
     };
-  }, [help, router, isVnPage, isLibrary, isTagsPage]);
+  }, [help, router, isVnPage, isLibrary, isTagsPage, isShelfPage, isMapPage, isComparePage, isSearchPage, isStockPage]);
 
   return (
     <Dialog

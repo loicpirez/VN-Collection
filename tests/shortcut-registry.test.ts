@@ -12,7 +12,7 @@
  *      with the `g <key>` prefix and a non-empty label.
  *   3. `globalShortcutRows` exposes the three non-navigation keys
  *      (`/`, `?`, `Esc`) in the expected order.
- *   4. `pageShortcutSections` returns the three documented sections
+ *   4. `pageShortcutSections` returns every documented page section
  *      (VN page, library, tags) with non-empty rows.
  */
 import { describe, expect, it } from 'vitest';
@@ -109,12 +109,28 @@ describe('shortcut-registry — globalShortcutRows', () => {
 });
 
 describe('shortcut-registry — pageShortcutSections', () => {
-  it('returns the three documented sections', () => {
+  it('returns every documented section in stable order', () => {
     const sections = pageShortcutSections(t);
-    expect(sections.length).toBe(3);
-    expect(sections[0].label).toBe(t.shortcuts.vnPage);
-    expect(sections[1].label).toBe(t.shortcuts.libPage);
-    expect(sections[2].label).toBe(t.shortcuts.tagsPage);
+    expect(sections.map((section) => section.id)).toEqual([
+      'vn',
+      'library',
+      'tags',
+      'shelf',
+      'map',
+      'compare',
+      'search',
+      'stock',
+    ]);
+    expect(sections.map((section) => section.label)).toEqual([
+      t.shortcuts.vnPage,
+      t.shortcuts.libPage,
+      t.shortcuts.tagsPage,
+      t.shortcuts.shelfPage,
+      t.shortcuts.mapPage,
+      t.shortcuts.comparePage,
+      t.shortcuts.searchPage,
+      t.shortcuts.stockPage,
+    ]);
   });
 
   it('every section has at least one row, every row has key + label', () => {
