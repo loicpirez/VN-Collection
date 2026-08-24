@@ -1,18 +1,10 @@
 import 'server-only';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { providerFetch } from './proxy-fetch';
-import {
-  clearEgsForVn,
-  clearVnEgsLink,
-  db,
-  getCollectionItem,
-  getEgsForVn,
-  getVnEgsLink,
-  listAllEgsVnLinks,
-  setVnEgsLink,
-  upsertEgsForVn,
-  type EgsRow,
-} from './db';
+import type { EgsRow } from './db';
+import { getCacheRepository } from './db/repositories/cache';
+import { getEgsRepository } from './db/repositories/egs';
+import { getVnReadRepository } from './db/repositories/vn-read';
 import { getReleasesForVn } from './vndb';
 import {
   decodeEgsAnticipatedPage,
@@ -66,11 +58,6 @@ export interface EgsGame {
   raw?: Record<string, string | null>;
 }
 
-interface CacheRow {
-  body: string;
-  expires_at: number;
-}
-
 /**
  * Strict sanitizer for values that flow into the remote EGS Postgres
  * ILIKE clause. The previous escape stripped only `' % \`; this
@@ -96,10 +83,8 @@ function cacheKey(prefix: string, value: string): string {
   return `egs:${prefix}:${value}`;
 }
 
-function readCache<T>(key: string, decode: (value: unknown) => T | null): T | null {
-  const row = db
-    .prepare('SELECT body, expires_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key) as CacheRow | undefined;
+async function readCache<T>(key: string, decode: (value: unknown) => T | null): Promise<T | null> {
+  const row = await getCacheRepository().get(key);
   if (!row) return null;
   if (row.expires_at < Date.now()) return null;
   try {
@@ -116,13 +101,11 @@ function readCache<T>(key: string, decode: (value: unknown) => T | null): T | nu
  * successful payload — the user keeps browsing instead of seeing a
  * generic error block.
  */
-function readExpiredCache<T>(
+async function readExpiredCache<T>(
   key: string,
   decode: (value: unknown) => T | null,
-): { value: T; fetchedAt: number } | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key) as { body: string; fetched_at: number } | undefined;
+): Promise<{ value: T; fetchedAt: number } | null> {
+  const row = await getCacheRepository().get(key);
   if (!row) return null;
   try {
     const value = decode(JSON.parse(row.body));
@@ -132,16 +115,16 @@ function readExpiredCache<T>(
   }
 }
 
-function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): void {
+async function writeCache(key: string, value: unknown, ttlMs = CACHE_TTL_MS): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key, JSON.stringify(value), now, now + ttlMs);
+  await getCacheRepository().put({
+    cache_key: key,
+    body: JSON.stringify(value),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + ttlMs,
+  });
 }
 
 /**
@@ -389,7 +372,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
   assertSqlInt(id, 'gamelist.id');
   const cacheK = cacheKey('game', String(id));
   if (!opts.force) {
-    const cached = readCache(cacheK, decodeEgsGame);
+    const cached = await readCache(cacheK, decodeEgsGame);
     if (cached !== null) return cached;
   }
 
@@ -410,7 +393,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
   // fetchOne re-throws EgsUnreachable so the caller can preserve a
   const row = await fetchOne(sql);
   if (!row) {
-    writeCache(cacheK, null, 6 * 3600 * 1000);
+    await writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
   }
 
@@ -443,7 +426,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     url: `${EGS_BASE}/game.php?game=${id}`,
     raw: row,
   };
-  writeCache(cacheK, game);
+  await writeCache(cacheK, game);
   return game;
 }
 
@@ -519,8 +502,8 @@ function rowToGame(row: EgsRow): EgsGame | null {
   };
 }
 
-function persistGame(vnId: string, game: EgsGame, source: 'extlink' | 'search' | 'manual'): void {
-  upsertEgsForVn({
+async function persistGame(vnId: string, game: EgsGame, source: 'extlink' | 'search' | 'manual'): Promise<void> {
+  await getEgsRepository().upsertForVn({
     vn_id: vnId,
     egs_id: game.id,
     gamename: game.gamename,
@@ -543,8 +526,8 @@ function persistGame(vnId: string, game: EgsGame, source: 'extlink' | 'search' |
   });
 }
 
-function persistNoMatch(vnId: string): void {
-  upsertEgsForVn({
+async function persistNoMatch(vnId: string): Promise<void> {
+  await getEgsRepository().upsertForVn({
     vn_id: vnId,
     egs_id: null,
     gamename: null,
@@ -600,7 +583,7 @@ export async function resolveEgsForVn(
 
   // Manual override beats everything else.
   if (isVndbVnId(vnId)) {
-    const manual = getVnEgsLink(vnId);
+    const manual = await getEgsRepository().getVnLink(vnId);
     if (manual) {
       if (manual.egs_id == null) {
         return { game: null, source: 'manual-none' };
@@ -611,12 +594,12 @@ export async function resolveEgsForVn(
         throw e;
       });
       if (game) {
-        persistGame(vnId, game, 'manual');
+        await persistGame(vnId, game, 'manual');
         return { game, source: 'manual' };
       }
       // EGS unreachable but the user pinned this id; fall back to the cached
       // egs_game row so the UI still surfaces the manual choice.
-      const cachedRow = getEgsForVn(vnId);
+      const cachedRow = await getEgsRepository().getForVn(vnId);
       if (cachedRow?.egs_id != null) {
         return { game: rowToGame(cachedRow), source: 'manual' };
       }
@@ -624,7 +607,7 @@ export async function resolveEgsForVn(
     }
   }
 
-  const cached = getEgsForVn(vnId);
+  const cached = await getEgsRepository().getForVn(vnId);
   if (cached && !force && Date.now() - cached.fetched_at < ROW_TTL_MS) {
     return {
       game: rowToGame(cached),
@@ -671,7 +654,7 @@ export async function resolveEgsForVn(
     }
   }
   if (!game && !unreachable && allowSearch) {
-    const item = getCollectionItem(vnId);
+    const item = await getVnReadRepository().getCollectionItem(vnId);
     const probe = item?.alttitle?.trim() || item?.title?.trim();
     if (probe) {
       try {
@@ -688,7 +671,7 @@ export async function resolveEgsForVn(
     // Synthetic egs_* entries aren't matched via a VNDB extlink — the EGS id
     // is the id itself. Persist as 'manual' so MatchBadges doesn't falsely
     // attribute the match to VNDB.
-    persistGame(vnId, game, synthetic ? 'manual' : source);
+    await persistGame(vnId, game, synthetic ? 'manual' : source);
     return { game, source };
   }
 
@@ -713,7 +696,7 @@ export async function resolveEgsForVn(
 
   // Lookup succeeded, never matched before, still no match — persist the
   // negative so we don't retry on every page view.
-  if (getCollectionItem(vnId)) persistNoMatch(vnId);
+  if (await getVnReadRepository().getCollectionItem(vnId)) await persistNoMatch(vnId);
   return { game, source };
 }
 
@@ -727,16 +710,17 @@ export async function resolveEgsForVn(
  *               - 'clear-manual': drop the cache AND remove any vn_egs_link row
  *                                 so the auto-resolver gets a fresh shot.
  */
-export function clearEgsCache(
+export async function clearEgsCache(
   vnId: string,
   mode: 'auto' | 'manual-none' | 'clear-manual' = 'auto',
-): void {
-  clearEgsForVn(vnId);
+): Promise<void> {
+  const repository = getEgsRepository();
+  await repository.clearForVn(vnId);
   if (!isVndbVnId(vnId)) return;
   if (mode === 'manual-none') {
-    setVnEgsLink(vnId, null);
+    await repository.setVnLink(vnId, null);
   } else if (mode === 'clear-manual') {
-    clearVnEgsLink(vnId);
+    await repository.clearVnLink(vnId);
   }
 }
 
@@ -746,7 +730,7 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
   if (!trimmed) return null;
   const cacheK = cacheKey('search', trimmed.toLowerCase());
   if (!opts.force) {
-    const cached = readCache(cacheK, decodeEgsGame);
+    const cached = await readCache(cacheK, decodeEgsGame);
     if (cached !== null) return cached;
   }
   // The query is interpolated directly into a Postgres ILIKE clause
@@ -770,13 +754,13 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
   // Re-throw EgsUnreachable so resolveEgsForVn can preserve a prior match.
   const rows = await fetchTable(sql);
   if (rows.length < 2) {
-    writeCache(cacheK, null, 6 * 3600 * 1000);
+    await writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
   }
   const id = toNumber(rows[1][0]);
   if (id == null) return null;
   const game = await fetchEgsGame(id, { force: opts.force });
-  writeCache(cacheK, game, 12 * 3600 * 1000);
+  await writeCache(cacheK, game, 12 * 3600 * 1000);
   return game;
 }
 
@@ -795,7 +779,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   const trimmed = query.trim();
   if (!trimmed) return [];
   const cacheK = cacheKey('candidates', `${limit}:${trimmed.toLowerCase()}`);
-  const cached = readCache(cacheK, decodeEgsCandidates);
+  const cached = await readCache(cacheK, decodeEgsCandidates);
   if (cached) return cached;
   const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
   const escaped = sanitizeForEgsLike(trimmed);
@@ -810,7 +794,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
   // error instead of an empty list (which masquerades as "no results").
   const rows = await fetchTable(sql);
   if (rows.length < 2) {
-    writeCache(cacheK, [], 6 * 3600 * 1000);
+    await writeCache(cacheK, [], 6 * 3600 * 1000);
     return [];
   }
   const header = rows[0].map((h) => h.trim());
@@ -829,7 +813,7 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
       sellday: r[colIdx('sellday')] ?? null,
     });
   }
-  writeCache(cacheK, out, 12 * 3600 * 1000);
+  await writeCache(cacheK, out, 12 * 3600 * 1000);
   return out;
 }
 
@@ -837,10 +821,10 @@ export async function searchEgsCandidates(query: string, limit = 20): Promise<Eg
 export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame | null> {
   const game = await fetchEgsGame(egsId);
   if (!game) return null;
-  persistGame(vnId, game, 'manual');
+  await persistGame(vnId, game, 'manual');
   // Pin the manual mapping at the override layer so cache refresh /
   // re-auto-match can't silently undo the user's choice.
-  if (isVndbVnId(vnId)) setVnEgsLink(vnId, egsId);
+  if (isVndbVnId(vnId)) await getEgsRepository().setVnLink(vnId, egsId);
   return game;
 }
 
@@ -851,11 +835,11 @@ export async function linkEgsToVn(vnId: string, egsId: number): Promise<EgsGame 
  * table means "user explicitly said no VNDB" — kept as-is so the UI can show
  * the "unmapped (confirmed)" state instead of offering yet another map button.
  */
-export function applyManualEgsToVndb<T extends { egs_id: number; vndb_id: string | null }>(
+export async function applyManualEgsToVndb<T extends { egs_id: number; vndb_id: string | null }>(
   rows: T[],
-): T[] {
+): Promise<T[]> {
   if (rows.length === 0) return rows;
-  const overrides = listAllEgsVnLinks();
+  const overrides = await getEgsRepository().listAllEgsLinks();
   if (overrides.size === 0) return rows;
   for (const row of rows) {
     if (overrides.has(row.egs_id)) {
@@ -889,7 +873,7 @@ export async function fetchEgsUserReviews(username: string): Promise<EgsUserRevi
   const trimmed = username.trim();
   if (!trimmed) return [];
   const cacheK = cacheKey('user-reviews', trimmed.toLowerCase());
-  const cached = readCache(cacheK, decodeEgsUserReviews);
+  const cached = await readCache(cacheK, decodeEgsUserReviews);
   if (cached) return cached;
 
   // Username is interpolated into an equality clause. EGS uids are
@@ -913,7 +897,7 @@ export async function fetchEgsUserReviews(username: string): Promise<EgsUserRevi
     return [];
   }
   if (rows.length < 2) {
-    writeCache(cacheK, [], 30 * 60 * 1000);
+    await writeCache(cacheK, [], 30 * 60 * 1000);
     return [];
   }
   const header = rows[0].map((h) => h.trim());
@@ -933,7 +917,7 @@ export async function fetchEgsUserReviews(username: string): Promise<EgsUserRevi
       timestamp: r[idx('timestamp')] || null,
     });
   }
-  writeCache(cacheK, out, 30 * 60 * 1000);
+  await writeCache(cacheK, out, 30 * 60 * 1000);
   return out;
 }
 
@@ -969,9 +953,9 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
   const cacheK = cacheKey('anticipated', String(safe));
   // Skip the cache when it stored a previous EMPTY result (same
   // pattern as fetchEgsTopRanked above).
-  const cached = readCache(cacheK, decodeEgsAnticipatedRows);
+  const cached = await readCache(cacheK, decodeEgsAnticipatedRows);
   if (cached && cached.length > 0) {
-    return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+    return await applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
 
   const sql = `SELECT g.id, g.gamename, g.sellday, b.brandname AS brand_name, g.vndb, `
@@ -1008,11 +992,11 @@ export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]
       watching: toNumber(r[idx('watching')]) ?? 0,
     });
   }
-  writeCache(cacheK, out, ANTICIPATED_TTL_MS);
+  await writeCache(cacheK, out, ANTICIPATED_TTL_MS);
   // Apply manual EGS->VNDB overrides AFTER caching so cache invalidation
   // doesn't have to bust on every override change. The override map is
   // small (one row per user-chosen mapping) and cached SQLite-side.
-  return applyManualEgsToVndb(out.map((r) => ({ ...r })));
+  return await applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }
 
 export interface EgsAnticipatedPage {
@@ -1052,10 +1036,10 @@ export async function fetchEgsAnticipatedPage(
   const safePage = Math.max(1, Math.min(20, Math.floor(page)));
   const offset = (safePage - 1) * safeSize;
   const cacheK = cacheKey('anticipated', `p${safePage}:${safeSize}`);
-  const cached = readCache(cacheK, decodeEgsAnticipatedPage);
+  const cached = await readCache(cacheK, decodeEgsAnticipatedPage);
   if (cached && cached.rows.length > 0) {
     return {
-      rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
+      rows: await applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
       page: safePage,
       pageSize: safeSize,
       hasMore: cached.hasMore,
@@ -1080,10 +1064,10 @@ export async function fetchEgsAnticipatedPage(
   try {
     rawRows = await fetchTable(sql);
   } catch (e) {
-    const stale = readExpiredCache(cacheK, decodeEgsAnticipatedPage);
+    const stale = await readExpiredCache(cacheK, decodeEgsAnticipatedPage);
     if (stale && stale.value.rows.length > 0) {
       return {
-        rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
+        rows: await applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
         page: safePage,
         pageSize: safeSize,
         hasMore: stale.value.hasMore,
@@ -1118,10 +1102,10 @@ export async function fetchEgsAnticipatedPage(
   const hasMore = parsed.length > safeSize;
   const rows = parsed.slice(0, safeSize);
   if (rows.length > 0) {
-    writeCache(cacheK, { rows, hasMore }, ANTICIPATED_TTL_MS);
+    await writeCache(cacheK, { rows, hasMore }, ANTICIPATED_TTL_MS);
   }
   return {
-    rows: applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
+    rows: await applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
     page: safePage,
     pageSize: safeSize,
     hasMore,
@@ -1216,9 +1200,9 @@ export async function fetchEgsTopRanked(
   // when the real cause was a transient network failure. Now an
   // empty cached array just triggers a fresh fetch. A genuine
   // non-empty cache hit still short-circuits as before.
-  const cached = readCache(cacheK, decodeEgsTopRankedRows);
+  const cached = await readCache(cacheK, decodeEgsTopRankedRows);
   if (cached && cached.length > 0) {
-    return applyManualEgsToVndb(cached.map((r) => ({ ...r })));
+    return await applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
 
   // IMPORTANT EGS schema gotcha (root cause of the "EGS ranking
@@ -1300,8 +1284,8 @@ export async function fetchEgsTopRanked(
       vndb_id: isVndbVnId(vndb) ? vndb : null,
     });
   }
-  writeCache(cacheK, out, EGS_TOP_TTL_MS);
-  return applyManualEgsToVndb(out.map((r) => ({ ...r })));
+  await writeCache(cacheK, out, EGS_TOP_TTL_MS);
+  return await applyManualEgsToVndb(out.map((r) => ({ ...r })));
 }
 
 export interface EgsTopRankedPage {
@@ -1342,10 +1326,10 @@ export async function fetchEgsTopRankedPage(
   const safeMin = Math.max(1, Math.floor(minVotes));
   const offset = (safePage - 1) * safeSize;
   const cacheK = cacheKey('top-ranked', `${safeMin}:p${safePage}:${safeSize}`);
-  const cached = readCache(cacheK, decodeEgsTopRankedPage);
+  const cached = await readCache(cacheK, decodeEgsTopRankedPage);
   if (cached && cached.rows.length > 0) {
     return {
-      rows: applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
+      rows: await applyManualEgsToVndb(cached.rows.map((r) => ({ ...r }))),
       page: safePage,
       pageSize: safeSize,
       hasMore: cached.hasMore,
@@ -1377,10 +1361,10 @@ export async function fetchEgsTopRankedPage(
   try {
     rawRows = await fetchTable(sql);
   } catch (e) {
-    const stale = readExpiredCache(cacheK, decodeEgsTopRankedPage);
+    const stale = await readExpiredCache(cacheK, decodeEgsTopRankedPage);
     if (stale && stale.value.rows.length > 0) {
       return {
-        rows: applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
+        rows: await applyManualEgsToVndb(stale.value.rows.map((r) => ({ ...r }))),
         page: safePage,
         pageSize: safeSize,
         hasMore: stale.value.hasMore,
@@ -1423,10 +1407,10 @@ export async function fetchEgsTopRankedPage(
   const rows = parsed.slice(0, safeSize);
   // Don't cache zero rows (same reasoning as fetchEgsTopRanked).
   if (rows.length > 0) {
-    writeCache(cacheK, { rows, hasMore }, EGS_TOP_TTL_MS);
+    await writeCache(cacheK, { rows, hasMore }, EGS_TOP_TTL_MS);
   }
   return {
-    rows: applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
+    rows: await applyManualEgsToVndb(rows.map((r) => ({ ...r }))),
     page: safePage,
     pageSize: safeSize,
     hasMore,

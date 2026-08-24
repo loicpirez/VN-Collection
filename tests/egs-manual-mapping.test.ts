@@ -100,34 +100,34 @@ describe('manual EGS <-> VNDB mapping helpers', () => {
   });
 
   describe('applyManualEgsToVndb overlay', () => {
-    it('keeps native vndb_id when no override exists', () => {
+    it('keeps native vndb_id when no override exists', async () => {
       const rows = [
         { egs_id: 5000, vndb_id: 'v50' },
         { egs_id: 5001, vndb_id: null },
       ];
-      const out = applyManualEgsToVndb(rows);
+      const out = await applyManualEgsToVndb(rows);
       expect(out[0].vndb_id).toBe('v50');
       expect(out[1].vndb_id).toBeNull();
     });
 
-    it('replaces native vndb_id with positive override', () => {
+    it('replaces native vndb_id with positive override', async () => {
       setEgsVnLink(9000, 'v555');
       const rows = [{ egs_id: 9000, vndb_id: 'v100' }];
-      const out = applyManualEgsToVndb(rows);
+      const out = await applyManualEgsToVndb(rows);
       expect(out[0].vndb_id).toBe('v555');
     });
 
-    it('replaces native vndb_id with NULL (explicit unlink)', () => {
+    it('replaces native vndb_id with NULL (explicit unlink)', async () => {
       setEgsVnLink(9000, null);
       const rows = [{ egs_id: 9000, vndb_id: 'v100' }];
-      const out = applyManualEgsToVndb(rows);
+      const out = await applyManualEgsToVndb(rows);
       expect(out[0].vndb_id).toBeNull();
     });
 
-    it('returns input unchanged when no overrides at all', () => {
+    it('returns input unchanged when no overrides at all', async () => {
       // No setEgsVnLink calls in this test.
       const rows = [{ egs_id: 7777, vndb_id: 'v77' }];
-      const out = applyManualEgsToVndb(rows);
+      const out = await applyManualEgsToVndb(rows);
       expect(out[0].vndb_id).toBe('v77');
     });
   });

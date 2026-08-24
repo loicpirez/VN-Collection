@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { clearEgsVnLink, getEgsVnLink, setEgsVnLink } from '@/lib/db';
+import { getEgsRepository } from '@/lib/db/repositories/egs';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-function logEgsVndbLink(
+async function logEgsVndbLink(
   kind: 'egs.vndb-link' | 'egs.vndb-unlink',
   egsId: number,
   payload: Record<string, unknown>,
-) {
+): Promise<void> {
   try {
-    recordActivity({
+    await recordActivity({
       kind,
       entity: 'egs',
       entityId: String(egsId),
@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (egsId == null) {
     return NextResponse.json({ error: 'invalid egs id' }, { status: 400 });
   }
-  const link = getEgsVnLink(egsId);
+  const link = await getEgsRepository().getEgsLink(egsId);
   return NextResponse.json({ link });
 }
 
@@ -64,17 +64,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = (await readJsonObject(req)) as { vndb_id?: string | null };
   const raw = body.vndb_id;
   if (raw === null) {
-    setEgsVnLink(egsId, null);
-    logEgsVndbLink('egs.vndb-link', egsId, { pinned: 'none' });
-    return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
+    const repository = getEgsRepository();
+    await repository.setEgsLink(egsId, null);
+    await logEgsVndbLink('egs.vndb-link', egsId, { pinned: 'none' });
+    return NextResponse.json({ ok: true, link: await repository.getEgsLink(egsId) });
   }
   if (typeof raw !== 'string' || !isVndbVnId(raw)) {
     return NextResponse.json({ error: 'invalid vndb_id' }, { status: 400 });
   }
   const vnId = raw.toLowerCase();
-  setEgsVnLink(egsId, vnId);
-  logEgsVndbLink('egs.vndb-link', egsId, { vn_id: vnId });
-  return NextResponse.json({ ok: true, link: getEgsVnLink(egsId) });
+  const repository = getEgsRepository();
+  await repository.setEgsLink(egsId, vnId);
+  await logEgsVndbLink('egs.vndb-link', egsId, { vn_id: vnId });
+  return NextResponse.json({ ok: true, link: await repository.getEgsLink(egsId) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -85,7 +87,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (egsId == null) {
     return NextResponse.json({ error: 'invalid egs id' }, { status: 400 });
   }
-  clearEgsVnLink(egsId);
-  logEgsVndbLink('egs.vndb-unlink', egsId, {});
+  await getEgsRepository().clearEgsLink(egsId);
+  await logEgsVndbLink('egs.vndb-unlink', egsId, {});
   return NextResponse.json({ ok: true });
 }

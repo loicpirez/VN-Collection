@@ -784,11 +784,11 @@ describe('fetchEgsUserReviews', () => {
 });
 
 describe('applyManualEgsToVndb', () => {
-  it('returns the input unchanged when there are no rows', () => {
-    expect(applyManualEgsToVndb([])).toEqual([]);
+  it('returns the input unchanged when there are no rows', async () => {
+    expect(await applyManualEgsToVndb([])).toEqual([]);
   });
 
-  it('overlays manual overrides and leaves unmapped rows alone', () => {
+  it('overlays manual overrides and leaves unmapped rows alone', async () => {
     db.prepare(`INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (10, 'v999', NULL, ?)`).run(Date.now());
     db.prepare(`INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (11, NULL, NULL, ?)`).run(Date.now());
     const rows = [
@@ -796,7 +796,7 @@ describe('applyManualEgsToVndb', () => {
       { egs_id: 11, vndb_id: 'v111' },
       { egs_id: 12, vndb_id: 'v222' },
     ];
-    const out = applyManualEgsToVndb(rows);
+    const out = await applyManualEgsToVndb(rows);
     expect(out[0].vndb_id).toBe('v999');
     expect(out[1].vndb_id).toBeNull(); // explicit "no VNDB" override
     expect(out[2].vndb_id).toBe('v222'); // untouched
@@ -1009,14 +1009,14 @@ describe('clearEgsCache', () => {
   it('drops the egs_game row in auto mode', async () => {
     seedVn('v300', 'Title V300');
     db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, source, fetched_at) VALUES ('v300', 1, 'X', 'search', ?)`).run(Date.now());
-    clearEgsCache('v300');
+    await clearEgsCache('v300');
     expect(db.prepare(`SELECT 1 FROM egs_game WHERE vn_id = 'v300'`).get()).toBeUndefined();
   });
 
   it('sets a manual-none pin in manual-none mode', async () => {
     seedVn('v301', 'Title V301');
     db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, source, fetched_at) VALUES ('v301', 1, 'X', 'search', ?)`).run(Date.now());
-    clearEgsCache('v301', 'manual-none');
+    await clearEgsCache('v301', 'manual-none');
     const link = db.prepare(`SELECT egs_id FROM vn_egs_link WHERE vn_id = 'v301'`).get() as { egs_id: number | null } | undefined;
     expect(link).toBeDefined();
     expect(link?.egs_id).toBeNull();
@@ -1026,14 +1026,14 @@ describe('clearEgsCache', () => {
     seedVn('v302', 'Title V302');
     db.prepare(`INSERT INTO vn_egs_link (vn_id, egs_id, note, updated_at) VALUES ('v302', 5, NULL, ?)`).run(Date.now());
     db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, source, fetched_at) VALUES ('v302', 5, 'X', 'manual', ?)`).run(Date.now());
-    clearEgsCache('v302', 'clear-manual');
+    await clearEgsCache('v302', 'clear-manual');
     expect(db.prepare(`SELECT 1 FROM vn_egs_link WHERE vn_id = 'v302'`).get()).toBeUndefined();
   });
 
-  it('skips the override layer for a synthetic egs_<id> VN', () => {
+  it('skips the override layer for a synthetic egs_<id> VN', async () => {
     db.prepare(`INSERT INTO vn (id, title, fetched_at) VALUES ('egs_77', 'Synthetic', ?)`).run(Date.now());
     db.prepare(`INSERT INTO egs_game (vn_id, egs_id, gamename, source, fetched_at) VALUES ('egs_77', 77, 'X', 'manual', ?)`).run(Date.now());
-    clearEgsCache('egs_77', 'manual-none');
+    await clearEgsCache('egs_77', 'manual-none');
     expect(db.prepare(`SELECT 1 FROM egs_game WHERE vn_id = 'egs_77'`).get()).toBeUndefined();
   });
 });

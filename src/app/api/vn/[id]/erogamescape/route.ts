@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { clearEgsCache, linkEgsToVn, resolveEgsForVn } from '@/lib/erogamescape';
-import { getVnEgsLink } from '@/lib/db';
+import { getEgsRepository } from '@/lib/db/repositories/egs';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const force = sp.get('refresh') === '1';
   try {
     const { game, source } = await resolveEgsForVn(id, { force, allowSearch });
-    const manual = isVndbVnId(id) ? getVnEgsLink(id) : null;
+    const manual = isVndbVnId(id) ? await getEgsRepository().getVnLink(id) : null;
     return NextResponse.json({
       game,
       source,
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'EGS game not found', code: 'egs_game_not_found' }, { status: 404 });
     }
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'vn.egs-link',
         entity: 'vn',
         entityId: id,
@@ -90,9 +90,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const mode: 'auto' | 'manual-none' | 'clear-manual' =
     raw === 'manual-none' ? 'manual-none' :
     raw === 'clear-manual' ? 'clear-manual' : 'auto';
-  clearEgsCache(id, mode);
+  await clearEgsCache(id, mode);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'vn.egs-unlink',
       entity: 'vn',
       entityId: id,
