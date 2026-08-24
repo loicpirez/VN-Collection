@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteSteamLink, isInCollection, listSteamLinks, setSteamLink } from '@/lib/db';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { validateSafeInt, validateText } from '@/lib/input-validators';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getSteamRepository } from '@/lib/db/repositories/steam';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({ links: listSteamLinks() });
+  return NextResponse.json({ links: await getSteamRepository().listLinks() });
 }
 
 /**
@@ -36,17 +37,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const nameResult = validateText(body.steam_name, { field: 'steam_name', max: 200 });
   if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
   const vnId = body.vn_id.toLowerCase();
-  if (!isInCollection(vnId)) {
+  if (!await getCollectionCoreRepository().contains(vnId)) {
     return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
   }
-  const link = setSteamLink({
+  const link = await getSteamRepository().setLink({
     vnId,
     appid: appidResult.value,
     steamName: nameResult.value,
     source: 'manual',
   });
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'steam.link',
       entity: 'vn',
       entityId: vnId,
@@ -67,10 +68,10 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
   }
   const normalizedVnId = vnId.toLowerCase();
-  const ok = deleteSteamLink(normalizedVnId);
+  const ok = await getSteamRepository().deleteLink(normalizedVnId);
   if (!ok) return NextResponse.json({ error: 'not linked' }, { status: 404 });
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'steam.unlink',
       entity: 'vn',
       entityId: normalizedVnId,

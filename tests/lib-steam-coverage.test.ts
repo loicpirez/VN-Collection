@@ -87,14 +87,14 @@ afterEach(() => {
 });
 
 describe('readSteamConfig', () => {
-  it('returns null fields when unset', () => {
-    expect(readSteamConfig()).toEqual({ apiKey: null, steamId: null });
+  it('returns null fields when unset', async () => {
+    await expect(readSteamConfig()).resolves.toEqual({ apiKey: null, steamId: null });
   });
 
-  it('reads both fields from app settings', () => {
+  it('reads both fields from app settings', async () => {
     setAppSetting('steam_api_key', 'fake-test-steam-key-not-real');
     setAppSetting('steam_id', '76500000000000001');
-    expect(readSteamConfig()).toEqual({
+    await expect(readSteamConfig()).resolves.toEqual({
       apiKey: 'fake-test-steam-key-not-real',
       steamId: '76500000000000001',
     });
@@ -254,10 +254,10 @@ describe('computeSteamSuggestions', () => {
 });
 
 describe('listUnlinkedSteamGames', () => {
-  it('returns played games with no link, sorted by minutes desc, dropping zero-playtime', () => {
+  it('returns played games with no link, sorted by minutes desc, dropping zero-playtime', async () => {
     seedVn('v90131', 'Linked');
     setSteamLink({ vnId: 'v90131', appid: 5, steamName: 'Linked', source: 'manual' });
-    const out = listUnlinkedSteamGames([
+    const out = await listUnlinkedSteamGames([
       { appid: 5, name: 'Linked', minutes: 600 }, // linked -> excluded
       { appid: 6, name: 'Zero', minutes: 0 }, // zero playtime -> excluded
       { appid: 7, name: 'Low', minutes: 10 },
@@ -271,11 +271,11 @@ describe('listUnlinkedSteamGames', () => {
 });
 
 describe('searchCollectionByTitle', () => {
-  it('returns an empty list for a blank query', () => {
-    expect(searchCollectionByTitle('   ')).toEqual([]);
+  it('returns an empty list for a blank query', async () => {
+    await expect(searchCollectionByTitle('   ')).resolves.toEqual([]);
   });
 
-  it('matches title and alttitle case-insensitively and escapes LIKE wildcards', () => {
+  it('matches title and alttitle case-insensitively and escapes LIKE wildcards', async () => {
     seedVn('v90141', 'Spring Demo', 'デモ春');
     seedVn('v90142', 'Winter Tale', null);
     seedVn('v90143', '100% Match', null);
@@ -283,26 +283,26 @@ describe('searchCollectionByTitle', () => {
     seedCollection('v90142', 0);
     seedCollection('v90143', 0);
 
-    expect(searchCollectionByTitle('spring').map((r) => r.id)).toEqual(['v90141']);
-    expect(searchCollectionByTitle('春').map((r) => r.id)).toEqual(['v90141']);
+    expect((await searchCollectionByTitle('spring')).map((row) => row.id)).toEqual(['v90141']);
+    expect((await searchCollectionByTitle('春')).map((row) => row.id)).toEqual(['v90141']);
     // '%' is escaped, so it matches the literal title rather than every row.
-    expect(searchCollectionByTitle('100%').map((r) => r.id)).toEqual(['v90143']);
+    expect((await searchCollectionByTitle('100%')).map((row) => row.id)).toEqual(['v90143']);
   });
 
-  it('honours the limit argument', () => {
+  it('honours the limit argument', async () => {
     for (let i = 0; i < 5; i++) {
       seedVn(`v9020${i}`, `Series Entry ${i}`);
       seedCollection(`v9020${i}`, 0);
     }
-    expect(searchCollectionByTitle('Series Entry', 2)).toHaveLength(2);
+    await expect(searchCollectionByTitle('Series Entry', 2)).resolves.toHaveLength(2);
   });
 });
 
 describe('recordSync', () => {
-  it('stamps last_synced_minutes on the link', () => {
+  it('stamps last_synced_minutes on the link', async () => {
     seedVn('v90151', 'Synced');
     setSteamLink({ vnId: 'v90151', appid: 1, steamName: 'Synced', source: 'manual' });
-    recordSync('v90151', 360);
+    await recordSync('v90151', 360);
     expect(getSteamLinkForVn('v90151')?.last_synced_minutes).toBe(360);
   });
 });

@@ -100,6 +100,7 @@ import { getStockRepository } from '@/lib/db/repositories/stock';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVnIdentityRepository } from '@/lib/db/repositories/vn-identity';
+import { getSteamRepository } from '@/lib/db/repositories/steam';
 
 describe('database repository backend selection', () => {
   beforeEach(() => {
@@ -310,6 +311,7 @@ describe('database repository backend selection', () => {
     const writer = getVnWriteRepository();
     const collection = getCollectionCoreRepository();
     const identity = getVnIdentityRepository();
+    const steam = getSteamRepository();
 
     expect(getStockRepository()).toBe(stock);
     expect(getStockQueueRepository()).toBe(queue);
@@ -319,5 +321,6 @@ describe('database repository backend selection', () => {
     expect(getVnWriteRepository()).toBe(writer);
     expect(getCollectionCoreRepository()).toBe(collection);
     expect(getVnIdentityRepository()).toBe(identity);
+    expect(getSteamRepository()).toBe(steam);
   });
 });

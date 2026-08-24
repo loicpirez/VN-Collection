@@ -37,6 +37,7 @@ import { createPostgresShelfRepository } from '@/lib/db/repositories/shelf';
 import { createPostgresCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { createPostgresVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { createPostgresVnIdentityRepository } from '@/lib/db/repositories/vn-identity';
+import { createPostgresSteamRepository } from '@/lib/db/repositories/steam';
 import { createPostgresStockRepository } from '@/lib/db/repositories/stock';
 import { createPostgresStockQueueRepository } from '@/lib/db/repositories/stock-queue';
 import { getStockProviderMaintenanceRepository } from '@/lib/db/repositories/stock-provider-maintenance';
@@ -1901,6 +1902,70 @@ describe('PostgreSQL VN identity migration', () => {
         if (priorUrl === undefined) delete process.env.DATABASE_URL;
         else process.env.DATABASE_URL = priorUrl;
       }
+    });
+  });
+});
+
+describe('PostgreSQL Steam repository lifecycle', () => {
+  it('preserves manual links and atomically applies confirmed playtime', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const now = Date.now();
+      await pool.query(`
+        INSERT INTO vn (id, title, alttitle, fetched_at) VALUES
+          ('v995101', 'Steam Canonical', 'Steam Alternate', 1),
+          ('v995102', 'Other VN', NULL, 1)
+      `);
+      await pool.query(`
+        INSERT INTO collection (vn_id, status, playtime_minutes, favorite, added_at, updated_at)
+        VALUES ('v995101', 'playing', 10, 0, $1, $1), ('v995102', 'planning', 0, 0, $1, $1)
+      `, [now]);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      try {
+        const repository = createPostgresSteamRepository();
+        await repository.setLink({ vnId: 'v995101', appid: 101, steamName: 'Manual Steam', source: 'manual' });
+        await expect(repository.setLink({
+          vnId: 'v995101',
+          appid: 202,
+          steamName: 'Auto Steam',
+          source: 'auto',
+        })).resolves.toMatchObject({ appid: 101, source: 'manual' });
+        await expect(repository.getLinkByAppid(101)).resolves.toMatchObject({ vn_id: 'v995101' });
+        await expect(repository.listCollectionVndbIds()).resolves.toEqual(['v995101', 'v995102']);
+        await expect(repository.listSuggestionRows(['v995101'])).resolves.toEqual([
+          { vn_id: 'v995101', vn_title: 'Steam Canonical', current: 10 },
+        ]);
+        await expect(repository.searchCollection('alternate', 12)).resolves.toMatchObject([
+          { id: 'v995101', title: 'Steam Canonical' },
+        ]);
+        await expect(repository.applyPlaytime([
+          { vn_id: 'v995101', playtime_minutes: 40 },
+          { vn_id: 'v995101', playtime_minutes: 90 },
+          { vn_id: 'v995199', playtime_minutes: 500 },
+        ])).resolves.toBe(1);
+        await expect(repository.getLinkForVn('v995101')).resolves.toMatchObject({ last_synced_minutes: 90 });
+        await expect(repository.deleteLink('v995101')).resolves.toBe(true);
+        await expect(repository.deleteLink('v995101')).resolves.toBe(false);
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+      }
+
+      await expect(pool.query("SELECT playtime_minutes FROM collection WHERE vn_id = 'v995101'"))
+        .resolves.toMatchObject({ rows: [{ playtime_minutes: 90 }] });
+      const activity = await pool.query<{ payload: string } & QueryResultRow>(
+        "SELECT payload FROM vn_activity WHERE vn_id = 'v995101' AND kind = 'playtime'",
+      );
+      expect(JSON.parse(activity.rows[0]?.payload ?? '{}')).toEqual({ from: 10, to: 90, delta: 80 });
     });
   });
 });

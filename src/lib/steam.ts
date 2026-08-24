@@ -1,5 +1,9 @@
 import 'server-only';
-import { getAppSetting } from './db';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import {
+  getSteamRepository,
+  type SteamCollectionSearchRow,
+} from './db/repositories/steam';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { safeFetch } from './safe-fetch';
 import { decodeSteamOwnedGamesResponse } from './steam-owned-games-shape';
@@ -35,10 +39,15 @@ export interface SteamConfig {
  * when the operator hasn't configured Steam sync yet; callers must handle
  * that before issuing a fetch.
  */
-export function readSteamConfig(): SteamConfig {
+export async function readSteamConfig(): Promise<SteamConfig> {
+  const settings = getAppSettingRepository();
+  const [apiKey, steamId] = await Promise.all([
+    settings.get('steam_api_key'),
+    settings.get('steam_id'),
+  ]);
   return {
-    apiKey: getAppSetting('steam_api_key'),
-    steamId: getAppSetting('steam_id'),
+    apiKey,
+    steamId,
   };
 }
 
@@ -49,7 +58,7 @@ export function readSteamConfig(): SteamConfig {
  * lands in a log or stack trace.
  */
 export async function fetchOwnedGames(): Promise<SteamPlaytime[]> {
-  const cfg = readSteamConfig();
+  const cfg = await readSteamConfig();
   if (!cfg.apiKey || !cfg.steamId) {
     throw new Error('Steam not configured — set steam_api_key and steam_id in app settings');
   }
@@ -98,7 +107,6 @@ export interface SteamSuggestion {
   delta: number;
 }
 
-import { db, getSteamLinkForVn, listSteamLinks, markSteamSynced, setSteamLink } from './db';
 import { cachedFetch, TTL } from './vndb-cache';
 import { decodeSteamReleaseResults } from './vndb-feed-cache-shape';
 
@@ -126,7 +134,8 @@ export interface SteamReleaseLinkRow {
  * `steam_link` table with `source='auto'`; manual links are preserved.
  */
 async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: number; name: string }>> {
-  const ids = (db.prepare(`SELECT vn_id FROM collection WHERE vn_id LIKE 'v%'`).all() as { vn_id: string }[]).map((r) => r.vn_id);
+  const steamRepository = getSteamRepository();
+  const ids = await steamRepository.listCollectionVndbIds();
   if (ids.length === 0) return new Map();
   const linksByVn = new Map<string, { appid: number; name: string }>();
   const batchSize = 80;
@@ -172,7 +181,7 @@ async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: numb
   }
   // Persist as auto-source links (setSteamLink preserves any manual link).
   for (const [vnId, { appid, name }] of linksByVn) {
-    setSteamLink({ vnId, appid, steamName: name, source: 'auto' });
+    await steamRepository.setLink({ vnId, appid, steamName: name, source: 'auto' });
   }
   return linksByVn;
 }
@@ -187,6 +196,7 @@ async function fetchSteamLinksForCollection(): Promise<Map<string, { appid: numb
  * may include Steam-less sessions).
  */
 export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Promise<SteamSuggestion[]> {
+  const steamRepository = getSteamRepository();
   const byAppid = new Map(steamGames.map((g) => [g.appid, g]));
 
   // Run the auto-detection pass so any new Steam links land in the DB.
@@ -194,26 +204,12 @@ export async function computeSteamSuggestions(steamGames: SteamPlaytime[]): Prom
   try { await fetchSteamLinksForCollection(); } catch { /* VNDB may be slow */ }
 
   // Read every persisted link (auto + manual) — the source of truth.
-  const links = listSteamLinks();
+  const links = await steamRepository.listLinks();
   if (links.length === 0) return [];
 
   // Pull title + current playtime for every linked VN in one query.
   const ids = links.map((l) => l.vn_id);
-  const rows: Array<{ vn_id: string; vn_title: string; current: number }> = [];
-  const CHUNK = 500;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    rows.push(
-      ...(db
-        .prepare(`
-          SELECT v.id AS vn_id, v.title AS vn_title, c.playtime_minutes AS current
-          FROM collection c JOIN vn v ON v.id = c.vn_id
-          WHERE c.vn_id IN (${placeholders})
-        `)
-        .all(...chunk) as typeof rows),
-    );
-  }
+  const rows = await steamRepository.listSuggestionRows(ids);
   const titles = new Map(rows.map((r) => [r.vn_id, { title: r.vn_title, current: r.current }]));
 
   const out: SteamSuggestion[] = [];
@@ -248,8 +244,8 @@ export interface UnlinkedSteamGame {
  * this to surface a search/assign affordance per game so the user can map
  * Steam-only titles (no VNDB Steam release) to their local VN.
  */
-export function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): UnlinkedSteamGame[] {
-  const linked = new Set(listSteamLinks().map((l) => l.appid));
+export async function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): Promise<UnlinkedSteamGame[]> {
+  const linked = new Set((await getSteamRepository().listLinks()).map((link) => link.appid));
   return steamGames
     .filter((g) => !linked.has(g.appid))
     .filter((g) => g.minutes > 0)
@@ -267,49 +263,19 @@ export function listUnlinkedSteamGames(steamGames: SteamPlaytime[]): UnlinkedSte
  * / `local_image_thumb` are the relative storage paths. The caller can
  * decide which to prefer per `<SafeImage src=… localSrc=…>`.
  */
-export function searchCollectionByTitle(
+export async function searchCollectionByTitle(
   query: string,
   limit = 12,
-): Array<{
-  id: string;
-  title: string;
-  alttitle: string | null;
-  image_url: string | null;
-  image_thumb: string | null;
-  local_image: string | null;
-  local_image_thumb: string | null;
-  image_sexual: number | null;
-}> {
-  const trimmed = query.trim();
-  if (trimmed.length < 1) return [];
-  const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
-  return db
-    .prepare(`
-      SELECT v.id, v.title, v.alttitle,
-             v.image_url, v.image_thumb,
-             v.local_image, v.local_image_thumb,
-             v.image_sexual
-      FROM collection c JOIN vn v ON v.id = c.vn_id
-      WHERE v.title LIKE ? ESCAPE '\\' OR v.alttitle LIKE ? ESCAPE '\\'
-      ORDER BY v.title COLLATE NOCASE
-      LIMIT ?
-    `)
-    .all(like, like, limit) as Array<{
-      id: string;
-      title: string;
-      alttitle: string | null;
-      image_url: string | null;
-      image_thumb: string | null;
-      local_image: string | null;
-      local_image_thumb: string | null;
-      image_sexual: number | null;
-    }>;
+): Promise<SteamCollectionSearchRow[]> {
+  return getSteamRepository().searchCollection(query, limit);
 }
 
 /** Used by the apply step to record the sync. */
-export function recordSync(vnId: string, minutes: number): void {
-  markSteamSynced(vnId, minutes);
+export async function recordSync(vnId: string, minutes: number): Promise<void> {
+  await getSteamRepository().markSynced(vnId, minutes);
 }
 
-/** Re-export for the API route. */
-export { getSteamLinkForVn };
+/** Read one persisted Steam mapping by VN id. */
+export async function getSteamLinkForVn(vnId: string) {
+  return getSteamRepository().getLinkForVn(vnId);
+}

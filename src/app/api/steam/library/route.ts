@@ -14,7 +14,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const games = await fetchOwnedGames();
-    return NextResponse.json({ ok: true, games: listUnlinkedSteamGames(games) });
+    return NextResponse.json({ ok: true, games: await listUnlinkedSteamGames(games) });
   } catch (e) {
     console.error('[steam/library] fetch failed:', (e as Error).message);
     return NextResponse.json({ ok: false, error: 'steam library unavailable' }, { status: 502 });

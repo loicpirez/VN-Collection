@@ -489,7 +489,8 @@ describe('steam/sync', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ applied: 1 });
-    expect(recordSyncMock).toHaveBeenCalledWith(VN_ID, 120);
+    expect(db.prepare('SELECT playtime_minutes FROM collection WHERE vn_id = ?').get(VN_ID))
+      .toEqual({ playtime_minutes: 120 });
   });
 
   it('POST validates Steam sync apply payloads', async () => {
@@ -515,7 +516,6 @@ describe('steam/sync', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ applied: 0 });
-    expect(recordSyncMock).not.toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith('[steam:sync] activity log failed:', 'steam sync activity failed');
     activitySpy.mockRestore();
     consoleSpy.mockRestore();

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { computeSteamSuggestions, fetchOwnedGames, recordSync } from '@/lib/steam';
-import { db, updateCollection, isInCollection } from '@/lib/db';
+import { computeSteamSuggestions, fetchOwnedGames } from '@/lib/steam';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
+import { getSteamRepository } from '@/lib/db/repositories/steam';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -84,22 +84,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(req);
   const parsed = parseApplies(body.applies);
   if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  let applied = 0;
-  // Wrap the per-row writes in a transaction so a mid-loop crash leaves
-  // either every confirmed row applied or none. Without this guard a
-  // 1000-row apply that fails halfway would leave half the collection
-  // updated with no rollback.
-  db.transaction(() => {
-    for (const a of parsed.applies) {
-      if (!isInCollection(a.vn_id)) continue;
-      const minutes = a.playtime_minutes;
-      updateCollection(a.vn_id, { playtime_minutes: minutes });
-      recordSync(a.vn_id, minutes);
-      applied += 1;
-    }
-  })();
+  const applied = await getSteamRepository().applyPlaytime(parsed.applies);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'steam.sync-apply',
       entity: 'steam',
       entityId: null,
