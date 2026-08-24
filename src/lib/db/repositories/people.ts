@@ -98,6 +98,16 @@ export interface CharacterFullCacheWrite {
   vnIds: readonly string[];
 }
 
+/** Transactional staff profile-cache write and credit-index payload. */
+export interface StaffFullCacheWrite {
+  staffId: string;
+  body: string;
+  fetchedAt: number;
+  expiresAt: number;
+  productionVnIds: readonly string[];
+  voiceVnIds: readonly string[];
+}
+
 /** Filters accepted by local character search. */
 export interface LocalCharacterSearchOptions {
   q?: string;
@@ -145,6 +155,8 @@ export interface PeopleRepository {
   characterIdsForVn(vnId: string): Promise<string[]>;
   voiceCharacterIdsForVn(vnId: string): Promise<string[]>;
   persistCharacterFullCache(input: CharacterFullCacheWrite): Promise<void>;
+  staffIdsForVn(vnId: string): Promise<string[]>;
+  persistStaffFullCache(input: StaffFullCacheWrite): Promise<void>;
 }
 
 interface ProductionRow extends QueryResultRow {
@@ -676,6 +688,45 @@ export function createPostgresPeopleRepository(): PeopleRepository {
         }
       });
     },
+    async staffIdsForVn(vnId) {
+      const result = await postgresQuery<{ sid: string } & QueryResultRow>(`
+        SELECT DISTINCT sid COLLATE "C" AS sid
+        FROM (
+          SELECT sid FROM vn_staff_credit WHERE vn_id = $1
+          UNION ALL
+          SELECT sid FROM vn_va_credit WHERE vn_id = $1
+        ) credits
+        ORDER BY sid
+      `, [vnId]);
+      return result.rows.map((row) => row.sid);
+    },
+    async persistStaffFullCache(input) {
+      await withPostgresTransaction(async (client) => {
+        const cacheKey = `staff_full:${input.staffId.toLowerCase()}`;
+        await client.query(`
+          INSERT INTO vndb_cache (
+            cache_key, body, etag, last_modified, fetched_at, expires_at
+          ) VALUES ($1, $2, NULL, NULL, $3, $4)
+          ON CONFLICT(cache_key) DO UPDATE SET
+            body = EXCLUDED.body,
+            fetched_at = EXCLUDED.fetched_at,
+            expires_at = EXCLUDED.expires_at
+        `, [cacheKey, input.body, input.fetchedAt, input.expiresAt]);
+        await client.query('DELETE FROM staff_credit_index WHERE sid = $1', [input.staffId]);
+        for (const vnId of new Set(input.productionVnIds)) {
+          await client.query(`
+            INSERT INTO staff_credit_index (sid, vn_id, is_va) VALUES ($1, $2, 0)
+            ON CONFLICT(sid, vn_id, is_va) DO NOTHING
+          `, [input.staffId, vnId]);
+        }
+        for (const vnId of new Set(input.voiceVnIds)) {
+          await client.query(`
+            INSERT INTO staff_credit_index (sid, vn_id, is_va) VALUES ($1, $2, 1)
+            ON CONFLICT(sid, vn_id, is_va) DO NOTHING
+          `, [input.staffId, vnId]);
+        }
+      });
+    },
   };
 }
 
@@ -756,6 +807,41 @@ const sqliteRepository: PeopleRepository = {
         INSERT OR IGNORE INTO character_vn_index (character_id, vn_id) VALUES (?, ?)
       `);
       for (const vnId of new Set(input.vnIds)) insert.run(input.characterId, vnId);
+    })();
+  },
+  async staffIdsForVn(vnId) {
+    const { db } = await import('@/lib/db');
+    const rows = db.prepare(`
+      SELECT sid FROM vn_staff_credit WHERE vn_id = ?
+      UNION
+      SELECT sid FROM vn_va_credit WHERE vn_id = ?
+      ORDER BY sid COLLATE NOCASE
+    `).all(vnId, vnId) as Array<{ sid: string }>;
+    return rows.map((row) => row.sid);
+  },
+  async persistStaffFullCache(input) {
+    const { db } = await import('@/lib/db');
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO vndb_cache (
+          cache_key, body, etag, last_modified, fetched_at, expires_at
+        ) VALUES (?, ?, NULL, NULL, ?, ?)
+        ON CONFLICT(cache_key) DO UPDATE SET
+          body = excluded.body,
+          fetched_at = excluded.fetched_at,
+          expires_at = excluded.expires_at
+      `).run(
+        `staff_full:${input.staffId.toLowerCase()}`,
+        input.body,
+        input.fetchedAt,
+        input.expiresAt,
+      );
+      db.prepare('DELETE FROM staff_credit_index WHERE sid = ?').run(input.staffId);
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO staff_credit_index (sid, vn_id, is_va) VALUES (?, ?, ?)
+      `);
+      for (const vnId of new Set(input.productionVnIds)) insert.run(input.staffId, vnId, 0);
+      for (const vnId of new Set(input.voiceVnIds)) insert.run(input.staffId, vnId, 1);
     })();
   },
 };

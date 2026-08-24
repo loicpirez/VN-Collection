@@ -23,27 +23,27 @@ beforeEach(() => {
 });
 
 describe('full-cache structure validation', () => {
-  it('rejects incomplete staff payloads', () => {
+  it('rejects incomplete staff payloads', async () => {
     writeCacheRow('staff_full:s990030', '{}');
-    expect(readStaffFullCache('s990030')).toBeNull();
+    await expect(readStaffFullCache('s990030')).resolves.toBeNull();
   });
 
-  it('rejects staff payloads with non-array credits', () => {
+  it('rejects staff payloads with non-array credits', async () => {
     writeCacheRow('staff_full:s990031', JSON.stringify({
       profile: null,
       productionCredits: {},
       vaCredits: [],
     }));
-    expect(readStaffFullCache('s990031')).toBeNull();
+    await expect(readStaffFullCache('s990031')).resolves.toBeNull();
   });
 
-  it('rejects staff payloads with shallow flattened credits', () => {
+  it('rejects staff payloads with shallow flattened credits', async () => {
     writeCacheRow('staff_full:s990032', JSON.stringify({
       profile: null,
       productionCredits: [{ id: 'v990032', title: 'Fixture', roles: [] }],
       vaCredits: [],
     }));
-    expect(readStaffFullCache('s990032')).toBeNull();
+    await expect(readStaffFullCache('s990032')).resolves.toBeNull();
   });
 
   it('rejects incomplete character payloads', async () => {

@@ -3,13 +3,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Filter, Globe, Mic2, Star, User, Users } from 'lucide-react';
-import {
-  findStaffSiblings,
-  getAppSetting,
-  getStaffProfileFromCredits,
-  listStaffProductionCredits,
-  listStaffVaCredits,
-} from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -49,7 +44,7 @@ const ROLE_KEY: Record<string, 'role_scenario' | 'role_chardesign' | 'role_art' 
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const profile = getStaffProfileFromCredits(id);
+  const profile = await getPeopleRepository().staffProfile(id);
   return profile?.name ? { title: profile.name } : {};
 }
 
@@ -65,13 +60,18 @@ export default async function StaffPage({
   const { scope } = await searchParams;
   const inCollectionOnly = scope === 'collection';
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  const profile = getStaffProfileFromCredits(id);
+  const people = getPeopleRepository();
   // Fetch the all-credits arrays once, then derive both filtered
   // views + the toggle counters from them in JS. The previous flow
   // ran four heavy SQL queries per page load; with prolific staff
   // (e.g. seiyuu with 500+ credits) that was the page's biggest cost.
-  const allProduction = listStaffProductionCredits(id);
-  const allVoice = listStaffVaCredits(id);
+  const [profile, allProduction, allVoice, staffSiblings, initialStaffLayoutValue] = await Promise.all([
+    people.staffProfile(id),
+    people.productionCredits(id),
+    people.voiceCredits(id),
+    people.staffSiblings(id),
+    getAppSettingRepository().get(STAFF_DETAIL_SETTINGS_KEY),
+  ]);
   const production = inCollectionOnly
     ? allProduction.filter((c) => c.vn.in_collection)
     : allProduction;
@@ -79,8 +79,6 @@ export default async function StaffPage({
     ? allVoice.filter((c) => c.vn.in_collection)
     : allVoice;
   if (!profile && production.length === 0 && voice.length === 0) notFound();
-
-  const staffSiblings = findStaffSiblings(id);
 
   const totalAll = countDistinctVnIds(allProduction, allVoice);
   const totalCol = countDistinctVnIds(
@@ -97,7 +95,7 @@ export default async function StaffPage({
   // Pull richer profile fields (aliases, description, extlinks, gender)
   // from the staff_full cache - `getStaffProfileFromCredits` only knows
   // about credits and gives us a single canonical name.
-  const fullProfile = readStaffFullCache(id)?.profile ?? null;
+  const fullProfile = (await readStaffFullCache(id))?.profile ?? null;
   const aliases = (fullProfile?.aliases ?? []).filter((a) => !a.ismain);
   const extlinks = fullProfile?.extlinks ?? [];
   const description = fullProfile?.description ?? null;
@@ -114,7 +112,7 @@ export default async function StaffPage({
   const groupedProduction = ROLE_ORDER
     .map((role) => ({ role, credits: dedupeByVnId(prodByRole.get(role) ?? []) }))
     .filter((g) => g.credits.length > 0);
-  const initialStaffLayout = parseStaffDetailLayoutV1(getAppSetting(STAFF_DETAIL_SETTINGS_KEY));
+  const initialStaffLayout = parseStaffDetailLayoutV1(initialStaffLayoutValue);
 
   return (
     <DensityScopeProvider scope="staffWorks" className="w-full">

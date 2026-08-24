@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
-import { isInCollectionMany } from '@/lib/db';
 import { downloadFullStaffInfo, readStaffFullCache, type StaffFullPayload } from '@/lib/staff-full';
 import type { StaffVaCredit, StaffVnCredit } from '@/lib/vndb';
 
-vi.mock('@/lib/db', () => ({
-  isInCollectionMany: vi.fn(),
+const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn() }));
+
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => collectionMocks,
 }));
 
 vi.mock('@/lib/staff-full', () => ({
@@ -78,8 +79,8 @@ function payload(overrides: Partial<StaffFullPayload> = {}): StaffFullPayload {
 }
 
 beforeEach(() => {
-  vi.mocked(isInCollectionMany).mockReset().mockReturnValue(new Set());
-  vi.mocked(readStaffFullCache).mockReset().mockReturnValue(null);
+  collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  vi.mocked(readStaffFullCache).mockReset().mockResolvedValue(null);
   vi.mocked(downloadFullStaffInfo).mockReset();
 });
 
@@ -87,13 +88,13 @@ describe('StaffExtraCredits', () => {
   it('returns no section when a cache miss cannot be downloaded', async () => {
     vi.mocked(downloadFullStaffInfo).mockRejectedValue(new Error('offline'));
     expect(await StaffExtraCredits({ sid: 's1', knownProdVnIds: new Set(), knownVaVnIds: new Set() })).toBeNull();
-    expect(isInCollectionMany).not.toHaveBeenCalled();
+    expect(collectionMocks.containsMany).not.toHaveBeenCalled();
   });
 
   it('returns no section when cached credits are empty or already known', async () => {
     vi.mocked(readStaffFullCache)
-      .mockReturnValueOnce(payload())
-      .mockReturnValueOnce(payload({
+      .mockResolvedValueOnce(payload())
+      .mockResolvedValueOnce(payload({
         productionCredits: [production('v1')],
         vaCredits: [voice('v2')],
       }));
@@ -124,7 +125,7 @@ describe('StaffExtraCredits', () => {
   });
 
   it('renders voice and production metadata with one batched membership lookup', async () => {
-    vi.mocked(readStaffFullCache).mockReturnValue(payload({
+    vi.mocked(readStaffFullCache).mockResolvedValue(payload({
       productionCredits: [
         production('v1'),
         production('v2', {
@@ -146,13 +147,13 @@ describe('StaffExtraCredits', () => {
         }),
       ],
     }));
-    vi.mocked(isInCollectionMany).mockReturnValue(new Set(['v3']));
+    collectionMocks.containsMany.mockResolvedValue(new Set(['v3']));
     const markup = renderToStaticMarkup(await StaffExtraCredits({
       sid: 's1',
       knownProdVnIds: new Set(['v1']),
       knownVaVnIds: new Set(),
     }));
-    expect(isInCollectionMany).toHaveBeenCalledWith(['v2', 'v3']);
+    expect(collectionMocks.containsMany).toHaveBeenCalledWith(['v2', 'v3']);
     expect(markup).toContain('Voice credits');
     expect(markup).toContain('Production credits');
     expect(markup).toContain('Alternative title');

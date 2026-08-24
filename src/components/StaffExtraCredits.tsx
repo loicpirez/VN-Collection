@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { CloudDownload, Check, Star } from 'lucide-react';
-import { isInCollectionMany } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { downloadFullStaffInfo, readStaffFullCache } from '@/lib/staff-full';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -11,7 +11,7 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 /**
- * "More credits (outside your collection)" - the VNDB-sourced list of VNs
+ * "More credits (outside the collection)" - the VNDB-sourced list of VNs
  * this staff/VA appears in. This component performs the network fetch when
  * the cache is empty; wrap it in <Suspense fallback={<StaffExtraCreditsSkeleton/>}>
  * so the staff page paints with the locally-known credits first and the
@@ -28,7 +28,7 @@ export async function StaffExtraCredits({
 }) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
 
-  let fullCache = readStaffFullCache(sid);
+  let fullCache = await readStaffFullCache(sid);
   if (!fullCache) {
     try {
       fullCache = await downloadFullStaffInfo(sid);
@@ -47,7 +47,7 @@ export async function StaffExtraCredits({
     ...extraProduction.map((c) => c.id),
     ...extraVoice.map((c) => c.id),
   ];
-  const inCollectionIds = isInCollectionMany(allIds);
+  const inCollectionIds = await getCollectionCoreRepository().containsMany(allIds);
 
   return (
     <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">

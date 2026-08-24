@@ -11,10 +11,20 @@ export const PEOPLE_CONTRACT_IDS = {
   siblingCharacter: 'c992102',
 } as const;
 
+/** Backend-neutral inspection helpers for transactional persistence assertions. */
+export interface PeopleContractInspector {
+  /** Read the stored JSON body for a cache key. */
+  cacheBody(cacheKey: string): Promise<string | null>;
+  /** Read one staff member's derived credit index in deterministic order. */
+  staffIndex(staffId: string): Promise<Array<{ vn_id: string; is_va: number }>>;
+}
+
 /** Harness that supplies a freshly seeded people repository. */
 export interface PeopleContractHarness {
   /** Run one assertion against a reset database. */
-  withRepository(run: (repository: PeopleRepository) => Promise<void>): Promise<void>;
+  withRepository(
+    run: (repository: PeopleRepository, inspector: PeopleContractInspector) => Promise<void>,
+  ): Promise<void>;
 }
 
 /** Complete synthetic character payload accepted by the cache decoder. */
@@ -90,6 +100,11 @@ export function registerPeopleRepositoryContract(
 
     it('builds timelines and conservative character and staff relationships', async () => {
       await harness.withRepository(async (repository) => {
+        await expect(repository.staffIdsForVn(PEOPLE_CONTRACT_IDS.ownedVn)).resolves.toEqual([
+          PEOPLE_CONTRACT_IDS.primaryStaff,
+          PEOPLE_CONTRACT_IDS.siblingStaff,
+        ]);
+        await expect(repository.staffIdsForVn('v999999')).resolves.toEqual([]);
         await expect(repository.voiceTimeline(PEOPLE_CONTRACT_IDS.primaryStaff)).resolves.toEqual([
           {
             year: 2020,
@@ -204,6 +219,27 @@ export function registerPeopleRepositoryContract(
         });
         await expect(repository.characterIdsForVn(PEOPLE_CONTRACT_IDS.otherVn)).resolves.toEqual([
           PEOPLE_CONTRACT_IDS.siblingCharacter,
+        ]);
+      });
+    });
+
+    it('atomically replaces a staff full-cache credit index', async () => {
+      await harness.withRepository(async (repository, inspector) => {
+        const body = JSON.stringify({ profile: null, productionCredits: [], vaCredits: [] });
+        await repository.persistStaffFullCache({
+          staffId: PEOPLE_CONTRACT_IDS.siblingStaff,
+          body,
+          fetchedAt: 10,
+          expiresAt: 20,
+          productionVnIds: [PEOPLE_CONTRACT_IDS.ownedVn, PEOPLE_CONTRACT_IDS.ownedVn],
+          voiceVnIds: [PEOPLE_CONTRACT_IDS.otherVn],
+        });
+        await expect(inspector.cacheBody(
+          `staff_full:${PEOPLE_CONTRACT_IDS.siblingStaff}`,
+        )).resolves.toBe(body);
+        await expect(inspector.staffIndex(PEOPLE_CONTRACT_IDS.siblingStaff)).resolves.toEqual([
+          { vn_id: PEOPLE_CONTRACT_IDS.ownedVn, is_va: 0 },
+          { vn_id: PEOPLE_CONTRACT_IDS.otherVn, is_va: 1 },
         ]);
       });
     });

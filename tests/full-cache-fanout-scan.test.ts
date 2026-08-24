@@ -310,7 +310,7 @@ describe('downloadFullStaffInfo / downloadFullStaffForVn', () => {
     fetchStaffVnListMock.mockResolvedValue([]);
     fetchVaVnListMock.mockResolvedValue([]);
     await downloadFullStaffInfo('s90500');
-    expect(readStaffFullCache('s90500')?.profile?.id).toBe('s90500');
+    expect((await readStaffFullCache('s90500'))?.profile?.id).toBe('s90500');
   });
 
   it('indexes both production and VA credits onto staff_credit_index', async () => {
@@ -327,7 +327,7 @@ describe('downloadFullStaffInfo / downloadFullStaffForVn', () => {
       { vn_id: 'v90505', is_va: 0 },
       { vn_id: 'v90506', is_va: 1 },
     ]);
-    const got = readStaffFullCache('s90505');
+    const got = await readStaffFullCache('s90505');
     expect(got?.productionCredits).toHaveLength(1);
     expect(got?.vaCredits).toHaveLength(1);
   });
@@ -365,8 +365,8 @@ describe('downloadFullStaffInfo / downloadFullStaffForVn', () => {
     const r = await downloadFullStaffForVn(VN, { force: true });
     expect(r.scanned).toBe(2);
     expect(r.downloaded).toBe(2);
-    expect(readStaffFullCache('s90500')).not.toBeNull();
-    expect(readStaffFullCache('s90501')).not.toBeNull();
+    expect(await readStaffFullCache('s90500')).not.toBeNull();
+    expect(await readStaffFullCache('s90501')).not.toBeNull();
   });
 
   it('skips staff already fresh in the cache', async () => {

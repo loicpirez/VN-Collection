@@ -1,16 +1,18 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { fetchStaffVnList, fetchVaVnList, getStaff, type StaffVnCredit, type StaffVaCredit, type VndbStaff } from './vndb';
 import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 import { asJsonRecord, parseJsonRecord } from './json-shape';
 import { decodeVndbStaff } from './vndb-profile-row-shape';
 import { isVndbVnId, normalizeVnId } from './vn-id-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getPeopleRepository } from './db/repositories/people';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
 /** Read the user's auto-fan-out toggle. Default ON; '0' means disabled. */
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 /**
@@ -170,31 +172,25 @@ export function decodeStaffFullPayload(raw: string | null | undefined, fetchedAt
  * `null` on miss or parse error so callers can decide between cache miss
  * and live re-fetch.
  */
-export function readStaffFullCache(sid: string): StaffFullPayload | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key(sid)) as { body: string; fetched_at: number } | undefined;
+function decodeStaffCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): StaffFullPayload | null {
   if (!row) return null;
   return decodeStaffFullPayload(row.body, row.fetched_at);
 }
 
-function writeStaffFullCache(sid: string, payload: StaffFullPayload): void {
+export async function readStaffFullCache(sid: string): Promise<StaffFullPayload | null> {
+  return decodeStaffCacheRow(await getCacheRepository().get(key(sid)));
+}
+
+async function writeStaffFullCache(sid: string, payload: StaffFullPayload): Promise<void> {
   const now = Date.now();
-  const txn = db.transaction(() => {
-    db.prepare(`
-      INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-      VALUES (?, ?, NULL, NULL, ?, ?)
-      ON CONFLICT(cache_key) DO UPDATE SET
-        body = excluded.body,
-        fetched_at = excluded.fetched_at,
-        expires_at = excluded.expires_at
-    `).run(key(sid), JSON.stringify(payload), now, now + TTL_MS);
-    db.prepare('DELETE FROM staff_credit_index WHERE sid = ?').run(sid);
-    const ins = db.prepare('INSERT OR IGNORE INTO staff_credit_index (sid, vn_id, is_va) VALUES (?, ?, ?)');
-    for (const c of payload.productionCredits) ins.run(sid, c.id, 0);
-    for (const c of payload.vaCredits) ins.run(sid, c.id, 1);
+  await getPeopleRepository().persistStaffFullCache({
+    staffId: sid,
+    body: JSON.stringify(payload),
+    fetchedAt: now,
+    expiresAt: now + TTL_MS,
+    productionVnIds: payload.productionCredits.map((credit) => credit.id),
+    voiceVnIds: payload.vaCredits.map((credit) => credit.id),
   });
-  txn();
 }
 
 /**
@@ -214,7 +210,7 @@ export async function downloadFullStaffInfo(sid: string): Promise<StaffFullPaylo
     vaCredits,
     fetched_at: Date.now(),
   };
-  writeStaffFullCache(sid, payload);
+  await writeStaffFullCache(sid, payload);
   return payload;
 }
 
@@ -230,19 +226,14 @@ export async function downloadFullStaffInfo(sid: string): Promise<StaffFullPaylo
  * second pass over the same VN is cheap.
  */
 export async function downloadFullStaffForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  const rows = db
-    .prepare(`
-      SELECT sid FROM vn_staff_credit WHERE vn_id = ?
-      UNION
-      SELECT sid FROM vn_va_credit WHERE vn_id = ?
-    `)
-    .all(vnId, vnId) as { sid: string }[];
-  const sids = Array.from(new Set(rows.map((r) => r.sid).filter((s) => /^s\d+$/i.test(s))));
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const sids = (await getPeopleRepository().staffIdsForVn(vnId))
+    .filter((staffId) => /^s\d+$/i.test(staffId));
 
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(sids.map(key));
   const stale = sids.filter((sid) => {
-    const cached = readStaffFullCache(sid);
+    const cached = decodeStaffCacheRow(cacheRows.get(key(sid)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
 

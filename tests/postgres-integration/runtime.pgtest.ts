@@ -1104,7 +1104,22 @@ registerPeopleRepositoryContract('PostgreSQL', {
       process.env.DATABASE_URL = applicationUrl.toString();
       process.env.DATABASE_APPLICATION_NAME = 'vndb-people-contract';
       try {
-        await run(createPostgresPeopleRepository());
+        await run(createPostgresPeopleRepository(), {
+          async cacheBody(cacheKey) {
+            const result = await pool.query<{ body: string }>(
+              'SELECT body FROM vndb_cache WHERE cache_key = $1',
+              [cacheKey],
+            );
+            return result.rows[0]?.body ?? null;
+          },
+          async staffIndex(staffId) {
+            const result = await pool.query<{ vn_id: string; is_va: number }>(`
+              SELECT vn_id, is_va FROM staff_credit_index
+              WHERE sid = $1 ORDER BY is_va, vn_id COLLATE "C"
+            `, [staffId]);
+            return result.rows;
+          },
+        });
       } finally {
         await closePostgresPool();
         if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;

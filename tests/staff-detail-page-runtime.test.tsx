@@ -1,16 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import StaffPage, { generateMetadata as generateStaffMetadata } from '@/app/staff/[id]/page';
-import {
-  findStaffSiblings,
-  getAppSetting,
-  getStaffProfileFromCredits,
-  listStaffProductionCredits,
-  listStaffVaCredits,
-  type StaffProfile,
-  type StaffSibling,
-  type StaffVaCredit,
-  type StaffWorkCredit,
+import type {
+  StaffProfile,
+  StaffSibling,
+  StaffVaCredit,
+  StaffWorkCredit,
 } from '@/lib/db';
 import { readStaffFullCache, type StaffFullPayload } from '@/lib/staff-full';
 import type { DetailSection } from '@/components/DetailReorderLayout';
@@ -21,16 +16,19 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const peopleMocks = vi.hoisted(() => ({
+  staffProfile: vi.fn(),
+  productionCredits: vi.fn(),
+  voiceCredits: vi.fn(),
+  staffSiblings: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
-vi.mock('@/lib/db', () => ({
-  findStaffSiblings: vi.fn(),
-  getAppSetting: vi.fn(),
-  getStaffProfileFromCredits: vi.fn(),
-  listStaffProductionCredits: vi.fn(),
-  listStaffVaCredits: vi.fn(),
+vi.mock('@/lib/db/repositories/people', () => ({
+  getPeopleRepository: () => peopleMocks,
 }));
 
 vi.mock('@/lib/staff-full', () => ({
@@ -166,19 +164,18 @@ function fullProfile(overrides: Partial<NonNullable<StaffFullPayload['profile']>
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
-  vi.mocked(findStaffSiblings).mockReset().mockReturnValue([]);
-  vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
-  vi.mocked(getStaffProfileFromCredits).mockReset().mockReturnValue(null);
-  vi.mocked(listStaffProductionCredits).mockReset().mockReturnValue([]);
-  vi.mocked(listStaffVaCredits).mockReset().mockReturnValue([]);
-  vi.mocked(readStaffFullCache).mockReset().mockReturnValue(null);
+  peopleMocks.staffSiblings.mockReset().mockResolvedValue([]);
+  peopleMocks.staffProfile.mockReset().mockResolvedValue(null);
+  peopleMocks.productionCredits.mockReset().mockResolvedValue([]);
+  peopleMocks.voiceCredits.mockReset().mockResolvedValue([]);
+  vi.mocked(readStaffFullCache).mockReset().mockResolvedValue(null);
 });
 
 describe('staff detail page runtime', () => {
   it('renders metadata from a local profile or an empty object', async () => {
     expect(await generateStaffMetadata({ params: Promise.resolve({ id: 's1' }) })).toEqual({});
 
-    vi.mocked(getStaffProfileFromCredits).mockReturnValueOnce(profile());
+    peopleMocks.staffProfile.mockResolvedValueOnce(profile());
     expect(await generateStaffMetadata({ params: Promise.resolve({ id: 's1' }) })).toEqual({ title: 'Staff member' });
   });
 
@@ -188,7 +185,7 @@ describe('staff detail page runtime', () => {
   });
 
   it('renders the empty-credit notice when a known profile has no works', async () => {
-    vi.mocked(getStaffProfileFromCredits).mockReturnValue(profile());
+    peopleMocks.staffProfile.mockResolvedValue(profile());
 
     const html = renderToStaticMarkup(await StaffPage({
       params: Promise.resolve({ id: 's1' }),
@@ -210,9 +207,9 @@ describe('staff detail page runtime', () => {
         { vn_id: 'v2', vn_title: 'Second work' },
       ],
     }];
-    vi.mocked(getStaffProfileFromCredits).mockReturnValue(profile({ original: 'Original name', lang: 'ja' }));
-    vi.mocked(findStaffSiblings).mockReturnValue(siblings);
-    vi.mocked(listStaffProductionCredits).mockReturnValue([
+    peopleMocks.staffProfile.mockResolvedValue(profile({ original: 'Original name', lang: 'ja' }));
+    peopleMocks.staffSiblings.mockResolvedValue(siblings);
+    peopleMocks.productionCredits.mockResolvedValue([
       work('v1', [
         { role: 'scenario', eid: 1, note: 'Lead', credited_as: 'Staff member' },
         { role: 'unexpected', eid: null, note: null, credited_as: 'Staff member' },
@@ -227,7 +224,7 @@ describe('staff detail page runtime', () => {
       work('egs_2', [{ role: 'art', eid: null, note: null, credited_as: 'Staff member' }]),
       work('v1'),
     ]);
-    vi.mocked(listStaffVaCredits).mockReturnValue([
+    peopleMocks.voiceCredits.mockResolvedValue([
       {
         ...voice('v2', { image_url: 'https://example.test/voice.jpg', in_collection: true }),
         characters: [{
@@ -241,7 +238,7 @@ describe('staff detail page runtime', () => {
         }],
       },
     ]);
-    vi.mocked(readStaffFullCache).mockReturnValue(fullProfile({
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile({
       gender: 'f',
       description: 'Description',
       aliases: [
@@ -287,12 +284,12 @@ describe('staff detail page runtime', () => {
   });
 
   it('filters collection scope while retaining all-credit toggle counters', async () => {
-    vi.mocked(getStaffProfileFromCredits).mockReturnValue(profile());
-    vi.mocked(listStaffProductionCredits).mockReturnValue([
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.productionCredits.mockResolvedValue([
       work('v1', undefined, { in_collection: true }),
       work('v2'),
     ]);
-    vi.mocked(listStaffVaCredits).mockReturnValue([
+    peopleMocks.voiceCredits.mockResolvedValue([
       voice('v1', { in_collection: true }),
       voice('v3'),
     ]);
@@ -310,8 +307,8 @@ describe('staff detail page runtime', () => {
   });
 
   it('uses the id heading when credits exist without a reconstructed profile and renders raw gender fallbacks', async () => {
-    vi.mocked(listStaffProductionCredits).mockReturnValue([work('v1')]);
-    vi.mocked(readStaffFullCache).mockReturnValue(fullProfile({ gender: 'x' }));
+    peopleMocks.productionCredits.mockResolvedValue([work('v1')]);
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile({ gender: 'x' }));
 
     const html = renderToStaticMarkup(await StaffPage({
       params: Promise.resolve({ id: 's1' }),
@@ -323,9 +320,9 @@ describe('staff detail page runtime', () => {
   });
 
   it('renders the male gender label', async () => {
-    vi.mocked(getStaffProfileFromCredits).mockReturnValue(profile());
-    vi.mocked(listStaffProductionCredits).mockReturnValue([work('v1')]);
-    vi.mocked(readStaffFullCache).mockReturnValue(fullProfile({ gender: 'm' }));
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.productionCredits.mockResolvedValue([work('v1')]);
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile({ gender: 'm' }));
 
     const html = renderToStaticMarkup(await StaffPage({
       params: Promise.resolve({ id: 's1' }),

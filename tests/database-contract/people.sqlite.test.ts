@@ -10,7 +10,8 @@ import {
 function reset(): void {
   db.exec(`
     DELETE FROM character_image WHERE char_id LIKE '%99210%';
-    DELETE FROM vndb_cache WHERE cache_key LIKE 'char_full:c99210%';
+    DELETE FROM vndb_cache WHERE cache_key LIKE 'char_full:c99210%' OR cache_key LIKE 'staff_full:s99210%';
+    DELETE FROM staff_credit_index WHERE sid LIKE 's99210%';
     DELETE FROM character_vn_index WHERE character_id LIKE 'c99210%';
     DELETE FROM vn_va_credit WHERE vn_id LIKE 'v99210%';
     DELETE FROM vn_staff_credit WHERE vn_id LIKE 'v99210%';
@@ -79,7 +80,18 @@ registerPeopleRepositoryContract('SQLite', {
   async withRepository(run) {
     seed();
     try {
-      await run(getPeopleRepository());
+      await run(getPeopleRepository(), {
+        async cacheBody(cacheKey) {
+          const row = db.prepare('SELECT body FROM vndb_cache WHERE cache_key = ?').get(cacheKey) as { body: string } | undefined;
+          return row?.body ?? null;
+        },
+        async staffIndex(staffId) {
+          return db.prepare(`
+            SELECT vn_id, is_va FROM staff_credit_index
+            WHERE sid = ? ORDER BY is_va, vn_id COLLATE NOCASE
+          `).all(staffId) as Array<{ vn_id: string; is_va: number }>;
+        },
+      });
     } finally {
       reset();
     }

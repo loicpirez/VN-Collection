@@ -205,16 +205,16 @@ describe('readReleaseFullCache', () => {
 });
 
 describe('readStaffFullCache / decodeStaffFullPayload', () => {
-  it('returns null on a cache miss', () => {
-    expect(readStaffFullCache('s90099')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readStaffFullCache('s90099')).resolves.toBeNull();
   });
 
-  it('returns null on a corrupt JSON body', () => {
+  it('returns null on a corrupt JSON body', async () => {
     writeCacheRow('staff_full:s90098', 'not-json-at-all');
-    expect(readStaffFullCache('s90098')).toBeNull();
+    await expect(readStaffFullCache('s90098')).resolves.toBeNull();
   });
 
-  it('decodes a full staff payload (profile + credits) and uses the row fetched_at', () => {
+  it('decodes a full staff payload (profile + credits) and uses the row fetched_at', async () => {
     writeCacheRow(
       'staff_full:s90001',
       JSON.stringify({
@@ -225,7 +225,7 @@ describe('readStaffFullCache / decodeStaffFullPayload', () => {
       }),
       NOW,
     );
-    const got = readStaffFullCache('s90001');
+    const got = await readStaffFullCache('s90001');
     expect(got).not.toBeNull();
     expect(got!.profile?.id).toBe('s90001');
     expect(got!.productionCredits).toHaveLength(1);
