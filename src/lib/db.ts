@@ -39,6 +39,10 @@ import type { VndbCharacter } from './vndb';
 import { decodeVndbRelease } from './vndb-release-shape';
 import type { VndbRelease } from './vndb-types';
 import {
+  parsePhysicalLocations as parsePlaces,
+  serializePhysicalLocations,
+} from './physical-locations';
+import {
   decodePersistedProducerSummaries,
   isPersistedEditions,
   isPersistedExtlinks,
@@ -60,6 +64,16 @@ import {
   decodeMigratableVaCredits,
   decodeStaffCreditIndexPayload,
 } from './vn-index-migration-shape';
+import { buildTextSearchSnippet, type TextSearchHit } from './text-search';
+import {
+  isReadOnlyDatabaseConfig,
+  isSqliteDatabaseConfig,
+  readDatabaseConfig,
+} from './db/postgres-config';
+import {
+  mapCollectionItemRow,
+  type CollectionItemDatabaseRow,
+} from './db/collection-item-mapper';
 
 /**
  * Lazy resolution of the SQLite path. Both absolute and `cwd`-
@@ -74,7 +88,11 @@ import {
  * sqlite3` resolves the runtime string normally.
  */
 function resolveDbPath(): string {
-  const env = process.env.DB_PATH?.trim() || './data/collection.db';
+  const config = readDatabaseConfig();
+  if (!isSqliteDatabaseConfig(config)) {
+    throw new Error('Legacy SQLite access is disabled while DATABASE_BACKEND=postgres');
+  }
+  const env = config.path;
   if (isAbsolute(env)) return env;
   const normalized = env.startsWith('./') ? env.slice(2) : env;
   return `${process.cwd()}/${normalized}`;
@@ -151,6 +169,13 @@ function isSqliteCorruptionError(error: unknown): boolean {
   return code === 'SQLITE_CORRUPT' || code === 'SQLITE_CORRUPT_INDEX' || message.includes('database disk image is malformed');
 }
 
+function setMigrationMarker(db: Database.Database, key: string): void {
+  db.prepare(`
+    INSERT INTO app_setting (key, value) VALUES (?, '1')
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key);
+}
+
 /**
  * Apply the one-shot staff and voice-credit uniqueness migration.
  *
@@ -177,7 +202,7 @@ export function runStaffCreditUniqueMigration(db: Database.Database): void {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_vn_va_credit_unique
           ON vn_va_credit(vn_id, c_id, sid, COALESCE(aid, -1), COALESCE(note, ''), COALESCE(va_lang, ''));
       `);
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_staff_credit_unique_v1', '1')`).run();
+      setMigrationMarker(db, 'migration_staff_credit_unique_v1');
     })();
   } catch (error) {
     if (!isSqliteCorruptionError(error)) throw error;
@@ -187,6 +212,11 @@ export function runStaffCreditUniqueMigration(db: Database.Database): void {
 
 function open(): Database.Database {
   tableColsCache = null;
+  const config = readDatabaseConfig();
+  if (!isSqliteDatabaseConfig(config)) {
+    throw new Error('Legacy SQLite access is disabled while DATABASE_BACKEND=postgres');
+  }
+  const readOnly = isReadOnlyDatabaseConfig(config);
   // HMR resilience: reuse the cached connection if it exists, but
   // ALWAYS re-run the idempotent migration body below. A long-running
   // `next dev` process keeps `global.__vndb_db` across Turbopack
@@ -207,12 +237,20 @@ function open(): Database.Database {
     // constant) so Turbopack's NFT tracer can't statically follow it
     // into the project tree. `mkdirSync` then runs the first time
     // anything in this module is reached at runtime.
-    mkdirSync(dirname(dbPath), { recursive: true });
-    db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    if (!readOnly) mkdirSync(dirname(dbPath), { recursive: true });
+    db = readOnly
+      ? new Database(dbPath, { readonly: true, fileMustExist: true })
+      : new Database(dbPath);
+    if (!readOnly) db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
   }
+  if (readOnly) {
+    db.pragma('query_only = ON');
+    global.__vndb_db = db;
+    return db;
+  }
+  db.pragma('query_only = OFF');
   db.exec(`
     CREATE TABLE IF NOT EXISTS vn (
       id              TEXT PRIMARY KEY,
@@ -447,6 +485,13 @@ function open(): Database.Database {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS app_job_lock (
+      name       TEXT PRIMARY KEY,
+      owner      TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_job_lock_expires ON app_job_lock(expires_at);
+
     -- Append-only audit log for sensitive settings (token swaps,
     -- backup-URL rewrites). Only the last 4 chars of either value
     -- are stored so the table itself can't leak the credential.
@@ -666,6 +711,33 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_shelf_display_slot_shelf
       ON shelf_display_slot(shelf_id, after_row, position);
 
+    -- One physical box can contain several owned VNDB releases. The anchor is
+    -- the edition that keeps the existing shelf placement identity and cover;
+    -- every other member is hidden from the unplaced pool while bundled.
+    CREATE TABLE IF NOT EXISTS physical_bundle (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      name              TEXT NOT NULL,
+      anchor_vn_id      TEXT NOT NULL,
+      anchor_release_id TEXT NOT NULL,
+      created_at        INTEGER NOT NULL,
+      updated_at        INTEGER NOT NULL,
+      UNIQUE (anchor_vn_id, anchor_release_id),
+      FOREIGN KEY (anchor_vn_id, anchor_release_id)
+        REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS physical_bundle_member (
+      bundle_id  INTEGER NOT NULL REFERENCES physical_bundle(id) ON DELETE CASCADE,
+      vn_id      TEXT NOT NULL,
+      release_id TEXT NOT NULL,
+      position   INTEGER NOT NULL,
+      PRIMARY KEY (bundle_id, vn_id, release_id),
+      UNIQUE (vn_id, release_id),
+      FOREIGN KEY (vn_id, release_id)
+        REFERENCES owned_release(vn_id, release_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_physical_bundle_member_order
+      ON physical_bundle_member(bundle_id, position);
+
     -- Derived index over staff_full cache bodies. Lets brand-overlap
     -- and per-VN trait lookups answer "which staff/characters touch
     -- VN X" without parsing every cached JSON blob.
@@ -794,7 +866,7 @@ function open(): Database.Database {
             deleteSetting.run(priorKey);
           }
         }
-        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicenet_rename_v1', '1')`).run();
+        setMigrationMarker(db, 'migration_alicenet_rename_v1');
       })();
     }
   }
@@ -922,6 +994,7 @@ function open(): Database.Database {
       current_item TEXT,
       current_item_code TEXT,
       current_item_params_json TEXT,
+      providers_json TEXT,
       errors_json  TEXT NOT NULL DEFAULT '[]',
       started_at   INTEGER NOT NULL,
       finished_at  INTEGER,
@@ -962,7 +1035,7 @@ function open(): Database.Database {
         db.prepare(`UPDATE vn_stock_source SET provider = 'alicenet' WHERE provider IN ('alicesoft_kobe', 'alice_kobe')`).run();
         db.prepare(`UPDATE user_activity SET kind = 'alicenet.link' WHERE kind = 'kobe.link'`).run();
         db.prepare(`UPDATE user_activity SET entity = 'alicenet_stock' WHERE entity IN ('alicesoft_kobe_stock', 'alice_kobe_stock')`).run();
-        db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('migration_alicenet_persisted_ids_v1', '1')`).run();
+        setMigrationMarker(db, 'migration_alicenet_persisted_ids_v1');
       })();
     }
   }
@@ -1131,9 +1204,7 @@ function open(): Database.Database {
               AND json_array_length(rm.platforms) = 1
           )
       `).run();
-      db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('owned_platform_backfill_v1', '1')`,
-      ).run();
+      setMigrationMarker(db, 'owned_platform_backfill_v1');
     })();
   }
 
@@ -1171,9 +1242,7 @@ function open(): Database.Database {
       for (const r of legacy) {
         updateStmt.run(normalizeLegacyPhysicalLocationCsv(r.physical_location), r.vn_id);
       }
-      db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('phys_loc_json_migration_v1', '1')`,
-      ).run();
+      setMigrationMarker(db, 'phys_loc_json_migration_v1');
     })();
   }
 
@@ -1207,9 +1276,7 @@ function open(): Database.Database {
           insert.run(vnId, place);
         }
       }
-      db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('collection_place_index_v2', '1')`,
-      ).run();
+      setMigrationMarker(db, 'collection_place_index_v2');
     })();
   }
 
@@ -1252,9 +1319,7 @@ function open(): Database.Database {
         db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
         db.prepare('UPDATE collection_place_index SET vn_id = ? WHERE vn_id = ?').run(fixed, id);
       }
-      db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v1', '1')`,
-      ).run();
+      setMigrationMarker(db, 'egs_colon_to_underscore_v1');
     })();
   }
 
@@ -1284,14 +1349,10 @@ function open(): Database.Database {
           db.prepare('UPDATE character_vn_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
           db.prepare('UPDATE collection_place_index SET vn_id = ? WHERE vn_id = ?').run(id, colonId);
         }
-        db.prepare(
-          `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v2', '1')`,
-        ).run();
+        setMigrationMarker(db, 'egs_colon_to_underscore_v2');
       })();
     } else {
-      db.prepare(
-        `INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_colon_to_underscore_v2', '1')`,
-      ).run();
+      setMigrationMarker(db, 'egs_colon_to_underscore_v2');
     }
   }
 
@@ -1314,7 +1375,7 @@ function open(): Database.Database {
         WHERE playtime_median_minutes IS NOT NULL
           AND playtime_median_minutes <= 50000
       `).run();
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_playtime_hours_to_minutes_v1', '1')`).run();
+      setMigrationMarker(db, 'egs_playtime_hours_to_minutes_v1');
     })();
   }
 
@@ -1360,6 +1421,7 @@ function open(): Database.Database {
   ensureColumn(db, 'stock_batch_job', 'label_params_json', 'TEXT');
   ensureColumn(db, 'stock_batch_job', 'current_item_code', 'TEXT');
   ensureColumn(db, 'stock_batch_job', 'current_item_params_json', 'TEXT');
+  ensureColumn(db, 'stock_batch_job', 'providers_json', 'TEXT');
   ensureColumn(db, 'place_registry', 'kind', "TEXT NOT NULL DEFAULT 'shop'");
 
   db.exec(`
@@ -1402,7 +1464,7 @@ function open(): Database.Database {
         SET image_url = '/api/egs-cover/' || substr(id, 5)
         WHERE id LIKE 'egs_%'
       `).run();
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('egs_cover_resolver_v1', '1')`).run();
+      setMigrationMarker(db, 'egs_cover_resolver_v1');
     })();
   }
 
@@ -1456,7 +1518,7 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed va JSON`);
         }
       }
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_va_credits_v1', '1')`).run();
+      setMigrationMarker(db, 'staff_va_credits_v1');
     })();
   }
 
@@ -1486,7 +1548,7 @@ function open(): Database.Database {
           ins.run(sid, id, 1);
         }
       }
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('staff_credit_index_v1', '1')`).run();
+      setMigrationMarker(db, 'staff_credit_index_v1');
     })();
   }
 
@@ -1536,8 +1598,8 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed publishers JSON`);
         }
       }
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_v1', '1')`).run();
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_tag_name_v1', '1')`).run();
+      setMigrationMarker(db, 'vn_tag_index_v1');
+      setMigrationMarker(db, 'vn_tag_index_tag_name_v1');
     })();
   }
 
@@ -1564,7 +1626,7 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed tags JSON`);
         }
       }
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_tag_index_tag_name_v1', '1')`).run();
+      setMigrationMarker(db, 'vn_tag_index_tag_name_v1');
     })();
   }
 
@@ -1600,7 +1662,7 @@ function open(): Database.Database {
           console.warn(`[migrate] vn ${r.id} has malformed platforms JSON`);
         }
       }
-      db.prepare(`INSERT OR REPLACE INTO app_setting (key, value) VALUES ('vn_lang_platform_index_v1', '1')`).run();
+      setMigrationMarker(db, 'vn_lang_platform_index_v1');
     })();
   }
 
@@ -1641,40 +1703,7 @@ export const db: Database.Database = new Proxy({} as Database.Database, {
   },
 });
 
-function parsePlaces(s: string | null | undefined): string[] {
-  if (!s) return [];
-  try {
-    const parsed: unknown = JSON.parse(s);
-    return Array.isArray(parsed) ? normalizePlaces(parsed) : [];
-  } catch {
-    // legacy CSV
-  }
-  return normalizePlaces(s.split(','));
-}
-
-/**
- * Normalize the collection/owned-release physical-location field before
- * storage. The API accepts the modern string-array form plus legacy CSV
- * strings imported from older exports; everything else is treated as empty.
- */
-export function serializePhysicalLocations(value: unknown): string | null {
-  if (value == null) return null;
-  const arr = Array.isArray(value)
-    ? value
-    : typeof value === 'string'
-      ? value.split(',')
-      : [];
-  const cleaned = normalizePlaces(arr);
-  return cleaned.length ? JSON.stringify(cleaned) : null;
-}
-
-function normalizePlaces(values: unknown[]): string[] {
-  return values
-    .map((v) => (typeof v === 'string' ? v.trim() : ''))
-    .filter((v): v is string => v.length > 0)
-    .slice(0, 32)
-    .map((v) => v.slice(0, 200));
-}
+export { serializePhysicalLocations } from './physical-locations';
 
 function rebuildVnPlaceIndex(vnId: string): void {
   const collRow = db
@@ -1777,7 +1806,7 @@ function upsertVnTx(vn: RawVnPayload): void {
 }
 function buildUpsertVnTx(): (vn: RawVnPayload) => void {
   return db.transaction((vn: RawVnPayload) => {
-  db.prepare(`
+  const upsertResult = db.prepare(`
     INSERT INTO vn (id, title, alttitle, image_url, image_thumb, image_sexual, image_violence,
                     released, olang, devstatus, titles, languages, platforms, length_minutes, length, length_votes, rating, votecount, average,
                     description, developers, tags, screenshots, relations, aliases, extlinks,
@@ -1881,9 +1910,12 @@ function buildUpsertVnTx(): (vn: RawVnPayload) => void {
     raw: JSON.stringify(vn),
     fetched_at: Date.now(),
   });
+  if (upsertResult.changes === 0) return;
   rebuildStaffVaCredits(vn.id, (vn.staff as StaffEntry[] | undefined) ?? [], (vn.va as VaEntry[] | undefined) ?? []);
   rebuildVnTagIndex(vn.id, (vn.tags as Array<{ id?: unknown; name?: unknown; spoiler?: unknown; category?: unknown }> | undefined) ?? []);
-  rebuildVnDeveloperIndex(vn.id, (vn.developers as Array<{ id?: unknown }> | undefined) ?? []);
+  if (vn.developers && vn.developers.length > 0) {
+    rebuildVnDeveloperIndex(vn.id, vn.developers);
+  }
   rebuildVnLanguageIndex(vn.id, (vn.languages as unknown[] | undefined) ?? []);
   rebuildVnPlatformIndex(vn.id, (vn.platforms as unknown[] | undefined) ?? []);
   });
@@ -2946,6 +2978,35 @@ export function setAppSetting(key: string, value: string | null): void {
   })();
 }
 
+/** Atomically acquire an expiring cross-process background-job lock. */
+export function acquireAppJobLock(name: string, owner: string, now: number, ttlMs: number): boolean {
+  if (!name || !owner || !Number.isFinite(now) || !Number.isFinite(ttlMs) || ttlMs <= 0) return false;
+  return db.prepare(`
+    INSERT INTO app_job_lock (name, owner, expires_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+      owner = excluded.owner,
+      expires_at = excluded.expires_at
+    WHERE app_job_lock.expires_at <= ?
+  `).run(name, owner, Math.floor(now + ttlMs), Math.floor(now)).changes > 0;
+}
+
+/** Extend a background-job lock only when the caller still owns it. */
+export function renewAppJobLock(name: string, owner: string, now: number, ttlMs: number): boolean {
+  if (!name || !owner || !Number.isFinite(now) || !Number.isFinite(ttlMs) || ttlMs <= 0) return false;
+  return db.prepare(`
+    UPDATE app_job_lock
+    SET expires_at = ?
+    WHERE name = ? AND owner = ? AND expires_at > ?
+  `).run(Math.floor(now + ttlMs), name, owner, Math.floor(now)).changes > 0;
+}
+
+/** Release a background-job lock without allowing a stale owner to clear a newer lock. */
+export function releaseAppJobLock(name: string, owner: string): boolean {
+  if (!name || !owner) return false;
+  return db.prepare('DELETE FROM app_job_lock WHERE name = ? AND owner = ?').run(name, owner).changes > 0;
+}
+
 export interface SettingAuditEntry {
   id: number;
   key: string;
@@ -3268,8 +3329,9 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       INSERT INTO collection (vn_id, status, user_rating, playtime_minutes,
                               started_date, finished_date, notes, favorite,
                               location, edition_type, edition_label, physical_location,
-                              box_type, download_url, dumped, dumped_ignored, added_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              box_type, download_url, dumped, dumped_ignored, custom_description,
+                              added_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       vnId,
       fields.status ?? 'planning',
@@ -3287,6 +3349,7 @@ export function addToCollection(vnId: string, fields: CollectionPatch = {}): voi
       fields.download_url ?? null,
       fields.dumped ? 1 : 0,
       fields.dumped_ignored ? 1 : 0,
+      fields.custom_description ?? null,
       now,
       now,
     );
@@ -3323,6 +3386,7 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
     download_url: (v) => v,
     dumped: (v) => (v ? 1 : 0),
     dumped_ignored: (v) => (v ? 1 : 0),
+    custom_description: (v) => v,
   };
 
   // Snapshot the columns we may diff against before the UPDATE so the activity
@@ -3336,7 +3400,7 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
     | undefined;
 
   for (const key of Object.keys(map) as (keyof typeof map)[]) {
-    if (key in fields) {
+    if ((fields as Record<string, unknown>)[key] !== undefined) {
       sets.push(`${key} = ?`);
       params.push(map[key]((fields as Record<string, unknown>)[key]));
     }
@@ -3359,26 +3423,26 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
     insertActivity.run(vnId, kind, JSON.stringify(payload), now);
   };
 
-  if ('status' in fields && fields.status !== before.status) {
+  if (fields.status !== undefined && fields.status !== before.status) {
     log('status', { from: before.status, to: fields.status });
   }
-  if ('user_rating' in fields && fields.user_rating !== before.user_rating) {
+  if (fields.user_rating !== undefined && fields.user_rating !== before.user_rating) {
     log('rating', { from: before.user_rating, to: fields.user_rating ?? null });
   }
   if ('playtime_minutes' in fields && typeof fields.playtime_minutes === 'number') {
     const delta = fields.playtime_minutes - before.playtime_minutes;
     if (delta !== 0) log('playtime', { from: before.playtime_minutes, to: fields.playtime_minutes, delta });
   }
-  if ('favorite' in fields && !!fields.favorite !== !!before.favorite) {
+  if (fields.favorite !== undefined && fields.favorite !== !!before.favorite) {
     log('favorite', { to: !!fields.favorite });
   }
-  if ('started_date' in fields && fields.started_date !== before.started_date) {
+  if (fields.started_date !== undefined && fields.started_date !== before.started_date) {
     log('started', { from: before.started_date, to: fields.started_date ?? null });
   }
-  if ('finished_date' in fields && fields.finished_date !== before.finished_date) {
+  if (fields.finished_date !== undefined && fields.finished_date !== before.finished_date) {
     log('finished', { from: before.finished_date, to: fields.finished_date ?? null });
   }
-  if ('notes' in fields) {
+  if (fields.notes !== undefined) {
     log('note', { length: typeof fields.notes === 'string' ? fields.notes.length : 0 });
   }
   });
@@ -3482,11 +3546,12 @@ export function listRecentActivity(limit = 10): RecentActivityEntry[] {
 export function addManualActivity(vnId: string, text: string, occurredAt?: number): ActivityEntry {
   const ts = occurredAt ?? Date.now();
   const trimmed = text.trim().slice(0, 2000);
-  const info = db.prepare(`
+  const row = db.prepare(`
     INSERT INTO vn_activity (vn_id, kind, payload, occurred_at) VALUES (?, 'manual', ?, ?)
-  `).run(vnId, JSON.stringify({ text: trimmed }), ts);
+    RETURNING id
+  `).get(vnId, JSON.stringify({ text: trimmed }), ts) as { id: number };
   return {
-    id: Number(info.lastInsertRowid),
+    id: row.id,
     vn_id: vnId,
     kind: 'manual',
     payload: { text: trimmed },
@@ -3561,14 +3626,15 @@ export function addGameLogEntry(
   const now = Date.now();
   const ts = loggedAt ?? now;
   const minutes = sessionMinutes != null && sessionMinutes > 0 ? Math.round(sessionMinutes) : null;
-  const info = db
+  const row = db
     .prepare(`
       INSERT INTO vn_game_log (vn_id, note, logged_at, session_minutes, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING id
     `)
-    .run(vnId, trimmed, ts, minutes, now, now);
+    .get(vnId, trimmed, ts, minutes, now, now) as { id: number };
   return {
-    id: Number(info.lastInsertRowid),
+    id: row.id,
     vn_id: vnId,
     note: trimmed,
     logged_at: ts,
@@ -3706,66 +3772,7 @@ export function listInCollectionVnIds(): string[] {
   return rows.map((r) => r.vn_id);
 }
 
-interface DbRow {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  image_url: string | null;
-  image_thumb: string | null;
-  image_sexual: number | null;
-  image_violence: number | null;
-  released: string | null;
-  olang: string | null;
-  languages: string;
-  platforms: string;
-  length_minutes: number | null;
-  length: number | null;
-  rating: number | null;
-  votecount: number | null;
-  description: string | null;
-  developers: string;
-  publishers: string | null;
-  tags: string;
-  screenshots: string | null;
-  release_images: string | null;
-  local_image: string | null;
-  local_image_thumb: string | null;
-  custom_cover: string | null;
-  banner_image: string | null;
-  banner_position: string | null;
-  cover_rotation: number | null;
-  banner_rotation: number | null;
-  relations: string | null;
-  aliases: string | null;
-  extlinks: string | null;
-  length_votes: number | null;
-  average: number | null;
-  has_anime: number | null;
-  devstatus: number | null;
-  titles: string | null;
-  editions: string | null;
-  staff: string | null;
-  va: string | null;
-  fetched_at: number;
-  status?: string;
-  user_rating?: number | null;
-  playtime_minutes?: number;
-  started_date?: string | null;
-  finished_date?: string | null;
-  notes?: string | null;
-  favorite?: number;
-  location?: string;
-  edition_type?: string;
-  edition_label?: string | null;
-  physical_location?: string | null;
-  box_type?: string;
-  download_url?: string | null;
-  dumped?: number;
-  dumped_ignored?: number;
-  custom_description?: string | null;
-  added_at?: number;
-  updated_at?: number;
-}
+type DbRow = CollectionItemDatabaseRow;
 
 /**
  * JSON.parse wrapper that returns the fallback on parse failure
@@ -3831,101 +3838,8 @@ function isScreenshotRows(value: unknown): value is Array<{ dims?: [number, numb
   });
 }
 
-/**
- * P-182 — define an enumerable, lazily-parsed JSON property on `obj`
- * whose `safeJsonParse` cost is paid only on first read. On first
- * access the getter redefines the slot as a plain writable data
- * property holding the parsed value, so every later read returns the
- * SAME reference (matching the eager mapper's single-parse identity)
- * and the property is byte-indistinguishable from a literal field for
- * `Object.keys`, spread, and `JSON.stringify`. A `set` is provided so
- * assignment before first read behaves like a normal property. Defined
- * in the source order of the original object literal so enumeration
- * order — and therefore `JSON.stringify` output — is unchanged.
- */
-function defineLazyJson<T>(
-  obj: object,
-  key: string,
-  raw: string | null | undefined,
-  fallback: T,
-  validate?: (value: unknown) => value is T,
-): void {
-  Object.defineProperty(obj, key, {
-    configurable: true,
-    enumerable: true,
-    get(): T {
-      const value = safeJsonParse<T>(raw, fallback, validate);
-      Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
-      return value;
-    },
-    set(value: T) {
-      Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
-    },
-  });
-}
-
 function rowToItem(row: DbRow | undefined): CollectionItem | null {
-  if (!row) return null;
-  const item = {} as CollectionItem;
-  item.id = row.id;
-  item.title = row.title;
-  item.alttitle = row.alttitle;
-  item.image_url = row.image_url;
-  item.image_thumb = row.image_thumb;
-  item.image_sexual = row.image_sexual;
-  item.image_violence = row.image_violence;
-  item.released = row.released;
-  item.olang = row.olang;
-  defineLazyJson(item, 'languages', row.languages, [] as string[], isPersistedStringArray);
-  defineLazyJson(item, 'platforms', row.platforms, [] as string[], isPersistedStringArray);
-  item.length_minutes = row.length_minutes;
-  item.length = row.length;
-  item.rating = row.rating;
-  item.votecount = row.votecount;
-  item.description = row.description;
-  defineLazyJson(item, 'developers', row.developers, [] as { id: string; name: string }[], isPersistedProducerSummaries);
-  defineLazyJson(item, 'publishers', row.publishers, [] as { id: string; name: string }[], isPersistedProducerSummaries);
-  defineLazyJson(item, 'tags', row.tags, [] as CollectionItem['tags'], isPersistedTags);
-  defineLazyJson(item, 'screenshots', row.screenshots, [] as CollectionItem['screenshots'], isPersistedScreenshots);
-  defineLazyJson(item, 'release_images', row.release_images, [] as CollectionItem['release_images'], isPersistedReleaseImages);
-  item.local_image = row.local_image;
-  item.local_image_thumb = row.local_image_thumb;
-  item.custom_cover = row.custom_cover;
-  item.banner_image = row.banner_image;
-  item.banner_position = row.banner_position;
-  item.cover_rotation = normalizeRotation(row.cover_rotation);
-  item.banner_rotation = normalizeRotation(row.banner_rotation);
-  defineLazyJson(item, 'relations', row.relations, [] as CollectionItem['relations'], isPersistedRelations);
-  defineLazyJson(item, 'aliases', row.aliases, [] as string[], isPersistedStringArray);
-  defineLazyJson(item, 'extlinks', row.extlinks, [] as CollectionItem['extlinks'], isPersistedExtlinks);
-  item.length_votes = row.length_votes ?? null;
-  item.average = row.average ?? null;
-  item.has_anime = row.has_anime == null ? null : !!row.has_anime;
-  item.devstatus = row.devstatus == null ? null : (row.devstatus as 0 | 1 | 2);
-  defineLazyJson(item, 'titles', row.titles, [] as CollectionItem['titles'], isPersistedTitles);
-  defineLazyJson(item, 'editions', row.editions, [] as CollectionItem['editions'], isPersistedEditions);
-  defineLazyJson(item, 'staff', row.staff, [] as CollectionItem['staff'], isPersistedStaff);
-  defineLazyJson(item, 'va', row.va, [] as CollectionItem['va'], isPersistedVa);
-  item.fetched_at = row.fetched_at;
-  item.status = row.status as Status | undefined;
-  item.user_rating = row.user_rating ?? null;
-  item.playtime_minutes = row.playtime_minutes ?? 0;
-  item.started_date = row.started_date ?? null;
-  item.finished_date = row.finished_date ?? null;
-  item.notes = row.notes ?? null;
-  item.favorite = !!row.favorite;
-  item.location = (row.location as Location | undefined) ?? 'unknown';
-  item.edition_type = (row.edition_type as EditionType | undefined) ?? 'none';
-  item.edition_label = row.edition_label ?? null;
-  item.physical_location = parsePlaces(row.physical_location);
-  item.box_type = (row.box_type as BoxType | undefined) ?? 'none';
-  item.download_url = row.download_url ?? null;
-  item.dumped = !!row.dumped;
-  item.dumped_ignored = !!row.dumped_ignored;
-  item.custom_description = row.custom_description ?? null;
-  item.added_at = row.added_at;
-  item.updated_at = row.updated_at;
-  return item;
+  return mapCollectionItemRow(row);
 }
 
 export interface ListOptions {
@@ -5704,13 +5618,14 @@ export function createRoute(vnId: string, name: string, orderIndex?: number): Ro
     const ord =
       orderIndex ??
       (((db.prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM vn_route WHERE vn_id = ?').get(vnId) as { n: number }).n));
-    const info = db
+    const row = db
       .prepare(`
         INSERT INTO vn_route (vn_id, name, order_index, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?)
+        RETURNING id, vn_id, name, completed, completed_date, order_index, notes, created_at, updated_at
       `)
-      .run(vnId, name, ord, now, now);
-    return getRoute(Number(info.lastInsertRowid))!;
+      .get(vnId, name, ord, now, now) as RouteDbRow;
+    return rowToRoute(row);
   })();
 }
 
@@ -5850,7 +5765,7 @@ function mapOwnedReleaseRow(r: OwnedReleaseDbRow): OwnedReleaseRow {
   };
 }
 
-export interface ShelfEntry extends OwnedReleaseRow {
+export interface ShelfEntry extends OwnedReleaseRow, PhysicalBundleSummary {
   vn_title: string;
   vn_image_thumb: string | null;
   vn_image_url: string | null;
@@ -6024,6 +5939,13 @@ export function listAllOwnedReleases(): ShelfEntry[] {
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       LEFT JOIN release_meta_cache rm ON rm.release_id = o.release_id
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM physical_bundle_member bm
+        JOIN physical_bundle b ON b.id = bm.bundle_id
+        WHERE bm.vn_id = o.vn_id AND bm.release_id = o.release_id
+          AND (b.anchor_vn_id <> o.vn_id OR b.anchor_release_id <> o.release_id)
+      )
       ORDER BY v.title COLLATE NOCASE ASC
       LIMIT ?
     `)
@@ -6038,7 +5960,7 @@ export function listAllOwnedReleases(): ShelfEntry[] {
       vn_languages: string | null;
       vn_released: string | null;
     }>;
-  return rows.map((r) => ({
+  return attachPhysicalBundleSummary(rows.map((r) => ({
     ...mapOwnedReleaseRow(r),
     vn_title: r.vn_title,
 	    vn_image_thumb: r.vn_image_thumb,
@@ -6050,7 +5972,7 @@ export function listAllOwnedReleases(): ShelfEntry[] {
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
     ...unpackReleaseMetaJoin(r),
-  }));
+  })));
 }
 
 export interface DumpStatusEntry {
@@ -6330,13 +6252,13 @@ export function createShelf(input: {
   return db.transaction(() => {
     const now = Date.now();
     const maxOrder = db.prepare('SELECT COALESCE(MAX(order_index), -1) AS o FROM shelf_unit').get() as { o: number };
-    const info = db
+    return db
       .prepare(
         `INSERT INTO shelf_unit (name, cols, rows, order_index, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?)
+         RETURNING id, name, cols, rows, order_index, created_at, updated_at`,
       )
-      .run(trimmedName, cols, rows, maxOrder.o + 1, now, now);
-    return getShelf(Number(info.lastInsertRowid))!;
+      .get(trimmedName, cols, rows, maxOrder.o + 1, now, now) as ShelfUnit;
   })();
 }
 
@@ -6412,7 +6334,185 @@ export function reorderShelves(orderedIds: number[]): void {
   tx();
 }
 
-export interface ShelfSlotEntry {
+/** Compact bundle metadata attached to the anchor edition on shelf surfaces. */
+export interface PhysicalBundleSummary {
+  bundle_id: number | null;
+  bundle_name: string | null;
+  bundle_member_count: number;
+}
+
+/** One edition linked to a physical multi-release box. */
+export interface PhysicalBundleMember {
+  vn_id: string;
+  release_id: string;
+  vn_title: string;
+  edition_label: string | null;
+  position: number;
+}
+
+/** A physical box represented by one anchor edition and one or more members. */
+export interface PhysicalBundle {
+  id: number;
+  name: string;
+  anchor_vn_id: string;
+  anchor_release_id: string;
+  created_at: number;
+  updated_at: number;
+  members: PhysicalBundleMember[];
+}
+
+interface PhysicalBundleRow {
+  id: number;
+  name: string;
+  anchor_vn_id: string;
+  anchor_release_id: string;
+  created_at: number;
+  updated_at: number;
+}
+
+function listPhysicalBundleMembers(bundleId: number): PhysicalBundleMember[] {
+  return db.prepare(`
+    SELECT m.vn_id, m.release_id, m.position, v.title AS vn_title,
+           o.edition_label AS edition_label
+    FROM physical_bundle_member m
+    JOIN owned_release o ON o.vn_id = m.vn_id AND o.release_id = m.release_id
+    JOIN vn v ON v.id = m.vn_id
+    WHERE m.bundle_id = ?
+    ORDER BY m.position ASC, m.vn_id ASC, m.release_id ASC
+  `).all(bundleId) as PhysicalBundleMember[];
+}
+
+/** Return every physical bundle with its ordered owned-release members. */
+export function listPhysicalBundles(): PhysicalBundle[] {
+  const rows = db.prepare(`
+    SELECT id, name, anchor_vn_id, anchor_release_id, created_at, updated_at
+    FROM physical_bundle ORDER BY name COLLATE NOCASE ASC, id ASC
+  `).all() as PhysicalBundleRow[];
+  return rows.map((row) => ({ ...row, members: listPhysicalBundleMembers(row.id) }));
+}
+
+/** Return one physical bundle, or null when the id is unknown. */
+export function getPhysicalBundle(id: number): PhysicalBundle | null {
+  const row = db.prepare(`
+    SELECT id, name, anchor_vn_id, anchor_release_id, created_at, updated_at
+    FROM physical_bundle WHERE id = ?
+  `).get(id) as PhysicalBundleRow | undefined;
+  return row ? { ...row, members: listPhysicalBundleMembers(row.id) } : null;
+}
+
+/** One owned release identity accepted by physical bundle mutations. */
+export interface PhysicalBundleIdentity {
+  vnId: string;
+  releaseId: string;
+}
+
+/**
+ * Create a physical box around two or more distinct owned editions.
+ *
+ * @param input Bundle name, anchor edition, and ordered members.
+ * @returns The persisted bundle and members.
+ */
+export function createPhysicalBundle(input: {
+  name: string;
+  anchor: PhysicalBundleIdentity;
+  members: PhysicalBundleIdentity[];
+}): PhysicalBundle {
+  const name = input.name.trim();
+  if (!name) throw new Error('bundle name required');
+  const unique = Array.from(new Map(input.members.map((member) => [
+    `${member.vnId}\u0000${member.releaseId}`,
+    member,
+  ])).values());
+  const anchorKey = `${input.anchor.vnId}\u0000${input.anchor.releaseId}`;
+  if (!unique.some((member) => `${member.vnId}\u0000${member.releaseId}` === anchorKey)) {
+    unique.unshift(input.anchor);
+  }
+  if (unique.length < 2) throw new Error('bundle requires at least two editions');
+
+  const transaction = db.transaction(() => {
+    const owned = db.prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?');
+    const bundled = db.prepare('SELECT 1 FROM physical_bundle_member WHERE vn_id = ? AND release_id = ?');
+    for (const member of unique) {
+      if (!owned.get(member.vnId, member.releaseId)) throw new Error('owned edition not found');
+      if (bundled.get(member.vnId, member.releaseId)) throw new Error('edition already belongs to a bundle');
+    }
+    const now = Date.now();
+    const result = db.prepare(`
+      INSERT INTO physical_bundle
+        (name, anchor_vn_id, anchor_release_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      RETURNING id
+    `).get(name, input.anchor.vnId, input.anchor.releaseId, now, now) as { id: number };
+    const bundleId = result.id;
+    const insertMember = db.prepare(`
+      INSERT INTO physical_bundle_member (bundle_id, vn_id, release_id, position)
+      VALUES (?, ?, ?, ?)
+    `);
+    unique.forEach((member, position) => {
+      insertMember.run(bundleId, member.vnId, member.releaseId, position);
+      if (`${member.vnId}\u0000${member.releaseId}` !== anchorKey) {
+        db.prepare('DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?').run(member.vnId, member.releaseId);
+        db.prepare('DELETE FROM shelf_display_slot WHERE vn_id = ? AND release_id = ?').run(member.vnId, member.releaseId);
+      }
+    });
+    return bundleId;
+  });
+  return getPhysicalBundle(transaction())!;
+}
+
+/** Rename one physical bundle without changing its release membership. */
+export function renamePhysicalBundle(id: number, name: string): PhysicalBundle | null {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('bundle name required');
+  const result = db.prepare('UPDATE physical_bundle SET name = ?, updated_at = ? WHERE id = ?')
+    .run(trimmed, Date.now(), id);
+  return result.changes > 0 ? getPhysicalBundle(id) : null;
+}
+
+/** Dissolve a physical bundle; owned editions and the anchor placement remain. */
+export function deletePhysicalBundle(id: number): boolean {
+  return db.prepare('DELETE FROM physical_bundle WHERE id = ?').run(id).changes > 0;
+}
+
+function physicalBundleSummaries(
+  identities: Array<{ vn_id: string; release_id: string }>,
+): Map<string, PhysicalBundleSummary> {
+  if (identities.length === 0) return new Map();
+  const anchorKeys = new Set(identities.map((row) => `${row.vn_id}\u0000${row.release_id}`));
+  const rows = db.prepare(`
+    SELECT b.id AS bundle_id, b.name AS bundle_name, b.anchor_vn_id,
+           b.anchor_release_id, COUNT(m.vn_id) AS bundle_member_count
+    FROM physical_bundle b
+    JOIN physical_bundle_member m ON m.bundle_id = b.id
+    GROUP BY b.id, b.name, b.anchor_vn_id, b.anchor_release_id
+  `).all() as Array<PhysicalBundleSummary & { anchor_vn_id: string; anchor_release_id: string }>;
+  const summaries = new Map<string, PhysicalBundleSummary>();
+  for (const row of rows) {
+    const key = `${row.anchor_vn_id}\u0000${row.anchor_release_id}`;
+    if (anchorKeys.has(key)) summaries.set(key, {
+      bundle_id: row.bundle_id,
+      bundle_name: row.bundle_name,
+      bundle_member_count: Number(row.bundle_member_count),
+    });
+  }
+  return summaries;
+}
+
+function attachPhysicalBundleSummary<T extends { vn_id: string; release_id: string }>(
+  rows: T[],
+): Array<T & PhysicalBundleSummary> {
+  const summaries = physicalBundleSummaries(rows);
+  return rows.map((row) => ({
+    ...row,
+    ...(summaries.get(`${row.vn_id}\u0000${row.release_id}`) ?? {
+      bundle_id: null,
+      bundle_name: null,
+      bundle_member_count: 0,
+    }),
+  }));
+}
+
+export interface ShelfSlotEntry extends PhysicalBundleSummary {
   shelf_id: number;
   row: number;
   col: number;
@@ -6519,7 +6619,7 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
       rel_released: string | null;
       rel_resolution: string | null;
     }>;
-  return rows.map((r) => ({
+  return attachPhysicalBundleSummary(rows.map((r) => ({
     shelf_id: r.shelf_id,
     row: r.row,
     col: r.col,
@@ -6548,7 +6648,7 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
     rel_released: r.rel_released,
     rel_resolution: r.rel_resolution,
     dumped: !!r.dumped,
-  }));
+  })));
 }
 
 /**
@@ -6584,6 +6684,12 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       ) AND NOT EXISTS (
         SELECT 1 FROM shelf_display_slot d
         WHERE d.vn_id = o.vn_id AND d.release_id = o.release_id
+      ) AND NOT EXISTS (
+        SELECT 1
+        FROM physical_bundle_member bm
+        JOIN physical_bundle b ON b.id = bm.bundle_id
+        WHERE bm.vn_id = o.vn_id AND bm.release_id = o.release_id
+          AND (b.anchor_vn_id <> o.vn_id OR b.anchor_release_id <> o.release_id)
       )
       ORDER BY v.title COLLATE NOCASE ASC
       LIMIT 5000
@@ -6599,7 +6705,7 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       vn_languages: string | null;
       vn_released: string | null;
     }>;
-  return rows.map((r) => ({
+  return attachPhysicalBundleSummary(rows.map((r) => ({
 	    ...mapOwnedReleaseRow(r),
 	    vn_title: r.vn_title,
 	    vn_image_thumb: r.vn_image_thumb,
@@ -6611,7 +6717,7 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
     vn_languages: parseJsonArrayField(r.vn_languages),
     vn_released: r.vn_released,
     ...unpackReleaseMetaJoin(r),
-  }));
+  })));
 }
 
 export interface PlaceShelfItemInput {
@@ -6625,6 +6731,18 @@ export interface PlaceShelfItemInput {
 export interface PlaceShelfItemResult {
   /** When the target slot was occupied AND the source had a prior slot, the previous tenant gets moved to the source slot — a swap. Otherwise this is null. */
   swapped: { vn_id: string; release_id: string; row: number; col: number } | null;
+}
+
+function assertShelfPlacementBundleAnchor(vnId: string, releaseId: string): void {
+  const bundle = db.prepare(`
+    SELECT b.anchor_vn_id, b.anchor_release_id
+    FROM physical_bundle_member m
+    JOIN physical_bundle b ON b.id = m.bundle_id
+    WHERE m.vn_id = ? AND m.release_id = ?
+  `).get(vnId, releaseId) as { anchor_vn_id: string; anchor_release_id: string } | undefined;
+  if (bundle && (bundle.anchor_vn_id !== vnId || bundle.anchor_release_id !== releaseId)) {
+    throw new Error('bundle members must be placed through the anchor edition');
+  }
 }
 
 /**
@@ -6673,6 +6791,7 @@ export function placeShelfItem(input: PlaceShelfItemInput): PlaceShelfItemResult
       .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
       .get(input.vnId, input.releaseId);
     if (!owned) throw new Error('owned edition not found');
+    assertShelfPlacementBundleAnchor(input.vnId, input.releaseId);
 
     const prior = db
       .prepare(
@@ -6811,7 +6930,7 @@ export function getShelfPlacementForEdition(
 
 // -- Front display rows (face-out display slots between shelf rows) ------
 
-export interface ShelfDisplaySlotEntry {
+export interface ShelfDisplaySlotEntry extends PhysicalBundleSummary {
   shelf_id: number;
   after_row: number;
   position: number;
@@ -6915,7 +7034,7 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
       rel_released: string | null;
       rel_resolution: string | null;
     }>;
-  return rows.map((r) => ({
+  return attachPhysicalBundleSummary(rows.map((r) => ({
     shelf_id: r.shelf_id,
     after_row: r.after_row,
     position: r.position,
@@ -6945,7 +7064,7 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
     rel_released: r.rel_released,
     rel_resolution: r.rel_resolution,
     dumped: !!r.dumped,
-  }));
+  })));
 }
 
 export interface PlaceShelfDisplayItemInput {
@@ -6993,6 +7112,7 @@ export function placeShelfDisplayItem(input: PlaceShelfDisplayItemInput): void {
       .prepare('SELECT 1 FROM owned_release WHERE vn_id = ? AND release_id = ?')
       .get(input.vnId, input.releaseId);
     if (!owned) throw new Error('owned edition not found');
+    assertShelfPlacementBundleAnchor(input.vnId, input.releaseId);
     // Strip any previous placement (cell OR display) for this
     // edition. Cross-table uniqueness is the whole point.
     db.prepare('DELETE FROM shelf_slot WHERE vn_id = ? AND release_id = ?').run(input.vnId, input.releaseId);
@@ -7879,6 +7999,9 @@ export function listPlaces(): PlaceWithLinks[] {
     const rows = db
       .prepare(`
         WITH stock_by_place AS (
+          -- stock_count counts current in-stock or limited VNs only.
+          -- stock_updated_at tracks the latest linked offer update,
+          -- including out-of-stock rows, so freshness follows sync time.
           SELECT
             ppl2.place_id,
             COUNT(DISTINCT CASE WHEN vso.availability IN ('in_stock', 'limited') THEN vso.vn_id ELSE NULL END) AS stock_count,
@@ -7915,6 +8038,9 @@ export function getPlace(id: number): PlaceWithLinks | null {
     const row = db
       .prepare(`
         WITH stock_by_place AS (
+          -- stock_count counts current in-stock or limited VNs only.
+          -- stock_updated_at tracks the latest linked offer update,
+          -- including out-of-stock rows, so freshness follows sync time.
           SELECT
             ppl2.place_id,
             COUNT(DISTINCT CASE WHEN vso.availability IN ('in_stock', 'limited') THEN vso.vn_id ELSE NULL END) AS stock_count,
@@ -7948,12 +8074,13 @@ export function getPlace(id: number): PlaceWithLinks | null {
 
 export function createPlace(payload: PlacePayload): number {
   const now = Date.now();
-  const result = db
+  const row = db
     .prepare(`
       INSERT INTO place_registry (name, name_ja, kind, address, lat, lng, url, notes, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
     `)
-    .run(
+    .get(
       payload.name,
       payload.name_ja ?? null,
       payload.kind ?? 'shop',
@@ -7964,8 +8091,8 @@ export function createPlace(payload: PlacePayload): number {
       payload.notes ?? null,
       now,
       now,
-    );
-  return result.lastInsertRowid as number;
+    ) as { id: number };
+  return row.id;
 }
 
 export function updatePlace(id: number, patch: Partial<PlacePayload>): void {
@@ -8519,10 +8646,12 @@ export function getSeries(id: number): SeriesWithVns | null {
 /** Create one series. `name` must be unique (UNIQUE constraint). */
 export function createSeries(name: string, description: string | null = null): SeriesRow {
   const now = Date.now();
-  const info = db
-    .prepare('INSERT INTO series (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)')
-    .run(name, description, now, now);
-  return db.prepare('SELECT id, name, description, cover_path, banner_path, created_at, updated_at FROM series WHERE id = ?').get(info.lastInsertRowid) as SeriesRow;
+  return db
+    .prepare(`
+      INSERT INTO series (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)
+      RETURNING id, name, description, cover_path, banner_path, created_at, updated_at
+    `)
+    .get(name, description, now, now) as SeriesRow;
 }
 
 /** Patch one series (name / description). Returns the updated row, or `null`. */
@@ -8585,10 +8714,12 @@ export function createSavedFilter(name: string, params: string): SavedFilter {
   return db.transaction(() => {
     const now = Date.now();
     const nextPos = (db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS p FROM saved_filter').get() as { p: number }).p;
-    const info = db
-      .prepare('INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)')
-      .run(name.trim(), params, nextPos, now);
-    return db.prepare('SELECT id, name, params, position, created_at FROM saved_filter WHERE id = ?').get(info.lastInsertRowid) as SavedFilter;
+    return db
+      .prepare(`
+        INSERT INTO saved_filter (name, params, position, created_at) VALUES (?, ?, ?, ?)
+        RETURNING id, name, params, position, created_at
+      `)
+      .get(name.trim(), params, nextPos, now) as SavedFilter;
   })();
 }
 
@@ -9098,12 +9229,8 @@ export function findStaleVns(thresholdMs = 30 * 86400 * 1000): StaleVn[] {
 
 // Full-text search across notes, custom_description and cached quotes.
 
-export interface SearchHit {
-  vn_id: string;
-  title: string;
-  source: 'notes' | 'custom_description' | 'quote';
-  snippet: string;
-}
+export type SearchHit = TextSearchHit;
+export { buildTextSearchSnippet };
 
 /**
  * Server-side substring search across titles + custom descriptions +
@@ -9124,7 +9251,7 @@ export function searchTextual(query: string, limit = 50): SearchHit[] {
     `)
     .all(like, limit) as { vn_id: string; title: string; text: string }[];
   for (const n of notes) {
-    out.push({ vn_id: n.vn_id, title: n.title, source: 'notes', snippet: snippet(n.text, trimmed) });
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'notes', snippet: buildTextSearchSnippet(n.text, trimmed) });
   }
 
   const customs = db
@@ -9136,7 +9263,7 @@ export function searchTextual(query: string, limit = 50): SearchHit[] {
     `)
     .all(like, limit) as { vn_id: string; title: string; text: string }[];
   for (const n of customs) {
-    out.push({ vn_id: n.vn_id, title: n.title, source: 'custom_description', snippet: snippet(n.text, trimmed) });
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'custom_description', snippet: buildTextSearchSnippet(n.text, trimmed) });
   }
 
   const quotes = db
@@ -9148,29 +9275,10 @@ export function searchTextual(query: string, limit = 50): SearchHit[] {
     `)
     .all(like, limit) as { vn_id: string; title: string; text: string }[];
   for (const n of quotes) {
-    out.push({ vn_id: n.vn_id, title: n.title, source: 'quote', snippet: snippet(n.text, trimmed) });
+    out.push({ vn_id: n.vn_id, title: n.title, source: 'quote', snippet: buildTextSearchSnippet(n.text, trimmed) });
   }
 
   return out.slice(0, limit);
-}
-
-/**
- * Build the compact text preview used by local textual search results.
- *
- * @param text Source text containing or near the query.
- * @param query User-entered search term.
- * @returns A bounded snippet, with ellipses when the match is not at an edge.
- */
-export function buildTextSearchSnippet(text: string, query: string): string {
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx < 0) return text.slice(0, 160);
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + query.length + 80);
-  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
-}
-
-function snippet(text: string, query: string): string {
-  return buildTextSearchSnippet(text, query);
 }
 
 // VNDB cache helpers (used by vndb-cache.ts)
@@ -9737,23 +9845,13 @@ export function createUserList(input: {
   return db.transaction(() => {
     const slug = uniqueSlug(slugify(name));
     const now = Date.now();
-    const info = db
+    return db
       .prepare(`
         INSERT INTO user_list (name, slug, description, color, icon, pinned, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        RETURNING id, name, slug, description, color, icon, pinned, created_at, updated_at
       `)
-      .run(name, slug, input.description ?? null, input.color ?? null, input.icon ?? null, now, now);
-    return {
-      id: Number(info.lastInsertRowid),
-      name,
-      slug,
-      description: input.description ?? null,
-      color: input.color ?? null,
-      icon: input.icon ?? null,
-      pinned: 0,
-      created_at: now,
-      updated_at: now,
-    } satisfies UserList;
+      .get(name, slug, input.description ?? null, input.color ?? null, input.icon ?? null, now, now) as UserList;
   })();
 }
 
@@ -10044,6 +10142,45 @@ export interface AliceNetStockRow {
 
 export type AliceNetStockRowWithEgs = AliceNetStockRow & { egs_id: number };
 
+/** Filters and ordering accepted by the bounded AliceNet stock query. */
+export interface AliceNetStockListQuery {
+  limit: number;
+  offset: number;
+  filter: 'all' | 'matched' | 'vndb' | 'egs_only' | 'unmatched' | 'none_found' | 'collection' | 'wishlist';
+  sort: 'title' | 'release_desc' | 'release_asc' | 'price_asc' | 'price_desc' | 'match_status' | 'updated_desc';
+  group: 'none' | 'match' | 'producer' | 'year';
+  search: string;
+  producer: string;
+  yearMin: number | null;
+  yearMax: number | null;
+  priceMin: number | null;
+  priceMax: number | null;
+  wishlistIds: readonly string[] | null;
+}
+
+/** Producer facet returned beside a server-filtered AliceNet page. */
+export interface AliceNetProducerFacet {
+  id: string;
+  name: string;
+  count: number;
+}
+
+/** AliceNet list row plus live wishlist and server-group metadata. */
+export type AliceNetStockListRow = AliceNetStockRow & {
+  in_collection: number;
+  in_wishlist: number;
+  vn_developers: string | null;
+  server_group_key: string;
+  server_group_count: number;
+};
+
+/** One bounded, fully filtered AliceNet page and its global producer facets. */
+export interface AliceNetStockListResult {
+  items: AliceNetStockListRow[];
+  total: number;
+  producers: AliceNetProducerFacet[];
+}
+
 /**
  * Full-sync the AliceNet stock table: upsert every incoming row,
  * delete rows whose code is absent from the snapshot (sold items).
@@ -10129,6 +10266,170 @@ export function listAliceNetStockPage(
     ORDER  BY k.title
     LIMIT  ? OFFSET ?
   `).all(safeLimit, safeOffset) as (AliceNetStockRow & { in_collection: number; vn_developers: string | null })[];
+}
+
+const ALICENET_LIST_PRICE_SQL = `CAST(REPLACE(REPLACE(REPLACE(REPLACE(k.sale_price, '¥', ''), '円', ''), ',', ''), ' ', '') AS INTEGER)`;
+const ALICENET_DATE_SQL = `REPLACE(COALESCE(NULLIF(k.release_date, ''), NULLIF(k.egs_release_date, ''), ''), '/', '-')`;
+const ALICENET_DEVELOPERS_SQL = `CASE WHEN json_valid(v.developers) THEN v.developers ELSE '[]' END`;
+const ALICENET_FIRST_PRODUCER_SQL = `COALESCE(
+  NULLIF((SELECT json_extract(dev.value, '$.name') FROM json_each(${ALICENET_DEVELOPERS_SQL}) dev LIMIT 1), ''),
+  NULLIF(k.egs_brand, ''),
+  ''
+)`;
+const ALICENET_MATCH_GROUP_SQL = `CASE
+  WHEN k.vn_id IS NOT NULL THEN 'vndb'
+  WHEN k.egs_id IS NOT NULL THEN 'egs'
+  WHEN k.vn_match_source = 'none' THEN 'unresolved'
+  ELSE 'new'
+END`;
+
+function aliceNetGroupSql(group: AliceNetStockListQuery['group']): string {
+  if (group === 'match') return ALICENET_MATCH_GROUP_SQL;
+  if (group === 'producer') return ALICENET_FIRST_PRODUCER_SQL;
+  if (group === 'year') return `SUBSTR(${ALICENET_DATE_SQL}, 1, 4)`;
+  return `''`;
+}
+
+function aliceNetOrderSql(query: AliceNetStockListQuery): string {
+  const title = `LOWER(COALESCE(NULLIF(k.egs_title, ''), k.title)) COLLATE NOCASE`;
+  const sort = query.sort === 'release_desc'
+    ? `${ALICENET_DATE_SQL} DESC, ${title} ASC`
+    : query.sort === 'release_asc'
+      ? `${ALICENET_DATE_SQL} ASC, ${title} ASC`
+      : query.sort === 'price_asc'
+        ? `CASE WHEN k.sale_price GLOB '*[0-9]*' THEN 0 ELSE 1 END, ${ALICENET_LIST_PRICE_SQL} ASC, ${title} ASC`
+        : query.sort === 'price_desc'
+          ? `CASE WHEN k.sale_price GLOB '*[0-9]*' THEN 0 ELSE 1 END, ${ALICENET_LIST_PRICE_SQL} DESC, ${title} ASC`
+          : query.sort === 'updated_desc'
+            ? `k.updated_at DESC, ${title} ASC`
+            : query.sort === 'match_status'
+              ? `CASE ${ALICENET_MATCH_GROUP_SQL} WHEN 'unresolved' THEN 0 WHEN 'new' THEN 1 WHEN 'egs' THEN 2 ELSE 3 END, ${title} ASC`
+              : `${title} ASC`;
+  if (query.group === 'match') {
+    return `CASE ${ALICENET_MATCH_GROUP_SQL} WHEN 'unresolved' THEN 0 WHEN 'new' THEN 1 WHEN 'egs' THEN 2 ELSE 3 END, ${sort}`;
+  }
+  if (query.group === 'producer') return `LOWER(${ALICENET_FIRST_PRODUCER_SQL}) COLLATE NOCASE ASC, ${sort}`;
+  if (query.group === 'year') return `SUBSTR(${ALICENET_DATE_SQL}, 1, 4) DESC, ${sort}`;
+  return sort;
+}
+
+function aliceNetWhereSql(query: AliceNetStockListQuery): { sql: string; params: Array<string | number> } {
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+  if (query.filter === 'matched') clauses.push(`(k.vn_id IS NOT NULL OR k.egs_id IS NOT NULL)`);
+  else if (query.filter === 'vndb') clauses.push(`k.vn_id IS NOT NULL`);
+  else if (query.filter === 'egs_only') clauses.push(`k.vn_id IS NULL AND k.egs_id IS NOT NULL`);
+  else if (query.filter === 'unmatched') clauses.push(`k.vn_id IS NULL AND k.egs_id IS NULL`);
+  else if (query.filter === 'none_found') clauses.push(`k.vn_id IS NULL AND k.egs_id IS NULL AND k.vn_match_source = 'none'`);
+  else if (query.filter === 'collection') clauses.push(`c.vn_id IS NOT NULL`);
+  else if (query.filter === 'wishlist') {
+    if (query.wishlistIds?.length) {
+      clauses.push(`k.vn_id IN (SELECT value FROM json_each(?))`);
+      params.push(JSON.stringify(query.wishlistIds));
+    } else {
+      clauses.push(`0 = 1`);
+    }
+  }
+
+  if (query.producer) {
+    if (query.producer.startsWith('egs:')) {
+      clauses.push(`k.egs_brand = ? AND NOT EXISTS (SELECT 1 FROM json_each(${ALICENET_DEVELOPERS_SQL}))`);
+      params.push(query.producer.slice(4));
+    } else {
+      clauses.push(`EXISTS (
+        SELECT 1 FROM json_each(${ALICENET_DEVELOPERS_SQL}) dev
+        WHERE json_extract(dev.value, '$.id') = ?
+      )`);
+      params.push(query.producer);
+    }
+  }
+
+  if (query.yearMin !== null) {
+    clauses.push(`CAST(SUBSTR(${ALICENET_DATE_SQL}, 1, 4) AS INTEGER) >= ?`);
+    params.push(query.yearMin);
+  }
+  if (query.yearMax !== null) {
+    clauses.push(`CAST(SUBSTR(${ALICENET_DATE_SQL}, 1, 4) AS INTEGER) <= ?`);
+    params.push(query.yearMax);
+  }
+  if (query.priceMin !== null) {
+    clauses.push(`k.sale_price GLOB '*[0-9]*' AND ${ALICENET_LIST_PRICE_SQL} >= ?`);
+    params.push(query.priceMin);
+  }
+  if (query.priceMax !== null) {
+    clauses.push(`k.sale_price GLOB '*[0-9]*' AND ${ALICENET_LIST_PRICE_SQL} <= ?`);
+    params.push(query.priceMax);
+  }
+
+  const search = query.search.trim().toLowerCase();
+  if (search) {
+    const like = `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+    clauses.push(`(
+      LOWER(k.title) LIKE ? ESCAPE '\\' OR
+      LOWER(COALESCE(k.egs_title, '')) LIKE ? ESCAPE '\\' OR
+      LOWER(COALESCE(k.egs_brand, '')) LIKE ? ESCAPE '\\' OR
+      LOWER(COALESCE(k.search_title, '')) LIKE ? ESCAPE '\\' OR
+      LOWER(k.code) LIKE ? ESCAPE '\\' OR
+      LOWER(COALESCE(k.vn_id, '')) LIKE ? ESCAPE '\\' OR
+      CAST(COALESCE(k.egs_id, '') AS TEXT) LIKE ? ESCAPE '\\'
+    )`);
+    params.push(like, like, like, like, like, like, like);
+  }
+  return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+/**
+ * Query one server-filtered AliceNet page. Filtering and sorting happen before
+ * the LIMIT window, so totals and navigation describe the complete result set.
+ */
+export function queryAliceNetStockPage(query: AliceNetStockListQuery): AliceNetStockListResult {
+  const safeLimit = Number.isFinite(query.limit) && query.limit > 0 ? Math.min(240, Math.floor(query.limit)) : 96;
+  const safeOffset = Number.isFinite(query.offset) && query.offset > 0 ? Math.min(10_000_000, Math.floor(query.offset)) : 0;
+  const where = aliceNetWhereSql(query);
+  const groupSql = aliceNetGroupSql(query.group);
+  const wishlistJson = JSON.stringify(query.wishlistIds ?? []);
+  const commonFrom = `
+    FROM alicenet_stock k
+    LEFT JOIN collection c ON c.vn_id = k.vn_id
+    LEFT JOIN vn v ON v.id = k.vn_id
+  `;
+  const total = (db.prepare(`SELECT COUNT(*) AS n ${commonFrom} ${where.sql}`).get(...where.params) as { n: number }).n;
+  const items = db.prepare(`
+    SELECT k.*,
+           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
+           CASE WHEN k.vn_id IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END AS in_wishlist,
+           v.image_url AS vn_image_url,
+           v.local_image AS vn_local_image,
+           v.image_sexual AS vn_image_sexual,
+           v.developers AS vn_developers,
+           ${groupSql} AS server_group_key,
+           COUNT(*) OVER (PARTITION BY ${groupSql}) AS server_group_count
+    ${commonFrom}
+    ${where.sql}
+    ORDER BY ${aliceNetOrderSql(query)}, k.code ASC
+    LIMIT ? OFFSET ?
+  `).all(wishlistJson, ...where.params, safeLimit, safeOffset) as AliceNetStockListRow[];
+
+  const producers = db.prepare(`
+    SELECT id, name, COUNT(*) AS count
+    FROM (
+      SELECT json_extract(dev.value, '$.id') AS id,
+             COALESCE(NULLIF(json_extract(dev.value, '$.name'), ''), json_extract(dev.value, '$.id')) AS name
+      FROM alicenet_stock k
+      LEFT JOIN vn v ON v.id = k.vn_id
+      JOIN json_each(${ALICENET_DEVELOPERS_SQL}) dev
+      WHERE json_extract(dev.value, '$.id') IS NOT NULL
+      UNION ALL
+      SELECT 'egs:' || k.egs_brand AS id, k.egs_brand AS name
+      FROM alicenet_stock k
+      LEFT JOIN vn v ON v.id = k.vn_id
+      WHERE NULLIF(k.egs_brand, '') IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM json_each(${ALICENET_DEVELOPERS_SQL}))
+    ) facets
+    GROUP BY id, name
+    ORDER BY LOWER(name) COLLATE NOCASE, id
+  `).all() as AliceNetProducerFacet[];
+  return { items, total, producers };
 }
 
 /**
@@ -10925,7 +11226,8 @@ export function listStockAliases(vnId: string): VnStockAliasRow[] {
 /** Add or refresh a stock search alias. Idempotent on `(vn_id, alias_term)`. */
 export function upsertStockAlias(vnId: string, aliasTerm: string): void {
   db.prepare(
-    `INSERT OR REPLACE INTO vn_stock_alias (vn_id, alias_term, created_at) VALUES (?, ?, ?)`,
+    `INSERT INTO vn_stock_alias (vn_id, alias_term, created_at) VALUES (?, ?, ?)
+     ON CONFLICT(vn_id, alias_term) DO UPDATE SET created_at = excluded.created_at`,
   ).run(vnId, aliasTerm, Date.now());
 }
 
@@ -11033,7 +11335,12 @@ export function getCachedTitleResolution(query: string): { vnId: string; title: 
 }
 
 export function setCachedTitleResolution(query: string, vnId: string, title: string): void {
-  db.prepare(`INSERT OR REPLACE INTO vn_title_resolve_cache (query, vn_id, title) VALUES (?, ?, ?)`)
+  db.prepare(`
+    INSERT INTO vn_title_resolve_cache (query, vn_id, title) VALUES (?, ?, ?)
+    ON CONFLICT(query) DO UPDATE SET
+      vn_id = excluded.vn_id,
+      title = excluded.title
+  `)
     .run(query, vnId, title);
 }
 
