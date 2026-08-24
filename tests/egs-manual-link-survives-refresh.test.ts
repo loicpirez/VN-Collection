@@ -42,21 +42,21 @@ describe('EGS manual link survives refresh', () => {
     clearVnEgsLink(VN); // cleanup
   });
 
-  it('survives invalidateVnCache (VNDB cache wipe)', () => {
+  it('survives invalidateVnCache (VNDB cache wipe)', async () => {
     setVnEgsLink(VN, EGS);
     expect(getVnEgsLink(VN)?.egs_id).toBe(EGS);
-    invalidateVnCache(VN);
+    await invalidateVnCache(VN);
     expect(getVnEgsLink(VN)?.egs_id).toBe(EGS);
     clearVnEgsLink(VN);
   });
 
-  it('manual `no counterpart` (egs_id = NULL) also survives', () => {
+  it('manual `no counterpart` (egs_id = NULL) also survives', async () => {
     setVnEgsLink(VN, null);
     const before = getVnEgsLink(VN);
     expect(before).not.toBeNull();
     expect(before?.egs_id).toBeNull();
     clearVnStockCache(VN);
-    invalidateVnCache(VN);
+    await invalidateVnCache(VN);
     const after = getVnEgsLink(VN);
     expect(after).not.toBeNull();
     expect(after?.egs_id).toBeNull();
