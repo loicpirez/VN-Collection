@@ -43,39 +43,39 @@ type BoundaryProps = {
   reset: () => void;
 };
 
-const boundaries: Array<[string, ComponentType<BoundaryProps>]> = [
-  ['root', RootError],
-  ['activity', ActivityError],
-  ['brand overlap', BrandOverlapError],
-  ['character detail', CharacterError],
-  ['characters', CharactersError],
-  ['compare', CompareError],
-  ['data', DataError],
-  ['dumped', DumpedError],
-  ['egs', EgsError],
-  ['lists', ListsError],
-  ['list detail', ListDetailError],
-  ['producer detail', ProducerError],
-  ['producers', ProducersError],
-  ['quotes', QuotesError],
-  ['recommendations', RecommendationsError],
-  ['release detail', ReleaseError],
-  ['schema', SchemaError],
-  ['series', SeriesError],
-  ['series detail', SeriesDetailError],
-  ['shelf', ShelfError],
-  ['similar', SimilarError],
-  ['staff', StaffError],
-  ['staff detail', StaffDetailError],
-  ['stats', StatsError],
-  ['tag detail', TagError],
-  ['tags', TagsError],
-  ['top ranked', TopRankedError],
-  ['trait detail', TraitError],
-  ['upcoming', UpcomingError],
-  ['vn detail', VnError],
-  ['wishlist', WishlistError],
-  ['year', YearError],
+const boundaries: Array<[string, ComponentType<BoundaryProps>, string, string]> = [
+  ['root', RootError, '/', 'Route error'],
+  ['activity', ActivityError, '/', 'Activity page error'],
+  ['brand overlap', BrandOverlapError, '/', 'Route error'],
+  ['character detail', CharacterError, '/characters', 'Character detail error'],
+  ['characters', CharactersError, '/', 'Route error'],
+  ['compare', CompareError, '/', 'Route error'],
+  ['data', DataError, '/', 'Route error'],
+  ['dumped', DumpedError, '/', 'Route error'],
+  ['egs', EgsError, '/', 'Route error'],
+  ['lists', ListsError, '/', 'Lists error'],
+  ['list detail', ListDetailError, '/lists', 'List detail error'],
+  ['producer detail', ProducerError, '/producers', 'Producer detail error'],
+  ['producers', ProducersError, '/', 'Route error'],
+  ['quotes', QuotesError, '/', 'Quotes error'],
+  ['recommendations', RecommendationsError, '/', 'Route error'],
+  ['release detail', ReleaseError, '/', 'Release detail error'],
+  ['schema', SchemaError, '/', 'Schema page error'],
+  ['series', SeriesError, '/', 'Series page error'],
+  ['series detail', SeriesDetailError, '/series', 'Series detail error'],
+  ['shelf', ShelfError, '/', 'Shelf page error'],
+  ['similar', SimilarError, '/', 'Similar page error'],
+  ['staff', StaffError, '/', 'Staff page error'],
+  ['staff detail', StaffDetailError, '/staff', 'Staff detail error'],
+  ['stats', StatsError, '/', 'Stats page error'],
+  ['tag detail', TagError, '/tags', 'Tag detail error'],
+  ['tags', TagsError, '/', 'Tags page error'],
+  ['top ranked', TopRankedError, '/', 'Top-ranked page error'],
+  ['trait detail', TraitError, '/traits', 'Trait detail error'],
+  ['upcoming', UpcomingError, '/', 'Upcoming page error'],
+  ['vn detail', VnError, '/', 'VN detail error'],
+  ['wishlist', WishlistError, '/', 'Wishlist page error'],
+  ['year', YearError, '/', 'Year page error'],
 ];
 
 const t = dictionaries[DEFAULT_LOCALE];
@@ -86,7 +86,7 @@ afterEach(() => {
 });
 
 describe('route error boundaries', () => {
-  it.each(boundaries)('renders recovery UI, logs the error, exposes an optional digest, and resets %s', (_name, Boundary) => {
+  it.each(boundaries)('renders recovery UI, logs the error, exposes an optional digest, and resets %s', (_name, Boundary, returnHref, logLabel) => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const reset = vi.fn();
     const { container } = renderWithProviders(
@@ -96,7 +96,10 @@ describe('route error boundaries', () => {
     expect(container.textContent).toContain('trace-123');
     fireEvent.click(screen.getByRole('button', { name: t.errorBoundary.retry }));
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(`${logLabel}:`, expect.any(Error));
+    expect(screen.getByRole('link', {
+      name: returnHref === '/' ? t.errorBoundary.home : t.errorBoundary.back,
+    })).toHaveAttribute('href', returnHref);
   });
 
   it.each(boundaries)('omits the digest row when %s has no digest', (_name, Boundary) => {

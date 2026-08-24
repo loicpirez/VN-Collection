@@ -549,6 +549,7 @@ export const dictionaries = {
       body: 'Une erreur inattendue est survenue. Réessaie ; si ça persiste, ouvre la console pour voir la trace.',
       retry: 'Réessayer',
       home: 'Accueil',
+      back: 'Retour',
       digestLabel: 'Empreinte',
     },
     status: {
@@ -4294,6 +4295,7 @@ export const dictionaries = {
       body: 'The page hit an unexpected error. Try again; if it persists, open the console for the stack.',
       retry: 'Try again',
       home: 'Home',
+      back: 'Back',
       digestLabel: 'Digest',
     },
     status: {
@@ -8036,6 +8038,7 @@ export const dictionaries = {
       body: '予期しないエラーが発生しました。もう一度お試しください。続く場合はコンソールでスタックを確認してください。',
       retry: '再試行',
       home: 'ホーム',
+      back: '戻る',
       digestLabel: 'ID',
     },
     status: {
