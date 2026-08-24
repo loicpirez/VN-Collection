@@ -10,12 +10,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { providerFetchMock } = vi.hoisted(() => ({ providerFetchMock: vi.fn() }));
+const { bumpStatusMock, providerFetchMock } = vi.hoisted(() => ({
+  bumpStatusMock: vi.fn(),
+  providerFetchMock: vi.fn(),
+}));
 
 vi.mock('@/lib/proxy-fetch', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/proxy-fetch')>();
   return { ...actual, providerFetch: providerFetchMock };
 });
+vi.mock('@/lib/download-status', () => ({ bumpStatus: bumpStatusMock }));
 
 const VNDB = 'https://api.vndb.org/kana/vn';
 
@@ -26,6 +30,7 @@ async function freshThrottle(): Promise<typeof import('@/lib/vndb-throttle')> {
 }
 
 beforeEach(() => {
+  bumpStatusMock.mockReset();
   providerFetchMock.mockReset();
   vi.useFakeTimers();
 });
@@ -107,6 +112,8 @@ describe('429 Retry-After handling', () => {
     // Flush the first attempt (429) — the retry sleep is now armed.
     await vi.advanceTimersByTimeAsync(0);
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
+    await vi.dynamicImportSettled();
+    expect(bumpStatusMock).toHaveBeenCalledOnce();
 
     // Retry-After=3s → 3000ms sleep, then a fresh acquire + fetch.
     await vi.advanceTimersByTimeAsync(3_000);
