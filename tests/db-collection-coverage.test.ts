@@ -28,6 +28,7 @@ import {
   invalidateAggregateStats,
   invalidateProducerStats,
   listCollection,
+  listCollectionForCards,
   listProducerStats,
   listPublisherStats,
   ratingHistogram,
@@ -100,6 +101,11 @@ function seedEgs(vnId: string, over: Partial<Parameters<typeof upsertEgsForVn>[0
 }
 
 describe('listCollection — filters', () => {
+  it('uses bounded empty defaults for full and card collection listings', () => {
+    expect(listCollection()).toEqual([]);
+    expect(listCollectionForCards()).toEqual([]);
+  });
+
   it('filters by status and escapes LIKE wildcards in q', () => {
     upsertVn({ id: 'v90001', title: 'Alpha Placeholder' });
     upsertVn({ id: 'v90002', title: 'Beta_Underscore' });
@@ -373,6 +379,12 @@ describe('aggregate stats + getStats', () => {
 });
 
 describe('year-review / ROI / histogram / heatmap / textual search', () => {
+  it('uses default report limits and the current date when no options are supplied', () => {
+    expect(tagsCompletedPerYear()).toEqual([]);
+    expect(bestRoi()).toEqual([]);
+    expect(todaysAnniversaries()).toEqual([]);
+  });
+
   it('countFinishedInYear + yearReview summarize a finished cohort', () => {
     upsertVn({
       id: 'v90400',

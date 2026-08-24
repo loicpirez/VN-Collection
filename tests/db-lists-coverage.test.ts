@@ -307,6 +307,7 @@ describe('activity', () => {
 
     const recent = listRecentActivity(10);
     expect(recent.find((r) => r.id === entry.id)?.title).toBe('Activity VN');
+    expect(listRecentActivity().find((r) => r.id === entry.id)?.title).toBe('Activity VN');
 
     expect(deleteActivityForVn(entry.id, 'v99999')).toBe(false);
     expect(deleteActivityForVn(entry.id, 'v90001')).toBe(true);

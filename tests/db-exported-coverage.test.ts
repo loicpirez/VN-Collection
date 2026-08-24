@@ -161,6 +161,11 @@ beforeEach(wipe);
 afterAll(() => db.close());
 
 describe('db exported staff and character helpers', () => {
+  it('uses default local character and staff search options', () => {
+    expect(searchLocalCharacters()).toEqual([]);
+    expect(searchLocalStaff()).toEqual([]);
+  });
+
   it('reconstructs staff profiles from production and VA credits', () => {
     upsertVn({ id: 'v90001', title: 'Production VN' });
     upsertVn({ id: 'v90002', title: 'Voice VN' });
