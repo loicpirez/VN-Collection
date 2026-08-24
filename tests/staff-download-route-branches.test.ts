@@ -89,7 +89,7 @@ describe('POST /api/staff/[id]/download branches', () => {
     const res = await route.POST(req('s90002'), ctx('s90002'));
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'staff/[id]/download' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:staff/[id]/download] staff upstream unavailable');
   });
 });

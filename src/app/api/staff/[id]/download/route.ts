@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const data = await downloadFullStaffInfo(id);
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'staff.full-download',
         entity: 'staff',
         entityId: id,
