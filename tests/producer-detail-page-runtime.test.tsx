@@ -139,6 +139,18 @@ describe('producer detail page runtime', () => {
     await expect(ProducerPage({ params: Promise.resolve({ id: 'p404' }), searchParams: Promise.resolve({}) })).rejects.toThrow('not-found');
   });
 
+  it('rejects unavailable producers when the initial request fails', async () => {
+    vi.mocked(fetchProducer).mockRejectedValueOnce(new Error('offline'));
+
+    await expect(
+      ProducerPage({
+        params: Promise.resolve({ id: 'p90018' }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).rejects.toThrow('not-found');
+    expect(producerRepositoryMocks.upsert).not.toHaveBeenCalled();
+  });
+
   it('uses fresh local cache without requesting VNDB', async () => {
     producerRepositoryMocks.get.mockResolvedValue(producer());
 

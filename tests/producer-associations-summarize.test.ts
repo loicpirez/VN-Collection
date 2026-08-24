@@ -219,6 +219,23 @@ describe('fetchProducerAssociations', () => {
     expect(throttledFetchMock).not.toHaveBeenCalled();
   });
 
+  it('reads complete cached walks that reach each pagination safety limit', async () => {
+    routeBy({
+      vn: () => jsonResponse({ results: [], more: true }),
+      release: () => jsonResponse({ results: [], more: true }),
+    });
+    await fetchProducerAssociations('p90027');
+    throttledFetchMock.mockClear();
+
+    const cached = await fetchProducerAssociations('p90027', { cacheOnly: true });
+
+    expect(cached.fromCache).toBe(true);
+    expect(cached.upstreamFailed).toBe(false);
+    expect(cached.developerVns).toEqual([]);
+    expect(cached.publisherVns).toEqual([]);
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+  });
+
   it('dedupes a VN published across two release rows and harvests the name once', async () => {
     routeBy({
       vn: () => jsonResponse({ results: [], more: false }),
