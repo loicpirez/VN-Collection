@@ -138,4 +138,31 @@ describe('physical shelf bundles', () => {
     });
     expect(bundle.members.map((member) => member.vn_id)).toEqual([vnIds[0], vnIds[1], vnIds[2]]);
   });
+
+  it('ignores unrelated bundle summaries while listing one shelf', () => {
+    for (const suffix of ['4', '5']) {
+      const vnId = `v99020${suffix}`;
+      const releaseId = `r99020${suffix}`;
+      upsertVn({ id: vnId, title: `Unrelated bundle ${suffix}` });
+      db.prepare('INSERT INTO owned_release (vn_id, release_id, added_at) VALUES (?, ?, ?)')
+        .run(vnId, releaseId, Number(suffix));
+    }
+    const shelf = createShelf({ name: 'Synthetic bundle shelf with unrelated bundle' });
+    const visible = createPhysicalBundle({
+      name: 'Visible bundle',
+      anchor: identity(0),
+      members: [identity(0), identity(1)],
+    });
+    createPhysicalBundle({
+      name: 'Unrelated bundle',
+      anchor: { vnId: 'v990204', releaseId: 'r990204' },
+      members: [
+        { vnId: 'v990204', releaseId: 'r990204' },
+        { vnId: 'v990205', releaseId: 'r990205' },
+      ],
+    });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, ...identity(0) });
+
+    expect(listShelfSlots(shelf.id)[0]).toMatchObject({ bundle_id: visible.id });
+  });
 });
