@@ -280,6 +280,15 @@ describe('RoutesSection', () => {
     const notesRow = routeItem('Route A Edited');
     fireEvent.click(within(notesRow).getByTitle('Marquer terminée'));
     await waitFor(() => expect(screen.getByText('2/3 terminée(s)')).toBeTruthy());
+    const completionCall = fetchMock.mock.calls.find(([url, init]) =>
+      url === '/api/route/1'
+      && init?.method === 'PATCH'
+      && parseBody(init).completed === true,
+    );
+    expect(parseBody(completionCall?.[1])).toMatchObject({
+      completed: true,
+      completed_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
 
     const completedRow = routeItem('Route A Edited');
     fireEvent.click(within(completedRow).getByLabelText('Descendre'));

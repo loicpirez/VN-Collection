@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition 
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Loader2, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { formatIsoDateString } from '@/lib/locale-number';
+import { formatIsoDateString, isoCalendarDay } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
@@ -642,9 +642,13 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
   const toggleComplete = useCallback(
     (r: RouteRow) => {
-      return patch(r.id, { completed: !r.completed }, { id: r.id, kind: 'toggle' });
+      const completed = !r.completed;
+      return patch(r.id, {
+        completed,
+        completed_date: completed ? isoCalendarDay(new Date(), locale) : null,
+      }, { id: r.id, kind: 'toggle' });
     },
-    [patch],
+    [locale, patch],
   );
 
   const toggleNotes = useCallback((r: RouteRow) => {
