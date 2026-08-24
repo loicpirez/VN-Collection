@@ -99,6 +99,7 @@ async function assertResponsiveNavigation(page) {
   assert(desktopGeometry.documentOverflow <= 1, `desktop navigation creates ${desktopGeometry.documentOverflow}px page overflow`);
   await menu.locator('a[href="/upcoming"]').click();
   await page.waitForURL((url) => url.pathname === '/upcoming', { timeout: 10000 });
+  await waitForPagePaint(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoClean(page, '/');
