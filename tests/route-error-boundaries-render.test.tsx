@@ -92,6 +92,7 @@ describe('route error boundaries', () => {
     const { container } = renderWithProviders(
       <Boundary error={Object.assign(new Error('boom'), { digest: 'trace-123' })} reset={reset} />,
     );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(container.textContent).toContain('trace-123');
     fireEvent.click(screen.getByRole('button', { name: t.errorBoundary.retry }));
     expect(reset).toHaveBeenCalledTimes(1);
