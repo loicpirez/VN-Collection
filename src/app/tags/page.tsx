@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getCacheFreshness } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { getDict } from '@/lib/i18n/server';
 import { TagsBrowser } from '@/components/TagsBrowser';
 import { parseTagsPageParams } from '@/lib/tags-page-modes';
@@ -22,7 +22,7 @@ export default async function TagsPage({ searchParams }: PageProps) {
   // `POST /tag|POST|<sha>`), and the per-tag drill-down rows live under
   // `tag_full:gXXX`. Anchor both prefixes so the freshness chip reflects
   // either kind of populated cache.
-  const lastUpdatedAt = getCacheFreshness(['% /tag|%', 'tag_full:%']);
+  const lastUpdatedAt = await getCacheRepository().freshness(['% /tag|%', 'tag_full:%']);
   const sp = await searchParams;
   const { mode } = parseTagsPageParams(sp);
 

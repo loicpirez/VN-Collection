@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ChevronLeft, ChevronRight, Quote, Search } from 'lucide-react';
-import { listAllQuotes } from '@/lib/db';
+import { getQuoteRepository } from '@/lib/db/repositories/quote';
 import { QuoteAvatar } from '@/components/QuoteAvatar';
 import { getDict } from '@/lib/i18n/server';
 
@@ -23,7 +23,7 @@ export default async function QuotesPage({
   const t = await getDict();
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
-  const fetched = listAllQuotes(q, PAGE_SIZE + 1, offset);
+  const fetched = await getQuoteRepository().list(q, PAGE_SIZE + 1, offset);
   const hasNext = fetched.length > PAGE_SIZE;
   const items = hasNext ? fetched.slice(0, PAGE_SIZE) : fetched;
 

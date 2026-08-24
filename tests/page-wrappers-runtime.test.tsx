@@ -8,7 +8,7 @@ import SeriesPage, { generateMetadata as generateSeriesMetadata } from '@/app/se
 import StockPage, { generateMetadata as generateStockMetadata } from '@/app/stock/page';
 import TraitsPage, { generateMetadata as generateTraitsMetadata } from '@/app/traits/page';
 import WishlistPage, { generateMetadata as generateWishlistMetadata } from '@/app/wishlist/page';
-import { getCacheFreshness, getPlace, listPlaces, listSeries } from '@/lib/db';
+import { getPlace, listPlaces } from '@/lib/db';
 import { dictionaries, DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
 import type { PlaceWithLinks } from '@/lib/db';
 import type { SeriesRow } from '@/lib/types';
@@ -22,6 +22,14 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const seriesRepositoryMocks = vi.hoisted(() => ({
+  list: vi.fn(),
+}));
+
+const cacheRepositoryMocks = vi.hoisted(() => ({
+  freshness: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
   redirect: navigationMocks.redirect,
@@ -32,10 +40,16 @@ vi.mock('next/headers', () => ({
 }));
 
 vi.mock('@/lib/db', () => ({
-  getCacheFreshness: vi.fn(),
   getPlace: vi.fn(),
   listPlaces: vi.fn(),
-  listSeries: vi.fn(),
+}));
+
+vi.mock('@/lib/db/repositories/cache', () => ({
+  getCacheRepository: () => ({ freshness: cacheRepositoryMocks.freshness }),
+}));
+
+vi.mock('@/lib/db/repositories/series', () => ({
+  getSeriesRepository: () => ({ list: seriesRepositoryMocks.list }),
 }));
 
 vi.mock('@/components/MapPageClient', () => ({
@@ -102,10 +116,10 @@ const t = dictionaries[DEFAULT_LOCALE];
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
   navigationMocks.redirect.mockClear();
-  vi.mocked(getCacheFreshness).mockReset().mockReturnValue(null);
+  cacheRepositoryMocks.freshness.mockReset().mockResolvedValue(null);
   vi.mocked(getPlace).mockReset().mockReturnValue(null);
   vi.mocked(listPlaces).mockReset().mockReturnValue([place]);
-  vi.mocked(listSeries).mockReset().mockReturnValue([series]);
+  seriesRepositoryMocks.list.mockReset().mockResolvedValue([series]);
 });
 
 describe('thin App Router page wrappers', () => {
@@ -147,16 +161,16 @@ describe('thin App Router page wrappers', () => {
   });
 
   it('renders search, series, traits, and wishlist wrappers with localized metadata', async () => {
-    vi.mocked(getCacheFreshness).mockReturnValue(123);
+    cacheRepositoryMocks.freshness.mockResolvedValue(123);
     expect(await generateSearchMetadata()).toEqual({ title: t.nav.search });
     expect(renderToStaticMarkup(<SearchPage />)).toContain('data-testid="search"');
     expect(await generateSeriesMetadata()).toEqual({ title: t.nav.series });
-    expect(renderToStaticMarkup(<SeriesPage />)).toContain('Series name');
+    expect(renderToStaticMarkup(await SeriesPage())).toContain('Series name');
     expect(await generateTraitsMetadata()).toEqual({ title: t.nav.traits });
-    expect(renderToStaticMarkup(<TraitsPage />)).toContain('123');
+    expect(renderToStaticMarkup(await TraitsPage())).toContain('123');
     expect(await generateWishlistMetadata()).toEqual({ title: t.nav.wishlist });
     expect(renderToStaticMarkup(<WishlistPage />)).toContain('data-testid="wishlist"');
-    expect(getCacheFreshness).toHaveBeenCalledWith(['% /trait|%', 'trait_full:%']);
-    expect(listSeries).toHaveBeenCalledTimes(1);
+    expect(cacheRepositoryMocks.freshness).toHaveBeenCalledWith(['% /trait|%', 'trait_full:%']);
+    expect(seriesRepositoryMocks.list).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,11 +4,12 @@ import UpcomingPage, { generateMetadata } from '@/app/upcoming/page';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection, type UpcomingRelease } from '@/lib/upcoming';
 import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/lib/erogamescape';
 import { fetchVnCovers } from '@/lib/vndb';
-import { getCacheFreshness } from '@/lib/db';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
-const dbMocks = vi.hoisted(() => ({
-  all: vi.fn(),
+const repositoryMocks = vi.hoisted(() => ({
+  containsMany: vi.fn(),
+  freshness: vi.fn(),
+  getCovers: vi.fn(),
 }));
 
 vi.mock('@/lib/upcoming', () => ({
@@ -32,13 +33,16 @@ vi.mock('@/lib/vndb', () => ({
   fetchVnCovers: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: (sql: string) => ({
-      all: (...params: string[]) => dbMocks.all(sql, ...params),
-    }),
-  },
-  getCacheFreshness: vi.fn(),
+vi.mock('@/lib/db/repositories/cache', () => ({
+  getCacheRepository: () => ({ freshness: repositoryMocks.freshness }),
+}));
+
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => ({ containsMany: repositoryMocks.containsMany }),
+}));
+
+vi.mock('@/lib/db/repositories/vn-read', () => ({
+  getVnReadRepository: () => ({ getCovers: repositoryMocks.getCovers }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -117,8 +121,9 @@ beforeEach(() => {
     hasMore: false,
   });
   vi.mocked(fetchVnCovers).mockReset().mockResolvedValue(new Map());
-  vi.mocked(getCacheFreshness).mockReset().mockReturnValue(null);
-  dbMocks.all.mockReset().mockReturnValue([]);
+  repositoryMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  repositoryMocks.freshness.mockReset().mockResolvedValue(null);
+  repositoryMocks.getCovers.mockReset().mockResolvedValue([]);
 });
 
 describe('upcoming page runtime', () => {
@@ -129,7 +134,7 @@ describe('upcoming page runtime', () => {
 
     expect(html).toContain(dictionaries.en.upcoming.empty);
     expect(html).toContain('refresh:upcoming-collection:none');
-    expect(getCacheFreshness).toHaveBeenCalledWith(['% /release|%', '% /release:%']);
+    expect(repositoryMocks.freshness).toHaveBeenCalledWith(['% /release|%', '% /release:%']);
     expect(fetchUpcomingForCollection).toHaveBeenCalledOnce();
   });
 
@@ -182,18 +187,13 @@ describe('upcoming page runtime', () => {
         vns: [{ id: 'v4', title: 'VN 4', image: null }],
       }),
     ]);
-    dbMocks.all.mockImplementation((sql: string) => {
-      if (sql.includes('FROM vn WHERE id IN')) {
-        return [
-          { id: 'v1', image_url: 'db-v1.jpg', image_thumb: null, image_sexual: 0, local_image: 'local-v1.jpg', local_image_thumb: null },
-          { id: 'v2', image_url: null, image_thumb: null, image_sexual: 1, local_image: null, local_image_thumb: null },
-          { id: 'v3', image_url: '', image_thumb: 'db-v3-thumb.jpg', image_sexual: 1, local_image: '', local_image_thumb: 'local-v3-thumb.jpg' },
-          { id: 'v4', image_url: null, image_thumb: null, image_sexual: null, local_image: null, local_image_thumb: null },
-        ];
-      }
-      if (sql.includes('FROM collection')) return [{ vn_id: 'v1' }];
-      return [];
-    });
+    repositoryMocks.getCovers.mockResolvedValue([
+      { id: 'v1', image_url: 'db-v1.jpg', image_thumb: null, image_sexual: 0, local_image: 'local-v1.jpg', local_image_thumb: null },
+      { id: 'v2', image_url: null, image_thumb: null, image_sexual: 1, local_image: null, local_image_thumb: null },
+      { id: 'v3', image_url: '', image_thumb: 'db-v3-thumb.jpg', image_sexual: 1, local_image: '', local_image_thumb: 'local-v3-thumb.jpg' },
+      { id: 'v4', image_url: null, image_thumb: null, image_sexual: null, local_image: null, local_image_thumb: null },
+    ]);
+    repositoryMocks.containsMany.mockResolvedValue(new Set(['v1']));
 
     const html = await renderPage();
 
@@ -212,7 +212,7 @@ describe('upcoming page runtime', () => {
     expect(html).toContain('&quot;inCollection&quot;:true');
   });
 
-  it('chunks local cover and collection lookups above the SQLite variable budget', async () => {
+  it('passes large deduplicated cover and membership lookups through provider-neutral repositories', async () => {
     const rows = Array.from({ length: 501 }, (_, i) => release(`r${i}`, {
       vns: [{ id: `v${i + 1}`, title: `VN ${i + 1}`, image: null }],
     }));
@@ -220,9 +220,10 @@ describe('upcoming page runtime', () => {
 
     await renderPage();
 
-    const sqlCalls = dbMocks.all.mock.calls.map(([sql]) => sql as string);
-    expect(sqlCalls.filter((sql) => sql.includes('FROM vn WHERE id IN'))).toHaveLength(2);
-    expect(sqlCalls.filter((sql) => sql.includes('FROM collection'))).toHaveLength(2);
+    expect(repositoryMocks.getCovers).toHaveBeenCalledOnce();
+    expect(repositoryMocks.getCovers.mock.calls[0]?.[0]).toHaveLength(501);
+    expect(repositoryMocks.containsMany).toHaveBeenCalledOnce();
+    expect(repositoryMocks.containsMany.mock.calls[0]?.[0]).toHaveLength(501);
   });
 
   it('renders release rows without VNDB-shaped ids without querying local cover tables', async () => {
@@ -237,11 +238,12 @@ describe('upcoming page runtime', () => {
 
     expect(html).toContain('Release r1');
     expect(html).toContain('Release r2');
-    expect(dbMocks.all).not.toHaveBeenCalled();
+    expect(repositoryMocks.getCovers).not.toHaveBeenCalled();
+    expect(repositoryMocks.containsMany).toHaveBeenCalledWith([]);
   });
 
   it('renders EGS anticipated cards, mapped covers, local membership, stale date, and deep pagination', async () => {
-    vi.mocked(getCacheFreshness).mockReturnValue(12);
+    repositoryMocks.freshness.mockResolvedValue(12);
     vi.mocked(fetchEgsAnticipatedPage).mockResolvedValue({
       rows: [
         anticipated(1, { gamename: 'Mapped EGS', brand_name: 'Brand Name', vndb_id: 'v1' }),
@@ -257,13 +259,13 @@ describe('upcoming page runtime', () => {
     vi.mocked(fetchVnCovers).mockResolvedValue(new Map([
       ['v1', { url: 'https://example.com/vndb.jpg', thumbnail: null, sexual: 2 }],
     ]));
-    dbMocks.all.mockImplementation((sql: string) => sql.includes('FROM collection') ? [{ vn_id: 'v1' }] : []);
+    repositoryMocks.containsMany.mockResolvedValue(new Set(['v1']));
 
     const html = await renderPage({ tab: 'anticipated', page: '2' });
 
     expect(fetchEgsAnticipatedPage).toHaveBeenCalledWith(2, 50);
     expect(fetchVnCovers).toHaveBeenCalledWith(['v1', 'v2']);
-    expect(getCacheFreshness).toHaveBeenCalledWith(['egs:anticipated:%']);
+    expect(repositoryMocks.freshness).toHaveBeenCalledWith(['egs:anticipated:%']);
     expect(html).toContain('refresh:upcoming-anticipated:12');
     expect(html).toContain('&quot;coverUrl&quot;:&quot;https://example.com/vndb.jpg&quot;');
     expect(html).toContain('&quot;coverUrl&quot;:&quot;/api/egs-cover/2&quot;');

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Sparkles, Star } from 'lucide-react';
-import { getCollectionItem } from '@/lib/db';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { applyGenericPenalty } from '@/lib/recommend';
 import { getDict, getLocale } from '@/lib/i18n/server';
@@ -24,7 +24,7 @@ export async function generateMetadata({
   const dict = await getDict();
   if (isValidVnId(rawVnId)) {
     const vnId = normalizeVnId(rawVnId);
-    const seed = getCollectionItem(vnId);
+    const seed = await getVnReadRepository().getCollectionItem(vnId);
     if (seed) return { title: `${dict.similar.title}: ${seed.title}` };
   }
   return { title: dict.similar.title };
@@ -71,7 +71,7 @@ export default async function SimilarPage({
     );
   }
   const seedId = normalizeVnId(rawSeedId);
-  const seed = getCollectionItem(seedId);
+  const seed = await getVnReadRepository().getCollectionItem(seedId);
   if (!seed) {
     return (
       <div className="w-full">

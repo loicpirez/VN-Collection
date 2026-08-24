@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Mic, Users, X } from 'lucide-react';
 import { searchStaff, type VndbStaff } from '@/lib/vndb';
-import { searchLocalStaff } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { BCP47 } from '@/lib/locale-number';
 import { languageDisplayName } from '@/lib/language-names';
@@ -64,12 +64,12 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
   };
 
   // Always fetch local results - both scopes browse local data by default.
-  const localRows: StaffRow[] = searchLocalStaff({
+  const localRows: StaffRow[] = (await getPeopleRepository().searchStaff({
     q: query || undefined,
     role,
     lang,
     limit: 200,
-  }).map((s) => ({ ...s, source: 'local' as const }));
+  })).map((s) => ({ ...s, source: 'local' as const }));
 
   let results: StaffRow[] = [];
   if (scope === 'collection') {

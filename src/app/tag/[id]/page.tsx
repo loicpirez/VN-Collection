@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
-import { countListMembershipsByVn, getReadingQueueVnIds, listCollectionForCards } from '@/lib/db';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -95,9 +95,12 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // Use the shared `listCollection` pipeline so every VnCard surface
   // (badge, density, list-count chip, reading-queue chip, aspect badge,
   // EGS score, etc.) renders consistently with the rest of the app.
-  const rawLocalItems = listCollectionForCards({ tag: tagId }).slice(0, LOCAL_LIMIT);
-  const listCounts = countListMembershipsByVn();
-  const queueIds = getReadingQueueVnIds();
+  const collectionRepository = getCollectionListRepository();
+  const [rawLocalItems, listCounts, queueIds] = await Promise.all([
+    collectionRepository.listCards({ tag: tagId, limit: LOCAL_LIMIT }),
+    collectionRepository.listMembershipCounts(),
+    collectionRepository.readingQueueIds(),
+  ]);
   const localItems = rawLocalItems.map((it) => ({
     ...it,
     list_count: listCounts.get(it.id) ?? 0,

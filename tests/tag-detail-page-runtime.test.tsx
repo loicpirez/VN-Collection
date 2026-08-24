@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToReadableStream } from 'react-dom/server';
 import TagPage, { generateMetadata as generateTagMetadata } from '@/app/tag/[id]/page';
-import { countListMembershipsByVn, getReadingQueueVnIds, listCollectionForCards } from '@/lib/db';
 import { fetchTopVnsByTag, getTag, type VndbTag } from '@/lib/vndb';
 import { getVndbTagWebDetail } from '@/lib/vndb-tag-web-cache';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -14,14 +13,22 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const collectionRepositoryMocks = vi.hoisted(() => ({
+  listCards: vi.fn(),
+  listMembershipCounts: vi.fn(),
+  readingQueueIds: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
-vi.mock('@/lib/db', () => ({
-  countListMembershipsByVn: vi.fn(),
-  getReadingQueueVnIds: vi.fn(),
-  listCollectionForCards: vi.fn(),
+vi.mock('@/lib/db/repositories/collection-list', () => ({
+  getCollectionListRepository: () => ({
+    listCards: collectionRepositoryMocks.listCards,
+    listMembershipCounts: collectionRepositoryMocks.listMembershipCounts,
+    readingQueueIds: collectionRepositoryMocks.readingQueueIds,
+  }),
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -141,9 +148,9 @@ async function renderTag(params: { id: string }, searchParams: Record<string, st
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
-  vi.mocked(countListMembershipsByVn).mockReset().mockReturnValue(new Map());
-  vi.mocked(getReadingQueueVnIds).mockReset().mockReturnValue(new Set());
-  vi.mocked(listCollectionForCards).mockReset().mockReturnValue([]);
+  collectionRepositoryMocks.listCards.mockReset().mockResolvedValue([]);
+  collectionRepositoryMocks.listMembershipCounts.mockReset().mockResolvedValue(new Map());
+  collectionRepositoryMocks.readingQueueIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(getTag).mockReset().mockResolvedValue(tag());
   vi.mocked(fetchTopVnsByTag).mockReset().mockResolvedValue({ results: [], more: false });
   vi.mocked(getVndbTagWebDetail).mockReset().mockResolvedValue({
@@ -194,9 +201,9 @@ describe('tag detail page runtime', () => {
   });
 
   it('renders enriched local cards, the library action, and the local cap warning', async () => {
-    vi.mocked(listCollectionForCards).mockReturnValue(Array.from({ length: 500 }, (_, index) => card(`v${index + 1}`)));
-    vi.mocked(countListMembershipsByVn).mockReturnValue(new Map([['v1', 3]]));
-    vi.mocked(getReadingQueueVnIds).mockReturnValue(new Set(['v1']));
+    collectionRepositoryMocks.listCards.mockResolvedValue(Array.from({ length: 500 }, (_, index) => card(`v${index + 1}`)));
+    collectionRepositoryMocks.listMembershipCounts.mockResolvedValue(new Map([['v1', 3]]));
+    collectionRepositoryMocks.readingQueueIds.mockResolvedValue(new Set(['v1']));
 
     const html = await renderTag({ id: 'g1' }, { tab: 'local' });
 

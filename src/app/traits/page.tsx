@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getCacheFreshness } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { getDict } from '@/lib/i18n/server';
 import { TraitsBrowser } from '@/components/TraitsBrowser';
 
@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.nav.traits };
 }
 
-export default function TraitsPage() {
-  const lastUpdatedAt = getCacheFreshness(['% /trait|%', 'trait_full:%']);
+export default async function TraitsPage() {
+  const lastUpdatedAt = await getCacheRepository().freshness(['% /trait|%', 'trait_full:%']);
   return <TraitsBrowser lastUpdatedAt={lastUpdatedAt} />;
 }

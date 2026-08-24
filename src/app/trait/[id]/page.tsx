@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, CornerDownRight, ExternalLink, Sparkles } from 'lucide-react';
 import { getCharactersForTraitInVns, getCharactersForTraitPage, getTrait, type VndbCharacter, type VndbTrait } from '@/lib/vndb';
-import { getCharacterImages, listInCollectionVnIds } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
 
@@ -51,7 +52,7 @@ export default async function TraitPage({
   let mineCount: number | null = null;
   let hasMore = false;
   let error: string | null = null;
-  const ownedVnIds = new Set(listInCollectionVnIds());
+  const ownedVnIds = new Set(await getCollectionCoreRepository().listIds());
   try {
     trait = await getTrait(id);
     if (trait) {
@@ -97,7 +98,7 @@ export default async function TraitPage({
 
   const allCount = trait.char_count;
   const visible = characters;
-  const localPaths = getCharacterImages(visible.map((c) => c.id));
+  const localPaths = await getPeopleRepository().characterImages(visible.map((c) => c.id));
   const pageHref = (nextPage: number, mine: boolean): string => {
     const query = new URLSearchParams();
     if (mine) query.set('mine', '1');

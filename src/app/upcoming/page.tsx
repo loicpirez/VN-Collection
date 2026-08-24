@@ -7,7 +7,9 @@ import { EgsUnreachable, fetchEgsAnticipatedPage, type EgsAnticipated } from '@/
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtDate, fmtNum } from '@/lib/locale-number';
-import { db, getCacheFreshness } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { SkeletonRows } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -74,8 +76,8 @@ export default async function UpcomingPage({
   // refresh. Scope the lookup to the active tab.
   const lastUpdatedAt =
     tab === 'anticipated'
-      ? getCacheFreshness(['egs:anticipated:%'])
-      : getCacheFreshness(['% /release|%', '% /release:%']);
+      ? await getCacheRepository().freshness(['egs:anticipated:%'])
+      : await getCacheRepository().freshness(['% /release|%', '% /release:%']);
 
   return (
     <DensityScopeProvider scope="upcoming" className="w-full">
@@ -140,17 +142,17 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
           {stale && (
             <StaleEgsBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />
           )}
-          <AnticipatedSection rows={rows} vndbCovers={vndbCovers} t={t} locale={locale} startRank={(page - 1) * ANTICIPATED_PAGE_SIZE} />
+          {await AnticipatedSection({ rows, vndbCovers, t, locale, startRank: (page - 1) * ANTICIPATED_PAGE_SIZE })}
           <AnticipatedPaginator page={page} hasMore={hasMore} t={t} locale={locale} />
         </>
       );
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
-      return <ReleasesSection rows={rows} empty={t.upcoming.emptyAll} t={t} locale={locale} />;
+      return ReleasesSection({ rows, empty: t.upcoming.emptyAll, t, locale });
     }
     const rows = await fetchUpcomingForCollection();
-    return <ReleasesSection rows={rows} empty={t.upcoming.empty} t={t} locale={locale} />;
+    return ReleasesSection({ rows, empty: t.upcoming.empty, t, locale });
   } catch (e) {
     // EGS unreachable AND no cached payload at all: actionable state.
     if (e instanceof EgsUnreachable) {
@@ -325,32 +327,12 @@ interface LocalVnCover {
  * collection we have richer data locally - including a mirrored
  * cover. Look up every referenced VN id in one shot and overlay.
  */
-function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
+async function loadLocalCovers(rows: UpcomingRelease[]): Promise<Map<string, LocalVnCover>> {
   const ids = Array.from(
     new Set(rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => isVndbVnId(id))),
   );
   if (ids.length === 0) return new Map();
-  const localRows: Array<{
-      id: string;
-      image_url: string | null;
-      image_thumb: string | null;
-      image_sexual: number | null;
-      local_image: string | null;
-      local_image_thumb: string | null;
-  }> = [];
-  const CHUNK = 500;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    localRows.push(
-      ...(db
-        .prepare(
-          `SELECT id, image_url, image_thumb, image_sexual, local_image, local_image_thumb
-           FROM vn WHERE id IN (${placeholders})`,
-        )
-        .all(...chunk) as typeof localRows),
-    );
-  }
+  const localRows = await getVnReadRepository().getCovers(ids);
   const map = new Map<string, LocalVnCover>();
   for (const r of localRows) {
     map.set(r.id, {
@@ -364,22 +346,11 @@ function loadLocalCovers(rows: UpcomingRelease[]): Map<string, LocalVnCover> {
   return map;
 }
 
-function loadCollectionMembership(ids: string[]): Set<string> {
-  if (ids.length === 0) return new Set();
-  const owned = new Set<string>();
-  const CHUNK = 500;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-      .all(...chunk) as Array<{ vn_id: string }>;
-    for (const row of rows) owned.add(row.vn_id);
-  }
-  return owned;
+async function loadCollectionMembership(ids: string[]): Promise<Set<string>> {
+  return getCollectionCoreRepository().containsMany(ids);
 }
 
-function ReleasesSection({
+async function ReleasesSection({
   rows,
   empty,
   t,
@@ -395,9 +366,9 @@ function ReleasesSection({
       <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{empty}</p>
     );
   }
-  const localCovers = loadLocalCovers(rows);
+  const localCovers = await loadLocalCovers(rows);
   const vnIds = rows.flatMap((r) => r.vns.map((v) => v.id)).filter((id) => isVndbVnId(id));
-  const inCollectionIds = loadCollectionMembership(vnIds);
+  const inCollectionIds = await loadCollectionMembership(vnIds);
   const grouped = groupByMonth(rows);
   return (
     <>
@@ -476,7 +447,7 @@ function ReleasesSection({
   );
 }
 
-function AnticipatedSection({
+async function AnticipatedSection({
   rows,
   vndbCovers,
   t,
@@ -493,7 +464,7 @@ function AnticipatedSection({
     return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;
   }
   const vndbIds = rows.map((a) => a.vndb_id).filter((id): id is string => !!id);
-  const inCollectionIds = loadCollectionMembership(vndbIds);
+  const inCollectionIds = await loadCollectionMembership(vndbIds);
   return (
     <section className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:p-5">
       <p className="mb-4 text-[11px] text-muted">{t.upcoming.anticipatedSubtitle}</p>

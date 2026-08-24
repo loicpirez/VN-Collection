@@ -7,7 +7,8 @@ import { egsBayesianScore, fetchEgsTopRankedPage, EGS_TOP_MIN_VOTES, EgsUnreacha
 import { fetchVnCovers, type VndbCoverInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtDate, fmtNum, yearOnly } from '@/lib/locale-number';
-import { db, getCacheFreshness } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
@@ -51,8 +52,8 @@ export default async function TopRankedPage({
   const minVotes = parseMinVotes(rawMin, minDefault);
   const lastUpdatedAt =
     tab === 'egs'
-      ? getCacheFreshness(['egs:top-ranked:%'])
-      : getCacheFreshness(['% /vn:top-ranked:%']);
+      ? await getCacheRepository().freshness(['egs:top-ranked:%'])
+      : await getCacheRepository().freshness(['% /vn:top-ranked:%']);
 
   return (
     <DensityScopeProvider scope="topRanked" className="w-full">
@@ -162,7 +163,7 @@ async function TabContent({
     return (
       <>
         {stale && <StaleVndbBanner fetchedAt={fetchedAt ?? null} t={t} locale={locale} />}
-        <VndbSection rows={rows} t={t} startRank={(page - 1) * PAGE_SIZE} locale={locale} />
+        {await VndbSection({ rows, t, startRank: (page - 1) * PAGE_SIZE, locale })}
         <Paginator tab={tab} page={page} minVotes={minVotes} hasMore={hasMore} t={t} locale={locale} />
       </>
     );
@@ -390,16 +391,11 @@ function TabLink({
  * because we already mirror cached VN metadata; if the VN isn't in
  * the local DB yet, /vn/[id] auto-fetches on first visit.
  */
-function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number; locale: Locale }) {
+async function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number; locale: Locale }) {
   // Overlay locally-mirrored covers when we have them (sharper than
   // VNDB's hosted thumbnail). Same trick the /upcoming page uses.
   const ids = rows.map((r) => r.id);
-  const placeholders = ids.map(() => '?').join(',');
-  const localRows = db
-    .prepare(
-      `SELECT id, local_image, local_image_thumb FROM vn WHERE id IN (${placeholders})`,
-    )
-    .all(...ids) as Array<{ id: string; local_image: string | null; local_image_thumb: string | null }>;
+  const localRows = await getVnReadRepository().getCovers(ids);
   const locals = new Map(
     localRows.map((r) => [r.id, r.local_image || r.local_image_thumb || null] as const),
   );

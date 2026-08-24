@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
 import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
-import { searchLocalCharacters } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { getDict } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { NavTabStrip } from '@/components/NavTabStrip';
@@ -77,7 +77,10 @@ export default async function CharactersPage({ searchParams }: PageProps) {
   const hasFilters = hasActiveCharacterFilter(params);
   // Always fetch local results - local tab browses all, VNDB tab uses
   // local as fallback when no text query is active.
-  const localResults: VndbCharacter[] = searchLocalCharacters({ q: query || undefined, limit: 200 }).map((row) => ({
+  const localResults: VndbCharacter[] = (await getPeopleRepository().searchCharacters({
+    q: query || undefined,
+    limit: 200,
+  })).map((row) => ({
     ...row.profile,
     voice_languages: row.voice_languages,
   }));

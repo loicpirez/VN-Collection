@@ -4,10 +4,18 @@ import BrandOverlapPage, { generateMetadata as generateBrandOverlapMetadata } fr
 import ProducersPage, { generateMetadata as generateProducersMetadata } from '@/app/producers/page';
 import QuotesPage, { generateMetadata as generateQuotesMetadata } from '@/app/quotes/page';
 import { findBrandStaffOverlap, type BrandOverlapEntry, type BrandOverlapResult } from '@/lib/brand-overlap';
-import { isInCollectionMany, listAllQuotes, type QuoteWithVn } from '@/lib/db';
+import { isInCollectionMany, type QuoteWithVn } from '@/lib/db';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { ProducerStat } from '@/lib/types';
-import { listProducerStats, listPublisherStats } from '@/lib/db';
+
+const producerMocks = vi.hoisted(() => ({
+  developers: vi.fn(),
+  publishers: vi.fn(),
+}));
+
+const quoteMocks = vi.hoisted(() => ({
+  list: vi.fn(),
+}));
 
 vi.mock('@/lib/brand-overlap', () => ({
   findBrandStaffOverlap: vi.fn(),
@@ -15,9 +23,17 @@ vi.mock('@/lib/brand-overlap', () => ({
 
 vi.mock('@/lib/db', () => ({
   isInCollectionMany: vi.fn(),
-  listAllQuotes: vi.fn(),
-  listProducerStats: vi.fn(),
-  listPublisherStats: vi.fn(),
+}));
+
+vi.mock('@/lib/db/repositories/producer', () => ({
+  getProducerRepository: () => ({
+    listDeveloperStats: producerMocks.developers,
+    listPublisherStats: producerMocks.publishers,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/quote', () => ({
+  getQuoteRepository: () => ({ list: quoteMocks.list }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -106,9 +122,9 @@ async function renderBrand(params: { a?: string; b?: string; p?: string }): Prom
 beforeEach(() => {
   vi.mocked(findBrandStaffOverlap).mockReset().mockResolvedValue(overlap());
   vi.mocked(isInCollectionMany).mockReset().mockReturnValue(new Set());
-  vi.mocked(listAllQuotes).mockReset().mockReturnValue([]);
-  vi.mocked(listProducerStats).mockReset().mockReturnValue([]);
-  vi.mocked(listPublisherStats).mockReset().mockReturnValue([]);
+  quoteMocks.list.mockReset().mockResolvedValue([]);
+  producerMocks.developers.mockReset().mockResolvedValue([]);
+  producerMocks.publishers.mockReset().mockResolvedValue([]);
 });
 
 describe('producer ranking page runtime', () => {
@@ -125,7 +141,7 @@ describe('producer ranking page runtime', () => {
   });
 
   it('renders developer rankings across mobile and desktop rows with rank and rating variants', async () => {
-    vi.mocked(listProducerStats).mockReturnValue([
+    producerMocks.developers.mockResolvedValue([
       producer('p1', 'First', { original: 'Original first', vn_count: 4, avg_user_rating: 85, avg_rating: 77 }),
       producer('p2', 'Second', { vn_count: 3 }),
       producer('p3', 'Third', { vn_count: 2 }),
@@ -144,7 +160,7 @@ describe('producer ranking page runtime', () => {
   });
 
   it('renders publisher rankings with the publisher table label', async () => {
-    vi.mocked(listPublisherStats).mockReturnValue([producer('p9', 'Publisher')]);
+    producerMocks.publishers.mockResolvedValue([producer('p9', 'Publisher')]);
 
     const html = renderToStaticMarkup(await ProducersPage({ searchParams: Promise.resolve({ role: 'publisher' }) }));
 
@@ -161,11 +177,11 @@ describe('quotes page runtime', () => {
     const html = renderToStaticMarkup(await QuotesPage({ searchParams: Promise.resolve({ page: 'invalid' }) }));
 
     expect(html).toContain(dictionaries.en.quotesPage.empty);
-    expect(listAllQuotes).toHaveBeenCalledWith(undefined, 51, 0);
+    expect(quoteMocks.list).toHaveBeenCalledWith(undefined, 51, 0);
   });
 
   it('renders quote attribution variants and next pagination preserving a query', async () => {
-    vi.mocked(listAllQuotes).mockReturnValue([
+    quoteMocks.list.mockResolvedValue([
       quote(1, { character_id: 'c1', character_name: 'Linked character' }),
       quote(2, { character_name: 'Plain character' }),
       quote(3),
@@ -178,17 +194,17 @@ describe('quotes page runtime', () => {
     expect(html).toContain('Linked character');
     expect(html).toContain('Plain character');
     expect(html).toContain('href="/quotes?q=needle&amp;page=2"');
-    expect(listAllQuotes).toHaveBeenCalledWith('needle', 51, 0);
+    expect(quoteMocks.list).toHaveBeenCalledWith('needle', 51, 0);
   });
 
   it('renders previous-only pagination on a later final page', async () => {
-    vi.mocked(listAllQuotes).mockReturnValue([quote(1)]);
+    quoteMocks.list.mockResolvedValue([quote(1)]);
 
     const html = renderToStaticMarkup(await QuotesPage({ searchParams: Promise.resolve({ q: 'needle', page: '2' }) }));
 
     expect(html).toContain('href="/quotes?q=needle"');
     expect(html).not.toContain('href="/quotes?q=needle&amp;page=3"');
-    expect(listAllQuotes).toHaveBeenCalledWith('needle', 51, 50);
+    expect(quoteMocks.list).toHaveBeenCalledWith('needle', 51, 50);
   });
 });
 

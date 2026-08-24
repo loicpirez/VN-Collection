@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { ArrowLeft } from 'lucide-react';
 import { toString as qrToString } from 'qrcode';
-import { listCollectionForCards } from '@/lib/db';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { getDict } from '@/lib/i18n/server';
 import { qrOriginFromHeaders } from '@/lib/qr-origin';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
@@ -82,7 +82,7 @@ export default async function LabelsPage({
   // Push id filtering into SQL so we don't load the full library just
   // to drop most rows.
   const idList = filter ? Array.from(filter) : undefined;
-  const allItems = listCollectionForCards({ sort: 'title', vnIds: idList }).filter(
+  const allItems = (await getCollectionListRepository().listCards({ sort: 'title', vnIds: idList })).filter(
     (it) => !status || it.status === status,
   );
   const truncated = allItems.length > MAX_LABELS;
