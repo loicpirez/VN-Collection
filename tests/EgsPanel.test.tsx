@@ -114,7 +114,7 @@ describe('EgsPanel', () => {
   });
 
   it('loads the empty state on mount when no initial snapshot exists', async () => {
-    renderPanel({ initialGame: null, initialSource: null });
+    renderPanel({ initialGame: undefined, initialSource: undefined });
     await waitFor(() => expect(screen.getByText(t.egs.noMatch as string)).toBeTruthy());
     expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) => String(call[0]) === '/api/vn/v90001/erogamescape')).toBe(true);
   });
