@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
-import { getAppSetting, getCharacterImage, getRandomLocalQuote, getVnCover } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getQuoteRepository } from '@/lib/db/repositories/quote';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getRandomQuote } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { tooManyRequests } from '@/lib/rate-limit-response';
@@ -14,12 +17,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const limited = tooManyRequests(req, 'vndb/quote/random', { limit: 30, windowMs: 10_000 });
   if (limited) return limited;
   try {
-    const source = getAppSetting('random_quote_source') ?? 'all';
+    const source = await getAppSettingRepository().get('random_quote_source') ?? 'all';
     if (source === 'mine') {
       // 100% local: pull from the vn_quote table populated by ensureLocalImagesForVn
       // (no VNDB call). Falls back to global random only when the table is empty
       // (e.g. brand-new install with no synced VNs).
-      const row = getRandomLocalQuote();
+      const row = await getQuoteRepository().randomLocal();
       if (row) {
         return NextResponse.json({
           quote: {
@@ -59,8 +62,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // response shape decoupled from the cache layer.
     if (quote) {
       const vnId = quote.vn?.id ?? null;
-      const vnCover = vnId ? getVnCover(vnId) : null;
-      const charImg = quote.character?.id ? getCharacterImage(quote.character.id) : null;
+      const vnCover = vnId
+        ? (await getVnReadRepository().getCovers([vnId]))[0] ?? null
+        : null;
+      const charImg = quote.character?.id
+        ? await getPeopleRepository().characterImage(quote.character.id)
+        : null;
       return NextResponse.json({
         quote: {
           ...quote,

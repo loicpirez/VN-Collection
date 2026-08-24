@@ -26,6 +26,27 @@ vi.mock('@/lib/db', () => ({
   getVnCover: mocks.getVnCover,
 }));
 
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => ({ get: mocks.getAppSetting }),
+}));
+
+vi.mock('@/lib/db/repositories/quote', () => ({
+  getQuoteRepository: () => ({ randomLocal: mocks.getRandomLocalQuote }),
+}));
+
+vi.mock('@/lib/db/repositories/vn-read', () => ({
+  getVnReadRepository: () => ({
+    getCovers: async () => {
+      const cover = mocks.getVnCover();
+      return cover ? [cover] : [];
+    },
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/people', () => ({
+  getPeopleRepository: () => ({ characterImage: mocks.getCharacterImage }),
+}));
+
 vi.mock('@/lib/vndb', () => ({
   getRandomQuote: mocks.getRandomQuote,
 }));
@@ -243,7 +264,7 @@ describe('GET /api/vndb/quote/random route branches', () => {
     mocks.getRandomQuote.mockRejectedValue(new Error('upstream failed'));
     const response = await GET(req());
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vndb/quote/random' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vndb/quote/random] upstream failed');
     consoleSpy.mockRestore();
   });
