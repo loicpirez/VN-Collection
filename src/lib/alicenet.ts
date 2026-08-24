@@ -3,7 +3,8 @@ import { searchVn } from './vndb';
 import { fetchEgsGame, searchEgsByName, searchEgsCandidates, type EgsCandidate, type EgsGame } from './erogamescape';
 import { stockProviderFetch } from './proxy-fetch';
 import { isVndbVnId } from './vn-id-shape';
-import { countAliceNetNoVndbResult, countAliceNetNoVndbNoEgs, countAliceNetNoVndbWithEgs, countAliceNetUnmatchedQueue, listAliceNetNoVndbWithEgs, listAliceNetNoVndbNoEgs, listAliceNetNoVndbResult, listAliceNetUnmatched, resetAliceNetAutoMatches as dbResetAliceNetAutoMatches, setAliceNetEgsLink, setAliceNetVnLink, upsertAliceNetStock, type AliceNetStockRow } from './db'
+import type { AliceNetStockRow } from './db';
+import { getAliceNetRepository, type AliceNetEgsMeta } from './db/repositories/alicenet';
 import { ALICENET_PROVIDER_ID } from './stock-provider-constants';
 
 const ALICENET_URL = 'https://www.alice-kobe.com/html/page4.html';
@@ -521,7 +522,7 @@ function isSafeAutoCandidate(
   return closeRelease || exactTitle || score >= 55;
 }
 
-function egsMeta(game: EgsGame): Parameters<typeof setAliceNetEgsLink>[3] {
+function egsMeta(game: EgsGame): AliceNetEgsMeta {
   return {
     title: game.gamename,
     brand: game.brand_name,
@@ -729,7 +730,7 @@ export async function refreshAliceNetStock(): Promise<{
 }> {
   const html = await fetchAliceNetHtml();
   const rows = parseAliceNetHtml(html);
-  const { added, updated, removed } = upsertAliceNetStock(rows);
+  const { added, updated, removed } = await getAliceNetRepository().upsertStock(rows);
   return { count: rows.length, added, updated, removed, fetched_at: Date.now() };
 }
 
@@ -738,8 +739,8 @@ export async function refreshAliceNetStock(): Promise<{
  * Manual links (source='manual') are preserved.
  * Returns the number of rows cleared.
  */
-export function resetAliceNetAutoMatches(): number {
-  return dbResetAliceNetAutoMatches();
+export async function resetAliceNetAutoMatches(): Promise<number> {
+  return getAliceNetRepository().resetAutoMatches();
 }
 
 /**
@@ -763,18 +764,19 @@ export async function matchNextAliceNetItems(
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(100, Math.max(1, Math.floor(batchSize)));
-  const items = listAliceNetUnmatched(safe, retryNone, retryStartedAt);
+  const repository = getAliceNetRepository();
+  const items = await repository.listUnmatched(safe, retryNone, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     const primaryQuery = buildAliceNetTitleSearchQueries(item.title)[0] ?? normalizeTitle(item.title);
     if (!primaryQuery) {
-      setAliceNetVnLink(item.code, null, 'none', null, item.title);
+      await repository.setVnLink(item.code, null, 'none', null, item.title);
       continue;
     }
     if (retryNone) {
       const vnResult = await searchAliceNetVndbCandidates(item);
       if (vnResult.top) {
-        setAliceNetVnLink(
+        await repository.setVnLink(
           item.code,
           vnResult.top.id,
           'auto',
@@ -787,25 +789,25 @@ export async function matchNextAliceNetItems(
 
       const egsResult = await searchAliceNetEgsCandidate(item);
       if (egsResult.game) {
-        setAliceNetEgsLink(item.code, egsResult.game.id, 'auto', egsMeta(egsResult.game));
+        await repository.setEgsLink(item.code, egsResult.game.id, 'auto', egsMeta(egsResult.game));
         matched++;
         const vndbRaw = egsResult.game.raw?.vndb?.trim() ?? '';
         if (isVndbVnId(vndbRaw)) {
-          setAliceNetVnLink(item.code, vndbRaw, 'auto', null, egsResult.query!);
+          await repository.setVnLink(item.code, vndbRaw, 'auto', null, egsResult.query!);
         } else {
-          setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
+          await repository.setVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
         }
         continue;
       }
-      setAliceNetVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
+      await repository.setVnLink(item.code, null, 'none', vnResult.candidatesJson, vnResult.query!);
       continue;
     }
     let itemMatched = false;
     const [vndbResult] = await Promise.allSettled([
       searchAliceNetVndbCandidates(item)
-        .then((vnResult) => {
+        .then(async (vnResult) => {
           if (vnResult.top) itemMatched = true;
-          setAliceNetVnLink(
+          await repository.setVnLink(
             item.code,
             vnResult.top?.id ?? null,
             vnResult.top ? 'auto' : 'none',
@@ -814,10 +816,10 @@ export async function matchNextAliceNetItems(
           );
         }),
       searchAliceNetEgsCandidate(item)
-        .then((r) => {
+        .then(async (r) => {
           if (r.game) {
             itemMatched = true;
-            setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+            await repository.setEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
           }
         }),
     ]);
@@ -827,7 +829,7 @@ export async function matchNextAliceNetItems(
   return {
     processed: items.length,
     matched,
-    remaining: countAliceNetUnmatchedQueue(retryNone, retryStartedAt),
+    remaining: await repository.countUnmatched(retryNone, retryStartedAt),
   };
 }
 
@@ -853,7 +855,8 @@ export async function matchVndbFromEgsForAliceNet(
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
-  const items = listAliceNetNoVndbWithEgs(safe, retryStartedAt);
+  const repository = getAliceNetRepository();
+  const items = await repository.listNoVndbWithEgs(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     const egsId = item.egs_id;
@@ -861,18 +864,18 @@ export async function matchVndbFromEgsForAliceNet(
     try {
       const game = await fetchEgsGame(egsId);
       const vndbRaw = game?.raw?.vndb?.trim() ?? '';
-      if (game) setAliceNetEgsLink(item.code, egsId, item.egs_match_source ?? 'auto', egsMeta(game));
+      if (game) await repository.setEgsLink(item.code, egsId, item.egs_match_source ?? 'auto', egsMeta(game));
       if (game && isVndbVnId(vndbRaw)) {
-        setAliceNetVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
+        await repository.setVnLink(item.code, vndbRaw, 'auto', null, item.search_title ?? item.title);
         matched++;
       } else {
-        setAliceNetVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? normalizeTitle(item.title));
+        await repository.setVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? normalizeTitle(item.title));
       }
     } catch {
       // EGS unreachable for this id — leave row as 'none', user can retry.
     }
   }
-  return { processed: items.length, matched, remaining: countAliceNetNoVndbWithEgs(retryStartedAt) };
+  return { processed: items.length, matched, remaining: await repository.countNoVndbWithEgs(retryStartedAt) };
 }
 
 /**
@@ -901,23 +904,24 @@ export async function retryVndbForAliceNetAggressive(
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
   // listAliceNetNoVndbResult already returns vn_match_source='none' AND vn_id IS NULL.
-  const items = listAliceNetNoVndbResult(safe, retryStartedAt);
+  const repository = getAliceNetRepository();
+  const items = await repository.listNoVndb(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     try {
       const result = await searchAliceNetVndbCandidates(item);
       if (result.top) {
-        setAliceNetVnLink(item.code, result.top.id, 'auto', result.candidatesJson, result.query);
+        await repository.setVnLink(item.code, result.top.id, 'auto', result.candidatesJson, result.query);
         matched++;
       } else {
-        setAliceNetVnLink(item.code, null, 'none', result.candidatesJson, result.query ?? normalizeTitleAggressive(item.title));
+        await repository.setVnLink(item.code, null, 'none', result.candidatesJson, result.query ?? normalizeTitleAggressive(item.title));
       }
     } catch (err) {
       // Stop the batch instead of spinning over the same first rows forever.
       throw err;
     }
   }
-  return { processed: items.length, matched, remaining: countAliceNetNoVndbResult(retryStartedAt) };
+  return { processed: items.length, matched, remaining: await repository.countNoVndb(retryStartedAt) };
 }
 
 /**
@@ -942,7 +946,8 @@ export async function searchEgsForAliceNetNoVndb(
   retryStartedAt?: number,
 ): Promise<{ processed: number; matched: number; remaining: number }> {
   const safe = Math.min(500, Math.max(1, Math.floor(batchSize)));
-  const items = listAliceNetNoVndbNoEgs(safe, retryStartedAt);
+  const repository = getAliceNetRepository();
+  const items = await repository.listNoVndbNoEgs(safe, retryStartedAt);
   let matched = 0;
   for (const item of items) {
     const primary = aggressive ? normalizeTitleAggressive(item.title) : normalizeTitle(item.title);
@@ -952,7 +957,7 @@ export async function searchEgsForAliceNetNoVndb(
     if (aggressive) {
       const r = await searchAliceNetEgsCandidate(item);
       if (r.game) {
-        setAliceNetEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
+        await repository.setEgsLink(item.code, r.game.id, 'auto', egsMeta(r.game));
         matched++;
         found = true;
       }
@@ -961,7 +966,7 @@ export async function searchEgsForAliceNetNoVndb(
       try {
         const r = await searchEgsByName(q);
         if (r) {
-          setAliceNetEgsLink(item.code, r.id, 'auto', egsMeta(r));
+          await repository.setEgsLink(item.code, r.id, 'auto', egsMeta(r));
           matched++;
           found = true;
           break;
@@ -971,7 +976,7 @@ export async function searchEgsForAliceNetNoVndb(
         throw err;
       }
     }
-    if (!found) setAliceNetVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? primary);
+    if (!found) await repository.setVnLink(item.code, null, 'none', item.vn_candidates, item.search_title ?? primary);
   }
-  return { processed: items.length, matched, remaining: countAliceNetNoVndbNoEgs(retryStartedAt) };
+  return { processed: items.length, matched, remaining: await repository.countNoVndbNoEgs(retryStartedAt) };
 }

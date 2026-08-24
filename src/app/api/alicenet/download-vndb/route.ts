@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { listAliceNetVnidsToDownload, countAliceNetDownloadPending, upsertVn } from '@/lib/db';
+import { getAliceNetRepository } from '@/lib/db/repositories/alicenet';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVn } from '@/lib/vndb';
 import { parseAliceNetBatch } from '@/lib/alicenet-route-input';
 import { aliceNetApiError } from '@/lib/alicenet-api-error';
@@ -27,22 +28,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsedBatch.ok) return NextResponse.json({ error: parsedBatch.error }, { status: 400 });
   const batch = parsedBatch.value;
 
-  const ids = listAliceNetVnidsToDownload(batch);
+  const repository = getAliceNetRepository();
+  const vnRepository = getVnWriteRepository();
+  const ids = await repository.listVnIdsToDownload(batch);
   let processed = 0;
   try {
     for (const vnId of ids) {
       const vn = await getVn(vnId);
       if (!vn) throw new Error(`VNDB returned no data for ${vnId}`);
-      upsertVn(vn);
+      await vnRepository.upsert(vn);
       processed++;
     }
   } catch (err) {
     console.error('[alicenet/download-vndb] upstream error:', (err as Error).message);
-    const response = aliceNetApiError(err, 'VNDB metadata download failed.', 502);
+    const response = aliceNetApiError(err, 'VNDB metadata download failed.', 502, 'alicenet/download-vndb');
     const body = await response.json() as { error: string };
     return NextResponse.json({ ...body, processed }, { status: 502 });
   }
 
-  const { vndb_pending } = countAliceNetDownloadPending();
+  const { vndb_pending } = await repository.countDownloadPending();
   return NextResponse.json({ processed, remaining: vndb_pending });
 }

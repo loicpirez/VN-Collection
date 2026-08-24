@@ -747,7 +747,7 @@ describe('resetAliceNetAutoMatches', () => {
     seedRows({ code: '666-000000-001', title: 'オートマッチ' }, { code: '666-000000-002', title: 'マニュアルマッチ' });
     setAliceNetVnLink('666-000000-001', 'v50040', 'auto');
     setAliceNetVnLink('666-000000-002', 'v50041', 'manual');
-    const cleared = resetAliceNetAutoMatches();
+    const cleared = await resetAliceNetAutoMatches();
     expect(cleared).toBe(1);
     expect(getAliceNetStockItem('666-000000-001')?.vn_id).toBeNull();
     expect(getAliceNetStockItem('666-000000-002')?.vn_id).toBe('v50041');

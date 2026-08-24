@@ -65,6 +65,7 @@ import { POST as resetPOST } from '@/app/api/alicenet/reset-matches/route';
 import { POST as linkPOST, DELETE as linkDELETE } from '@/app/api/alicenet/[code]/link/route';
 
 import { db, setAliceNetVnLink, setAppSetting, upsertAliceNetStock, upsertVn } from '@/lib/db';
+import { invalidateVndbWishlistCache } from '@/lib/vndb-wishlist-cache';
 
 type Body = Record<string, unknown> | undefined;
 
@@ -97,6 +98,7 @@ function resetTable(): void {
 }
 
 beforeEach(() => {
+  invalidateVndbWishlistCache();
   resetTable();
   delete process.env.VN_ADMIN_TOKEN;
   for (const m of [
@@ -128,10 +130,12 @@ describe('GET /api/alicenet', () => {
     expect(Array.isArray(body.items)).toBe(true);
     expect(body.stats.total).toBe(1);
     expect(body.pending).toMatchObject({ vndb_pending: expect.any(Number), egs_pending: expect.any(Number) });
-    expect(body.page).toMatchObject({ offset: 0, limit: 200, total: 1, has_more: false });
+    expect(body.page).toMatchObject({ offset: 0, limit: 96, total: 1, has_more: false });
+    expect(body.producers).toEqual([]);
+    expect(body.wishlist_available).toBe(false);
   });
 
-  it('200 returns a follow-up page (no stats block) when offset > 0', async () => {
+  it('200 returns a self-contained follow-up page when offset > 0', async () => {
     seedRow('100-000000-002');
     const res = await listGET(new Request('http://127.0.0.1/api/alicenet?offset=1&limit=5', {
       method: 'GET',
@@ -139,7 +143,7 @@ describe('GET /api/alicenet', () => {
     }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.stats).toBeUndefined();
+    expect(body.stats.total).toBe(1);
     expect(body.page.offset).toBe(1);
   });
 
@@ -177,9 +181,21 @@ describe('GET /api/alicenet', () => {
     }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.page.limit).toBe(1000);
+    expect(body.page.limit).toBe(240);
     expect(body.page.offset).toBe(0);
     expect(body.stats.in_wishlist).toBe(0);
+  });
+
+  it('accepts explicit filters, sorting, grouping, and bounded numeric ranges', async () => {
+    seedRow('100-000000-007');
+    const res = await listGET(new Request(
+      'http://127.0.0.1/api/alicenet?filter=matched&sort=release_desc&group=match&yearMin=2000&yearMax=bad&priceMin=%20&priceMax=9999',
+      { headers: { host: '127.0.0.1' } },
+    ));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.page).toMatchObject({ offset: 0, limit: 96 });
   });
 
   it('200 does not block the stock snapshot on a slow wishlist request', async () => {
@@ -223,7 +239,12 @@ describe('POST /api/alicenet/fetch', () => {
     const res = await fetchPOST(localReq('POST', {}) as never);
     expect(res.status).toBe(502);
     const body = await res.json();
-    expect(body).toEqual({ error: 'AliceNet request timed out. Check the network or proxy, then retry.' });
+    expect(body).toEqual({
+      ok: false,
+      error: 'AliceNet request timed out. Check the network or proxy, then retry.',
+      code: 'alicenet_timeout',
+      context: 'alicenet/fetch',
+    });
   });
 
   it('403 for a non-loopback host', async () => {
@@ -253,7 +274,12 @@ describe('POST /api/alicenet/match-next', () => {
     matchNextAliceNetItemsMock.mockRejectedValue(new Error('ETIMEDOUT'));
     const res = await matchNextPOST(localReq('POST', { batch: 5 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'AliceNet request timed out. Check the network or proxy, then retry.' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'AliceNet request timed out. Check the network or proxy, then retry.',
+      code: 'alicenet_timeout',
+      context: 'alicenet/match-next',
+    });
   });
 
   it('400 when batch exceeds the route maximum', async () => {
@@ -294,7 +320,12 @@ describe('POST /api/alicenet/match-vndb-from-egs', () => {
     matchVndbFromEgsForAliceNetMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
     const res = await matchVndbFromEgsPOST(localReq('POST', { batch: 10 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'AliceNet host could not be resolved. Check DNS, network, or proxy settings.' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'AliceNet host could not be resolved. Check DNS, network, or proxy settings.',
+      code: 'alicenet_dns_failure',
+      context: 'alicenet/match-vndb-from-egs',
+    });
   });
 
   it('400 when run_started_at is fractional', async () => {
@@ -329,7 +360,12 @@ describe('POST /api/alicenet/retry-vndb-aggressive', () => {
     retryVndbForAliceNetAggressiveMock.mockRejectedValue(new Error('ECONNREFUSED'));
     const res = await retryAggressivePOST(localReq('POST', { batch: 4 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'AliceNet connection was refused. Check the configured proxy or source availability.' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'AliceNet connection was refused. Check the configured proxy or source availability.',
+      code: 'alicenet_connection_refused',
+      context: 'alicenet/retry-vndb-aggressive',
+    });
   });
 
   it('400 when batch exceeds the route maximum', async () => {
@@ -364,7 +400,12 @@ describe('POST /api/alicenet/search-egs-no-vndb', () => {
     searchEgsForAliceNetNoVndbMock.mockRejectedValue(new Error('socket hang up'));
     const res = await searchEgsPOST(localReq('POST', { batch: 10 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'socket hang up' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'socket hang up',
+      code: 'alicenet_operation_failed',
+      context: 'alicenet/search-egs-no-vndb',
+    });
   });
 
   it('400 when aggressive is not a boolean', async () => {
@@ -410,7 +451,13 @@ describe('POST /api/alicenet/download-vndb', () => {
     getVnMock.mockResolvedValue(null);
     const res = await downloadVndbPOST(localReq('POST', { batch: 5 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'VNDB returned no data for v60011', processed: 0 });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'VNDB returned no data for v60011',
+      code: 'alicenet_operation_failed',
+      context: 'alicenet/download-vndb',
+      processed: 0,
+    });
   });
 
   it('400 when batch exceeds the route maximum', async () => {
@@ -460,7 +507,13 @@ describe('POST /api/alicenet/resolve-egs', () => {
     resolveEgsForVnMock.mockRejectedValue(new Error('EGS SQL form 500 at /Users/secret'));
     const res = await resolveEgsPOST(localReq('POST', { batch: 5 }) as never);
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'EGS SQL form 500 at [local path]', processed: 0 });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'EGS SQL form 500 at [local path]',
+      code: 'alicenet_operation_failed',
+      context: 'alicenet/resolve-egs',
+      processed: 0,
+    });
   });
 
   it('400 when batch exceeds the route maximum', async () => {

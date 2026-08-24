@@ -23,6 +23,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (e) {
     console.error('[alicenet/match-next] failed', (e as Error).message);
-    return aliceNetApiError(e, 'AliceNet matching failed.', 502);
+    return aliceNetApiError(e, 'AliceNet matching failed.', 502, 'alicenet/match-next');
   }
 }

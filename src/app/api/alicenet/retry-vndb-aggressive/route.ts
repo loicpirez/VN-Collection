@@ -26,6 +26,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (e) {
     console.error('[alicenet/retry-vndb-aggressive] failed', (e as Error).message);
-    return aliceNetApiError(e, 'AliceNet VNDB retry failed.', 502);
+    return aliceNetApiError(e, 'AliceNet VNDB retry failed.', 502, 'alicenet/retry-vndb-aggressive');
   }
 }

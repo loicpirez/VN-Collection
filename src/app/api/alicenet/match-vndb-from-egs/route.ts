@@ -26,6 +26,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (e) {
     console.error('[alicenet/match-vndb-from-egs] failed', (e as Error).message);
-    return aliceNetApiError(e, 'AliceNet VNDB-from-EGS matching failed.', 502);
+    return aliceNetApiError(e, 'AliceNet VNDB-from-EGS matching failed.', 502, 'alicenet/match-vndb-from-egs');
   }
 }

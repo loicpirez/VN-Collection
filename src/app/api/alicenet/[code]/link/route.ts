@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { clearAliceNetVnLink, getAliceNetStockItem, setAliceNetVnLink } from '@/lib/db';
+import { getAliceNetRepository } from '@/lib/db/repositories/alicenet';
 import { readJsonObject } from '@/lib/api-body';
 import { recordActivity } from '@/lib/activity';
 import { isVndbVnId } from '@/lib/vn-id-shape';
@@ -27,11 +27,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ code: stri
   if (vnId !== null && (typeof vnId !== 'string' || !isVndbVnId(vnId as string))) {
     return NextResponse.json({ error: 'vn_id must be a valid VNDB VN id or null' }, { status: 400 });
   }
-  const item = getAliceNetStockItem(code);
+  const repository = getAliceNetRepository();
+  const item = await repository.getItem(code);
   if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const normalizedVnId = typeof vnId === 'string' ? vnId.toLowerCase() : null;
-  setAliceNetVnLink(code, normalizedVnId, normalizedVnId === null ? 'none' : 'manual');
-  recordActivity({ kind: 'alicenet.link', entity: 'alicenet_stock', entityId: code, label: item.title, payload: { vn_id: normalizedVnId } });
+  await repository.setVnLink(code, normalizedVnId, normalizedVnId === null ? 'none' : 'manual');
+  await recordActivity({ kind: 'alicenet.link', entity: 'alicenet_stock', entityId: code, label: item.title, payload: { vn_id: normalizedVnId } });
   return NextResponse.json({ ok: true });
 }
 
@@ -42,6 +43,6 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ code: st
   if (!ALICENET_CODE_RE.test(code)) {
     return NextResponse.json({ error: 'invalid alicenet code' }, { status: 400 });
   }
-  clearAliceNetVnLink(code);
+  await getAliceNetRepository().clearVnLink(code);
   return NextResponse.json({ ok: true });
 }

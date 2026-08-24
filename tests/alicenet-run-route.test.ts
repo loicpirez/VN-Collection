@@ -21,6 +21,8 @@ vi.mock('@/lib/alicenet', async (importOriginal) => {
 
 import { DELETE, POST } from '@/app/api/alicenet/run/route';
 import { getJob } from '@/lib/download-status';
+import { getAppJobLockRepository } from '@/lib/db/repositories/app-job-lock';
+import { db } from '@/lib/db';
 
 const SCRAPE = { count: 3, added: 1, updated: 1, removed: 1, fetched_at: 1700000000 };
 const DONE = { processed: 0, matched: 0, remaining: 0 };
@@ -60,6 +62,7 @@ describe('alicenet run route branches', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    db.prepare("DELETE FROM app_job_lock WHERE name = 'alicenet-run'").run();
   });
 
   it('rejects non-loopback requests', async () => {
@@ -148,7 +151,69 @@ describe('alicenet run route branches', () => {
     await vi.waitFor(() => expect(getJob(firstBody.jobId)?.finished_at).not.toBeNull());
   });
 
+  it('returns a stable unavailable code when the durable lock cannot be read', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(getAppJobLockRepository(), 'acquire').mockRejectedValueOnce(new Error('database offline'));
+
+    const response = await POST(req('/api/alicenet/run', 'POST', { op: 'download' }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'AliceNet operation unavailable',
+      code: 'run_unavailable',
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[alicenet-run] lock acquisition failed:',
+      'database offline',
+    );
+  });
+
+  it('stops before provider work when durable lease ownership is lost', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(getAppJobLockRepository(), 'renew').mockResolvedValueOnce(false);
+    const response = await POST(req('/api/alicenet/run', 'POST', { op: 'download' }));
+    const body = await response.json() as { jobId: string };
+    expect(response.status).toBe(202);
+    await vi.waitFor(() => expect(getJob(body.jobId)?.finished_at).not.toBeNull());
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(getJob(body.jobId)?.errors).toEqual([
+      { item: 'AliceNet lease', message: 'background job lease lost' },
+    ]);
+    consoleSpy.mockRestore();
+  });
+
+  it('suppresses a lease-loss error that arrives after cancellation', async () => {
+    let rejectRenew: (error: Error) => void = () => {};
+    const repository = getAppJobLockRepository();
+    vi.spyOn(repository, 'renew').mockImplementationOnce(() => new Promise<boolean>((_resolve, reject) => {
+      rejectRenew = reject;
+    }));
+    const lockRelease = vi.spyOn(repository, 'release');
+    const response = await POST(req('/api/alicenet/run', 'POST', { op: 'download' }));
+    const body = await response.json() as { jobId: string };
+    await vi.waitFor(() => expect(repository.renew).toHaveBeenCalled());
+    await DELETE(req(`/api/alicenet/run?jobId=${encodeURIComponent(body.jobId)}`, 'DELETE'));
+    rejectRenew(new Error('late lease loss'));
+    await vi.waitFor(() => expect(lockRelease).toHaveBeenCalled());
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(getJob(body.jobId)?.errors).toEqual([]);
+  });
+
+  it('contains and reports a durable lease release failure', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(getAppJobLockRepository(), 'release').mockRejectedValueOnce(new Error('release unavailable'));
+    const response = await POST(req('/api/alicenet/run', 'POST', { op: 'download' }));
+    const body = await response.json() as { jobId: string };
+    await vi.waitFor(() => expect(getJob(body.jobId)?.finished_at).not.toBeNull());
+    expect(getJob(body.jobId)?.errors).toContainEqual({
+      item: 'AliceNet lease release',
+      message: 'release unavailable',
+    });
+    consoleSpy.mockRestore();
+  });
+
   it('cancels between phases and skips the remaining phases', async () => {
+    const lockRelease = vi.spyOn(getAppJobLockRepository(), 'release');
     let release: () => void = () => {};
     refreshMock.mockImplementation(() => new Promise((resolve) => { release = () => resolve(SCRAPE); }));
     const started = await POST(req('/api/alicenet/run', 'POST', { op: 'pipeline' }));
@@ -160,12 +225,13 @@ describe('alicenet run route branches', () => {
     expect(await cancelled.json()).toEqual({ cancelled: body.jobId });
 
     release();
-    await vi.waitFor(() => expect(getJob(body.jobId)?.finished_at).not.toBeNull());
+    await vi.waitFor(() => expect(lockRelease).toHaveBeenCalled());
     expect(matchNextMock).not.toHaveBeenCalled();
     expect(getJob(body.jobId)?.cancelled).toBe(true);
   });
 
   it('cancels mid phase-loop on the next batch check', async () => {
+    const lockRelease = vi.spyOn(getAppJobLockRepository(), 'release');
     let release: () => void = () => {};
     searchEgsMock.mockImplementation(() => new Promise((resolve) => { release = () => resolve({ processed: 1, matched: 1, remaining: 1 }); }));
     const started = await POST(req('/api/alicenet/run', 'POST', { op: 'match-egs' }));
@@ -174,13 +240,15 @@ describe('alicenet run route branches', () => {
 
     await DELETE(req(`/api/alicenet/run?jobId=${encodeURIComponent(body.jobId)}`, 'DELETE'));
     release();
-    await vi.waitFor(() => expect(getJob(body.jobId)?.finished_at).not.toBeNull());
+    await vi.waitFor(() => expect(lockRelease).toHaveBeenCalled());
     expect(searchEgsMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not record phase errors that arrive after cancellation', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let reject: (e: Error) => void = () => {};
+    const lockRelease = vi.spyOn(getAppJobLockRepository(), 'release')
+      .mockRejectedValueOnce(new Error('late release failure'));
     refreshMock.mockImplementation(() => new Promise((_resolve, rej) => { reject = rej; }));
     const started = await POST(req('/api/alicenet/run', 'POST', { op: 'download' }));
     const body = await started.json() as { jobId: string };
@@ -188,7 +256,7 @@ describe('alicenet run route branches', () => {
 
     await DELETE(req(`/api/alicenet/run?jobId=${encodeURIComponent(body.jobId)}`, 'DELETE'));
     reject(new Error('late scrape failure'));
-    await vi.waitFor(() => expect(getJob(body.jobId)?.finished_at).not.toBeNull());
+    await vi.waitFor(() => expect(lockRelease).toHaveBeenCalled());
     expect(consoleSpy.mock.calls.some((c) => String(c[0]).includes('[download:alicenet]'))).toBe(false);
     consoleSpy.mockRestore();
   });

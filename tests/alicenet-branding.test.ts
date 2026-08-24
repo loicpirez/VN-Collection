@@ -81,7 +81,7 @@ describe('AliceNet branding', () => {
     const proxyConfig = source('src/lib/proxy-config.ts');
     expect(proxyConfig).toContain("if (provider === ALICENET_PROVIDER_ID) return null");
     expect(proxyConfig).toContain("if (providerId === ALICENET_PROVIDER_ID)");
-    expect(proxyConfig).toContain("return resolveFromStored(null, readDbConfig('stock'))");
+    expect(proxyConfig).toContain("return resolveFromStored(null, await readDbConfig('stock'))");
     expect(proxyConfig).not.toContain("alicenet: 'ALICENET'");
   });
 });

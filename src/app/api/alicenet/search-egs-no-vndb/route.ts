@@ -28,6 +28,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (e) {
     console.error('[alicenet/search-egs-no-vndb] failed', (e as Error).message);
-    return aliceNetApiError(e, 'AliceNet EGS search failed.', 502);
+    return aliceNetApiError(e, 'AliceNet EGS search failed.', 502, 'alicenet/search-egs-no-vndb');
   }
 }

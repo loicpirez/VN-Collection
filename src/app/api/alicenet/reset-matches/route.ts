@@ -8,6 +8,6 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const cleared = resetAliceNetAutoMatches();
+  const cleared = await resetAliceNetAutoMatches();
   return NextResponse.json({ cleared });
 }

@@ -4,7 +4,8 @@ import { readJsonObject } from '@/lib/api-body';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { cancelJob, finishJob, isJobCancelled, jobLabel, recordError, setJobTotal, startJob, tickJob, type JobLabelCode } from '@/lib/download-status';
 import { matchNextAliceNetItems, matchVndbFromEgsForAliceNet, refreshAliceNetStock, searchEgsForAliceNetNoVndb } from '@/lib/alicenet';
-import { setAppSetting } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { acquireBackgroundJobLease } from '@/lib/background-job-lease';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,7 +31,7 @@ interface Phase {
 const scrapePhase: Phase = {
   run: async () => {
     const result = await refreshAliceNetStock();
-    setAppSetting('alicenet_last_fetch', String(result.fetched_at));
+    await getAppSettingRepository().set('alicenet_last_fetch', String(result.fetched_at));
     return { processed: result.count, remaining: 0 };
   },
 };
@@ -60,8 +61,8 @@ function parseOp(value: unknown): AliceNetOp | null {
   return null;
 }
 
-const MAX_ACTIVE_JOBS = 1;
-const activeJobs = new Set<string>();
+const ALICENET_RUN_LOCK = 'alicenet-run';
+const ALICENET_RUN_LOCK_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Start an AliceNet operation as a detached server-side download-status job so
@@ -75,41 +76,69 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   const body = await readJsonObject(req);
   const op = parseOp(body.op);
-  if (!op) return NextResponse.json({ error: 'op must be one of download, pipeline, match-vndb, match-egs' }, { status: 400 });
-  if (activeJobs.size >= MAX_ACTIVE_JOBS) {
+  if (!op) return NextResponse.json({ error: 'op must be one of download, pipeline, match-vndb, match-egs', code: 'invalid_operation' }, { status: 400 });
+  let lease;
+  try {
+    lease = await acquireBackgroundJobLease(ALICENET_RUN_LOCK, 1, ALICENET_RUN_LOCK_TTL_MS);
+  } catch (error) {
+    console.error('[alicenet-run] lock acquisition failed:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'AliceNet operation unavailable', code: 'run_unavailable' },
+      { status: 503 },
+    );
+  }
+  if (!lease) {
     return NextResponse.json({ error: 'an AliceNet operation is already running', code: 'queue_full' }, { status: 429 });
   }
   const phases = phasesForOp(op);
   const labelSpec = OP_LABEL[op];
   const job = startJob('alicenet', jobLabel(labelSpec.code, labelSpec.fallback), 0, null);
-  activeJobs.add(job.id);
 
   void (async () => {
     const runStartedAt = Date.now();
     let total = 0;
+    let leaseHealthy = true;
     try {
       for (const phase of phases) {
         if (isJobCancelled(job.id)) break;
-        try {
-          let counted = false;
-          for (;;) {
-            if (isJobCancelled(job.id)) break;
-            const result = await phase.run(runStartedAt);
-            if (!counted) {
-              total += result.processed + result.remaining;
-              setJobTotal(job.id, total);
-              counted = true;
+        await lease.renew();
+        let counted = false;
+        for (;;) {
+          if (isJobCancelled(job.id)) break;
+          let result: PhaseResult;
+          try {
+            result = await phase.run(runStartedAt);
+          } catch (error) {
+            if (!isJobCancelled(job.id)) {
+              recordError(job.id, labelSpec.fallback, sanitizeUnknownError(error));
             }
-            tickJob(job.id, result.processed);
-            if (result.processed === 0 || result.remaining === 0) break;
+            break;
           }
-        } catch (e) {
-          if (!isJobCancelled(job.id)) recordError(job.id, labelSpec.fallback, sanitizeUnknownError(e));
+          await lease.renew();
+          if (!counted) {
+            total += result.processed + result.remaining;
+            setJobTotal(job.id, total);
+            counted = true;
+          }
+          tickJob(job.id, result.processed);
+          if (result.processed === 0 || result.remaining === 0) break;
         }
       }
+    } catch (error) {
+      leaseHealthy = false;
+      if (!isJobCancelled(job.id)) {
+        recordError(job.id, 'AliceNet lease', sanitizeUnknownError(error));
+      }
     } finally {
-      activeJobs.delete(job.id);
-      finishJob(job.id, { complete: !isJobCancelled(job.id) });
+      try {
+        await lease.release();
+      } catch (error) {
+        leaseHealthy = false;
+        if (!isJobCancelled(job.id)) {
+          recordError(job.id, 'AliceNet lease release', sanitizeUnknownError(error));
+        }
+      }
+      finishJob(job.id, { complete: leaseHealthy && !isJobCancelled(job.id) });
     }
   })();
 
