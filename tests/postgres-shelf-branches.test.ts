@@ -142,6 +142,7 @@ describe('PostgreSQL shelf branch behavior', () => {
       visualRow({ release_id: 'r90003', vn_release_images: JSON.stringify(content) }),
       visualRow({ release_id: 'r90004', vn_release_images: JSON.stringify(first) }),
       visualRow({ release_id: 'r90005', vn_release_images: 'invalid', rel_languages: 'invalid' }),
+      visualRow({ release_id: 'r90006', vn_release_images: '[{"bad":true}]' }),
     ];
     mocks.postgresQuery
       .mockResolvedValueOnce({ rows })
@@ -158,6 +159,7 @@ describe('PostgreSQL shelf branch behavior', () => {
     expect(mapped[2]?.rel_image_thumb).toBe('content-thumb.jpg');
     expect(mapped[3]?.rel_image_thumb).toBe('back.jpg');
     expect(mapped[4]).toMatchObject({ rel_image_thumb: null, rel_image_url: null, rel_official: true });
+    expect(mapped[5]).toMatchObject({ rel_image_thumb: null, rel_image_url: null });
     await expect(repository.listUnplaced()).resolves.toHaveLength(1);
   });
 
@@ -200,6 +202,13 @@ describe('PostgreSQL shelf branch behavior', () => {
       shelf,
       owned: true,
       bundle: { anchor_vn_id: 'v90002', anchor_release_id: 'r90002' },
+    }));
+    await expect(repository.placeItem(input)).rejects.toThrow('bundle members must be placed through the anchor edition');
+
+    mocks.clientQuery.mockImplementation(placementImplementation({
+      shelf,
+      owned: true,
+      bundle: { anchor_vn_id: input.vnId, anchor_release_id: 'r90002' },
     }));
     await expect(repository.placeItem(input)).rejects.toThrow('bundle members must be placed through the anchor edition');
   });
