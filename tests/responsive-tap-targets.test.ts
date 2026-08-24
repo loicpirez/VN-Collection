@@ -114,7 +114,7 @@ describe('responsive tap targets', () => {
     const stock = source('src/components/PlaceVnBrowser.tsx');
     expect(map).toContain('tap-target absolute inset-y-0 right-2');
     expect(map).toContain('className={`min-h-[44px] rounded border px-2 py-0.5');
-    expect(map).toContain('className="min-h-[44px] w-full px-3 py-2');
+    expect(map).toContain('min-h-[44px] w-full px-3 py-2 text-left text-[12px]');
     expect(modal).toContain('className="min-h-[44px] w-full rounded border');
     expect(places).not.toContain('min-h-[36px]');
     expect(stock).not.toContain('min-h-[32px]');
@@ -132,7 +132,9 @@ describe('responsive tap targets', () => {
     expect(batch).toContain('sm:min-h-[36px]');
     expect(batch).toContain('sm:min-h-0');
     expect(placeCard).toContain('sm:min-h-[32px]');
-    expect(alicenet).toContain('sm:min-h-[32px]');
+    expect(alicenet).toContain('can-hover:sm:min-h-[32px]');
+    expect(alicenet).toContain('can-hover:sm:min-h-0');
+    expect(alicenet).not.toMatch(/(?<!can-hover:)sm:min-h-(?:0|\[32px\]|\[36px\])/);
   });
 
   it('keeps VN-detail secondary actions and shelf navigation touch-safe without inflating desktop rows', () => {
@@ -224,6 +226,7 @@ describe('responsive tap targets', () => {
     expect(layout).toContain('tap-target-tight cursor-grab');
     expect(layout).toContain('inline-flex min-h-[44px] items-center gap-1 rounded-md border');
     expect(layout).toContain('flex min-h-[44px] w-full items-center justify-between');
+    expect(layout).toContain('min-h-[44px] rounded-md border px-2.5 py-1 text-xs');
     expect(layout).toContain('sm:min-h-0');
   });
 
@@ -282,10 +285,11 @@ describe('responsive tap targets', () => {
     const dialog = source('src/components/alicenet/AliceNetLinkDialog.tsx');
     expect(client).toContain('inline-flex min-h-[44px] items-center gap-1 rounded');
     expect(client).toContain('inline-flex min-h-[44px] items-center gap-1.5 rounded-md border');
-    expect(client).toContain('btn btn-xs min-h-[44px] sm:min-h-0');
+    expect(client).toContain('btn btn-xs min-h-[44px] can-hover:sm:min-h-0');
     expect(dialog).toContain('input min-h-[44px] w-full');
-    expect(dialog).toContain('btn btn-primary min-h-[44px] sm:min-h-0');
-    expect(dialog).toContain('btn btn-danger btn-xs min-h-[44px] sm:min-h-0');
+    expect(dialog).toContain('btn btn-primary min-h-[44px] can-hover:sm:min-h-0');
+    expect(dialog).toContain('btn btn-danger btn-xs min-h-[44px] can-hover:sm:min-h-0');
+    expect(dialog).not.toMatch(/(?<!can-hover:)sm:min-h-0/);
   });
 
   it('keeps the stock-batch queue Clear action touch-safe without inflating desktop rows', () => {

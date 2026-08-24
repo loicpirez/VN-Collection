@@ -62,6 +62,9 @@ describe('Tooltip runtime', () => {
     fireEvent.mouseEnter(trigger);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Hint');
     expect(screen.getByRole('tooltip')).toHaveClass('left-full');
+    expect(screen.getByRole('tooltip')).toHaveClass('max-w-[min(20rem,calc(100vw-1rem))]');
+    expect(screen.getByRole('tooltip')).toHaveClass('whitespace-normal');
+    expect(screen.getByRole('tooltip')).toHaveClass('break-words');
     fireEvent.keyDown(window, { key: 'Unidentified' });
     expect(screen.getByRole('tooltip')).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
