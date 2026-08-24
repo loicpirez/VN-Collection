@@ -379,7 +379,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props =
       {(onLibrary || hasOverride) && (running || finished || aborted || error) && (
         <div
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
-          className="fixed bottom-12 left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-4 shadow-card"
+          className="fixed bottom-12 left-1/2 z-layer-status w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-border bg-bg-card p-4 shadow-card"
         >
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">

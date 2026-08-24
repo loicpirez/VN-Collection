@@ -190,7 +190,7 @@ export function HomeLayoutEditorTrigger({ layout }: { layout: HomeSectionLayoutV
       {open && (
         <DialogPortal>
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-bg/80 backdrop-blur"
+            className="fixed inset-0 z-layer-modal flex items-center justify-center bg-bg/80 backdrop-blur"
             onClick={() => { if (!inFlightRef.current) setOpen(false); }}
           >
             <div

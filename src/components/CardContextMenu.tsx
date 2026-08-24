@@ -152,7 +152,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
       ref={ref}
       role="menu"
       aria-label={t.quickActions.title}
-      className="fixed z-50 overflow-y-auto rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
+      className="fixed z-layer-popover overflow-y-auto rounded-lg border border-border bg-bg-card p-1 text-xs shadow-card"
       style={{ left, top, width: MENU_W, maxHeight: MENU_H }}
     >
       <div className="mb-1 flex items-center justify-between px-2 pt-1 text-[10px] uppercase tracking-wider text-muted">

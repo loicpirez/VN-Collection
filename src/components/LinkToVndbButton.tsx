@@ -173,7 +173,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
       </button>
       {open && (
         <DialogPortal>
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center" onClick={() => { if (!mutationRef.current) setOpen(false); }}>
+          <div className="fixed inset-0 z-layer-modal flex items-center justify-center" onClick={() => { if (!mutationRef.current) setOpen(false); }}>
             <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />
             <div
               ref={panelRef}
