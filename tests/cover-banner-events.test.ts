@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  VN_BANNER_EDIT_EVENT,
   VN_BANNER_CHANGED_EVENT,
+  VN_COVER_ACTION_EVENT,
   VN_COVER_CHANGED_EVENT,
+  dispatchBannerEdit,
   dispatchBannerChanged,
+  dispatchCoverAction,
   dispatchCoverChanged,
+  type VnBannerEditDetail,
+  type VnCoverActionDetail,
   type VnBannerChangedDetail,
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
@@ -19,6 +25,8 @@ describe('cover-banner-events', () => {
   it('exports stable event name constants', () => {
     expect(VN_COVER_CHANGED_EVENT).toBe('vn:cover-changed');
     expect(VN_BANNER_CHANGED_EVENT).toBe('vn:banner-changed');
+    expect(VN_COVER_ACTION_EVENT).toBe('vn:cover-action');
+    expect(VN_BANNER_EDIT_EVENT).toBe('vn:edit-banner');
   });
 
   it('dispatch helpers no-op outside a browser', () => {
@@ -32,6 +40,10 @@ describe('cover-banner-events', () => {
     expect(() =>
       dispatchBannerChanged({ vnId: 'v1', newSrc: null, newLocal: null }),
     ).not.toThrow();
+    expect(() =>
+      dispatchCoverAction({ vnId: 'v1', action: 'rotate-right' }),
+    ).not.toThrow();
+    expect(() => dispatchBannerEdit({ vnId: 'v1' })).not.toThrow();
   });
 
   it('typed details accept the documented shape', () => {
@@ -50,5 +62,9 @@ describe('cover-banner-events', () => {
       rotation: 0,
     };
     expect(banner.position).toBe('40% 60%');
+    const action: VnCoverActionDetail = { vnId: 'v90017', action: 'reset-rotation' };
+    expect(action.action).toBe('reset-rotation');
+    const edit: VnBannerEditDetail = { vnId: 'v90017' };
+    expect(edit.vnId).toBe('v90017');
   });
 });

@@ -26,6 +26,19 @@
 
 export const VN_COVER_CHANGED_EVENT = 'vn:cover-changed';
 export const VN_BANNER_CHANGED_EVENT = 'vn:banner-changed';
+export const VN_COVER_ACTION_EVENT = 'vn:cover-action';
+export const VN_BANNER_EDIT_EVENT = 'vn:edit-banner';
+
+export type VnCoverAction = 'rotate-left' | 'rotate-right' | 'reset-rotation';
+
+export interface VnCoverActionDetail {
+  vnId: string;
+  action: VnCoverAction;
+}
+
+export interface VnBannerEditDetail {
+  vnId: string;
+}
 
 export interface VnCoverChangedDetail {
   vnId: string;
@@ -56,4 +69,16 @@ export function dispatchCoverChanged(detail: VnCoverChangedDetail): void {
 export function dispatchBannerChanged(detail: VnBannerChangedDetail): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<VnBannerChangedDetail>(VN_BANNER_CHANGED_EVENT, { detail }));
+}
+
+/** Delegate a cover transform to the resident cover controls. SSR-safe. */
+export function dispatchCoverAction(detail: VnCoverActionDetail): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<VnCoverActionDetail>(VN_COVER_ACTION_EVENT, { detail }));
+}
+
+/** Open the resident banner focal-point editor for one VN. SSR-safe. */
+export function dispatchBannerEdit(detail: VnBannerEditDetail): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<VnBannerEditDetail>(VN_BANNER_EDIT_EVENT, { detail }));
 }
