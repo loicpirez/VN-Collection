@@ -8,6 +8,7 @@ import { SafeImage } from './SafeImage';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeCollectionFindMatches, type CollectionFindMatch } from '@/lib/collection-find-client-shape';
 import { decodeTextualSearchHits, type TextualSearchHit } from '@/lib/browse-client-shape';
+import { hasEnoughStrongLocalMatches } from '@/lib/textual-search-policy';
 
 const ICONS = {
   notes: FileText,
@@ -54,6 +55,8 @@ export function TextualSearchPanel({
   const [hits, setHits] = useState<TextualSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(mode === 'standalone');
+  const [error, setError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -61,40 +64,51 @@ export function TextualSearchPanel({
       setLibraryHits([]);
       setHits([]);
       setLoading(false);
+      setError(null);
       return;
     }
     let alive = true;
     setLoading(true);
+    setError(null);
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      Promise.all([
-        fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
+      const run = async () => {
+        const libraryResponse = await fetch(`/api/collection/find?q=${encodeURIComponent(trimmed)}`, {
           signal: ctrl.signal,
           cache: 'no-store',
-        }).then(async (r) => {
-          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-          const matches = decodeCollectionFindMatches(await r.json());
-          if (!matches) throw new Error(t.common.error);
-          return matches;
-        }),
-        fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`, {
-          signal: ctrl.signal,
-          cache: 'no-store',
-        }).then(async (r) => {
-          if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-          const hits = decodeTextualSearchHits(await r.json());
-          if (!hits) throw new Error(t.common.error);
-          return hits;
-        }),
-      ])
-        .then(([library, textual]) => {
-          if (!alive || ctrl.signal.aborted) return;
+        });
+        if (!libraryResponse.ok) throw new Error(await readApiError(libraryResponse, t.common.error));
+        const library = decodeCollectionFindMatches(await libraryResponse.json());
+        if (!library) throw new Error(t.common.error);
+        if (!alive || ctrl.signal.aborted) return;
+
+        if (mode === 'accordion' && hasEnoughStrongLocalMatches(trimmed, library)) {
           setLibraryHits(library);
-          setHits(textual);
-        })
+          setHits([]);
+          setError(null);
+          return;
+        }
+
+        const textualResponse = await fetch(`/api/search/textual?q=${encodeURIComponent(trimmed)}`, {
+          signal: ctrl.signal,
+          cache: 'no-store',
+        });
+        if (!textualResponse.ok) throw new Error(await readApiError(textualResponse, t.common.error));
+        const textual = decodeTextualSearchHits(await textualResponse.json());
+        if (!textual) throw new Error(t.common.error);
+        if (!alive || ctrl.signal.aborted) return;
+        setLibraryHits(library);
+        setHits(textual);
+        setError(null);
+      };
+      void run()
         .catch((e: unknown) => {
           if ((e as Error).name === 'AbortError' || ctrl.signal.aborted) return;
           console.error('[TextualSearchPanel] search failed:', e);
+          setLibraryHits([]);
+          setHits([]);
+          setError(e instanceof Error && e.message ? e.message : t.common.error);
+          setOpen(true);
         })
         .finally(() => { if (alive) setLoading(false); });
     }, 280);
@@ -103,11 +117,11 @@ export function TextualSearchPanel({
       ctrl.abort();
       clearTimeout(timer);
     };
-  }, [query, t.common.error]);
+  }, [mode, query, t.common.error, retryNonce]);
 
   if (mode === 'accordion') {
     if (query.trim().length < 2) return null;
-    if (!loading && libraryHits.length === 0 && hits.length === 0) return null;
+    if (!loading && !error && libraryHits.length === 0 && hits.length === 0) return null;
   } else {
     if (query.trim().length < 2) {
       return (
@@ -117,13 +131,23 @@ export function TextualSearchPanel({
         </div>
       );
     }
-    if (!loading && libraryHits.length === 0 && hits.length === 0) {
+    if (!loading && !error && libraryHits.length === 0 && hits.length === 0) {
       return <div className="py-20 text-center text-muted">{t.textualSearch.empty}</div>;
     }
   }
 
+  const resultCount = libraryHits.length + hits.length;
+  const statusText = loading
+    ? t.textualSearch.statusLoading
+    : error
+      ? t.textualSearch.statusError
+      : (t.textualSearch.statusCount as string).replace('{n}', String(resultCount));
+
   return (
     <section className={`${mode === 'standalone' ? '' : 'mt-6'} rounded-xl border border-border bg-bg-card/60`}>
+      <span className="sr-only" role="status" aria-live="polite">
+        {statusText}
+      </span>
       {mode === 'accordion' && (
         <button
           type="button"
@@ -138,9 +162,11 @@ export function TextualSearchPanel({
             </span>
             {loading ? (
               <span className="text-[10px] text-muted">/ {t.common.loading}</span>
+            ) : error ? (
+              <span className="text-[10px] text-status-dropped">/ {t.common.error}</span>
             ) : (
               <span className="rounded-full bg-bg-elev/50 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted">
-                {libraryHits.length + hits.length}
+                {resultCount}
               </span>
             )}
           </span>
@@ -154,7 +180,18 @@ export function TextualSearchPanel({
       {open && (
         <div id={panelId} className={`${mode === 'standalone' ? '' : 'border-t border-border'} px-3 pb-3 pt-2`}>
           <p className="mb-2 text-[10px] text-muted/80">{t.textualSearch.hint}</p>
-          {loading ? (
+          {error ? (
+            <div role="alert" className="rounded-md border border-status-dropped/40 bg-status-dropped/10 p-3 text-xs text-status-dropped">
+              <p>{error}</p>
+              <button
+                type="button"
+                className="mt-2 inline-flex min-h-[44px] items-center rounded-md border border-status-dropped/40 px-2 py-1 font-semibold hover:bg-status-dropped/10 sm:min-h-0"
+                onClick={() => setRetryNonce((n) => n + 1)}
+              >
+                {t.common.retry}
+              </button>
+            </div>
+          ) : loading ? (
             <ul className="space-y-1.5" aria-busy="true">
               {Array.from({ length: Math.max(3, hits.length || 3) }).map((_, i) => (
                 <li key={i} className="rounded-md border border-border bg-bg-elev/30 p-2">

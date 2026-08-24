@@ -148,8 +148,12 @@ describe('SearchClient', () => {
     renderSearchClient();
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced filters/ }));
+    expect(screen.getByText('VNDB length categories, not exact hour counts.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'English' }));
     fireEvent.click(screen.getByRole('button', { name: 'Windows' }));
+    const morePlatforms = screen.getByText(/More platforms \(\d+\)/);
+    fireEvent.click(morePlatforms);
+    fireEvent.click(screen.getByRole('button', { name: 'MS-DOS' }));
     fireEvent.click(screen.getByRole('button', { name: /2 \/ Short/ }));
     fireEvent.change(screen.getByLabelText('Min year'), { target: { value: '2001' } });
     fireEvent.change(screen.getByLabelText('Max year'), { target: { value: '2005' } });
@@ -162,7 +166,7 @@ describe('SearchClient', () => {
 
     await waitFor(() =>
       expect(nav.replace).toHaveBeenLastCalledWith(
-        '/search?langs=en&platforms=win&lengthMin=2&lengthMax=2&yearMin=2001&yearMax=2005&ratingMin=70&hasScreenshot=1&hasReview=1&hasAnime=1&sort=rating',
+        '/search?langs=en&platforms=win%2Cdos&lengthMin=2&lengthMax=2&yearMin=2001&yearMax=2005&ratingMin=70&hasScreenshot=1&hasReview=1&hasAnime=1&sort=rating',
         { scroll: false },
       ),
     );
@@ -312,6 +316,6 @@ describe('SearchClient', () => {
     const row = await screen.findByText('Add Failure', undefined, { timeout: 5_000 });
     await user.click(within(row.closest('li') ?? document.body).getByRole('button', { name: /Add via EGS/ }));
 
-    expect(await screen.findByText('Add failed', undefined, { timeout: 5_000 })).toBeInTheDocument();
+    expect(await screen.findByText('This ErogameScape result could not be added.', undefined, { timeout: 5_000 })).toBeInTheDocument();
   });
 });

@@ -370,10 +370,8 @@ describe('SearchClient branches', () => {
     expect(screen.queryByText('Search error')).toBeNull();
   });
 
-  it('ignores aborted in-flight quick search completions', async () => {
+  it('ignores successful quick-search responses that complete after cancellation', async () => {
     vi.useFakeTimers();
-    const abortError = new Error('aborted');
-    abortError.name = 'AbortError';
     const vndbPending = deferredResponse();
     const egsPending = deferredResponse();
     try {
@@ -391,11 +389,12 @@ describe('SearchClient branches', () => {
       });
       fireEvent.change(screen.getByRole('searchbox', { name: /VNDB/ }), { target: { value: 'second' } });
       await act(async () => {
-        vndbPending.reject(abortError);
-        await vndbPending.promise.catch(() => undefined);
+        vndbPending.resolve(json({ results: [hit({ title: 'Stale VNDB' })] }));
+        await vndbPending.promise;
         await vi.advanceTimersByTimeAsync(351);
       });
       expect(screen.getByText('Second VNDB')).toBeInTheDocument();
+      expect(screen.queryByText('Stale VNDB')).toBeNull();
       first.unmount();
 
       const second = renderSearchClient();
@@ -406,11 +405,12 @@ describe('SearchClient branches', () => {
       });
       fireEvent.change(screen.getByRole('searchbox', { name: /ErogameScape/ }), { target: { value: 'second' } });
       await act(async () => {
-        egsPending.reject(abortError);
-        await egsPending.promise.catch(() => undefined);
+        egsPending.resolve(json({ candidates: [candidate({ gamename: 'Stale EGS' })] }));
+        await egsPending.promise;
         await vi.advanceTimersByTimeAsync(351);
       });
       expect(screen.getByText('Second EGS')).toBeInTheDocument();
+      expect(screen.queryByText('Stale EGS')).toBeNull();
       second.unmount();
     } finally {
       vi.useRealTimers();
@@ -489,7 +489,48 @@ describe('SearchClient branches', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByText('Error')).toBeInTheDocument();
+    expect(screen.getByText('The game was added, but the server response was invalid. Reload the collection.')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['needs_mapping', 'This EGS game points to a VN that is not available locally yet. Download or remap the VN before adding it.'],
+    ['upstream_unavailable', 'ErogameScape is temporarily unavailable. Retry later.'],
+    ['already_exists', 'This game is already in the collection.'],
+    ['egs_game_not_found', 'This game could not be found on ErogameScape.'],
+  ])('localizes the %s EGS add error code', async (code, expectedMessage) => {
+    vi.useFakeTimers();
+    installFetch((url) => {
+      if (url.startsWith('/api/egs/90001/add')) {
+        return json({ ok: false, error: 'server fallback', code, context: 'egs/90001/add' }, 409);
+      }
+      if (url.startsWith('/api/egs/search')) return json({ candidates: [candidate()] });
+      return json({ results: [hit()] });
+    });
+    renderSearchClient();
+    await runEgsQuickSearch();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Add via EGS/ }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText(expectedMessage)).toBeInTheDocument();
+  });
+
+  it('uses the localized EGS add fallback for a non-Error rejection', async () => {
+    vi.useFakeTimers();
+    installFetch((url) => {
+      if (url.startsWith('/api/egs/90001/add')) return Promise.reject('raw add failure');
+      if (url.startsWith('/api/egs/search')) return json({ candidates: [candidate()] });
+      return json({ results: [hit()] });
+    });
+    renderSearchClient();
+    await runEgsQuickSearch();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Add via EGS/ }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText('This ErogameScape result could not be added.')).toBeInTheDocument();
   });
 
   it('drops stale EGS add success after unmount', async () => {

@@ -13,25 +13,31 @@ const TextualSearchPanel = dynamic(() => import('./TextualSearchPanel').then((m)
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { ErrorAlert } from './ErrorAlert';
+import { AcronymLabel } from './AcronymLabel';
 import { useToast } from './ToastProvider';
 import { resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
-import { platformLabel } from '@/lib/platform-label';
+import { COMMON_PLATFORM_CODES, PLATFORM_CODES, platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import type { VndbSearchHit } from '@/lib/types';
 import type { EgsCandidate } from '@/lib/erogamescape';
 
-import { readApiError } from '@/lib/api-error-read';
+import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import {
   decodeAddedEgsVnId,
   decodeEgsSearchCandidates,
   decodeVndbSearchResults,
 } from '@/lib/search-client-shape';
+import { parseOptionalQueryNumber, parseQueryEnum } from '@/lib/query-params';
+import {
+  EGS_QUICK_SEARCH_PAGE_SIZE,
+  VNDB_ADVANCED_SEARCH_PAGE_SIZE,
+} from '@/lib/search-result-limits';
 type SearchSource = 'vndb' | 'egs' | 'local';
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
-const COMMON_PLATFORMS = ['win', 'lin', 'mac', 'ios', 'and', 'web', 'swi', 'ps4', 'ps5', 'psv', 'psp', 'xb1', 'xxs', 'n3d'];
+const OTHER_PLATFORM_CODES = PLATFORM_CODES.filter((code) => !COMMON_PLATFORM_CODES.includes(code));
 
 type AdvSort = '' | 'searchrank' | 'rating' | 'votecount' | 'released' | 'title';
 const ADV_SORTS: readonly Exclude<AdvSort, ''>[] = ['searchrank', 'rating', 'votecount', 'released', 'title'];
@@ -74,13 +80,10 @@ const DEFAULT_ADV: AdvParams = {
 function readAdvFromUrl(sp: URLSearchParams): AdvParams {
   const csv = (key: string) => sp.get(key)?.split(',').filter(Boolean) ?? [];
   const num = (key: string) => {
-    const v = sp.get(key);
-    if (v == null || v === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    return parseOptionalQueryNumber(sp.get(key)) ?? null;
   };
   const rawSort = sp.get('sort') ?? '';
-  const sort: AdvSort = (ADV_SORTS as readonly string[]).includes(rawSort) ? (rawSort as AdvSort) : '';
+  const sort = parseQueryEnum<AdvSort>(rawSort, ['', ...ADV_SORTS], '');
   return {
     langs: csv('langs'),
     platforms: csv('platforms'),
@@ -99,9 +102,7 @@ function readAdvFromUrl(sp: URLSearchParams): AdvParams {
 
 function readSourceFromUrl(sp: { get(name: string): string | null }): SearchSource {
   const raw = sp.get('source') ?? sp.get('src') ?? '';
-  if (raw === 'egs') return 'egs';
-  if (raw === 'local') return 'local';
-  return 'vndb';
+  return parseQueryEnum(raw, ['vndb', 'egs', 'local'] as const, 'vndb');
 }
 
 function isAdvActive(adv: AdvParams): boolean {
@@ -210,6 +211,8 @@ export function SearchClient() {
         hasAnime: adv.hasAnime || undefined,
         sort: adv.sort || undefined,
         reverse: adv.sort ? adv.reverse : undefined,
+        results: VNDB_ADVANCED_SEARCH_PAGE_SIZE,
+        page: 1,
       };
       const r = await fetch('/api/search/advanced', {
         method: 'POST',
@@ -337,6 +340,7 @@ export function SearchClient() {
         }
         const results = decodeVndbSearchResults(await r.json());
         if (!results) throw new Error(t.search.errorPrefix);
+        if (ctrl.signal.aborted) return;
         setResults(results);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
@@ -368,7 +372,7 @@ export function SearchClient() {
     const handle = setTimeout(async () => {
       try {
         const r = await fetch(
-          `/api/egs/search?q=${encodeURIComponent(q.trim())}&limit=40`,
+          `/api/egs/search?q=${encodeURIComponent(q.trim())}&limit=${EGS_QUICK_SEARCH_PAGE_SIZE}`,
           { signal: ctrl.signal, cache: 'no-store' },
         );
         if (!r.ok) {
@@ -376,6 +380,7 @@ export function SearchClient() {
         }
         const candidates = decodeEgsSearchCandidates(await r.json());
         if (!candidates) throw new Error(t.search.errorPrefix);
+        if (ctrl.signal.aborted) return;
         setEgsResults(candidates);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
@@ -405,17 +410,24 @@ export function SearchClient() {
         body: JSON.stringify({ status: 'planning' }),
         signal: controller.signal,
       });
-      if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (!r.ok) {
+        throw new Error(await readApiErrorLocalized(r, {
+          needs_mapping: t.search.egsAddNeedsMapping,
+          upstream_unavailable: t.search.egsAddUpstreamUnavailable,
+          already_exists: t.search.egsAddAlreadyExists,
+          egs_game_not_found: t.search.egsAddNotFound,
+        }, t.search.egsAddFailed));
+      }
       const vnId = decodeAddedEgsVnId(await r.json());
-      if (!vnId) throw new Error(t.common.error);
+      if (!vnId) throw new Error(t.search.egsAddInvalidResponse);
       if (controller.signal.aborted || !mountedRef.current || egsAddAbortRef.current !== controller) return;
       setAddedEgsIds((prev) => new Set(prev).add(c.id));
       toast.success(t.toast.added);
       startTransition(() => router.refresh());
       router.push(`/vn/${vnId}`);
     } catch (e) {
-      if ((e as Error).name === 'AbortError' || controller.signal.aborted || !mountedRef.current || egsAddAbortRef.current !== controller) return;
-      toast.error((e as Error).message);
+      if ((e instanceof Error && e.name === 'AbortError') || controller.signal.aborted || !mountedRef.current || egsAddAbortRef.current !== controller) return;
+      toast.error(e instanceof Error && e.message ? e.message : t.search.egsAddFailed);
     } finally {
       if (egsAddAbortRef.current === controller) {
         egsAddAbortRef.current = null;
@@ -455,6 +467,7 @@ export function SearchClient() {
       >
         <button
           type="button"
+          data-shortcut="search-tab-1"
           id={tabIds.vndb}
           role="tab"
           aria-selected={source === 'vndb'}
@@ -466,10 +479,11 @@ export function SearchClient() {
           }`}
         >
           <Database className="h-3 w-3" aria-hidden />
-          {t.search.tabVndb}
+          <AcronymLabel acronym="vndb" />
         </button>
         <button
           type="button"
+          data-shortcut="search-tab-2"
           id={tabIds.egs}
           role="tab"
           aria-selected={source === 'egs'}
@@ -482,10 +496,11 @@ export function SearchClient() {
           title={t.search.egsSourceHint}
         >
           <Sparkles className="h-3 w-3" aria-hidden />
-          {t.search.tabEgs}
+          <AcronymLabel acronym="egs" />
         </button>
         <button
           type="button"
+          data-shortcut="search-tab-3"
           id={tabIds.local}
           role="tab"
           aria-selected={source === 'local'}
@@ -569,7 +584,7 @@ export function SearchClient() {
             <div>
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.platformsField}</h4>
               <div className="flex flex-wrap gap-1.5">
-                {COMMON_PLATFORMS.map((p) => (
+                {COMMON_PLATFORM_CODES.map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -577,13 +592,35 @@ export function SearchClient() {
                     className={`chip ${adv.platforms.includes(p) ? 'chip-active' : ''}`}
                     onClick={() => setAdv((s) => ({ ...s, platforms: toggle(s.platforms, p) }))}
                   >
-                    {platformLabel(p)}
+                    {platformLabel(p, locale)}
                   </button>
                 ))}
               </div>
+              <details
+                className="mt-2 rounded-md border border-border/70 bg-bg-elev/20 px-2 py-1.5"
+                open={adv.platforms.some((code) => OTHER_PLATFORM_CODES.includes(code)) || undefined}
+              >
+                <summary className="min-h-[44px] cursor-pointer content-center text-xs font-semibold text-muted hover:text-white sm:min-h-0">
+                  {t.search.morePlatforms.replace('{count}', String(OTHER_PLATFORM_CODES.length))}
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+                  {OTHER_PLATFORM_CODES.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      aria-pressed={adv.platforms.includes(p)}
+                      className={`chip ${adv.platforms.includes(p) ? 'chip-active' : ''}`}
+                      onClick={() => setAdv((s) => ({ ...s, platforms: toggle(s.platforms, p) }))}
+                    >
+                      {platformLabel(p, locale)}
+                    </button>
+                  ))}
+                </div>
+              </details>
             </div>
             <div>
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.search.lengthField}</h4>
+              <p className="mb-2 text-xs text-muted/80">{t.search.lengthHint}</p>
               <div className="flex flex-wrap gap-1.5">
                 {[1, 2, 3, 4, 5].map((n) => {
                   const active = adv.lengthMin !== null && adv.lengthMax !== null && n >= adv.lengthMin && n <= adv.lengthMax;
@@ -767,7 +804,7 @@ export function SearchClient() {
                   <div className="min-w-0 flex-1">
                     <div className="line-clamp-2 text-sm font-semibold" title={c.gamename}>{c.gamename}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted">
-                      <span>EGS #{c.id}</span>
+                      <span><AcronymLabel acronym="egs" /> #{c.id}</span>
                       {c.sellday && <span>{formatIsoDateString(c.sellday, locale)}</span>}
                       {c.median != null && (
                         <span className="inline-flex items-center gap-0.5 text-accent">

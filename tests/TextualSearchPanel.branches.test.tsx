@@ -61,6 +61,21 @@ function textualPayload() {
   };
 }
 
+function strongLibraryPayload() {
+  return {
+    matches: Array.from({ length: 6 }, (_value, index) => ({
+      id: `v${90100 + index}`,
+      title: `Canvas ${index + 1}`,
+      alttitle: null,
+      image_url: null,
+      image_thumb: null,
+      local_image: null,
+      local_image_thumb: null,
+      image_sexual: null,
+    })),
+  };
+}
+
 function routedFetch(opts: { library?: unknown; textual?: unknown; failLibrary?: boolean; failTextual?: boolean } = {}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const u = String(input);
@@ -105,6 +120,7 @@ describe('TextualSearchPanel branches', () => {
     // 2 library + 3 textual = 5 hits in the count badge.
     const toggle = await screen.findByRole('button', { name: new RegExp(t.textualSearch.title) });
     await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent((t.textualSearch.statusCount as string).replace('{n}', '5'));
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
@@ -118,6 +134,27 @@ describe('TextualSearchPanel branches', () => {
     expect(screen.getByText(t.textualSearch.source.notes)).toBeInTheDocument();
     expect(screen.getByText(t.textualSearch.source.custom_description)).toBeInTheDocument();
     expect(screen.getByText(t.textualSearch.source.quote)).toBeInTheDocument();
+  });
+
+  it('skips secondary textual search for enough strong accordion title matches', async () => {
+    const fetchMock = routedFetch({ library: strongLibraryPayload(), textual: textualPayload() });
+    global.fetch = fetchMock;
+    renderWithProviders(<TextualSearchPanel query="canvas" />, { locale: 'en' });
+
+    const toggle = await screen.findByRole('button', { name: new RegExp(t.textualSearch.title) });
+    await waitFor(() => expect(screen.getByText('6')).toBeInTheDocument());
+    fireEvent.click(toggle);
+    expect(screen.getByText('Canvas 1')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith('/api/search/textual'))).toBe(false);
+  });
+
+  it('always searches textual fields in explicit standalone local mode', async () => {
+    const fetchMock = routedFetch({ library: strongLibraryPayload(), textual: textualPayload() });
+    global.fetch = fetchMock;
+    renderWithProviders(<TextualSearchPanel query="canvas" mode="standalone" />, { locale: 'en' });
+
+    expect(await screen.findByText('Notes Hit')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith('/api/search/textual'))).toBe(true);
   });
 
   it('renders the standalone hero state for a short query', () => {
@@ -145,6 +182,7 @@ describe('TextualSearchPanel branches', () => {
     const { container } = renderWithProviders(<TextualSearchPanel query="memo" mode="standalone" />, { locale: 'en' });
     // The 280ms debounce has not elapsed yet -> the busy skeleton list is present.
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(t.textualSearch.statusLoading as string);
   });
 
   it('keeps the standalone shell rendered when only the library returns hits', async () => {
@@ -162,50 +200,108 @@ describe('TextualSearchPanel branches', () => {
     expect(screen.queryByText(t.textualSearch.libraryTitle)).toBeNull();
   });
 
-  it('logs and renders nothing in accordion mode when the library fetch fails', async () => {
+  it('shows a retryable error in accordion mode when the library fetch fails', async () => {
     global.fetch = routedFetch({ failLibrary: true, textual: textualPayload() });
-    const { container } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
-    // Both promises are awaited together; a library failure rejects the whole batch
-    // so neither state updates and the accordion stays empty.
+    renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
     await waitFor(() => expect((console.error as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
-    expect(container.firstChild).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
+    expect(screen.getByRole('status')).toHaveTextContent(t.textualSearch.statusError as string);
+    expect(screen.getByRole('button', { name: t.common.retry })).toBeInTheDocument();
   });
 
-  it('logs and renders nothing in accordion mode when the textual fetch fails', async () => {
+  it('shows a retryable error in accordion mode when the textual fetch fails', async () => {
     global.fetch = routedFetch({ library: libraryPayload(), failTextual: true });
-    const { container } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
+    renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
     await waitFor(() => expect((console.error as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
-    expect(container.firstChild).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
+  });
+
+  it('shows a retryable error in standalone mode when local search fails', async () => {
+    global.fetch = routedFetch({ failLibrary: true, textual: textualPayload() });
+    renderWithProviders(<TextualSearchPanel query="memo" mode="standalone" />, { locale: 'en' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
+    expect(screen.getByRole('button', { name: t.common.retry })).toBeInTheDocument();
   });
 
   it('treats a malformed library payload as a thrown error', async () => {
     // decodeCollectionFindMatches returns null for a non-array matches -> the
     // `if (!matches) throw` branch fires and the batch rejects.
     global.fetch = routedFetch({ library: { matches: 'not-an-array' }, textual: textualPayload() });
-    const { container } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
+    renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
     await waitFor(() => expect((console.error as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
-    expect(container.firstChild).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
   });
 
   it('treats a malformed textual payload as a thrown error', async () => {
     global.fetch = routedFetch({ library: libraryPayload(), textual: { hits: 'not-an-array' } });
-    const { container } = renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
+    renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
     await waitFor(() => expect((console.error as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0));
-    expect(container.firstChild).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
+  });
+
+  it('retries a failed local search from the visible error state', async () => {
+    let libraryCalls = 0;
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) {
+        libraryCalls += 1;
+        if (libraryCalls === 1) return new Response('err', { status: 500 });
+        return json(libraryPayload());
+      }
+      if (u.startsWith('/api/search/textual')) return json({ hits: [] });
+      return json({});
+    });
+    renderWithProviders(<TextualSearchPanel query="memo" />, { locale: 'en' });
+    fireEvent.click(await screen.findByRole('button', { name: t.common.retry }));
+    expect(await screen.findByText('Lib Title')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('clears stale local results when the next search fails', async () => {
+    let shouldFail = false;
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) {
+        if (shouldFail) return new Response('err', { status: 500 });
+        return json(libraryPayload());
+      }
+      if (u.startsWith('/api/search/textual')) return json(textualPayload());
+      return json({});
+    });
+    const { rerender } = renderWithProviders(<TextualSearchPanel query="memo" mode="standalone" />, { locale: 'en' });
+    expect(await screen.findByText('Lib Title')).toBeInTheDocument();
+    expect(screen.getByText('Notes Hit')).toBeInTheDocument();
+
+    shouldFail = true;
+    rerender(<TextualSearchPanel query="other" mode="standalone" />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
+    expect(screen.queryByText('Lib Title')).toBeNull();
+    expect(screen.queryByText('Notes Hit')).toBeNull();
+  });
+
+  it('uses the localized fallback when local search rejects with a non-Error value', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) return Promise.reject('bad search');
+      if (u.startsWith('/api/search/textual')) return Promise.resolve(json(textualPayload()));
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<TextualSearchPanel query="memo" mode="standalone" />, { locale: 'en' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.common.error);
   });
 
   it('drops stale results after the query changes while requests are pending', async () => {
     vi.useFakeTimers();
     let resolveLibrary: (response: Response) => void = () => {};
-    let resolveTextual: (response: Response) => void = () => {};
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const u = String(input);
       if (u.startsWith('/api/collection/find')) {
         return new Promise<Response>((resolve) => { resolveLibrary = resolve; });
       }
-      if (u.startsWith('/api/search/textual')) {
-        return new Promise<Response>((resolve) => { resolveTextual = resolve; });
-      }
+      if (u.startsWith('/api/search/textual')) return Promise.resolve(json(textualPayload()));
       return Promise.resolve(json({}));
     }) as unknown as typeof fetch;
 
@@ -213,17 +309,49 @@ describe('TextualSearchPanel branches', () => {
     act(() => {
       vi.advanceTimersByTime(280);
     });
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
 
     rerender(<TextualSearchPanel query="other" />);
     await act(async () => {
       resolveLibrary(json(libraryPayload()));
-      resolveTextual(json(textualPayload()));
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(container.textContent).not.toContain('Lib Title');
+    expect(container.textContent).not.toContain('Notes Hit');
+  });
+
+  it('drops a textual response that resolves after its query was replaced', async () => {
+    vi.useFakeTimers();
+    let resolveTextual: (response: Response) => void = () => {};
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const u = String(input);
+      if (u.startsWith('/api/collection/find')) return Promise.resolve(json(libraryPayload()));
+      if (u.startsWith('/api/search/textual')) {
+        return new Promise<Response>((resolve) => { resolveTextual = resolve; });
+      }
+      return Promise.resolve(json({}));
+    }) as unknown as typeof fetch;
+
+    const { container, rerender } = renderWithProviders(
+      <TextualSearchPanel query="memo" mode="standalone" />,
+      { locale: 'en' },
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(280);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+
+    rerender(<TextualSearchPanel query="other" mode="standalone" />);
+    await act(async () => {
+      resolveTextual(json(textualPayload()));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
     expect(container.textContent).not.toContain('Notes Hit');
   });
 
