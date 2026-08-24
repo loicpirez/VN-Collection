@@ -1,23 +1,13 @@
 import { NextResponse } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-interface RawCacheRow {
-  body: string;
-  cache_key: string;
-  etag: string | null;
-  expires_at: number;
-  fetched_at: number;
-  last_modified: string | null;
-}
-
 const mocks = vi.hoisted(() => ({
-  iterate: vi.fn(),
-  prepare: vi.fn(),
+  createRawCacheExport: vi.fn(),
   requireLocalhostOrToken: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: { prepare: mocks.prepare },
+vi.mock('@/lib/db/raw-cache-export', () => ({
+  createRawCacheExport: mocks.createRawCacheExport,
 }));
 
 vi.mock('@/lib/auth-gate', () => ({
@@ -30,142 +20,65 @@ function request(): Request {
   return new Request('http://127.0.0.1/api/export/raw');
 }
 
-function row(): RawCacheRow {
+function download(body = '{"entries":[]}'): {
+  stream: ReadableStream<Uint8Array>;
+  filename: string;
+} {
   return {
-    body: '{"ok":true}',
-    cache_key: 'test:raw',
-    etag: null,
-    expires_at: 2,
-    fetched_at: 1,
-    last_modified: null,
-  };
-}
-
-function iteratorThatThrowsImmediately(): IterableIterator<RawCacheRow> {
-  return {
-    [Symbol.iterator]() {
-      return this;
-    },
-    next() {
-      throw new Error('iterate failed');
-    },
-    return() {
-      return { done: true, value: row() };
-    },
-  };
-}
-
-function iteratorThatThrowsAfterOne(onReturn: () => void): IterableIterator<RawCacheRow> {
-  let yielded = false;
-  return {
-    [Symbol.iterator]() {
-      return this;
-    },
-    next() {
-      if (!yielded) {
-        yielded = true;
-        return { done: false, value: row() };
-      }
-      throw new Error('second row failed');
-    },
-    return() {
-      onReturn();
-      return { done: true, value: row() };
-    },
-  };
-}
-
-function emptyIterator(onReturn: () => void): IterableIterator<RawCacheRow> {
-  return {
-    [Symbol.iterator]() {
-      return this;
-    },
-    next() {
-      return { done: true, value: row() };
-    },
-    return() {
-      onReturn();
-      return { done: true, value: row() };
-    },
+    stream: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(body));
+        controller.close();
+      },
+    }),
+    filename: 'vndb-raw-2099-01-01.json',
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireLocalhostOrToken.mockReturnValue(null);
-  mocks.prepare.mockImplementation((sql: string) => {
-    if (sql.includes('COUNT(*)')) {
-      return { get: () => ({ n: 1 }) };
-    }
-    return { iterate: mocks.iterate };
-  });
+  mocks.createRawCacheExport.mockResolvedValue(download());
 });
 
-describe('GET /api/export/raw stream branches', () => {
-  it('returns auth gate responses before preparing cache statements', async () => {
+describe('GET /api/export/raw', () => {
+  it('returns auth gate responses before preparing an export', async () => {
     const denied = NextResponse.json({ error: 'forbidden' }, { status: 403 });
     mocks.requireLocalhostOrToken.mockReturnValue(denied);
 
     const response = await GET(request());
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ error: 'forbidden' });
-    expect(mocks.prepare).not.toHaveBeenCalled();
+    expect(mocks.createRawCacheExport).not.toHaveBeenCalled();
   });
 
-  it('surfaces iterator failures through the response body stream', async () => {
-    mocks.iterate.mockReturnValue(iteratorThatThrowsImmediately());
+  it('streams a cache export with safe attachment headers', async () => {
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(response.headers.get('content-disposition')).toBe(
+      'attachment; filename="vndb-raw-2099-01-01.json"',
+    );
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await response.text()).toBe('{"entries":[]}');
+  });
+
+  it('returns a structured error without exposing setup details', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.createRawCacheExport.mockRejectedValue(new Error('private database detail'));
 
     const response = await GET(request());
 
-    await expect(response.text()).rejects.toThrow('iterate failed');
-  });
-
-  it('calls iterator.return when the underlying stream cancellation hook runs', async () => {
-    const onReturn = vi.fn();
-    mocks.iterate.mockReturnValue(iteratorThatThrowsAfterOne(onReturn));
-    const OriginalReadableStream = globalThis.ReadableStream;
-    const capture: { cancel: (() => void | PromiseLike<void>) | null } = { cancel: null };
-    class CapturingReadableStream {
-      constructor(source?: UnderlyingSource<Uint8Array>, strategy?: QueuingStrategy<Uint8Array>) {
-        capture.cancel = source?.cancel ? () => source.cancel?.() : null;
-        return new OriginalReadableStream(source, strategy);
-      }
-    }
-    vi.stubGlobal('ReadableStream', CapturingReadableStream);
-
-    try {
-      const response = await GET(request());
-      await expect(response.text()).rejects.toThrow('second row failed');
-      await capture.cancel?.();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-
-    expect(onReturn).toHaveBeenCalled();
-  });
-
-  it('ignores cancellation after the iterator has already completed', async () => {
-    const onReturn = vi.fn();
-    mocks.iterate.mockReturnValue(emptyIterator(onReturn));
-    const OriginalReadableStream = globalThis.ReadableStream;
-    const capture: { cancel: (() => void | PromiseLike<void>) | null } = { cancel: null };
-    class CapturingReadableStream {
-      constructor(source?: UnderlyingSource<Uint8Array>, strategy?: QueuingStrategy<Uint8Array>) {
-        capture.cancel = source?.cancel ? () => source.cancel?.() : null;
-        return new OriginalReadableStream(source, strategy);
-      }
-    }
-    vi.stubGlobal('ReadableStream', CapturingReadableStream);
-
-    try {
-      const response = await GET(request());
-      expect(await response.text()).toContain('"entries": [');
-      await capture.cancel?.();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-
-    expect(onReturn).not.toHaveBeenCalled();
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'export.raw.GET',
+    });
+    expect(error).toHaveBeenCalledWith('[internal:export.raw.GET] private database detail');
+    error.mockRestore();
   });
 });

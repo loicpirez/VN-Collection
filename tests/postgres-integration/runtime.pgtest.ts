@@ -57,6 +57,7 @@ import { createPostgresSavedFilterRepository } from '@/lib/db/repositories/saved
 import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route';
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
 import { createPostgresEgsSchemaRepository } from '@/lib/db/repositories/egs-schema';
+import { createPostgresRawCacheExport } from '@/lib/db/raw-cache-export';
 import { createPostgresDiscoveryRepository } from '@/lib/db/repositories/discovery';
 import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity-name';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
@@ -232,6 +233,29 @@ describe('real PostgreSQL migration runtime', () => {
         WHERE table_schema = current_schema() AND table_name = 'postgres_json_quarantine'
       `);
       expect(quarantineColumns.rows[0]?.count).toBe(7);
+    });
+  });
+
+  it('streams the raw VNDB cache from a repeatable-read cursor', async () => {
+    await withIsolatedSchema(async (pool) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query(`
+        INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+          ('raw:contract:json', '{"ok":true}', 1, 2),
+          ('raw:contract:text', '{broken', 2, 3)
+      `);
+
+      const download = await createPostgresRawCacheExport(pool);
+      const parsed = JSON.parse(await new Response(download.stream).text()) as {
+        entry_count: number;
+        entries: Array<{ cache_key: string; body: object | string }>;
+      };
+
+      expect(parsed.entry_count).toBe(2);
+      expect(parsed.entries).toEqual([
+        expect.objectContaining({ cache_key: 'raw:contract:json', body: { ok: true } }),
+        expect.objectContaining({ cache_key: 'raw:contract:text', body: '{broken' }),
+      ]);
     });
   });
 
