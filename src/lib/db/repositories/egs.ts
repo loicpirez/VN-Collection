@@ -15,6 +15,17 @@ export interface EgsCoverSourceRow {
   raw_json: string | null;
 }
 
+/** Local collection projection joined to one EGS game identifier. */
+export interface EgsCollectionSyncRow {
+  vn_id: string;
+  egs_id: number;
+  playtime_minutes: number;
+  user_rating: number | null;
+  title: string;
+  started_date: string | null;
+  finished_date: string | null;
+}
+
 interface EgsStorageRow extends QueryResultRow, EgsRow {}
 interface VnEgsLinkRow extends QueryResultRow, VnEgsLink {}
 interface EgsVnLinkRow extends QueryResultRow, EgsVnLink {}
@@ -49,6 +60,8 @@ export interface EgsRepository {
   clearEgsLink(egsId: number): Promise<void>;
   /** Return all EGS-to-VN decisions for feed overlays. */
   listAllEgsLinks(): Promise<Map<number, string | null>>;
+  /** Resolve EGS game identifiers to collection rows used by personal sync. */
+  listCollectionSyncRows(egsIds: readonly number[]): Promise<EgsCollectionSyncRow[]>;
 }
 
 const EGS_COLUMNS = `
@@ -188,6 +201,20 @@ export function createPostgresEgsRepository(): EgsRepository {
       `);
       return new Map(result.rows.map((row) => [row.egs_id, row.vn_id]));
     },
+    async listCollectionSyncRows(egsIds) {
+      if (egsIds.length === 0) return [];
+      const result = await postgresQuery<EgsCollectionSyncRow & QueryResultRow>(`
+        SELECT collection.vn_id, egs_game.egs_id, collection.playtime_minutes,
+          collection.user_rating, vn.title, collection.started_date,
+          collection.finished_date
+        FROM egs_game
+        JOIN collection ON collection.vn_id = egs_game.vn_id
+        JOIN vn ON vn.id = collection.vn_id
+        WHERE egs_game.egs_id = ANY($1::bigint[])
+        ORDER BY egs_game.egs_id, collection.vn_id COLLATE "C"
+      `, [[...egsIds]]);
+      return result.rows;
+    },
   };
 }
 
@@ -230,6 +257,25 @@ const sqliteRepository: EgsRepository = {
   },
   async listAllEgsLinks() {
     return (await import('@/lib/db')).listAllEgsVnLinks();
+  },
+  async listCollectionSyncRows(egsIds) {
+    if (egsIds.length === 0) return [];
+    const { db } = await import('@/lib/db');
+    const rows: EgsCollectionSyncRow[] = [];
+    for (let offset = 0; offset < egsIds.length; offset += 500) {
+      const chunk = egsIds.slice(offset, offset + 500);
+      rows.push(...db.prepare(`
+        SELECT collection.vn_id, egs_game.egs_id, collection.playtime_minutes,
+          collection.user_rating, vn.title, collection.started_date,
+          collection.finished_date
+        FROM egs_game
+        JOIN collection ON collection.vn_id = egs_game.vn_id
+        JOIN vn ON vn.id = collection.vn_id
+        WHERE egs_game.egs_id IN (${chunk.map(() => '?').join(',')})
+        ORDER BY egs_game.egs_id, collection.vn_id COLLATE NOCASE
+      `).all(...chunk) as EgsCollectionSyncRow[]);
+    }
+    return rows;
   },
 };
 

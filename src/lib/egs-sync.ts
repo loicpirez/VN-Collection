@@ -1,7 +1,9 @@
 import 'server-only';
-import { db, getAppSetting, updateCollection, type CollectionPatch } from './db';
 import { fetchEgsUserReviews } from './erogamescape';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCollectionCoreRepository, type CollectionCorePatch } from './db/repositories/collection-core';
+import { getEgsRepository } from './db/repositories/egs';
 
 /**
  * EGS → local sync. Symmetric to the Steam sync flow: pull the user's
@@ -44,56 +46,16 @@ export async function computeEgsSuggestions(): Promise<{
   needsConfig: boolean;
   suggestions: EgsSuggestion[];
 }> {
-  const username = (getAppSetting('egs_username') ?? '').trim();
+  const username = ((await getAppSettingRepository().get('egs_username')) ?? '').trim();
   if (!username) return { needsConfig: true, suggestions: [] };
 
   const rows = await fetchEgsUserReviews(username);
   if (rows.length === 0) return { needsConfig: false, suggestions: [] };
 
-  // Chunk both IN-lookups so a user with thousands of EGS reviews
-  // doesn't bump `SQLITE_MAX_VARIABLE_NUMBER`, matching the
-  // convention in `getEgsForVns` / `listSeriesForVnsMany`.
-  const CHUNK = 500;
   const egsIds = rows.map((r) => r.egs_id);
-  const linked: { vn_id: string; egs_id: number }[] = [];
-  for (let i = 0; i < egsIds.length; i += CHUNK) {
-    const chunk = egsIds.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    linked.push(
-      ...(db
-        .prepare(`SELECT vn_id, egs_id FROM egs_game WHERE egs_id IN (${placeholders})`)
-        .all(...chunk) as { vn_id: string; egs_id: number }[]),
-    );
-  }
+  const linked = await getEgsRepository().listCollectionSyncRows(egsIds);
   const byEgsId = new Map(linked.map((r) => [r.egs_id, r.vn_id]));
-
-  const vnIds = Array.from(new Set(linked.map((r) => r.vn_id)));
-  if (vnIds.length === 0) return { needsConfig: false, suggestions: [] };
-
-  type ColRow = {
-    vn_id: string;
-    playtime_minutes: number;
-    user_rating: number | null;
-    title: string;
-    started_date: string | null;
-    finished_date: string | null;
-  };
-  const colRows: ColRow[] = [];
-  for (let i = 0; i < vnIds.length; i += CHUNK) {
-    const chunk = vnIds.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    colRows.push(
-      ...(db
-        .prepare(`
-          SELECT c.vn_id, c.playtime_minutes, c.user_rating, v.title, c.started_date, c.finished_date
-          FROM collection c
-          JOIN vn v ON v.id = c.vn_id
-          WHERE c.vn_id IN (${placeholders})
-        `)
-        .all(...chunk) as ColRow[]),
-    );
-  }
-  const local = new Map(colRows.map((r) => [r.vn_id, r]));
+  const local = new Map(linked.map((r) => [r.vn_id, r]));
 
   const suggestions: EgsSuggestion[] = [];
   for (const r of rows) {
@@ -134,6 +96,7 @@ export async function computeEgsSuggestions(): Promise<{
 export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: number }> {
   const { suggestions } = await computeEgsSuggestions();
   const byVn = new Map(suggestions.map((s) => [s.vn_id, s]));
+  const collection = getCollectionCoreRepository();
   const job = startJob('egs-sync', jobLabel('egs_updates', `Applying ${picks.length} EGS update(s)`, { count: picks.length }), picks.length);
   let applied = 0;
   for (const vnId of picks) {
@@ -143,7 +106,7 @@ export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: n
       tickJob(job.id);
       continue;
     }
-    const patch: CollectionPatch = {};
+    const patch: CollectionCorePatch = {};
     if (s.egs_minutes != null && s.egs_minutes > s.local_minutes) {
       patch.playtime_minutes = s.egs_minutes;
     }
@@ -153,7 +116,7 @@ export async function applyEgsSuggestions(picks: string[]): Promise<{ applied: n
     if (s.egs_start_date && !s.local_started_date) patch.started_date = s.egs_start_date;
     if (s.egs_finish_date && !s.local_finished_date) patch.finished_date = s.egs_finish_date;
     try {
-      updateCollection(vnId, patch);
+      await collection.update(vnId, patch);
       applied += 1;
     } catch (e) {
       recordError(job.id, vnId, (e as Error).message);

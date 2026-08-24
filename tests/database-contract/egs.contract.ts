@@ -111,5 +111,22 @@ export function registerEgsRepositoryContract(label: string, harness: EgsContrac
         await expect(repository.setEgsLink(ids.egs, 'invalid')).rejects.toThrow('invalid vn id');
       });
     });
+
+    it('returns collection sync rows only for linked owned games', async () => {
+      await harness.withRepository(async (repository) => {
+        const ids = EGS_CONTRACT_IDS;
+        await expect(repository.listCollectionSyncRows([])).resolves.toEqual([]);
+        await repository.upsertForVn(egsRow());
+        await expect(repository.listCollectionSyncRows([ids.egs, 999_999])).resolves.toEqual([{
+          vn_id: ids.vn,
+          egs_id: ids.egs,
+          playtime_minutes: 45,
+          user_rating: 75,
+          title: 'EGS VN',
+          started_date: '2095-01-01',
+          finished_date: null,
+        }]);
+      });
+    });
   });
 }

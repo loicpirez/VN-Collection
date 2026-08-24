@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 
 const { updateCollectionMock } = vi.hoisted(() => ({
-  updateCollectionMock: vi.fn(),
+  updateCollectionMock: vi.fn<CollectionCoreRepository['update']>(),
 }));
 
-vi.mock('@/lib/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/db')>();
-  updateCollectionMock.mockImplementation(actual.updateCollection);
-  return { ...actual, updateCollection: updateCollectionMock };
+vi.mock('@/lib/db/repositories/collection-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/repositories/collection-core')>();
+  const repository = actual.getCollectionCoreRepository();
+  return {
+    ...actual,
+    getCollectionCoreRepository: () => ({ ...repository, update: updateCollectionMock }),
+  };
 });
 
 import { db, setAppSetting } from '@/lib/db';
@@ -80,6 +84,9 @@ function makeReview(egsId: number, overrides: Partial<EgsUserReviewRow> = {}): E
 beforeEach(() => {
   clearTables();
   vi.clearAllMocks();
+  updateCollectionMock.mockImplementation(async (vnId, patch) => {
+    (await import('@/lib/db')).updateCollection(vnId, patch);
+  });
   setAppSetting('egs_username', 'testuser');
 });
 
@@ -250,7 +257,7 @@ describe('applyEgsSuggestions', () => {
     insertCollection('v1', 0, null);
     insertEgsGame('v1', 1004);
     mockFetch.mockResolvedValue([makeReview(1004, { tokuten: 90 })]);
-    updateCollectionMock.mockImplementationOnce(() => {
+    updateCollectionMock.mockImplementationOnce(async () => {
       throw new Error('synthetic write failure');
     });
     const result = await applyEgsSuggestions(['v1']);

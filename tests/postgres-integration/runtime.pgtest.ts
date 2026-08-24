@@ -1816,6 +1816,11 @@ registerEgsRepositoryContract('PostgreSQL', {
         INSERT INTO vn (id, title, fetched_at) VALUES
           ($1, 'EGS VN', 1), ($2, 'Other EGS VN', 1)
       `, [ids.vn, ids.otherVn]);
+      await pool.query(`
+        INSERT INTO collection (
+          vn_id, status, user_rating, playtime_minutes, started_date, added_at, updated_at
+        ) VALUES ($1, 'playing', 75, 45, '2095-01-01', 1, 1)
+      `, [ids.vn]);
 
       const priorBackend = process.env.DATABASE_BACKEND;
       const priorUrl = process.env.DATABASE_URL;
