@@ -99,11 +99,14 @@ function json(body: unknown, status = 200) {
 function pullStatusPayload() {
   return {
     ok: true,
+    action: 'preview',
     needsAuth: false,
     scanned: 3,
     updated: 1,
     unchanged: 1,
     skippedNotInCollection: 1,
+    conflicts: 0,
+    failedLabels: [],
     changes: [{ vn_id: 'v90001', title: 'Title Y', from: 'planning', to: 'completed' }],
     unmatched: [{ vn_id: 'v90002', status: 'playing' }],
   };
@@ -245,6 +248,7 @@ describe('SettingsButton', () => {
       expect(screen.getByText(
         t.settings.vndbPullDiffSummary
           .replace('{updated}', '1')
+          .replace('{changes}', '1')
           .replace('{unchanged}', '1')
           .replace('{skipped}', '1')
           .replace('{scanned}', '3'),
@@ -252,6 +256,17 @@ describe('SettingsButton', () => {
     });
     expect(screen.getByRole('link', { name: 'Title Y' })).toBeTruthy();
     expect(screen.getByText(t.settings.vndbPullUnmatched.replace('{count}', '1'))).toBeTruthy();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: t.settings.vndbPullSelectItem.replace('{title}', 'Title Y') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullApply as string }));
+    await screen.findByText(t.settings.vndbPullApplyConfirm.replace('{count}', '1'));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: t.common.confirm as string }));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) => {
+      if (String(call[0]) !== '/api/vndb/pull-statuses') return false;
+      const body = JSON.parse(String(call[1]?.body));
+      return body.action === 'apply' && body.selections[0]?.vn_id === 'v90001';
+    })).toBe(true));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   });
 
@@ -259,12 +274,15 @@ describe('SettingsButton', () => {
     pullStatus = 500;
     pullBody = {
       ok: false,
+      action: 'preview',
       needsAuth: false,
       message: 'sync failed',
       scanned: 0,
       updated: 0,
       unchanged: 0,
       skippedNotInCollection: 0,
+      conflicts: 0,
+      failedLabels: [],
       changes: [],
       unmatched: [],
     };
@@ -275,6 +293,69 @@ describe('SettingsButton', () => {
     await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
     fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('sync failed'));
+  });
+
+  it('localizes incomplete snapshots and never offers partial results', async () => {
+    pullStatus = 502;
+    pullBody = {
+      ok: false,
+      action: 'preview',
+      needsAuth: false,
+      errorCode: 'vndb_status_snapshot_incomplete',
+      message: 'raw upstream message',
+      scanned: 1,
+      updated: 0,
+      unchanged: 0,
+      skippedNotInCollection: 0,
+      conflicts: 0,
+      failedLabels: [1],
+      changes: [],
+      unmatched: [],
+    };
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(t.settings.vndbPullIncomplete));
+    expect(screen.queryByText('raw upstream message')).toBeNull();
+  });
+
+  it('paginates large previews and manages selection across every page', async () => {
+    pullBody = {
+      ...pullStatusPayload(),
+      scanned: 26,
+      updated: 0,
+      unchanged: 0,
+      skippedNotInCollection: 0,
+      conflicts: 2,
+      changes: Array.from({ length: 26 }, (_, index) => ({
+        vn_id: `v91${String(index).padStart(3, '0')}`,
+        title: `Title ${index + 1}`,
+        from: 'planning',
+        to: 'playing',
+      })),
+      unmatched: [],
+    };
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    expect(await screen.findByText(t.settings.vndbPullConflicts.replace('{count}', '2'))).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Title 1' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Title 26' })).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullSelectAll as string }));
+    expect(screen.getByText(t.settings.vndbPullSelected.replace('{count}', '26'))).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.next as string }));
+    expect(await screen.findByRole('link', { name: 'Title 26' })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullClearSelection as string }));
+    expect(screen.getByText(t.settings.vndbPullSelected.replace('{count}', '0'))).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: t.common.prev as string }));
+    expect(await screen.findByRole('link', { name: 'Title 1' })).toBeTruthy();
   });
 
   it('opens requested tabs from events and saves through lazy tab bodies', async () => {
@@ -404,12 +485,15 @@ describe('SettingsButton', () => {
     };
     pullBody = {
       ok: true,
+      action: 'preview',
       needsAuth: false,
       scanned: 2,
       updated: 0,
       unchanged: 2,
       skippedNotInCollection: 0,
-      changes: [{ vn_id: 'v90003', title: 'No Previous Status', from: null, to: 'playing' }],
+      conflicts: 0,
+      failedLabels: [],
+      changes: [{ vn_id: 'v90003', title: 'Status Change', from: 'planning', to: 'playing' }],
       unmatched: [],
     };
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -432,13 +516,13 @@ describe('SettingsButton', () => {
       expect(screen.getByText(
         t.settings.vndbPullDiffSummary
           .replace('{updated}', '0')
+          .replace('{changes}', '1')
           .replace('{unchanged}', '2')
           .replace('{skipped}', '0')
           .replace('{scanned}', '2'),
       )).toBeTruthy();
     });
-    expect(screen.getByRole('link', { name: 'No Previous Status' })).toBeTruthy();
-    expect(dialog.textContent).toContain('-');
+    expect(screen.getByRole('link', { name: 'Status Change' })).toBeTruthy();
   });
 
   it('ignores stale save and pull completions after unmount', async () => {

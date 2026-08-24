@@ -83,11 +83,14 @@ export type ServerSettings = FixedServerSettings & Partial<Record<StockProviderP
 
 /** VNDB status-pull diff rendered by the settings modal. */
 export interface VndbPullStatusDiff {
+  action: 'preview' | 'apply';
   scanned: number;
   updated: number;
   unchanged: number;
   skippedNotInCollection: number;
-  changes: { vn_id: string; title: string; from: Status | null; to: Status }[];
+  conflicts: number;
+  failedLabels: number[];
+  changes: { vn_id: string; title: string; from: Status; to: Status }[];
   unmatched: { vn_id: string; status: Status }[];
 }
 
@@ -96,6 +99,7 @@ export interface VndbPullStatusResult extends VndbPullStatusDiff {
   ok: boolean;
   needsAuth: boolean;
   message: string | null;
+  errorCode: 'vndb_status_snapshot_incomplete' | null;
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -249,10 +253,17 @@ export function decodeVndbPullStatusResult(value: unknown): VndbPullStatusResult
     typeof row.ok !== 'boolean' ||
     !(row.needsAuth === undefined || typeof row.needsAuth === 'boolean') ||
     !(row.message === undefined || typeof row.message === 'string') ||
+    !(row.errorCode === undefined || row.errorCode === 'vndb_status_snapshot_incomplete') ||
+    !(row.action === 'preview' || row.action === 'apply') ||
     !isNonNegativeInteger(row.scanned) ||
     !isNonNegativeInteger(row.updated) ||
     !isNonNegativeInteger(row.unchanged) ||
     !isNonNegativeInteger(row.skippedNotInCollection) ||
+    !isNonNegativeInteger(row.conflicts) ||
+    !Array.isArray(row.failedLabels) ||
+    row.failedLabels.length > 5 ||
+    !row.failedLabels.every((label) => isNonNegativeInteger(label)) ||
+    new Set(row.failedLabels).size !== row.failedLabels.length ||
     !Array.isArray(row.changes) ||
     row.changes.length > MAX_PULL_ROWS ||
     !Array.isArray(row.unmatched) ||
@@ -268,7 +279,7 @@ export function decodeVndbPullStatusResult(value: unknown): VndbPullStatusResult
       typeof change.vn_id !== 'string' ||
       !isVndbVnId(change.vn_id) ||
       typeof change.title !== 'string' ||
-      !(change.from === null || isStatus(change.from)) ||
+      !isStatus(change.from) ||
       !isStatus(change.to)
     ) {
       return null;
@@ -290,12 +301,16 @@ export function decodeVndbPullStatusResult(value: unknown): VndbPullStatusResult
   }
   return {
     ok: row.ok,
+    action: row.action,
     needsAuth: row.needsAuth === true,
     message: typeof row.message === 'string' ? row.message : null,
+    errorCode: row.errorCode === 'vndb_status_snapshot_incomplete' ? row.errorCode : null,
     scanned: row.scanned,
     updated: row.updated,
     unchanged: row.unchanged,
     skippedNotInCollection: row.skippedNotInCollection,
+    conflicts: row.conflicts,
+    failedLabels: row.failedLabels,
     changes,
     unmatched,
   };

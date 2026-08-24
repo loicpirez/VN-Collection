@@ -343,7 +343,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET/PATCH | `/api/collection/[id]/source-pref` | Per-VN / per-field source preference JSON |
 | GET/POST/DELETE | `/api/vn/[id]/erogamescape` | Resolve / link / unlink an EGS game for a VN |
 | GET | `/api/vn/[id]/erogamescape?refresh=1` | Force re-fetch of every EGS column |
-| GET/PATCH/DELETE | `/api/vn/[id]/vndb-status` | Read the user's VNDB ulist labels for a VN + toggle them via `labels_set` / `labels_unset` |
+| GET/POST/PATCH/DELETE | `/api/vn/[id]/vndb-status` | Read and edit one VNDB ulist entry, or explicitly resolve selected local and VNDB field differences |
 | GET | `/api/vn/[id]/lists` | Lists this VN belongs to |
 | POST | `/api/egs/[id]/add` | EGS-only add → synthetic VN id `egs_<id>` + collection insert |
 | GET | `/api/egs/search?q=&limit=` | EGS candidate search (used by /search and the manual-link picker) |
@@ -378,7 +378,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | POST | `/api/staff/[id]/download` | Trigger full VNDB credit-list fan-out for a staff profile |
 | GET | `/api/steam/library` / `POST /api/steam/link` / `POST /api/steam/sync` | Steam integration endpoints |
 | POST | `/api/vn/[id]/link-vndb` | Promote an `egs_NNN` synthetic VN to a real `v\d+` once VNDB knows it |
-| POST | `/api/vndb/pull-statuses` | Bulk refresh of users' ulist labels |
+| POST | `/api/vndb/pull-statuses` | Preview VNDB status differences, then apply only explicitly selected and revalidated transitions |
 | GET | `/api/shelves[?pool=1]` | List shelves; `?pool=1` also returns the unplaced editions |
 | POST | `/api/shelves` | Create a shelf `{name, cols?, rows?}` |
 | PATCH | `/api/shelves` | Reorder `{order: id[]}` |
@@ -521,7 +521,7 @@ route file or exported HTTP method changes.
 | /api/vn/[id]/stock/eroge-price | PATCH, POST, DELETE |
 | /api/vn/[id]/stock | GET, POST, DELETE |
 | /api/vn/[id]/stock/sources | GET, POST, DELETE |
-| /api/vn/[id]/vndb-status | GET, PATCH, DELETE |
+| /api/vn/[id]/vndb-status | GET, POST, PATCH, DELETE |
 | /api/vndb/auth | GET |
 | /api/vndb/cache | GET, DELETE |
 | /api/vndb/pull-statuses | POST |

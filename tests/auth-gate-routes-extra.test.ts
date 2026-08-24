@@ -238,8 +238,6 @@ describe('auth gate — vndb cache + pull-statuses return 403 from external orig
     expect(res.status).toBe(403);
   });
   it('POST /api/vndb/pull-statuses', async () => {
-    // Route signature uses raw `Request`, not `NextRequest`; the helper
-    // accepts both since `requireLocalhostOrToken` only reads headers.
     const res = await vndbPullStatusesPOST(externalReq('/api/vndb/pull-statuses', 'POST', {}));
     expect(res.status).toBe(403);
   });

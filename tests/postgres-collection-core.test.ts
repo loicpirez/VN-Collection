@@ -144,6 +144,37 @@ describe('PostgreSQL collection core repository', () => {
     expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('INSERT INTO vn_activity'))).toBe(false);
   });
 
+  it('updates a status only while the locked value matches the preview', async () => {
+    clientQueryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, user_rating')) {
+        return {
+          rows: [{
+            status: 'planning', user_rating: null, playtime_minutes: 0, favorite: 0,
+            started_date: null, finished_date: null,
+          }],
+        };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    const repository = createPostgresCollectionCoreRepository();
+    await expect(repository.updateStatusIfCurrent('v90004', 'planning', 'completed')).resolves.toBe(true);
+    expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE collection SET'))).toBe(true);
+
+    clientQueryMock.mockReset().mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, user_rating')) {
+        return {
+          rows: [{
+            status: 'dropped', user_rating: null, playtime_minutes: 0, favorite: 0,
+            started_date: null, finished_date: null,
+          }],
+        };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await expect(repository.updateStatusIfCurrent('v90004', 'planning', 'completed')).resolves.toBe(false);
+    expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE collection SET'))).toBe(false);
+  });
+
   it('does not log unchanged values and records a cleared note length', async () => {
     clientQueryMock.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT status, user_rating')) {

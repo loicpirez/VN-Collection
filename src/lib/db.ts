@@ -3462,6 +3462,23 @@ export function updateCollection(vnId: string, fields: CollectionPatch): void {
   invalidateProducerStats();
 }
 
+/**
+ * Apply a status transition only if the collection row still has the expected value.
+ *
+ * @param vnId Collection VN identifier.
+ * @param expected Status observed by the caller before the transaction.
+ * @param next Status to persist when the comparison succeeds.
+ * @returns Whether the transition was applied.
+ */
+export function updateCollectionStatusIfCurrent(vnId: string, expected: Status, next: Status): boolean {
+  return db.transaction(() => {
+    const current = db.prepare('SELECT status FROM collection WHERE vn_id = ?').get(vnId) as { status: Status } | undefined;
+    if (current?.status !== expected) return false;
+    updateCollection(vnId, { status: next });
+    return true;
+  })();
+}
+
 export interface ActivityEntry {
   id: number;
   vn_id: string;

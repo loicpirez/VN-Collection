@@ -220,25 +220,95 @@ describe('POST /api/egs/sync', () => {
 });
 
 describe('POST /api/vndb/pull-statuses', () => {
-  it('200 on a successful pull', async () => {
-    pullStatusesMock.mockResolvedValue({ ok: true, updated: 3 });
-    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', {}) as never);
+  it('200 on a successful preview without recording a mutation', async () => {
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity');
+    pullStatusesMock.mockResolvedValue({
+      ok: true,
+      action: 'preview',
+      updated: 0,
+      conflicts: 0,
+      failedLabels: [],
+      changes: [],
+    });
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'preview' }));
     expect(res.status).toBe(200);
-    expect((await res.json()).updated).toBe(3);
+    expect((await res.json()).action).toBe('preview');
+    expect(pullStatusesMock).toHaveBeenCalledWith({ action: 'preview' });
+    expect(activitySpy).not.toHaveBeenCalled();
+    activitySpy.mockRestore();
+  });
+
+  it('applies validated selections and isolates activity failures', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockRejectedValueOnce(new Error('activity failed'));
+    pullStatusesMock.mockResolvedValue({
+      ok: true,
+      action: 'apply',
+      scanned: 3,
+      updated: 1,
+      conflicts: 0,
+      failedLabels: [],
+      changes: [],
+    });
+    const selection = { vn_id: 'v90301', from: 'planning', to: 'completed' };
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', {
+      action: 'apply',
+      selections: [selection],
+    }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(1);
+    expect(pullStatusesMock).toHaveBeenCalledWith({ action: 'apply', selections: [selection] });
+    expect(consoleSpy).toHaveBeenCalledWith('[vndb:pull-statuses] activity log failed:', 'activity failed');
+    activitySpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('rejects invalid actions and malformed selections', async () => {
+    const invalidAction = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'other' }));
+    expect(invalidAction.status).toBe(400);
+    expect(await invalidAction.json()).toEqual({ error: 'invalid action' });
+    const invalidSelections = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', {
+      action: 'apply',
+      selections: [],
+    }));
+    expect(invalidSelections.status).toBe(400);
+    expect(await invalidSelections.json()).toEqual({ error: 'invalid status selections' });
   });
 
   it('401 when the pull needs VNDB authentication', async () => {
     pullStatusesMock.mockResolvedValue({ ok: false, needsAuth: true });
-    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', {}) as never);
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'preview' }));
     expect(res.status).toBe(401);
     expect((await res.json()).needsAuth).toBe(true);
   });
 
   it('500 when the pull fails for a non-auth reason', async () => {
-    pullStatusesMock.mockResolvedValue({ ok: false, needsAuth: false });
-    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', {}) as never);
+    pullStatusesMock.mockResolvedValue({ ok: false, needsAuth: false, failedLabels: [] });
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'preview' }));
     expect(res.status).toBe(500);
     expect((await res.json()).ok).toBe(false);
+  });
+
+  it('502 when a label snapshot is incomplete', async () => {
+    pullStatusesMock.mockResolvedValue({ ok: false, needsAuth: false, failedLabels: [1] });
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'preview' }));
+    expect(res.status).toBe(502);
+    expect((await res.json()).failedLabels).toEqual([1]);
+  });
+
+  it('returns a sanitized internal error when the sync service throws', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    pullStatusesMock.mockRejectedValue(new Error('private persistence detail'));
+    const res = await pullStatusesPOST(loopback('/api/vndb/pull-statuses', 'POST', { action: 'preview' }));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'vndb/pull-statuses',
+    });
+    expect(consoleSpy).toHaveBeenCalledWith('[internal:vndb/pull-statuses] private persistence detail');
+    consoleSpy.mockRestore();
   });
 });
 

@@ -26,12 +26,13 @@ describe('settings layout persistence contract', () => {
     expect(SETTINGS).toContain('if (!mountedRef.current) return false');
     expect(SETTINGS).toContain('saveAbortRef.current !== controller || controller.signal.aborted');
     expect(SETTINGS).toContain('if (pullInFlightRef.current) return');
-    expect(SETTINGS).toContain("fetch('/api/vndb/pull-statuses', { method: 'POST', signal: controller.signal })");
+    expect(SETTINGS).toContain("fetch('/api/vndb/pull-statuses', {");
+    expect(SETTINGS).toContain("JSON.stringify(action === 'preview' ? { action } : { action, selections })");
     expect(SETTINGS).toContain('pullAbortRef.current !== controller || controller.signal.aborted');
   });
 
   it('uses ASCII metadata separators and localized backup default copy', () => {
-    expect(SETTINGS).toContain("{c.from ?? '-'}");
+    expect(SETTINGS).toContain('{t.status[c.from]}');
     expect(SETTINGS).toContain('<span className="ml-1">/ {u.status}</span>');
     expect(SETTINGS).toContain('` / ${t.settings.vndbBackupDefaultSuffix}`');
     expect(SETTINGS).not.toContain("{c.from ?? '—'}");

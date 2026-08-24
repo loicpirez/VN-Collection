@@ -71,11 +71,14 @@ describe('settings server client response decoders', () => {
   it('decodes VNDB pull status diffs and rejects malformed VN ids', () => {
     const payload = {
       ok: true,
+      action: 'preview',
       scanned: 2,
       updated: 1,
       unchanged: 0,
       skippedNotInCollection: 1,
-      changes: [{ vn_id: 'V90017', title: 'Title', from: null, to: 'planning' }],
+      conflicts: 0,
+      failedLabels: [],
+      changes: [{ vn_id: 'V90017', title: 'Title', from: 'playing', to: 'planning' }],
       unmatched: [{ vn_id: 'v90018', status: 'completed' }],
     };
     expect(decodeVndbPullStatusResult(payload)?.changes[0]?.vn_id).toBe('v90017');
@@ -105,5 +108,15 @@ describe('settings server client response decoders', () => {
       ...payload,
       changes: [{ vn_id: 'bad', title: 'Title', from: null, to: 'planning' }],
     })).toBeNull();
+    expect(decodeVndbPullStatusResult({ ...payload, action: 'other' })).toBeNull();
+    expect(decodeVndbPullStatusResult({ ...payload, conflicts: -1 })).toBeNull();
+    expect(decodeVndbPullStatusResult({ ...payload, failedLabels: [1, 1] })).toBeNull();
+    expect(decodeVndbPullStatusResult({ ...payload, failedLabels: [1, 2, 3, 4, 5, 6] })).toBeNull();
+    expect(decodeVndbPullStatusResult({ ...payload, failedLabels: ['1'] })).toBeNull();
+    expect(decodeVndbPullStatusResult({
+      ...payload,
+      errorCode: 'vndb_status_snapshot_incomplete',
+      message: 'incomplete',
+    })).toMatchObject({ errorCode: 'vndb_status_snapshot_incomplete' });
   });
 });

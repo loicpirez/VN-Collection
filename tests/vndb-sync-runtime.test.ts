@@ -29,8 +29,9 @@ vi.mock('@/lib/vndb', async (importOriginal) => {
   return { ...actual, getAuthInfo: getAuthInfoMock, fetchUlistByLabel: fetchUlistByLabelMock };
 });
 
-import { pullStatusesFromVndb, pushStatusToVndb, VNDB_LABELS } from '@/lib/vndb-sync';
+import { decodePullSelections, pullStatusesFromVndb, pushStatusToVndb, VNDB_LABELS } from '@/lib/vndb-sync';
 import { addToCollection, getCollectionItem, upsertVn } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 
 const FAKE_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 
@@ -118,6 +119,24 @@ describe('pushStatusToVndb', () => {
 });
 
 describe('pullStatusesFromVndb', () => {
+  it('validates bounded unique apply selections', () => {
+    expect(decodePullSelections([{ vn_id: 'V90100', from: 'planning', to: 'playing' }])).toEqual([
+      { vn_id: 'v90100', from: 'planning', to: 'playing' },
+    ]);
+    expect(decodePullSelections([])).toBeNull();
+    expect(decodePullSelections([{ vn_id: 'bad', from: 'planning', to: 'playing' }])).toBeNull();
+    expect(decodePullSelections([{ vn_id: 'v90100', from: 'playing', to: 'playing' }])).toBeNull();
+    expect(decodePullSelections([
+      { vn_id: 'v90100', from: 'planning', to: 'playing' },
+      { vn_id: 'V90100', from: 'playing', to: 'completed' },
+    ])).toBeNull();
+    expect(decodePullSelections(Array.from({ length: 10_001 }, (_, index) => ({
+      vn_id: `v${91000 + index}`,
+      from: 'planning',
+      to: 'playing',
+    })))).toBeNull();
+  });
+
   it('returns a needsAuth result when no token is configured', async () => {
     getAuthInfoMock.mockResolvedValueOnce(null);
     const r = await pullStatusesFromVndb();
@@ -127,19 +146,27 @@ describe('pullStatusesFromVndb', () => {
     expect(fetchUlistByLabelMock).not.toHaveBeenCalled();
   });
 
-  it('updates an in-collection VN whose remote status differs', async () => {
+  it('previews without writing, then applies one explicitly selected transition', async () => {
     getAuthInfoMock.mockResolvedValue({ id: 'u9001', username: 'tester', permissions: ['listread'] });
     // Local VN currently 'planning'; VNDB has it under the Playing label (1).
     upsertVn({ id: 'v90100', title: 'vn-v90100', languages: ['ja'] });
     addToCollection('v90100', { status: 'planning' });
     respondWithLabels({ [VNDB_LABELS.playing]: [ulistEntry('v90100', [VNDB_LABELS.playing])] });
 
-    const r = await pullStatusesFromVndb();
-    expect(r.ok).toBe(true);
-    expect(r.updated).toBe(1);
-    expect(r.changes).toEqual([
+    const preview = await pullStatusesFromVndb();
+    expect(preview.ok).toBe(true);
+    expect(preview.action).toBe('preview');
+    expect(preview.updated).toBe(0);
+    expect(preview.changes).toEqual([
       { vn_id: 'v90100', title: 'vn-v90100', from: 'planning', to: 'playing' },
     ]);
+    expect(getCollectionItem('v90100')?.status).toBe('planning');
+
+    const applied = await pullStatusesFromVndb({
+      action: 'apply',
+      selections: [{ vn_id: 'v90100', from: 'planning', to: 'playing' }],
+    });
+    expect(applied).toMatchObject({ action: 'apply', updated: 1, conflicts: 0, changes: [] });
     expect(getCollectionItem('v90100')?.status).toBe('playing');
   });
 
@@ -178,7 +205,7 @@ describe('pullStatusesFromVndb', () => {
     });
 
     const r = await pullStatusesFromVndb();
-    expect(getCollectionItem('v90300')?.status).toBe('completed');
+    expect(getCollectionItem('v90300')?.status).toBe('planning');
     expect(r.changes[0]).toMatchObject({ vn_id: 'v90300', to: 'completed' });
   });
 
@@ -209,16 +236,76 @@ describe('pullStatusesFromVndb', () => {
     expect(fetchUlistByLabelMock).toHaveBeenCalledWith('u9002', VNDB_LABELS.playing, { results: 100, page: 2 });
   });
 
-  it('records a failed label fetch and continues with the remaining labels', async () => {
+  it('returns an incomplete snapshot and performs no writes when one label fetch fails', async () => {
     getAuthInfoMock.mockResolvedValue({ id: 'u9003', username: 'tester', permissions: ['listread'] });
+    upsertVn({ id: 'v90402', title: 'vn-v90402', languages: ['ja'] });
+    addToCollection('v90402', { status: 'planning' });
     fetchUlistByLabelMock.mockImplementation(async (_userId: string, labelId: number) => {
       if (labelId === VNDB_LABELS.playing) throw new Error('temporary label failure');
+      if (labelId === VNDB_LABELS.completed) {
+        return { results: [ulistEntry('v90402', [VNDB_LABELS.completed])], more: false };
+      }
       return { results: [], more: false };
     });
 
     const r = await pullStatusesFromVndb();
-    expect(r.ok).toBe(true);
+    expect(r).toMatchObject({
+      ok: false,
+      updated: 0,
+      failedLabels: [VNDB_LABELS.playing],
+      errorCode: 'vndb_status_snapshot_incomplete',
+    });
     expect(fetchUlistByLabelMock).toHaveBeenCalledTimes(Object.values(VNDB_LABELS).length);
+    expect(getCollectionItem('v90402')?.status).toBe('planning');
+  });
+
+  it('does not apply a transition that changed after preview', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9006', username: 'tester', permissions: ['listread'] });
+    upsertVn({ id: 'v90600', title: 'vn-v90600', languages: ['ja'] });
+    addToCollection('v90600', { status: 'on_hold' });
+    respondWithLabels({ [VNDB_LABELS.completed]: [ulistEntry('v90600', [VNDB_LABELS.completed])] });
+
+    const result = await pullStatusesFromVndb({
+      action: 'apply',
+      selections: [{ vn_id: 'v90600', from: 'playing', to: 'completed' }],
+    });
+    expect(result).toMatchObject({ updated: 0, conflicts: 1 });
+    expect(result.changes).toEqual([
+      { vn_id: 'v90600', title: 'vn-v90600', from: 'on_hold', to: 'completed' },
+    ]);
+    expect(getCollectionItem('v90600')?.status).toBe('on_hold');
+  });
+
+  it('counts a selection absent from the fresh snapshot as a conflict', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9007', username: 'tester', permissions: ['listread'] });
+    respondWithLabels({});
+    const result = await pullStatusesFromVndb({
+      action: 'apply',
+      selections: [{ vn_id: 'v90700', from: 'planning', to: 'playing' }],
+    });
+    expect(result).toMatchObject({ updated: 0, conflicts: 1, changes: [] });
+  });
+
+  it('keeps the current local status when the conditional write loses a race', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9008', username: 'tester', permissions: ['listread'] });
+    upsertVn({ id: 'v90800', title: 'vn-v90800', languages: ['ja'] });
+    addToCollection('v90800', { status: 'planning' });
+    respondWithLabels({ [VNDB_LABELS.playing]: [ulistEntry('v90800', [VNDB_LABELS.playing])] });
+    const repository = getCollectionCoreRepository();
+    const updateSpy = vi.spyOn(repository, 'updateStatusIfCurrent').mockResolvedValueOnce(false);
+    try {
+      const result = await pullStatusesFromVndb({
+        action: 'apply',
+        selections: [{ vn_id: 'v90800', from: 'planning', to: 'playing' }],
+      });
+      expect(result).toMatchObject({ updated: 0, conflicts: 1 });
+      expect(result.changes).toEqual([
+        { vn_id: 'v90800', title: 'vn-v90800', from: 'planning', to: 'playing' },
+      ]);
+      expect(getCollectionItem('v90800')?.status).toBe('planning');
+    } finally {
+      updateSpy.mockRestore();
+    }
   });
 
   it('treats a cached but unowned VN as unmatched', async () => {

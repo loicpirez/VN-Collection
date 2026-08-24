@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Download, GraduationCap, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
+import { ArrowRight, CheckCheck, ChevronLeft, ChevronRight, GitCompareArrows, GraduationCap, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
 import { SkeletonRows } from './Skeleton';
@@ -64,6 +64,7 @@ const SORT_KEYS: SortKey[] = [
   'combined_rating',
   'custom',
 ];
+const VNDB_PULL_PAGE_SIZE = 25;
 
 const SETTINGS_TABS = [
   'display',
@@ -223,7 +224,10 @@ export function SettingsButton() {
 
   const [pulling, setPulling] = useState(false);
   const [pullDiff, setPullDiff] = useState<PullDiff | null>(null);
-  async function onPullStatuses() {
+  const [selectedPullIds, setSelectedPullIds] = useState<Set<string>>(() => new Set());
+  const [pullPage, setPullPage] = useState(1);
+
+  async function runPullStatuses(action: 'preview' | 'apply', selections: PullDiff['changes'] = []) {
     if (pullInFlightRef.current) return;
     const controller = new AbortController();
     pullAbortRef.current?.abort();
@@ -231,24 +235,39 @@ export function SettingsButton() {
     pullInFlightRef.current = true;
     setPulling(true);
     try {
-      const r = await fetch('/api/vndb/pull-statuses', { method: 'POST', signal: controller.signal });
+      const r = await fetch('/api/vndb/pull-statuses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'preview' ? { action } : { action, selections }),
+        signal: controller.signal,
+      });
       const data = decodeVndbPullStatusResult(await r.json().catch(() => null));
       if (!r.ok || !data?.ok) {
-        throw new Error(data?.message ?? t.common.error);
+        const message = data?.needsAuth
+          ? t.apiErrors.vndbTokenRequired
+          : data?.errorCode === 'vndb_status_snapshot_incomplete'
+            ? t.settings.vndbPullIncomplete
+            : data?.message ?? t.common.error;
+        throw new Error(message);
       }
       if (!mountedRef.current || pullAbortRef.current !== controller || controller.signal.aborted) return;
-      toast.success(`${t.settings.vndbPullDone} (${data.updated}/${data.scanned})`);
+      toast.success(action === 'preview'
+        ? t.settings.vndbPullPreviewReady.replace('{count}', String(data.changes.length))
+        : `${t.settings.vndbPullDone} (${data.updated}/${selections.length})`);
       setPullDiff({
+        action: data.action,
         scanned: data.scanned,
         updated: data.updated,
         unchanged: data.unchanged,
         skippedNotInCollection: data.skippedNotInCollection,
+        conflicts: data.conflicts,
+        failedLabels: data.failedLabels,
         changes: data.changes,
         unmatched: data.unmatched,
       });
-      // Updated statuses changed local DB state - reload the surrounding
-      // server component so card status badges reflect the new values.
-      startTransition(() => router.refresh());
+      setSelectedPullIds(new Set());
+      setPullPage(1);
+      if (action === 'apply' && data.updated > 0) startTransition(() => router.refresh());
     } catch (e) {
       if (!mountedRef.current || pullAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((e as Error).message);
@@ -260,6 +279,23 @@ export function SettingsButton() {
       }
     }
   }
+
+  async function onApplyPullStatuses() {
+    if (!pullDiff) return;
+    const selections = pullDiff.changes.filter((change) => selectedPullIds.has(change.vn_id));
+    if (selections.length === 0) return;
+    const approved = await confirm({
+      message: t.settings.vndbPullApplyConfirm.replace('{count}', String(selections.length)),
+      tone: 'danger',
+    });
+    if (approved) await runPullStatuses('apply', selections);
+  }
+
+  const pullPageCount = Math.max(1, Math.ceil((pullDiff?.changes.length ?? 0) / VNDB_PULL_PAGE_SIZE));
+  const visiblePullChanges = pullDiff?.changes.slice(
+    (pullPage - 1) * VNDB_PULL_PAGE_SIZE,
+    pullPage * VNDB_PULL_PAGE_SIZE,
+  ) ?? [];
 
   useEffect(() => {
     mountedRef.current = true;
@@ -591,10 +627,10 @@ export function SettingsButton() {
                         <button
                           type="button"
                           className="btn btn-secondary shrink-0"
-                          onClick={onPullStatuses}
+                          onClick={() => void runPullStatuses('preview')}
                           disabled={pulling}
                         >
-                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+                          {pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <GitCompareArrows className="h-4 w-4" aria-hidden />}
                           {t.settings.vndbPullAction}
                         </button>
                       </div>
@@ -603,25 +639,102 @@ export function SettingsButton() {
                           <div className="text-[10px] text-muted">
                             {t.settings.vndbPullDiffSummary
                               .replace('{updated}', String(pullDiff.updated))
+                              .replace('{changes}', String(pullDiff.changes.length))
                               .replace('{unchanged}', String(pullDiff.unchanged))
                               .replace('{skipped}', String(pullDiff.skippedNotInCollection))
                               .replace('{scanned}', String(pullDiff.scanned))}
                           </div>
                           {pullDiff.changes.length > 0 && (
-                            <ul className="max-h-48 space-y-0.5 overflow-y-auto">
-                              {pullDiff.changes.map((c) => (
-                                <li key={c.vn_id} className="flex items-center justify-between gap-2">
-                                  <Link href={`/vn/${c.vn_id}`} target="_blank" rel="noopener noreferrer" className="truncate hover:text-accent">
-                                    {c.title}
-                                  </Link>
-                                  <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted">
-                                    {c.from ?? '-'}
-                                    <ArrowRight className="h-3 w-3" aria-hidden />
-                                    <span className="text-accent">{c.to}</span>
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[10px] text-muted">
+                                  {t.settings.vndbPullSelected.replace('{count}', String(selectedPullIds.size))}
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm min-h-[44px]"
+                                    onClick={() => setSelectedPullIds(new Set(pullDiff.changes.map((change) => change.vn_id)))}
+                                    disabled={pulling || selectedPullIds.size === pullDiff.changes.length}
+                                  >
+                                    {t.settings.vndbPullSelectAll}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm min-h-[44px]"
+                                    onClick={() => setSelectedPullIds(new Set())}
+                                    disabled={pulling || selectedPullIds.size === 0}
+                                  >
+                                    {t.settings.vndbPullClearSelection}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm min-h-[44px]"
+                                    onClick={() => void onApplyPullStatuses()}
+                                    disabled={pulling || selectedPullIds.size === 0}
+                                  >
+                                    <CheckCheck className="h-3.5 w-3.5" aria-hidden />
+                                    {t.settings.vndbPullApply}
+                                  </button>
+                                </div>
+                              </div>
+                              <ul className="space-y-0.5">
+                                {visiblePullChanges.map((c) => (
+                                  <li key={c.vn_id} className="flex min-h-[44px] items-center gap-2">
+                                    <label className="tap-target inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-bg-elev">
+                                      <input
+                                        type="checkbox"
+                                        className="h-4 w-4 accent-accent"
+                                        checked={selectedPullIds.has(c.vn_id)}
+                                        onChange={(event) => setSelectedPullIds((current) => {
+                                          const next = new Set(current);
+                                          if (event.target.checked) next.add(c.vn_id);
+                                          else next.delete(c.vn_id);
+                                          return next;
+                                        })}
+                                        aria-label={t.settings.vndbPullSelectItem.replace('{title}', c.title)}
+                                      />
+                                    </label>
+                                    <Link href={`/vn/${c.vn_id}`} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate hover:text-accent">
+                                      {c.title}
+                                    </Link>
+                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted">
+                                      {t.status[c.from]}
+                                      <ArrowRight className="h-3 w-3" aria-hidden />
+                                      <span className="text-accent">{t.status[c.to]}</span>
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                              {pullPageCount > 1 && (
+                                <div className="flex items-center justify-center gap-2 border-t border-border/60 pt-2">
+                                  <button
+                                    type="button"
+                                    className="tap-target inline-flex items-center justify-center rounded-md border border-border"
+                                    aria-label={t.common.prev}
+                                    disabled={pullPage <= 1}
+                                    onClick={() => setPullPage((page) => Math.max(1, page - 1))}
+                                  >
+                                    <ChevronLeft className="h-4 w-4" aria-hidden />
+                                  </button>
+                                  <span className="text-[10px] text-muted">{pullPage} / {pullPageCount}</span>
+                                  <button
+                                    type="button"
+                                    className="tap-target inline-flex items-center justify-center rounded-md border border-border"
+                                    aria-label={t.common.next}
+                                    disabled={pullPage >= pullPageCount}
+                                    onClick={() => setPullPage((page) => Math.min(pullPageCount, page + 1))}
+                                  >
+                                    <ChevronRight className="h-4 w-4" aria-hidden />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {pullDiff.conflicts > 0 && (
+                            <p className="text-[10px] text-status-on-hold">
+                              {t.settings.vndbPullConflicts.replace('{count}', String(pullDiff.conflicts))}
+                            </p>
                           )}
                           {pullDiff.unmatched.length > 0 && (
                             <details className="group text-[10px] text-muted">

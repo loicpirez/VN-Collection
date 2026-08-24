@@ -7,7 +7,8 @@ import { getAppSettingRepository } from './db/repositories/app-setting';
 import { getCollectionCoreRepository } from './db/repositories/collection-core';
 import { getVnReadRepository } from './db/repositories/vn-read';
 
-import { isVndbVnId } from '@/lib/vn-id-shape';
+import { isVndbVnId, normalizeVnId } from '@/lib/vn-id-shape';
+import { isValidStatus } from './types';
 import { statusFromVndbLabels, VNDB_STATUS_LABELS } from './vndb-user-data-sync';
 /**
  * Two-way sync between local status and VNDB list labels.
@@ -96,22 +97,66 @@ export async function maybePushStatusToVndb(
 export interface PullChange {
   vn_id: string;
   title: string;
-  from: Status | null;
+  from: Status;
   to: Status;
 }
 
+/** One operator-approved status transition from a previous preview. */
+export interface PullSelection {
+  vn_id: string;
+  from: Status;
+  to: Status;
+}
+
+/** Status-pull execution mode. Preview never writes; apply revalidates every selection. */
+export type PullOptions =
+  | { action: 'preview' }
+  | { action: 'apply'; selections: PullSelection[] };
+
 export interface PullResult {
   ok: boolean;
+  action: PullOptions['action'];
   needsAuth?: boolean;
   scanned: number;
   updated: number;
   unchanged: number;
   skippedNotInCollection: number;
-  /** Per-VN before/after for every row that actually changed. */
+  conflicts: number;
+  failedLabels: number[];
   changes: PullChange[];
-  /** Sample of VN ids on VNDB that aren't in the local collection (capped at 20). */
   unmatched: { vn_id: string; status: Status }[];
+  errorCode?: 'vndb_status_snapshot_incomplete';
   message?: string;
+}
+
+/**
+ * Decode a bounded set of status transitions supplied by the settings client.
+ *
+ * @param value Untrusted request-body value.
+ * @returns Normalized unique selections, or `null` for malformed input.
+ */
+export function decodePullSelections(value: unknown): PullSelection[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 10_000) return null;
+  const selections: PullSelection[] = [];
+  const ids = new Set<string>();
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
+    const row = candidate as Record<string, unknown>;
+    if (
+      typeof row.vn_id !== 'string' ||
+      !isVndbVnId(row.vn_id) ||
+      !isValidStatus(row.from) ||
+      !isValidStatus(row.to) ||
+      row.from === row.to
+    ) {
+      return null;
+    }
+    const vnId = normalizeVnId(row.vn_id);
+    if (ids.has(vnId)) return null;
+    ids.add(vnId);
+    selections.push({ vn_id: vnId, from: row.from, to: row.to });
+  }
+  return selections;
 }
 
 /**
@@ -133,16 +178,19 @@ function pickStatusFromLabels(labelIds: number[]): Status | null {
  *
  * Returns counts so the UI can show "updated N / X scanned".
  */
-export async function pullStatusesFromVndb(): Promise<PullResult> {
+export async function pullStatusesFromVndb(options: PullOptions = { action: 'preview' }): Promise<PullResult> {
   const auth = await getAuthInfo();
   if (!auth) {
     return {
       ok: false,
+      action: options.action,
       needsAuth: true,
       scanned: 0,
       updated: 0,
       unchanged: 0,
       skippedNotInCollection: 0,
+      conflicts: 0,
+      failedLabels: [],
       changes: [],
       unmatched: [],
       message: 'no vndb token',
@@ -151,64 +199,131 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
 
   const account = auth.username ?? auth.id;
   const job = startJob('vndb-pull', jobLabel('pull_statuses_for_account', `Pulling statuses for ${account}`, { account }), Object.values(VNDB_LABELS).length);
-  // Accumulate status per vn id across all label queries, then resolve via
-  // precedence at the end.
-  const labels: Record<string, number[]> = {};
-  for (const labelId of Object.values(VNDB_LABELS)) {
-    setJobCurrent(job.id, jobCurrentItem('vndb_label', `label ${labelId}`, { labelId }));
-    try {
-      for (let page = 1; page <= 50; page++) {
-        const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
-        for (const entry of r.results) {
-          const ids = (labels[entry.id] ??= []);
-          for (const l of entry.labels) ids.push(l.id);
+  try {
+    const labels: Record<string, number[]> = {};
+    const failedLabels: number[] = [];
+    for (const labelId of Object.values(VNDB_LABELS)) {
+      setJobCurrent(job.id, jobCurrentItem('vndb_label', `label ${labelId}`, { labelId }));
+      try {
+        for (let page = 1; page <= 50; page++) {
+          const r = await fetchUlistByLabel(auth.id, labelId, { results: 100, page });
+          for (const entry of r.results) {
+            const ids = (labels[entry.id] ??= []);
+            for (const l of entry.labels) ids.push(l.id);
+          }
+          if (!r.more) break;
         }
-        if (!r.more) break;
+      } catch (error) {
+        failedLabels.push(labelId);
+        recordError(job.id, `label-${labelId}`, (error as Error).message);
       }
-    } catch (e) {
-      recordError(job.id, `label-${labelId}`, (e as Error).message);
+      tickJob(job.id);
     }
-    tickJob(job.id);
-  }
 
-  let updated = 0;
-  let unchanged = 0;
-  let skipped = 0;
-  const changes: PullChange[] = [];
-  const unmatched: { vn_id: string; status: Status }[] = [];
-  const scanned = Object.keys(labels).length;
-  const vnReader = getVnReadRepository();
-  const collection = getCollectionCoreRepository();
-  for (const [vnId, labelIds] of Object.entries(labels)) {
-    const target = pickStatusFromLabels(labelIds);
-    if (!target) {
-      skipped += 1;
-      continue;
+    const scanned = Object.keys(labels).length;
+    if (failedLabels.length > 0) {
+      return {
+        ok: false,
+        action: options.action,
+        scanned,
+        updated: 0,
+        unchanged: 0,
+        skippedNotInCollection: 0,
+        conflicts: 0,
+        failedLabels,
+        changes: [],
+        unmatched: [],
+        errorCode: 'vndb_status_snapshot_incomplete',
+        message: 'incomplete vndb status snapshot',
+      };
     }
-    const local = await vnReader.getCollectionItem(vnId);
-    if (!local?.status) {
-      skipped += 1;
-      if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
-      continue;
-    }
-    if (local.status === target) {
-      unchanged += 1;
-      continue;
-    }
-    const prev = local.status;
-    await collection.update(vnId, { status: target });
-    changes.push({ vn_id: vnId, title: local.title, from: prev, to: target });
-    updated += 1;
-  }
 
-  finishJob(job.id);
-  return {
-    ok: true,
-    scanned,
-    updated,
-    unchanged,
-    skippedNotInCollection: skipped,
-    changes,
-    unmatched,
-  };
+    let unchanged = 0;
+    let skipped = 0;
+    const proposed: PullChange[] = [];
+    const unmatched: { vn_id: string; status: Status }[] = [];
+    const vnReader = getVnReadRepository();
+    for (const [vnId, labelIds] of Object.entries(labels)) {
+      const target = pickStatusFromLabels(labelIds);
+      if (!target) {
+        skipped += 1;
+        continue;
+      }
+      const local = await vnReader.getCollectionItem(vnId);
+      if (!local?.status) {
+        skipped += 1;
+        if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
+        continue;
+      }
+      if (local.status === target) {
+        unchanged += 1;
+        continue;
+      }
+      proposed.push({ vn_id: vnId, title: local.title, from: local.status, to: target });
+    }
+
+    if (options.action === 'preview') {
+      return {
+        ok: true,
+        action: 'preview',
+        scanned,
+        updated: 0,
+        unchanged,
+        skippedNotInCollection: skipped,
+        conflicts: 0,
+        failedLabels: [],
+        changes: proposed,
+        unmatched,
+      };
+    }
+
+    const proposals = new Map(proposed.map((change) => [change.vn_id, change]));
+    const requested = new Map(options.selections.map((selection) => [selection.vn_id, selection]));
+    const remaining: PullChange[] = [];
+    const collection = getCollectionCoreRepository();
+    let updated = 0;
+    let conflicts = 0;
+
+    for (const change of proposed) {
+      const selection = requested.get(change.vn_id);
+      if (!selection) {
+        remaining.push(change);
+        continue;
+      }
+      if (selection.from !== change.from || selection.to !== change.to) {
+        conflicts += 1;
+        remaining.push(change);
+        continue;
+      }
+      const applied = await collection.updateStatusIfCurrent(change.vn_id, change.from, change.to);
+      if (!applied) {
+        const current = await vnReader.getCollectionItem(change.vn_id);
+        conflicts += 1;
+        if (current?.status && current.status !== change.to) {
+          remaining.push({ ...change, from: current.status });
+        }
+        continue;
+      }
+      updated += 1;
+    }
+
+    for (const selection of options.selections) {
+      if (!proposals.has(selection.vn_id)) conflicts += 1;
+    }
+
+    return {
+      ok: true,
+      action: 'apply',
+      scanned,
+      updated,
+      unchanged,
+      skippedNotInCollection: skipped,
+      conflicts,
+      failedLabels: [],
+      changes: remaining,
+      unmatched,
+    };
+  } finally {
+    finishJob(job.id);
+  }
 }

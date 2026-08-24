@@ -46,6 +46,8 @@ export interface CollectionCoreRepository {
   add(vnId: string, fields?: CollectionCorePatch): Promise<void>;
   /** Patch one collection row and append state-change activity entries. */
   update(vnId: string, fields: CollectionCorePatch): Promise<void>;
+  /** Update one status only when its persisted value still matches the preview. */
+  updateStatusIfCurrent(vnId: string, expected: CollectionFields['status'], next: CollectionFields['status']): Promise<boolean>;
   /** Remove one collection row and its personal-list memberships. */
   remove(vnId: string): Promise<void>;
   /** Report whether one VN belongs to the collection. */
@@ -250,6 +252,17 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
     async update(vnId, fields) {
       await withPostgresTransaction((client) => updateWithinTransaction(client, vnId, fields));
     },
+    async updateStatusIfCurrent(vnId, expected, next) {
+      return withPostgresTransaction(async (client) => {
+        const current = await client.query<CollectionSnapshotRow>(`
+          SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date
+          FROM collection WHERE vn_id = $1 FOR UPDATE
+        `, [vnId]);
+        if (current.rows[0]?.status !== expected) return false;
+        await updateWithinTransaction(client, vnId, { status: next });
+        return true;
+      });
+    },
     async remove(vnId) {
       await withPostgresTransaction(async (client) => {
         await client.query('DELETE FROM collection_place_index WHERE vn_id = $1', [vnId]);
@@ -310,6 +323,9 @@ const sqliteRepository: CollectionCoreRepository = {
   },
   async update(vnId, fields) {
     (await import('@/lib/db')).updateCollection(vnId, fields);
+  },
+  async updateStatusIfCurrent(vnId, expected, next) {
+    return (await import('@/lib/db')).updateCollectionStatusIfCurrent(vnId, expected, next);
   },
   async remove(vnId) {
     (await import('@/lib/db')).removeFromCollection(vnId);
