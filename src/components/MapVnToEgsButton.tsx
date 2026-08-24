@@ -24,6 +24,22 @@ import {
   type VnEgsMappingState,
 } from '@/lib/search-client-shape';
 
+/** Props for the VN-to-EGS mapping trigger and dialog owner. */
+export interface MapVnToEgsButtonProps {
+  vnId: string;
+  seedQuery: string;
+  /** Lay out as a full-width row or as a compact icon button. */
+  variant?: 'inline' | 'compact';
+  /** Override the trigger button class (inline variant only). */
+  triggerClassName?: string;
+  /** Add data-menu-keep-open so an ancestor ActionMenu stays mounted. */
+  keepMenuOpen?: boolean;
+  /** Render the built-in trigger; lazy owners disable it and provide a lightweight trigger. */
+  showTrigger?: boolean;
+  /** Open immediately when a lazy owner mounts in response to a click. */
+  initialOpen?: boolean;
+}
+
 /**
  * Map a VNDB VN to an EGS entry without leaving the page.
  *
@@ -38,21 +54,14 @@ export function MapVnToEgsButton({
   variant = 'inline',
   triggerClassName,
   keepMenuOpen,
-}: {
-  vnId: string;
-  seedQuery: string;
-  /** Lay out as a full-width row or as a compact icon button. */
-  variant?: 'inline' | 'compact';
-  /** Override the trigger button class (inline variant only). */
-  triggerClassName?: string;
-  /** Add data-menu-keep-open so an ancestor ActionMenu stays mounted. */
-  keepMenuOpen?: boolean;
-}) {
+  showTrigger = true,
+  initialOpen = false,
+}: MapVnToEgsButtonProps) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState(seedQuery);
   const [candidates, setCandidates] = useState<EgsCandidate[]>([]);
   const [searching, setSearching] = useState(false);
@@ -131,7 +140,7 @@ export function MapVnToEgsButton({
     hydrationAbortRef.current = null;
     searchAbortRef.current?.abort();
     searchAbortRef.current = null;
-    setOpen(false);
+    setOpen(initialOpen);
     setQuery(seedQuery);
     setCandidates([]);
     setSearching(false);
@@ -145,7 +154,7 @@ export function MapVnToEgsButton({
       hydrationAbortRef.current?.abort();
       searchAbortRef.current?.abort();
     };
-  }, [identity, seedQuery]);
+  }, [identity, seedQuery, initialOpen]);
 
   const debouncedSearch = useDebouncedCallback((q: string) => void search(q), 300);
 
@@ -240,11 +249,11 @@ export function MapVnToEgsButton({
 
   return (
     <>
-      {trigger}
+      {showTrigger ? trigger : null}
       {open && (
         <DialogPortal>
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center"
+            className="fixed inset-0 z-layer-modal flex items-center justify-center"
             onClick={() => { if (busy == null) setOpen(false); }}
           >
             <div className="absolute inset-0 bg-bg/80 backdrop-blur" aria-hidden />

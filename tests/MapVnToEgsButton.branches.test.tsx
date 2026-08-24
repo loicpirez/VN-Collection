@@ -44,6 +44,20 @@ function mappingState(source: string | null, egsId: number | null) {
 }
 
 describe('MapVnToEgsButton branches', () => {
+  it('opens immediately without a duplicate trigger for a lazy dialog owner', () => {
+    renderWithProviders(
+      <MapVnToEgsButton
+        vnId="v90001"
+        seedQuery="Seed Name"
+        showTrigger={false}
+        initialOpen
+      />,
+      { locale: 'en' },
+    );
+    expect(screen.queryByRole('button', { name: 'Map to EGS' })).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     refresh.mockClear();
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
