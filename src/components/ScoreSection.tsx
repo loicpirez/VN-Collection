@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import type { Locale } from '@/lib/i18n/dictionaries';
+import { ScoreSourceLegend } from './ScoreSourceLegend';
 
 interface ScoreTileProps {
   label: string;
@@ -78,6 +79,10 @@ export function ScoreSection({
           }
         </button>
       </div>
+      <ScoreSourceLegend
+        sources={['unified', 'vndb', 'egs', 'mine']}
+        className="mt-2"
+      />
       {expanded && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <ScoreTile

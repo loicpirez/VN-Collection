@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ScoreSection } from '@/components/ScoreSection';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -37,7 +37,8 @@ describe('ScoreSection', () => {
     expect(screen.getAllByText(t.detail.scoreUnavailable)).toHaveLength(3);
     expect(screen.getByText('0 votes')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.detail.scoreHideBreakdown }));
-    expect(screen.queryByText(t.detail.scoreVndb)).toBeNull();
+    expect(screen.getByRole('button', { name: t.detail.scoreShowBreakdown })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(t.detail.scoreUnavailable)).toBeNull();
   });
 
   it('renders the source breakdown for populated ratings', () => {
@@ -58,6 +59,8 @@ describe('ScoreSection', () => {
     );
 
     expect(screen.getByText('8.6')).toBeInTheDocument();
+    const legend = screen.getByRole('list', { name: t.detail.scoreLegendLabel });
+    expect(within(legend).getAllByRole('listitem')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: t.detail.scoreShowBreakdown }));
     expect(screen.getByText('8.2/ 10')).toBeInTheDocument();
     expect(screen.getByText('79 / 100')).toBeInTheDocument();
