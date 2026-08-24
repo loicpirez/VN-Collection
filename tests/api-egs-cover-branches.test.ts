@@ -19,13 +19,14 @@ vi.mock('@/lib/erogamescape', async (importOriginal) => {
 
 import { GET } from '@/app/api/egs-cover/[id]/route';
 import { db } from '@/lib/db';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 function ctx(id: string): { params: Promise<{ id: string }> } {
   return { params: Promise.resolve({ id }) };
 }
 
 function req(id: string, origin = 'http://localhost', forwardedFor = `10.0.0.${Math.max(1, Number(id) % 250)}`): Request {
-  return new Request(`${origin}/api/egs-cover/${id}`, { headers: { 'x-forwarded-for': forwardedFor } });
+  return new Request(`${origin}/api/egs-cover/${id}`, { headers: loopbackForwardingHeaders(forwardedFor) });
 }
 
 function imageResponse(type = 'image/jpeg'): Response {

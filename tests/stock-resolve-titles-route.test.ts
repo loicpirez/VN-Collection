@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/stock/resolve-titles/route';
 import { db } from '@/lib/db';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 vi.mock('@/lib/vndb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vndb')>();
@@ -41,7 +42,7 @@ function seedVn(id: string, title: string): void {
 
 function makeReq(query: string, fwd: string): NextRequest {
   return new NextRequest(`http://127.0.0.1/api/stock/resolve-titles${query}`, {
-    headers: { 'x-forwarded-for': fwd },
+    headers: loopbackForwardingHeaders(fwd),
   });
 }
 

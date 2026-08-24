@@ -19,6 +19,7 @@ import { GET as authGET } from '@/app/api/vndb/auth/route';
 import { GET as tagTreeGET } from '@/app/api/tags/web-tree/route';
 import { GET as quoteGET } from '@/app/api/vndb/quote/random/route';
 import { db, setAppSetting } from '@/lib/db';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 const {
   getCharacterMock,
@@ -55,7 +56,7 @@ vi.mock('@/lib/vndb-tag-web-cache', async (importOriginal) => {
 
 function loopbackReq(path: string, fwd: string): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
-    headers: { host: '127.0.0.1', 'x-forwarded-for': fwd },
+    headers: { host: '127.0.0.1', ...loopbackForwardingHeaders(fwd) },
   });
 }
 

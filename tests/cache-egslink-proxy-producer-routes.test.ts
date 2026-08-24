@@ -25,6 +25,7 @@ import { POST as proxyTestPOST } from '@/app/api/proxy/test/route';
 import { POST as producerRefreshPOST } from '@/app/api/producer/[id]/refresh/route';
 import { db } from '@/lib/db';
 import * as activityModule from '@/lib/activity';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 const { fetchAssocMock, invalidateAssocMock } = vi.hoisted(() => ({
   fetchAssocMock: vi.fn(),
@@ -47,7 +48,7 @@ const PRODUCER_ID = 'p90901';
 function loopback(path: string, method = 'GET', body?: unknown, fwd = '127.0.0.1'): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
     method,
-    headers: { host: '127.0.0.1', 'content-type': 'application/json', 'x-forwarded-for': fwd },
+    headers: { host: '127.0.0.1', 'content-type': 'application/json', ...loopbackForwardingHeaders(fwd) },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 }

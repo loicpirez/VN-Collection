@@ -23,6 +23,7 @@ import { GET as egsSearchGET } from '@/app/api/egs/search/route';
 import { GET as duplicatesGET } from '@/app/api/maintenance/duplicates/route';
 import { GET as staleGET } from '@/app/api/maintenance/stale/route';
 import { addToCollection, db } from '@/lib/db';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 const {
   searchVnMock,
@@ -61,7 +62,7 @@ const VN_ID = 'v90501';
 
 function loopback(path: string, fwd: string): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
-    headers: { host: '127.0.0.1', 'x-forwarded-for': fwd },
+    headers: { host: '127.0.0.1', ...loopbackForwardingHeaders(fwd) },
   });
 }
 
@@ -74,7 +75,7 @@ function external(path: string): NextRequest {
 function loopbackPost(path: string, fwd: string, body: unknown): NextRequest {
   return new NextRequest(`http://127.0.0.1${path}`, {
     method: 'POST',
-    headers: { host: '127.0.0.1', 'content-type': 'application/json', 'x-forwarded-for': fwd },
+    headers: { host: '127.0.0.1', 'content-type': 'application/json', ...loopbackForwardingHeaders(fwd) },
     body: JSON.stringify(body),
   });
 }

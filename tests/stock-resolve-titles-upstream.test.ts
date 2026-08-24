@@ -17,11 +17,12 @@ vi.mock('@/lib/erogamescape', async (importOriginal) => {
 });
 
 import { GET } from '@/app/api/stock/resolve-titles/route';
+import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 import { db } from '@/lib/db';
 
 function req(query: string, forwardedFor: string, origin = 'http://127.0.0.1'): NextRequest {
   return new NextRequest(`${origin}/api/stock/resolve-titles${query}`, {
-    headers: { 'x-forwarded-for': forwardedFor },
+    headers: loopbackForwardingHeaders(forwardedFor),
   });
 }
 
