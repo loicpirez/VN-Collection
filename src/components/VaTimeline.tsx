@@ -1,5 +1,5 @@
 import { Activity } from 'lucide-react';
-import { getVaTimeline } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { getDict } from '@/lib/i18n/server';
 import { ScrollFadeRight } from './ScrollFadeRight';
 
@@ -12,7 +12,7 @@ import { ScrollFadeRight } from './ScrollFadeRight';
  */
 export async function VaTimeline({ sid }: { sid: string }) {
   const t = await getDict();
-  const buckets = getVaTimeline(sid);
+  const buckets = await getPeopleRepository().voiceTimeline(sid);
   if (buckets.length === 0) return null;
 
   const known = buckets.filter((b) => b.year > 0);

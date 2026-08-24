@@ -21,10 +21,15 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
 }));
 
-vi.mock('@/lib/db', () => ({
-  getCharacterImages: mocks.characterImages,
-  getVaTimeline: mocks.timeline,
-  todaysAnniversaries: mocks.anniversaries,
+vi.mock('@/lib/db/repositories/people', () => ({
+  getPeopleRepository: () => ({
+    characterImages: mocks.characterImages,
+    voiceTimeline: mocks.timeline,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/home-feed', () => ({
+  getHomeFeedRepository: () => ({ listAnniversaries: mocks.anniversaries }),
 }));
 
 vi.mock('@/lib/reading-speed', () => ({
@@ -61,8 +66,8 @@ vi.mock('@/components/AnniversaryFeedView', () => ({
 const t = dictionaries[DEFAULT_LOCALE];
 
 beforeEach(() => {
-  mocks.anniversaries.mockReset().mockReturnValue([]);
-  mocks.characterImages.mockReset().mockReturnValue(new Map());
+  mocks.anniversaries.mockReset().mockResolvedValue([]);
+  mocks.characterImages.mockReset().mockResolvedValue(new Map());
   mocks.predictReadingMinutes.mockReset().mockReturnValue(null);
   mocks.profile.mockReset().mockReturnValue({
     sampleSize: 0,
@@ -70,7 +75,7 @@ beforeEach(() => {
     multiplierVsEgs: null,
     medianMyMinutes: null,
   });
-  mocks.timeline.mockReset().mockReturnValue([]);
+  mocks.timeline.mockReset().mockResolvedValue([]);
   mocks.vndbAdvancedSearchRaw.mockReset().mockResolvedValue([]);
 });
 
@@ -94,7 +99,7 @@ describe('server detail helpers', () => {
 
   it('renders valid cast links with local artwork and skips incomplete credits', async () => {
     expect(await CastSection({ va: [] })).toBeNull();
-    mocks.characterImages.mockReturnValue(new Map([['c90001', { local_path: '/local/c90001.jpg' }]]));
+    mocks.characterImages.mockResolvedValue(new Map([['c90001', { local_path: '/local/c90001.jpg' }]]));
     const html = renderToStaticMarkup(await CastSection({
       va: [
         {
@@ -149,7 +154,7 @@ describe('server detail helpers', () => {
   });
 
   it('renders anniversaries through the client view with an eight-entry cap', async () => {
-    mocks.anniversaries.mockReturnValue(Array.from({ length: 10 }, (_unused, index) => ({
+    mocks.anniversaries.mockResolvedValue(Array.from({ length: 10 }, (_unused, index) => ({
       id: `v9${String(index).padStart(4, '0')}`,
       title: `Anniversary ${index}`,
       years: index + 1,
@@ -166,7 +171,7 @@ describe('server detail helpers', () => {
 
   it('renders VA timeline gaps, owned percentages, and the unknown-year bucket', async () => {
     expect(await VaTimeline({ sid: 's90001' })).toBeNull();
-    mocks.timeline.mockReturnValue([
+    mocks.timeline.mockResolvedValue([
       { year: 0, total: 2, inCollection: 1, vnIds: ['v90001', 'v90002'] },
       { year: 2020, total: 1, inCollection: 1, vnIds: ['v90003'] },
       { year: 2022, total: 2, inCollection: 1, vnIds: ['v90004', 'v90005'] },
@@ -180,12 +185,12 @@ describe('server detail helpers', () => {
   });
 
   it('renders an unknown-only VA timeline and rejects malformed negative-year rows', async () => {
-    mocks.timeline.mockReturnValue([{ year: 0, total: 2, inCollection: 1, vnIds: ['v90001', 'v90002'] }]);
+    mocks.timeline.mockResolvedValue([{ year: 0, total: 2, inCollection: 1, vnIds: ['v90001', 'v90002'] }]);
     let html = renderToStaticMarkup(await VaTimeline({ sid: 's90001' }));
     expect(html).toContain(`2 ${t.staff.timeline.unknownYear}`);
     expect(html).not.toContain('2020');
 
-    mocks.timeline.mockReturnValue([{ year: -1, total: 1, inCollection: 0, vnIds: ['v90001'] }]);
+    mocks.timeline.mockResolvedValue([{ year: -1, total: 1, inCollection: 0, vnIds: ['v90001'] }]);
     expect(await VaTimeline({ sid: 's90001' })).toBeNull();
   });
 });
