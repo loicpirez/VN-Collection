@@ -17,4 +17,11 @@ describe('library display controls', () => {
     expect(menu).toContain('t.library.resetFilters');
     expect(menu).not.toContain('HOME_LAYOUT_OPEN_EVENT');
   });
+
+  it('separates a named active-filter summary from the mobile sort and view drawer', () => {
+    expect(SOURCE).toContain('aria-label={t.library.activeFiltersLabel}');
+    expect(SOURCE).toContain('{t.library.activeFiltersLabel}');
+    expect(SOURCE).toContain('<LibraryToolbarDrawer t={t}>');
+    expect(SOURCE).toContain('className="mb-6 border-t border-border/60 pt-4 sm:hidden"');
+  });
 });

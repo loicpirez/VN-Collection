@@ -230,7 +230,7 @@ function installFetchRouter(opts: RouterOptions = {}) {
     }
     if (url.startsWith('/api/collection')) {
       if (opts.collectionStatus && opts.collectionStatus >= 400) {
-        return Promise.resolve(json({ error: 'collection boom' }, opts.collectionStatus));
+        return Promise.resolve(json({ error: 'internal error', code: 'collection_unavailable' }, opts.collectionStatus));
       }
       if (opts.collectionBody !== undefined) return Promise.resolve(json(opts.collectionBody));
       return Promise.resolve(json({
@@ -317,10 +317,11 @@ describe('LibraryClient', () => {
       </DisplaySettingsProvider>,
       { locale: 'en' },
     );
-    expect(await screen.findByText('collection boom')).toBeInTheDocument();
+    expect(await screen.findByText('The library is temporarily unavailable. Retry or check the server.')).toBeInTheDocument();
   });
 
   it('surfaces the fallback collection error when the response shape is invalid', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     installFetchRouter({ collectionBody: { items: [], pagination: { page: 1 } } });
     renderWithProviders(
       <DisplaySettingsProvider>
@@ -329,6 +330,8 @@ describe('LibraryClient', () => {
       { locale: 'en' },
     );
     expect(await screen.findByText('The collection response is invalid. Refresh after syncing or check the server.')).toBeInTheDocument();
+    expect(errorSpy).toHaveBeenCalledWith('[LIBRARY_COLLECTION_DECODE_FAILED]', 'pagination');
+    expect(errorSpy).toHaveBeenCalledWith('[LIBRARY_COLLECTION_LOAD_FAILED]', expect.any(Error));
   });
 
   it('renders the toolbar search box in full mode', async () => {
@@ -489,6 +492,44 @@ describe('LibraryClient', () => {
       }));
     });
     expect(await screen.findByText('Shared pending row')).toBeInTheDocument();
+  });
+
+  it('keeps a shared request alive when controls unmount but the grid remains', async () => {
+    const collectionRequest = deferredResponse();
+    global.fetch = vi.fn().mockImplementation((input: string | Request) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.startsWith('/api/settings')) return Promise.resolve(json({ default_sort: 'updated_at', default_order: 'desc', default_group: 'none' }));
+      if (url.startsWith('/api/collection')) return collectionRequest.promise;
+      return Promise.resolve(json({ producers: [], publishers: [], series: [], known_places: [], tags: [] }));
+    });
+    const rendered = renderWithProviders(
+      <DisplaySettingsProvider>
+        <LibraryClient key="controls" mode="controls-only" />
+        <LibraryClient key="grid" mode="grid-only" />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => String(url).startsWith('/api/collection?'))).toHaveLength(1));
+    const collectionCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) => String(url).startsWith('/api/collection?'))!;
+    const signal = collectionCall[1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    rendered.rerender(
+      <DisplaySettingsProvider>
+        <LibraryClient key="grid" mode="grid-only" />
+      </DisplaySettingsProvider>,
+    );
+    expect(signal.aborted).toBe(false);
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => String(url).startsWith('/api/collection?'))).toHaveLength(1);
+
+    await act(async () => {
+      collectionRequest.resolve(json({
+        items: [cardRow('v90002', 'Grid survives controls')],
+        stats: { total: 1, byStatus: [], playtime_minutes: 0 },
+        pagination: { page: 1, page_size: 240, returned: 1, has_more: false },
+      }));
+    });
+    expect(await screen.findByText('Grid survives controls')).toBeInTheDocument();
   });
 
   it('ignores a released pending collection request when it rejects later', async () => {
@@ -827,10 +868,44 @@ describe('LibraryClient', () => {
     expect(replaceMock).toHaveBeenLastCalledWith('/?match_vndb=1&match_egs=0&playtimeMin=10', { scroll: false });
     fireEvent.click(screen.getByRole('button', { name: /^Dumped$/ }));
     expect(replaceMock).toHaveBeenLastCalledWith('/?match_vndb=1&match_egs=0&dumped=1', { scroll: false });
-    fireEvent.click(screen.getByRole('button', { name: /Has VNDB entry/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Has VNDB entry' })[0]);
     expect(replaceMock).toHaveBeenLastCalledWith('/?match_vndb=0&match_egs=0', { scroll: false });
     fireEvent.click(screen.getByRole('button', { name: 'Reset all advanced filters' }));
     expect(replaceMock).toHaveBeenLastCalledWith('/', { scroll: false });
+  });
+
+  it('opens advanced filters and cycles every boolean facet without decoder fallback', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    installFetchRouter({ collectionItems: [cardRow('v90001', 'Title Y')] });
+    renderWithProviders(
+      <DisplaySettingsProvider>
+        <LibraryClient mode="full" />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('vncard');
+    fireEvent.click(screen.getByRole('button', { name: /Filters/ }));
+    await screen.findByRole('button', { name: 'Has VNDB entry' });
+    const facets: Array<{ label: string; key: string }> = [
+      { label: 'Has VNDB entry', key: 'match_vndb' },
+      { label: 'Has ErogameScape entry', key: 'match_egs' },
+      { label: 'EGS-only synthetic entries', key: 'only_egs_only' },
+      { label: 'Fan disc', key: 'fan_disc' },
+      { label: 'Favorite', key: 'is_favorite' },
+      { label: 'Has notes', key: 'has_notes' },
+      { label: 'Custom cover', key: 'has_custom_cover' },
+      { label: 'Custom banner', key: 'has_banner' },
+      { label: 'Has release date', key: 'has_released' },
+      { label: 'R18 content', key: 'is_nsfw' },
+      { label: 'Nukige (pure ero)', key: 'is_nukige' },
+      { label: 'In reading queue', key: 'in_reading_queue' },
+      { label: 'Lists', key: 'in_list' },
+    ];
+    for (const facet of facets) {
+      fireEvent.click(screen.getByRole('button', { name: facet.label }));
+      expect(replaceMock).toHaveBeenLastCalledWith(`/?${facet.key}=1`, { scroll: false });
+    }
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it('renders active entity filter chips with resolved labels and clears each one', async () => {
@@ -1113,6 +1188,36 @@ describe('LibraryClient', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'EGS-only synthetic entries' }));
     expect(replaceMock).toHaveBeenLastCalledWith('/?dumped=1&match_egs=0&only_egs_only=1', { scroll: false });
+  });
+
+  it('summarizes every active mobile filter and clears each parameter independently', async () => {
+    searchParamsValue = new URLSearchParams('status=planning&q=needle&match_vndb=1&match_egs=0&fan_disc=invalid');
+    installFetchRouter({
+      collectionItems: [cardRow('v90001', 'Needle result', { status: 'planning' })],
+      total: 1,
+    });
+    renderWithProviders(
+      <DisplaySettingsProvider>
+        <LibraryClient mode="full" />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('vncard');
+
+    const summary = screen.getByRole('group', { name: 'Active filters' });
+    expect(within(summary).getByText('Active filters')).toBeInTheDocument();
+    expect(within(summary).getByRole('button', { name: 'Plan to play' })).toBeInTheDocument();
+    expect(within(summary).getByRole('button', { name: 'needle' })).toBeInTheDocument();
+    expect(within(summary).getByRole('button', { name: 'Has VNDB entry' })).toBeInTheDocument();
+    expect(within(summary).getByRole('button', { name: 'No: Has ErogameScape entry' })).toBeInTheDocument();
+    expect(within(summary).queryByRole('button', { name: 'Fan disc' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(summary).getByRole('button', { name: 'Plan to play' }));
+    expect(replaceMock).toHaveBeenLastCalledWith('/?q=needle&match_vndb=1&match_egs=0&fan_disc=invalid', { scroll: false });
+    fireEvent.click(within(summary).getByRole('button', { name: 'needle' }));
+    expect(replaceMock).toHaveBeenLastCalledWith('/?status=planning&match_vndb=1&match_egs=0&fan_disc=invalid', { scroll: false });
+    fireEvent.click(within(summary).getByRole('button', { name: 'No: Has ErogameScape entry' }));
+    expect(replaceMock).toHaveBeenLastCalledWith('/?status=planning&q=needle&match_vndb=1&fan_disc=invalid', { scroll: false });
   });
 
   it('shows the page-empty message on an empty later page', async () => {
@@ -1690,7 +1795,7 @@ describe('LibraryClient', () => {
     await act(async () => {
       window.dispatchEvent(new Event('scroll'));
     });
-    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount'));
+    await waitFor(() => expect(grid).toHaveAttribute('role', 'list'));
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 10000 });
     await act(async () => {
       window.dispatchEvent(new Event('scroll'));
@@ -1710,13 +1815,18 @@ describe('LibraryClient', () => {
     await act(async () => {
       window.dispatchEvent(new Event('resize'));
     });
-    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount'));
+    await waitFor(() => expect(grid).toHaveAttribute('role', 'list'));
     await act(async () => {
       window.dispatchEvent(new Event('resize'));
     });
     await waitFor(() => expect(grid!.firstElementChild).toHaveAttribute('aria-hidden', 'true'));
     const spacer = grid!.firstElementChild as HTMLElement;
+    expect(spacer).toHaveAttribute('role', 'presentation');
     expect(Number.parseFloat(spacer!.style.height)).toBeGreaterThan(0);
+    const listItems = within(grid!).getAllByRole('listitem');
+    expect(listItems.length).toBeLessThan(rows.length);
+    expect(listItems[0]).toHaveAttribute('aria-setsize', String(rows.length));
+    expect(Number(listItems[0].getAttribute('aria-posinset'))).toBeGreaterThan(1);
     window.requestAnimationFrame = originalRequestAnimationFrame;
     window.cancelAnimationFrame = originalCancelAnimationFrame;
     Object.defineProperty(window, 'ResizeObserver', {
@@ -1889,7 +1999,7 @@ describe('LibraryClient', () => {
     );
     await screen.findByTestId('vncard');
     await waitFor(() => expect(errorSpy).toHaveBeenCalledWith(
-      '[LibraryClient] settings fetch failed:',
+      '[LIBRARY_SETTINGS_LOAD_FAILED]',
       expect.any(Error),
     ));
   });
@@ -1948,7 +2058,7 @@ describe('LibraryClient', () => {
       { locale: 'en' },
     );
     expect(await screen.findByTestId('vncard')).toBeInTheDocument();
-    expect(errorSpy).not.toHaveBeenCalledWith('[LibraryClient] settings fetch failed:', expect.any(Error));
+    expect(errorSpy).not.toHaveBeenCalledWith('[LIBRARY_SETTINGS_LOAD_FAILED]', expect.any(Error));
   });
 
   it('keeps the tag id label when tag lookup returns no matching tag', async () => {

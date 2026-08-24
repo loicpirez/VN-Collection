@@ -14,7 +14,7 @@ import { SortableGrid } from './SortableGrid';
 import { RandomPickButton } from './RandomPickButton';
 import { SAVED_FILTERS_OPEN_EVENT, SavedFilters } from './SavedFilters';
 import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
-import { readApiError } from '@/lib/api-error-read';
+import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { formatMinutes } from '@/lib/format';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -23,6 +23,7 @@ import { useToast } from './ToastProvider';
 import { decodeKnownPlacesResponse } from '@/lib/place-client-shape';
 import {
   decodeLibraryCollectionResponse,
+  describeLibraryCollectionDecodeFailure,
   decodeLibraryDefaults,
   decodeLibraryProducerFacets,
   decodeLibrarySeriesFacets,
@@ -48,6 +49,7 @@ import {
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 import type { CollectionPage } from '@/lib/collection-api-client';
+import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
 
 /**
  * Tri-state flag panel for the long tail of boolean library filters.
@@ -115,7 +117,7 @@ interface PendingCollectionRequest {
 
 const pendingCollectionRequests = new Map<string, PendingCollectionRequest>();
 
-function requestCollection(url: string, fallbackError: string): {
+function requestCollection(url: string, fallbackError: string, serverError: string): {
   promise: Promise<CollectionResponse>;
   release: () => void;
 } {
@@ -124,9 +126,16 @@ function requestCollection(url: string, fallbackError: string): {
     const controller = new AbortController();
     const promise = fetch(url, { signal: controller.signal, cache: 'no-store' }).then(
       async (response) => {
-        if (!response.ok) throw new Error(await readApiError(response, fallbackError));
-        const data = decodeLibraryCollectionResponse(await response.json());
-        if (!data) throw new Error(fallbackError);
+        if (!response.ok) {
+          throw new Error(await readApiErrorLocalized(response, { collection_unavailable: serverError }, serverError));
+        }
+        const body: unknown = await response.json();
+        const data = decodeLibraryCollectionResponse(body);
+        if (!data) {
+          const problem = describeLibraryCollectionDecodeFailure(body);
+          console.error(OPERATION_LOG_CODES.libraryCollectionDecodeFailed, problem);
+          throw new Error(fallbackError);
+        }
         return data;
       },
     );
@@ -272,7 +281,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
   const searchParams = useSearchParams();
 
   // Derive every filter / sort / group from the URL so they survive navigation.
-  const status = (searchParams.get('status') ?? '') as Status | '';
+  const statusParam = searchParams.get('status') ?? '';
+  const status: Status | '' = (STATUSES as readonly string[]).includes(statusParam)
+    ? statusParam as Status
+    : '';
   const producer = searchParams.get('producer') ?? '';
   const publisher = searchParams.get('publisher') ?? '';
   const seriesId = searchParams.get('series') ?? '';
@@ -339,7 +351,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       })
       .catch((e: unknown) => {
         if ((e as Error).name === 'AbortError') return;
-        console.error('[LibraryClient] settings fetch failed:', e);
+        console.error(OPERATION_LOG_CODES.librarySettingsLoadFailed, e);
       });
     return () => ctrl.abort();
   }, [t.common.error]);
@@ -653,7 +665,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     setError(null);
     const params = new URLSearchParams(collectionQueryParams);
     params.set('page', String(urlPage));
-    const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid);
+    const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid, t.library.collectionUnavailable);
     request.promise
       .then((data) => {
         if (!alive) return;
@@ -664,7 +676,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       })
       .catch((e: Error) => {
         if (!alive || e.name === 'AbortError') return;
-        console.error('[LibraryClient] collection load failed:', e);
+        console.error(OPERATION_LOG_CODES.libraryCollectionLoadFailed, e);
         setError(e.message || t.common.error);
       })
       .finally(() => alive && setLoading(false));
@@ -672,7 +684,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
       alive = false;
       request.release();
     };
-  }, [collectionQueryParams, urlPage, refreshKey, t.common.error]);
+  }, [collectionQueryParams, urlPage, refreshKey, t.common.error, t.library.collectionInvalid, t.library.collectionUnavailable]);
 
   function clearAll() {
     // SearchInput re-syncs draft from urlQ on URL change, so clearing
@@ -747,20 +759,35 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
     (urlYearMin || urlYearMax ? 1 : 0) +
     (urlRatingMin || urlRatingMax ? 1 : 0) +
     (urlPlaytimeMin || urlPlaytimeMax ? 1 : 0) +
-    (urlMatchVndb ? 1 : 0) +
-    (urlMatchEgs ? 1 : 0) +
-    (urlOnlyEgsOnly ? 1 : 0) +
-    (urlFanDisc ? 1 : 0) +
-    (urlIsFavorite ? 1 : 0) +
-    (urlHasNotes ? 1 : 0) +
-    (urlHasCustomCover ? 1 : 0) +
-    (urlHasBanner ? 1 : 0) +
-    (urlHasReleased ? 1 : 0) +
-    (urlIsNsfw ? 1 : 0) +
-    (urlIsNukige ? 1 : 0) +
-    (urlInReadingQueue ? 1 : 0) +
-    (urlInList ? 1 : 0);
+    (urlMatchVndb === '1' || urlMatchVndb === '0' ? 1 : 0) +
+    (urlMatchEgs === '1' || urlMatchEgs === '0' ? 1 : 0) +
+    (urlOnlyEgsOnly === '1' || urlOnlyEgsOnly === '0' ? 1 : 0) +
+    (urlFanDisc === '1' || urlFanDisc === '0' ? 1 : 0) +
+    (urlIsFavorite === '1' || urlIsFavorite === '0' ? 1 : 0) +
+    (urlHasNotes === '1' || urlHasNotes === '0' ? 1 : 0) +
+    (urlHasCustomCover === '1' || urlHasCustomCover === '0' ? 1 : 0) +
+    (urlHasBanner === '1' || urlHasBanner === '0' ? 1 : 0) +
+    (urlHasReleased === '1' || urlHasReleased === '0' ? 1 : 0) +
+    (urlIsNsfw === '1' || urlIsNsfw === '0' ? 1 : 0) +
+    (urlIsNukige === '1' || urlIsNukige === '0' ? 1 : 0) +
+    (urlInReadingQueue === '1' || urlInReadingQueue === '0' ? 1 : 0) +
+    (urlInList === '1' || urlInList === '0' ? 1 : 0);
   const hasFilters = baseHasFilters || advancedFilterCount > 0;
+  const activeFlagFilters = [
+    { key: 'match_vndb', value: urlMatchVndb, label: t.library.moreFilters.matchVndb },
+    { key: 'match_egs', value: urlMatchEgs, label: t.library.moreFilters.matchEgs },
+    { key: 'only_egs_only', value: urlOnlyEgsOnly, label: t.library.moreFilters.onlyEgsOnly },
+    { key: 'fan_disc', value: urlFanDisc, label: t.library.moreFilters.fanDisc },
+    { key: 'is_favorite', value: urlIsFavorite, label: t.library.moreFilters.isFavorite },
+    { key: 'has_notes', value: urlHasNotes, label: t.library.moreFilters.hasNotes },
+    { key: 'has_custom_cover', value: urlHasCustomCover, label: t.library.moreFilters.hasCustomCover },
+    { key: 'has_banner', value: urlHasBanner, label: t.library.moreFilters.hasBanner },
+    { key: 'has_released', value: urlHasReleased, label: t.library.moreFilters.hasReleased },
+    { key: 'is_nsfw', value: urlIsNsfw, label: t.library.moreFilters.isNsfw },
+    { key: 'is_nukige', value: urlIsNukige, label: t.library.moreFilters.isNukige },
+    { key: 'in_reading_queue', value: urlInReadingQueue, label: t.library.moreFilters.inReadingQueue },
+    { key: 'in_list', value: urlInList, label: t.library.moreFilters.inList },
+  ].filter((entry) => entry.value === '1' || entry.value === '0');
   const developerFacetOptions = useMemo(
     () => producers.map((entry) => ({ value: entry.id, label: entry.name, count: entry.vn_count })),
     [producers],
@@ -1410,7 +1437,30 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
           state. Each chip removes one filter; Clear all wipes them
           in one shot. */}
       {hasFilters && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <div
+          role="group"
+          aria-label={t.library.activeFiltersLabel}
+          className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-border/50 bg-bg-elev/20 p-2"
+        >
+          <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+            {t.library.activeFiltersLabel}
+          </span>
+          {status && (
+            <FilterChip
+              icon={<Filter className="h-3 w-3" aria-hidden />}
+              label={t.status[status]}
+              onClear={() => setParam('status', null)}
+              t={t}
+            />
+          )}
+          {urlQ && (
+            <FilterChip
+              icon={<Search className="h-3 w-3" aria-hidden />}
+              label={urlQ}
+              onClear={() => setParam('q', null)}
+              t={t}
+            />
+          )}
           {producer && (
             <FilterChip
               icon={<TagsIcon className="h-3 w-3" aria-hidden />}
@@ -1505,6 +1555,15 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = 
               t={t}
             />
           )}
+          {activeFlagFilters.map((filter) => (
+            <FilterChip
+              key={filter.key}
+              icon={<Filter className="h-3 w-3" aria-hidden />}
+              label={filter.value === '0' ? `${t.common.no}: ${filter.label}` : filter.label}
+              onClear={() => setParam(filter.key, null)}
+              t={t}
+            />
+          ))}
           <button
             type="button"
             className="ml-auto inline-flex min-h-[44px] items-center gap-1 px-2 text-xs text-muted hover:text-status-dropped"
@@ -1800,13 +1859,13 @@ function Grid({
   return (
     <div
       ref={containerRef}
+      role="list"
       className={cls}
       style={gridStyle}
       data-virtualized-library-grid={virtual.enabled ? true : undefined}
-      aria-rowcount={virtual.enabled ? virtual.totalRows : undefined}
     >
       {virtual.enabled && virtual.topSpacer > 0 && (
-        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
       )}
       {renderedItems.map((it, i) => (
         <MemoCard
@@ -1816,10 +1875,12 @@ function Grid({
           selectable={selectMode}
           selected={selected.has(it.id)}
           onSelect={onSelectFor}
+          position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}
+          setSize={items.length}
         />
       ))}
       {virtual.enabled && virtual.bottomSpacer > 0 && (
-        <div aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
       )}
     </div>
   );
@@ -1831,21 +1892,27 @@ const MemoCard = memo(function MemoCard({
   selectable,
   selected,
   onSelect,
+  position,
+  setSize,
 }: {
   id: string;
   data: ReturnType<typeof toCardData>;
   selectable: boolean;
   selected: boolean;
   onSelect: (id: string) => void;
+  position: number;
+  setSize: number;
 }) {
   const handle = useCallback(() => onSelect(id), [onSelect, id]);
   return (
-    <VnCard
-      selectable={selectable}
-      selected={selected}
-      onSelect={handle}
-      data={data}
-    />
+    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="min-w-0">
+      <VnCard
+        selectable={selectable}
+        selected={selected}
+        onSelect={handle}
+        data={data}
+      />
+    </div>
   );
 });
 

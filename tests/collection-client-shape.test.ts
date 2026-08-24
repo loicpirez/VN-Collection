@@ -10,6 +10,7 @@ import {
   decodeLibraryProducerFacets,
   decodeLibrarySeriesFacets,
   decodeLibraryTagFacets,
+  describeLibraryCollectionDecodeFailure,
 } from '../src/lib/collection-client-shape';
 
 const card = {
@@ -343,6 +344,12 @@ describe('collection client response adapters', () => {
       expect(decodeLibraryCollectionResponse({ items: [], pagination: { ...pagination, returned: 0 }, stats })).toBeNull();
     }
     expect(decodeLibraryCollectionResponse(null)).toBeNull();
+    expect(describeLibraryCollectionDecodeFailure(null)).toBe('root');
+    expect(describeLibraryCollectionDecodeFailure({ items: 'bad', pagination, stats: { total: 0, byStatus: [], playtime_minutes: 0 } })).toBe('items');
+    expect(describeLibraryCollectionDecodeFailure({ items: [], pagination: { page: 1 }, stats: { total: 0, byStatus: [], playtime_minutes: 0 } })).toBe('pagination');
+    expect(describeLibraryCollectionDecodeFailure({ items: [{ ...card, id: 'bad' }], pagination, stats: { total: 1, byStatus: [], playtime_minutes: 0 } })).toBe('item');
+    expect(describeLibraryCollectionDecodeFailure({ items: [], pagination: { ...pagination, returned: 0 }, stats: { total: -1, byStatus: [], playtime_minutes: 0 } })).toBe('stats');
+    expect(describeLibraryCollectionDecodeFailure({ items: [card], pagination, stats: { total: 1, byStatus: [{ status: 'planning', n: 1 }], playtime_minutes: 0 } })).toBeNull();
 
     expect(decodeCollectionBulkRow(null)).toBeNull();
     expect(decodeCollectionBulkRow({ ...card, id: 1 })).toBeNull();

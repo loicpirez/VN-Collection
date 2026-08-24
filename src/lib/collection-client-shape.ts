@@ -450,6 +450,40 @@ export function decodeLibraryCollectionResponse(value: unknown): {
   return page && stats ? { ...page, stats } : null;
 }
 
+/** Coarse collection response section that failed client-side validation. */
+export type LibraryCollectionDecodeProblem = 'root' | 'items' | 'pagination' | 'item' | 'stats' | 'unknown';
+
+/**
+ * Explain why a library collection payload failed to decode without exposing row data.
+ *
+ * @param value Parsed collection API payload.
+ * @returns The invalid response section, or `null` when the payload is valid.
+ */
+export function describeLibraryCollectionDecodeFailure(value: unknown): LibraryCollectionDecodeProblem | null {
+  const row = asJsonRecord(value);
+  if (!row) return 'root';
+  if (!Array.isArray(row.items) || row.items.length > MAX_PAGE_ITEMS) return 'items';
+  const pagination = asJsonRecord(row.pagination);
+  if (
+    !pagination ||
+    !isNonNegativeInteger(pagination.page) ||
+    pagination.page < 1 ||
+    !isNonNegativeInteger(pagination.page_size) ||
+    pagination.page_size < 1 ||
+    pagination.page_size > MAX_PAGE_ITEMS ||
+    !isNonNegativeInteger(pagination.returned) ||
+    pagination.returned !== row.items.length ||
+    typeof pagination.has_more !== 'boolean'
+  ) {
+    return 'pagination';
+  }
+  for (const item of row.items) {
+    if (!decodeCollectionCardItem(item)) return 'item';
+  }
+  if (!decodeStats(row.stats)) return 'stats';
+  return null;
+}
+
 function decodeBulkRow(value: unknown): CollectionBulkRow | null {
   const row = asJsonRecord(value);
   return row && isString(row.id) && isValidVnId(row.id) && isString(row.title)
