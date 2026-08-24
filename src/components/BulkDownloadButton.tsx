@@ -49,6 +49,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
   const searchParams = useSearchParams();
   const onLibrary = pathname === '/';
   const hasOverride = Array.isArray(itemsOverride);
+  const overrideIsEmpty = hasOverride && itemsOverride.length === 0;
   const menuId = useId();
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
@@ -292,7 +293,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
           type="button"
           className="btn"
           onClick={() => setPickerOpen((v) => !v)}
-          disabled={running || (hasOverride && (itemsOverride?.length ?? 0) === 0)}
+          disabled={running || overrideIsEmpty}
           title={t.bulk.tooltip}
           aria-haspopup="menu"
           aria-expanded={pickerOpen}
