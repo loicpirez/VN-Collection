@@ -1,6 +1,6 @@
 import 'server-only';
 import { cachedFetch, invalidateByPath, invalidateKey, readCachedJson, readCachedJsonMany, TTL } from './vndb-cache';
-import { getAppSetting } from './db';
+import { getAppSettingRepository } from './db/repositories/app-setting';
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 import { decodeVndbCharacterCacheResponse } from './vn-character-row';
@@ -215,14 +215,14 @@ const QUOTE_FIELDS = [
  * to the env var. Allows users running the app locally to add their token
  * without editing `.env.local`.
  */
-function readVndbToken(): string | null {
-  const stored = getAppSetting('vndb_token');
+async function readVndbToken(): Promise<string | null> {
+  const stored = await getAppSettingRepository().get('vndb_token');
   if (stored && stored.trim()) return stored.trim();
   return process.env.VNDB_TOKEN ?? null;
 }
 
-function authHeaders(): Record<string, string> {
-  const token = readVndbToken();
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await readVndbToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Token ${token}`;
   return headers;
@@ -237,7 +237,7 @@ async function vndbPost<T>(
   const decode = createVndbResultsEnvelopeDecoder(decodeRow);
   const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify(body),
     __pathTag: `POST ${path}`,
   }, { ttlMs, decode });
@@ -247,7 +247,7 @@ async function vndbPost<T>(
 async function vndbGet<T>(path: string, ttlMs: number, decode?: CachePayloadDecoder<T>): Promise<T> {
   const r = await cachedFetch<T>(`${VNDB_API}${path}`, {
     method: 'GET',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     __pathTag: `GET ${path}`,
   }, { ttlMs, decode });
   return r.data;
@@ -519,8 +519,8 @@ export async function getVn(id: string): Promise<VndbVn | null> {
  * Drop the cached `/vn` detail response for one id so the next `getVn`
  * call reaches upstream. Used right before a forced refresh.
  */
-export function invalidateVnCache(id: string): void {
-  invalidateKey('POST', '/vn', {
+export async function invalidateVnCache(id: string): Promise<void> {
+  await invalidateKey('POST', '/vn', {
     filters: ['id', '=', id],
     fields: VN_DETAIL_FIELDS,
     results: 1,
@@ -529,7 +529,7 @@ export function invalidateVnCache(id: string): void {
 
 /** Force-refresh a VN: bust its cache row then re-fetch. */
 export async function refreshVn(id: string): Promise<VndbVn | null> {
-  invalidateVnCache(id);
+  await invalidateVnCache(id);
   return getVn(id);
 }
 
@@ -658,13 +658,13 @@ export async function getCharacter(id: string): Promise<VndbCharacter | null> {
  * before. No network call is made — used for the "in collection only" trait
  * aggregate. The body MUST stay in sync with `getCharactersForVn`.
  */
-export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter[] {
+export async function readCachedCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
   const body = {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: CHARACTER_FIELDS,
     results: Math.min(max, 100),
   };
-  const cached = readCachedJson('POST', 'POST /character', body, decodeVndbCharacterCacheResponse);
+  const cached = await readCachedJson('POST', 'POST /character', body, decodeVndbCharacterCacheResponse);
   return cached?.results ?? [];
 }
 
@@ -675,10 +675,10 @@ export function readCachedCharactersForVn(vnId: string, max = 30): VndbCharacter
  * @param max Maximum characters requested per VN when the cache key was built.
  * @returns Cached characters keyed by VN id. Missing cache rows are empty arrays.
  */
-export function readCachedCharactersForVns(
+export async function readCachedCharactersForVns(
   vnIds: readonly string[],
   max = 30,
-): Map<string, VndbCharacter[]> {
+): Promise<Map<string, VndbCharacter[]>> {
   const reads = vnIds.map((vnId) => ({
     id: vnId,
     method: 'POST',
@@ -689,7 +689,7 @@ export function readCachedCharactersForVns(
       results: Math.min(max, 100),
     },
   }));
-  const cached = readCachedJsonMany(reads, decodeVndbCharacterCacheResponse);
+  const cached = await readCachedJsonMany(reads, decodeVndbCharacterCacheResponse);
   return new Map(vnIds.map((vnId) => [vnId, cached.get(vnId)?.results ?? []]));
 }
 
@@ -1300,7 +1300,7 @@ export interface VndbAuthInfo {
  * Returns `null` when no token is configured.
  */
 export async function getAuthInfo(): Promise<VndbAuthInfo | null> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return null;
   try {
     return await vndbGet<VndbAuthInfo>('/authinfo', TTL.authInfo, decodeVndbAuthInfo);
@@ -1439,12 +1439,12 @@ export async function fetchAuthenticatedWishlist(): Promise<VndbUlistEntry[] | {
  * separate concepts (see CoverQuickActions for the UI counterpart).
  */
 export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify({ labels_set: [5] }),
   });
   if (!res.ok) {
@@ -1452,7 +1452,7 @@ export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { 
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    invalidateByPath('POST /ulist');
+    await invalidateByPath('POST /ulist');
   } catch {
     // ignore — cache invalidation failures are non-fatal
   }
@@ -1470,12 +1470,12 @@ export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { 
  * and the VNDB wishlist are separate concepts.
  */
 export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify({ labels_unset: [5] }),
   });
   if (!res.ok) {
@@ -1483,7 +1483,7 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    invalidateByPath('POST /ulist');
+    await invalidateByPath('POST /ulist');
   } catch {
     // ignore — cache invalidation failures are non-fatal
   }
@@ -1502,7 +1502,7 @@ export interface VndbUlistLabel {
  * Cached at the VNDB cache layer so the labels modal opens instantly.
  */
 export async function fetchUlistLabels(): Promise<VndbUlistLabel[] | { needsAuth: true }> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return { needsAuth: true };
   const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user, decodeVndbUlistLabelsResponse);
   return r.labels;
@@ -1555,12 +1555,12 @@ export interface UlistPatch {
  * instead of `labels` to avoid clobbering labels the user added on the site.
  */
 export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<{ ok: true } | { needsAuth: true }> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify(patch),
   });
   if (!res.ok) {
@@ -1569,7 +1569,7 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
   }
   // Invalidate our small ulist cache so subsequent reads reflect the new state.
   try {
-    invalidateByPath('POST /ulist');
+    await invalidateByPath('POST /ulist');
   } catch {
     // ignore — invalidator failures are non-fatal
   }
@@ -1582,19 +1582,19 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
  * only removes the wishlist label.
  */
 export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { needsAuth: true }> {
-  const token = readVndbToken();
+  const token = await readVndbToken();
   if (!token) return { needsAuth: true };
   if (!isVndbVnId(vnId)) throw new Error('invalid vn id');
   const res = await throttledFetch(`${VNDB_API}/ulist/${vnId.toLowerCase()}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: await authHeaders(),
   });
   if (!res.ok) {
     const text = safeUpstreamBody(await res.text().catch(() => ''));
     throw new Error(`VNDB DELETE /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    invalidateByPath('POST /ulist');
+    await invalidateByPath('POST /ulist');
   } catch {
     // ignore
   }

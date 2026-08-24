@@ -36,19 +36,19 @@ afterEach(() => {
 });
 
 describe('direct VNDB cache validation', () => {
-  it('returns decoder-normalized payloads and treats malformed containers as misses', () => {
+  it('returns decoder-normalized payloads and treats malformed containers as misses', async () => {
     const body = { filters: ['id', '=', 'v990001'] };
     const cacheKey = key('POST', 'TEST /direct-cache:single', body);
     seed(cacheKey, { results: ['valid'] });
-    expect(readCachedJson('POST', 'TEST /direct-cache:single', body, decodeResults)).toEqual({
+    expect(await readCachedJson('POST', 'TEST /direct-cache:single', body, decodeResults)).toEqual({
       results: ['valid'],
     });
 
     seed(cacheKey, { results: {} });
-    expect(readCachedJson('POST', 'TEST /direct-cache:single', body, decodeResults)).toBeNull();
+    expect(await readCachedJson('POST', 'TEST /direct-cache:single', body, decodeResults)).toBeNull();
   });
 
-  it('keeps valid batched rows when another row is malformed', () => {
+  it('keeps valid batched rows when another row is malformed', async () => {
     const reads: CachedJsonRead[] = [
       { id: 'v990002', method: 'POST', pathTag: 'TEST /direct-cache:many', body: { id: 'v990002' } },
       { id: 'v990003', method: 'POST', pathTag: 'TEST /direct-cache:many', body: { id: 'v990003' } },
@@ -56,7 +56,7 @@ describe('direct VNDB cache validation', () => {
     seed(key('POST', reads[0].pathTag, reads[0].body), { results: {} });
     seed(key('POST', reads[1].pathTag, reads[1].body), { results: ['valid'] });
 
-    expect(readCachedJsonMany(reads, decodeResults)).toEqual(
+    expect(await readCachedJsonMany(reads, decodeResults)).toEqual(
       new Map([['v990003', { results: ['valid'] }]]),
     );
   });

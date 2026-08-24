@@ -216,6 +216,7 @@ describe('in-flight de-dupe', () => {
     const init = { method: 'POST', body: JSON.stringify({ d: 1 }), __pathTag: 'POST /vn' };
     const p1 = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
     const p2 = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
     resolveFetch(jsonResponse({ ok: 1 }));
     const [r1, r2] = await Promise.all([p1, p2]);
     expect(r1.status).toBe(200);
@@ -415,7 +416,7 @@ describe('cache key defaults and body parsing', () => {
   it('uses the URL pathname and GET method defaults', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 1 }));
     await cachedFetch(`${PRIMARY}/stats`, {}, { ttlMs: TTL.stats });
-    expect(readCachedJson('GET', '/kana/stats', undefined, passthrough)).toEqual({ ok: 1 });
+    expect(await readCachedJson('GET', '/kana/stats', undefined, passthrough)).toEqual({ ok: 1 });
   });
 
   it('accepts non-string and malformed-string request bodies in cache keys', async () => {
@@ -435,22 +436,22 @@ describe('direct cache helpers', () => {
       { method: 'POST', body: JSON.stringify(body), __pathTag: 'POST /vn' },
       { ttlMs: TTL.vnDetail },
     );
-    const cached = readCachedJson('POST', 'POST /vn', body, passthrough);
+    const cached = await readCachedJson('POST', 'POST /vn', body, passthrough);
     expect(cached?.ok).toBe(1);
-    invalidateKey('POST', 'POST /vn', body);
-    expect(readCachedJson('POST', 'POST /vn', body, passthrough)).toBeNull();
+    await invalidateKey('POST', 'POST /vn', body);
+    expect(await readCachedJson('POST', 'POST /vn', body, passthrough)).toBeNull();
   });
 
   it('invalidateByPath drops every row under a path prefix', async () => {
     providerFetchMock.mockImplementation(async () => jsonResponse({ ok: 1 }));
     await cachedFetch(`${PRIMARY}/ulist`, { method: 'POST', body: JSON.stringify({ p: 1 }), __pathTag: 'POST /ulist' }, { ttlMs: TTL.user });
     await cachedFetch(`${PRIMARY}/ulist`, { method: 'POST', body: JSON.stringify({ p: 2 }), __pathTag: 'POST /ulist' }, { ttlMs: TTL.user });
-    const deleted = invalidateByPath('POST /ulist');
+    const deleted = await invalidateByPath('POST /ulist');
     expect(deleted).toBe(2);
   });
 
   it('readCachedJson returns null for an unknown key and for a corrupt row', async () => {
-    expect(readCachedJson('POST', 'POST /never', { x: 1 }, passthrough)).toBeNull();
+    expect(await readCachedJson('POST', 'POST /never', { x: 1 }, passthrough)).toBeNull();
     putCacheRow({
       cache_key: 'POST /corrupt|POST|',
       body: '{bad',
@@ -459,7 +460,7 @@ describe('direct cache helpers', () => {
       fetched_at: Date.now(),
       expires_at: Date.now() + 1000,
     });
-    expect(readCachedJson('POST', 'POST /corrupt', undefined, passthrough)).toBeNull();
+    expect(await readCachedJson('POST', 'POST /corrupt', undefined, passthrough)).toBeNull();
   });
 
   it('readCachedJsonMany hydrates several keys and skips misses + corrupt rows', async () => {
@@ -473,7 +474,7 @@ describe('direct cache helpers', () => {
       fetched_at: Date.now(),
       expires_at: Date.now() + 1000,
     });
-    const out = readCachedJsonMany(
+    const out = await readCachedJsonMany(
       [
         { id: 'hit', method: 'POST', pathTag: 'POST /vn', body: { id: 'a' } },
         { id: 'miss', method: 'POST', pathTag: 'POST /vn', body: { id: 'nope' } },

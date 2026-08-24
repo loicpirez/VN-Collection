@@ -1,15 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import {
-  deleteCacheByPathPrefix,
-  deleteCacheKey,
-  getAppSetting,
-  getCacheRow,
-  getCacheRows,
-  putCacheRow,
-  touchCacheRow,
-  type CacheRow,
-} from './db';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
 import type { ProviderId } from './proxy-config';
 import { throttledFetch } from './vndb-throttle';
 import { assertNoPrivateIpRebind, isAllowedHttpTarget } from './url-allowlist';
@@ -49,9 +41,10 @@ async function readResponseTextWithCap(res: Response, maxBytes: number): Promise
  * Only consulted from doFetch() — write helpers (PATCH/DELETE /ulist) never
  * fall back because the mirror is read-only and would 404 / refuse writes.
  */
-function backupBase(): string | null {
-  if (getAppSetting('vndb_backup_enabled') !== '1') return null;
-  return (getAppSetting('vndb_backup_url') ?? DEFAULT_BACKUP).replace(/\/+$/, '');
+async function backupBase(): Promise<string | null> {
+  const repository = getAppSettingRepository();
+  if (await repository.get('vndb_backup_enabled') !== '1') return null;
+  return ((await repository.get('vndb_backup_url')) ?? DEFAULT_BACKUP).replace(/\/+$/, '');
 }
 
 /**
@@ -59,8 +52,8 @@ function backupBase(): string | null {
  * null if the request doesn't look like a primary VNDB call (so we don't
  * blindly re-issue, say, an EGS or Steam fetch against yorhel.org).
  */
-function mirrorUrl(url: string): string | null {
-  const base = backupBase();
+async function mirrorUrl(url: string): Promise<string | null> {
+  const base = await backupBase();
   if (!base) return null;
   if (!url.startsWith(PRIMARY)) return null;
   const candidate = base + url.slice(PRIMARY.length);
@@ -159,7 +152,7 @@ export async function cachedFetch<T>(
     return doFetch<T>(url, init, key, ttlMs, undefined, decode);
   }
 
-  const cached = getCacheRow(key);
+  const cached = await getCacheRepository().get(key);
   if (cached && now < cached.expires_at) {
     let data: T | undefined;
     try {
@@ -222,7 +215,7 @@ async function doFetch<T>(
   // Auth-bearing calls must hit the primary — the mirror is read-only and
   // does not have the user's token / list data.
   const isAuthed = !!new Headers(init.headers).get('Authorization');
-  let mirror = isAuthed ? null : mirrorUrl(url);
+  let mirror = isAuthed ? null : await mirrorUrl(url);
 
   // AUD-SEC-016: DNS rebinding defence for the user-configured backup URL.
   // Resolve the mirror hostname before using it; reject if any returned
@@ -268,7 +261,7 @@ async function fetchOnce<T>(
   const now = Date.now();
 
   if (res.status === 304 && cached) {
-    touchCacheRow(key, now, now + ttlMs);
+    await getCacheRepository().touch(key, now, now + ttlMs);
     let cachedData: T;
     try {
       cachedData = decodePayload(JSON.parse(cached.body), decode);
@@ -308,7 +301,7 @@ async function fetchOnce<T>(
   const data = decodePayload(parsed, decode);
 
   if (ttlMs > 0) {
-    putCacheRow({
+    await getCacheRepository().put({
       cache_key: key,
       body: text,
       etag: res.headers.get('etag'),
@@ -342,30 +335,30 @@ function safeParse(body: BodyInit): unknown {
  * the refresh-scope route to bust grouped caches in one call. Returns the
  * deleted-row count.
  */
-export function invalidateByPath(pathPrefix: string): number {
-  return deleteCacheByPathPrefix(pathPrefix);
+export async function invalidateByPath(pathPrefix: string): Promise<number> {
+  return getCacheRepository().deleteByPathPrefix(pathPrefix);
 }
 
 /**
  * Drop the single cache row matching `method + path + body` so the next
  * request goes upstream. Mirrors the exact key shape used by `cachedFetch`.
  */
-export function invalidateKey(method: string, path: string, body?: unknown): void {
-  deleteCacheKey(buildKey(method.toUpperCase(), path, body));
+export async function invalidateKey(method: string, path: string, body?: unknown): Promise<void> {
+  await getCacheRepository().deleteKey(buildKey(method.toUpperCase(), path, body));
 }
 
 /**
  * Read a cache entry directly without making any network request.
  * Returns null if the cache_key has never been populated.
  */
-export function readCachedJson<T>(
+export async function readCachedJson<T>(
   method: string,
   pathTag: string,
   body: unknown,
   decode: (value: unknown) => T | null,
-): T | null {
+): Promise<T | null> {
   const key = buildKey(method.toUpperCase(), pathTag, body);
-  const row = getCacheRow(key);
+  const row = await getCacheRepository().get(key);
   if (!row) return null;
   try {
     return decode(JSON.parse(row.body));
@@ -395,12 +388,12 @@ export interface CachedJsonRead {
  * @param decode Caller-owned payload decoder.
  * @returns Successfully decoded and validated cache payloads keyed by caller identifier.
  */
-export function readCachedJsonMany<T>(
+export async function readCachedJsonMany<T>(
   reads: readonly CachedJsonRead[],
   decode: (value: unknown) => T | null,
-): Map<string, T> {
+): Promise<Map<string, T>> {
   const keys = reads.map((read) => buildKey(read.method.toUpperCase(), read.pathTag, read.body));
-  const rowsByKey = getCacheRows(keys);
+  const rowsByKey = await getCacheRepository().getMany(keys);
   const out = new Map<string, T>();
   reads.forEach((read, index) => {
     const row = rowsByKey.get(keys[index]);

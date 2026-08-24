@@ -206,21 +206,21 @@ describe('trait → character helpers', () => {
 });
 
 describe('cache-read helpers (no network)', () => {
-  it('readCachedCharactersForVn returns [] before anything is cached', () => {
-    expect(readCachedCharactersForVn('v90030')).toEqual([]);
+  it('readCachedCharactersForVn returns [] before anything is cached', async () => {
+    expect(await readCachedCharactersForVn('v90030')).toEqual([]);
   });
 
   it('readCachedCharactersForVn reads back what getCharactersForVn persisted', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([charRow('c90030')])));
     await getCharactersForVn('v90031');
-    const cached = readCachedCharactersForVn('v90031');
+    const cached = await readCachedCharactersForVn('v90031');
     expect(cached.map((c) => c.id)).toEqual(['c90030']);
   });
 
   it('readCachedCharactersForVns maps hits and leaves misses as empty arrays', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([charRow('c90040')])));
     await getCharactersForVn('v90040');
-    const map = readCachedCharactersForVns(['v90040', 'v90041']);
+    const map = await readCachedCharactersForVns(['v90040', 'v90041']);
     expect(map.get('v90040')?.map((c) => c.id)).toEqual(['c90040']);
     expect(map.get('v90041')).toEqual([]);
   });
