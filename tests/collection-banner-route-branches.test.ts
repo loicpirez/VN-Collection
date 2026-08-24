@@ -197,7 +197,7 @@ describe('POST /api/collection/[id]/banner JSON branches', () => {
   ] satisfies Array<[Body, string]>)('stores banner source %j', async (body, expected) => {
     const response = await POST(jsonReq(body), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item(), banner: expected });
+    await expect(response.json()).resolves.toEqual({ banner: expected });
     expect(mocks.setBanner).toHaveBeenCalledWith(VN_ID, expected);
   });
 
@@ -205,22 +205,19 @@ describe('POST /api/collection/[id]/banner JSON branches', () => {
     mocks.getCollectionItem.mockReturnValue(item({ custom_cover: null }));
     const localResponse = await POST(jsonReq({ source: 'cover' }), ctx());
     expect(localResponse.status).toBe(200);
-    await expect(localResponse.json()).resolves.toEqual({ item: item({ custom_cover: null }), banner: 'vn/local.jpg' });
+    await expect(localResponse.json()).resolves.toEqual({ banner: 'vn/local.jpg' });
 
     mocks.getCollectionItem.mockReturnValue(item({ custom_cover: null, local_image: null }));
     const remoteResponse = await POST(jsonReq({ source: 'cover' }), ctx());
     expect(remoteResponse.status).toBe(200);
-    await expect(remoteResponse.json()).resolves.toEqual({
-      item: item({ custom_cover: null, local_image: null }),
-      banner: 'https://t.vndb.org/cv/99/990401.jpg',
-    });
+    await expect(remoteResponse.json()).resolves.toEqual({ banner: 'https://t.vndb.org/cv/99/990401.jpg' });
   });
 
   it('accepts JSON requests without an explicit content type and clears missing custom covers', async () => {
     mocks.getCollectionItem.mockReturnValue(item({ custom_cover: null }));
     const response = await POST(jsonReqWithoutContentType({ source: 'custom_cover' }), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item({ custom_cover: null }), banner: null });
+    await expect(response.json()).resolves.toEqual({ banner: null });
     expect(mocks.setBanner).toHaveBeenCalledWith(VN_ID, null);
   });
 
@@ -310,7 +307,7 @@ describe('POST /api/collection/[id]/banner multipart branches', () => {
   it('saves uploaded banners and records activity', async () => {
     const response = await POST(multipartReq(), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item(), banner: 'cover/v990401-banner.png' });
+    await expect(response.json()).resolves.toEqual({ banner: 'cover/v990401-banner.png' });
     expect(mocks.saveUpload).toHaveBeenCalledWith('vnCover', expect.any(File), `${VN_ID}-banner`);
     expect(mocks.setBanner).toHaveBeenCalledWith(VN_ID, 'cover/v990401-banner.png');
     expect(mocks.recordActivity).toHaveBeenCalledWith({
@@ -359,7 +356,7 @@ describe('PATCH /api/collection/[id]/banner branches', () => {
     mocks.normalizeRotation.mockReturnValue(90);
     const response = await PATCH(patchReq({ position: '40% 60%', rotation: 450 }), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item() });
+    await expect(response.json()).resolves.toEqual({ position: '40% 60%', rotation: 90 });
     expect(mocks.setBannerPosition).toHaveBeenCalledWith(VN_ID, '40% 60%');
     expect(mocks.setBannerRotation).toHaveBeenCalledWith(VN_ID, 90);
     expect(mocks.recordActivity).toHaveBeenCalledWith({
@@ -381,7 +378,7 @@ describe('PATCH /api/collection/[id]/banner branches', () => {
   it('accepts null position as an explicit clear', async () => {
     const response = await PATCH(patchReq({ position: null }), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item() });
+    await expect(response.json()).resolves.toEqual({ position: null });
     expect(mocks.setBannerPosition).toHaveBeenCalledWith(VN_ID, null);
   });
 });
@@ -407,7 +404,7 @@ describe('DELETE /api/collection/[id]/banner branches', () => {
   it('clears banner source, position, and rotation in one transaction', async () => {
     const response = await DELETE(deleteReq(), ctx());
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ item: item() });
+    await expect(response.json()).resolves.toEqual({ banner: null, position: null, rotation: 0 });
     expect(mocks.setBanner).toHaveBeenCalledWith(VN_ID, null);
     expect(mocks.setBannerPosition).toHaveBeenCalledWith(VN_ID, null);
     expect(mocks.setBannerRotation).toHaveBeenCalledWith(VN_ID, 0);

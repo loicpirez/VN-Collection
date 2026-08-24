@@ -156,7 +156,7 @@ describe('POST /api/collection/[id]/banner', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.banner).toBeNull();
-    expect(body.item).not.toBeNull();
+    expect(body).toEqual({ banner: null });
   });
 });
 
@@ -176,7 +176,7 @@ describe('PATCH /api/collection/[id]/banner', () => {
   it('200 when a valid position is supplied', async () => {
     const res = await bannerPATCH(localReq('/api/collection/v90102/banner', 'PATCH', { position: '50% 25%' }), ctx());
     expect(res.status).toBe(200);
-    expect((await res.json()).item).not.toBeNull();
+    expect(await res.json()).toEqual({ position: '50% 25%' });
   });
 });
 
@@ -189,7 +189,7 @@ describe('DELETE /api/collection/[id]/banner', () => {
   it('200 and resets the banner', async () => {
     const res = await bannerDELETE(localReq('/api/collection/v90102/banner', 'DELETE'), ctx());
     expect(res.status).toBe(200);
-    expect((await res.json()).item).not.toBeNull();
+    expect(await res.json()).toEqual({ banner: null, position: null, rotation: 0 });
   });
 });
 
@@ -253,6 +253,6 @@ describe('DELETE /api/collection/[id]/cover', () => {
   it('200 and resets the cover', async () => {
     const res = await coverDELETE(localReq('/api/collection/v90102/cover', 'DELETE'), ctx());
     expect(res.status).toBe(200);
-    expect((await res.json()).item).not.toBeNull();
+    expect(await res.json()).toEqual({ cover: null, rotation: 0 });
   });
 });

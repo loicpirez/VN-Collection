@@ -124,8 +124,7 @@ describe('PATCH /api/collection/[id]/cover — rotation', () => {
       { params: Promise.resolve({ id: 'v90010' }) },
     );
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { rotation: number };
-    expect(json.rotation).toBe(180);
+    expect(await res.json()).toEqual({ rotation: 180 });
     expect(getCollectionItem('v90010')?.cover_rotation).toBe(180);
   });
 

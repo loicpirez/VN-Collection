@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     await getVnAssetRepository().patchArtwork(id, { customCover: path });
     await recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Uploaded cover', payload: { source: 'upload' } });
-    return NextResponse.json({ item: await reader.getCollectionItem(id), cover: path });
+    return NextResponse.json({ cover: path });
   }
 
   const body = (await readJsonObject(req)) as { source?: string; value?: string };
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   await getVnAssetRepository().patchArtwork(id, { customCover: next });
   await recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Set cover', payload: { source } });
-  return NextResponse.json({ item: await reader.getCollectionItem(id), cover: next });
+  return NextResponse.json({ cover: next });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -122,7 +122,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   // back to 0 manually after picking a fresh image.
   await getVnAssetRepository().patchArtwork(id, { customCover: null, coverRotation: 0 });
   await recordActivity({ kind: 'cover.reset', entity: 'vn', entityId: id, label: 'Reset cover' });
-  return NextResponse.json({ item: await reader.getCollectionItem(id) });
+  return NextResponse.json({ cover: null, rotation: 0 });
 }
 
 /**
@@ -149,5 +149,5 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const next = normalizeArtworkRotation(body.rotation);
   await getVnAssetRepository().patchArtwork(id, { coverRotation: next });
   await recordActivity({ kind: 'cover.rotate', entity: 'vn', entityId: id, label: 'Rotated cover', payload: { rotation: next } });
-  return NextResponse.json({ item: await reader.getCollectionItem(id), rotation: next });
+  return NextResponse.json({ rotation: next });
 }

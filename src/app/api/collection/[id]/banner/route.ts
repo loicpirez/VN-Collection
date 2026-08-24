@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     await getVnAssetRepository().patchArtwork(id, { bannerImage: path });
     await recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Uploaded banner', payload: { source: 'upload' } });
-    return NextResponse.json({ item: await reader.getCollectionItem(id), banner: path });
+    return NextResponse.json({ banner: path });
   }
 
   const body = (await readJsonObject(req)) as { source?: string; value?: string };
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   await getVnAssetRepository().patchArtwork(id, { bannerImage: next });
   await recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Set banner', payload: { source } });
-  return NextResponse.json({ item: await reader.getCollectionItem(id), banner: next });
+  return NextResponse.json({ banner: next });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -153,7 +153,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (hasRotation) {
     await recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: nextRotation } });
   }
-  return NextResponse.json({ item: await reader.getCollectionItem(id) });
+  return NextResponse.json({
+    ...(hasPosition ? { position: nextPosition } : {}),
+    ...(hasRotation ? { rotation: nextRotation } : {}),
+  });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -173,5 +176,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     bannerRotation: 0,
   });
   await recordActivity({ kind: 'banner.reset', entity: 'vn', entityId: id, label: 'Reset banner' });
-  return NextResponse.json({ item: await reader.getCollectionItem(id) });
+  return NextResponse.json({ banner: null, position: null, rotation: 0 });
 }
