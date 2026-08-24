@@ -40,6 +40,8 @@ export interface VnReadRepository {
   getTagIds(vnId: string): Promise<string[]>;
   /** Return the canonical raw VNDB payload persisted for one VN. */
   getRawPayload(vnId: string): Promise<string | null>;
+  /** Return cache timestamps for locally persisted VN identifiers. */
+  getFetchedAtMany(vnIds: readonly string[]): Promise<Map<string, number>>;
 }
 
 interface PostgresStockVnRow extends QueryResultRow {
@@ -178,6 +180,14 @@ export function createPostgresVnReadRepository(): VnReadRepository {
       );
       return result.rows[0]?.raw ?? null;
     },
+    async getFetchedAtMany(vnIds) {
+      if (vnIds.length === 0) return new Map();
+      const result = await postgresQuery<{ id: string; fetched_at: number } & QueryResultRow>(
+        'SELECT id, fetched_at FROM vn WHERE id = ANY($1::text[])',
+        [vnIds],
+      );
+      return new Map(result.rows.map((row) => [row.id, row.fetched_at]));
+    },
   };
 }
 
@@ -228,6 +238,18 @@ const sqliteRepository: VnReadRepository = {
     const { db } = await import('@/lib/db');
     const row = db.prepare('SELECT raw FROM vn WHERE id = ?').get(vnId) as { raw: string | null } | undefined;
     return row?.raw ?? null;
+  },
+  async getFetchedAtMany(vnIds) {
+    if (vnIds.length === 0) return new Map();
+    const { db } = await import('@/lib/db');
+    const rows: Array<{ id: string; fetched_at: number }> = [];
+    for (let offset = 0; offset < vnIds.length; offset += 500) {
+      const chunk = vnIds.slice(offset, offset + 500);
+      rows.push(...db.prepare(`
+        SELECT id, fetched_at FROM vn WHERE id IN (${chunk.map(() => '?').join(',')})
+      `).all(...chunk) as Array<{ id: string; fetched_at: number }>);
+    }
+    return new Map(rows.map((row) => [row.id, row.fetched_at]));
   },
 };
 

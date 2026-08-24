@@ -116,6 +116,13 @@ export function registerCoreRepositoryContract(label: string, harness: CoreContr
           title: '東京物語',
         });
         await expect(read.getRawPayload('v991399')).resolves.toBeNull();
+        await expect(read.getFetchedAtMany([])).resolves.toEqual(new Map());
+        const fetchedAt = await read.getFetchedAtMany([
+          CORE_CONTRACT_IDS.firstVn,
+          'v991399',
+        ]);
+        expect(fetchedAt.has(CORE_CONTRACT_IDS.firstVn)).toBe(true);
+        expect(fetchedAt.has('v991399')).toBe(false);
         await expect(inspect.tagIds(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual([CORE_CONTRACT_IDS.firstTag]);
         await expect(read.getStockContext(CORE_CONTRACT_IDS.firstVn)).resolves.toMatchObject({
           title: '東京物語',
