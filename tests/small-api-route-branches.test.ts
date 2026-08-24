@@ -99,7 +99,7 @@ beforeEach(() => {
   mocks.searchTraits.mockResolvedValue([{ id: 'i991001', name: 'Trait Fixture' }]);
   mocks.tooManyRequests.mockReturnValue(null);
   mocks.transaction.mockImplementation((fn: () => void) => fn);
-  mocks.walkSeriesRelations.mockReturnValue([{ id: 'v991002' }, { id: 'v991003' }]);
+  mocks.walkSeriesRelations.mockResolvedValue([{ id: 'v991002' }, { id: 'v991003' }]);
   mocks.readBodyWithLimit.mockImplementation(async (request: Request) => Buffer.from(await request.arrayBuffer()));
 });
 

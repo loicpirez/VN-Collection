@@ -1,6 +1,5 @@
 import 'server-only';
-import { db } from './db';
-import { asJsonRecord, parseJsonArray } from './json-shape';
+import { getSeriesRepository } from './db/repositories/series';
 
 export interface SeriesSuggestion {
   /** Existing series to join, when at least one related VN already belongs to one. */
@@ -10,14 +9,6 @@ export interface SeriesSuggestion {
   /** VN ids the user owns that share a `seq` / `preq` / `set` / `fan` relation with the seed. */
   relatedInCollection: { id: string; title: string; relation: string }[];
 }
-
-interface VnRelationRow {
-  id: string;
-  title: string;
-  relation: string;
-}
-
-const SERIES_RELATIONS = new Set(['seq', 'preq', 'set', 'fan', 'alt', 'orig']);
 
 /**
  * BFS through VN relations starting from `seedVnId`, following only
@@ -40,54 +31,10 @@ const SERIES_RELATIONS = new Set(['seq', 'preq', 'set', 'fan', 'alt', 'orig']);
  * still keeps `addVnToSeries(... expand=true)` from issuing 999+
  * UPDATEs in a single transaction.
  */
-const MAX_SERIES_WALK = 500;
-
-export function walkSeriesRelations(seedVnId: string): { id: string; title: string; relation: string }[] {
-  const visited = new Set<string>([seedVnId]);
-  const out: { id: string; title: string; relation: string }[] = [];
-  const queue: string[] = [seedVnId];
-  const stmt = db.prepare('SELECT relations FROM vn WHERE id = ?');
-  while (queue.length > 0 && out.length < MAX_SERIES_WALK) {
-    const current = queue.shift() as string;
-    const row = stmt.get(current) as { relations: string | null } | undefined;
-    if (!row?.relations) continue;
-    for (const value of parseJsonArray(row.relations)) {
-      const rel = asJsonRecord(value);
-      if (
-        !rel ||
-        typeof rel.id !== 'string' ||
-        typeof rel.title !== 'string' ||
-        typeof rel.relation !== 'string' ||
-        visited.has(rel.id) ||
-        !SERIES_RELATIONS.has(rel.relation)
-      ) continue;
-      visited.add(rel.id);
-      out.push({ id: rel.id, title: rel.title, relation: rel.relation });
-      if (out.length >= MAX_SERIES_WALK) break;
-      queue.push(rel.id);
-    }
-  }
-  return out;
-}
-
-/** Strip trailing tokens like `2`, `II`, `: subtitle`, `~side~` to derive a series root. */
-function trimVolumeMarker(s: string): string {
-  return s
-    .replace(/[:：][\s\S]*$/u, '')
-    .replace(/[～~\-—][\s\S]*[～~]?$/u, '')
-    .replace(/\s+(?:Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|Ⅵ|Ⅶ|Ⅷ|Ⅸ|Ⅹ|[IVX]+|\d+)\s*$/u, '')
-    .trim();
-}
-
-function longestCommonPrefix(first: string, rest: string[]): string {
-  let prefix = first;
-  for (const title of rest) {
-    while (title.indexOf(prefix) !== 0) {
-      prefix = prefix.slice(0, -1);
-      if (!prefix) return '';
-    }
-  }
-  return prefix.trim().replace(/[\s:：~～\-—]+$/u, '').trim();
+export async function walkSeriesRelations(
+  seedVnId: string,
+): Promise<Array<{ id: string; title: string; relation: string }>> {
+  return getSeriesRepository().walkRelations(seedVnId);
 }
 
 /**
@@ -104,54 +51,6 @@ function longestCommonPrefix(first: string, rest: string[]): string {
  *     the in-collection related titles, falling back to a trimmed seed
  *     title if no common prefix emerges.
  */
-export function detectSeriesForVn(vnId: string): SeriesSuggestion | null {
-  const seedRow = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
-    | { title: string }
-    | undefined;
-  if (!seedRow) return null;
-
-  // Walk the full relation graph transitively — a VN's `relations` field only
-  // names its direct neighbours, but a series often has 3+ entries where the
-  // outer ones don't reference each other. BFS unifies the chain.
-  const relations = walkSeriesRelations(vnId);
-  if (relations.length === 0) return null;
-
-  // Which related VNs does the user own?
-  const placeholders = relations.map(() => '?').join(', ');
-  const ownedRows = db
-    .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
-    .all(...relations.map((r) => r.id)) as { vn_id: string }[];
-  const ownedIds = new Set(ownedRows.map((r) => r.vn_id));
-  const relatedInCollection = relations.filter((r) => ownedIds.has(r.id));
-
-  // If the seed itself is already part of a series, no suggestion needed.
-  const seedSeries = db
-    .prepare(`SELECT series_id FROM series_vn WHERE vn_id = ?`)
-    .all(vnId) as { series_id: number }[];
-  if (seedSeries.length > 0) return null;
-
-  // Find existing series that contain any related VN.
-  let existing: { id: number; name: string }[] = [];
-  if (relatedInCollection.length > 0) {
-    const placeholders2 = relatedInCollection.map(() => '?').join(', ');
-    existing = db
-      .prepare(`
-        SELECT DISTINCT s.id, s.name FROM series s
-        JOIN series_vn sv ON sv.series_id = s.id
-        WHERE sv.vn_id IN (${placeholders2})
-      `)
-      .all(...relatedInCollection.map((r) => r.id)) as { id: number; name: string }[];
-  }
-
-  if (existing.length === 0 && relatedInCollection.length === 0) return null;
-
-  let suggested = longestCommonPrefix(seedRow.title, relatedInCollection.map((r) => r.title));
-  if (!suggested || suggested.length < 3) suggested = trimVolumeMarker(seedRow.title);
-  if (!suggested) suggested = seedRow.title;
-
-  return {
-    existing,
-    suggestedName: suggested,
-    relatedInCollection,
-  };
+export async function detectSeriesForVn(vnId: string): Promise<SeriesSuggestion | null> {
+  return getSeriesRepository().suggest(vnId);
 }

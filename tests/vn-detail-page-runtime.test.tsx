@@ -23,7 +23,7 @@ import {
   type VnAspectDisplay,
 } from '@/lib/db';
 import { getVn, type VndbVn } from '@/lib/vndb';
-import { detectSeriesForVn, type SeriesSuggestion } from '@/lib/series-detect';
+import type { SeriesSuggestion } from '@/lib/series-detect';
 import { isCacheFresh } from '@/lib/cache-age';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { VnSectionId } from '@/lib/vn-detail-layout';
@@ -31,6 +31,10 @@ import type { CollectionItem } from '@/lib/types';
 
 const dynamicMocks = vi.hoisted(() => ({
   loads: [] as Array<Promise<object>>,
+}));
+
+const seriesRepositoryMocks = vi.hoisted(() => ({
+  suggest: vi.fn(),
 }));
 
 vi.mock('next/dynamic', () => ({
@@ -77,9 +81,15 @@ vi.mock('@/lib/vndb', () => ({
   getVn: vi.fn(),
 }));
 
-vi.mock('@/lib/series-detect', () => ({
-  detectSeriesForVn: vi.fn(),
-}));
+vi.mock('@/lib/db/repositories/series', async () => {
+  const database = await import('@/lib/db');
+  return {
+    getSeriesRepository: () => ({
+      list: async () => database.listSeries(),
+      suggest: seriesRepositoryMocks.suggest,
+    }),
+  };
+});
 
 vi.mock('@/lib/cache-age', () => ({
   VNDB_CACHE_MS: 1,
@@ -415,7 +425,7 @@ beforeEach(() => {
   vi.mocked(materializeReleaseMetaForVn).mockReset();
   vi.mocked(upsertVn).mockReset();
   vi.mocked(getVn).mockReset().mockResolvedValue(null);
-  vi.mocked(detectSeriesForVn).mockReset().mockReturnValue(null);
+  seriesRepositoryMocks.suggest.mockReset().mockResolvedValue(null);
   vi.mocked(isCacheFresh).mockReset().mockReturnValue(true);
 });
 
@@ -608,7 +618,7 @@ describe('VN detail page runtime', () => {
     vi.mocked(isInCollection).mockReturnValue(true);
     vi.mocked(getSourcePref).mockReturnValue({ image: 'custom', playtime: 'egs', description: 'vndb', brand: 'egs' });
     vi.mocked(getEgsForVn).mockReturnValue(linked);
-    vi.mocked(detectSeriesForVn).mockReturnValue(suggestion);
+    seriesRepositoryMocks.suggest.mockResolvedValue(suggestion);
     vi.mocked(listListsForVn).mockReturnValue([{
       id: 1,
       name: 'Favorites',
@@ -738,7 +748,7 @@ describe('VN detail page runtime', () => {
       if (id === 'v90022') return collectionItem(id, { title: 'Same', alttitle: 'Same' });
       return collectionItem(id, { description: 'VNDB synopsis' });
     });
-    vi.mocked(detectSeriesForVn).mockReturnValue({
+    seriesRepositoryMocks.suggest.mockResolvedValue({
       existing: [],
       suggestedName: null,
       relatedInCollection: [],

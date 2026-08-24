@@ -69,7 +69,7 @@ export function registerSeriesRepositoryContract(
         ]);
         await expect(repository.get(SERIES_CONTRACT_IDS.firstSeries)).resolves.toMatchObject({
           vns: [
-            { id: SERIES_CONTRACT_IDS.secondVn, order_index: 1, status: null },
+            { id: SERIES_CONTRACT_IDS.secondVn, order_index: 1, status: 'playing' },
             { id: SERIES_CONTRACT_IDS.firstVn, order_index: 2, status: 'completed' },
           ],
         });
@@ -88,6 +88,25 @@ export function registerSeriesRepositoryContract(
           { vnId: SERIES_CONTRACT_IDS.missingVn, orderIndex: 1 },
         ])).rejects.toThrow();
         await expect(repository.listForVn(SERIES_CONTRACT_IDS.firstVn)).resolves.toEqual([]);
+      });
+    });
+
+    it('walks strong relations and suggests owned related entries', async () => {
+      await harness.withRepository(async (repository) => {
+        await expect(repository.walkRelations(SERIES_CONTRACT_IDS.firstVn)).resolves.toEqual([
+          {
+            id: SERIES_CONTRACT_IDS.secondVn,
+            title: 'Beta Series VN',
+            relation: 'seq',
+          },
+        ]);
+        await expect(repository.walkRelations(SERIES_CONTRACT_IDS.missingVn)).resolves.toEqual([]);
+        await expect(repository.suggest(SERIES_CONTRACT_IDS.firstVn)).resolves.toMatchObject({
+          existing: [],
+          suggestedName: 'Alpha Series VN',
+          relatedInCollection: [{ id: SERIES_CONTRACT_IDS.secondVn }],
+        });
+        await expect(repository.suggest(SERIES_CONTRACT_IDS.missingVn)).resolves.toBeNull();
       });
     });
   });

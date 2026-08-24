@@ -37,6 +37,8 @@ export interface SeriesRepository {
   removeMember(id: number, vnId: string): Promise<void>;
   /** Suggest a series from transitive strong VN relations. */
   suggest(vnId: string): Promise<SeriesSuggestion | null>;
+  /** Walk every transitive strong VN relation from one seed. */
+  walkRelations(vnId: string): Promise<Array<{ id: string; title: string; relation: string }>>;
 }
 
 interface SeriesMemberRow extends QueryResultRow {
@@ -156,6 +158,55 @@ async function postgresSeriesSuggestion(vnId: string): Promise<SeriesSuggestion 
   return { existing: existingResult.rows, suggestedName, relatedInCollection };
 }
 
+async function walkSqliteSeriesRelations(seedVnId: string): Promise<RelatedVn[]> {
+  const { db } = await import('@/lib/db');
+  const visited = new Set([seedVnId]);
+  const queue = [seedVnId];
+  const output: RelatedVn[] = [];
+  const statement = db.prepare('SELECT relations FROM vn WHERE id = ?');
+  while (queue.length > 0 && output.length < MAX_SERIES_WALK) {
+    const current = queue.shift();
+    if (!current) break;
+    const row = statement.get(current) as { relations: string | null } | undefined;
+    for (const relation of decodedRelations(row?.relations ?? null)) {
+      if (visited.has(relation.id)) continue;
+      visited.add(relation.id);
+      output.push(relation);
+      if (output.length >= MAX_SERIES_WALK) break;
+      queue.push(relation.id);
+    }
+  }
+  return output;
+}
+
+async function sqliteSeriesSuggestion(vnId: string): Promise<SeriesSuggestion | null> {
+  const { db } = await import('@/lib/db');
+  const seed = db.prepare('SELECT title FROM vn WHERE id = ?').get(vnId) as { title: string } | undefined;
+  if (!seed) return null;
+  const relations = await walkSqliteSeriesRelations(vnId);
+  if (relations.length === 0) return null;
+  const seedSeries = db.prepare('SELECT series_id FROM series_vn WHERE vn_id = ?').get(vnId);
+  if (seedSeries) return null;
+  const ownedRows = db.prepare(`
+    SELECT vn_id FROM collection
+    WHERE vn_id IN (${relations.map(() => '?').join(',')})
+  `).all(...relations.map((relation) => relation.id)) as Array<{ vn_id: string }>;
+  const owned = new Set(ownedRows.map((row) => row.vn_id));
+  const relatedInCollection = relations.filter((relation) => owned.has(relation.id));
+  if (relatedInCollection.length === 0) return null;
+  const existing = db.prepare(`
+    SELECT DISTINCT series_row.id, series_row.name
+    FROM series series_row
+    JOIN series_vn membership ON membership.series_id = series_row.id
+    WHERE membership.vn_id IN (${relatedInCollection.map(() => '?').join(',')})
+    ORDER BY series_row.name COLLATE NOCASE, series_row.id
+  `).all(...relatedInCollection.map((relation) => relation.id)) as Array<{ id: number; name: string }>;
+  let suggestedName = longestCommonPrefix(seed.title, relatedInCollection.map((relation) => relation.title));
+  if (!suggestedName || suggestedName.length < 3) suggestedName = trimVolumeMarker(seed.title);
+  if (!suggestedName) suggestedName = seed.title;
+  return { existing, suggestedName, relatedInCollection };
+}
+
 /** Create the PostgreSQL-backed series repository. */
 export function createPostgresSeriesRepository(): SeriesRepository {
   return {
@@ -235,6 +286,7 @@ export function createPostgresSeriesRepository(): SeriesRepository {
       await postgresQuery('DELETE FROM series_vn WHERE series_id = $1 AND vn_id = $2', [id, vnId.toLowerCase()]);
     },
     suggest: postgresSeriesSuggestion,
+    walkRelations: walkPostgresSeriesRelations,
   };
 }
 
@@ -263,9 +315,8 @@ const sqliteRepository: SeriesRepository = {
   async removeMember(id, vnId) {
     (await import('@/lib/db')).removeVnFromSeries(id, vnId);
   },
-  async suggest(vnId) {
-    return (await import('@/lib/series-detect')).detectSeriesForVn(vnId);
-  },
+  suggest: sqliteSeriesSuggestion,
+  walkRelations: walkSqliteSeriesRelations,
 };
 
 let postgresRepository: SeriesRepository | null = null;

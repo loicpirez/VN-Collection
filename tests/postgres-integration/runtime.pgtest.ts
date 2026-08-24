@@ -937,14 +937,24 @@ registerSeriesRepositoryContract('PostgreSQL', {
     await withIsolatedSchema(async (pool, schema) => {
       await applyPostgresMigrations(pool, await listPostgresMigrations());
       await pool.query(`
-        INSERT INTO vn (id, title, fetched_at) VALUES
-          ($1, 'Alpha Series VN', 1),
-          ($2, 'Beta Series VN', 1)
-      `, [SERIES_CONTRACT_IDS.firstVn, SERIES_CONTRACT_IDS.secondVn]);
+        INSERT INTO vn (id, title, relations, fetched_at) VALUES
+          ($1, 'Alpha Series VN', $3, 1),
+          ($2, 'Beta Series VN', NULL, 1)
+      `, [
+        SERIES_CONTRACT_IDS.firstVn,
+        SERIES_CONTRACT_IDS.secondVn,
+        JSON.stringify([{
+          id: SERIES_CONTRACT_IDS.secondVn,
+          title: 'Beta Series VN',
+          relation: 'seq',
+        }]),
+      ]);
       await pool.query(`
         INSERT INTO collection (vn_id, status, added_at, updated_at)
-        VALUES ($1, 'completed', 1, 1)
-      `, [SERIES_CONTRACT_IDS.firstVn]);
+        VALUES
+          ($1, 'completed', 1, 1),
+          ($2, 'playing', 1, 1)
+      `, [SERIES_CONTRACT_IDS.firstVn, SERIES_CONTRACT_IDS.secondVn]);
       await pool.query(`
         INSERT INTO series (id, name, description, created_at, updated_at) VALUES
           ($1, 'Alpha Contract Series', NULL, 1, 1),

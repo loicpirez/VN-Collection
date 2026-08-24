@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addVnToSeries, db, getSeries, isInCollection, isInCollectionMany, removeVnFromSeries } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getSeriesRepository, type SeriesMembershipInput } from '@/lib/db/repositories/series';
 import { recordActivity } from '@/lib/activity';
 import { walkSeriesRelations } from '@/lib/series-detect';
 
@@ -20,10 +21,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id, vnId } = await ctx.params;
   const sid = parseSeriesId(id);
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
-  if (!getSeries(sid)) return NextResponse.json({ error: 'series not found' }, { status: 404 });
+  const repository = getSeriesRepository();
+  if (!await repository.get(sid)) return NextResponse.json({ error: 'series not found' }, { status: 404 });
   if (!isVndbVnId(vnId)) return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
   const normalizedVnId = vnId.toLowerCase();
-  if (!isInCollection(normalizedVnId)) return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
+  const collectionRepository = getCollectionCoreRepository();
+  if (!await collectionRepository.contains(normalizedVnId)) return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
   const body = await readJsonObject(req);
   if ('order_index' in body && (
     typeof body.order_index !== 'number'
@@ -46,24 +49,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // the related VNs) doesn't leave a partial set of `series_vn` rows
   // with gaps in `order_index`. The seed is always added; the expand
   // path adds 0..N more rows atomically.
-  const added: string[] = [];
-  db.transaction(() => {
-    addVnToSeries(sid, normalizedVnId, baseIndex);
-    added.push(normalizedVnId);
-    if (body.expand === true) {
-      const related = walkSeriesRelations(normalizedVnId);
-      const ownedRelatedSet = isInCollectionMany(related.map((r) => r.id));
-      let idx = baseIndex + 1;
-      for (const r of related) {
-        if (!ownedRelatedSet.has(r.id)) continue;
-        addVnToSeries(sid, r.id, idx);
-        added.push(r.id);
-        idx += 1;
-      }
+  const added: string[] = [normalizedVnId];
+  const members: SeriesMembershipInput[] = [{ vnId: normalizedVnId, orderIndex: baseIndex }];
+  if (body.expand === true) {
+    const related = await walkSeriesRelations(normalizedVnId);
+    const ownedRelatedSet = await collectionRepository.containsMany(related.map((r) => r.id));
+    let idx = baseIndex + 1;
+    for (const relation of related) {
+      if (!ownedRelatedSet.has(relation.id)) continue;
+      members.push({ vnId: relation.id, orderIndex: idx });
+      added.push(relation.id);
+      idx += 1;
     }
-  })();
+  }
+  await repository.addMembers(sid, members);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'series.link',
       entity: 'series',
       entityId: String(sid),
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (e) {
     console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ series: getSeries(sid), added });
+  return NextResponse.json({ series: await repository.get(sid), added });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string; vnId: string }> }): Promise<NextResponse> {
@@ -84,9 +85,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (sid == null) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
   if (!isVndbVnId(vnId)) return NextResponse.json({ error: 'invalid vn id' }, { status: 400 });
   const normalizedVnId = vnId.toLowerCase();
-  removeVnFromSeries(sid, normalizedVnId);
+  const repository = getSeriesRepository();
+  await repository.removeMember(sid, normalizedVnId);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'series.unlink',
       entity: 'series',
       entityId: String(sid),
@@ -96,5 +98,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   } catch (e) {
     console.error(`[series:${sid}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ series: getSeries(sid) });
+  return NextResponse.json({ series: await repository.get(sid) });
 }
