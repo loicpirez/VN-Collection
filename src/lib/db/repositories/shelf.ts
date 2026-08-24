@@ -490,7 +490,8 @@ export function createPostgresShelfRepository(): ShelfRepository {
     },
     async reorder(orderedIds) {
       await withPostgresTransaction(async (client) => {
-        await client.query("SELECT pg_advisory_xact_lock(hashtextextended('shelf-order', 0))");
+        const executor = transactionExecutor(client);
+        await executor.query("SELECT pg_advisory_xact_lock(hashtextextended('shelf-order', 0))");
         const now = Date.now();
         for (const [index, id] of orderedIds.entries()) {
           await client.query(
