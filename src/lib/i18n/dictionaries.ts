@@ -96,6 +96,9 @@ export const dictionaries = {
       wishlistExcludedHint: 'Clique pour inclure les VN déjà dans la liste de souhaits.',
       badgeInCollection: 'Déjà',
       badgeOnWishlist: 'Souhaits',
+      refreshing: 'Actualisation des recommandations VNDB en arrière-plan...',
+      refreshPartial: 'Certaines recommandations n’ont pas pu être actualisées. Les résultats en cache restent affichés.',
+      refreshFailed: 'Les recommandations VNDB n’ont pas pu être actualisées. Réessaie dans un instant.',
       modePicker: {
         label: 'Mode',
       },
@@ -3804,6 +3807,9 @@ export const dictionaries = {
       wishlistExcluded: 'Wishlist hidden',
       wishlistIncludedHint: 'Click to exclude VNs already in the wishlist.',
       wishlistExcludedHint: 'Click to include VNs already in the wishlist.',
+      refreshing: 'Refreshing VNDB recommendations in the background...',
+      refreshPartial: 'Some recommendations could not be refreshed. Cached results remain visible.',
+      refreshFailed: 'VNDB recommendations could not be refreshed. Try again in a moment.',
       modePicker: {
         label: 'Mode',
       },
@@ -7509,6 +7515,9 @@ export const dictionaries = {
       wishlistExcludedHint: 'クリックするとウィッシュリストの VN も表示します。',
       badgeInCollection: '所持',
       badgeOnWishlist: '希望',
+      refreshing: 'VNDB のおすすめをバックグラウンドで更新中...',
+      refreshPartial: '一部のおすすめを更新できませんでした。キャッシュ済みの結果を表示しています。',
+      refreshFailed: 'VNDB のおすすめを更新できませんでした。しばらくしてから再試行してください。',
       modePicker: {
         label: 'モード',
       },

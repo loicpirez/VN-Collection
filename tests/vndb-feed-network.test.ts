@@ -33,7 +33,7 @@ vi.mock('@/lib/vndb-throttle', async (importOriginal) => {
   };
 });
 
-import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
+import { vndbAdvancedSearchCachedRaw, vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 import { fetchVndbTopRanked, fetchVndbTopRankedPage } from '@/lib/top-ranked';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 import { addToCollection, clearCache, putCacheRow, upsertVn } from '@/lib/db';
@@ -91,6 +91,14 @@ afterEach(() => {
 });
 
 describe('vndbAdvancedSearchRaw', () => {
+  it('reports a cache miss without making a network request', async () => {
+    await expect(vndbAdvancedSearchCachedRaw({ filters: ['tag', '=', 'g9000'] })).resolves.toEqual({
+      hits: [],
+      fresh: false,
+    });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
   it('posts the recommendation field set and maps hits', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ results: [vnRow('v90001')] }));
     const out = await vndbAdvancedSearchRaw({ filters: ['tag', '=', 'g9001'] });
@@ -115,6 +123,24 @@ describe('vndbAdvancedSearchRaw', () => {
     );
     const out = await vndbAdvancedSearchRaw({ filters: ['tag', '=', 'g9002'] });
     expect(out.map((h) => h.id)).toEqual(['v90002']);
+  });
+
+  it('reads fresh and expired recommendation snapshots without another request', async () => {
+    const now = Date.now();
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ results: [vnRow('v90003')] }));
+    const args = { filters: ['tag', '=', 'g9003'] };
+    await vndbAdvancedSearchRaw(args);
+    await expect(vndbAdvancedSearchCachedRaw(args)).resolves.toMatchObject({
+      hits: [expect.objectContaining({ id: 'v90003' })],
+      fresh: true,
+    });
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 6 * 60 * 1000);
+    await expect(vndbAdvancedSearchCachedRaw(args)).resolves.toMatchObject({
+      hits: [expect.objectContaining({ id: 'v90003' })],
+      fresh: false,
+    });
+    clock.mockRestore();
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

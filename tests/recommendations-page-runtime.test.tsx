@@ -73,12 +73,19 @@ vi.mock('@/components/SimilarSeedEmptyState', () => ({
   ),
 }));
 
+vi.mock('@/components/RecommendationRemoteLoader', () => ({
+  RecommendationRemoteLoader: ({ enabled, mode }: { enabled: boolean; mode: string }) => (
+    <div>{`remote:${enabled}:${mode}`}</div>
+  ),
+}));
+
 interface RecommendFixture {
   seeds: RecommendationSeed[];
   results: Recommendation[];
   mode: RecommendMode;
   rawSeeds?: RecommendationSeed[];
   signalCounts?: SignalCounts;
+  cacheComplete?: boolean;
 }
 
 async function renderPage(searchParams: {
@@ -145,7 +152,8 @@ describe('recommendations page runtime', () => {
     expect(html).toContain(dictionaries.en.recommend.ownedExcluded);
     expect(html).toContain(dictionaries.en.recommend.wishlistExcluded);
     expect(recommendVns).toHaveBeenCalledWith(expect.objectContaining({ resultLimit: 0 }));
-    expect(recommendVns).toHaveBeenCalledWith(expect.not.objectContaining({ resultLimit: 0 }));
+    expect(recommendVns).toHaveBeenCalledWith(expect.objectContaining({ cacheOnly: true }));
+    expect(html).not.toContain('remote:true:because-you-liked');
   });
 
   it('renders rich auto-derived recommendations with explanation, badges, and contributor variants', async () => {
@@ -269,7 +277,7 @@ describe('recommendations page runtime', () => {
       .mockRejectedValueOnce(new Error('result lookup failed'));
 
     let html = await renderPage();
-    expect(html).toContain('result lookup failed');
+    expect(html).toContain(dictionaries.en.recommend.refreshFailed);
 
     vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => fixture({
       seeds: [seed('g1')],
@@ -277,6 +285,27 @@ describe('recommendations page runtime', () => {
     }));
     html = await renderPage();
     expect(html).toContain(dictionaries.en.recommend.empty);
+  });
+
+  it('shows cached results during refresh and a skeleton when no snapshot exists', async () => {
+    vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => fixture({
+      seeds: [seed('g1')],
+      results: options?.resultLimit === 0 ? [] : [result('v30')],
+      cacheComplete: options?.resultLimit === 0 ? true : false,
+    }));
+    let html = await renderPage();
+    expect(html).toContain('remote:true:because-you-liked');
+    expect(html).toContain('Recommendation v30');
+
+    vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => fixture({
+      seeds: [seed('g1')],
+      results: [],
+      cacheComplete: options?.resultLimit === 0 ? true : false,
+    }));
+    html = await renderPage();
+    expect(html).toContain('remote:true:because-you-liked');
+    expect(html).toContain('skeleton:12');
+    expect(html).not.toContain(dictionaries.en.recommend.empty);
   });
 
   it('renders rating fallbacks and reason branches for because-liked and highly-rated modes', async () => {

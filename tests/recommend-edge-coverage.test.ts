@@ -21,11 +21,16 @@ vi.mock('@/lib/vndb-recommend', () => ({
     const tagId = filters[1][2][0];
     return POOL.get(tagId) ?? [];
   }),
+  vndbAdvancedSearchCachedRaw: vi.fn(async (args: { filters: unknown }) => {
+    const filters = args.filters as [string, [string, string, [string, ...unknown[]]], unknown];
+    const tagId = filters[1][2][0];
+    return { hits: POOL.get(tagId) ?? [], fresh: true };
+  }),
 }));
 
 import { addToCollection, listShelves } from '@/lib/db';
 import { recommendVns } from '@/lib/recommend';
-import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
+import { vndbAdvancedSearchCachedRaw, vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 
 listShelves();
 const db = new Database(process.env.DB_PATH!);
@@ -65,6 +70,7 @@ beforeEach(() => {
   `);
   POOL.clear();
   vi.mocked(vndbAdvancedSearchRaw).mockClear();
+  vi.mocked(vndbAdvancedSearchCachedRaw).mockClear();
 });
 
 describe('recommendVns edge contracts', () => {
@@ -87,6 +93,43 @@ describe('recommendVns edge contracts', () => {
     expect(vndbAdvancedSearchRaw).not.toHaveBeenCalled();
   });
 
+  it('uses cached recommendation hits and reports freshness without a network fan-out', async () => {
+    insertVn('v980002', [{ id: 'gEdgeCached', name: 'cached', rating: 2 }]);
+    POOL.set('gEdgeCached', [{ id: 'v989002', title: 'cached candidate', rating: 82, votecount: 300 }]);
+
+    const fresh = await recommendVns({
+      mode: 'similar-to-vn',
+      seedVnId: 'v980002',
+      cacheOnly: true,
+    });
+    expect(fresh.results.map((result) => result.id)).toEqual(['v989002']);
+    expect(fresh.cacheComplete).toBe(true);
+    expect(vndbAdvancedSearchRaw).not.toHaveBeenCalled();
+
+    vi.mocked(vndbAdvancedSearchCachedRaw).mockResolvedValueOnce({ hits: [], fresh: false });
+    const stale = await recommendVns({
+      mode: 'similar-to-vn',
+      seedVnId: 'v980002',
+      cacheOnly: true,
+    });
+    expect(stale.results).toEqual([]);
+    expect(stale.cacheComplete).toBe(false);
+  });
+
+  it('keeps a cache-only recommendation page partial when a cache read fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    insertVn('v980003', [{ id: 'gEdgeCacheError', name: 'cached', rating: 2 }]);
+    vi.mocked(vndbAdvancedSearchCachedRaw).mockRejectedValueOnce(new Error('cache unavailable'));
+    const result = await recommendVns({
+      mode: 'similar-to-vn',
+      seedVnId: 'v980003',
+      cacheOnly: true,
+    });
+    expect(result.results).toEqual([]);
+    expect(result.cacheComplete).toBe(false);
+    expect(consoleSpy).toHaveBeenCalledWith('[recommend] seed gEdgeCacheError failed:', 'cache unavailable');
+  });
+
   it('returns a clean empty similar result when a valid anchor has no usable tags', async () => {
     insertVn('v980001', []);
 
@@ -94,6 +137,7 @@ describe('recommendVns edge contracts', () => {
       seeds: [],
       results: [],
       mode: 'similar-to-vn',
+      cacheComplete: true,
     });
   });
 

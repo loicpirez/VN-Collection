@@ -320,6 +320,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET | `/api/staff?q=` | Staff search |
 | GET | `/api/tags?q=&category=` | Tag search/browse |
 | GET | `/api/tags/[id]/hydrate` | Populate one tag page's VNDB snapshots after the cache-only shell paints |
+| POST | `/api/recommendations/hydrate` | Populate missing or expired recommendation snapshots after the cache-only page paints. |
 | GET | `/api/traits?q=` | Trait search/browse |
 | GET | `/api/producer/[id]` | Producer detail (cache 24 h) |
 | POST | `/api/producer/[id]/refresh` | Bust the dev (`POST /vn:producer`) + pub (`POST /release:producer`) cache rows then re-fetch. Used by the per-page Refresh button on `/producer/[id]`. |
@@ -476,6 +477,7 @@ route file or exported HTTP method changes.
 | /api/proxy/test | POST |
 | /api/reading-goal | GET, POST |
 | /api/reading-queue | GET, POST, DELETE, PATCH |
+| /api/recommendations/hydrate | POST |
 | /api/refresh/global | POST |
 | /api/refresh/scope | POST |
 | /api/release/[id] | GET |

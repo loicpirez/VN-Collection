@@ -24,6 +24,7 @@ import { SeedTagControls } from '@/components/SeedTagControls';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
 import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
+import { RecommendationRemoteLoader } from '@/components/RecommendationRemoteLoader';
 import { pickSimilarToVnView } from '@/lib/recommend-similar-view';
 import { getRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
 import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
@@ -440,7 +441,8 @@ async function ResultsPanel({
   let rawSeeds: RecommendationSeed[] | undefined;
   let signalCounts: SignalCounts | undefined;
   let results: Recommendation[] = [];
-  let error: string | null = null;
+  let cacheComplete = true;
+  let error = false;
   try {
     const r = await recommendVns({
       mode,
@@ -449,22 +451,36 @@ async function ResultsPanel({
       includeWishlist,
       customTagIds: customTagIds.length > 0 ? customTagIds : undefined,
       seedVnId,
+      cacheOnly: true,
     });
     seeds = r.seeds;
     rawSeeds = r.rawSeeds;
     signalCounts = r.signalCounts;
     results = r.results;
-  } catch (e) {
-    error = (e as Error).message;
+    cacheComplete = r.cacheComplete !== false;
+  } catch {
+    error = true;
   }
 
   if (error) {
     return (
       <div className="mb-4 rounded-lg border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm text-status-dropped">
-        {error}
+        {t.recommend.refreshFailed}
       </div>
     );
   }
+
+  const hydration = (
+    <RecommendationRemoteLoader
+      enabled={!cacheComplete}
+      mode={mode}
+      includeEro={includeEro}
+      includeOwned={includeOwned}
+      includeWishlist={includeWishlist}
+      customTagIds={customTagIds}
+      seedVnId={seedVnId}
+    />
+  );
 
   // `similar-to-vn` without a seed is handled upstream by
   // `SimilarSeedEmptyState` so the operator gets the in-page picker
@@ -480,6 +496,14 @@ async function ResultsPanel({
   }
 
   if (results.length === 0) {
+    if (!cacheComplete) {
+      return (
+        <>
+          {hydration}
+          <SkeletonCardGrid count={12} />
+        </>
+      );
+    }
     return (
       <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
         <Lightbulb className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
@@ -490,6 +514,7 @@ async function ResultsPanel({
 
   return (
     <>
+      {hydration}
       <RecommendExplanationPanel
         mode={mode}
         seeds={seeds}

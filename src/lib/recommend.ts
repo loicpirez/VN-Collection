@@ -1,5 +1,5 @@
 import 'server-only';
-import { vndbAdvancedSearchRaw } from './vndb-recommend';
+import { vndbAdvancedSearchCachedRaw, vndbAdvancedSearchRaw } from './vndb-recommend';
 import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
 import {
   getRecommendationReadRepository,
@@ -8,22 +8,12 @@ import {
 } from './db/repositories/recommendation-read';
 
 import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
-export type RecommendMode =
-  | 'because-you-liked'
-  | 'tag-based'
-  | 'hidden-gems'
-  | 'highly-rated'
-  | 'similar-to-vn';
-
-export const RECOMMEND_MODES: readonly RecommendMode[] = [
-  'because-you-liked',
-  'tag-based',
-  'hidden-gems',
-  'highly-rated',
-  'similar-to-vn',
-];
-
-export const DEFAULT_RECOMMEND_MODE: RecommendMode = 'because-you-liked';
+import {
+  DEFAULT_RECOMMEND_MODE,
+  RECOMMEND_MODES,
+  type RecommendMode,
+} from './recommend-types';
+export { DEFAULT_RECOMMEND_MODE, RECOMMEND_MODES, type RecommendMode } from './recommend-types';
 
 /**
  * Coerce a raw URL/query string into a `RecommendMode`. Unknown / empty
@@ -201,6 +191,8 @@ export interface RecommendOptions {
    * /recommendations page can wire a Settings toggle + URL param.
    */
   useWishlist?: boolean;
+  /** Read recommendation candidates from local cache only. */
+  cacheOnly?: boolean;
 }
 
 export interface RecommendResult {
@@ -214,6 +206,8 @@ export interface RecommendResult {
    *  generic-tag penalty multiplier was applied. Lets the panel show
    *  what would have ranked without the broadening pass. */
   rawSeeds?: RecommendationSeed[];
+  /** True when every per-tag candidate snapshot is fresh and available. */
+  cacheComplete?: boolean;
 }
 
 /**
@@ -245,6 +239,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     includeOwned = false,
     includeWishlist = false,
     useWishlist = true,
+    cacheOnly = false,
   } = opts;
 
   // `similar-to-vn` always needs a seed VN; without one the page has
@@ -252,7 +247,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
   // as a clean empty result (the page surfaces its own picker copy).
   if (mode === 'similar-to-vn') {
     if (!seedVnId || !isValidVnId(seedVnId)) {
-      return { seeds: [], results: [], mode };
+      return { seeds: [], results: [], mode, cacheComplete: true };
     }
     const repository = getRecommendationReadRepository();
     const [seedRow, membership] = await Promise.all([
@@ -260,18 +255,20 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       loadRecommendationMembership(repository),
     ]);
     const seeds = deriveSeedsFromVn(seedVnId, seedRow, tagLimit, includeEro, customTagIds);
-    if (seeds.length === 0) return { seeds: [], results: [], mode };
+    if (seeds.length === 0) return { seeds: [], results: [], mode, cacheComplete: true };
     const exclude = collectExclusions(membership, includeOwned, includeWishlist);
     exclude.add(seedVnId);
     const results = await runRecommendForSeeds(seeds, resultLimit, {
       mode,
       exclude,
       seedTitles: new Map([[seedVnId, seedRow?.title ?? seedVnId]]),
+      cacheOnly,
     });
     return {
       seeds,
-      results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
+      results: stampOwnershipFlags(results.results, membership, includeOwned, includeWishlist),
       mode,
+      cacheComplete: results.complete,
     };
   }
 
@@ -290,11 +287,13 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       mode,
       exclude,
       seedTitles: new Map(),
+      cacheOnly,
     });
     return {
       seeds: customSeeds,
-      results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
+      results: stampOwnershipFlags(results.results, membership, includeOwned, includeWishlist),
       mode,
+      cacheComplete: results.complete,
     };
   }
 
@@ -311,6 +310,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       results: [],
       mode,
       signalCounts: union.counts,
+      cacheComplete: true,
     };
   }
   const { seeds, rawSeeds } = deriveSeedsFromUnion(union, seedLimit, tagLimit, includeEro);
@@ -321,6 +321,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
       mode,
       signalCounts: union.counts,
       rawSeeds,
+      cacheComplete: true,
     };
   }
 
@@ -335,13 +336,15 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     seedTitles,
     studioCount: union.studioCount,
     staffCount: union.staffCount,
+    cacheOnly,
   });
   return {
     seeds,
-    results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
+    results: stampOwnershipFlags(results.results, membership, includeOwned, includeWishlist),
     mode,
     signalCounts: union.counts,
     rawSeeds,
+    cacheComplete: results.complete,
   };
 }
 
@@ -721,15 +724,17 @@ async function runRecommendForSeeds(
     seedTitles,
     studioCount,
     staffCount,
+    cacheOnly,
   }: {
     mode: RecommendMode;
     exclude: Set<string>;
     seedTitles: Map<string, string>;
     studioCount?: Map<string, number>;
     staffCount?: Map<string, number>;
+    cacheOnly: boolean;
   },
-): Promise<Recommendation[]> {
-  if (resultLimit <= 0) return [];
+): Promise<{ results: Recommendation[]; complete: boolean }> {
+  if (resultLimit <= 0) return { results: [], complete: true };
   // Mode-specific upstream vote floor. `highly-rated` restricts to
   // popular titles (≥100 votes). `hidden-gems` uses a low floor (≥5)
   // to catch genuinely obscure VNs before the post-fetch votecount
@@ -743,17 +748,21 @@ async function runRecommendForSeeds(
   const aggregate = new Map<string, Aggregated>();
   const settled = await Promise.all(
     seeds.map((seed) =>
-      vndbAdvancedSearchRaw({
+      (cacheOnly ? vndbAdvancedSearchCachedRaw({
         filters: ['and', ['tag', '=', [seed.tagId, 1, 1.5]], ['votecount', '>=', minVotesUpstream]],
         sort: 'rating',
         reverse: true,
         results: 30,
-      })
-        .then((hits) => ({ seed, hits }))
+      }).then((snapshot) => ({ seed, hits: snapshot.hits, complete: snapshot.fresh })) : vndbAdvancedSearchRaw({
+        filters: ['and', ['tag', '=', [seed.tagId, 1, 1.5]], ['votecount', '>=', minVotesUpstream]],
+        sort: 'rating',
+        reverse: true,
+        results: 30,
+      }).then((hits) => ({ seed, hits, complete: true })))
         .catch((err) => {
           // A single seed failure must not disqualify the whole page.
           console.error(`[recommend] seed ${seed.tagId} failed:`, (err as Error).message);
-          return { seed, hits: [] as Awaited<ReturnType<typeof vndbAdvancedSearchRaw>> };
+          return { seed, hits: [] as Awaited<ReturnType<typeof vndbAdvancedSearchRaw>>, complete: false };
         }),
     ),
   );
@@ -843,7 +852,7 @@ async function runRecommendForSeeds(
   // Strip the internal contributor weights and convert to public
   // top-2 contributor objects so the card chip can render
   // "Because you liked X (or Y)" without exposing the accumulator.
-  return ranked.map((r): Recommendation => {
+  const output = ranked.map((r): Recommendation => {
     const { _contribWeights, ...rest } = r;
     const top = Array.from(_contribWeights.entries())
       .sort((a, b) => b[1] - a[1])
@@ -852,4 +861,5 @@ async function runRecommendForSeeds(
       .filter((c) => c.id && c.title);
     return { ...rest, contributors: top.length > 0 ? top : undefined };
   });
+  return { results: output, complete: settled.every((entry) => entry.complete) };
 }
