@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Database, FileCode2, RefreshCw } from 'lucide-react';
 import { getSchema } from '@/lib/vndb';
-import { getCacheFreshness } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { getDict } from '@/lib/i18n/server';
 import { SchemaBrowser } from '@/components/SchemaBrowser';
 import { SchemaEgsSection } from '@/components/SchemaEgsSection';
@@ -35,7 +35,7 @@ export default async function SchemaPage() {
     error = (e as Error).message;
   }
 
-  const lastUpdatedAt = getCacheFreshness(['% /schema|%']);
+  const lastUpdatedAt = await getCacheRepository().freshness(['% /schema|%']);
 
   return (
     <div className="w-full">

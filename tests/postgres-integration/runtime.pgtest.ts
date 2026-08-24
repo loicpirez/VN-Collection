@@ -56,6 +56,7 @@ import { createPostgresProducerRepository } from '@/lib/db/repositories/producer
 import { createPostgresSavedFilterRepository } from '@/lib/db/repositories/saved-filter';
 import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route';
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
+import { createPostgresEgsSchemaRepository } from '@/lib/db/repositories/egs-schema';
 import { createPostgresDiscoveryRepository } from '@/lib/db/repositories/discovery';
 import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity-name';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
@@ -140,6 +141,10 @@ import {
   RECOMMENDATION_READ_CONTRACT_IDS,
   registerRecommendationReadRepositoryContract,
 } from '../database-contract/recommendation-read.contract';
+import {
+  EGS_SCHEMA_CONTRACT_IDS,
+  registerEgsSchemaRepositoryContract,
+} from '../database-contract/egs-schema.contract';
 import {
   DISCOVERY_CONTRACT_IDS,
   registerDiscoveryRepositoryContract,
@@ -1689,6 +1694,61 @@ registerRecommendationReadRepositoryContract('PostgreSQL', {
       process.env.DATABASE_APPLICATION_NAME = 'vndb-recommendation-read-contract';
       try {
         await run(createPostgresRecommendationReadRepository());
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+    });
+  },
+});
+
+registerEgsSchemaRepositoryContract('PostgreSQL', {
+  async withRepository(run) {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const ids = EGS_SCHEMA_CONTRACT_IDS;
+      await pool.query(`
+        INSERT INTO vn (id, title, fetched_at) VALUES
+          ($1, 'EGS Schema One', 1),
+          ($2, 'EGS Schema Two', 1)
+      `, [ids.firstVn, ids.secondVn]);
+      await pool.query(`
+        INSERT INTO egs_game (vn_id, egs_id, gamename, fetched_at) VALUES
+          ($1, 994901, 'EGS Schema One', 10),
+          ($2, 994902, 'EGS Schema Two', 20)
+      `, [ids.firstVn, ids.secondVn]);
+      await pool.query(`
+        INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+          ($1, '{}', 25, 100),
+          ($2, '{"staleWhileError":true}', 30, 100)
+      `, [ids.wishlistCache, ids.staleCache]);
+      await pool.query(
+        'INSERT INTO vn_egs_link (vn_id, egs_id, note, updated_at) VALUES ($1, 994901, NULL, 40)',
+        [ids.firstVn],
+      );
+      await pool.query(
+        'INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (994901, $1, NULL, 50)',
+        [ids.firstVn],
+      );
+      await pool.query(
+        "INSERT INTO app_setting (key, value) VALUES ('egs_username', 'schema-contract-secret')",
+      );
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-egs-schema-contract';
+      try {
+        await run(createPostgresEgsSchemaRepository());
       } finally {
         await closePostgresPool();
         if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;

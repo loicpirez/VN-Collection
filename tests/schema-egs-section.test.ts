@@ -23,8 +23,8 @@ function reset(d: Database.Database) {
 afterEach(() => reset(db as unknown as Database.Database));
 
 describe('getSchemaEgsSummary', () => {
-  it('returns zeroes and a "username not set" flag on an empty DB', () => {
-    const out = getSchemaEgsSummary();
+  it('returns zeroes and a "username not set" flag on an empty DB', async () => {
+    const out = await getSchemaEgsSummary();
     expect(out.tables).toHaveLength(4);
     for (const t of out.tables) expect(t.rowCount).toBe(0);
     for (const t of out.tables) expect(t.lastFetchedAt).toBeNull();
@@ -32,7 +32,7 @@ describe('getSchemaEgsSummary', () => {
     expect(out.egsUsernameSet).toBe(false);
   });
 
-  it('aggregates row counts + max(fetched_at) for each table', () => {
+  it('aggregates row counts + max(fetched_at) for each table', async () => {
     const now = Date.now();
     // Seed two placeholder VN rows so the FK on egs_game / vn_egs_link
     // resolves. Titles are synthetic ("Title Y_TEST" / "Title Z_TEST").
@@ -67,7 +67,7 @@ describe('getSchemaEgsSummary', () => {
       `INSERT INTO egs_vn_link (egs_id, vn_id, note, updated_at) VALUES (?, ?, ?, ?)`,
     ).run(123, 'v123', '', now - 200);
 
-    const out = getSchemaEgsSummary();
+    const out = await getSchemaEgsSummary();
     const eg = out.tables.find((t) => t.key === 'egs_game')!;
     const cache = out.tables.find((t) => t.key === 'vndb_cache_egs')!;
     const vnEgs = out.tables.find((t) => t.key === 'vn_egs_link')!;
@@ -82,24 +82,24 @@ describe('getSchemaEgsSummary', () => {
     expect(egsVn.lastFetchedAt).toBe(now - 200);
   });
 
-  it('flips staleWhileError=true when any egs cache row carries the stale flag', () => {
+  it('flips staleWhileError=true when any egs cache row carries the stale flag', async () => {
     const now = Date.now();
     db.prepare(
       `INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
     ).run('egs:cover-resolved:42', '{"staleWhileError":true}', now, now + 60000);
-    const out = getSchemaEgsSummary();
+    const out = await getSchemaEgsSummary();
     expect(out.staleWhileError).toBe(true);
   });
 
-  it('flips egsUsernameSet=true when app_setting.egs_username is populated', () => {
+  it('flips egsUsernameSet=true when app_setting.egs_username is populated', async () => {
     setAppSetting('egs_username', 'manual-qa-placeholder');
-    const out = getSchemaEgsSummary();
+    const out = await getSchemaEgsSummary();
     expect(out.egsUsernameSet).toBe(true);
   });
 
-  it('does not leak the egs_username VALUE — only its presence', () => {
+  it('does not leak the egs_username VALUE — only its presence', async () => {
     setAppSetting('egs_username', 'secret-uid-the-operator-pasted');
-    const out = getSchemaEgsSummary();
+    const out = await getSchemaEgsSummary();
     // The summary is shown on a localhost-gated page, but echoing the
     // value risks leaking it via screenshots / log exports. Pin the
     // contract: only the boolean.

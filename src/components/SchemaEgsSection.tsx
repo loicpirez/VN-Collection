@@ -21,9 +21,12 @@ function fmt(ts: number | null, neverLabel: string, locale: Locale): string {
 }
 
 export async function SchemaEgsSection() {
-  const [t, locale] = await Promise.all([getDict(), getLocale()]);
+  const [t, locale, summary] = await Promise.all([
+    getDict(),
+    getLocale(),
+    getSchemaEgsSummary(),
+  ]);
   const dict = t.schemaEgs;
-  const summary = getSchemaEgsSummary();
 
   const labelFor = (table: SchemaEgsTableSummary): string => {
     switch (table.key) {
