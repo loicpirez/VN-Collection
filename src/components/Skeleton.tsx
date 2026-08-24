@@ -121,6 +121,43 @@ export function SkeletonCardGrid({
   );
 }
 
+/** Compact text-card grid for taxonomies, people, lists, and series. */
+export function SkeletonCompactGrid({
+  count = 8,
+  label,
+  className,
+}: {
+  count?: number;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className={cx('grid gap-3', className)}
+      style={{
+        gridTemplateColumns:
+          'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+      }}
+    >
+      {label && <span className="sr-only">{label}</span>}
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={index} className="rounded-xl border border-border bg-bg-card p-4">
+          <SkeletonBlock className="h-4 w-2/3" />
+          <SkeletonBlock className="mt-2 h-3 w-full" />
+          <SkeletonBlock className="mt-1.5 h-3 w-4/5" />
+          <div className="mt-3 flex gap-1.5">
+            <SkeletonBlock className="h-5 w-14" />
+            <SkeletonBlock className="h-5 w-10" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Stack of horizontal rows - good for a list of releases, characters, credits,
  * activity entries, etc. Each row has a thumbnail block + two text lines.

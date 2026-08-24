@@ -45,6 +45,7 @@ import {
   SkeletonBoundary,
   SkeletonCard,
   SkeletonCardGrid,
+  SkeletonCompactGrid,
   SkeletonRows,
   SkeletonTable,
   SkeletonTabRow,
@@ -117,6 +118,7 @@ describe('route loading skeletons', () => {
           <SkeletonCard />
         </SkeletonBoundary>
         <SkeletonCardGrid count={1} label="Cards" />
+        <SkeletonCompactGrid count={1} label="Compact" className="compact" />
         <SkeletonRows count={1} withThumb={false} label="Rows" />
         <SkeletonTabRow count={1} className="tabs" />
         <SkeletonText lines={1} className="text" />
@@ -125,6 +127,8 @@ describe('route loading skeletons', () => {
     );
     expect(html).toContain('Loading');
     expect(html).toContain('Cards');
+    expect(html).toContain('Compact');
+    expect(html).toContain('compact');
     expect(html).toContain('Rows');
     expect(html).toContain('tabs');
     expect(html).toContain('text');
@@ -137,6 +141,7 @@ describe('route loading skeletons', () => {
       <div>
         <SkeletonBlock />
         <SkeletonCardGrid />
+        <SkeletonCompactGrid />
         <SkeletonRows />
         <SkeletonTabRow />
         <SkeletonText />

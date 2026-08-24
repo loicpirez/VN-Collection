@@ -1,4 +1,4 @@
-import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonCompactGrid, SkeletonBoundary } from '@/components/Skeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function TagsLoading() {
@@ -7,7 +7,7 @@ export default async function TagsLoading() {
     <SkeletonBoundary label={t.common.loading} className="space-y-4">
       <SkeletonBlock className="h-7 w-40" />
       <SkeletonBlock className="h-10 w-full max-w-md" />
-      <SkeletonRows count={8} withThumb={false} />
+      <SkeletonCompactGrid count={12} />
     </SkeletonBoundary>
   );
 }

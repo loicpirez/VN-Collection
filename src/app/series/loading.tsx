@@ -1,13 +1,16 @@
-import { SkeletonBlock, SkeletonRows, SkeletonBoundary } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonCompactGrid, SkeletonBoundary } from '@/components/Skeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function SeriesLoading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.common.loading} className="space-y-4">
-      <SkeletonBlock className="h-7 w-48" />
-      <SkeletonBlock className="h-40 w-full" />
-      <SkeletonRows count={4} withThumb={false} />
+      <div className="flex items-center gap-3">
+        <SkeletonBlock className="h-7 w-7 rounded-full" />
+        <SkeletonBlock className="h-7 w-48" />
+      </div>
+      <SkeletonBlock className="h-24 w-full rounded-2xl" />
+      <SkeletonCompactGrid count={8} />
     </SkeletonBoundary>
   );
 }

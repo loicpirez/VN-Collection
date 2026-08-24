@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
-import { SkeletonRows } from './Skeleton';
+import { SkeletonCompactGrid, SkeletonRows } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -324,7 +324,9 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
 
       <div id="tags-results-panel" role="tabpanel" aria-labelledby={activeTabId}>
         {loading ? (
-          mode === 'vndb' && !q && !category ? <VndbTreeSkeleton /> : <SkeletonRows count={12} withThumb={false} />
+          mode === 'vndb' && !q && !category
+            ? <VndbTreeSkeleton />
+            : <SkeletonCompactGrid count={12} label={t.common.loading} />
         ) : results.length === 0 ? (
           mode === 'vndb' && !q && !category && homeTree ? (
             <VndbTreeView tree={homeTree} localCounts={localCounts} locale={locale} />

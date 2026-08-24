@@ -33,7 +33,7 @@ vi.mock('@/components/DensityScopeProvider', () => ({
 }));
 
 vi.mock('@/components/Skeleton', () => ({
-  SkeletonRows: ({ count, withThumb }: { count: number; withThumb: boolean }) => <span>{`skeleton:${count}:${withThumb}`}</span>,
+  SkeletonCompactGrid: ({ count, label }: { count: number; label: string }) => <span>{`skeleton:${count}:${label}`}</span>,
 }));
 
 const t = dictionaries.en;
@@ -119,7 +119,7 @@ describe('TraitsBrowser', () => {
       ],
     }));
     renderWithProviders(<TraitsBrowser lastUpdatedAt={12} />, { locale: 'en' });
-    expect(screen.getByText('skeleton:8:false')).toBeInTheDocument();
+    expect(screen.getByText(`skeleton:8:${t.common.loading}`)).toBeInTheDocument();
     await runTimers();
 
     expect(fetch).toHaveBeenCalledWith('/api/traits?q=&results=60', expect.objectContaining({ cache: 'no-store' }));
