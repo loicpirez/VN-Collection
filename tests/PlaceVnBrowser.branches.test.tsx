@@ -326,28 +326,32 @@ describe('PlaceVnBrowser branches', () => {
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Alpha Title')).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText(t.places.priceMax as string), { target: { value: '1000' } });
-    expect(screen.getByText('Alpha Title')).toBeInTheDocument();
-    expect(screen.queryByText('Beta Title')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: t.places.resetFilters as string }));
-    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'beta title' } });
-    await waitFor(() => {
-      expect(screen.getByText('Beta Title')).toBeInTheDocument();
-      expect(screen.queryByText('Alpha Title')).toBeNull();
-    });
-
-    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'first alt' } });
-    await waitFor(() => {
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByLabelText(t.places.priceMax as string), { target: { value: '1000' } });
       expect(screen.getByText('Alpha Title')).toBeInTheDocument();
       expect(screen.queryByText('Beta Title')).toBeNull();
-    });
 
-    fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'missing result' } });
-    await waitFor(() => expect(screen.getByText(t.places.vnBrowserAllFiltered as string)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: t.places.resetFilters as string }));
+      fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'beta title' } });
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(screen.getByText('Beta Title')).toBeInTheDocument();
+      expect(screen.queryByText('Alpha Title')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
-    fireEvent.click(screen.getByRole('button', { name: t.places.viewCards as string }));
-    expect(screen.getByRole('button', { name: t.places.viewCards as string })).toHaveClass('bg-accent');
+      fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'first alt' } });
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(screen.getByText('Alpha Title')).toBeInTheDocument();
+      expect(screen.queryByText('Beta Title')).toBeNull();
+
+      fireEvent.change(screen.getByLabelText(t.places.vnBrowserSearch as string), { target: { value: 'missing result' } });
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(screen.getByText(t.places.vnBrowserAllFiltered as string)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
+      fireEvent.click(screen.getByRole('button', { name: t.places.viewCards as string }));
+      expect(screen.getByRole('button', { name: t.places.viewCards as string })).toHaveClass('bg-accent');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
