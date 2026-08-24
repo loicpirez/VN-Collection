@@ -149,6 +149,11 @@ describe('PostgreSQL pool runtime', () => {
     expect(listeners.size).toBe(0);
   });
 
+  it('installs and removes graceful-shutdown hooks on the process by default', () => {
+    const cleanup = installPostgresShutdownHooks();
+    cleanup();
+  });
+
   it('logs a generic message when signal-driven pool shutdown fails', async () => {
     const listeners = new Map<string, () => void>();
     const target = {
