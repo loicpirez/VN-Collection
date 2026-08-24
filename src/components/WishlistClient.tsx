@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CheckSquare, ChevronLeft, ChevronRight, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { CheckSquare, ChevronLeft, ChevronRight, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Square, Trash2, X } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { SkeletonCardGrid } from './Skeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
@@ -14,27 +14,28 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { platformLabel } from '@/lib/platform-label';
 import { BulkDownloadButton } from './BulkDownloadButton';
 
-import { readApiError } from '@/lib/api-error-read';
+import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
 import { BCP47, yearOnly } from '@/lib/locale-number';
-import { decodeWishlistClientState, type WishlistClientItem } from '@/lib/vndb-ui-client-shape';
+import { decodeWishlistClientState, type WishlistClientItem, type WishlistClientState } from '@/lib/vndb-ui-client-shape';
+import { parseOptionalQueryInteger, parseQueryEnum } from '@/lib/query-params';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
 
-const WISHLIST_SORTS: ReadonlySet<WishlistSort> = new Set<WishlistSort>([
+const WISHLIST_SORTS: readonly WishlistSort[] = [
   'added_desc', 'added_asc', 'title', 'rating_desc',
   'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc',
-]);
-const WISHLIST_GROUPS: ReadonlySet<WishlistGroup> = new Set<WishlistGroup>([
+];
+const WISHLIST_GROUPS: readonly WishlistGroup[] = [
   'none', 'year', 'developer', 'language', 'platform', 'status',
-]);
+];
 
 function readSortFromUrl(value: string | null, fallback: WishlistSort): WishlistSort {
-  return value && WISHLIST_SORTS.has(value as WishlistSort) ? (value as WishlistSort) : fallback;
+  return parseQueryEnum(value, WISHLIST_SORTS, fallback);
 }
 function readGroupFromUrl(value: string | null, fallback: WishlistGroup): WishlistGroup {
-  return value && WISHLIST_GROUPS.has(value as WishlistGroup) ? (value as WishlistGroup) : fallback;
+  return parseQueryEnum(value, WISHLIST_GROUPS, fallback);
 }
 
 const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
@@ -44,8 +45,7 @@ const Q_DEBOUNCE_MS = 300;
 const WISHLIST_PAGE_SIZE = 60;
 
 function readPageFromUrl(value: string | null): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+  return parseOptionalQueryInteger(value, { minimum: 1 }) ?? 1;
 }
 
 function selectionKey(values: Iterable<string>): string {
@@ -213,9 +213,39 @@ export function WishlistClient() {
   const requestedPage = readPageFromUrl(search.get('page') ?? null);
   const sort = readSortFromUrl(urlSort, 'added_desc');
   const group = readGroupFromUrl(urlGroup, 'none');
-  const hideOwned = urlHideOwned != null ? urlHideOwned !== '0' : true;
+  const hideOwned = urlHideOwned === '1'
+    ? true
+    : urlHideOwned === '0'
+      ? false
+      : settings.wishlistHideOwned;
+
+  const setHideOwned = useCallback((next: boolean) => {
+    setParam('hideOwned', next === settings.wishlistHideOwned ? null : next ? '1' : '0');
+  }, [setParam, settings.wishlistHideOwned]);
+
+  const serverQueryString = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('page', String(requestedPage));
+    params.set('pageSize', String(WISHLIST_PAGE_SIZE));
+    params.set('sort', sort);
+    params.set('group', group);
+    params.set('hideOwned', hideOwned ? '1' : '0');
+    params.set('locale', locale);
+    if (q) params.set('q', q);
+    if (filterLang) params.set('lang', filterLang);
+    if (filterPlatform) params.set('platform', filterPlatform);
+    if (filterRatingMin) params.set('ratingMin', filterRatingMin);
+    if (filterRatingMax) params.set('ratingMax', filterRatingMax);
+    if (filterYearMin) params.set('yearMin', filterYearMin);
+    if (filterYearMax) params.set('yearMax', filterYearMax);
+    return params.toString();
+  }, [filterLang, filterPlatform, filterRatingMax, filterRatingMin, filterYearMax, filterYearMin, group, hideOwned, locale, q, requestedPage, sort]);
 
   const [items, setItems] = useState<WishlistClientItem[]>([]);
+  const [serverPage, setServerPage] = useState<WishlistClientState['page']>();
+  const [serverFacets, setServerFacets] = useState<WishlistClientState['facets']>();
+  const [serverSummary, setServerSummary] = useState<WishlistClientState['summary']>();
+  const [serverDownloadItems, setServerDownloadItems] = useState<WishlistClientState['download_items']>();
   const [loading, setLoading] = useState(true);
   // Gate the empty-state copy so it never renders before the first successful
   // load. Initial-render flash of "Your wishlist is empty" was confusing the
@@ -231,6 +261,8 @@ export function WishlistClient() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [bulkDeletePhase, setBulkDeletePhase] = useState<'confirming' | 'deleting' | null>(null);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ done: 0, failed: 0, total: 0, currentTitle: '' });
   const [removingId, setRemovingId] = useState<string | null>(null);
   const loadAbortRef = useRef<AbortController | null>(null);
   const manualRefreshIdRef = useRef(0);
@@ -258,17 +290,35 @@ export function WishlistClient() {
       loadAbortRef.current = controller;
       if (showLoading) setLoading(true);
       try {
-        const r = await fetch('/api/wishlist', { cache: 'no-store', signal: controller.signal });
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        const r = await fetch(`/api/wishlist?${serverQueryString}`, { cache: 'no-store', signal: controller.signal });
+        if (!r.ok) {
+          throw new Error(await readApiErrorLocalized(
+            r,
+            {
+              vndb_unavailable: t.wishlist.errorUnavailable,
+              vndb_rate_limited: t.wishlist.errorRateLimited,
+              vndb_malformed_payload: t.wishlist.errorMalformed,
+            },
+            t.wishlist.errorUnavailable,
+          ));
+        }
         const d = decodeWishlistClientState(await r.json());
-        if (!d) throw new Error(t.common.error);
+        if (!d) throw new Error(t.wishlist.errorMalformed);
         if (controller.signal.aborted || loadAbortRef.current !== controller) return;
         if (d.needsAuth) {
           setNeedsAuth(true);
           setItems([]);
+          setServerPage(undefined);
+          setServerFacets(undefined);
+          setServerSummary(undefined);
+          setServerDownloadItems(undefined);
         } else {
           setNeedsAuth(false);
           setItems(d.items);
+          setServerPage(d.page);
+          setServerFacets(d.facets);
+          setServerSummary(d.summary);
+          setServerDownloadItems(d.download_items);
         }
         setError(null);
       } catch (e) {
@@ -282,7 +332,7 @@ export function WishlistClient() {
         }
       }
     },
-    [t.common.error],
+    [serverQueryString, t.wishlist.errorMalformed, t.wishlist.errorRateLimited, t.wishlist.errorUnavailable],
   );
 
   useEffect(() => {
@@ -324,14 +374,58 @@ export function WishlistClient() {
     setSelectMode(false);
   }, []);
 
+  const removeItemsLocally = useCallback((ids: ReadonlySet<string>, removeFromWishlist = true) => {
+    const removedRows = items.filter((item) => ids.has(item.vn.id));
+    if (removedRows.length === 0) return;
+    const removedOwned = removedRows.filter((item) => item.in_collection).length;
+    const removedTodo = removedRows.length - removedOwned;
+    setItems((previous) => previous.filter((item) => !ids.has(item.vn.id)));
+    setServerDownloadItems((previous) => previous?.filter((item) => !ids.has(item.id)));
+    if (removeFromWishlist) {
+      setServerSummary((previous) => previous ? {
+        total: Math.max(0, previous.total - removedRows.length),
+        owned: Math.max(0, previous.owned - removedOwned),
+        todo: Math.max(0, previous.todo - removedTodo),
+      } : previous);
+    }
+    setServerPage((previous) => {
+      if (!previous) return previous;
+      const total = Math.max(0, previous.total - removedRows.length);
+      const remainingOnPage = Math.max(0, items.length - removedRows.length);
+      const totalPages = previous.grouped
+        ? Math.max(1, previous.total_pages - (remainingOnPage === 0 && total > 0 ? 1 : 0))
+        : Math.max(1, Math.ceil(total / previous.page_size));
+      return {
+        ...previous,
+        total,
+        total_pages: totalPages,
+        start: total === 0 || remainingOnPage === 0 ? 0 : previous.start,
+        end: total === 0 || remainingOnPage === 0 ? 0 : Math.max(previous.start, previous.end - removedRows.length),
+      };
+    });
+  }, [items]);
+
   const handleAdded = useCallback((id: string) => {
-    setItems((prev) =>
-      prev.map((x) => (x.vn.id === id ? { ...x, in_collection: true } : x)),
-    );
-  }, []);
+    const row = items.find((item) => item.vn.id === id);
+    if (!row || row.in_collection) return;
+    setServerSummary((previous) => previous ? {
+      ...previous,
+      owned: previous.owned + 1,
+      todo: Math.max(0, previous.todo - 1),
+    } : previous);
+    if (hideOwned) {
+      removeItemsLocally(new Set([id]), false);
+      return;
+    }
+    setItems((previous) => previous.map((item) => (
+      item.vn.id === id ? { ...item, in_collection: true } : item
+    )));
+  }, [hideOwned, items, removeItemsLocally]);
 
   async function deleteSelected() {
-    const list = Array.from(selectedRef.current);
+    const selectedItems = items.filter((item) => selectedRef.current.has(item.vn.id));
+    const list = selectedItems.map((item) => item.vn.id);
+    if (list.length === 0 || mutationInFlightRef.current) return;
     const ownerSelectionKey = selectionKey(list);
     const controller = new AbortController();
     mutationAbortRef.current?.abort();
@@ -339,6 +433,7 @@ export function WishlistClient() {
     mutationInFlightRef.current = true;
     loadAbortRef.current?.abort();
     setDeleting(true);
+    setBulkDeletePhase('confirming');
     const ok = await confirm({
       message: t.wishlist.deleteConfirm.replace('{count}', String(list.length)),
       tone: 'danger',
@@ -353,33 +448,49 @@ export function WishlistClient() {
       mutationAbortRef.current = null;
       mutationInFlightRef.current = false;
       setDeleting(false);
+      setBulkDeletePhase(null);
       return;
     }
+    setBulkDeletePhase('deleting');
+    setBulkDeleteProgress({ done: 0, failed: 0, total: list.length, currentTitle: '' });
     try {
       let removed = 0;
       let failed = 0;
-      const results = await Promise.all(
-        list.map(async (id) => {
-          try {
-            const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE', signal: controller.signal });
-            return { id, ok: r.ok };
-          } catch (e) {
-            if ((e as Error).name !== 'AbortError') console.error(`[WishlistClient] delete failed for ${id}:`, e);
-            return { id, ok: false };
-          }
-        }),
-      );
-      if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       const removedIds = new Set<string>();
-      for (const outcome of results) {
-        if (outcome.ok) {
-          removed++;
-          removedIds.add(outcome.id);
+      for (const item of selectedItems) {
+        const id = item.vn.id;
+        const currentTitle = item.vn.title;
+        setBulkDeleteProgress((progress) => ({ ...progress, currentTitle }));
+        let succeeded = false;
+        try {
+          const response = await fetch(`/api/wishlist/${id}`, { method: 'DELETE', signal: controller.signal });
+          succeeded = response.ok;
+        } catch (error) {
+          if (controller.signal.aborted) break;
+          if ((error as Error).name !== 'AbortError') {
+            console.error(`[WishlistClient] delete failed for ${id}:`, error);
+          }
         }
-        else failed++;
+        if (!mountedRef.current || mutationAbortRef.current !== controller) return;
+        if (controller.signal.aborted) break;
+        if (succeeded) {
+          removed += 1;
+          removedIds.add(id);
+        } else {
+          failed += 1;
+        }
+        setBulkDeleteProgress((progress) => ({
+          ...progress,
+          done: progress.done + 1,
+          failed,
+        }));
       }
-      setItems((prev) => prev.filter((it) => !removedIds.has(it.vn.id)));
-      clearSelection();
+      removeItemsLocally(removedIds);
+      const remainingSelection = new Set(list.filter((id) => !removedIds.has(id)));
+      selectedRef.current = remainingSelection;
+      setSelected(remainingSelection);
+      if (remainingSelection.size === 0) setSelectMode(false);
+      if (controller.signal.aborted) toast.warning(t.bulk.abortedTitle);
       if (failed > 0) toast.error(t.wishlist.deleteFailed.replace('{count}', String(failed)));
       if (removed > 0) toast.success(t.wishlist.deleteDone.replace('{count}', String(removed)));
     } finally {
@@ -387,23 +498,33 @@ export function WishlistClient() {
         mutationAbortRef.current = null;
         mutationInFlightRef.current = false;
         setDeleting(false);
+        setBulkDeletePhase(null);
+        setBulkDeleteProgress({ done: 0, failed: 0, total: 0, currentTitle: '' });
       }
     }
   }
 
-  const ownedCount = items.filter((it) => it.in_collection).length;
+  function stopBulkDelete(): void {
+    mutationAbortRef.current?.abort();
+  }
+
+  const ownedCount = serverSummary?.owned ?? items.filter((it) => it.in_collection).length;
+  const wishlistTotal = serverSummary?.total ?? items.length;
+  const wishlistTodo = serverSummary?.todo ?? items.length - ownedCount;
 
   const availableLanguages = useMemo(() => {
     const langs = new Set<string>();
+    if (serverFacets) return serverFacets.languages;
     for (const it of items) for (const l of it.vn.languages) langs.add(l);
     return Array.from(langs).sort();
-  }, [items]);
+  }, [items, serverFacets]);
 
   const availablePlatforms = useMemo(() => {
     const plats = new Set<string>();
+    if (serverFacets) return serverFacets.platforms;
     for (const it of items) for (const p of it.vn.platforms) plats.add(p);
     return Array.from(plats).sort();
-  }, [items]);
+  }, [items, serverFacets]);
 
   const activeFilterCount =
     (filterLang ? 1 : 0) +
@@ -456,8 +577,8 @@ export function WishlistClient() {
     });
   }, [items, q, hideOwned, filterLang, filterPlatform, filterRatingMin, filterRatingMax, filterYearMin, filterYearMax]);
   const downloadItems = useMemo(
-    () => filtered.map((it) => ({ id: it.vn.id, title: it.vn.title })),
-    [filtered],
+    () => serverDownloadItems ?? filtered.map((it) => ({ id: it.vn.id, title: it.vn.title })),
+    [filtered, serverDownloadItems],
   );
 
   const sorted = useMemo(() => {
@@ -476,12 +597,12 @@ export function WishlistClient() {
     });
     return arr;
   }, [filtered, sort, collator]);
-  const totalPages = Math.max(1, Math.ceil(sorted.length / WISHLIST_PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
-  const pageStart = (page - 1) * WISHLIST_PAGE_SIZE;
+  const totalPages = serverPage?.total_pages ?? Math.max(1, Math.ceil(sorted.length / WISHLIST_PAGE_SIZE));
+  const page = serverPage?.page ?? Math.min(requestedPage, totalPages);
+  const pageStart = serverPage ? Math.max(0, serverPage.start - 1) : (page - 1) * WISHLIST_PAGE_SIZE;
   const pageItems = useMemo(
-    () => sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE),
-    [pageStart, sorted],
+    () => serverPage ? sorted : sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE),
+    [pageStart, serverPage, sorted],
   );
 
   const grouped = useMemo<{ key: string; items: WishlistClientItem[] }[]>(() => {
@@ -493,7 +614,7 @@ export function WishlistClient() {
         case 'year': key = it.vn.released?.slice(0, 4) || t.wishlist.groupUnknown; break;
         case 'developer': key = it.vn.developers[0]?.name || t.wishlist.groupUnknown; break;
         case 'language': key = it.vn.languages[0] ? languageDisplayName(it.vn.languages[0], locale) : t.wishlist.groupUnknown; break;
-        case 'platform': key = it.vn.platforms[0] ? platformLabel(it.vn.platforms[0]) : t.wishlist.groupUnknown; break;
+        case 'platform': key = it.vn.platforms[0] ? platformLabel(it.vn.platforms[0], locale) : t.wishlist.groupUnknown; break;
         case 'status': key = it.in_collection ? t.wishlist.groupOwned : t.wishlist.groupTodo; break;
       }
       const list = buckets.get(key);
@@ -522,7 +643,7 @@ export function WishlistClient() {
         const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE', signal: controller.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
-        setItems((prev) => prev.filter((x) => x.vn.id !== id));
+        removeItemsLocally(new Set([id]));
         toast.success(t.wishlist.removeOneDone);
       } catch (e) {
         if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
@@ -536,8 +657,22 @@ export function WishlistClient() {
         }
       }
     },
-    [t.common.error, t.wishlist.removeOneDone, toast],
+    [removeItemsLocally, t.common.error, t.wishlist.removeOneDone, toast],
   );
+  const selectionLiveStatus = bulkDeletePhase === 'deleting'
+    ? t.wishlist.deleteProgress
+        .replace('{done}', String(bulkDeleteProgress.done))
+        .replace('{total}', String(bulkDeleteProgress.total))
+    : bulkDeletePhase === 'confirming'
+      ? t.wishlist.confirmingDeleteStatus.replace('{count}', String(selected.size))
+      : selected.size > 0
+        ? t.wishlist.selectedStatus.replace('{count}', String(selected.size))
+        : selectMode
+          ? t.wishlist.selectionModeStatus
+          : '';
+  const bulkDeletePercent = bulkDeleteProgress.total > 0
+    ? Math.round((bulkDeleteProgress.done / bulkDeleteProgress.total) * 100)
+    : 0;
 
   return (
     <DensityScopeProvider scope="wishlist">
@@ -548,6 +683,9 @@ export function WishlistClient() {
           <p className="text-sm text-muted">{t.wishlist.pageSubtitle}</p>
         </div>
       </header>
+      {selectionLiveStatus && (
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{selectionLiveStatus}</p>
+      )}
 
       {needsAuth ? (
         <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">
@@ -571,7 +709,7 @@ export function WishlistClient() {
         <div role="alert" className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}
         </div>
-      ) : items.length === 0 ? (
+      ) : wishlistTotal === 0 ? (
         <div className="mx-auto max-w-md py-12 text-center">
           <Heart className="mx-auto mb-4 h-12 w-12 text-muted" aria-hidden />
           <p className="mb-4 text-muted">{t.wishlist.empty}</p>
@@ -615,10 +753,22 @@ export function WishlistClient() {
               <input
                 type="checkbox"
                 checked={hideOwned}
-                onChange={(e) => setParam('hideOwned', e.target.checked ? null : '0')}
+                onChange={(e) => setHideOwned(e.target.checked)}
               />
               {t.wishlist.hideOwned}
             </label>
+            {hideOwned && (
+              <button
+                type="button"
+                onClick={() => setHideOwned(false)}
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs text-accent hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
+                aria-label={`${t.wishlist.hideOwned}: ${t.wishlist.filterReset}`}
+              >
+                <Filter className="h-3 w-3" aria-hidden />
+                {t.wishlist.hideOwned}
+                <X className="h-3 w-3" aria-hidden />
+              </button>
+            )}
             <CardDensitySlider scope="wishlist" />
             <button
               type="button"
@@ -645,9 +795,9 @@ export function WishlistClient() {
             <span className="ml-auto text-xs text-muted">
               {t.wishlist.ownedSummary
                 .replace('{owned}', String(ownedCount))
-                .replace('{todo}', String(items.length - ownedCount))}
+                .replace('{todo}', String(wishlistTodo))}
               {' / '}
-              {filtered.length} / {items.length}
+              {serverPage?.total ?? filtered.length} / {wishlistTotal}
             </span>
           </div>
 
@@ -697,7 +847,7 @@ export function WishlistClient() {
                 >
                   <option value="">{t.wishlist.filterByPlatform}</option>
                   {availablePlatforms.map((p) => (
-                    <option key={p} value={p}>{platformLabel(p)}</option>
+                    <option key={p} value={p}>{platformLabel(p, locale)}</option>
                   ))}
                 </select>
               )}
@@ -770,7 +920,7 @@ export function WishlistClient() {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {pageItems.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted">{t.wishlist.filterEmpty}</p>
           ) : (
             grouped.map((g) => (
@@ -819,8 +969,8 @@ export function WishlistClient() {
               <span className="text-xs text-muted">
                 {t.wishlist.pageRange
                   .replace('{start}', String(pageStart + 1))
-                  .replace('{end}', String(Math.min(sorted.length, pageStart + WISHLIST_PAGE_SIZE)))
-                  .replace('{total}', String(sorted.length))}
+                  .replace('{end}', String(serverPage?.end ?? Math.min(sorted.length, pageStart + WISHLIST_PAGE_SIZE)))
+                  .replace('{total}', String(serverPage?.total ?? sorted.length))}
               </span>
               <button
                 type="button"
@@ -836,10 +986,10 @@ export function WishlistClient() {
 
           {selectMode && selected.size > 0 && (
             <div
-              className="fixed bottom-16 left-1/2 z-50 w-[min(96vw,32rem)] -translate-x-1/2 rounded-full border border-border bg-bg-card px-4 py-2 shadow-card sm:bottom-4"
+              className="fixed bottom-16 left-1/2 z-layer-status w-[min(96vw,36rem)] -translate-x-1/2 rounded-xl border border-border bg-bg-card px-4 py-3 shadow-card sm:bottom-4"
               style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
             >
-              <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="text-muted">{t.wishlist.selectedCount.replace('{count}', String(selected.size))}</span>
                 <button
                   type="button"
@@ -859,6 +1009,51 @@ export function WishlistClient() {
                   {t.common.cancel}
                 </button>
               </div>
+              {bulkDeletePhase === 'deleting' && (
+                <div className="mt-2" role="status" aria-live="polite">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted">
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                    <span className="font-semibold text-white">
+                      {t.wishlist.deleteProgress
+                        .replace('{done}', String(bulkDeleteProgress.done))
+                        .replace('{total}', String(bulkDeleteProgress.total))}
+                    </span>
+                    {bulkDeleteProgress.currentTitle && (
+                      <span className="min-w-0 flex-1 truncate" title={bulkDeleteProgress.currentTitle}>
+                        {t.wishlist.deleteCurrent.replace('{title}', bulkDeleteProgress.currentTitle)}
+                      </span>
+                    )}
+                    {bulkDeleteProgress.failed > 0 && (
+                      <span className="text-status-dropped">
+                        {t.wishlist.deleteFailedProgress.replace('{count}', String(bulkDeleteProgress.failed))}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={stopBulkDelete}
+                      className="ml-auto inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1 text-xs font-semibold text-muted hover:border-status-dropped hover:text-status-dropped"
+                    >
+                      <Square className="h-3 w-3" aria-hidden />
+                      {t.bulk.stop}
+                    </button>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={bulkDeletePercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={t.wishlist.deleteProgress
+                      .replace('{done}', String(bulkDeleteProgress.done))
+                      .replace('{total}', String(bulkDeleteProgress.total))}
+                    className="mt-1 h-1 w-full overflow-hidden rounded-full bg-bg-elev"
+                  >
+                    <div
+                      className="h-full bg-accent transition-[width] duration-150"
+                      style={{ width: `${bulkDeletePercent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

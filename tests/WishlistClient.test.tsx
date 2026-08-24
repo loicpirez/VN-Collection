@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { WishlistClient } from '@/components/WishlistClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
@@ -69,6 +69,10 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function isWishlistRead(url: string, init?: RequestInit): boolean {
+  return (url === '/api/wishlist' || url.startsWith('/api/wishlist?')) && init?.method !== 'DELETE';
+}
+
 function item(id: string, title: string, overrides: Partial<WishlistClientItem> = {}): WishlistClientItem {
   return {
     id,
@@ -102,9 +106,9 @@ function state(items: WishlistClientItem[], overrides: Partial<WishlistClientSta
   return { needsAuth: false, items, ...overrides };
 }
 
-function renderWishlist() {
+function renderWishlist(wishlistHideOwned?: boolean) {
   return renderWithProviders(
-    <DisplaySettingsProvider>
+    <DisplaySettingsProvider initial={wishlistHideOwned === undefined ? undefined : { wishlistHideOwned }}>
       <WishlistClient />
     </DisplaySettingsProvider>,
     { locale: 'en' },
@@ -114,7 +118,7 @@ function renderWishlist() {
 function installFetch(payload: WishlistClientState = state([item('v90001', 'Alpha'), item('v90002', 'Beta', { in_collection: true })])) {
   global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input);
-    if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(payload);
+    if (isWishlistRead(url, init)) return json(payload);
     if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') return json({ ok: true });
     return json({ ok: true });
   });
@@ -152,10 +156,75 @@ describe('WishlistClient', () => {
     expect(await screen.findByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download filtered wishlist: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide already in collection: Reset' })).toBeInTheDocument();
 
     await screen.findByTestId('wishlist-card-v90001');
     fireEvent.click(screen.getByRole('button', { name: 'Mark added Alpha' }));
     expect(screen.queryByTestId('wishlist-card-v90001')).not.toBeInTheDocument();
+  });
+
+  it('uses server page metadata, complete facets, and the complete filtered download list', async () => {
+    nav.searchParams = new URLSearchParams('hideOwned=0&page=2');
+    installFetch(state([item('v90003', 'Gamma')], {
+      page: { page: 2, page_size: 2, total: 3, total_pages: 2, start: 3, end: 3, grouped: false },
+      facets: { languages: ['en', 'fr'], platforms: ['ps4', 'win'] },
+      summary: { total: 4, owned: 1, todo: 3 },
+      download_items: [
+        { id: 'v90001', title: 'Alpha' },
+        { id: 'v90002', title: 'Beta' },
+        { id: 'v90003', title: 'Gamma' },
+      ],
+    }));
+
+    renderWishlist();
+
+    expect(await screen.findByText('Gamma')).toBeInTheDocument();
+    expect(screen.getByText('Items 3 to 3 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download filtered wishlist: 3' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'French' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'PlayStation 4' })).toBeInTheDocument();
+  });
+
+  it('reconciles paged counts after removal and marks a visible item as owned without an immediate refetch', async () => {
+    nav.searchParams = new URLSearchParams('hideOwned=0');
+    const rows = [item('v90001', 'Alpha'), item('v90002', 'Beta'), item('v90003', 'Gamma')];
+    installFetch(state(rows, {
+      page: { page: 1, page_size: 60, total: 3, total_pages: 1, start: 1, end: 3, grouped: false },
+      facets: { languages: ['en'], platforms: ['win'] },
+      summary: { total: 3, owned: 0, todo: 3 },
+      download_items: rows.map((row) => ({ id: row.id, title: row.vn.title })),
+    }));
+    const { user } = renderWishlist();
+
+    expect(await screen.findByText('Beta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
+    await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Download filtered wishlist: 2' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mark added Beta' }));
+    expect(screen.getByTestId('wishlist-card-v90002')).toHaveTextContent('owned');
+    expect(screen.getByTestId('wishlist-card-v90003')).toHaveTextContent('todo');
+    await user.click(screen.getByRole('button', { name: 'Mark added Beta' }));
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { total: 2, totalPages: 2, emptyLabel: 'No VNs match the active filters.' },
+    { total: 1, totalPages: 1, emptyLabel: 'Your VNDB wishlist is empty.' },
+  ])('reconciles an emptied grouped page when the filtered total is $total', async ({ total, totalPages, emptyLabel }) => {
+    nav.searchParams = new URLSearchParams('hideOwned=0&group=developer');
+    const row = item('v90001', 'Alpha');
+    installFetch(state([row], {
+      page: { page: 1, page_size: 60, total, total_pages: totalPages, start: 1, end: 1, grouped: true },
+      facets: { languages: ['en'], platforms: ['win'] },
+      summary: { total, owned: 0, todo: total },
+      download_items: [{ id: row.id, title: row.vn.title }],
+    }));
+    const { user } = renderWishlist();
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
+    await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
+    expect(screen.getByText(emptyLabel)).toBeInTheDocument();
   });
 
   it('updates sort, group, hide-owned, search, and advanced filter URL params', async () => {
@@ -195,6 +264,24 @@ describe('WishlistClient', () => {
     expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0&yearMax=2021', { scroll: false });
     fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: 'studio' } });
     await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0&q=studio', { scroll: false }));
+  });
+
+  it('resets the hide-owned chip and writes an explicit override when the persistent default is disabled', async () => {
+    nav.searchParams = new URLSearchParams('hideOwned=1');
+    renderWishlist();
+    expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide already in collection: Reset' }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false });
+    cleanup();
+
+    nav.replace.mockClear();
+    nav.searchParams = new URLSearchParams();
+    localStorage.clear();
+    localStorage.setItem('vn_display_settings_v1', JSON.stringify({ wishlistHideOwned: false }));
+    renderWishlist(false);
+    expect(await screen.findByText('Beta')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Hide already in collection'));
+    expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=1', { scroll: false });
   });
 
   it('clears default-valued sort/group params and writes hide-owned when unchecked', async () => {
@@ -374,7 +461,7 @@ describe('WishlistClient', () => {
 
     global.fetch = vi.fn(async (): Promise<Response> => json({ needsAuth: 'bad', items: [] }));
     renderWishlist();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Error');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The VNDB wishlist response is malformed. Retry or check the server.');
     cleanup();
 
     nav.searchParams = new URLSearchParams('ratingMin=95');
@@ -388,7 +475,7 @@ describe('WishlistClient', () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
       calls.push(`${init?.method ?? 'GET'} ${url}`);
-      if (url === '/api/wishlist') return json(state([item('v90001', 'Alpha')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return json({ ok: true });
       return json({ ok: true });
     });
@@ -396,7 +483,7 @@ describe('WishlistClient', () => {
 
     expect(await screen.findByText('Alpha')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => expect(calls.filter((call) => call === 'GET /api/wishlist').length).toBeGreaterThan(1));
+    await waitFor(() => expect(calls.filter((call) => call.startsWith('GET /api/wishlist?')).length).toBeGreaterThan(1));
     await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
 
     await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
@@ -407,24 +494,45 @@ describe('WishlistClient', () => {
   it('selects multiple cards and deletes them through the confirmation dialog', async () => {
     nav.searchParams = new URLSearchParams('hideOwned=0');
     const calls: string[] = [];
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const deleteResolvers: Array<() => void> = [];
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
       calls.push(`${init?.method ?? 'GET'} ${url}`);
-      if (url === '/api/wishlist') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
-      if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') return json({ ok: true });
-      return json({ ok: true });
+      if (isWishlistRead(url, init)) return Promise.resolve(json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')])));
+      if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') {
+        return new Promise<Response>((resolve) => {
+          deleteResolvers.push(() => resolve(json({ ok: true })));
+        });
+      }
+      return Promise.resolve(json({ ok: true }));
     });
     const { user } = renderWishlist();
 
     expect(await screen.findByText('Beta')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Select' }));
+    expect(screen.getByText('Selection mode active. Choose wishlist VNs.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
     await user.click(screen.getByRole('button', { name: 'Select Beta' }));
     expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(screen.getByText('2 selected for wishlist actions')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    expect(screen.getByText('Confirming removal for 2 selected VN(s).')).toBeInTheDocument();
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    const initialProgress = await screen.findByRole('progressbar', { name: 'Processing 0/2' });
+    expect(initialProgress).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByText('Current: Alpha')).toBeInTheDocument();
 
+    await act(async () => {
+      deleteResolvers[0]?.();
+    });
+    await waitFor(() => expect(deleteResolvers).toHaveLength(2));
+    const halfwayProgress = await screen.findByRole('progressbar', { name: 'Processing 1/2' });
+    expect(halfwayProgress).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByText('Current: Beta')).toBeInTheDocument();
+    await act(async () => {
+      deleteResolvers[1]?.();
+    });
     await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
     expect(calls).toContain('DELETE /api/wishlist/v90001');
     expect(calls).toContain('DELETE /api/wishlist/v90002');
@@ -454,7 +562,7 @@ describe('WishlistClient', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') throw new Error('network down');
       if (url === '/api/wishlist/v90002' && init?.method === 'DELETE') return json({ ok: true });
       return json({ ok: true });

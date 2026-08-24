@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { WishlistClient } from '@/components/WishlistClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
@@ -44,6 +44,10 @@ vi.mock('@/components/BulkDownloadButton', () => ({
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+}
+
+function isWishlistRead(url: string, init?: RequestInit): boolean {
+  return (url === '/api/wishlist' || url.startsWith('/api/wishlist?')) && init?.method !== 'DELETE';
 }
 
 function deferred<T>() {
@@ -99,7 +103,7 @@ describe('WishlistClient branches', () => {
   function installFetch(payload: WishlistClientState) {
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(payload);
+      if (isWishlistRead(url, init)) return json(payload);
       if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') return json({ ok: true });
       return json({ ok: true });
     });
@@ -145,7 +149,7 @@ describe('WishlistClient branches', () => {
     const calls: string[] = [];
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Keep'), item('v90002', 'Drop')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Keep'), item('v90002', 'Drop')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') { calls.push(url); return json({ error: 'no' }, 500); }
       if (url === '/api/wishlist/v90002' && init?.method === 'DELETE') { calls.push(url); return json({ ok: true }); }
       return json({ ok: true });
@@ -166,7 +170,7 @@ describe('WishlistClient branches', () => {
   it('shows an error toast when removing a single card fails', async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return json({ error: 'remove boom' }, 500);
       return json({ ok: true });
     });
@@ -221,9 +225,20 @@ describe('WishlistClient branches', () => {
   });
 
   it('renders a wishlist API error response', async () => {
-    global.fetch = vi.fn(async (): Promise<Response> => json({ error: 'wishlist upstream failed' }, 503));
+    global.fetch = vi.fn(async (): Promise<Response> => json({ error: 'upstream service unavailable', code: 'vndb_unavailable' }, 503));
     renderWishlist();
-    expect(await screen.findByRole('alert')).toHaveTextContent('wishlist upstream failed');
+    expect(await screen.findByRole('alert')).toHaveTextContent('VNDB is unavailable for wishlist sync. Retry later.');
+  });
+
+  it('renders specific wishlist rate-limit and malformed response messages', async () => {
+    global.fetch = vi.fn(async (): Promise<Response> => json({ error: 'upstream service unavailable', code: 'vndb_rate_limited' }, 503));
+    const first = renderWishlist();
+    expect(await screen.findByRole('alert')).toHaveTextContent('VNDB is rate-limiting wishlist requests. Wait a bit, then retry.');
+    first.unmount();
+
+    global.fetch = vi.fn(async (): Promise<Response> => json({ bad: true }));
+    renderWishlist();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The VNDB wishlist response is malformed. Retry or check the server.');
   });
 
   it('drops a successful load that resolves after unmount', async () => {
@@ -299,9 +314,11 @@ describe('WishlistClient branches', () => {
     const bulkDelete = await screen.findByRole('button', { name: 'Remove from VNDB wishlist' });
     const refresh = screen.getByRole('button', { name: 'Refresh' });
 
-    fireEvent.click(bulkDelete);
+    act(() => {
+      bulkDelete.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      bulkDelete.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     fireEvent.click(refresh);
-    fireEvent.click(bulkDelete);
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
@@ -321,7 +338,7 @@ describe('WishlistClient branches', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') throw new DOMException('aborted', 'AbortError');
       return json({ ok: true });
     });
@@ -342,7 +359,7 @@ describe('WishlistClient branches', () => {
   it('keeps selection after all bulk deletes fail without showing a success toast', async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
       if (url.startsWith('/api/wishlist/') && init?.method === 'DELETE') return json({ error: 'no' }, 500);
       return json({ ok: true });
     });
@@ -362,11 +379,111 @@ describe('WishlistClient branches', () => {
     expect(screen.getByText('Beta')).toBeInTheDocument();
   });
 
+  it('stops bulk deletion during the current request and preserves unfinished selection', async () => {
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (isWishlistRead(url, init)) {
+        return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      }
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') {
+        calls.push(url);
+        return json({ ok: true });
+      }
+      if (url === '/api/wishlist/v90002' && init?.method === 'DELETE') {
+        calls.push(url);
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+      }
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Beta');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Select Beta' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    const progress = await screen.findByRole('progressbar', { name: 'Processing 1/2' });
+    expect(progress).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByText('Current: Beta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+
+    expect(await screen.findByText('Stopped')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument());
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(calls).toEqual(['/api/wishlist/v90001', '/api/wishlist/v90002']);
+  });
+
+  it('shows failed progress while the next wishlist deletion is pending', async () => {
+    const deleteBeta = deferred<Response>();
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (isWishlistRead(url, init)) {
+        return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      }
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return json({ error: 'no' }, 500);
+      if (url === '/api/wishlist/v90002' && init?.method === 'DELETE') return deleteBeta.promise;
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Beta');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Select Beta' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByRole('progressbar', { name: 'Processing 1/2' })).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByText('1 failed')).toBeInTheDocument();
+    deleteBeta.resolve(json({ ok: true }));
+    expect(await screen.findByText('Failed on 1 VN(s) - check the console.')).toBeInTheDocument();
+    expect(await screen.findByText('1 VN(s) removed from VNDB wishlist')).toBeInTheDocument();
+  });
+
+  it('stops without applying a network response that resolves during abort', async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') {
+        return new Promise<Response>((resolve) => {
+          init.signal?.addEventListener('abort', () => resolve(json({ ok: true })), { once: true });
+        });
+      }
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist();
+    await screen.findByText('Alpha');
+
+    await user.click(screen.getByRole('button', { name: 'Select' }));
+    await user.click(screen.getByRole('button', { name: 'Select Alpha' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from VNDB wishlist' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await screen.findByRole('progressbar', { name: 'Processing 0/1' });
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+
+    expect(await screen.findByText('Stopped')).toBeInTheDocument();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
   it('drops bulk delete results that resolve after unmount', async () => {
     const deleteAlpha = deferred<Response>();
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return deleteAlpha.promise;
       return json({ ok: true });
     });
@@ -392,7 +509,7 @@ describe('WishlistClient branches', () => {
     const calls: string[] = [];
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = String(input);
-      if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha'), item('v90002', 'Beta')]));
       if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') {
         calls.push(url);
         return deleteAlpha.promise;
@@ -421,7 +538,7 @@ describe('WishlistClient branches', () => {
       const pendingDelete = deferred<Response>();
       global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = String(input);
-        if (url === '/api/wishlist' && init?.method !== 'DELETE') return json(state([item('v90001', 'Alpha')]));
+        if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
         if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') return pendingDelete.promise;
         return json({ ok: true });
       });
