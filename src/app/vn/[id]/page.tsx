@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { cache } from 'react';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
-import { after } from 'next/server';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, Home, MapPin, Package, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
@@ -11,7 +10,6 @@ import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-co
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
-import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
 import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { getUserListRepository } from '@/lib/db/repositories/user-list';
@@ -302,16 +300,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     getAppSettingRepository().get('vn_detail_section_layout_v1'),
     inCol ? getActivityRepository().listForVn(vn.id, 50) : Promise.resolve([]),
   ]);
-  if (isVndbVnId(vn.id)) {
-    const vnIdToMaterialize = vn.id;
-    after(async () => {
-      const releases = getReleaseMetadataRepository();
-      await Promise.all([
-        releases.materializeAspectsForVn(vnIdToMaterialize),
-        releases.materializeForVns([vnIdToMaterialize]),
-      ]);
-    });
-  }
   const status = (vn.status as Status | undefined) ?? null;
   // Per-field source preference (VNDB / EGS / Custom) defaults to Auto.
   const vndbRating = vn.rating ?? null;

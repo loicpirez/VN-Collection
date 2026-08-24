@@ -17,8 +17,6 @@ import {
   listGameLogForVn,
   listListsForVn,
   listSeries,
-  materializeReleaseAspectsForVn,
-  materializeReleaseMetaForVn,
   upsertVn,
   type EgsRow,
   type VnAspectDisplay,
@@ -53,10 +51,6 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('next/server', () => ({
-  after: vi.fn((callback: () => void) => callback()),
-}));
-
 vi.mock('@/lib/db', () => ({
   deriveVnAspectDisplay: vi.fn(),
   deriveVnAspectKey: vi.fn(),
@@ -74,8 +68,6 @@ vi.mock('@/lib/db', () => ({
   listGameLogForVn: vi.fn(),
   listListsForVn: vi.fn(),
   listSeries: vi.fn(),
-  materializeReleaseAspectsForVn: vi.fn(),
-  materializeReleaseMetaForVn: vi.fn(),
   upsertVn: vi.fn(),
 }));
 
@@ -90,22 +82,6 @@ vi.mock('@/lib/db/repositories/vn-detail', async () => {
       aspectKey: async (vnId: string) => database.deriveVnAspectKey(vnId),
       aspectDisplay: async (vnId: string) => database.deriveVnAspectDisplay(vnId),
       coOccurringTags: async (vnId: string, limit?: number) => database.getCoOccurringTags(vnId, limit),
-    }),
-  };
-});
-
-vi.mock('@/lib/db/repositories/release-metadata', async () => {
-  const database = await import('@/lib/db');
-  return {
-    getReleaseMetadataRepository: () => ({
-      materializeAspectsForVn: async (vnId: string) => {
-        database.materializeReleaseAspectsForVn(vnId);
-        return 0;
-      },
-      materializeForVns: async (vnIds: readonly string[]) => {
-        for (const vnId of vnIds) database.materializeReleaseMetaForVn(vnId);
-        return 0;
-      },
     }),
   };
 });
@@ -455,8 +431,6 @@ beforeEach(() => {
   vi.mocked(listGameLogForVn).mockReset().mockReturnValue([]);
   vi.mocked(listListsForVn).mockReset().mockReturnValue([]);
   vi.mocked(listSeries).mockReset().mockReturnValue([]);
-  vi.mocked(materializeReleaseAspectsForVn).mockReset();
-  vi.mocked(materializeReleaseMetaForVn).mockReset();
   vi.mocked(upsertVn).mockReset();
   vi.mocked(getVn).mockReset().mockResolvedValue(null);
   seriesRepositoryMocks.suggest.mockReset().mockResolvedValue(null);
@@ -663,8 +637,6 @@ describe('VN detail page runtime', () => {
     expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '1'));
     expect(html).toContain('href="/producer/p2"');
     expect(html).toContain('href="/?aspect=16%3A9"');
-    expect(materializeReleaseAspectsForVn).toHaveBeenCalledWith('v90008');
-    expect(materializeReleaseMetaForVn).toHaveBeenCalledWith('v90008');
   });
 
   it('renders full collection-only composition and source preferences', async () => {
