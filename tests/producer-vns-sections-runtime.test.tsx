@@ -86,6 +86,7 @@ describe('ProducerVnsSections', () => {
     expect(html).toContain('refresh p90001');
     expect(html).toContain('href="/producer/p90001"');
     expect(html).not.toContain(dictionaries.en.producerVns.developerCredits);
+    expect(fetchProducerAssociations).toHaveBeenCalledWith('p90001', { cacheOnly: true });
   });
 
   it('renders developer and publisher cards, stale state, owned chips, and add affordances', async () => {

@@ -50,6 +50,7 @@ import {
   invalidateByPath,
   invalidateKey,
   readCachedJson,
+  readCachedJsonEntry,
   readCachedJsonMany,
   TTL,
 } from '@/lib/vndb-cache';
@@ -461,6 +462,27 @@ describe('direct cache helpers', () => {
       expires_at: Date.now() + 1000,
     });
     expect(await readCachedJson('POST', 'POST /corrupt', undefined, passthrough)).toBeNull();
+  });
+
+  it('readCachedJsonEntry returns validated data with freshness timestamps', async () => {
+    const fetchedAt = Date.now() - 500;
+    const expiresAt = Date.now() + 500;
+    putCacheRow({
+      cache_key: cacheKey('POST /entry', 'POST', { x: 1 }),
+      body: JSON.stringify({ ok: 7 }),
+      etag: null,
+      last_modified: null,
+      fetched_at: fetchedAt,
+      expires_at: expiresAt,
+    });
+
+    await expect(readCachedJsonEntry('POST', 'POST /entry', { x: 1 }, passthrough)).resolves.toEqual({
+      data: { ok: 7 },
+      fetchedAt,
+      expiresAt,
+    });
+    await expect(readCachedJsonEntry('POST', 'POST /entry', { x: 1 }, () => null)).resolves.toBeNull();
+    await expect(readCachedJsonEntry('POST', 'POST /missing', undefined, passthrough)).resolves.toBeNull();
   });
 
   it('readCachedJsonMany hydrates several keys and skips misses + corrupt rows', async () => {

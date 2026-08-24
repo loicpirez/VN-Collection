@@ -188,6 +188,37 @@ describe('fetchProducerAssociations', () => {
     expect(r.upstreamFailed).toBe(false);
   });
 
+  it('reads fresh and expired association snapshots without any network request', async () => {
+    routeBy({
+      vn: () => jsonResponse({ results: [devVn('v90070')], more: false }),
+      release: () => releasePage('r90070', ['v90071'], 'p90025', true, 'Cached Studio'),
+    });
+    await fetchProducerAssociations('p90025');
+    throttledFetchMock.mockClear();
+
+    let cached = await fetchProducerAssociations('p90025', { cacheOnly: true });
+    expect(cached.fromCache).toBe(true);
+    expect(cached.stale).toBe(false);
+    expect(cached.upstreamFailed).toBe(false);
+    expect(cached.developerVns.map((v) => v.id)).toEqual(['v90070']);
+    expect(cached.publisherVns.map((v) => v.id)).toEqual(['v90071']);
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+
+    db.prepare(`UPDATE vndb_cache SET expires_at = 1 WHERE cache_key LIKE '%producer:p90025|%'`).run();
+    cached = await fetchProducerAssociations('p90025', { cacheOnly: true });
+    expect(cached.stale).toBe(true);
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns an offline empty snapshot when no producer-association cache exists', async () => {
+    const cached = await fetchProducerAssociations('p90026', { cacheOnly: true });
+    expect(cached.fromCache).toBe(true);
+    expect(cached.upstreamFailed).toBe(true);
+    expect(cached.developerVns).toEqual([]);
+    expect(cached.publisherVns).toEqual([]);
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+  });
+
   it('dedupes a VN published across two release rows and harvests the name once', async () => {
     routeBy({
       vn: () => jsonResponse({ results: [], more: false }),

@@ -1,5 +1,5 @@
 import 'server-only';
-import { cachedFetch, TTL, type CachePayloadDecoder } from './vndb-cache';
+import { cachedFetch, readCachedJsonEntry, TTL, type CachePayloadDecoder } from './vndb-cache';
 import {
   decodeProducerAssociationReleasePage,
   decodeProducerAssociationVnPage,
@@ -92,6 +92,7 @@ interface PaginateResult<T> {
    * a "served stale" badge instead of pretending the data is fresh.
    */
   stale: boolean;
+  complete: boolean;
 }
 
 async function paginatePost<T>(
@@ -120,7 +121,26 @@ async function paginatePost<T>(
     out.push(...r.data.results);
     if (!r.data.more) break;
   }
-  return { rows: out, stale };
+  return { rows: out, stale, complete: true };
+}
+
+async function paginateCachedPost<T>(
+  pathTag: string,
+  baseBody: Record<string, unknown>,
+  maxPages: number,
+  decode: CachePayloadDecoder<VndbResp<T>>,
+): Promise<PaginateResult<T>> {
+  const out: T[] = [];
+  let stale = false;
+  for (let page = 1; page <= maxPages; page++) {
+    const body = { ...baseBody, page, results: 100 };
+    const cached = await readCachedJsonEntry('POST', pathTag, body, decode);
+    if (!cached) return { rows: out, stale, complete: false };
+    if (Date.now() >= cached.expiresAt) stale = true;
+    out.push(...cached.data.results);
+    if (!cached.data.more) return { rows: out, stale, complete: true };
+  }
+  return { rows: out, stale, complete: true };
 }
 
 function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
@@ -154,7 +174,10 @@ function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
  * studios) shows up on the developer side only, so the two sections
  * don't double-count.
  */
-export async function fetchProducerAssociations(producerId: string): Promise<ProducerAssociations> {
+export async function fetchProducerAssociations(
+  producerId: string,
+  options: { cacheOnly?: boolean } = {},
+): Promise<ProducerAssociations> {
   if (!/^p\d+$/i.test(producerId)) {
     return {
       name: null,
@@ -176,22 +199,30 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   let devsOk = false;
   let devsStale = false;
   try {
-    const r = await paginatePost<VndbVnSummary>(
-      '/vn',
-      `POST /vn:producer:${producerId}`,
-      {
-        filters: ['developer', '=', ['id', '=', producerId]],
-        fields: VN_FIELDS,
-        sort: 'released',
-        reverse: true,
-      },
-      3,
-      TTL.vnSearch,
-      decodeProducerAssociationVnPage,
-    );
+    const body = {
+      filters: ['developer', '=', ['id', '=', producerId]],
+      fields: VN_FIELDS,
+      sort: 'released',
+      reverse: true,
+    };
+    const r = options.cacheOnly
+      ? await paginateCachedPost<VndbVnSummary>(
+          `POST /vn:producer:${producerId}`,
+          body,
+          3,
+          decodeProducerAssociationVnPage,
+        )
+      : await paginatePost<VndbVnSummary>(
+          '/vn',
+          `POST /vn:producer:${producerId}`,
+          body,
+          3,
+          TTL.vnSearch,
+          decodeProducerAssociationVnPage,
+        );
     devs = r.rows;
     devsStale = r.stale;
-    devsOk = true;
+    devsOk = r.complete;
   } catch {
     devs = [];
   }
@@ -203,22 +234,30 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
   let releasesOk = false;
   let releasesStale = false;
   try {
-    const r = await paginatePost<VndbReleaseRow>(
-      '/release',
-      `POST /release:producer:${producerId}`,
-      {
-        filters: ['producer', '=', ['id', '=', producerId]],
-        fields: RELEASE_FIELDS,
-        sort: 'released',
-        reverse: true,
-      },
-      5,
-      TTL.releases,
-      decodeProducerAssociationReleasePage,
-    );
+    const body = {
+      filters: ['producer', '=', ['id', '=', producerId]],
+      fields: RELEASE_FIELDS,
+      sort: 'released',
+      reverse: true,
+    };
+    const r = options.cacheOnly
+      ? await paginateCachedPost<VndbReleaseRow>(
+          `POST /release:producer:${producerId}`,
+          body,
+          5,
+          decodeProducerAssociationReleasePage,
+        )
+      : await paginatePost<VndbReleaseRow>(
+          '/release',
+          `POST /release:producer:${producerId}`,
+          body,
+          5,
+          TTL.releases,
+          decodeProducerAssociationReleasePage,
+        );
     releases = r.rows;
     releasesStale = r.stale;
-    releasesOk = true;
+    releasesOk = r.complete;
   } catch {
     releases = [];
   }
@@ -258,7 +297,7 @@ export async function fetchProducerAssociations(producerId: string): Promise<Pro
     publisherVns,
     totalUnique: developerVns.length + publisherVns.length,
     ownedUnique: developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length,
-    fromCache: false,
+    fromCache: options.cacheOnly === true,
     upstreamFailed: !devsOk && !releasesOk,
     stale: devsStale || releasesStale,
   };

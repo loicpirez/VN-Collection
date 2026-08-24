@@ -347,6 +347,44 @@ export async function invalidateKey(method: string, path: string, body?: unknown
   await getCacheRepository().deleteKey(buildKey(method.toUpperCase(), path, body));
 }
 
+/** A validated cache payload with the timestamps needed for freshness UI. */
+export interface CachedJsonEntry<T> {
+  /** Structurally validated cached payload. */
+  data: T;
+  /** Time at which the upstream response was stored, in Unix milliseconds. */
+  fetchedAt: number;
+  /** Time after which an explicit refresh is recommended, in Unix milliseconds. */
+  expiresAt: number;
+}
+
+/**
+ * Read and validate one cache entry without making a network request.
+ *
+ * @param method HTTP method included in the stable cache key.
+ * @param pathTag Stable request path tag included in the cache key.
+ * @param body Optional request body included in the cache-key hash.
+ * @param decode Structural payload decoder.
+ * @returns The validated payload and freshness timestamps, or `null` for a
+ * missing, corrupt, or structurally invalid row.
+ */
+export async function readCachedJsonEntry<T>(
+  method: string,
+  pathTag: string,
+  body: unknown,
+  decode: (value: unknown) => T | null,
+): Promise<CachedJsonEntry<T> | null> {
+  const key = buildKey(method.toUpperCase(), pathTag, body);
+  const row = await getCacheRepository().get(key);
+  if (!row) return null;
+  try {
+    const data = decode(JSON.parse(row.body));
+    if (data === null) return null;
+    return { data, fetchedAt: row.fetched_at, expiresAt: row.expires_at };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read a cache entry directly without making any network request.
  * Returns null if the cache_key has never been populated.
@@ -357,14 +395,7 @@ export async function readCachedJson<T>(
   body: unknown,
   decode: (value: unknown) => T | null,
 ): Promise<T | null> {
-  const key = buildKey(method.toUpperCase(), pathTag, body);
-  const row = await getCacheRepository().get(key);
-  if (!row) return null;
-  try {
-    return decode(JSON.parse(row.body));
-  } catch {
-    return null;
-  }
+  return (await readCachedJsonEntry(method, pathTag, body, decode))?.data ?? null;
 }
 
 /**
