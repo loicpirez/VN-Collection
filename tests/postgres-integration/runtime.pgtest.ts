@@ -1664,11 +1664,20 @@ registerRecommendationReadRepositoryContract('PostgreSQL', {
         ids.third,
       ]);
       await pool.query(`
-        INSERT INTO collection (vn_id, status, user_rating, added_at, updated_at) VALUES
-          ($1, 'completed', 80, 1, 1),
-          ($2, 'completed', 90, 1, 2),
-          ($3, 'completed', 60, 1, 3)
+        INSERT INTO collection (vn_id, status, user_rating, favorite, added_at, updated_at) VALUES
+          ($1, 'completed', 80, 0, 1, 1),
+          ($2, 'completed', 90, 0, 1, 2),
+          ($3, 'completed', 60, 1, 1, 3)
       `, [ids.first, ids.second, ids.third]);
+      await pool.query(
+        'INSERT INTO reading_queue (vn_id, position, added_at) VALUES ($1, 1, 1)',
+        [ids.third],
+      );
+      await pool.query(`
+        INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+          ($1, '{"results":[]}', 2, 3),
+          ($2, '{"results":[]}', 1, 3)
+      `, [ids.wishlistCache, ids.tagCache]);
 
       const priorBackend = process.env.DATABASE_BACKEND;
       const priorUrl = process.env.DATABASE_URL;

@@ -4,7 +4,7 @@
  * R5-140: `buildSeedUnion` in `src/lib/recommend.ts` no longer issues
  *         per-VN `SELECT … FROM vn WHERE id = ?` inside the seed
  *         touch() loop. The function bulk-fetches every candidate
- *         VN with a single `WHERE id IN (…)` chunked query and reads
+ *         VN through the batched `vnMetadata` repository method and reads
  *         from an in-memory Map for the per-event work.
  *
  * R5-142: `src/app/release/[id]/page.tsx` and
@@ -51,8 +51,8 @@ describe('R5-140 — recommend.ts buildSeedUnion bulk-fetches seed VN rows', () 
     expect(code).not.toMatch(/FROM\s+vn\s+WHERE\s+id\s*=\s*\?/i);
   });
 
-  it('bulk `WHERE id IN (...)` query covers the candidate VN set', () => {
-    expect(code).toMatch(/WHERE\s+id\s+IN\s*\(/i);
+  it('bulk repository lookup covers the candidate VN set', () => {
+    expect(code).toMatch(/repository\.vnMetadata\(distinctIds\)/);
   });
 
   it('rowsById Map is the source of truth inside touch()', () => {
@@ -62,21 +62,21 @@ describe('R5-140 — recommend.ts buildSeedUnion bulk-fetches seed VN rows', () 
   });
 });
 
-describe('R5-142 — isInCollectionMany sweep in release page + series route', () => {
-  it('release/[id]/page.tsx uses isInCollectionMany, not per-row isInCollection', () => {
+describe('R5-142 — batched collection membership in release page + series route', () => {
+  it('release/[id]/page.tsx uses repository containsMany, not per-row contains', () => {
     const src = readFileSync(join(ROOT, 'src/app/release/[id]/page.tsx'), 'utf8');
     const code = codeOnly(src);
-    expect(code).toMatch(/isInCollectionMany\(/);
+    expect(code).toMatch(/getCollectionCoreRepository\(\)\.containsMany\(/);
     // The previous `.filter((v) => isInCollection(v.id))` shape must
     // not survive — the call-graph for a release with many linked
     // VNs is the entire reason for the batched lookup.
     expect(code).not.toMatch(/\.filter\(\([^)]*\)\s*=>\s*isInCollection\(/);
   });
 
-  it('series/[id]/vn/[vnId]/route.ts uses isInCollectionMany for the relation expand loop', () => {
+  it('series/[id]/vn/[vnId]/route.ts uses repository containsMany for the relation expand loop', () => {
     const src = readFileSync(join(ROOT, 'src/app/api/series/[id]/vn/[vnId]/route.ts'), 'utf8');
     const code = codeOnly(src);
-    expect(code).toMatch(/isInCollectionMany\(/);
+    expect(code).toMatch(/collectionRepository\.containsMany\(/);
     // The expand loop iterates the relation graph; per-row
     // isInCollection() inside the loop body is the regression.
     const expandBlock = code.split('body.expand')[1]?.split('}\n  try {')[0] ?? '';

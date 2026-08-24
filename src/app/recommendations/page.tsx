@@ -25,55 +25,9 @@ import { SkeletonCardGrid } from '@/components/Skeleton';
 import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
 import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
 import { pickSimilarToVnView } from '@/lib/recommend-similar-view';
-import { db } from '@/lib/db';
+import { getRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
 import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
-import { decodePersistedProducerSummaries } from '@/lib/vn-persisted-json-shape';
-
-/**
- * Pull the minimum metadata the seed chip needs (title + alttitle + the
- * first developer + cover thumbnail). Returns `null` when the id is
- * unknown to the local DB - the caller treats that as an
- * "invalid seed" condition (the operator can still see the chip with
- * an error explanation and re-pick).
- */
-function loadSeedChip(vnId: string): SeedChipData | null {
-  const row = db
-    .prepare(
-      `SELECT id, title, alttitle, released, image_url, image_thumb, image_sexual, developers
-       FROM vn WHERE id = ?`,
-    )
-    .get(vnId) as
-    | {
-        id: string;
-        title: string | null;
-        alttitle: string | null;
-        released: string | null;
-        image_url: string | null;
-        image_thumb: string | null;
-        image_sexual: number | null;
-        developers: string | null;
-      }
-    | undefined;
-  if (!row || !row.title) return null;
-  const developer = decodePersistedProducerSummaries(row.developers)[0]?.name ?? null;
-  const imageUrl = row.image_url || row.image_thumb;
-  return {
-    id: row.id,
-    title: row.title,
-    alttitle: row.alttitle,
-    released: row.released,
-    developer,
-    image:
-      imageUrl
-        ? {
-            url: row.image_url ?? '',
-            thumbnail: row.image_thumb ?? imageUrl,
-            sexual: row.image_sexual,
-          }
-        : null,
-  };
-}
 
 export const dynamic = 'force-dynamic';
 
@@ -146,11 +100,13 @@ export default async function RecommendationsPage({
   const seedVnId = isValidVnId(raw.seed)
     ? normalizeVnId(raw.seed)
     : undefined;
-  // Seed chip data is loaded synchronously from SQLite so the picker
-  // can render the cover + title on first paint. `null` here means the
-  // id passed validation but the local DB has no row - surfaced as
-  // "invalid seed" so the picker shows an error chip.
-  const seedChip: SeedChipData | null = seedVnId ? loadSeedChip(seedVnId) : null;
+  const recommendationRead = getRecommendationReadRepository();
+  const shouldLoadTopRated =
+    mode === 'because-you-liked' || mode === 'hidden-gems' || mode === 'highly-rated';
+  const [seedChip, topRated] = await Promise.all([
+    seedVnId ? recommendationRead.seedChip(seedVnId) : Promise.resolve(null),
+    shouldLoadTopRated ? recommendationRead.topRated() : Promise.resolve([]),
+  ] satisfies [Promise<SeedChipData | null>, Promise<Array<{ id: string; title: string }>>]);
   const similarView =
     mode === 'similar-to-vn'
       ? pickSimilarToVnView({ seedVnId, seedRowExists: !!seedChip })
@@ -169,19 +125,6 @@ export default async function RecommendationsPage({
   // The top-rated callout only makes sense for the modes that auto-derive
   // from the rating-weighted seed pool; tag-based / similar-to-vn anchor
   // somewhere else entirely.
-  const topRated =
-    mode === 'because-you-liked' || mode === 'hidden-gems' || mode === 'highly-rated'
-      ? (db
-          .prepare(`
-            SELECT v.id, v.title
-            FROM collection c JOIN vn v ON v.id = c.vn_id
-            WHERE c.user_rating IS NOT NULL AND c.user_rating >= 70
-            ORDER BY c.user_rating DESC, c.updated_at DESC
-            LIMIT 3
-          `)
-          .all() as Array<{ id: string; title: string }>)
-      : [];
-
   // Stable key for the inner <Suspense> so the skeleton actually shows
   // on every meaningful re-fetch (mode change, seed-set change, flag
   // toggle). Without this key, React would reuse the previous result

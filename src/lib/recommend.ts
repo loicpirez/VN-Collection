@@ -1,7 +1,11 @@
 import 'server-only';
-import { db } from './db';
 import { vndbAdvancedSearchRaw } from './vndb-recommend';
 import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
+import {
+  getRecommendationReadRepository,
+  type RecommendationReadRepository,
+  type RecommendationVnMetadata,
+} from './db/repositories/recommendation-read';
 
 import { isValidVnId, isVndbVnId } from '@/lib/vn-id-shape';
 export type RecommendMode =
@@ -250,18 +254,23 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     if (!seedVnId || !isValidVnId(seedVnId)) {
       return { seeds: [], results: [], mode };
     }
-    const seeds = deriveSeedsFromVn(seedVnId, tagLimit, includeEro, customTagIds);
+    const repository = getRecommendationReadRepository();
+    const [seedRow, membership] = await Promise.all([
+      repository.vnMetadata([seedVnId]).then((rows) => rows[0]),
+      loadRecommendationMembership(repository),
+    ]);
+    const seeds = deriveSeedsFromVn(seedVnId, seedRow, tagLimit, includeEro, customTagIds);
     if (seeds.length === 0) return { seeds: [], results: [], mode };
-    const exclude = collectExclusions(includeOwned, includeWishlist);
+    const exclude = collectExclusions(membership, includeOwned, includeWishlist);
     exclude.add(seedVnId);
     const results = await runRecommendForSeeds(seeds, resultLimit, {
       mode,
       exclude,
-      seedTitles: new Map([[seedVnId, getVnTitle(seedVnId) ?? seedVnId]]),
+      seedTitles: new Map([[seedVnId, seedRow?.title ?? seedVnId]]),
     });
     return {
       seeds,
-      results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+      results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
       mode,
     };
   }
@@ -270,8 +279,13 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
   // pin a tag set from the URL. Names come from the in-process tag
   // cache; falls back to the raw id if VNDB hasn't been fetched yet.
   if (customTagIds && customTagIds.length > 0) {
-    const customSeeds = buildCustomSeeds(customTagIds);
-    const exclude = collectExclusions(includeOwned, includeWishlist);
+    const repository = getRecommendationReadRepository();
+    const [tagBodies, membership] = await Promise.all([
+      repository.tagCacheBodies(),
+      loadRecommendationMembership(repository),
+    ]);
+    const customSeeds = buildCustomSeeds(customTagIds, tagBodies);
+    const exclude = collectExclusions(membership, includeOwned, includeWishlist);
     const results = await runRecommendForSeeds(customSeeds, resultLimit, {
       mode,
       exclude,
@@ -279,7 +293,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     });
     return {
       seeds: customSeeds,
-      results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+      results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
       mode,
     };
   }
@@ -288,7 +302,9 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
   // finished VN, every rated >= 70 VN, every favourite, every reading
   // queue entry, plus optional wishlist. Tags shared across multiple
   // seed VNs get a multi-source boost; generic tags get penalised.
-  const union = buildSeedUnion(useWishlist);
+  const repository = getRecommendationReadRepository();
+  const membership = await loadRecommendationMembership(repository);
+  const union = await buildSeedUnion(repository, useWishlist ? membership.wishlist : new Set());
   if (union.vns.size === 0) {
     return {
       seeds: [],
@@ -308,7 +324,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
     };
   }
 
-  const exclude = collectExclusions(includeOwned, includeWishlist);
+  const exclude = collectExclusions(membership, includeOwned, includeWishlist);
   const seedTitles = new Map<string, string>();
   for (const [vnId, info] of union.vns) {
     if (info.title) seedTitles.set(vnId, info.title);
@@ -322,7 +338,7 @@ export async function recommendVns(opts: RecommendOptions = {}): Promise<Recomme
   });
   return {
     seeds,
-    results: stampOwnershipFlags(results, includeOwned, includeWishlist),
+    results: stampOwnershipFlags(results, membership, includeOwned, includeWishlist),
     mode,
     signalCounts: union.counts,
     rawSeeds,
@@ -379,7 +395,10 @@ function readIdentityList(raw: string | null | undefined, includeAid: boolean): 
  *   - queue    — `reading_queue` (the "play next" list)
  *   - wishlist — VNDB ulist label=5, gated behind `useWishlist`
  */
-function buildSeedUnion(useWishlist: boolean): SeedUnion {
+async function buildSeedUnion(
+  repository: RecommendationReadRepository,
+  wishlistIds: ReadonlySet<string>,
+): Promise<SeedUnion> {
   const vns = new Map<string, SeedVnInfo>();
   const counts: SignalCounts = {
     finished: 0,
@@ -390,97 +409,28 @@ function buildSeedUnion(useWishlist: boolean): SeedUnion {
     total: 0,
   };
 
-  type SignalEvent = {
+  const events: Array<{
     vnId: string;
     signal: SeedVnInfo['signals'][number];
     rating: number | null;
-  };
-  const events: SignalEvent[] = [];
-
-  // finished
-  try {
-    const rows = db
-      .prepare(
-        `SELECT vn_id, user_rating FROM collection WHERE status = 'completed'`,
-      )
-      .all() as Array<{ vn_id: string; user_rating: number | null }>;
-    for (const r of rows) {
-      events.push({ vnId: r.vn_id, signal: 'completed', rating: r.user_rating });
-      counts.finished += 1;
-    }
-  } catch {
-    // table may not exist yet in fresh DBs; treat as zero contributions
-  }
-
-  // rated >= 70
-  try {
-    const rows = db
-      .prepare(
-        `SELECT vn_id, user_rating FROM collection WHERE user_rating IS NOT NULL AND user_rating >= 70`,
-      )
-      .all() as Array<{ vn_id: string; user_rating: number }>;
-    for (const r of rows) {
-      events.push({ vnId: r.vn_id, signal: 'rated', rating: r.user_rating });
-      counts.rated += 1;
-    }
-  } catch {
-    // ignore
-  }
-
-  // favorite
-  try {
-    const rows = db
-      .prepare(`SELECT vn_id, user_rating FROM collection WHERE favorite = 1`)
-      .all() as Array<{ vn_id: string; user_rating: number | null }>;
-    for (const r of rows) {
-      events.push({ vnId: r.vn_id, signal: 'favorite', rating: r.user_rating });
-      counts.favorite += 1;
-    }
-  } catch {
-    // ignore
-  }
-
-  // reading queue
-  try {
-    const rows = db.prepare(`SELECT vn_id FROM reading_queue`).all() as Array<{ vn_id: string }>;
-    for (const r of rows) {
-      events.push({ vnId: r.vn_id, signal: 'queue', rating: null });
-      counts.queue += 1;
-    }
-  } catch {
-    // ignore
+  }> = await repository.seedSignals();
+  for (const event of events) {
+    if (event.signal === 'completed') counts.finished += 1;
+    else if (event.signal === 'rated') counts.rated += 1;
+    else if (event.signal === 'favorite') counts.favorite += 1;
+    else counts.queue += 1;
   }
 
   // wishlist (gated)
-  if (useWishlist) {
-    for (const id of readCachedWishlistIds()) {
-      events.push({ vnId: id, signal: 'wishlist', rating: null });
-      counts.wishlist += 1;
-    }
+  for (const id of wishlistIds) {
+    events.push({ vnId: id, signal: 'wishlist', rating: null });
+    counts.wishlist += 1;
   }
 
   const distinctIds = Array.from(new Set(events.map((e) => e.vnId)));
-  type VnRow = {
-    id: string;
-    title: string | null;
-    tags: string | null;
-    developers: string | null;
-    staff: string | null;
-  };
-  const rowsById = new Map<string, VnRow>();
-  if (distinctIds.length > 0) {
-    const CHUNK = 500;
-    for (let i = 0; i < distinctIds.length; i += CHUNK) {
-      const chunk = distinctIds.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const rows = db
-        .prepare(
-          `SELECT id, title, tags, developers, staff FROM vn WHERE id IN (${placeholders})`,
-        )
-        .all(...chunk) as VnRow[];
-      for (const r of rows) rowsById.set(r.id, r);
-    }
-  }
+  const rowsById = new Map(
+    (await repository.vnMetadata(distinctIds)).map((row) => [row.id, row]),
+  );
 
   function touch(vnId: string, signal: SeedVnInfo['signals'][number], rating: number | null): void {
     let info = vns.get(vnId);
@@ -599,11 +549,22 @@ function deriveSeedsFromUnion(
   };
 }
 
-function getVnTitle(vnId: string): string | null {
-  const row = db.prepare(`SELECT title FROM vn WHERE id = ?`).get(vnId) as
-    | { title: string | null }
-    | undefined;
-  return row?.title ?? null;
+interface RecommendationMembership {
+  owned: Set<string>;
+  wishlist: Set<string>;
+}
+
+async function loadRecommendationMembership(
+  repository: RecommendationReadRepository,
+): Promise<RecommendationMembership> {
+  const [ownedIds, wishlistBodies] = await Promise.all([
+    repository.collectionIds(),
+    repository.wishlistCacheBodies(),
+  ]);
+  return {
+    owned: new Set(ownedIds),
+    wishlist: readCachedWishlistIds(wishlistBodies),
+  };
 }
 
 /**
@@ -618,22 +579,15 @@ function getVnTitle(vnId: string): string | null {
  */
 function stampOwnershipFlags(
   results: Recommendation[],
+  membership: RecommendationMembership,
   includeOwned: boolean,
   includeWishlist: boolean,
 ): Recommendation[] {
   if (!includeOwned && !includeWishlist) return results;
-  const ownedSet = includeOwned
-    ? new Set(
-        (db.prepare(`SELECT vn_id FROM collection`).all() as { vn_id: string }[]).map(
-          (r) => r.vn_id,
-        ),
-      )
-    : new Set<string>();
-  const wishSet = includeWishlist ? readCachedWishlistIds() : new Set<string>();
   return results.map((r) => ({
     ...r,
-    inCollection: ownedSet.has(r.id),
-    inWishlist: wishSet.has(r.id),
+    inCollection: includeOwned && membership.owned.has(r.id),
+    inWishlist: includeWishlist && membership.wishlist.has(r.id),
   }));
 }
 
@@ -643,14 +597,17 @@ function stampOwnershipFlags(
  * the local VNDB cache row for the ulist label=5 query (silently empty
  * when no row exists, keeping the recommender offline-friendly).
  */
-function collectExclusions(includeOwned: boolean, includeWishlist: boolean): Set<string> {
+function collectExclusions(
+  membership: RecommendationMembership,
+  includeOwned: boolean,
+  includeWishlist: boolean,
+): Set<string> {
   const exclude = new Set<string>();
   if (!includeOwned) {
-    const owned = db.prepare(`SELECT vn_id FROM collection`).all() as { vn_id: string }[];
-    for (const row of owned) exclude.add(row.vn_id);
+    for (const vnId of membership.owned) exclude.add(vnId);
   }
   if (!includeWishlist) {
-    for (const id of readCachedWishlistIds()) exclude.add(id);
+    for (const id of membership.wishlist) exclude.add(id);
   }
   return exclude;
 }
@@ -661,30 +618,22 @@ function collectExclusions(includeOwned: boolean, includeWishlist: boolean): Set
  * been fetched yet — recommenders should not depend on hitting VNDB
  * just to compute exclusions.
  */
-function readCachedWishlistIds(): Set<string> {
+function readCachedWishlistIds(bodies: readonly string[]): Set<string> {
   const ids = new Set<string>();
-  try {
-    const rows = db
-      .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /ulist|%' LIMIT 50`)
-      .all() as Array<{ body: string }>;
-    for (const row of rows) {
-      const parsed = parseJsonRecord(row.body);
-      const results = Array.isArray(parsed?.results) ? parsed.results : [];
-      for (const value of results) {
-        const entry = asJsonRecord(value);
-        if (!entry) continue;
-        const labels = [
-          ...readLabelIds(entry.label_ids),
-          ...readLabelIds(entry.labels),
-        ];
-        if (typeof entry.id === 'string' && isVndbVnId(entry.id) && labels.includes(5)) {
-          ids.add(entry.id.toLowerCase());
-        }
+  for (const body of bodies) {
+    const parsed = parseJsonRecord(body);
+    const results = Array.isArray(parsed?.results) ? parsed.results : [];
+    for (const value of results) {
+      const entry = asJsonRecord(value);
+      if (!entry) continue;
+      const labels = [
+        ...readLabelIds(entry.label_ids),
+        ...readLabelIds(entry.labels),
+      ];
+      if (typeof entry.id === 'string' && isVndbVnId(entry.id) && labels.includes(5)) {
+        ids.add(entry.id.toLowerCase());
       }
     }
-  } catch {
-    // Defensive: an unexpected schema shape should never crash the
-    // recommender. Silently treat as "no wishlist data available".
   }
   return ids;
 }
@@ -696,13 +645,13 @@ function readLabelIds(value: unknown): number[] {
     .filter((id): id is number => typeof id === 'number' && Number.isSafeInteger(id));
 }
 
-function buildCustomSeeds(customTagIds: string[]): RecommendationSeed[] {
-  const rows = db
-    .prepare(`SELECT body FROM vndb_cache WHERE cache_key LIKE '% /tag|%' LIMIT 20`)
-    .all() as Array<{ body: string }>;
+function buildCustomSeeds(
+  customTagIds: readonly string[],
+  cacheBodies: readonly string[],
+): RecommendationSeed[] {
   const nameLookup = new Map<string, string>();
-  for (const row of rows) {
-    const parsed = parseJsonRecord(row.body);
+  for (const body of cacheBodies) {
+    const parsed = parseJsonRecord(body);
     const results = Array.isArray(parsed?.results) ? parsed.results : [];
     for (const value of results) {
       const tag = asJsonRecord(value);
@@ -732,14 +681,12 @@ function buildCustomSeeds(customTagIds: string[]): RecommendationSeed[] {
  */
 function deriveSeedsFromVn(
   vnId: string,
+  row: RecommendationVnMetadata | undefined,
   tagLimit: number,
   includeEro: boolean,
   customTagIds: string[] | undefined,
 ): RecommendationSeed[] {
-  const row = db
-    .prepare(`SELECT tags AS tags_json FROM vn WHERE id = ?`)
-    .get(vnId) as { tags_json: string | null } | undefined;
-  const tags = readSeedTags(row?.tags_json);
+  const tags = readSeedTags(row?.tags);
   if (customTagIds && customTagIds.length > 0) {
     const byId = new Map(tags.map((t) => [t.id, t] as const));
     return customTagIds.map((id) => {

@@ -4,9 +4,9 @@ import RecommendationsPage, { generateMetadata } from '@/app/recommendations/pag
 import { recommendVns, type Recommendation, type RecommendationSeed, type RecommendMode, type SignalCounts } from '@/lib/recommend';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
-const dbMocks = vi.hoisted(() => ({
-  all: vi.fn(),
-  get: vi.fn(),
+const recommendationReadMocks = vi.hoisted(() => ({
+  topRated: vi.fn(),
+  seedChip: vi.fn(),
 }));
 
 vi.mock('@/lib/recommend', () => {
@@ -22,13 +22,8 @@ vi.mock('@/lib/recommend', () => {
   };
 });
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: (sql: string) => ({
-      all: (...params: string[]) => dbMocks.all(sql, ...params),
-      get: (...params: string[]) => dbMocks.get(sql, ...params),
-    }),
-  },
+vi.mock('@/lib/db/repositories/recommendation-read', () => ({
+  getRecommendationReadRepository: () => recommendationReadMocks,
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -130,8 +125,8 @@ function fixture(overrides: Partial<RecommendFixture> = {}): RecommendFixture {
 }
 
 beforeEach(() => {
-  dbMocks.all.mockReset().mockReturnValue([]);
-  dbMocks.get.mockReset().mockReturnValue(undefined);
+  recommendationReadMocks.topRated.mockReset().mockResolvedValue([]);
+  recommendationReadMocks.seedChip.mockReset().mockResolvedValue(null);
   vi.mocked(recommendVns).mockReset().mockResolvedValue(fixture());
 });
 
@@ -156,13 +151,11 @@ describe('recommendations page runtime', () => {
   it('renders rich auto-derived recommendations with explanation, badges, and contributor variants', async () => {
     const seeds = [seed('g1', 'After one', 1.25), seed('g2', 'After two', 0.75)];
     const rawSeeds = [seed('g3', 'Demoted raw', 3), seed('g1', 'After one', 1.25)];
-    dbMocks.all.mockImplementation((sql: string) => sql.includes('SELECT v.id, v.title')
-      ? [
-          { id: 'v1', title: 'Rated One' },
-          { id: 'v2', title: 'Rated Two' },
-          { id: 'v3', title: 'Rated Three' },
-        ]
-      : []);
+    recommendationReadMocks.topRated.mockResolvedValue([
+      { id: 'v1', title: 'Rated One' },
+      { id: 'v2', title: 'Rated Two' },
+      { id: 'v3', title: 'Rated Three' },
+    ]);
     vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => {
       if (options?.resultLimit === 0) return fixture({ seeds, mode: 'hidden-gems' });
       return fixture({
@@ -241,15 +234,13 @@ describe('recommendations page runtime', () => {
     html = await renderPage({ mode: 'similar-to-vn', seed: 'v404' });
     expect(html).toContain('similar-empty:true:v404');
 
-    dbMocks.get.mockReturnValue({
+    recommendationReadMocks.seedChip.mockResolvedValue({
       id: 'v1',
       title: 'Seed VN',
       alttitle: 'Seed alternate',
       released: '2020-01-02',
-      image_url: null,
-      image_thumb: 'seed-thumb.jpg',
-      image_sexual: 1,
-      developers: JSON.stringify([{ id: 'p1', name: 'Seed Developer' }]),
+      developer: 'Seed Developer',
+      image: { url: '', thumbnail: 'seed-thumb.jpg', sexual: 1 },
     });
     vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => fixture({
       seeds: [seed('g1')],
@@ -264,16 +255,7 @@ describe('recommendations page runtime', () => {
   });
 
   it('treats missing-title local seeds and syntactically invalid seed ids as empty picker states', async () => {
-    dbMocks.get.mockReturnValue({
-      id: 'v1',
-      title: null,
-      alttitle: null,
-      released: null,
-      image_url: null,
-      image_thumb: null,
-      image_sexual: null,
-      developers: null,
-    });
+    recommendationReadMocks.seedChip.mockResolvedValue(null);
     let html = await renderPage({ mode: 'similar-to-vn', seed: 'v1' });
     expect(html).toContain('similar-empty:true:v1');
 
@@ -321,26 +303,22 @@ describe('recommendations page runtime', () => {
   });
 
   it('renders seed chips with URL-only and absent images plus explanation off-state filters', async () => {
-    dbMocks.get
-      .mockReturnValueOnce({
+    recommendationReadMocks.seedChip
+      .mockResolvedValueOnce({
         id: 'v1',
         title: 'URL-only seed',
         alttitle: null,
         released: null,
-        image_url: 'seed-full.jpg',
-        image_thumb: null,
-        image_sexual: null,
-        developers: null,
+        developer: null,
+        image: { url: 'seed-full.jpg', thumbnail: 'seed-full.jpg', sexual: null },
       })
-      .mockReturnValueOnce({
+      .mockResolvedValueOnce({
         id: 'v2',
         title: 'No-image seed',
         alttitle: null,
         released: null,
-        image_url: null,
-        image_thumb: null,
-        image_sexual: null,
-        developers: null,
+        developer: null,
+        image: null,
       });
     vi.mocked(recommendVns).mockImplementation(async (options): Promise<RecommendFixture> => fixture({
       seeds: [seed('g1')],

@@ -14,8 +14,13 @@ const VN_IDS = [
 
 function reset(): void {
   const placeholders = VN_IDS.map(() => '?').join(',');
+  db.prepare(`DELETE FROM reading_queue WHERE vn_id IN (${placeholders})`).run(...VN_IDS);
   db.prepare(`DELETE FROM collection WHERE vn_id IN (${placeholders})`).run(...VN_IDS);
   db.prepare(`DELETE FROM vn WHERE id IN (${placeholders})`).run(...VN_IDS);
+  db.prepare('DELETE FROM vndb_cache WHERE cache_key IN (?, ?)').run(
+    RECOMMENDATION_READ_CONTRACT_IDS.wishlistCache,
+    RECOMMENDATION_READ_CONTRACT_IDS.tagCache,
+  );
 }
 
 function seed(): void {
@@ -35,11 +40,18 @@ function seed(): void {
     ids.third,
   );
   db.prepare(`
-    INSERT INTO collection (vn_id, status, user_rating, added_at, updated_at) VALUES
-      (?, 'completed', 80, 1, 1),
-      (?, 'completed', 90, 1, 2),
-      (?, 'completed', 60, 1, 3)
+    INSERT INTO collection (vn_id, status, user_rating, favorite, added_at, updated_at) VALUES
+      (?, 'completed', 80, 0, 1, 1),
+      (?, 'completed', 90, 0, 1, 2),
+      (?, 'completed', 60, 1, 1, 3)
   `).run(...VN_IDS);
+  db.prepare('INSERT INTO reading_queue (vn_id, position, added_at) VALUES (?, 1, 1)')
+    .run(ids.third);
+  db.prepare(`
+    INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+      (?, '{"results":[]}', 2, 3),
+      (?, '{"results":[]}', 1, 3)
+  `).run(ids.wishlistCache, ids.tagCache);
 }
 
 registerRecommendationReadRepositoryContract('SQLite', {

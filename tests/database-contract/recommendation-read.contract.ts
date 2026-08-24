@@ -8,6 +8,8 @@ export const RECOMMENDATION_READ_CONTRACT_IDS = {
   third: 'v994803',
   missing: 'v994899',
   developer: 'p994801',
+  wishlistCache: 'POST /ulist|recommendation-contract',
+  tagCache: 'POST /tag|recommendation-contract',
 } as const;
 
 /** Harness that supplies a freshly seeded recommendation-read repository. */
@@ -48,6 +50,29 @@ export function registerRecommendationReadRepositoryContract(
         await expect(repository.topRated(80, 1)).resolves.toEqual([
           { id: ids.second, title: 'Second Recommendation VN' },
         ]);
+      });
+    });
+
+    it('loads batched seed signals, VN metadata, ownership, and cache bodies', async () => {
+      await harness.withRepository(async (repository) => {
+        const ids = RECOMMENDATION_READ_CONTRACT_IDS;
+        await expect(repository.seedSignals()).resolves.toEqual([
+          { vnId: ids.first, signal: 'completed', rating: 80 },
+          { vnId: ids.first, signal: 'rated', rating: 80 },
+          { vnId: ids.second, signal: 'completed', rating: 90 },
+          { vnId: ids.second, signal: 'rated', rating: 90 },
+          { vnId: ids.third, signal: 'completed', rating: 60 },
+          { vnId: ids.third, signal: 'favorite', rating: 60 },
+          { vnId: ids.third, signal: 'queue', rating: null },
+        ]);
+        await expect(repository.vnMetadata([ids.second, ids.missing, ids.first])).resolves.toEqual([
+          expect.objectContaining({ id: ids.first, title: 'First Recommendation VN' }),
+          expect.objectContaining({ id: ids.second, title: 'Second Recommendation VN' }),
+        ]);
+        await expect(repository.vnMetadata([])).resolves.toEqual([]);
+        await expect(repository.collectionIds()).resolves.toEqual([ids.first, ids.second, ids.third]);
+        await expect(repository.wishlistCacheBodies()).resolves.toEqual(['{"results":[]}']);
+        await expect(repository.tagCacheBodies()).resolves.toEqual(['{"results":[]}']);
       });
     });
   });
