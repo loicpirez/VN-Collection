@@ -168,8 +168,12 @@ active_target="$(readlink -f "$working_dir")"
 active_sha="$(git -C "$working_dir" rev-parse HEAD)"
 main_pid="$(systemctl show "$service_name" --property=MainPID --value)"
 process_working_dir="$(readlink -f "/proc/$main_pid/cwd")"
-if [[ "$active_target" != "$release_dir" || "$active_sha" != "$commit_sha" || "$process_working_dir" != "$release_dir" ]]; then
+expected_process_working_dir="$release_dir/.next/standalone"
+if [[ "$active_target" != "$release_dir" || "$active_sha" != "$commit_sha" || "$process_working_dir" != "$expected_process_working_dir" ]]; then
   printf 'Activation verification failed for %s.\n' "$commit_sha" >&2
+  printf 'Active target: %s\n' "$active_target" >&2
+  printf 'Active commit: %s\n' "$active_sha" >&2
+  printf 'Process directory: %s\n' "$process_working_dir" >&2
   rollback
   exit 1
 fi
