@@ -103,9 +103,8 @@ async function walkPostgresSeriesRelations(seedVnId: string): Promise<RelatedVn[
   const visited = new Set([seedVnId]);
   const queue = [seedVnId];
   const output: RelatedVn[] = [];
-  while (queue.length > 0 && output.length < MAX_SERIES_WALK) {
-    const current = queue.shift();
-    if (!current) break;
+  for (const current of queue) {
+    if (output.length >= MAX_SERIES_WALK) break;
     const result = await postgresQuery<RelationRow>('SELECT relations FROM vn WHERE id = $1', [current]);
     for (const relation of decodedRelations(result.rows[0]?.relations ?? null)) {
       if (visited.has(relation.id)) continue;
@@ -164,9 +163,8 @@ async function walkSqliteSeriesRelations(seedVnId: string): Promise<RelatedVn[]>
   const queue = [seedVnId];
   const output: RelatedVn[] = [];
   const statement = db.prepare('SELECT relations FROM vn WHERE id = ?');
-  while (queue.length > 0 && output.length < MAX_SERIES_WALK) {
-    const current = queue.shift();
-    if (!current) break;
+  for (const current of queue) {
+    if (output.length >= MAX_SERIES_WALK) break;
     const row = statement.get(current) as { relations: string | null } | undefined;
     for (const relation of decodedRelations(row?.relations ?? null)) {
       if (visited.has(relation.id)) continue;
