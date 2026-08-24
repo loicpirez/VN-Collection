@@ -4,27 +4,29 @@ import {
   ExternalLink,
   Link2,
   ListChecks,
-  ImageIcon,
 } from 'lucide-react';
 import type { CollectionItem, ReleaseImage, Screenshot } from '@/lib/types';
 import { getDict } from '@/lib/i18n/server';
 import { ActionMenu } from './ActionMenu';
 import { AnimeChip } from './AnimeChip';
+import { ArtworkActionMenu } from './ArtworkActionMenu';
+import { ArtworkTransformControls } from './ArtworkTransformControls';
 import { BannerControls } from './BannerControls';
-import { BannerSourcePicker } from './BannerSourcePicker';
+import { BannerPickerTrigger } from './BannerPickerTrigger';
 import { CompareWithButton } from './CompareWithButton';
 import { CoverQuickActions } from './CoverQuickActions';
 import { CoverPickerTrigger } from './CoverPickerTrigger';
-import { CoverSourcePicker } from './CoverSourcePicker';
 import { CoverUploader } from './CoverUploader';
 import { DownloadAssetsButton } from './DownloadAssetsButton';
 import { FavoriteToggleButton } from './FavoriteToggleButton';
 import { LinkToVndbButton } from './LinkToVndbButton';
 import { ListsPickerButton } from './ListsPickerButton';
-import { MapVnToEgsButton } from './MapVnToEgsButton';
+import { LazyArtworkPickers } from './LazyArtworkPickers';
+import { LazyMapVnToEgsButton } from './LazyMapVnToEgsButton';
 import { QueueButton } from './QueueButton';
 import { safeHref } from '@/lib/safe-href';
 import type { SourceChoice } from '@/lib/source-resolve';
+import { VnCollectionVisibility } from './VnCollectionVisibility';
 
 /**
  * Detail-page action toolbar.
@@ -102,46 +104,57 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   const extlinks = vn.extlinks;
   const hasExtlinks = extlinks.length > 0;
   const showExternalMenu = !isEgsOnly || hasExtlinks || !!egsRow?.egs_id;
-  const coverPicker = (
-    <CoverSourcePicker
-      vnId={vn.id}
-      vndbImage={vn.image_url}
-      egsId={egsRow?.egs_id ?? null}
-      egsHasImage={egsHasImage}
-      currentCustomCover={vn.custom_cover}
-      currentImageSource={imageSourcePref}
-      currentRotation={
-        vn.cover_rotation
-      }
-      screenshots={screenshots}
-      releaseImages={releaseImages}
-      showTrigger={false}
+  const artworkPickers = (
+    <LazyArtworkPickers
+      cover={{
+        vnId: vn.id,
+        vndbImage: vn.image_url,
+        egsId: egsRow?.egs_id ?? null,
+        egsHasImage,
+        currentCustomCover: vn.custom_cover,
+        currentImageSource: imageSourcePref,
+        currentRotation: vn.cover_rotation,
+        screenshots,
+        releaseImages,
+      }}
+      banner={{
+        vnId: vn.id,
+        currentBanner: vn.banner_image,
+        coverRemote: vn.image_url,
+        coverLocal: vn.local_image || vn.local_image_thumb,
+        coverSexual: vn.image_sexual ?? null,
+        screenshots,
+        releaseImages,
+      }}
     />
   );
 
-  // ── Cluster 1: Collection (inline only - NO dropdown) ────────────
-  // The four primary buttons (favorite, wishlist heart, queue, lists)
-  // sit in the first row. AnimeChip is passive and folds in next to
-  // them on desktop (it's a span, not a button, and stays out of the
-  // h-9 enforcement so its compact pill shape survives).
+  // ── Cluster 1: Collection ────────────────────────────────────────
+  // The compact layout moves the local/wishlist pair into one menu;
+  // wider layouts keep the primary actions inline. AnimeChip remains
+  // passive and stays outside button sizing rules.
   const collection = (
     <div
       role="group"
       aria-label={t.detail.actions.groupCollection}
       className={PRIMARY_ROW_CLASSES}
     >
-      {inCollection && (
+      <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
         <FavoriteToggleButton
           vnId={vn.id}
           initial={!!vn.favorite}
           inCollection
           variant="inline"
         />
-      )}
-      <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="tracking" />
-      {inCollection && <QueueButton vnId={vn.id} />}
+      </VnCollectionVisibility>
+      <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="tracking" variant="responsive-menu" />
+      <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
+        <QueueButton vnId={vn.id} />
+      </VnCollectionVisibility>
       <ListsPickerButton vnId={vn.id} variant="inline" />
-      {inCollection && <AnimeChip vnId={vn.id} />}
+      <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
+        <AnimeChip vnId={vn.id} />
+      </VnCollectionVisibility>
     </div>
   );
 
@@ -150,9 +163,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   // (notes / series / owned-editions) so the inline row never has
   // to grow beyond its four primaries. The destructive "Remove from
   // collection" action lives below a separator at the bottom of this
-  // dropdown instead of being a separate cluster.
-  const tracking = inCollection ? (
-    <ActionMenu
+  // dropdown. The destructive action remains a distinct final command
+  // in the toolbar so its danger styling cannot be mistaken for tracking.
+  const tracking = (
+    <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
+      <ActionMenu
       label={t.detail.actions.groupTracking}
       trigger={
         <>
@@ -173,8 +188,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         <TrackingAnchor href="#section-notes" label={t.form.personalNotes} />
         <TrackingAnchor href="#section-my-editions" label={t.inventory.section} />
       </div>
-    </ActionMenu>
-  ) : null;
+      </ActionMenu>
+    </VnCollectionVisibility>
+  );
 
   // ── Cluster 3: External links (single dropdown) ─────────────────
   // 2-column icon grid; every row shows icon + label so the operator
@@ -220,17 +236,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   // Combines cover/banner pickers (source selection) with direct
   // upload controls (custom file upload) so the operator never
   // needs to scroll to a separate "Custom artwork" card section.
-  const media = inCollection ? (
-    <ActionMenu
+  const media = (
+    <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
+      <ArtworkActionMenu
       label={t.detail.actions.groupMedia}
-      trigger={
-        <>
-          <ImageIcon className="h-3.5 w-3.5" aria-hidden /> {t.detail.actions.groupMedia}
-        </>
-      }
-      triggerClassName={ACTION_BUTTON_CLASSES}
-      menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
-      defaultPlacement="bottom-left"
+      triggerClassName={`${ACTION_BUTTON_CLASSES} min-w-[44px] px-0 sm:px-3`}
     >
       <div
         className="flex flex-col gap-2"
@@ -238,16 +248,8 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         aria-label={t.detail.actions.groupMedia}
       >
         <CoverPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />
-        <BannerSourcePicker
-          vnId={vn.id}
-          currentBanner={vn.banner_image}
-          coverRemote={vn.image_url}
-          coverLocal={vn.local_image || vn.local_image_thumb}
-          coverSexual={vn.image_sexual ?? null}
-          screenshots={screenshots}
-          releaseImages={releaseImages}
-          triggerClassName={ACTION_BUTTON_CLASSES}
-        />
+        <BannerPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />
+        <ArtworkTransformControls vnId={vn.id} />
         <div className="border-t border-border/50 pt-2">
           <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
             {t.detail.actions.groupMedia}
@@ -258,8 +260,9 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
           </div>
         </div>
       </div>
-    </ActionMenu>
-  ) : null;
+      </ArtworkActionMenu>
+    </VnCollectionVisibility>
+  );
 
   // ── Cluster 5: Data (single dropdown) ──────────────────────────
   // Intentionally NOT gated on collection - the operator can still
@@ -307,7 +310,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
           keepMenuOpen
         />
         {!isEgsOnly && (
-          <MapVnToEgsButton
+          <LazyMapVnToEgsButton
             vnId={vn.id}
             seedQuery={vn.alttitle?.trim() || vn.title}
             variant="inline"
@@ -338,9 +341,11 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
         {media}
         {data}
         {mapping}
-        {inCollection && <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />}
+        <VnCollectionVisibility vnId={vn.id} initialInCollection={inCollection} when>
+          <CoverQuickActions vnId={vn.id} inCollection={inCollection} mode="danger" />
+        </VnCollectionVisibility>
       </nav>
-      {coverPicker}
+      {artworkPickers}
     </>
   );
 }

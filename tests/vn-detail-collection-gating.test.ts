@@ -37,14 +37,16 @@ function line(marker: string): string {
 
 describe('VnDetailActionsBar gating contract', () => {
   it('Media cluster gates on inCollection', () => {
-    expect(line('const media = ')).toMatch(/const media = inCollection \?/);
+    expect(line('const media = ')).toMatch(/const media = \(\s*<VnCollectionVisibility/);
+    expect(bar).toMatch(/<VnCollectionVisibility vnId=\{vn\.id\} initialInCollection=\{inCollection\} when>\s*<ArtworkActionMenu/);
   });
 
   it('Destructive action (mode="danger") lives inside tracking which gates on inCollection', () => {
-    expect(line('const tracking = ')).toMatch(/const tracking = inCollection \?/);
-    const trackingIdx = bar.indexOf('const tracking = inCollection ?');
+    expect(line('const tracking = ')).toMatch(/const tracking = \(\s*<VnCollectionVisibility/);
+    const trackingIdx = bar.indexOf('const tracking = (');
     const dangerIdx = bar.indexOf('mode="danger"');
     expect(dangerIdx).toBeGreaterThan(trackingIdx);
+    expect(bar.slice(dangerIdx - 180, dangerIdx)).toContain('<VnCollectionVisibility');
   });
 
   it('Data cluster does NOT gate on inCollection (gates on !isEgsOnly)', () => {
@@ -79,8 +81,11 @@ describe('assets route gating contract', () => {
     // appears once in `vn-data-management.test.ts`'s docblock; this
     // assertion only inspects the route source.
     expect(route).not.toMatch(/if \(!getCollectionItem\(id\)\) return NextResponse\.json\(\{ error: 'not in collection' \}/);
-    // The replacement check: existence in `vn` (with VNDB fall-back).
-    expect(route).toMatch(/SELECT id FROM vn WHERE id = \?/);
+    // The replacement check goes through the dual-backend read repository;
+    // no route-level SQL should bypass the PostgreSQL/SQLite boundary.
+    expect(route).toContain('getVnReadRepository');
+    expect(route).toMatch(/vnReader\.getCollectionItem\(id\)/);
+    expect(route).not.toMatch(/SELECT\s+id\s+FROM\s+vn/i);
   });
 });
 

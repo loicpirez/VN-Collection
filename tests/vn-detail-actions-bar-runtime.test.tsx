@@ -16,6 +16,14 @@ vi.mock('@/components/AnimeChip', () => ({
   AnimeChip: ({ vnId }: { vnId: string }) => <div>{`anime:${vnId}`}</div>,
 }));
 
+vi.mock('@/components/ArtworkActionMenu', () => ({
+  ArtworkActionMenu: ({ children, label }: { children: React.ReactNode; label: string }) => <section data-artwork-menu={label}>{children}</section>,
+}));
+
+vi.mock('@/components/ArtworkTransformControls', () => ({
+  ArtworkTransformControls: ({ vnId }: { vnId: string }) => <div>{`artwork-transform:${vnId}`}</div>,
+}));
+
 vi.mock('@/components/BannerControls', () => ({
   BannerControls: ({ hasCustomBanner, vnId }: { hasCustomBanner: boolean; vnId: string }) => <div>{`banner-controls:${vnId}:${hasCustomBanner}`}</div>,
 }));
@@ -24,12 +32,18 @@ vi.mock('@/components/BannerSourcePicker', () => ({
   BannerSourcePicker: ({ coverLocal, vnId }: { coverLocal: string | null; vnId: string }) => <div>{`banner-picker:${vnId}:${coverLocal ?? 'none'}`}</div>,
 }));
 
+vi.mock('@/components/BannerPickerTrigger', () => ({
+  BannerPickerTrigger: ({ vnId }: { vnId: string }) => <div>{`banner-trigger:${vnId}`}</div>,
+}));
+
 vi.mock('@/components/CompareWithButton', () => ({
   CompareWithButton: ({ currentVnId }: { currentVnId: string }) => <div>{`compare:${currentVnId}`}</div>,
 }));
 
 vi.mock('@/components/CoverQuickActions', () => ({
-  CoverQuickActions: ({ mode, vnId }: { mode: string; vnId: string }) => <div>{`quick:${vnId}:${mode}`}</div>,
+  CoverQuickActions: ({ mode, vnId, variant }: { mode: string; vnId: string; variant?: string }) => (
+    <div>{`quick:${vnId}:${mode}:${variant ?? 'inline'}`}</div>
+  ),
 }));
 
 vi.mock('@/components/CoverPickerTrigger', () => ({
@@ -76,6 +90,34 @@ vi.mock('@/components/ListsPickerButton', () => ({
 
 vi.mock('@/components/MapVnToEgsButton', () => ({
   MapVnToEgsButton: ({ seedQuery, vnId }: { seedQuery: string; vnId: string }) => <div>{`map-egs:${vnId}:${seedQuery}`}</div>,
+}));
+
+vi.mock('@/components/LazyArtworkPickers', () => ({
+  LazyArtworkPickers: ({
+    banner,
+    cover,
+  }: {
+    banner: { coverLocal: string | null; vnId: string };
+    cover: {
+      currentImageSource: string;
+      currentRotation: number;
+      egsId: number | null;
+      releaseImages: CollectionItem['release_images'];
+      screenshots: CollectionItem['screenshots'];
+      vnId: string;
+    };
+  }) => (
+    <div>
+      <div>{`cover-picker:${cover.vnId}:${cover.egsId ?? 'none'}:${cover.currentImageSource}:${cover.currentRotation}:${cover.screenshots.length}:${cover.releaseImages.length}`}</div>
+      <div>{`banner-picker:${banner.vnId}:${banner.coverLocal ?? 'none'}`}</div>
+    </div>
+  ),
+}));
+
+vi.mock('@/components/LazyMapVnToEgsButton', () => ({
+  LazyMapVnToEgsButton: ({ seedQuery, vnId }: { seedQuery: string; vnId: string }) => (
+    <div>{`map-egs:${vnId}:${seedQuery}`}</div>
+  ),
 }));
 
 vi.mock('@/components/QueueButton', () => ({
@@ -169,7 +211,7 @@ describe('VN detail actions bar runtime', () => {
       imageSourcePref: 'egs',
     });
 
-    expect(html).toContain('quick:v90001:tracking');
+    expect(html).toContain('quick:v90001:tracking:responsive-menu');
     expect(html).toContain('lists:v90001');
     expect(html).not.toContain('favorite:v90001');
     expect(html).not.toContain('quick:v90001:danger');
@@ -201,11 +243,13 @@ describe('VN detail actions bar runtime', () => {
     expect(html).toContain('queue:v90002');
     expect(html).toContain('anime:v90002');
     expect(html).toContain('cover-trigger:v90002');
+    expect(html).toContain('banner-trigger:v90002');
+    expect(html).toContain('artwork-transform:v90002');
     expect(html).toContain('banner-picker:v90002:local-thumb.jpg');
     expect(html).toContain('uploader:v90002:true');
     expect(html).toContain('banner-controls:v90002:true');
     expect(html).toContain('download:v90002:complete');
-    expect(html).toContain('quick:v90002:danger');
+    expect(html).toContain('quick:v90002:danger:inline');
     expect(html).toContain('map-egs:v90002:Alternate title');
   });
 
