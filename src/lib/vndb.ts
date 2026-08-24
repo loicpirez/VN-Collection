@@ -1011,22 +1011,17 @@ function tagByIdBody(id: string): Record<string, unknown> {
  */
 function topVnsByTagBody(
   tagId: string,
-  {
-    results = 24,
-    page = 1,
-    lieThreshold = 1.2,
-    spoiler = 1,
-  }: { results?: number; page?: number; lieThreshold?: number; spoiler?: 0 | 1 | 2 } = {},
+  options: { results: number; page: number; lieThreshold: number; spoiler: 0 | 1 | 2 },
 ): Record<string, unknown> {
   return {
     // Order per KANA.md example `["g505", 2, 1.2]`:
     // maxSpoiler (integer 0/1/2) precedes minTagLevel (float [0, 3]).
-    filters: ['tag', '=', [tagId.toLowerCase(), spoiler, lieThreshold]],
+    filters: ['tag', '=', [tagId.toLowerCase(), options.spoiler, options.lieThreshold]],
     fields: VN_SEARCH_FIELDS,
     sort: 'rating',
     reverse: true,
-    results: Math.min(results, 100),
-    page: Math.max(1, Math.floor(page)),
+    results: Math.min(options.results, 100),
+    page: Math.max(1, Math.floor(options.page)),
   };
 }
 

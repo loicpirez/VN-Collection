@@ -99,6 +99,21 @@ describe('fetchTopVnsByTag — KANA tag-filter contract', () => {
     );
   });
 
+  it('preserves an empty cached tag response as a resolved not-found value', async () => {
+    cacheEntryMock.mockResolvedValueOnce({
+      data: { results: [], more: false },
+      fetchedAt: 11,
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await expect(readCachedTag('g9997')).resolves.toEqual({
+      tag: null,
+      fetchedAt: 11,
+      expiresAt: expect.any(Number),
+      stale: false,
+    });
+  });
+
   it('returns null for cache misses and preserves expired ranked pages', async () => {
     cacheEntryMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     await expect(readCachedTag('g9998')).resolves.toBeNull();
