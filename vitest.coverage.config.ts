@@ -15,7 +15,7 @@ export default defineConfig({
     hookTimeout: 60_000,
     setupFiles: ['tests/setup.ts'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
       reporter: ['text', 'html', 'json', 'json-summary'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.{ts,tsx}'],

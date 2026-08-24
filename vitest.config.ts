@@ -13,7 +13,7 @@ export default defineConfig({
     isolate: true,
     setupFiles: ['tests/setup.ts'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
       reporter: ['text', 'html'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.{ts,tsx}'],
