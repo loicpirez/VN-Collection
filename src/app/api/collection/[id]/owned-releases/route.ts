@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  db,
-  isInCollection,
   isValidBoxType,
   isValidLocation,
-  listOwnedReleasesWithShelfForVn,
-  markReleaseOwned,
-  materializeReleaseMetaForVn,
-  setOwnedReleaseAspectOverride,
-  unmarkReleaseOwned,
-  updateOwnedRelease,
   type OwnedReleasePatch,
 } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import {
+  getOwnedReleaseRepository,
+  type OwnedReleaseAspectOverrideInput,
+} from '@/lib/db/repositories/owned-release';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
 import { isVndbVnId, normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { recordActivity } from '@/lib/activity';
 
@@ -31,7 +29,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 type AspectOverrideInput = {
   width?: number | null;
   height?: number | null;
-  aspectKey?: Parameters<typeof setOwnedReleaseAspectOverride>[0]['aspectKey'];
+  aspectKey?: OwnedReleaseAspectOverrideInput['aspectKey'];
   note?: string | null;
 };
 
@@ -175,8 +173,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  const owned = listOwnedReleasesWithShelfForVn(id);
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  const owned = await getOwnedReleaseRepository().listWithShelfForVn(id);
   return NextResponse.json({ owned });
 }
 
@@ -187,14 +185,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
   const { patch, error } = pickPatch(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  markReleaseOwned(id, validation.normalized, patch);
-  recordActivity({
+  const repository = getOwnedReleaseRepository();
+  await repository.mark(id, validation.normalized, patch);
+  await recordActivity({
     kind: 'owned_release.add',
     entity: 'owned_release',
     entityId: `${id}:${validation.normalized}`,
@@ -211,7 +210,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // `POST /release` was never cached (synthetic ids, brand-new VN).
   if (isVndbVnId(id)) {
     try {
-      materializeReleaseMetaForVn(id);
+      await getReleaseMetadataRepository().materializeForVns([id]);
     } catch {
       // Best-effort — adding the owned-release row already
       // succeeded; the materialize step is an optimization, not a
@@ -219,7 +218,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // button still works as a fallback.
     }
   }
-  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
+  return NextResponse.json({ owned: await repository.listWithShelfForVn(id) });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -229,7 +228,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const validation = validateReleaseId(String(body.release_id ?? ''), id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
@@ -237,27 +236,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (error) return NextResponse.json({ error }, { status: 400 });
   const aspectOverride = 'aspect_override' in body ? parseAspectOverride(body.aspect_override) : null;
   if (aspectOverride?.error) return NextResponse.json({ error: aspectOverride.error }, { status: 400 });
-  db.transaction(() => {
-    updateOwnedRelease(id, validation.normalized, patch);
-    if (!aspectOverride) return;
-    if (aspectOverride.value === null) {
-      setOwnedReleaseAspectOverride({ vnId: id, releaseId: validation.normalized, aspectKey: 'unknown' });
-      return;
-    }
-    setOwnedReleaseAspectOverride({
-      vnId: id,
-      releaseId: validation.normalized,
-      ...aspectOverride.value,
-    });
-  })();
-  recordActivity({
+  const repository = getOwnedReleaseRepository();
+  await repository.updateWithAspect(
+    id,
+    validation.normalized,
+    patch,
+    aspectOverride ? aspectOverride.value ?? null : undefined,
+  );
+  await recordActivity({
     kind: 'owned_release.update',
     entity: 'owned_release',
     entityId: `${id}:${validation.normalized}`,
     label: 'Updated owned edition',
     payload: { vn_id: id, release_id: validation.normalized, ...patch },
   });
-  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
+  return NextResponse.json({ owned: await repository.listWithShelfForVn(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -267,16 +260,17 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const validation = validateReleaseId(req.nextUrl.searchParams.get('release_id') ?? '', id);
   if (!validation.ok) return NextResponse.json({ error: 'invalid release id' }, { status: 400 });
-  unmarkReleaseOwned(id, validation.normalized);
-  recordActivity({
+  const repository = getOwnedReleaseRepository();
+  await repository.remove(id, validation.normalized);
+  await recordActivity({
     kind: 'owned_release.remove',
     entity: 'owned_release',
     entityId: `${id}:${validation.normalized}`,
     label: 'Removed owned edition',
     payload: { vn_id: id, release_id: validation.normalized },
   });
-  return NextResponse.json({ owned: listOwnedReleasesWithShelfForVn(id) });
+  return NextResponse.json({ owned: await repository.listWithShelfForVn(id) });
 }
