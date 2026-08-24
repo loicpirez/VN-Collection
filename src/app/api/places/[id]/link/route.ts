@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, linkProviderToPlace, moveProviderLink, unlinkProviderFromPlace } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const repository = getPlaceRepository();
+    if (!await repository.get(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as { provider_label?: unknown; from_place_id?: unknown };
     const label = validateText(body.provider_label, { field: 'provider_label', max: 200 });
     if (!label.ok) return NextResponse.json({ error: label.error }, { status: 400 });
@@ -33,11 +34,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       fromPlaceId = parsedFromPlaceId.value;
     }
     if (fromPlaceId !== null && fromPlaceId !== id) {
-      if (!getPlace(fromPlaceId)) return NextResponse.json({ error: 'from_place not found' }, { status: 404 });
-      moveProviderLink(fromPlaceId, id, label.value);
+      if (!await repository.get(fromPlaceId)) return NextResponse.json({ error: 'from_place not found' }, { status: 404 });
+      await repository.moveProvider(fromPlaceId, id, label.value);
       return NextResponse.json({ ok: true, moved: true });
     }
-    linkProviderToPlace(id, label.value);
+    await repository.linkProvider(id, label.value);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('places.[id].link.POST', err);
@@ -51,11 +52,12 @@ export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> 
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const repository = getPlaceRepository();
+    if (!await repository.get(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as { provider_label?: unknown };
     const label = validateText(body.provider_label, { field: 'provider_label', max: 200 });
     if (!label.ok) return NextResponse.json({ error: label.error }, { status: 400 });
-    unlinkProviderFromPlace(id, label.value);
+    await repository.unlinkProvider(id, label.value);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('places.[id].link.DELETE', err);

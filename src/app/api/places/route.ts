@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listKnownPlaces, listPlaces, createPlace } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
 import { validateText } from '@/lib/input-validators';
 import { parseOptionalPlaceKind, parseOptionalPlaceText, parseOptionalPlaceUrl } from '@/lib/place-input';
+import { parsePlaceRegistryQuery, queryPlaceRegistry } from '@/lib/place-registry-page';
 
 import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 void PUBLIC_READ_ROUTE;
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req?: NextRequest): Promise<NextResponse> {
   try {
-    return NextResponse.json({ places: listPlaces(), known_places: listKnownPlaces() });
+    const params = req?.nextUrl.searchParams ?? new URLSearchParams();
+    const repository = getPlaceRepository();
+    const [places, knownPlaces] = await Promise.all([repository.list(), repository.listKnownPlaces()]);
+    const result = queryPlaceRegistry(places, parsePlaceRegistryQuery(params));
+    return NextResponse.json({ ...result, known_places: knownPlaces });
   } catch (err) {
     return internalError('places.GET', err);
   }
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (hasAnyCoordinate && !hasFiniteCoordinates(coordinates)) {
       return NextResponse.json({ error: 'valid lat and lng required together' }, { status: 400 });
     }
-    const id = createPlace({
+    const id = await getGeneratedIdRepository().createPlace({
       name: name.value,
       name_ja: nameJa.value ?? null,
       kind: kind.value ?? 'shop',

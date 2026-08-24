@@ -150,6 +150,10 @@ function renderBrowser() {
   );
 }
 
+function named(template: string, name: string): string {
+  return template.replace('{name}', name);
+}
+
 describe('PlaceBrowser', () => {
   beforeEach(() => {
     try {
@@ -173,7 +177,19 @@ describe('PlaceBrowser', () => {
     await waitFor(() => expect(screen.getByText('Akiba Shop')).toBeTruthy());
     expect(screen.getAllByText('2').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
-    expect(screen.getAllByRole('link', { name: t.places.openPlace as string }).length).toBe(2);
+    expect(screen.getByText(t.places.statsCaption as string)).toBeTruthy();
+    expect(screen.getByText(t.places.statsStockHint as string)).toBeTruthy();
+    const openAkiba = screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'Akiba Shop') });
+    expect(openAkiba).toBeTruthy();
+    expect(openAkiba.parentElement?.className).toContain('mt-2');
+    expect(openAkiba.parentElement?.className).toContain('sm:mt-0');
+    expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'No GPS Chain') })).toBeTruthy();
+    const websiteAction = screen.getByRole('link', { name: named(t.places.openWebsiteNamed as string, 'Akiba Shop') });
+    expect(websiteAction.getAttribute('href')).toBe('https://example.test/shop');
+    expect(websiteAction.textContent).toContain(t.places.openWebsite as string);
+    const mapAction = screen.getByRole('link', { name: named(t.places.viewOnMapNamed as string, 'Akiba Shop') });
+    expect(mapAction.getAttribute('href')).toBe('/map?place=1');
+    expect(mapAction.textContent).toContain(t.places.viewOnMap as string);
     fireEvent.change(screen.getByRole('combobox', { name: t.places.sortLabel as string }), { target: { value: 'stock' } });
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filtersLabel as string) }));
     fireEvent.change(screen.getByLabelText(t.places.kindLabel as string), { target: { value: 'chain' } });
@@ -189,7 +205,8 @@ describe('PlaceBrowser', () => {
   it('restores view preferences and covers linked, unlinked, gps, and provider search filters', async () => {
     localStorage.setItem('vncoll.places.prefs.v1', JSON.stringify({ sort: 'fresh', view: 'list' }));
     renderBrowser();
-    await waitFor(() => expect(screen.getAllByRole('link', { name: t.places.openPlace as string }).length).toBe(2));
+    await waitFor(() => expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'Akiba Shop') })).toBeTruthy());
+    expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'No GPS Chain') })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.tabLinked as string) }));
     expect(screen.getByText('Akiba Shop')).toBeTruthy();
     expect(screen.queryByText('No GPS Chain')).toBeNull();
@@ -289,6 +306,25 @@ describe('PlaceBrowser', () => {
     expect(screen.queryByText('Akiba Shop')).toBeNull();
   });
 
+  it('omits unsafe website links from list rows', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === '/api/places') {
+        return json({
+          places: [place({ id: 1, name: 'Unsafe Shop', url: 'javascript:alert(1)' })],
+          known_places: [],
+        });
+      }
+      if (u === '/api/places/unassigned') return json({ branches: [] });
+      return json({});
+    });
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Unsafe Shop')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
+    expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'Unsafe Shop') })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: named(t.places.openWebsiteNamed as string, 'Unsafe Shop') })).toBeNull();
+  });
+
   it('opens the new-place and list-row edit flows and reloads after save', async () => {
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Akiba Shop')).toBeTruthy());
@@ -297,7 +333,7 @@ describe('PlaceBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: 'save place modal' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'place modal' })).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
-    fireEvent.click(screen.getAllByRole('button', { name: t.places.editPlace as string })[0]);
+    fireEvent.click(screen.getByRole('button', { name: named(t.places.editPlaceNamed as string, 'Akiba Shop') }));
     expect(within(screen.getByRole('dialog', { name: 'place modal' })).getByText('Akiba Shop')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'save place modal' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'place modal' })).toBeNull());
@@ -468,7 +504,8 @@ describe('PlaceBrowser', () => {
     await waitFor(() => expect(screen.getByText('Akiba Shop')).toBeTruthy());
     expect(screen.getByRole('list')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: t.places.viewList as string }));
-    expect(screen.getAllByRole('link', { name: t.places.openPlace as string }).length).toBe(2);
+    expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'Akiba Shop') })).toBeTruthy();
+    expect(screen.getByRole('link', { name: named(t.places.openPlaceNamed as string, 'No GPS Chain') })).toBeTruthy();
   });
 
   it('falls back when reading saved preferences throws', async () => {
@@ -631,5 +668,105 @@ describe('PlaceBrowser', () => {
       staleUnassigned.resolve(json({ branches: ['Late Branch'] }));
     });
     expect(screen.queryByText('Akiba Shop')).toBeNull();
+  });
+
+  it('requests server windows for pagination and resets search to the first page', async () => {
+    const stats = {
+      total: 61,
+      linked: 1,
+      unlinked: 60,
+      with_gps: 1,
+      no_gps: 60,
+      stock_count: 3,
+      stale: 0,
+    };
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const value = String(url);
+      if (value.startsWith('/api/places/unassigned')) {
+        if (value.includes('offset=60')) {
+          return json({ branches: ['Target Branch Two'], page: { total: 61, limit: 60, offset: 60 } });
+        }
+        if (value.includes('q=target')) {
+          return json({ branches: ['Target Branch'], page: { total: 61, limit: 60, offset: 0 } });
+        }
+        return json({ branches: ['Server Branch One'], page: { total: 61, limit: 60, offset: 0 } });
+      }
+      if (value.includes('offset=60')) {
+        return json({
+          places: [place({ id: 61, name: 'Server Page Two' })],
+          known_places: [],
+          page: { total: 61, limit: 60, offset: 60 },
+          stats,
+        });
+      }
+      if (value.includes('q=target')) {
+        return json({
+          places: [place({ id: 9, name: 'Target Result' })],
+          known_places: [],
+          page: { total: 1, limit: 60, offset: 0 },
+          stats,
+        });
+      }
+      return json({
+        places: [place({ id: 1, name: 'Server Page One' })],
+        known_places: [],
+        page: { total: 61, limit: 60, offset: 0 },
+        stats,
+      });
+    });
+
+    renderBrowser();
+    await waitFor(() => expect(screen.getByText('Server Page One')).toBeTruthy());
+    fireEvent.change(screen.getByRole('combobox', { name: t.places.sortLabel as string }), { target: { value: 'stock' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.tabLinked as string) }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.filtersLabel as string) }));
+    fireEvent.change(screen.getByLabelText(t.places.kindLabel as string), { target: { value: 'chain' } });
+    fireEvent.change(screen.getByLabelText('GPS'), { target: { value: 'no_gps' } });
+    fireEvent.click(screen.getByRole('button', { name: (t.places.hideStale as string).replace('{n}', '0') }));
+    await waitFor(() => expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url]) => {
+        const value = String(url);
+        return value.includes('tab=linked') && value.includes('sort=stock') && value.includes('kind=chain')
+          && value.includes('gps=no_gps') && value.includes('hide_stale=1');
+      },
+    )).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: t.places.resetFilters as string }));
+    await waitFor(() => expect(screen.getByText('Server Page One')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: t.common.next as string }));
+    await waitFor(() => expect(screen.getByText('Server Page Two')).toBeTruthy());
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url]) => {
+        const parsed = new URL(String(url), 'http://localhost');
+        return parsed.pathname === '/api/places' && parsed.searchParams.get('offset') === '60';
+      },
+    )).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(t.places.searchPlaceholder as string), { target: { value: 'target' } });
+    await waitFor(() => expect(screen.getByText('Target Result')).toBeTruthy());
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url]) => {
+        const parsed = new URL(String(url), 'http://localhost');
+        return parsed.pathname === '/api/places' && parsed.searchParams.get('q') === 'target'
+          && !parsed.searchParams.has('offset');
+      },
+    )).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.tabUnassigned as string) }));
+    await waitFor(() => expect(screen.getByText('Target Branch')).toBeTruthy());
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url]) => {
+        const parsed = new URL(String(url), 'http://localhost');
+        return parsed.pathname === '/api/places/unassigned' && parsed.searchParams.get('q') === 'target';
+      },
+    )).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: t.common.next as string }));
+    await waitFor(() => expect(screen.getByText('Target Branch Two')).toBeTruthy());
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url]) => {
+        const parsed = new URL(String(url), 'http://localhost');
+        return parsed.pathname === '/api/places/unassigned' && parsed.searchParams.get('q') === 'target'
+          && parsed.searchParams.get('offset') === '60';
+      },
+    )).toBe(true);
   });
 });

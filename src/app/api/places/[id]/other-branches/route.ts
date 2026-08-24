@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, listBranchesAtOtherPlaces } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { internalError } from '@/lib/api-error';
 
 import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
@@ -19,8 +19,9 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    const branches = listBranchesAtOtherPlaces(id);
+    const repository = getPlaceRepository();
+    if (!await repository.get(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const branches = await repository.listOtherBranches(id);
     return NextResponse.json({ branches });
   } catch (err) {
     return internalError('places.[id].other-branches.GET', err);

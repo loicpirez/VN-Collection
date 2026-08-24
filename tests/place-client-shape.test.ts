@@ -7,6 +7,7 @@ import {
   decodePlacesResponse,
   decodePlaceStockResponse,
   decodeUnassignedBranchesResponse,
+  decodeUnassignedBranchesPageResponse,
 } from '../src/lib/place-client-shape';
 
 const place = {
@@ -85,6 +86,27 @@ describe('place client response adapters', () => {
     expect(decodePlaceStockResponse({ vns: [stockVn], stats })?.vns[0]?.vn_id).toBe('v90001');
   });
 
+  it('decodes current paginated registry envelopes and legacy branch envelopes', () => {
+    const page = { total: 10, limit: 2, offset: 4 };
+    const registryStats = {
+      total: 10,
+      linked: 4,
+      unlinked: 6,
+      with_gps: 5,
+      no_gps: 5,
+      stock_count: 20,
+      stale: 1,
+    };
+    expect(decodePlacesResponse({
+      places: [place],
+      known_places: [],
+      page,
+      stats: registryStats,
+    })).toMatchObject({ page, stats: registryStats });
+    expect(decodeUnassignedBranchesPageResponse({ branches: ['Branch'], page })).toEqual({ branches: ['Branch'], page });
+    expect(decodeUnassignedBranchesPageResponse({ branches: ['Legacy'] })).toEqual({ branches: ['Legacy'] });
+  });
+
   it('rejects malformed payloads before client state replacement', () => {
     expect(decodePlacesResponse({ places: [{ ...place, lat: 91 }], known_places: [] })).toBeNull();
     expect(decodePlacesResponse({ places: [{ ...place, id: 0 }], known_places: [] })).toBeNull();
@@ -100,5 +122,9 @@ describe('place client response adapters', () => {
     expect(decodeCreatePlaceResponse({ id: 0 })).toBeNull();
     expect(decodePlaceStockResponse({ vns: [{ ...stockVn, offers: [{ ...offer, vn_id: 'bad' }] }], stats })).toBeNull();
     expect(decodePlaceStockResponse({ vns: [stockVn], stats: { ...stats, total: -1 } })).toBeNull();
+    expect(decodePlacesResponse({ places: [place], known_places: [], page: {}, stats: {} })).toBeNull();
+    expect(decodePlacesResponse({ places: [place], known_places: [], page: { total: 1, limit: 1, offset: 0 }, stats: {} })).toBeNull();
+    expect(decodeUnassignedBranchesPageResponse({ branches: null })).toBeNull();
+    expect(decodeUnassignedBranchesPageResponse({ branches: [], page: { total: -1, limit: 1, offset: 0 } })).toBeNull();
   });
 });

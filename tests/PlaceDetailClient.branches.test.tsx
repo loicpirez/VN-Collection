@@ -107,6 +107,7 @@ describe('PlaceDetailClient branches', () => {
     expect(link).toHaveAttribute('href', 'https://example.test/shop');
     // View-on-map link exists because GPS is present.
     expect(screen.getByRole('link', { name: t.places.viewOnMap as string })).toHaveAttribute('href', '/map?place=12');
+    expect(screen.getByRole('button', { name: t.places.deletePlace as string }).parentElement).toHaveClass('border-t', 'sm:border-l');
     expect(screen.getByTestId('vn-browser')).toHaveTextContent('12');
   });
 
@@ -294,6 +295,28 @@ describe('PlaceDetailClient branches', () => {
     expect(browser.getAttribute('data-embedded')).toBe('true');
     expect(browser.getAttribute('data-base-path')).toBe('/places/21');
     expect(screen.queryByTestId('vn-browser')).toBeNull();
+  });
+
+  it('keeps AliceNet controls and other branch stock available on a mixed shop', async () => {
+    const { PlaceDetailClient } = await import('@/components/PlaceDetailClient');
+    const { user } = renderWithProviders(
+      <PlaceDetailClient place={place({ id: 22, provider_labels: ['AliceNet', 'Sofmap Akiba'] })} />,
+      { locale: 'en' },
+    );
+
+    const aliceNetTab = screen.getByRole('tab', { name: t.places.stockSourceAliceNet as string });
+    const branchesTab = screen.getByRole('tab', { name: t.places.stockSourceOther as string });
+    expect(aliceNetTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('alicenet-client')).toBeInTheDocument();
+    expect(screen.queryByTestId('vn-browser')).toBeNull();
+
+    await user.click(branchesTab);
+    expect(branchesTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('vn-browser')).toHaveTextContent('22');
+    expect(screen.queryByTestId('alicenet-client')).toBeNull();
+
+    await user.click(aliceNetTab);
+    expect(screen.getByTestId('alicenet-client')).toHaveAttribute('data-base-path', '/places/22');
   });
 
   it('falls back to the raw kind when no localized label exists', async () => {

@@ -110,7 +110,12 @@ describe('GET /api/places/[id]/other-branches', () => {
     });
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].other-branches.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].other-branches.GET] other branches failed');
     listSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -273,7 +278,12 @@ describe('GET /api/places/[id]/stock', () => {
     });
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].stock.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].stock.GET] place stock failed');
     listSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -285,7 +295,7 @@ describe('GET /api/places/provider-map', () => {
     const placeId = createPlace({ name: `${PLACE_NAME_PREFIX}map` });
     linkProviderToPlace(placeId, PROVIDER_LABEL);
 
-    const res = await providerMapGET();
+    const res = await providerMapGET(req('/api/places/provider-map'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.map[PROVIDER_LABEL]).toBe(placeId);
@@ -296,9 +306,14 @@ describe('GET /api/places/provider-map', () => {
     const mapSpy = vi.spyOn(dbModule, 'getPlaceProviderMap').mockImplementation(() => {
       throw new Error('provider map failed');
     });
-    const res = await providerMapGET();
+    const res = await providerMapGET(req('/api/places/provider-map'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.provider-map.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.provider-map.GET] provider map failed');
     mapSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -309,10 +324,21 @@ describe('GET /api/places/unassigned', () => {
   it('200 listing offer branches not yet linked to any place', async () => {
     seedOffer(PROVIDER_LABEL);
 
-    const res = await unassignedGET();
+    const res = await unassignedGET(req('/api/places/unassigned'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.branches).toContain(PROVIDER_LABEL);
+  });
+
+  it('200 filtering and bounding unassigned branches', async () => {
+    seedOffer(PROVIDER_LABEL);
+
+    const res = await unassignedGET(req(`/api/places/unassigned?q=${encodeURIComponent(PROVIDER_LABEL)}&limit=1`));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      branches: [PROVIDER_LABEL],
+      page: { total: 1, limit: 1, offset: 0 },
+    });
   });
 
   it('500 when the unassigned branch query fails', async () => {
@@ -320,9 +346,14 @@ describe('GET /api/places/unassigned', () => {
     const listSpy = vi.spyOn(dbModule, 'listUnassignedBranches').mockImplementation(() => {
       throw new Error('unassigned failed');
     });
-    const res = await unassignedGET();
+    const res = await unassignedGET(req('/api/places/unassigned'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.unassigned.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.unassigned.GET] unassigned failed');
     listSpy.mockRestore();
     consoleSpy.mockRestore();

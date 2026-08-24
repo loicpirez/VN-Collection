@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Clock, Globe, Edit2, Link2, Loader2, MapPin, PackageCheck, Trash2 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
 import { safeHref } from '@/lib/safe-href';
+import { fmtDate } from '@/lib/locale-number';
 
 const STALE_DAYS = 7;
 const MS_PER_DAY = 86_400_000;
@@ -19,12 +20,17 @@ interface Props {
   onAssign: (place: PlaceWithLinks) => void;
 }
 
-function freshnessInfo(stockUpdatedAt: number | null): { label: string; stale: boolean } {
-  if (stockUpdatedAt == null || stockUpdatedAt <= 0) return { label: '', stale: false };
+function freshnessInfo(
+  stockUpdatedAt: number | null,
+  t: ReturnType<typeof useT>,
+  locale: ReturnType<typeof useLocale>,
+): { label: string; title: string; stale: boolean } | null {
+  if (stockUpdatedAt == null || stockUpdatedAt <= 0) return null;
   const days = Math.floor((Date.now() - stockUpdatedAt) / MS_PER_DAY);
-  if (days === 0) return { label: '', stale: false };
-  if (days < STALE_DAYS) return { label: '', stale: false };
-  return { label: String(days), stale: true };
+  const title = fmtDate(new Date(stockUpdatedAt), locale, { dateStyle: 'medium', timeStyle: 'short' });
+  if (days >= STALE_DAYS) return { label: (t.places.freshStale as string).replace('{n}', String(days)), title, stale: true };
+  if (days === 0) return { label: t.places.freshUpdatedToday as string, title, stale: false };
+  return { label: (t.places.freshUpdatedDaysAgo as string).replace('{n}', String(days)), title, stale: false };
 }
 
 function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
@@ -43,13 +49,14 @@ function linkedBranchesLabel(t: ReturnType<typeof useT>, count: number): string 
 
 export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   const t = useT();
+  const locale = useLocale();
   const { confirm } = useConfirm();
   const toast = useToast();
   const [deleting, setDeleting] = useState(false);
   const placeIdentityRef = useRef<number | null>(place.id);
   const deleteInFlightRef = useRef(false);
   const deleteAbortRef = useRef<AbortController | null>(null);
-  const { stale, label: staleDays } = freshnessInfo(place.stock_updated_at);
+  const freshness = freshnessInfo(place.stock_updated_at, t, locale);
   const hasGps = place.lat != null && place.lng != null;
   const placeHref = safeHref(place.url);
 
@@ -177,10 +184,17 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
           <span className="rounded border border-border bg-bg-elev/30 px-2 py-0.5 text-[11px] text-muted">
             {kindLabel(t, place.kind)}
           </span>
-          {stale && place.provider_labels.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
+          {freshness && place.provider_labels.length > 0 && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                freshness.stale
+                  ? 'border-status-on_hold/25 bg-status-on_hold/10 text-status-on_hold'
+                  : 'border-status-completed/25 bg-status-completed/10 text-status-completed'
+              }`}
+              title={freshness.title}
+            >
               <Clock className="h-3 w-3" aria-hidden />
-              {(t.places.freshStale as string).replace('{n}', staleDays)}
+              {freshness.label}
             </span>
           )}
         </div>

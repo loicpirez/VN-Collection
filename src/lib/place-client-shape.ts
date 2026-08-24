@@ -2,6 +2,8 @@ import { asJsonRecord } from './json-shape';
 import { hasFiniteCoordinates } from './place-coordinates';
 import { isValidVnId, normalizeVnId } from './vn-id-shape';
 import type { PlaceOfferRow, PlaceVnRow, PlaceWithLinks } from './db';
+import type { PlaceRegistryStats, RegistryPageMeta } from './place-registry-page';
+import { decodeOffsetPageWindow } from './server-pagination';
 
 /** Place-stock statistics returned by the place browser endpoint. */
 export interface PlaceStockStats {
@@ -50,6 +52,33 @@ function isIndicator(value: unknown): value is number {
 
 function decodeStringArray(value: unknown): string[] | null {
   return Array.isArray(value) && value.every(isString) ? value : null;
+}
+
+function decodeRegistryPage(value: unknown): RegistryPageMeta | null {
+  return decodeOffsetPageWindow(value, 120);
+}
+
+function decodePlaceRegistryStats(value: unknown): PlaceRegistryStats | null {
+  const record = asJsonRecord(value);
+  if (
+    !record ||
+    !isIntegerAtLeast(record.total, 0) ||
+    !isIntegerAtLeast(record.linked, 0) ||
+    !isIntegerAtLeast(record.unlinked, 0) ||
+    !isIntegerAtLeast(record.with_gps, 0) ||
+    !isIntegerAtLeast(record.no_gps, 0) ||
+    !isIntegerAtLeast(record.stock_count, 0) ||
+    !isIntegerAtLeast(record.stale, 0)
+  ) return null;
+  return {
+    total: record.total,
+    linked: record.linked,
+    unlinked: record.unlinked,
+    with_gps: record.with_gps,
+    no_gps: record.no_gps,
+    stock_count: record.stock_count,
+    stale: record.stale,
+  };
 }
 
 function decodeArray<T>(value: unknown, decodeRow: (row: unknown) => T | null): T[] | null {
@@ -214,11 +243,17 @@ function decodePlaceStockStats(value: unknown): PlaceStockStats | null {
 export function decodePlacesResponse(value: unknown): {
   places: PlaceWithLinks[];
   known_places: string[];
+  page?: RegistryPageMeta;
+  stats?: PlaceRegistryStats;
 } | null {
   const record = asJsonRecord(value);
   const places = decodeArray(record?.places, decodePlace);
   const knownPlaces = decodeStringArray(record?.known_places);
-  return places && knownPlaces ? { places, known_places: knownPlaces } : null;
+  if (!places || !knownPlaces) return null;
+  if (record?.page === undefined && record?.stats === undefined) return { places, known_places: knownPlaces };
+  const page = decodeRegistryPage(record?.page);
+  const stats = decodePlaceRegistryStats(record?.stats);
+  return page && stats ? { places, known_places: knownPlaces, page, stats } : null;
 }
 
 /**
@@ -239,6 +274,19 @@ export function decodeKnownPlacesResponse(value: unknown): string[] | null {
  */
 export function decodeUnassignedBranchesResponse(value: unknown): string[] | null {
   return decodeStringArray(asJsonRecord(value)?.branches);
+}
+
+/** Decode unassigned branches with optional server-pagination metadata. */
+export function decodeUnassignedBranchesPageResponse(value: unknown): {
+  branches: string[];
+  page?: RegistryPageMeta;
+} | null {
+  const record = asJsonRecord(value);
+  const branches = decodeStringArray(record?.branches);
+  if (!branches) return null;
+  if (record?.page === undefined) return { branches };
+  const page = decodeRegistryPage(record.page);
+  return page ? { branches, page } : null;
 }
 
 /**

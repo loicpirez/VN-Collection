@@ -49,7 +49,12 @@ describe('GET /api/places/[id]', () => {
       params: Promise.reject(new Error('params failed')),
     });
     expect(failed.status).toBe(500);
-    expect(await failed.json()).toEqual({ error: 'internal error' });
+    expect(await failed.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].GET',
+    });
   });
 });
 
@@ -131,7 +136,12 @@ describe('PATCH /api/places/[id]', () => {
     const response = await patchPlaceRoute(loopbackReq(`/api/places/${id}`, 'PATCH', { name: `${PLACE_PREFIX}failed` }), ctx(id));
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].PATCH',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].PATCH] private update failure');
     updateSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -159,7 +169,12 @@ describe('DELETE /api/places/[id]', () => {
     const response = await deletePlaceRoute(loopbackReq(`/api/places/${id}`, 'DELETE'), ctx(id));
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].DELETE',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].DELETE] private delete failure');
     deleteSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -215,7 +230,12 @@ describe('POST /api/places/[id]/link', () => {
     const response = await linkPlaceRoute(loopbackReq(`/api/places/${id}/link`, 'POST', { provider_label: `${LABEL_PREFIX}fail` }), ctx(id));
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].link.POST',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].link.POST] private link failure');
     linkSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -251,7 +271,12 @@ describe('DELETE /api/places/[id]/link', () => {
     const response = await unlinkPlaceRoute(loopbackReq(`/api/places/${id}/link`, 'DELETE', { provider_label: label }), ctx(id));
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.[id].link.DELETE',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.[id].link.DELETE] private unlink failure');
     unlinkSpy.mockRestore();
     consoleSpy.mockRestore();

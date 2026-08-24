@@ -13,10 +13,12 @@ import { ErrorAlert } from './ErrorAlert';
 import { SkeletonBlock } from './Skeleton';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
+import { AcronymLabel } from './AcronymLabel';
 import { safeHref } from '@/lib/safe-href';
 import { parseClientPreferenceRecord } from '@/lib/client-persisted-shape';
-import { decodePlacesResponse, decodeUnassignedBranchesResponse } from '@/lib/place-client-shape';
+import { decodePlacesResponse, decodeUnassignedBranchesPageResponse } from '@/lib/place-client-shape';
 import { fmtNum } from '@/lib/locale-number';
+import type { PlaceRegistryStats, RegistryPageMeta } from '@/lib/place-registry-page';
 
 const STALE_MS = 86_400_000 * 7;
 const PREFS_KEY = 'vncoll.places.prefs.v1';
@@ -54,6 +56,10 @@ function linkedBranchesLabel(t: ReturnType<typeof useT>, count: number): string 
   return template.replace('{n}', String(count));
 }
 
+function namedPlaceAction(template: string, placeName: string): string {
+  return template.replace('{name}', placeName);
+}
+
 function placeStockFreshnessAt(place: PlaceWithLinks): number | null {
   return place.stock_updated_at && place.stock_updated_at > 0 ? place.stock_updated_at : null;
 }
@@ -78,6 +84,9 @@ export function PlaceBrowser() {
   const toast = useToast();
   const [places, setPlaces] = useState<PlaceWithLinks[]>([]);
   const [unassigned, setUnassigned] = useState<string[]>([]);
+  const [placePage, setPlacePage] = useState<RegistryPageMeta | null>(null);
+  const [unassignedPage, setUnassignedPage] = useState<RegistryPageMeta | null>(null);
+  const [placeStats, setPlaceStats] = useState<PlaceRegistryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
@@ -94,9 +103,11 @@ export function PlaceBrowser() {
   const [assignBranchTarget, setAssignBranchTarget] = useState<string | null>(null);
   const reloadAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const initialLoadCompleteRef = useRef(false);
   const assignBranchTargetRef = useRef<string | null>(null);
   const assignBranchLinkRef = useRef(false);
   const assignBranchLinkAbortRef = useRef<AbortController | null>(null);
+  const q = search.trim().toLowerCase();
 
   const reload = useCallback(async () => {
     reloadAbortRef.current?.abort();
@@ -104,32 +115,52 @@ export function PlaceBrowser() {
     reloadAbortRef.current = controller;
     const { signal } = controller;
     setLoadError(null);
+    setLoading(true);
     try {
+      const offset = (page - 1) * PLACE_REGISTRY_PAGE_SIZE;
+      const placeParams = new URLSearchParams();
+      const unassignedParams = new URLSearchParams();
+      if (initialLoadCompleteRef.current) {
+        if (tab !== 'all' && tab !== 'unassigned') placeParams.set('tab', tab);
+        if (sort !== 'name') placeParams.set('sort', sort);
+        if (q) placeParams.set('q', q);
+        if (kindFilter) placeParams.set('kind', kindFilter);
+        if (gpsFilter !== 'all') placeParams.set('gps', gpsFilter);
+        if (hideStale) placeParams.set('hide_stale', '1');
+        if (tab !== 'unassigned' && offset > 0) placeParams.set('offset', String(offset));
+        if (tab === 'unassigned' && q) unassignedParams.set('q', q);
+        if (tab === 'unassigned' && offset > 0) unassignedParams.set('offset', String(offset));
+      }
+      const placeQuery = placeParams.size ? `?${placeParams}` : '';
+      const unassignedQuery = unassignedParams.size ? `?${unassignedParams}` : '';
       const [pRes, uRes] = await Promise.all([
-        fetch('/api/places', { cache: 'no-store', signal }),
-        fetch('/api/places/unassigned', { cache: 'no-store', signal }),
+        fetch(`/api/places${placeQuery}`, { cache: 'no-store', signal }),
+        fetch(`/api/places/unassigned${unassignedQuery}`, { cache: 'no-store', signal }),
       ]);
       if (!pRes.ok) throw new Error(await readApiError(pRes, t.common.error as string));
       if (!uRes.ok) throw new Error(await readApiError(uRes, t.common.error as string));
       const [pd, ud] = await Promise.all([
         pRes.json().then(decodePlacesResponse),
-        uRes.json().then(decodeUnassignedBranchesResponse),
+        uRes.json().then(decodeUnassignedBranchesPageResponse),
       ]);
       if (!pd || !ud) throw new Error(t.common.error as string);
       if (signal.aborted || !mountedRef.current || reloadAbortRef.current !== controller) return;
       setPlaces(pd.places);
-      setUnassigned(ud);
+      setPlacePage(pd.page ?? null);
+      setPlaceStats(pd.stats ?? null);
+      setUnassigned(ud.branches);
+      setUnassignedPage(ud.page ?? null);
     } catch (error) {
       if (signal.aborted || error instanceof Error && error.name === 'AbortError') return;
       setLoadError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
+      initialLoadCompleteRef.current = true;
       if (!signal.aborted && mountedRef.current && reloadAbortRef.current === controller) setLoading(false);
     }
-  }, [t]);
+  }, [gpsFilter, hideStale, kindFilter, page, q, sort, t, tab]);
 
   useEffect(() => {
     mountedRef.current = true;
-    void reload();
     return () => {
       mountedRef.current = false;
       assignBranchLinkRef.current = false;
@@ -137,7 +168,12 @@ export function PlaceBrowser() {
       assignBranchLinkAbortRef.current = null;
       reloadAbortRef.current?.abort();
     };
-  }, [reload]);
+  }, []);
+
+  const serverPagination = placePage !== null || unassignedPage !== null;
+  useEffect(() => {
+    if (!initialLoadCompleteRef.current || serverPagination) void reload();
+  }, [reload, serverPagination]);
 
   useEffect(() => {
     assignBranchTargetRef.current = assignBranchTarget;
@@ -154,17 +190,17 @@ export function PlaceBrowser() {
     setPlaces((prev) => prev.filter((p) => p.id !== deleted.id));
   }
 
-  const q = search.trim().toLowerCase();
-
   const staleCount = useMemo(
-    () => places.filter((p) => p.provider_labels.length > 0 && freshnessStale(p)).length,
-    [places],
+    () => placeStats?.stale ?? places.filter((p) => p.provider_labels.length > 0 && freshnessStale(p)).length,
+    [placeStats?.stale, places],
   );
 
-  const withGps = useMemo(() => places.filter(hasGps).length, [places]);
-  const noGpsCount = useMemo(() => places.length - withGps, [places, withGps]);
-  const withBranches = useMemo(() => places.filter((p) => p.provider_labels.length > 0).length, [places]);
-  const totalVns = useMemo(() => places.reduce((s, p) => s + p.stock_count, 0), [places]);
+  const withGps = useMemo(() => placeStats?.with_gps ?? places.filter(hasGps).length, [placeStats?.with_gps, places]);
+  const placeTotal = placeStats?.total ?? places.length;
+  const noGpsCount = placeStats?.no_gps ?? placeTotal - withGps;
+  const withBranches = placeStats?.linked ?? places.filter((p) => p.provider_labels.length > 0).length;
+  const totalVns = placeStats?.stock_count ?? places.reduce((s, p) => s + p.stock_count, 0);
+  const unassignedTotal = unassignedPage?.total ?? unassigned.length;
 
   const activeFilterCount =
     (tab !== 'all' ? 1 : 0) +
@@ -182,6 +218,7 @@ export function PlaceBrowser() {
   }
 
   const filtered = useMemo(() => {
+    if (placePage) return places;
     let list =
       tab === 'linked'
         ? places.filter((p) => p.provider_labels.length > 0)
@@ -207,18 +244,23 @@ export function PlaceBrowser() {
       if (sort === 'fresh') return placeFreshSortValue(b) - placeFreshSortValue(a);
       return a.name.localeCompare(b.name);
     });
-  }, [places, tab, kindFilter, gpsFilter, hideStale, q, sort]);
+  }, [placePage, places, tab, kindFilter, gpsFilter, hideStale, q, sort]);
 
   const filteredUnassigned = useMemo(() => {
+    if (unassignedPage) return unassigned;
     if (!q) return unassigned;
     return unassigned.filter((b) => b.toLowerCase().includes(q));
-  }, [unassigned, q]);
-  const registryTotal = tab === 'unassigned' ? filteredUnassigned.length : filtered.length;
+  }, [q, unassigned, unassignedPage]);
+  const registryTotal = tab === 'unassigned'
+    ? unassignedPage?.total ?? filteredUnassigned.length
+    : placePage?.total ?? filtered.length;
   const totalPages = Math.max(1, Math.ceil(registryTotal / PLACE_REGISTRY_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * PLACE_REGISTRY_PAGE_SIZE;
-  const visiblePlaces = filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
-  const visibleUnassigned = filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
+  const visiblePlaces = placePage ? filtered : filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
+  const visibleUnassigned = unassignedPage
+    ? filteredUnassigned
+    : filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
@@ -229,18 +271,18 @@ export function PlaceBrowser() {
   }, [page, totalPages]);
 
   useEffect(() => {
-    if (!loading && tab === 'all' && places.length === 0 && unassigned.length > 0) {
+    if (!loading && tab === 'all' && placeTotal === 0 && unassignedTotal > 0) {
       setTab('unassigned');
     }
-  }, [loading, places.length, tab, unassigned.length]);
+  }, [loading, placeTotal, tab, unassignedTotal]);
 
   const showStatsSkeleton = loading && places.length === 0;
 
   const TABS: { id: Tab; label: string; count: number }[] = [
-    { id: 'all', label: t.places.tabAll as string, count: places.length },
+    { id: 'all', label: t.places.tabAll as string, count: placeTotal },
     { id: 'linked', label: t.places.tabLinked as string, count: withBranches },
-    { id: 'unlinked', label: t.places.tabUnlinked as string, count: places.length - withBranches },
-    { id: 'unassigned', label: t.places.tabUnassigned as string, count: unassigned.length },
+    { id: 'unlinked', label: t.places.tabUnlinked as string, count: placeStats?.unlinked ?? placeTotal - withBranches },
+    { id: 'unassigned', label: t.places.tabUnassigned as string, count: unassignedTotal },
   ];
 
   const sortOptions: { id: SortKey; label: string }[] = [
@@ -272,40 +314,47 @@ export function PlaceBrowser() {
                   </p>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {hasGps ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
-                    <MapPin className="h-3 w-3" aria-hidden />
-                    GPS
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {hasGps ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
+                      <MapPin className="h-3 w-3" aria-hidden />
+                      <AcronymLabel acronym="gps" />
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
+                      <MapPin className="h-3 w-3" aria-hidden />
+                      {t.places.noCoords as string}
+                    </span>
+                  )}
+                  {place.stock_count > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                      <PackageCheck className="h-3 w-3" aria-hidden />
+                      {(t.places.stockCount as string).replace('{n}', String(place.stock_count))}
+                    </span>
+                  )}
+                  {place.provider_labels.length > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                      <Link2 className="h-3 w-3" aria-hidden />
+                      {linkedBranchesLabel(t, place.provider_labels.length)}
+                    </span>
+                  )}
+                  {stale && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
+                      <Clock className="h-3 w-3" aria-hidden />
+                      {(t.places.freshStale as string).replace('{n}', String(staleDays))}
+                    </span>
+                  )}
+                  <span className="rounded border border-border bg-bg-elev/30 px-2 py-0.5 text-[11px] text-muted">
+                    {kindLabel(t, place.kind)}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
-                    <MapPin className="h-3 w-3" aria-hidden />
-                    {t.places.noCoords as string}
-                  </span>
-                )}
-                {place.stock_count > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
-                    <PackageCheck className="h-3 w-3" aria-hidden />
-                    {(t.places.stockCount as string).replace('{n}', String(place.stock_count))}
-                  </span>
-                )}
-                {place.provider_labels.length > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
-                    <Link2 className="h-3 w-3" aria-hidden />
-                    {linkedBranchesLabel(t, place.provider_labels.length)}
-                  </span>
-                )}
-                {stale && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
-                    <Clock className="h-3 w-3" aria-hidden />
-                    {(t.places.freshStale as string).replace('{n}', String(staleDays))}
-                  </span>
-                )}
-                <span className="rounded border border-border bg-bg-elev/30 px-2 py-0.5 text-[11px] text-muted">
-                  {kindLabel(t, place.kind)}
-                </span>
-                <Link href={`/places/${place.id}`} className="btn btn-xs btn-primary">
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-0 sm:justify-end">
+                <Link
+                  href={`/places/${place.id}`}
+                  aria-label={namedPlaceAction(t.places.openPlaceNamed as string, place.name)}
+                  className="btn btn-xs btn-primary"
+                >
                   {t.places.openPlace as string}
                 </Link>
                 {placeHref && (
@@ -313,30 +362,34 @@ export function PlaceBrowser() {
                     href={placeHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={t.places.urlPlaceholder as string}
-                    className="icon-btn tap-target text-muted hover:text-accent"
+                    aria-label={namedPlaceAction(t.places.openWebsiteNamed as string, place.name)}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded border border-border bg-bg-elev/30 px-2 text-xs text-muted hover:border-accent/50 hover:text-accent"
                     title={placeHref}
                   >
                     <Globe className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only lg:not-sr-only">{t.places.openWebsite as string}</span>
                   </a>
                 )}
                 {hasGps && (
                   <Link
                     href={`/map?place=${place.id}`}
-                    aria-label={t.places.viewOnMap as string}
-                    className="icon-btn tap-target text-muted hover:text-accent"
+                    aria-label={namedPlaceAction(t.places.viewOnMapNamed as string, place.name)}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded border border-border bg-bg-elev/30 px-2 text-xs text-muted hover:border-accent/50 hover:text-accent"
                   >
                     <MapPin className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only lg:not-sr-only">{t.places.viewOnMap as string}</span>
                   </Link>
                 )}
                 <button
                   type="button"
                   onClick={() => setEditTarget(place)}
-                  aria-label={t.places.editPlace as string}
-                  className="icon-btn tap-target text-muted hover:text-white"
+                  aria-label={namedPlaceAction(t.places.editPlaceNamed as string, place.name)}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded border border-border bg-bg-elev/30 px-2 text-xs text-muted hover:border-accent/50 hover:text-white"
                 >
                   <Edit2 className="h-3.5 w-3.5" aria-hidden />
+                  <span className="sr-only lg:not-sr-only">{t.places.editPlace as string}</span>
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -365,10 +418,12 @@ export function PlaceBrowser() {
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.places.statsTotal as string}</div>
               <div className="text-2xl font-bold">{places.length}</div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsTotalHint as string}</p>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.places.statsOnMap as string}</div>
               <div className="text-2xl font-bold text-status-completed">{withGps}</div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsOnMapHint as string}</p>
             </div>
             <div className={`rounded-xl border p-4 text-center ${noGpsCount > 0 ? 'border-status-on_hold/20 bg-status-on_hold/5' : 'border-border bg-bg-card'}`}>
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
@@ -378,14 +433,17 @@ export function PlaceBrowser() {
               <div className={`text-2xl font-bold ${noGpsCount > 0 ? 'text-status-on_hold' : ''}`}>
                 {noGpsCount}
               </div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsNoCoordsHint as string}</p>
             </div>
             <div className={`rounded-xl border p-4 text-center ${totalVns > 0 ? 'border-accent/30 bg-accent/5' : 'border-border bg-bg-card'}`}>
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.places.vnBrowserTitle as string}</div>
               <div className={`text-2xl font-bold ${totalVns > 0 ? 'text-accent' : ''}`}>{totalVns}</div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsStockHint as string}</p>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
               <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.places.statsWithBranches as string}</div>
               <div className="text-2xl font-bold">{withBranches}</div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsWithBranchesHint as string}</p>
             </div>
             <div className={`rounded-xl border p-4 text-center ${unassigned.length > 0 ? 'border-status-on_hold/20 bg-status-on_hold/5' : 'border-border bg-bg-card'}`}>
               <div className="mb-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
@@ -395,10 +453,14 @@ export function PlaceBrowser() {
               <div className={`text-2xl font-bold ${unassigned.length > 0 ? 'text-status-on_hold' : ''}`}>
                 {unassigned.length}
               </div>
+              <p className="mt-1 text-[11px] leading-snug text-muted/80">{t.places.statsUnassignedHint as string}</p>
             </div>
           </>
         )}
       </div>
+      {!showStatsSkeleton && (
+        <p className="-mt-3 mb-5 text-xs text-muted/80">{t.places.statsCaption as string}</p>
+      )}
 
       <div className="mb-5 rounded-xl border border-border bg-bg-card p-3">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
@@ -531,7 +593,7 @@ export function PlaceBrowser() {
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              GPS
+              <AcronymLabel acronym="gps" />
               <select
                 value={gpsFilter}
                 onChange={(e) => setGpsFilter(e.target.value as GpsFilter)}

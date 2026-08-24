@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, updatePlace, deletePlace } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { readJsonObject } from '@/lib/api-body';
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    const place = getPlace(id);
+    const place = await getPlaceRepository().get(id);
     if (!place) return NextResponse.json({ error: 'not found' }, { status: 404 });
     return NextResponse.json({ place });
   } catch (err) {
@@ -39,7 +39,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    const existing = getPlace(id);
+    const repository = getPlaceRepository();
+    const existing = await repository.get(id);
     if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const body = (await readJsonObject(req)) as Record<string, unknown>;
     if (
@@ -81,7 +82,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         return NextResponse.json({ error: 'valid lat and lng required together' }, { status: 400 });
       }
     }
-    updatePlace(id, patch);
+    await repository.update(id, patch);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('places.[id].PATCH', err);
@@ -95,8 +96,9 @@ export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> 
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    if (!getPlace(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    deletePlace(id);
+    const repository = getPlaceRepository();
+    if (!await repository.get(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    await repository.delete(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('places.[id].DELETE', err);

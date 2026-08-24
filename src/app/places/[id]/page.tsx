@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getPlace } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { getDict } from '@/lib/i18n/server';
 import { PlaceDetailClient } from '@/components/PlaceDetailClient';
 
@@ -10,7 +10,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const place = getPlace(Number(id));
+  const place = await getPlaceRepository().get(Number(id));
   const t = await getDict();
   if (!place) return { title: t.places.title };
   return { title: `${place.name} | ${t.places.title}` };
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function PlacePage({ params }: Props) {
   const { id } = await params;
-  const place = getPlace(Number(id));
+  const place = await getPlaceRepository().get(Number(id));
   if (!place) notFound();
 
   return (

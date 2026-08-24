@@ -237,7 +237,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   const KINDS: PlaceKind[] = ['shop', 'chain', 'storage'];
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-layer-modal flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={requestClose} aria-hidden />
       <div
         ref={panelRef}

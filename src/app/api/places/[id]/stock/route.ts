@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlace, listPlaceVnsEnhanced, listOffersAtPlace } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { internalError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
+import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+void PUBLIC_READ_ROUTE;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -28,12 +30,13 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     const { id: raw } = await ctx.params;
     const id = parseId(raw);
     if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-    const place = getPlace(id);
+    const repository = getPlaceRepository();
+    const place = await repository.get(id);
     if (!place) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
     const [vns, offers, wishlistIds] = await Promise.all([
-      Promise.resolve(listPlaceVnsEnhanced(id)),
-      Promise.resolve(listOffersAtPlace(id, 'all')),
+      repository.listVns(id),
+      repository.listOffers(id, 'all'),
       loadWishlistIds(),
     ]);
 

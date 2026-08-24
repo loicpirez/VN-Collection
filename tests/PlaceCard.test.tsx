@@ -143,6 +143,7 @@ describe('PlaceCard', () => {
     expect(screen.getByText('3 VN in stock')).toBeInTheDocument();
     expect(screen.getByText('2 branches')).toBeInTheDocument();
     expect(screen.getByText('Stale (8d)')).toBeInTheDocument();
+    expect(screen.getByText('Stale (8d)')).toHaveAttribute('title', expect.stringContaining('20'));
     expect(screen.getByText(t.places.kindChain)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: t.places.urlPlaceholder })).toHaveAttribute('href', 'https://example.com/shop');
     expect(screen.getByRole('link', { name: t.places.viewOnMap })).toHaveAttribute('href', '/map?place=1');
@@ -153,7 +154,7 @@ describe('PlaceCard', () => {
     expect(screen.queryByRole('link', { name: t.places.urlPlaceholder })).not.toBeInTheDocument();
   });
 
-  it('uses stock freshness instead of place metadata freshness for stale badges', () => {
+  it('uses stock freshness instead of place metadata freshness for freshness badges', () => {
     const actions = callbacks();
     renderWithProviders(
       <PlaceCard
@@ -169,6 +170,7 @@ describe('PlaceCard', () => {
     );
 
     expect(screen.queryByText(/Stale/)).not.toBeInTheDocument();
+    expect(screen.getByText('Today')).toHaveAttribute('title', expect.stringContaining('20'));
   });
 
   it('uses singular branch labels for one linked branch', () => {

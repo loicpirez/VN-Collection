@@ -29,6 +29,8 @@ interface Props {
   place: PlaceWithLinks;
 }
 
+type StockSourceTab = 'alicenet' | 'branches';
+
 function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
   const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
   return ((t.places as Record<string, unknown>)[key] as string) ?? kind;
@@ -42,6 +44,7 @@ export function PlaceDetailClient({ place }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [stockSourceTab, setStockSourceTab] = useState<StockSourceTab>('alicenet');
   const placeIdentityRef = useRef<number | null>(place.id);
   const deleteInFlightRef = useRef(false);
   const deleteAbortRef = useRef<AbortController | null>(null);
@@ -49,6 +52,8 @@ export function PlaceDetailClient({ place }: Props) {
   const hasGps = place.lat != null && place.lng != null;
   const placeHref = safeHref(place.url);
   const isAliceNetPlace = place.provider_labels.includes(ALICENET_BRANCH_LABEL);
+  const hasOtherProviders = place.provider_labels.some((label) => label !== ALICENET_BRANCH_LABEL);
+  const hasMixedStockSources = isAliceNetPlace && hasOtherProviders;
 
   useEffect(() => {
     deleteAbortRef.current?.abort();
@@ -58,6 +63,7 @@ export function PlaceDetailClient({ place }: Props) {
     setShowEdit(false);
     setShowAssign(false);
     setDeleting(false);
+    setStockSourceTab('alicenet');
     return () => {
       placeIdentityRef.current = null;
       deleteInFlightRef.current = false;
@@ -138,57 +144,61 @@ export function PlaceDetailClient({ place }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {placeHref && (
-            <a
-              href={placeHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t.places.urlPlaceholder as string}
-              className="btn btn-sm bg-bg-elev text-muted hover:text-white"
-              title={placeHref}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {placeHref && (
+              <a
+                href={placeHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t.places.urlPlaceholder as string}
+                className="btn btn-sm bg-bg-elev text-muted hover:text-white"
+                title={placeHref}
+              >
+                <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="ml-1">{t.places.urlPlaceholder as string}</span>
+              </a>
+            )}
+            {hasGps && (
+              <Link
+                href={`/map?place=${place.id}`}
+                className="btn btn-sm bg-bg-elev text-muted hover:text-white"
+              >
+                <Map className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="ml-1">{t.places.viewOnMap as string}</span>
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAssign(true)}
+              disabled={deleting}
+              className="btn btn-sm bg-bg-elev text-muted hover:text-accent"
             >
-              <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="ml-1">{t.places.urlPlaceholder as string}</span>
-            </a>
-          )}
-          {hasGps && (
-            <Link
-              href={`/map?place=${place.id}`}
-              className="btn btn-sm bg-bg-elev text-muted hover:text-white"
+              <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="ml-1">{t.places.assignDialog as string}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowEdit(true)}
+              disabled={deleting}
+              className="btn btn-sm bg-accent text-bg hover:bg-accent/80"
             >
-              <Map className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="ml-1">{t.places.viewOnMap as string}</span>
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowAssign(true)}
-            disabled={deleting}
-            className="btn btn-sm bg-bg-elev text-muted hover:text-accent"
-          >
-            <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="ml-1">{t.places.assignDialog as string}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowEdit(true)}
-            disabled={deleting}
-            className="btn btn-sm bg-accent text-bg hover:bg-accent/80"
-          >
-            <Edit2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="ml-1">{t.places.editPlace as string}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            aria-label={t.places.deletePlace as string}
-            className="btn btn-sm text-muted hover:border-status-dropped/40 hover:text-status-dropped disabled:opacity-50"
-          >
-            {deleting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />}
-            <span className="ml-1">{t.places.deletePlace as string}</span>
-          </button>
+              <Edit2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="ml-1">{t.places.editPlace as string}</span>
+            </button>
+          </div>
+          <div className="flex w-full border-t border-border/50 pt-2 sm:w-auto sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0">
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              aria-label={t.places.deletePlace as string}
+              className="btn btn-sm text-muted hover:border-status-dropped/40 hover:text-status-dropped disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+              <span className="ml-1">{t.places.deletePlace as string}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -203,7 +213,49 @@ export function PlaceDetailClient({ place }: Props) {
         </div>
       )}
 
-      {isAliceNetPlace ? (
+      {hasMixedStockSources ? (
+        <section className="space-y-4" aria-label={t.places.stockSourcesLabel as string}>
+          <div
+            role="tablist"
+            aria-label={t.places.stockSourcesLabel as string}
+            className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border bg-bg-elev/30 p-1"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={stockSourceTab === 'alicenet'}
+              aria-controls={`place-stock-panel-${place.id}`}
+              id={`place-stock-alicenet-${place.id}`}
+              onClick={() => setStockSourceTab('alicenet')}
+              className={`min-h-10 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${stockSourceTab === 'alicenet' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+            >
+              {t.places.stockSourceAliceNet as string}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={stockSourceTab === 'branches'}
+              aria-controls={`place-stock-panel-${place.id}`}
+              id={`place-stock-branches-${place.id}`}
+              onClick={() => setStockSourceTab('branches')}
+              className={`min-h-10 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${stockSourceTab === 'branches' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+            >
+              {t.places.stockSourceOther as string}
+            </button>
+          </div>
+          <div
+            id={`place-stock-panel-${place.id}`}
+            role="tabpanel"
+            aria-labelledby={stockSourceTab === 'alicenet' ? `place-stock-alicenet-${place.id}` : `place-stock-branches-${place.id}`}
+          >
+            {stockSourceTab === 'alicenet' ? (
+              <AliceNetClient embedded basePath={`/places/${place.id}`} />
+            ) : (
+              <PlaceVnBrowser placeId={place.id} placeName={place.name} />
+            )}
+          </div>
+        </section>
+      ) : isAliceNetPlace ? (
         <AliceNetClient embedded basePath={`/places/${place.id}`} />
       ) : (
         <PlaceVnBrowser placeId={place.id} placeName={place.name} />
