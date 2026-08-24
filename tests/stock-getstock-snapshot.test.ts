@@ -166,8 +166,8 @@ beforeEach(() => {
 });
 
 describe('getStockForVn — empty snapshot', () => {
-  it('returns an all-empty summary with a null last_refresh', () => {
-    const snapshot = getStockForVn(VN_ID);
+  it('returns an all-empty summary with a null last_refresh', async () => {
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.offers).toEqual([]);
     expect(snapshot.summary).toEqual({
       total: 0,
@@ -183,7 +183,7 @@ describe('getStockForVn — empty snapshot', () => {
 });
 
 describe('getStockForVn — summary counters', () => {
-  it('computes best_price from the top-priority eligible pool only', () => {
+  it('computes best_price from the top-priority eligible pool only', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
       // direct source (rank 0), high confidence, cheapest in its pool
       offer({ source: 'direct', price: 2500, provider_offer_id: 'd1' }),
@@ -192,12 +192,12 @@ describe('getStockForVn — summary counters', () => {
       offer({ source: 'search', price: 900, jan: null, product_id: null, provider_offer_id: 's1' }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 3 });
 
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.best_price).toBe(2500);
     expect(snapshot.summary.available).toBe(3);
   });
 
-  it('counts related, needs_review, and rejected groups', () => {
+  it('counts related, needs_review, and rejected groups', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
       offer({ provider_offer_id: 'g1', content_kind: 'game_package', series_relation: 'exact_game', match_confidence: 'high' }),
       offer({ provider_offer_id: 'rel1', content_kind: 'figure', series_relation: 'related_goods', match_confidence: 'high', availability: 'in_stock' }),
@@ -206,19 +206,19 @@ describe('getStockForVn — summary counters', () => {
       offer({ provider_offer_id: 'rj1', content_kind: 'game_package', series_relation: 'exact_game', match_confidence: 'reject' }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 5 });
 
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.related_available).toBe(2);
     expect(snapshot.summary.needs_review).toBe(1);
     expect(snapshot.summary.rejected).toBe(1);
     expect(snapshot.summary.last_refresh).toBe(NOW);
   });
 
-  it('leaves best_price null when no eligible offer carries a positive price', () => {
+  it('leaves best_price null when no eligible offer carries a positive price', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
       offer({ provider_offer_id: 'np', price: null, source: 'direct' }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
 
-    expect(getStockForVn(VN_ID).summary.best_price).toBeNull();
+    expect((await getStockForVn(VN_ID)).summary.best_price).toBeNull();
   });
 
   it('keeps old offers when a provider snapshot asks to preserve them and then clears cache counts', () => {
@@ -242,9 +242,9 @@ describe('getStockForVn — summary counters', () => {
 });
 
 describe('getStockForVn — AliceNet synthesis', () => {
-  it('synthesises a used in-stock AliceNet offer from a matched row', () => {
+  it('synthesises a used in-stock AliceNet offer from a matched row', async () => {
     seedAlicenet('123-456789-001', '3,200円');
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     const alice = snapshot.offers.find((o) => o.provider === 'alicenet');
     expect(alice).toBeDefined();
     expect(alice).toMatchObject({
@@ -259,21 +259,21 @@ describe('getStockForVn — AliceNet synthesis', () => {
     expect(snapshot.summary.total).toBe(1);
   });
 
-  it('falls back to the list price when the AliceNet sale price is absent', () => {
+  it('falls back to the list price when the AliceNet sale price is absent', async () => {
     seedAlicenet('123-456789-002', null);
-    const alice = getStockForVn(VN_ID).offers.find((o) => o.provider === 'alicenet');
+    const alice = (await getStockForVn(VN_ID)).offers.find((o) => o.provider === 'alicenet');
     expect(alice?.price).toBe(5000);
   });
 
-  it('keeps the AliceNet price empty when neither sale nor list price exists', () => {
+  it('keeps the AliceNet price empty when neither sale nor list price exists', async () => {
     seedAlicenet('123-456789-003', null, null);
-    const alice = getStockForVn(VN_ID).offers.find((o) => o.provider === 'alicenet');
+    const alice = (await getStockForVn(VN_ID)).offers.find((o) => o.provider === 'alicenet');
     expect(alice?.price).toBeNull();
   });
 });
 
 describe('getStockForVn — sorting', () => {
-  it('orders in_stock before out_of_stock and direct before search within availability', () => {
+  it('orders in_stock before out_of_stock and direct before search within availability', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'wondergoo', [
       offer({ provider: 'wondergoo', provider_offer_id: 'oos', availability: 'out_of_stock', source: 'direct', price: 100 }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
@@ -282,14 +282,14 @@ describe('getStockForVn — sorting', () => {
       offer({ provider: 'melonbooks', provider_offer_id: 'direct-hit', availability: 'in_stock', source: 'direct', price: 5000 }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 2 });
 
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     const ids = snapshot.offers.map((o) => o.provider_offer_id);
     // both in_stock come first; among them, the direct-source one ranks first.
     expect(ids.indexOf('direct-hit')).toBeLessThan(ids.indexOf('search-hit'));
     expect(ids.indexOf('search-hit')).toBeLessThan(ids.indexOf('oos'));
   });
 
-  it('orders every availability and source-priority tier, then priced rows before null prices', () => {
+  it('orders every availability and source-priority tier, then priced rows before null prices', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'melonbooks', [
       offer({ provider_offer_id: 'manual', source: 'manual', price: null }),
       offer({ provider_offer_id: 'jan', source: 'search', jan: '4900000000001', match_confidence: null, price: 3000 }),
@@ -303,24 +303,24 @@ describe('getStockForVn — sorting', () => {
       offer({ provider_offer_id: 'error', availability: 'error', price: 2200 }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 10 });
 
-    expect(getStockForVn(VN_ID).offers.map((row) => row.provider_offer_id)).toEqual([
+    expect((await getStockForVn(VN_ID)).offers.map((row) => row.provider_offer_id)).toEqual([
       'manual', 'jan', 'product', 'exact', 'medium', 'fallback', 'limited', 'unknown', 'out', 'error',
     ]);
   });
 
-  it('uses persisted provider ids as labels when the provider catalogue has no entry', () => {
+  it('uses persisted provider ids as labels when the provider catalogue has no entry', async () => {
     replaceVnStockProviderSnapshot(VN_ID, 'legacy_shop', [
       offer({ provider: 'legacy_shop', provider_offer_id: 'legacy' }),
     ], { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 });
 
-    expect(getStockForVn(VN_ID).offers[0].provider_label).toBe('legacy_shop');
+    expect((await getStockForVn(VN_ID)).offers[0].provider_label).toBe('legacy_shop');
   });
 });
 
 describe('getStockForVn — disabled providers flag', () => {
-  it('flags disabled providers in the providers list without dropping them', () => {
+  it('flags disabled providers in the providers list without dropping them', async () => {
     setAppSetting('stock_disabled_providers', JSON.stringify(['wondergoo']));
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     const wondergoo = snapshot.providers.find((p) => p.id === 'wondergoo');
     const melonbooks = snapshot.providers.find((p) => p.id === 'melonbooks');
     expect((wondergoo as { disabled?: boolean }).disabled).toBe(true);

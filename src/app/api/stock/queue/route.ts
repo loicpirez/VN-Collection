@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { db } from '@/lib/db';
+import { getStockQueueRepository, type StockQueueEntry } from '@/lib/db/repositories/stock-queue';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
 
@@ -17,11 +17,6 @@ export const runtime = 'nodejs';
  *
  * `?scope=wishlist` returns wishlist VNs that the operator has saved.
  */
-interface QueueEntry {
-  vn_id: string;
-  title: string | null;
-}
-
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_PAGE_SIZE = 500;
 const MAX_PAGE = 10_000;
@@ -32,12 +27,12 @@ function parsePositiveInt(raw: string | null, fallback: number, max: number): nu
   return Number.isSafeInteger(value) && value >= 1 && value <= max ? value : null;
 }
 
-function queueResponse(scope: string, ids: string[], total: number, page: number, pageSize: number): NextResponse {
+function queueResponse(scope: string, entries: StockQueueEntry[], total: number, page: number, pageSize: number): NextResponse {
   const nextPage = page * pageSize < total ? page + 1 : null;
   return NextResponse.json({
     scope,
-    ids,
-    entries: buildEntries(ids),
+    ids: entries.map((entry) => entry.vn_id),
+    entries,
     page,
     page_size: pageSize,
     total,
@@ -45,28 +40,8 @@ function queueResponse(scope: string, ids: string[], total: number, page: number
   });
 }
 
-function titlesFor(ids: string[]): Map<string, string | null> {
-  const map = new Map<string, string | null>();
-  if (ids.length === 0) return map;
-  // SQLite's SQLITE_MAX_VARIABLE_NUMBER cap is 999 by default; chunk at
-  // 500 to stay safe and match the convention used elsewhere in db.ts
-  // (`isInCollectionMany`, `getEgsForVns`, etc.). Without this guard a
-  // collection of > 999 entries would crash this route at runtime.
-  const CHUNK = 500;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT id, title FROM vn WHERE id IN (${placeholders})`)
-      .all(...chunk) as { id: string; title: string }[];
-    for (const r of rows) map.set(r.id, r.title);
-  }
-  for (const id of ids) if (!map.has(id)) map.set(id, null);
-  return map;
-}
-
-function buildEntries(ids: string[]): QueueEntry[] {
-  const titleMap = titlesFor(ids);
+async function buildEntries(ids: string[]): Promise<StockQueueEntry[]> {
+  const titleMap = await getStockQueueRepository().titlesFor(ids);
   return ids.map((vn_id) => ({ vn_id, title: titleMap.get(vn_id) ?? null }));
 }
 
@@ -80,36 +55,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'invalid pagination' }, { status: 400 });
   }
   const offset = (page - 1) * pageSize;
-  if (scope === 'collection') {
-    const total = (db.prepare('SELECT COUNT(*) AS count FROM collection').get() as { count: number }).count;
-    const rows = db.prepare(`SELECT vn_id FROM collection ORDER BY updated_at DESC, added_at DESC LIMIT ? OFFSET ?`).all(pageSize, offset) as { vn_id: string }[];
-    const ids = rows.map((r) => r.vn_id);
-    return queueResponse(scope, ids, total, page, pageSize);
-  }
-  if (scope === 'reading_queue') {
-    const total = (db.prepare('SELECT COUNT(*) AS count FROM reading_queue').get() as { count: number }).count;
-    const rows = db.prepare(`SELECT vn_id FROM reading_queue ORDER BY position ASC LIMIT ? OFFSET ?`).all(pageSize, offset) as { vn_id: string }[];
-    const ids = rows.map((r) => r.vn_id);
-    return queueResponse(scope, ids, total, page, pageSize);
-  }
-  if (scope === 'recent_stock') {
-    const total = (db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM (
-        SELECT vn_id
-        FROM vn_stock_provider_status
-        GROUP BY vn_id
-      )
-    `).get() as { count: number }).count;
-    const rows = db.prepare(`
-      SELECT vn_id, MIN(fetched_at) AS oldest
-      FROM vn_stock_provider_status
-      GROUP BY vn_id
-      ORDER BY oldest ASC
-      LIMIT ? OFFSET ?
-    `).all(pageSize, offset) as { vn_id: string; oldest: number }[];
-    const ids = rows.map((r) => r.vn_id);
-    return queueResponse(scope, ids, total, page, pageSize);
+  if (scope === 'collection' || scope === 'reading_queue' || scope === 'recent_stock' || scope === 'recent_checked') {
+    const result = await getStockQueueRepository().list(scope, pageSize, offset);
+    return queueResponse(scope, result.entries, result.total, page, pageSize);
   }
   if (scope === 'wishlist') {
     const result = await fetchAuthenticatedWishlist();
@@ -118,7 +66,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
     const allIds = result.map((e) => e.id).filter(isVndbVnId);
     const ids = allIds.slice(offset, offset + pageSize);
-    return queueResponse(scope, ids, allIds.length, page, pageSize);
+    return queueResponse(scope, await buildEntries(ids), allIds.length, page, pageSize);
   }
   return NextResponse.json({ error: 'unknown scope' }, { status: 400 });
 }

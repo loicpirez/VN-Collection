@@ -1,8 +1,11 @@
-import type { CollectionItem } from './types';
+import type { VnRow } from './types';
 import type { StockProviderId } from './stock-provider-constants';
 
+/** VN title fields required to build provider search queries. */
+export type StockTitleContext = Pick<VnRow, 'title' | 'alttitle' | 'titles'>;
+
 /** Build a bounded, de-duplicated title-search set for one VN. */
-export function titleQueries(vn: CollectionItem, extraTerms: string[] = []): string[] {
+export function titleQueries(vn: StockTitleContext, extraTerms: string[] = []): string[] {
   const values = [
     vn.title,
     vn.alttitle,
@@ -29,7 +32,7 @@ function hasJapanese(value: string): boolean {
 
 /** Apply provider-specific title-query limits and language preferences. */
 export function titleQueriesForProvider(
-  vn: CollectionItem,
+  vn: StockTitleContext,
   provider: StockProviderId,
   extraTerms: string[] = [],
 ): string[] {

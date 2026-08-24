@@ -58,7 +58,7 @@ beforeEach(() => { clearVnStockCache(VN_ID); });
 afterEach(() => { clearVnStockCache(VN_ID); });
 
 describe('getStockForVn summary', () => {
-  it('best_price uses only in_stock or limited offers', () => {
+  it('best_price uses only in_stock or limited offers', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'sofmap',
@@ -68,23 +68,23 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 2 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.best_price).toBe(5000);
     expect(snapshot.summary.best_price).not.toBe(100);
   });
 
-  it('best_price is null when only out_of_stock offers exist', () => {
+  it('best_price is null when only out_of_stock offers exist', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'sofmap',
       [baseOffer({ provider_offer_id: 'oos-001', price: 500, availability: 'out_of_stock' })],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.best_price).toBeNull();
   });
 
-  it('best_price uses limited offers', () => {
+  it('best_price uses limited offers', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'sofmap',
@@ -94,11 +94,11 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 2 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.best_price).toBe(3800);
   });
 
-  it('available count only includes in_stock and limited', () => {
+  it('available count only includes in_stock and limited', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'sofmap',
@@ -110,12 +110,12 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 4 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.available).toBe(2);
     expect(snapshot.summary.total).toBe(4);
   });
 
-  it('ignores weak, related, and no-match in-stock offers for game availability and best price', () => {
+  it('ignores weak, related, and no-match in-stock offers for game availability and best price', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'sofmap',
@@ -141,14 +141,14 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 4 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.available).toBe(1);
     expect(snapshot.summary.best_price).toBe(7200);
     expect(snapshot.summary.related_available).toBe(1);
     expect(snapshot.summary.rejected).toBe(2);
   });
 
-  it('prefers direct retailer links over cheaper title-search results for best game price', () => {
+  it('prefers direct retailer links over cheaper title-search results for best game price', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'amazon_jp',
@@ -172,13 +172,13 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 2 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.available).toBe(2);
     expect(snapshot.summary.best_price).toBe(6200);
     expect(snapshot.offers[0].provider_offer_id).toBe('B0DIRECT01');
   });
 
-  it('keeps unrelated Eroge Price results collapsed as rejected and out of counts', () => {
+  it('keeps unrelated Eroge Price results collapsed as rejected and out of counts', async () => {
     replaceVnStockProviderSnapshot(
       VN_ID,
       'eroge_price',
@@ -196,7 +196,7 @@ describe('getStockForVn summary', () => {
       ],
       { status: 'ok', message: null, fetched_at: NOW, offer_count: 1 },
     );
-    const snapshot = getStockForVn(VN_ID);
+    const snapshot = await getStockForVn(VN_ID);
     expect(snapshot.summary.available).toBe(0);
     expect(snapshot.summary.best_price).toBeNull();
     expect(snapshot.summary.rejected).toBe(1);

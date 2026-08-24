@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { clearVnStockCache } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import { getStockForVn, refreshStockForVn, STOCK_PROVIDER_IDS, type StockProviderId } from '@/lib/stock';
 import { sanitizeErrorMessage } from '@/lib/error-sanitize';
 import { isValidVnId } from '@/lib/vn-id-shape';
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  return NextResponse.json(getStockForVn(id));
+  return NextResponse.json(await getStockForVn(id));
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -72,8 +72,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id: rawIdDelete } = await ctx.params;
   const id = rawIdDelete.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const result = clearVnStockCache(id);
+  const result = await getStockRepository().clearCache(id);
   // Return cleared counts + a fresh (now empty) snapshot so the client
   // doesn't need a follow-up GET to repaint.
-  return NextResponse.json({ ...result, snapshot: getStockForVn(id) });
+  return NextResponse.json({ ...result, snapshot: await getStockForVn(id) });
 }

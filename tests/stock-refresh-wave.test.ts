@@ -373,6 +373,23 @@ describe('refreshStockForVn — manual source', () => {
     expect(statusFor('wondergoo')?.status).toBe('skipped');
   });
 
+  it('blocks an allowlisted shop host assigned to the wrong provider', async () => {
+    seedVn({ title: '', alttitle: null });
+    upsertStockSource({
+      vn_id: VN_ID,
+      provider: 'melonbooks',
+      url: 'https://www.amazon.co.jp/dp/B000JF6UD2',
+    });
+
+    await refreshStockForVn(VN_ID, ['melonbooks']);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(statusFor('melonbooks')).toMatchObject({
+      status: 'error',
+      message: expect.stringMatching(/Blocked stock URL for melonbooks: www\.amazon\.co\.jp/),
+    });
+  });
+
   it('canonicalizes a manual Amazon product URL', async () => {
     seedVn({ title: '', alttitle: null });
     upsertStockSource({ vn_id: VN_ID, provider: 'amazon_jp', url: 'https://www.amazon.co.jp/gp/product/B000JF6UD2?ref_=fixture' });

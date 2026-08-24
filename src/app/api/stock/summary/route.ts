@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { batchVnStockSummaries } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import { readJsonObject } from '@/lib/api-body';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   const ids = parseIds(req.nextUrl.searchParams.get('ids'));
   if (ids.length === 0) return NextResponse.json({ summary: {} });
-  const map = batchVnStockSummaries(ids);
+  const map = await getStockRepository().batchSummaries(ids);
   const summary: Record<string, { available: number; best_price: number | null }> = {};
   for (const [vnId, value] of map) summary[vnId] = value;
   return NextResponse.json({ summary });
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const raw = body.ids;
   const ids = parseIds(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : null);
   if (ids.length === 0) return NextResponse.json({ summary: {} });
-  const map = batchVnStockSummaries(ids);
+  const map = await getStockRepository().batchSummaries(ids);
   const summary: Record<string, { available: number; best_price: number | null }> = {};
   for (const [vnId, value] of map) summary[vnId] = value;
   return NextResponse.json({ summary });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { deleteStockSource, listStockSources, upsertStockSource } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import { detectStockProviderFromUrl, extractAmazonAsin, getStockForVn } from '@/lib/stock';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { isValidVnId } from '@/lib/vn-id-shape';
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  return NextResponse.json({ sources: listStockSources(id) });
+  return NextResponse.json({ sources: await getStockRepository().listSources(id) });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -57,7 +57,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'invalid release_id' }, { status: 400 });
   }
   const releaseId = releaseIdRaw && /^r\d+$/i.test(releaseIdRaw) ? releaseIdRaw : null;
-  const existing = listStockSources(id);
+  const repository = getStockRepository();
+  const existing = await repository.listSources(id);
   // Allow updating an existing (vn_id, provider, url) tuple even at the cap.
   const isUpdate = existing.some((s) => s.provider === parsed.provider && s.url === parsed.url);
   if (!isUpdate && existing.length >= STOCK_SOURCE_MAX_COUNT) {
@@ -66,14 +67,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       { status: 400 },
     );
   }
-  upsertStockSource({
+  await repository.upsertSource({
     vn_id: id,
     release_id: releaseId,
     provider: parsed.provider,
     url: parsed.url,
     product_id: parsed.productId,
   });
-  return NextResponse.json(getStockForVn(id));
+  return NextResponse.json(await getStockForVn(id));
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -87,6 +88,6 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (typeof sourceId !== 'number' || !Number.isSafeInteger(sourceId) || sourceId <= 0) {
     return NextResponse.json({ error: 'source id required' }, { status: 400 });
   }
-  deleteStockSource(id, sourceId);
-  return NextResponse.json(getStockForVn(id));
+  await getStockRepository().deleteSource(id, sourceId);
+  return NextResponse.json(await getStockForVn(id));
 }

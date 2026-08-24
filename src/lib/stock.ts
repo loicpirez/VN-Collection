@@ -1,12 +1,15 @@
 import 'server-only';
 import iconv from 'iconv-lite';
-import { db, getCollectionItem, getDisabledStockProviders, getErogePriceStockExtras, getStockRetryWithoutProxy, listAliceNetStockForVn, listStockAliases, listStockSources, listVnStockOffers, listVnStockProviderStatuses, replaceVnStockProviderSnapshot, setStockProviderExtras, upsertVn, type VnStockAvailability, type VnStockOfferInput, type VnStockOfferRow, type VnStockProviderStatusRow, type VnStockSourceRow } from './db';
+import type { VnStockAvailability, VnStockOfferInput, VnStockOfferRow, VnStockProviderStatusRow, VnStockSourceRow } from './db';
+import { getAliceNetRepository } from './db/repositories/alicenet';
+import { getStockRepository } from './db/repositories/stock';
+import { getVnReadRepository, type StockVnContext } from './db/repositories/vn-read';
+import { getVnWriteRepository } from './db/repositories/vn-write';
 import { getReleasesForVn, getVn, type VndbRelease } from './vndb';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { isVndbVnId } from './vn-id-shape';
 import { stockProviderFetch, runStockFetchDirect } from './proxy-fetch';
 import { isStockProviderProxied } from './proxy-config';
-import type { CollectionItem } from './types';
 import { classifyOffer, classificationToFields, classifyOfferGroup, isEligibleGameStockOffer, type ClassifyTarget } from './stock-classify';
 import { amazonSearchTerms, titleQueries, titleQueriesForProvider } from './stock-query';
 import {
@@ -32,6 +35,8 @@ import {
 import {
   STOCK_PROVIDERS,
   getProviderMeta,
+  isStockProviderHostAllowed,
+  isStockProviderUrlAllowed,
   type StockProviderMeta,
 } from './stock-provider-capabilities';
 export { ONLINE_STOCK_SENTINEL, STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS };
@@ -207,31 +212,6 @@ export function encodeShiftJisQuery(value: string): string {
   }
   return out;
 }
-
-const PROVIDER_HOSTS: Record<StockProviderId, RegExp> = {
-  eroge_price: /^eroge-price\.com$/,
-  sofmap: /(^|\.)sofmap\.com$/,
-  surugaya: /(^|\.)suruga-ya\.(jp|com)$/,
-  hgame1: /^www\.hgame1\.com$/,
-  melonbooks: /^www\.melonbooks\.co\.jp$/,
-  mandarake: /(^|\.)mandarake\.co\.jp$/,
-  wondergoo: /^www\.wonder\.co\.jp$/,
-  trader: /(^|\.)(?:trader\.co\.jp|chuko-tsuhan\.com)$/,
-  animate: /^www\.animate-onlineshop\.jp$/,
-  ebten: /^store\.kadokawa\.co\.jp$/,
-  getchu: /^www\.getchu\.com$/,
-  gamers: /^www\.gamers\.co\.jp$/,
-  gamecity: /^shop\.gamecity\.ne\.jp$/,
-  asakusa_mach: /^shopping\.yahoo\.co\.jp$/,
-  amazon_jp: /^www\.amazon\.co\.jp$/,
-  amiami: /^(?:www|slist)\.amiami\.jp$/,
-  otakarasouko: /^www\.ec\.otakarasouko\.com$/,
-  geo: /^ec\.geo-online\.co\.jp$/,
-  joshin: /^joshinweb\.jp$/,
-  neowing: /^www\.neowing\.co\.jp$/,
-  yodobashi: /^www\.yodobashi\.com$/,
-  bikkuri_takarajima: /^beak-takarajima\.celosia\.co\.jp$/,
-};
 
 /**
  * Providers where searching by JAN/EAN code typically returns the exact
@@ -440,13 +420,13 @@ function uniqTargets(targets: StockTarget[]): StockTarget[] {
   return out;
 }
 
-function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn: CollectionItem, extraTerms: string[] = []): StockTarget[] {
+function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn: StockVnContext, extraTerms: string[] = []): StockTarget[] {
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
     for (const link of release.extlinks) {
       const host = sourceHost(link.url);
-      if (PROVIDER_HOSTS[provider].test(host)) {
+      if (isStockProviderHostAllowed(provider, host)) {
         targets.push({
           url: provider === 'amazon_jp' ? canonicalAmazonDpUrl(link.url) ?? link.url : link.url,
           releaseId: release.id,
@@ -501,7 +481,7 @@ function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProvi
 function allTargetsForProvider(
   releases: VndbRelease[],
   provider: StockProviderId,
-  vn: CollectionItem,
+  vn: StockVnContext,
   discovered: Map<StockProviderId, StockTarget[]> = new Map(),
   extraTerms: string[] = [],
 ): StockTarget[] {
@@ -520,7 +500,7 @@ function allTargetsForProvider(
 /** Match a hostname against the per-provider host patterns. Returns `null` on no match. */
 export function providerForHost(host: string): StockProviderId | null {
   for (const provider of STOCK_PROVIDER_IDS) {
-    if (PROVIDER_HOSTS[provider].test(host)) return provider;
+    if (isStockProviderHostAllowed(provider, host)) return provider;
   }
   return null;
 }
@@ -566,7 +546,7 @@ function offerPriorityRank(offer: Pick<VnStockOfferRow, 'source' | 'jan' | 'prod
   return 5;
 }
 
-function officialRetailerSourceUrls(vn: CollectionItem, releases: VndbRelease[]): string[] {
+function officialRetailerSourceUrls(vn: StockVnContext, releases: VndbRelease[]): string[] {
   const urls = [
     ...vn.extlinks.map((link) => link.url),
     ...releases.flatMap((release) => release.extlinks.map((link) => link.url)),
@@ -578,7 +558,7 @@ function officialRetailerSourceUrls(vn: CollectionItem, releases: VndbRelease[])
 }
 
 async function discoverRetailerTargetsFromOfficialPages(
-  vn: CollectionItem,
+  vn: StockVnContext,
   releases: VndbRelease[],
   signal?: AbortSignal,
 ): Promise<Map<StockProviderId, StockTarget[]>> {
@@ -727,7 +707,7 @@ function withSofmapAdultBypass(url: string): string {
   return url + (url.includes('?') ? '&' : '?') + 'aac=on';
 }
 
-async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -854,7 +834,7 @@ export function extractHgame1SearchLinks(html: string, baseUrl: string): string[
   return out;
 }
 
-async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -930,7 +910,7 @@ export function extractMelonbooksProductLinks(html: string, baseUrl: string): st
   return out;
 }
 
-async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -990,7 +970,7 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -1045,7 +1025,7 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -1253,7 +1233,7 @@ export function parseTraderChukoDetail(
 async function refreshTrader(
   vnId: string,
   _releases: VndbRelease[],
-  vn: CollectionItem,
+  vn: StockVnContext,
   _discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
   signal?: AbortSignal,
@@ -1660,7 +1640,7 @@ function providerEncoding(provider: StockProviderId): string | undefined {
   return undefined;
 }
 
-async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: CollectionItem, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -1720,7 +1700,7 @@ function availabilityFromSchema(value: unknown): VnStockAvailability {
  * to a known shop host (excluding eroge-price itself). Used to upgrade the
  * eroge-price row offer URL from the aggregator page to the actual seller.
  *
- * Returns the first outbound link whose host is in `PROVIDER_HOSTS`. If none
+ * Returns the first outbound link whose host is in the canonical provider catalogue. If none
  * matches, falls back to ANY outbound link (Eroge Price links to DLsite,
  * FANZA, DiGiket, Getchu DL, etc. — many of which are not in our shop
  * provider map but still useful to surface as the click-through URL).
@@ -2046,11 +2026,11 @@ function retailerToOffer(
   });
 }
 
-async function refreshErogePrice(vnId: string, vn: CollectionItem, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshErogePrice(vnId: string, vn: StockVnContext, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
 
   let previousManualPin: number | null = null;
   try {
-    const previous = getErogePriceStockExtras(vnId);
+    const previous = await getStockRepository().getErogePriceExtras(vnId);
     if (previous && typeof previous.selectedEpId === 'number') {
       previousManualPin = previous.selectedEpId;
     }
@@ -2083,7 +2063,7 @@ async function refreshErogePrice(vnId: string, vn: CollectionItem, now: number, 
   }
 
   try {
-    setStockProviderExtras(vnId, 'eroge_price', extras);
+    await getStockRepository().setProviderExtras(vnId, 'eroge_price', extras);
   } catch {}
 
   const classifyTarget: ClassifyTarget = {
@@ -2345,7 +2325,7 @@ function surugayaCardToOffer(card: SurugayaSearchCard, classifyTarget: ClassifyT
 async function refreshSurugaya(
   vnId: string,
   _releases: VndbRelease[],
-  vn: CollectionItem,
+  vn: StockVnContext,
   _discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
   signal?: AbortSignal,
@@ -2392,13 +2372,14 @@ async function refreshSurugaya(
   );
 }
 
-async function loadVnForStock(vnId: string): Promise<CollectionItem | null> {
-  const cached = getCollectionItem(vnId);
+async function loadVnForStock(vnId: string): Promise<StockVnContext | null> {
+  const reader = getVnReadRepository();
+  const cached = await reader.getStockContext(vnId);
   if (cached || !isVndbVnId(vnId)) return cached;
   const fresh = await getVn(vnId);
   if (!fresh) return null;
-  upsertVn(fresh);
-  return getCollectionItem(vnId);
+  await getVnWriteRepository().upsert(fresh);
+  return reader.getStockContext(vnId);
 }
 
 /**
@@ -2479,7 +2460,7 @@ async function refreshProvider(
   provider: StockProviderId,
   vnId: string,
   releases: VndbRelease[],
-  vn: CollectionItem,
+  vn: StockVnContext,
   discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
   signal?: AbortSignal,
@@ -2503,16 +2484,22 @@ async function refreshProvider(
  * skipped / no-results / partial / ok state without re-running the parse.
  */
 export async function refreshStockForVn(vnId: string, providers: StockProviderId[] = [...STOCK_PROVIDER_IDS], signal?: AbortSignal, onProviderProgress?: (provider: StockProviderId, done: number, total: number) => void): Promise<StockSnapshot> {
+  const stockRepository = getStockRepository();
   const vn = await loadVnForStock(vnId);
   if (!vn) throw new Error(`VN not found: ${vnId}`);
-  const aliases = listStockAliases(vnId).map((a) => a.alias_term);
+  const aliases = (await stockRepository.listAliases(vnId)).map((a) => a.alias_term);
   const releases = isVndbVnId(vnId) ? await getReleasesForVn(vnId, 100) : [];
-  const disabledProviders = getDisabledStockProviders();
+  const disabledProviders = await stockRepository.disabledProviders();
   const activeProviders = providers.filter((p) => !disabledProviders.has(p));
   const discovered = await discoverRetailerTargetsFromOfficialPages(vn, releases, signal);
-  for (const source of listStockSources(vnId)) {
+  const blockedManualSources = new Map<StockProviderId, string>();
+  for (const source of await stockRepository.listSources(vnId)) {
     if (!STOCK_PROVIDER_IDS.includes(source.provider as StockProviderId)) continue;
     const provider = source.provider as StockProviderId;
+    if (!isStockProviderUrlAllowed(provider, source.url)) {
+      blockedManualSources.set(provider, sourceHost(source.url) || 'invalid host');
+      continue;
+    }
     const list = discovered.get(provider) ?? [];
     const url = provider === 'amazon_jp' ? canonicalAmazonDpUrl(source.url) ?? source.url : source.url;
     list.push({
@@ -2524,8 +2511,8 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
     });
     discovered.set(provider, uniqTargets(list));
   }
-  const retryWithoutProxy = getStockRetryWithoutProxy();
-  const writeProviderResult = (provider: StockProviderId, offers: VnStockOfferInput[], now: number): void => {
+  const retryWithoutProxy = await stockRepository.retryWithoutProxy();
+  const writeProviderResult = async (provider: StockProviderId, offers: VnStockOfferInput[], now: number): Promise<void> => {
     const hasInputs =
       provider === 'eroge_price'
         ? !!(vn.alttitle ?? vn.title)
@@ -2540,7 +2527,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
           : provider === 'surugaya'
             ? 'partial'
             : 'ok';
-    replaceVnStockProviderSnapshot(vnId, provider, offers, {
+    await stockRepository.replaceProviderSnapshot(vnId, provider, offers, {
       status,
       message: !hasInputs
         ? 'No release link, JAN, or EGS id available for this provider.'
@@ -2563,12 +2550,16 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   const refreshOneProvider = async (provider: StockProviderId): Promise<void> => {
     if (signal?.aborted) return;
     const now = Date.now();
-    const canRetryDirect = retryWithoutProxy && await isStockProviderProxied(provider);
+    const blockedManualSource = blockedManualSources.get(provider);
+    const canRetryDirect = !blockedManualSource
+      && retryWithoutProxy
+      && await isStockProviderProxied(provider);
     const providerCtrl = new AbortController();
     const onOuterAbort = () => providerCtrl.abort();
     signal?.addEventListener('abort', onOuterAbort, { once: true });
     const providerTimeout = setTimeout(() => providerCtrl.abort(), STOCK_PROVIDER_TIMEOUT_MS);
     try {
+      if (blockedManualSource) throw new Error(`Blocked stock URL for ${provider}: ${blockedManualSource}`);
       let offers = dedupeProviderOffers(await refreshProvider(provider, vnId, releases, vn, discovered, now, providerCtrl.signal, aliases));
       if (offers.length === 0 && canRetryDirect && !providerCtrl.signal.aborted) {
         const directOffers = dedupeProviderOffers(
@@ -2576,7 +2567,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         );
         if (directOffers.length > 0) offers = directOffers;
       }
-      writeProviderResult(provider, offers, now);
+      await writeProviderResult(provider, offers, now);
     } catch (e) {
       if (signal?.aborted) return;
       if (canRetryDirect && !providerCtrl.signal.aborted) {
@@ -2584,7 +2575,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
           const directOffers = dedupeProviderOffers(
             await runStockFetchDirect(() => refreshProvider(provider, vnId, releases, vn, discovered, now, providerCtrl.signal, aliases)),
           );
-          writeProviderResult(provider, directOffers, now);
+          await writeProviderResult(provider, directOffers, now);
           return;
         } catch {
         }
@@ -2594,10 +2585,10 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         : (e as Error).message;
       const isCloudflare = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
       const cachedOffers = provider === 'surugaya'
-        ? listVnStockOffers(vnId).filter((offer) => offer.provider === provider)
+        ? (await stockRepository.listOffers(vnId)).filter((offer) => offer.provider === provider)
         : [];
       const preserveExistingOffers = isCloudflare && cachedOffers.length > 0;
-      replaceVnStockProviderSnapshot(vnId, provider, [], {
+      await stockRepository.replaceProviderSnapshot(vnId, provider, [], {
         status: isCloudflare ? 'protected' : 'error',
         message: isCloudflare
           ? 'Cloudflare protected — automated access blocked.'
@@ -2632,12 +2623,20 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
  * `vn_stock_offer` + `vn_stock_provider_status` currently hold; never
  * triggers a fresh fetch on its own.
  */
-export function getStockForVn(vnId: string): StockSnapshot {
-  const directOffers: StockOffer[] = listVnStockOffers(vnId).map((offer) => ({
+export async function getStockForVn(vnId: string): Promise<StockSnapshot> {
+  const stockRepository = getStockRepository();
+  const [directRows, alicenetRows, statuses, disabledSet, sources] = await Promise.all([
+    stockRepository.listOffers(vnId),
+    getAliceNetRepository().listForVn(vnId),
+    stockRepository.listProviderStatuses(vnId),
+    stockRepository.disabledProviders(),
+    stockRepository.listSources(vnId),
+  ]);
+  const directOffers: StockOffer[] = directRows.map((offer) => ({
     ...offer,
     provider_label: providerLabel(offer.provider),
   }));
-  const alicenetOffers: StockOffer[] = listAliceNetStockForVn(vnId).map((row) => ({
+  const alicenetOffers: StockOffer[] = alicenetRows.map((row) => ({
     vn_id: vnId,
     provider: ALICENET_PROVIDER_ID,
     provider_offer_id: row.code,
@@ -2679,8 +2678,6 @@ export function getStockForVn(vnId: string): StockSnapshot {
       offerPriorityRank(a) - offerPriorityRank(b) ||
       (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
   });
-  const statuses = listVnStockProviderStatuses(vnId);
-  const disabledSet = getDisabledStockProviders();
   const providersWithDisabled = STOCK_PROVIDERS.map((p) => ({
     ...p,
     disabled: disabledSet.has(p.id),
@@ -2705,7 +2702,7 @@ export function getStockForVn(vnId: string): StockSnapshot {
     offers,
     statuses,
     providers: providersWithDisabled,
-    sources: listStockSources(vnId),
+    sources,
     summary: {
       total: offers.length,
       available,

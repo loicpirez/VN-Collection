@@ -53,6 +53,7 @@ import {
   listVnStockOffers,
   listVnStockProviderStatuses,
   moveProviderLink,
+  queryAliceNetStockPage,
   replaceVnStockProviderSnapshot,
   resetAliceNetAutoMatches,
   setAliceNetEgsLink,
@@ -64,6 +65,7 @@ import {
   upsertStockAlias,
   upsertStockSource,
   upsertVn,
+  type AliceNetStockListQuery,
   type VnStockOfferInput,
 } from '@/lib/db';
 
@@ -293,6 +295,123 @@ describe('alicenet paging + per-VN listing', () => {
     // Negative / non-finite limit falls back to the cap (still returns rows).
     expect(listAliceNetStockPage(-5, -1).length).toBeGreaterThan(0);
   });
+
+  it('filters, sorts, groups, and paginates before returning AliceNet rows', () => {
+    upsertAliceNetStock([
+      { ...aliceRow('401-000001-001', 'Gamma'), release_date: '2020/01/02', sale_price: '¥3,000' },
+      { ...aliceRow('401-000002-002', 'Alpha'), release_date: '2022/03/04', sale_price: '¥1,000' },
+      { ...aliceRow('401-000003-003', 'Beta'), release_date: '2018/05/06', sale_price: null },
+    ]);
+    upsertVn({ id: 'v90001', title: 'Alpha VN' });
+    db.prepare(`UPDATE vn SET developers = ? WHERE id = ?`).run(JSON.stringify([{ id: 'p90001', name: 'Producer A' }]), 'v90001');
+    setAliceNetVnLink('401-000002-002', 'v90001', 'manual');
+
+    const base = {
+      limit: 1,
+      offset: 0,
+      filter: 'all' as const,
+      sort: 'price_asc' as const,
+      group: 'none' as const,
+      search: '',
+      producer: '',
+      yearMin: null,
+      yearMax: null,
+      priceMin: null,
+      priceMax: null,
+      wishlistIds: ['v90001'],
+    };
+    const first = queryAliceNetStockPage(base);
+    expect(first.total).toBe(3);
+    expect(first.items).toHaveLength(1);
+    expect(first.items[0]).toMatchObject({ code: '401-000002-002', in_wishlist: 1 });
+    expect(first.producers).toContainEqual({ id: 'p90001', name: 'Producer A', count: 1 });
+
+    const grouped = queryAliceNetStockPage({ ...base, limit: 10, group: 'producer' });
+    expect(grouped.items.find((row) => row.code === '401-000002-002')).toMatchObject({
+      server_group_key: 'Producer A',
+      server_group_count: 1,
+    });
+
+    const filtered = queryAliceNetStockPage({
+      ...base,
+      limit: 10,
+      filter: 'wishlist',
+      search: 'alpha',
+      producer: 'p90001',
+      yearMin: 2020,
+      yearMax: 2024,
+      priceMin: 500,
+      priceMax: 1500,
+    });
+    expect(filtered.total).toBe(1);
+    expect(filtered.items.map((row) => row.code)).toEqual(['401-000002-002']);
+
+    const second = queryAliceNetStockPage({ ...base, offset: 1 });
+    expect(second.items[0]?.code).toBe('401-000001-001');
+  });
+
+  it('keeps every SQLite AliceNet query mode behaviorally aligned', () => {
+    upsertAliceNetStock([
+      { ...aliceRow('402-000001-001', 'Alpha VNDB'), release_date: '2022/03/04', sale_price: '¥1,000' },
+      { ...aliceRow('402-000002-002', 'Beta EGS'), release_date: '2018/05/06', sale_price: '¥3,000' },
+      { ...aliceRow('402-000003-003', '100%_Match'), release_date: '2020/01/02', sale_price: null },
+      { ...aliceRow('402-000004-004', 'Delta New'), release_date: null, sale_price: '¥2,000' },
+    ]);
+    upsertVn({
+      id: 'v90002',
+      title: 'Alpha VNDB',
+      developers: [{ id: 'p90002', name: 'Producer B' }],
+    });
+    addToCollection('v90002', { status: 'planning' });
+    setAliceNetVnLink('402-000001-001', 'v90002', 'manual');
+    setAliceNetEgsLink('402-000002-002', 90002, 'auto', { title: 'Beta EGS', brand: 'EGS Brand' });
+    setAliceNetVnLink('402-000003-003', null, 'none');
+
+    const base: AliceNetStockListQuery = {
+      limit: 20,
+      offset: 0,
+      filter: 'all',
+      sort: 'title',
+      group: 'none',
+      search: '',
+      producer: '',
+      yearMin: null,
+      yearMax: null,
+      priceMin: null,
+      priceMax: null,
+      wishlistIds: ['v90002'],
+    };
+    const codesFor = (query: Partial<AliceNetStockListQuery>): string[] =>
+      queryAliceNetStockPage({ ...base, ...query }).items.map((row) => row.code);
+
+    expect(codesFor({ filter: 'vndb' })).toEqual(['402-000001-001']);
+    expect(codesFor({ filter: 'egs_only' })).toEqual(['402-000002-002']);
+    expect(codesFor({ filter: 'unmatched' })).toEqual(expect.arrayContaining(['402-000003-003', '402-000004-004']));
+    expect(codesFor({ filter: 'none_found' })).toEqual(['402-000003-003']);
+    expect(codesFor({ filter: 'collection' })).toEqual(['402-000001-001']);
+    expect(codesFor({ filter: 'wishlist', wishlistIds: [] })).toEqual([]);
+    expect(codesFor({ producer: 'egs:EGS Brand' })).toEqual(['402-000002-002']);
+    expect(codesFor({ search: '%_' })).toEqual(['402-000003-003']);
+
+    const yearGrouped = queryAliceNetStockPage({ ...base, group: 'year' });
+    expect(yearGrouped.items.find((row) => row.code === '402-000001-001')?.server_group_key).toBe('2022');
+
+    const remainingSorts: AliceNetStockListQuery['sort'][] = [
+      'release_asc',
+      'price_desc',
+      'updated_desc',
+    ];
+    for (const sort of remainingSorts) {
+      expect(queryAliceNetStockPage({ ...base, sort }).total).toBe(4);
+    }
+
+    const invalidWindow = queryAliceNetStockPage({
+      ...base,
+      limit: Number.NaN,
+      offset: Number.NaN,
+    });
+    expect(invalidWindow.items).toHaveLength(4);
+  });
 });
 
 describe('vn stock offers + provider statuses', () => {
@@ -403,6 +522,8 @@ describe('stock aliases + sources + title-resolution cache', () => {
     expect(getCachedTitleResolution('some query')).toBeNull();
     setCachedTitleResolution('some query', 'v90001', 'Resolved Title');
     expect(getCachedTitleResolution('some query')).toEqual({ vnId: 'v90001', title: 'Resolved Title' });
+    setCachedTitleResolution('some query', 'v90002', 'Updated Title');
+    expect(getCachedTitleResolution('some query')).toEqual({ vnId: 'v90002', title: 'Updated Title' });
   });
 });
 

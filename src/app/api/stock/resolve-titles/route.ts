@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { db, getCachedTitleResolution, setCachedTitleResolution } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { searchVn } from '@/lib/vndb';
 import { searchEgsByName } from '@/lib/erogamescape';
 import { clampQuery } from '@/lib/api-query';
@@ -12,13 +13,11 @@ export const runtime = 'nodejs';
 const MAX_TITLES = 50;
 
 async function resolveTitle(trimmed: string): Promise<{ vnId: string; title: string } | null> {
-  const like = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
-  const hit = db
-    .prepare(`SELECT id, title FROM vn WHERE title LIKE ? ESCAPE '\\' OR alttitle LIKE ? ESCAPE '\\' ORDER BY title COLLATE NOCASE LIMIT 1`)
-    .get(like, like) as { id: string; title: string } | undefined;
-  if (hit) return { vnId: hit.id, title: hit.title };
+  const hit = await getVnReadRepository().findTitleMatch(trimmed);
+  if (hit) return hit;
 
-  const cached = getCachedTitleResolution(trimmed);
+  const stockRepository = getStockRepository();
+  const cached = await stockRepository.getCachedTitleResolution(trimmed);
   if (cached) return cached;
 
   const [vndbResult, egsResult] = await Promise.all([
@@ -28,13 +27,13 @@ async function resolveTitle(trimmed: string): Promise<{ vnId: string; title: str
 
   if (vndbResult && vndbResult.results.length > 0) {
     const r = vndbResult.results[0];
-    setCachedTitleResolution(trimmed, r.id, r.title);
+    await stockRepository.setCachedTitleResolution(trimmed, r.id, r.title);
     return { vnId: r.id, title: r.title };
   }
 
   if (egsResult) {
     const vnId = `egs_${egsResult.id}`;
-    setCachedTitleResolution(trimmed, vnId, egsResult.gamename);
+    await stockRepository.setCachedTitleResolution(trimmed, vnId, egsResult.gamename);
     return { vnId, title: egsResult.gamename };
   }
 

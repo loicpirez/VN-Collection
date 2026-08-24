@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { listStockAliases, upsertStockAlias, deleteStockAlias } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import { isValidVnId } from '@/lib/vn-id-shape';
 
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,8 @@ export const STOCK_ALIAS_MAX_LENGTH = 100;
 /** Maximum number of aliases stored per VN. Prevents query-cost explosion. */
 export const STOCK_ALIAS_MAX_COUNT = 20;
 
-function vnAliasTerms(vnId: string): string[] {
-  return listStockAliases(vnId).map((row) => row.alias_term);
+async function vnAliasTerms(vnId: string): Promise<string[]> {
+  return (await getStockRepository().listAliases(vnId)).map((row) => row.alias_term);
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  return NextResponse.json({ aliases: vnAliasTerms(id) });
+  return NextResponse.json({ aliases: await vnAliasTerms(id) });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -46,16 +46,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'action must be add or delete' }, { status: 400 });
   }
   if (action === 'delete') {
-    deleteStockAlias(id, term);
+    await getStockRepository().deleteAlias(id, term);
   } else {
-    const current = vnAliasTerms(id);
+    const current = await vnAliasTerms(id);
     if (current.length >= STOCK_ALIAS_MAX_COUNT && !current.includes(term)) {
       return NextResponse.json(
         { error: `too many aliases (max ${STOCK_ALIAS_MAX_COUNT})`, aliases: current },
         { status: 400 },
       );
     }
-    upsertStockAlias(id, term);
+    await getStockRepository().upsertAlias(id, term);
   }
-  return NextResponse.json({ aliases: vnAliasTerms(id) });
+  return NextResponse.json({ aliases: await vnAliasTerms(id) });
 }

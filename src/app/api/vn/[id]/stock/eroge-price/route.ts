@@ -33,7 +33,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
-import { clearStockProviderExtras, getErogePriceStockExtras, setStockProviderExtras } from '@/lib/db';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import {
   fetchErogePriceBundle,
   type ErogePriceExtrasV1,
@@ -51,8 +51,8 @@ function parseEpId(raw: unknown): number | null {
 }
 
 /** Read + upgrade the persisted blob. Returns null if the row is absent. */
-function readExtras(vnId: string): ErogePriceExtrasV1 | null {
-  return getErogePriceStockExtras(vnId);
+async function readExtras(vnId: string): Promise<ErogePriceExtrasV1 | null> {
+  return getStockRepository().getErogePriceExtras(vnId);
 }
 
 export async function PATCH(
@@ -76,7 +76,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'ep_id required (positive integer)' }, { status: 400 });
   }
 
-  const extras = readExtras(id);
+  const extras = await readExtras(id);
   if (!extras || extras.candidates.length === 0) {
     return NextResponse.json(
       { error: 'no eroge_price extras stored for this VN' },
@@ -93,7 +93,7 @@ export async function PATCH(
   }
 
   const updated: ErogePriceExtrasV1 = { ...extras, selectedEpId: epId };
-  setStockProviderExtras(id, 'eroge_price', updated);
+  await getStockRepository().setProviderExtras(id, 'eroge_price', updated);
 
   return NextResponse.json({
     ok: true,
@@ -121,7 +121,7 @@ export async function POST(
     return NextResponse.json({ error: 'ep_id required (positive integer)' }, { status: 400 });
   }
 
-  const existing = readExtras(id);
+  const existing = await readExtras(id);
   if (existing && existing.candidates.some((c) => c.epId === epId)) {
     return NextResponse.json({
       ok: true,
@@ -156,7 +156,7 @@ export async function POST(
         searchQuery: null,
         refreshedAt: Date.now(),
       };
-  setStockProviderExtras(id, 'eroge_price', next);
+  await getStockRepository().setProviderExtras(id, 'eroge_price', next);
 
   return NextResponse.json({
     ok: true,
@@ -184,7 +184,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'ep_id query param required' }, { status: 400 });
   }
 
-  const extras = readExtras(id);
+  const extras = await readExtras(id);
   if (!extras) {
     return NextResponse.json({ ok: true, candidates: [], note: 'no extras to remove from' });
   }
@@ -198,7 +198,7 @@ export async function DELETE(
   }
 
   if (remaining.length === 0) {
-    clearStockProviderExtras(id, 'eroge_price');
+    await getStockRepository().clearProviderExtras(id, 'eroge_price');
     return NextResponse.json({ ok: true, candidates: [], cleared: true });
   }
 
@@ -210,7 +210,7 @@ export async function DELETE(
     selectedEpId: nextSelected,
     refreshedAt: Date.now(),
   };
-  setStockProviderExtras(id, 'eroge_price', next);
+  await getStockRepository().setProviderExtras(id, 'eroge_price', next);
 
   return NextResponse.json({
     ok: true,
