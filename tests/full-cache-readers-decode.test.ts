@@ -354,26 +354,26 @@ describe('readCharacterFullCache / decodeCharacterFullPayload', () => {
 });
 
 describe('readTagFullCache', () => {
-  it('returns null on a cache miss', () => {
-    expect(readTagFullCache('g90099')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readTagFullCache('g90099')).resolves.toBeNull();
   });
 
-  it('decodes a well-formed tag row and splices the row fetched_at', () => {
+  it('decodes a well-formed tag row and splices the row fetched_at', async () => {
     writeCacheRow(
       'tag_full:g90001',
       JSON.stringify({ tag: validTag(), fetched_at: NOW - 1 }),
       NOW,
     );
-    const got = readTagFullCache('g90001');
+    const got = await readTagFullCache('g90001');
     expect(got).not.toBeNull();
     expect(got!.tag.id).toBe('g90001');
     expect(got!.tag.category).toBe('cont');
     expect(got!.fetched_at).toBe(NOW);
   });
 
-  it('rejects a tag with an out-of-range category', () => {
+  it('rejects a tag with an out-of-range category', async () => {
     writeCacheRow('tag_full:g90002', JSON.stringify({ tag: { ...validTag(), id: 'g90002', category: 'bogus' } }));
-    expect(readTagFullCache('g90002')).toBeNull();
+    await expect(readTagFullCache('g90002')).resolves.toBeNull();
   });
 });
 

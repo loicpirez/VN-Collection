@@ -1,16 +1,18 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { getTag, type VndbTag } from './vndb';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
-import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
+import { parseJsonRecord } from './json-shape';
 import { decodeVndbTag } from './vndb-profile-row-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getVnReadRepository } from './db/repositories/vn-read';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'tag_full:';
 const TTL_MS = 30 * 24 * 3600 * 1000;
 
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 function key(gid: string): string {
@@ -26,26 +28,27 @@ export interface TagFullPayload {
  * Read the cached full-tag payload, or `null` on miss / parse error.
  * Lets the tag tooltip render instantly from cache before any live fetch.
  */
-export function readTagFullCache(gid: string): TagFullPayload | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key(gid)) as { body: string; fetched_at: number } | undefined;
+function decodeTagCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): TagFullPayload | null {
   if (!row) return null;
   const parsed = parseJsonRecord(row.body);
   const tag = decodeVndbTag(parsed?.tag);
   return tag ? { tag, fetched_at: row.fetched_at } : null;
 }
 
-function writeTagFullCache(gid: string, payload: TagFullPayload): void {
+export async function readTagFullCache(gid: string): Promise<TagFullPayload | null> {
+  return decodeTagCacheRow(await getCacheRepository().get(key(gid)));
+}
+
+async function writeTagFullCache(gid: string, payload: TagFullPayload): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key(gid), JSON.stringify(payload), now, now + TTL_MS);
+  await getCacheRepository().put({
+    cache_key: key(gid),
+    body: JSON.stringify(payload),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + TTL_MS,
+  });
 }
 
 /**
@@ -56,7 +59,7 @@ export async function downloadFullTagInfo(gid: string): Promise<TagFullPayload |
   const tag = await getTag(gid);
   if (!tag) return null;
   const payload: TagFullPayload = { tag, fetched_at: Date.now() };
-  writeTagFullCache(gid, payload);
+  await writeTagFullCache(gid, payload);
   return payload;
 }
 
@@ -66,17 +69,12 @@ export async function downloadFullTagInfo(gid: string): Promise<TagFullPayload |
  * tooltips can show every documented field without an extra round-trip.
  */
 export async function downloadFullTagsForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  const row = db.prepare('SELECT tags FROM vn WHERE id = ?').get(vnId) as { tags: string | null } | undefined;
-  if (!row?.tags) return { scanned: 0, downloaded: 0 };
-  const ids = Array.from(new Set(
-    parseJsonArray(row.tags)
-      .map((value) => asJsonRecord(value)?.id)
-      .filter((id): id is string => typeof id === 'string' && /^g\d+$/i.test(id)),
-  ));
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const ids = await getVnReadRepository().getTagIds(vnId);
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(ids.map(key));
   const stale = ids.filter((gid) => {
-    const cached = readTagFullCache(gid);
+    const cached = decodeTagCacheRow(cacheRows.get(key(gid)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };

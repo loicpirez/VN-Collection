@@ -107,6 +107,9 @@ export function registerCoreRepositoryContract(label: string, harness: CoreContr
           platforms: ['win'],
         });
         expect(item?.tags.map((tag) => tag.id)).toEqual([CORE_CONTRACT_IDS.firstTag]);
+        await expect(read.getTagIds(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual([
+          CORE_CONTRACT_IDS.firstTag,
+        ]);
         await expect(inspect.tagIds(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual([CORE_CONTRACT_IDS.firstTag]);
         await expect(read.getStockContext(CORE_CONTRACT_IDS.firstVn)).resolves.toMatchObject({
           title: '東京物語',

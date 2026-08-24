@@ -444,8 +444,8 @@ describe('downloadFullTagsForVn', () => {
     getTagMock.mockImplementation((gid: string) => Promise.resolve(tag(gid)));
     const r = await downloadFullTagsForVn(VN, { force: true });
     expect(r).toEqual({ scanned: 2, downloaded: 2 });
-    expect(readTagFullCache('g90500')).not.toBeNull();
-    expect(readTagFullCache('g90501')).not.toBeNull();
+    await expect(readTagFullCache('g90500')).resolves.not.toBeNull();
+    await expect(readTagFullCache('g90501')).resolves.not.toBeNull();
   });
 
   it('skips tags already fresh in the cache', async () => {
@@ -471,7 +471,7 @@ describe('downloadFullTagInfo', () => {
   it('returns null and writes nothing when VNDB does not recognise the tag id', async () => {
     getTagMock.mockResolvedValue(null);
     expect(await downloadFullTagInfo('g90590')).toBeNull();
-    expect(readTagFullCache('g90590')).toBeNull();
+    await expect(readTagFullCache('g90590')).resolves.toBeNull();
   });
 });
 

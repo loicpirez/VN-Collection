@@ -32,16 +32,16 @@ function writeCacheRow(key: string, body: string, fetchedAt: number = NOW): void
 describe('readTagFullCache', () => {
   beforeEach(() => clearCache());
 
-  it('returns null on cache miss', () => {
-    expect(readTagFullCache('g90001')).toBeNull();
+  it('returns null on cache miss', async () => {
+    await expect(readTagFullCache('g90001')).resolves.toBeNull();
   });
 
-  it('returns null on corrupt JSON body', () => {
+  it('returns null on corrupt JSON body', async () => {
     writeCacheRow('tag_full:g90002', '{not valid json');
-    expect(readTagFullCache('g90002')).toBeNull();
+    await expect(readTagFullCache('g90002')).resolves.toBeNull();
   });
 
-  it('round-trips a stored payload and uses the row fetched_at', () => {
+  it('round-trips a stored payload and uses the row fetched_at', async () => {
     const stored = {
       tag: {
         id: 'g90003',
@@ -57,13 +57,13 @@ describe('readTagFullCache', () => {
       fetched_at: NOW - 100_000,
     };
     writeCacheRow('tag_full:g90003', JSON.stringify(stored), NOW);
-    const got = readTagFullCache('g90003');
+    const got = await readTagFullCache('g90003');
     expect(got).not.toBeNull();
     expect(got!.tag.id).toBe('g90003');
     expect(got!.fetched_at).toBe(NOW);
   });
 
-  it('lowercases the gid before lookup', () => {
+  it('lowercases the gid before lookup', async () => {
     writeCacheRow('tag_full:g90004', JSON.stringify({
       tag: {
         id: 'g90004',
@@ -78,7 +78,7 @@ describe('readTagFullCache', () => {
       fetched_at: NOW,
     }));
     // Uppercase input should still resolve.
-    expect(readTagFullCache('G90004')).not.toBeNull();
+    await expect(readTagFullCache('G90004')).resolves.not.toBeNull();
   });
 });
 

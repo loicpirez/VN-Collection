@@ -78,10 +78,10 @@ describe('full-cache structure validation', () => {
     expect(readCharacterFullCache('c990031')).toBeNull();
   });
 
-  it('rejects incomplete tag and trait payloads', () => {
+  it('rejects incomplete tag and trait payloads', async () => {
     writeCacheRow('tag_full:g990030', JSON.stringify({ tag: { id: 'g990030' } }));
     writeCacheRow('trait_full:i990030', JSON.stringify({ trait: { id: 'i990030' } }));
-    expect(readTagFullCache('g990030')).toBeNull();
+    await expect(readTagFullCache('g990030')).resolves.toBeNull();
     expect(readTraitFullCache('i990030')).toBeNull();
   });
 

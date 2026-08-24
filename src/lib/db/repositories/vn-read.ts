@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg';
-import { parseJsonArray } from '@/lib/json-shape';
+import { asJsonRecord, parseJsonArray } from '@/lib/json-shape';
 import { isPersistedExtlinks, isPersistedTitles } from '@/lib/vn-persisted-json-shape';
 import type { StockTitleContext } from '@/lib/stock-query';
 import type { CollectionItem, EgsLite, SeriesLite, VnRow } from '@/lib/types';
@@ -36,6 +36,8 @@ export interface VnReadRepository {
   findTitleMatch(query: string): Promise<{ vnId: string; title: string } | null>;
   /** Return local and remote cover paths for a set of VN identifiers. */
   getCovers(vnIds: readonly string[]): Promise<LocalVnCoverRow[]>;
+  /** Return the valid tag identifiers persisted on one VN. */
+  getTagIds(vnId: string): Promise<string[]>;
 }
 
 interface PostgresStockVnRow extends QueryResultRow {
@@ -43,6 +45,10 @@ interface PostgresStockVnRow extends QueryResultRow {
   alttitle: string | null;
   titles: string | null;
   extlinks: string | null;
+}
+
+interface PersistedTagRow extends QueryResultRow {
+  tags: string | null;
 }
 
 interface PostgresSeriesRow extends SeriesLite, QueryResultRow {}
@@ -66,6 +72,13 @@ function decodeTitles(raw: string | null): VnRow['titles'] {
 function decodeExtlinks(raw: string | null): VnRow['extlinks'] {
   const value = parseJsonArray(raw);
   return isPersistedExtlinks(value) ? value : [];
+}
+
+function decodeTagIds(raw: string | null): string[] {
+  return [...new Set(parseJsonArray(raw).flatMap((value) => {
+    const id = asJsonRecord(value)?.id;
+    return typeof id === 'string' && /^g\d+$/i.test(id) ? [id] : [];
+  }))];
 }
 
 /** Create the PostgreSQL-backed stock VN reader. */
@@ -149,6 +162,13 @@ export function createPostgresVnReadRepository(): VnReadRepository {
       `, [vnIds]);
       return result.rows;
     },
+    async getTagIds(vnId) {
+      const result = await postgresQuery<PersistedTagRow>(
+        'SELECT tags FROM vn WHERE id = $1',
+        [vnId],
+      );
+      return decodeTagIds(result.rows[0]?.tags ?? null);
+    },
   };
 }
 
@@ -189,6 +209,11 @@ const sqliteRepository: VnReadRepository = {
       `).all(...chunk) as LocalVnCoverRow[]);
     }
     return rows;
+  },
+  async getTagIds(vnId) {
+    const { db } = await import('@/lib/db');
+    const row = db.prepare('SELECT tags FROM vn WHERE id = ?').get(vnId) as PersistedTagRow | undefined;
+    return decodeTagIds(row?.tags ?? null);
   },
 };
 
