@@ -12,7 +12,7 @@
     "sentinel": "node scripts/frontend-regression-sentinel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage",
+    "test:cov": "bash scripts/test-coverage.sh",
     "test:postgres": "bash scripts/test-postgres.sh",
     "test:postgres:run": "vitest run --config vitest.postgres.config.ts",
     "db:postgres:baseline": "node scripts/generate-postgres-baseline.mjs",
