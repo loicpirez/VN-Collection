@@ -611,7 +611,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       );
     }
     const prepared = await prepareProxyConfigUpdate(providerId, v as Record<string, unknown>);
-    if (!prepared.update) throw new SettingValidationError(prepared.error ?? 'invalid proxy configuration');
+    if (!prepared.update) throw new SettingValidationError(prepared.error);
     writes.push(prepared.update);
   }
   // Per-shop overrides. The membership in STOCK_PROVIDER_PROXY_KEY_SET is
@@ -629,7 +629,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     const providerId = key.replace(/_proxy_config$/, '');
     const prepared = await prepareStockProviderProxyUpdate(providerId, v as Record<string, unknown>);
     if (!prepared.update) {
-      throw new SettingValidationError(`${key}: ${prepared.error ?? 'invalid proxy configuration'}`);
+      throw new SettingValidationError(`${key}: ${prepared.error}`);
     }
     writes.push(prepared.update);
   }

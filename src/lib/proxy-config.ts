@@ -336,11 +336,15 @@ export interface PreparedProxyConfigUpdate {
   value: string;
 }
 
+type PreparedProxyConfigResult =
+  | { update: PreparedProxyConfigUpdate; error: null }
+  | { update: null; error: string };
+
 /** Validate and serialize one fixed-provider proxy update. */
 export async function prepareProxyConfigUpdate(
   provider: ProviderId,
   patch: Record<string, unknown>,
-): Promise<{ update: PreparedProxyConfigUpdate | null; error: string | null }> {
+): Promise<PreparedProxyConfigResult> {
   if (provider === ALICENET_PROVIDER_ID) {
     return { update: null, error: 'AliceNet proxy is configured through stock_proxy_config' };
   }
@@ -356,7 +360,7 @@ export async function prepareProxyConfigUpdate(
 export async function prepareStockProviderProxyUpdate(
   providerId: StockProxyProviderId,
   patch: Record<string, unknown>,
-): Promise<{ update: PreparedProxyConfigUpdate | null; error: string | null }> {
+): Promise<PreparedProxyConfigResult> {
   if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return { update: null, error: 'invalid provider id' };
   const key = `${providerId}_proxy_config`;
   const result = applyProxyPatch(await readDbConfigByKey(key), patch);
