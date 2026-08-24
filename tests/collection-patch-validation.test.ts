@@ -22,12 +22,9 @@ vi.mock('@/lib/producer-full', () => ({
   downloadFullProducerForVn: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/lib/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/db')>();
-  return {
-    ...actual,
-    maybePushStatusToVndb: vi.fn().mockResolvedValue(undefined),
-  };
+vi.mock('@/lib/vndb-sync', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/vndb-sync')>();
+  return { ...actual, maybePushStatusToVndb: vi.fn().mockResolvedValue(undefined) };
 });
 
 import { PATCH } from '@/app/api/collection/[id]/route';

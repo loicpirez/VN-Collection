@@ -1,24 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Status } from '@/lib/types';
-
-type VndbWriteResult = { ok: boolean; status?: number; message?: string };
-type PushStatusToVndb = (vnId: string, status: Status | null, token: string) => Promise<VndbWriteResult>;
-
 const mocks = vi.hoisted(() => ({
-  pushStatusToVndb: vi.fn<PushStatusToVndb>(),
+  throttledFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/vndb-sync', () => ({
-  pushStatusToVndb: mocks.pushStatusToVndb,
+vi.mock('@/lib/vndb-throttle', () => ({
+  throttledFetch: mocks.throttledFetch,
 }));
 
-import {
-  maybePushStatusToVndb,
-  setAppSetting,
-} from '@/lib/db';
+import { setAppSetting } from '@/lib/db';
+import { maybePushStatusToVndb } from '@/lib/vndb-sync';
 
 beforeEach(() => {
-  mocks.pushStatusToVndb.mockReset();
+  mocks.throttledFetch.mockReset();
   setAppSetting('vndb_writeback', null);
   setAppSetting('vndb_token', null);
 });
@@ -38,20 +31,29 @@ describe('maybePushStatusToVndb', () => {
     setAppSetting('vndb_token', '   ');
     await maybePushStatusToVndb('v90003', 'completed');
 
-    expect(mocks.pushStatusToVndb).not.toHaveBeenCalled();
+    expect(mocks.throttledFetch).not.toHaveBeenCalled();
   });
 
   it('pushes VNDB ids with a trimmed token and swallows upstream failures', async () => {
     setAppSetting('vndb_writeback', '1');
     setAppSetting('vndb_token', '  tok-valid  ');
-    mocks.pushStatusToVndb.mockResolvedValueOnce({ ok: true, status: 200 });
+    mocks.throttledFetch.mockResolvedValueOnce(new Response('', { status: 200 }));
 
     await maybePushStatusToVndb('v90004', 'playing');
 
-    expect(mocks.pushStatusToVndb).toHaveBeenCalledWith('v90004', 'playing', 'tok-valid');
+    expect(mocks.throttledFetch).toHaveBeenCalledWith(
+      'https://api.vndb.org/kana/ulist/v90004',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: expect.objectContaining({ Authorization: 'Token tok-valid' }),
+      }),
+    );
 
-    mocks.pushStatusToVndb.mockRejectedValueOnce(new Error('upstream failed'));
+    mocks.throttledFetch.mockRejectedValueOnce(new Error('upstream failed'));
     await expect(maybePushStatusToVndb('v90004', null)).resolves.toBeUndefined();
-    expect(mocks.pushStatusToVndb).toHaveBeenCalledWith('v90004', null, 'tok-valid');
+    expect(mocks.throttledFetch).toHaveBeenLastCalledWith(
+      'https://api.vndb.org/kana/ulist/v90004',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 });

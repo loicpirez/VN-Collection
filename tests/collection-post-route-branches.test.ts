@@ -41,8 +41,8 @@ vi.mock('@/lib/producer-full', () => ({
   downloadFullProducerForVn: downloadFullProducerForVnMock,
 }));
 
-vi.mock('@/lib/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/db')>();
+vi.mock('@/lib/vndb-sync', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/vndb-sync')>();
   return { ...actual, maybePushStatusToVndb: maybePushStatusToVndbMock };
 });
 
@@ -93,7 +93,7 @@ describe('POST /api/collection/[id] orchestration branches', () => {
 
     const res = await POST(req(id, { status: 'planning' }), ctx(id));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'collection/[id]' });
     consoleSpy.mockRestore();
   });
 

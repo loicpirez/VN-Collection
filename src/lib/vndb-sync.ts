@@ -1,9 +1,11 @@
 import 'server-only';
 import type { Status } from './types';
-import { getCollectionItem, updateCollection } from './db';
 import { fetchUlistByLabel, getAuthInfo } from './vndb';
 import { throttledFetch } from './vndb-throttle';
 import { finishJob, jobCurrentItem, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCollectionCoreRepository } from './db/repositories/collection-core';
+import { getVnReadRepository } from './db/repositories/vn-read';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 /**
@@ -19,8 +21,8 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
  *   on_hold            3                Stalled
  *   dropped            4                Dropped
  *
- * `pushStatusToVndb` is called from `updateCollection` in `db.ts` when the
- * app-setting `vndb_writeback = '1'` is enabled.  Users who don't want their
+ * `maybePushStatusToVndb` is called after a local collection transaction when
+ * the app-setting `vndb_writeback = '1'` is enabled. Users who don't want their
  * local state mirrored remotely can leave the setting off (default).
  */
 
@@ -74,6 +76,26 @@ export async function pushStatusToVndb(
     body: JSON.stringify({ labels_set: labelsSet, labels_unset: labelsUnset }),
   });
   return { ok: r.ok, status: r.status };
+}
+
+/**
+ * Mirror a local status change when VNDB write-back is enabled.
+ * Remote failures are intentionally isolated from the committed local change.
+ */
+export async function maybePushStatusToVndb(
+  vnId: string,
+  status: Status | null | undefined,
+): Promise<void> {
+  if (status === undefined || !isVndbVnId(vnId)) return;
+  const settings = getAppSettingRepository();
+  if (await settings.get('vndb_writeback') !== '1') return;
+  const token = await settings.get('vndb_token');
+  if (!token?.trim()) return;
+  try {
+    await pushStatusToVndb(vnId, status, token.trim());
+  } catch {
+    // A remote echo must never roll back or fail the local collection change.
+  }
 }
 
 export interface PullChange {
@@ -165,13 +187,15 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
   const changes: PullChange[] = [];
   const unmatched: { vn_id: string; status: Status }[] = [];
   const scanned = Object.keys(labels).length;
+  const vnReader = getVnReadRepository();
+  const collection = getCollectionCoreRepository();
   for (const [vnId, labelIds] of Object.entries(labels)) {
     const target = pickStatusFromLabels(labelIds);
     if (!target) {
       skipped += 1;
       continue;
     }
-    const local = getCollectionItem(vnId);
+    const local = await vnReader.getCollectionItem(vnId);
     if (!local?.status) {
       skipped += 1;
       if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
@@ -182,7 +206,7 @@ export async function pullStatusesFromVndb(): Promise<PullResult> {
       continue;
     }
     const prev = local.status;
-    updateCollection(vnId, { status: target });
+    await collection.update(vnId, { status: target });
     changes.push({ vn_id: vnId, title: local.title, from: prev, to: target });
     updated += 1;
   }

@@ -29,7 +29,6 @@ export {
   isValidStatus,
 } from './types';
 export { SHELF_MAX, SHELF_MIN } from './shelf-limits';
-import { pushStatusToVndb } from './vndb-sync';
 import {
   aspectKeyForResolution,
   isAspectKey,
@@ -3450,28 +3449,6 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
     log('note', { length: typeof fields.notes === 'string' ? fields.notes.length : 0 });
   }
   });
-}
-
-/**
- * Push a status change to VNDB if write-back is enabled.
- *
- * Decoupled from `updateCollection` so it can run *after* the transaction
- * commits — VNDB latency or 5xx errors must never roll back the local
- * state. Called from the PATCH /api/collection/[id] route handler.
- */
-export async function maybePushStatusToVndb(vnId: string, status: Status | null | undefined): Promise<void> {
-  if (status === undefined) return;
-  if (!isVndbVnId(vnId)) return;
-  const settings = (await import('./db/repositories/app-setting')).getAppSettingRepository();
-  const enabled = await settings.get('vndb_writeback') === '1';
-  if (!enabled) return;
-  const token = await settings.get('vndb_token');
-  if (!token || !token.trim()) return;
-  try {
-    await pushStatusToVndb(vnId, status, token.trim());
-  } catch {
-    // never fail the request because the remote echo didn't go through.
-  }
 }
 
 /**

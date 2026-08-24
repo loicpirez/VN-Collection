@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
-import { maybePushStatusToVndb, type CollectionPatch } from '@/lib/db';
+import type { CollectionPatch } from '@/lib/db';
+import { maybePushStatusToVndb } from '@/lib/vndb-sync';
 import {
   isValidBoxType,
   isValidEditionType,
