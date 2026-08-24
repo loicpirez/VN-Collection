@@ -271,7 +271,7 @@ describe('LibraryClient', () => {
     installFetchRouter({ collectionItems: [cardRow('v90001', 'Title Y'), cardRow('v90002', 'Title Z')] });
     const { user } = renderWithProviders(
       <DisplaySettingsProvider>
-        <LibraryClient mode="full" />
+        <LibraryClient />
       </DisplaySettingsProvider>,
       { locale: 'en' },
     );
