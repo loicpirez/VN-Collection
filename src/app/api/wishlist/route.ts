@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upstreamError } from '@/lib/api-error';
 import { fetchAuthenticatedWishlist } from '@/lib/vndb';
-import { getEgsSummariesForVns, isInCollectionMany } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { apiErrorBody } from '@/lib/api-error-shape';
+import { paginateWishlist, parseWishlistServerQuery } from '@/lib/wishlist-pagination';
+import type { WishlistClientItem } from '@/lib/vndb-ui-client-shape';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+type WishlistReadErrorCode = 'vndb_unavailable' | 'vndb_rate_limited' | 'vndb_malformed_payload';
+
+function wishlistReadErrorCode(err: unknown): WishlistReadErrorCode {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/\b429\b|rate/i.test(message)) return 'vndb_rate_limited';
+  if (/invalid payload shape|non-json|malformed|decode|json/i.test(message)) return 'vndb_malformed_payload';
+  return 'vndb_unavailable';
+}
+
+function wishlistReadError(err: unknown): NextResponse {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error(`[upstream:wishlist] ${detail}`);
+  return NextResponse.json(
+    apiErrorBody('upstream service unavailable', wishlistReadErrorCode(err), 'wishlist/read'),
+    { status: 502 },
+  );
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
@@ -21,9 +42,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // reads `it.vn.id` keeps working without a coordinated rename.
     //
     const ids = result.map((e) => e.id);
-    const ownedSet = isInCollectionMany(ids);
-    const egsMap = getEgsSummariesForVns(ids);
-    const items = result.map((e) => ({
+    const [ownedSet, egsMap] = await Promise.all([
+      getCollectionCoreRepository().containsMany(ids),
+      getCollectionListRepository().egsSummaries(ids),
+    ]);
+    const items: WishlistClientItem[] = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },
       in_collection: ownedSet.has(e.id),
@@ -34,8 +57,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           }
         : null,
     }));
-    return NextResponse.json({ items });
+    if (!req.nextUrl.searchParams.has('page') && !req.nextUrl.searchParams.has('pageSize')) {
+      return NextResponse.json({ items });
+    }
+    return NextResponse.json(paginateWishlist(items, parseWishlistServerQuery(req.nextUrl.searchParams)));
   } catch (err) {
-    return upstreamError('wishlist', err);
+    return wishlistReadError(err);
   }
 }

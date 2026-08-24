@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { fetchWishlistMock, addWishlistMock, removeWishlistMock } = vi.hoisted(() => ({
   fetchWishlistMock: vi.fn(),
@@ -14,6 +14,10 @@ const { getEgsSummariesMock, isInCollectionManyMock } = vi.hoisted(() => ({
 
 const { recordActivityMock } = vi.hoisted(() => ({
   recordActivityMock: vi.fn(),
+}));
+
+const { invalidateWishlistCacheMock } = vi.hoisted(() => ({
+  invalidateWishlistCacheMock: vi.fn(),
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -31,6 +35,10 @@ vi.mock('@/lib/activity', () => ({
   recordActivity: recordActivityMock,
 }));
 
+vi.mock('@/lib/vndb-wishlist-cache', () => ({
+  invalidateVndbWishlistCache: invalidateWishlistCacheMock,
+}));
+
 import { GET as wishlistGET } from '@/app/api/wishlist/route';
 import { DELETE as wishlistDELETE, POST as wishlistPOST } from '@/app/api/wishlist/[id]/route';
 
@@ -43,6 +51,20 @@ function ctx(id: string): { params: Promise<{ id: string }> } {
 }
 
 describe('wishlist route branches', () => {
+  beforeEach(() => {
+    for (const mock of [
+      fetchWishlistMock,
+      addWishlistMock,
+      removeWishlistMock,
+      getEgsSummariesMock,
+      isInCollectionManyMock,
+      recordActivityMock,
+      invalidateWishlistCacheMock,
+    ]) {
+      mock.mockReset();
+    }
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -68,10 +90,53 @@ describe('wishlist route branches', () => {
     ]);
   });
 
+  it('returns a filtered server page while preserving the legacy response without page params', async () => {
+    const vn = (id: string, title: string) => ({
+      id,
+      added: 100,
+      voted: null,
+      vote: null,
+      started: null,
+      finished: null,
+      notes: null,
+      labels: [{ id: 5, label: 'Wishlist' }],
+      vn: {
+        title,
+        alttitle: null,
+        released: '2020-01-01',
+        rating: 70,
+        votecount: 10,
+        length_minutes: 600,
+        languages: ['en'],
+        platforms: ['win'],
+        image: null,
+        developers: [],
+      },
+    });
+    fetchWishlistMock.mockResolvedValue([vn('v90001', 'Alpha'), vn('v90002', 'Beta')]);
+    isInCollectionManyMock.mockReturnValue(new Set(['v90002']));
+    getEgsSummariesMock.mockReturnValue(new Map());
+
+    const response = await wishlistGET(req('/api/wishlist?page=1&pageSize=1&hideOwned=1&locale=en'));
+    const body = await response.json();
+    expect(body).toMatchObject({
+      page: { page: 1, page_size: 1, total: 1, total_pages: 1, start: 1, end: 1, grouped: false },
+      summary: { total: 2, owned: 1, todo: 1 },
+      facets: { languages: ['en'], platforms: ['win'] },
+      download_items: [{ id: 'v90001', title: 'Alpha' }],
+    });
+    expect(body.items).toHaveLength(1);
+  });
+
   it('returns the needs-auth shape for wishlist reads without a VNDB token', async () => {
     fetchWishlistMock.mockResolvedValue({ needsAuth: true });
     const res = await wishlistGET(req('/api/wishlist'));
     expect(await res.json()).toEqual({ needsAuth: true, items: [] });
+  });
+
+  it('rejects non-loopback wishlist reads', async () => {
+    const res = await wishlistGET(new NextRequest('http://93.184.216.34/api/wishlist'));
+    expect(res.status).toBe(403);
   });
 
   it('uses the sanitized upstream response when wishlist reading throws', async () => {
@@ -79,8 +144,34 @@ describe('wishlist route branches', () => {
     fetchWishlistMock.mockRejectedValue(new Error('token leaked'));
     const res = await wishlistGET(req('/api/wishlist'));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'vndb_unavailable', context: 'wishlist/read' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist] token leaked');
+  });
+
+  it('sanitizes non-Error wishlist failures', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    fetchWishlistMock.mockRejectedValue('plain failure');
+
+    const res = await wishlistGET(req('/api/wishlist'));
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'vndb_unavailable', context: 'wishlist/read' });
+    expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist] plain failure');
+  });
+
+  it('classifies wishlist rate-limit and malformed upstream failures', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    fetchWishlistMock.mockRejectedValueOnce(new Error('VNDB POST /ulist 429: slow down'));
+    let res = await wishlistGET(req('/api/wishlist'));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'vndb_rate_limited', context: 'wishlist/read' });
+
+    fetchWishlistMock.mockRejectedValueOnce(new Error('vndb-cache: invalid payload shape'));
+    res = await wishlistGET(req('/api/wishlist'));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'vndb_malformed_payload', context: 'wishlist/read' });
+    expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist] VNDB POST /ulist 429: slow down');
+    expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist] vndb-cache: invalid payload shape');
   });
 
   it('adds a VNDB wishlist label and records activity with a normalized VN id', async () => {
@@ -89,6 +180,7 @@ describe('wishlist route branches', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     expect(addWishlistMock).toHaveBeenCalledWith('v90001');
+    expect(invalidateWishlistCacheMock).toHaveBeenCalledTimes(1);
     expect(recordActivityMock).toHaveBeenCalledWith({
       kind: 'wishlist.add',
       entity: 'vn',
@@ -121,7 +213,7 @@ describe('wishlist route branches', () => {
     addWishlistMock.mockRejectedValueOnce(new Error('raw add failure'));
     res = await wishlistPOST(req('/api/wishlist/v90001', 'POST'), ctx('v90001'));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'wishlist/v90001' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist/v90001] raw add failure');
   });
 
@@ -137,6 +229,7 @@ describe('wishlist route branches', () => {
       entityId: 'v90001',
       label: 'Removed VNDB wishlist label',
     });
+    expect(invalidateWishlistCacheMock).toHaveBeenCalledTimes(1);
 
     removeWishlistMock.mockResolvedValueOnce({ needsAuth: true });
     res = await wishlistDELETE(req('/api/wishlist/v90001', 'DELETE'), ctx('v90001'));
@@ -146,6 +239,7 @@ describe('wishlist route branches', () => {
     res = await wishlistDELETE(req('/api/wishlist/egs_1', 'DELETE'), ctx('egs_1'));
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'invalid id' });
+    expect(invalidateWishlistCacheMock).toHaveBeenCalledTimes(1);
   });
 
   it('translates VNDB listwrite failures and sanitizes generic delete failures', async () => {
@@ -161,7 +255,7 @@ describe('wishlist route branches', () => {
     removeWishlistMock.mockRejectedValueOnce(new Error('raw delete failure'));
     res = await wishlistDELETE(req('/api/wishlist/v90001', 'DELETE'), ctx('v90001'));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'wishlist/v90001' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:wishlist/v90001] raw delete failure');
   });
 });

@@ -5,6 +5,7 @@ import { upstreamError } from '@/lib/api-error';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { invalidateVndbWishlistCache } from '@/lib/vndb-wishlist-cache';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
-    recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: vnId, label: 'Added VNDB wishlist label' });
+    invalidateVndbWishlistCache();
+    await recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: vnId, label: 'Added VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return vndbErrorResponse(e as Error, `wishlist/${vnId}`);
@@ -65,7 +67,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     if ('needsAuth' in r) {
       return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
     }
-    recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: vnId, label: 'Removed VNDB wishlist label' });
+    invalidateVndbWishlistCache();
+    await recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: vnId, label: 'Removed VNDB wishlist label' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return vndbErrorResponse(e as Error, `wishlist/${vnId}`);
