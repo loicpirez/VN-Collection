@@ -18,6 +18,7 @@ function jsonRequest(path: string, method: 'POST' | 'PATCH', body: object): Next
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   db.prepare('DELETE FROM place_registry WHERE name LIKE ?').run(`${PLACE_NAME_PREFIX}%`);
   db.prepare('DELETE FROM collection WHERE vn_id = ?').run(VN_ID);
   db.prepare('DELETE FROM vn WHERE id = ?').run(VN_ID);
@@ -71,6 +72,20 @@ describe('place coordinate API validation', () => {
     expect(payload.known_places).toContain('Shelf Tokyo');
   });
 
+  it('returns a bounded filtered registry page with global stats', async () => {
+    createPlace({ name: `${PLACE_NAME_PREFIX}alpha`, kind: 'shop' });
+    createPlace({ name: `${PLACE_NAME_PREFIX}beta`, kind: 'chain' });
+
+    const response = await listPlacesRoute(new NextRequest(
+      `http://127.0.0.1/api/places?q=${encodeURIComponent(`${PLACE_NAME_PREFIX}beta`)}&kind=chain&limit=1`,
+    ));
+    const payload = await response.json();
+
+    expect(payload.places).toEqual([expect.objectContaining({ name: `${PLACE_NAME_PREFIX}beta` })]);
+    expect(payload.page).toEqual({ total: 1, limit: 1, offset: 0 });
+    expect(payload.stats.total).toBeGreaterThanOrEqual(2);
+  });
+
   it('surfaces a sanitized internal error when listing places fails', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const listSpy = vi.spyOn(dbModule, 'listPlaces').mockImplementation(() => {
@@ -78,7 +93,12 @@ describe('place coordinate API validation', () => {
     });
     const response = await listPlacesRoute();
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.GET] private list failure');
     listSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -118,7 +138,12 @@ describe('place coordinate API validation', () => {
       jsonRequest('/api/places', 'POST', { name: `${PLACE_NAME_PREFIX}create-fail` }),
     );
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'internal error' });
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'places.POST',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:places.POST] private create failure');
     createSpy.mockRestore();
     consoleSpy.mockRestore();
