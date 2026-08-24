@@ -119,13 +119,6 @@ export default async function DataPage() {
         <h2 className="mb-2 text-base font-bold">{t.dataMgmt.exportSectionTitle}</h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.exportSectionHint}</p>
         <div className="flex flex-wrap gap-2">
-          {/*
-            Plain <a download> instead of <Link download>. Next's
-            <Link> tries client-side navigation for internal hrefs
-            and ignores `download` on absolute API paths in some
-            versions. Plain anchors trigger the file-save flow
-            reliably across browsers.
-          */}
           <a href="/api/collection/export" className="btn" download>
             <FileJson className="h-4 w-4" aria-hidden /> {t.dataMgmt.exportJson}
           </a>
@@ -176,7 +169,6 @@ export default async function DataPage() {
           <Link href="/steam" className="btn">
             <Gamepad2 className="h-4 w-4" aria-hidden /> {t.steam.open}
           </Link>
-          {/* Credential configuration lives in Settings; this page keeps operational actions only. */}
           <OpenSettingsButton tab="integrations" label={t.dataMgmt.integrationsLink} />
         </div>
       </section>
@@ -192,10 +184,6 @@ export default async function DataPage() {
           </Link>
           <OpenSettingsButton tab="integrations" label={t.dataMgmt.integrationsLink} />
         </div>
-        {/* EgsSyncBlock is kept here because it's an ACTION (pull
-            EGS user reviews, apply playtime), not a setting.
-            Credential config (EGS uid) lives in Settings →
-            Integrations. */}
         <EgsSyncBlock />
       </section>
 
