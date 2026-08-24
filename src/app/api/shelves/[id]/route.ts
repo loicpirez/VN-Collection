@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  deleteShelf,
-  getShelf,
-  listShelfDisplaySlots,
-  listShelfSlots,
-  renameShelf,
-  resizeShelf,
-  SHELF_MAX,
-  SHELF_MIN,
-} from '@/lib/db';
+import { SHELF_MAX, SHELF_MIN } from '@/lib/shelf-limits';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -26,12 +18,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const shelf = getShelf(sid);
+  const repository = getShelfRepository();
+  const shelf = await repository.get(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({
     shelf,
-    slots: listShelfSlots(sid),
-    displays: listShelfDisplaySlots(sid),
+    slots: await repository.listSlots(sid),
+    displays: await repository.listDisplaySlots(sid),
   });
 }
 
@@ -52,30 +45,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (rowsResult && !rowsResult.ok) return NextResponse.json({ error: rowsResult.error }, { status: 400 });
   const nameResult = 'name' in body ? validateText(body.name, { field: 'name', max: 100 }) : null;
   if (nameResult && !nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
-  const current = getShelf(sid);
+  const repository = getShelfRepository();
+  const current = await repository.get(sid);
   if (!current) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   try {
     if (nameResult?.ok) {
-      const shelf = renameShelf(sid, nameResult.value);
+      const shelf = await repository.rename(sid, nameResult.value);
       if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
-      recordActivity({ kind: 'shelf.rename', entity: 'shelf', entityId: String(sid), label: 'Renamed shelf', payload: { name: shelf.name } });
+      await recordActivity({ kind: 'shelf.rename', entity: 'shelf', entityId: String(sid), label: 'Renamed shelf', payload: { name: shelf.name } });
     }
     if (colsResult || rowsResult) {
-      const result = resizeShelf(
+      const result = await repository.resize(
         sid,
         colsResult?.ok ? colsResult.value : current.cols,
         rowsResult?.ok ? rowsResult.value : current.rows,
       );
       if (!result) return NextResponse.json({ error: 'not found' }, { status: 404 });
-      recordActivity({ kind: 'shelf.resize', entity: 'shelf', entityId: String(sid), label: 'Resized shelf', payload: { cols: result.shelf.cols, rows: result.shelf.rows, evicted: result.evicted.length } });
+      await recordActivity({ kind: 'shelf.resize', entity: 'shelf', entityId: String(sid), label: 'Resized shelf', payload: { cols: result.shelf.cols, rows: result.shelf.rows, evicted: result.evicted.length } });
       return NextResponse.json({
         shelf: result.shelf,
-        slots: listShelfSlots(sid),
+        slots: await repository.listSlots(sid),
         evicted: result.evicted,
       });
     }
-    return NextResponse.json({ shelf: getShelf(sid), slots: listShelfSlots(sid) });
+    return NextResponse.json({ shelf: await repository.get(sid), slots: await repository.listSlots(sid) });
   } catch (e) {
     console.error('shelf patch failed:', (e as Error).message);
     return NextResponse.json({ error: 'shelf patch failed' }, { status: 400 });
@@ -88,8 +82,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const ok = deleteShelf(sid);
+  const ok = await getShelfRepository().delete(sid);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  recordActivity({ kind: 'shelf.delete', entity: 'shelf', entityId: String(sid), label: 'Deleted shelf' });
+  await recordActivity({ kind: 'shelf.delete', entity: 'shelf', entityId: String(sid), label: 'Deleted shelf' });
   return NextResponse.json({ ok: true });
 }

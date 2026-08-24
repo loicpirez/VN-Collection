@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createShelf,
-  listShelves,
-  listUnplacedOwnedReleases,
-  reorderShelves,
-  SHELF_MAX,
-  SHELF_MIN,
-} from '@/lib/db';
+import { SHELF_MAX, SHELF_MIN } from '@/lib/shelf-limits';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { validateSafeInt, validateText } from '@/lib/input-validators';
@@ -19,9 +14,14 @@ void PUBLIC_READ_ROUTE;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const includePool = req.nextUrl.searchParams.get('pool') === '1';
+  const repository = getShelfRepository();
+  const [shelves, unplaced] = await Promise.all([
+    repository.list(),
+    includePool ? repository.listUnplaced() : Promise.resolve(undefined),
+  ]);
   return NextResponse.json({
-    shelves: listShelves(),
-    unplaced: includePool ? listUnplacedOwnedReleases() : undefined,
+    shelves,
+    unplaced,
   });
 }
 
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rowsResult = body.rows === undefined ? null : validateSafeInt(body.rows, { field: 'rows', min: SHELF_MIN, max: SHELF_MAX });
   if (rowsResult && !rowsResult.ok) return NextResponse.json({ error: rowsResult.error }, { status: 400 });
   try {
-    const shelf = createShelf({
+    const shelf = await getGeneratedIdRepository().createShelf({
       name: nameResult.value,
       cols: colsResult?.ok ? colsResult.value : undefined,
       rows: rowsResult?.ok ? rowsResult.value : undefined,
     });
-    recordActivity({ kind: 'shelf.create', entity: 'shelf', entityId: String(shelf.id), label: 'Created shelf', payload: { name: shelf.name, cols: shelf.cols, rows: shelf.rows } });
+    await recordActivity({ kind: 'shelf.create', entity: 'shelf', entityId: String(shelf.id), label: 'Created shelf', payload: { name: shelf.name, cols: shelf.cols, rows: shelf.rows } });
     return NextResponse.json({ shelf });
   } catch (e) {
     // Avoid surfacing raw error message (could carry file paths /
@@ -71,7 +71,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (new Set(order).size !== order.length) {
     return NextResponse.json({ error: 'order must not contain duplicates' }, { status: 400 });
   }
-  reorderShelves(order);
-  recordActivity({ kind: 'shelf.reorder', entity: 'shelf', label: 'Reordered shelves', payload: { order: body.order } });
-  return NextResponse.json({ shelves: listShelves() });
+  const repository = getShelfRepository();
+  await repository.reorder(order);
+  await recordActivity({ kind: 'shelf.reorder', entity: 'shelf', label: 'Reordered shelves', payload: { order: body.order } });
+  return NextResponse.json({ shelves: await repository.list() });
 }
