@@ -136,7 +136,7 @@ export function EgsPanel({
   }
 
   const load = useCallback(
-    async (force = false, showLoading = false): Promise<boolean> => {
+    async (force: boolean, showLoading: boolean): Promise<boolean> => {
       loadAbortRef.current?.abort();
       const controller = new AbortController();
       loadAbortRef.current = controller;
@@ -200,7 +200,7 @@ export function EgsPanel({
     const ownerVnId = vnId;
     setRefreshing(true);
     try {
-      const refreshed = await load(true);
+      const refreshed = await load(true, false);
       if (!refreshed || !ownsPanel(ownerVnId)) return;
       toast.success(t.toast.saved);
       window.dispatchEvent(new CustomEvent<EgsChangedDetail>(EGS_CHANGED_EVENT, { detail: { vnId } }));
@@ -478,7 +478,7 @@ export function EgsPanel({
               {vndbPt && <span><b className="text-white">{vndbPt}</b> <span className="text-muted">{t.egs.playtimeVndb}</span></span>}
               {egsPt && <span><b className="text-white">{egsPt}</b> <span className="text-muted">{t.egs.playtimeEgs}</span></span>}
               {myPt && <span><b className="text-white">{myPt}</b> <span className="text-muted">{t.egs.playtimeMine}</span></span>}
-              {sumPt && (myPlaytimeMinutes > 0 || (game.playtime_median_minutes ?? 0) > 0) && (
+              {sumPt && (
                 <span className="rounded-md bg-accent/15 px-2 py-0.5 text-accent">
                   {t.egs.playtimeSum}: <b>{sumPt}</b>
                 </span>
