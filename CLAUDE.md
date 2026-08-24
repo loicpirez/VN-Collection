@@ -452,11 +452,15 @@ route file or exported HTTP method changes.
 | /api/export/ics | GET |
 | /api/export/raw | GET |
 | /api/files/[...path] | GET |
+| /api/health | GET |
 | /api/lists/[id]/items | POST, DELETE |
 | /api/lists/[id] | GET, PATCH, DELETE |
 | /api/lists | GET, POST |
 | /api/maintenance/duplicates | GET |
 | /api/maintenance/stale | GET |
+| /api/maintenance/stock-providers | GET |
+| /api/physical-bundles/[id] | PATCH, DELETE |
+| /api/physical-bundles | GET, POST |
 | /api/places/[id]/link | POST, DELETE |
 | /api/places/[id]/other-branches | GET |
 | /api/places/[id] | GET, PATCH, DELETE |
@@ -527,10 +531,11 @@ route file or exported HTTP method changes.
 
 ## Database schema
 
-All managed via raw SQL in `lib/db.ts`. We never run a migration tool — the
-`ensureColumn(db, table, column, ddl)` helper at startup `ALTER TABLE` if the
-column is missing. **Always use `ensureColumn` for new fields** so existing
-DBs upgrade transparently.
+The legacy SQLite schema is bootstrapped in `lib/db.ts`; use its existing
+idempotent helpers when SQLite compatibility requires a new field. PostgreSQL
+schema changes belong in ordered, append-only files under
+`db/postgres/migrations/` and are applied explicitly through
+`yarn db:postgres:apply`. Never rewrite a migration that may already have run.
 
 ### Bootstrap table inventory
 
@@ -553,6 +558,8 @@ the exhaustive check against schema drift.
 | egs_vn_link | Manual EGS-to-VNDB mapping overrides |
 | owned_release | Owned edition inventory |
 | owned_release_aspect_override | Per-edition aspect-ratio overrides |
+| physical_bundle | User-managed physical multi-release packages |
+| physical_bundle_member | Releases assigned to physical packages |
 | place_provider_link | Physical place to provider-label mappings |
 | place_registry | Structured physical shop registry |
 | producer | VNDB producer metadata |
