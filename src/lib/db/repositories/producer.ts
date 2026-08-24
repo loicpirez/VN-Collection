@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg';
-import { parseJsonArray } from '@/lib/json-shape';
+import { asJsonRecord, parseJsonArray } from '@/lib/json-shape';
 import type { ProducerRow, ProducerStat } from '@/lib/types';
 import {
   decodePersistedProducerSummaries,
@@ -44,6 +44,10 @@ export interface ProducerRepository {
   listPublisherStats(): Promise<ProducerStat[]>;
   /** Summarize collection VNs credited to one producer in either role. */
   ownershipSummary(id: string): Promise<ProducerOwnershipSummary>;
+  /** Return valid developer ids embedded on one VN. */
+  developerIdsForVn(vnId: string): Promise<string[]>;
+  /** Return producer freshness timestamps keyed by id. */
+  fetchedAt(ids: readonly string[]): Promise<Map<string, number>>;
 }
 
 interface ProducerStorageRow extends QueryResultRow {
@@ -70,6 +74,17 @@ interface OwnershipRow extends QueryResultRow {
   id: string;
   developers: string | null;
   publishers: string | null;
+}
+
+interface DeveloperPayloadRow extends QueryResultRow {
+  developers: string | null;
+}
+
+function decodeDeveloperIds(raw: string | null): string[] {
+  return [...new Set(parseJsonArray(raw).flatMap((value) => {
+    const id = asJsonRecord(value)?.id;
+    return typeof id === 'string' && /^p\d+$/i.test(id) ? [id] : [];
+  }))];
 }
 
 function decodeProducer(row: ProducerStorageRow): ProducerRow {
@@ -219,6 +234,20 @@ export function createPostgresProducerRepository(): ProducerRepository {
         } : null,
       };
     },
+    async developerIdsForVn(vnId) {
+      const result = await postgresQuery<DeveloperPayloadRow>(
+        'SELECT developers FROM vn WHERE id = $1',
+        [vnId],
+      );
+      return decodeDeveloperIds(result.rows[0]?.developers ?? null);
+    },
+    async fetchedAt(ids) {
+      if (ids.length === 0) return new Map();
+      const result = await postgresQuery<{ id: string; fetched_at: number } & QueryResultRow>(`
+        SELECT id, fetched_at FROM producer WHERE id = ANY($1::text[])
+      `, [[...ids]]);
+      return new Map(result.rows.map((row) => [row.id, row.fetched_at]));
+    },
   };
 }
 
@@ -240,6 +269,24 @@ const sqliteRepository: ProducerRepository = {
   },
   async ownershipSummary(id) {
     return (await import('@/lib/db')).producerOwnershipSummary(id);
+  },
+  async developerIdsForVn(vnId) {
+    const { db } = await import('@/lib/db');
+    const row = db.prepare('SELECT developers FROM vn WHERE id = ?').get(vnId) as DeveloperPayloadRow | undefined;
+    return decodeDeveloperIds(row?.developers ?? null);
+  },
+  async fetchedAt(ids) {
+    if (ids.length === 0) return new Map();
+    const { db } = await import('@/lib/db');
+    const rows: Array<{ id: string; fetched_at: number }> = [];
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const chunk = ids.slice(offset, offset + 500);
+      rows.push(...db.prepare(`
+        SELECT id, fetched_at FROM producer
+        WHERE id IN (${chunk.map(() => '?').join(',')})
+      `).all(...chunk) as Array<{ id: string; fetched_at: number }>);
+    }
+    return new Map(rows.map((row) => [row.id, row.fetched_at]));
   },
 };
 

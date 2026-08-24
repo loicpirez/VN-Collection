@@ -1,20 +1,13 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { fetchProducerCompletion } from './producer-completion';
 import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
-import { asJsonRecord, parseJsonArray } from './json-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getProducerRepository } from './db/repositories/producer';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
-}
-
-function lastFetchedProducer(pid: string): number {
-  const row = db
-    .prepare('SELECT fetched_at FROM producer WHERE id = ?')
-    .get(pid) as { fetched_at: number } | undefined;
-  return row?.fetched_at ?? 0;
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 /**
@@ -28,25 +21,16 @@ function lastFetchedProducer(pid: string): number {
  * staff + character fan-outs.
  */
 export async function downloadFullProducerForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  const row = db
-    .prepare('SELECT developers FROM vn WHERE id = ?')
-    .get(vnId) as { developers: string | null } | undefined;
-  if (!row?.developers) return { scanned: 0, downloaded: 0 };
-
-  const pids = Array.from(
-    new Set(
-      parseJsonArray(row.developers)
-        .map((value) => asJsonRecord(value)?.id)
-        .filter((id): id is string => typeof id === 'string' && /^p\d+$/i.test(id)),
-    ),
-  );
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const repository = getProducerRepository();
+  const pids = await repository.developerIdsForVn(vnId);
 
   if (pids.length === 0) return { scanned: 0, downloaded: 0 };
   const now = Date.now();
+  const fetchedAt = opts.force ? new Map<string, number>() : await repository.fetchedAt(pids);
   const stale = opts.force
     ? pids
-    : pids.filter((pid) => now - lastFetchedProducer(pid) > CACHE_FRESH_MS);
+    : pids.filter((pid) => now - (fetchedAt.get(pid) ?? 0) > CACHE_FRESH_MS);
   if (stale.length === 0) return { scanned: pids.length, downloaded: 0 };
 
   const job = startJob('producers', jobLabel('developers_for_vn', `Developers for ${vnId}`, { vnId }), stale.length, vnId);

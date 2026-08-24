@@ -92,6 +92,16 @@ export function registerProducerRepositoryContract(
           ownedIds: new Set(),
           sample: null,
         });
+        await expect(repository.developerIdsForVn(fixture.firstVn)).resolves.toEqual([
+          fixture.developer,
+          fixture.fallbackDeveloper,
+        ]);
+        await expect(repository.developerIdsForVn('v999999')).resolves.toEqual([]);
+        await expect(repository.fetchedAt([])).resolves.toEqual(new Map());
+        await expect(repository.fetchedAt([
+          fixture.developer,
+          fixture.fallbackDeveloper,
+        ])).resolves.toEqual(new Map([[fixture.developer, 1]]));
       });
     });
   });
