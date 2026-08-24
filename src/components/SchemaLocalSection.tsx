@@ -1,19 +1,40 @@
 import { Database } from 'lucide-react';
-import { listLocalSqliteSchema } from '@/lib/schema-local';
+import { getDatabaseSchemaSnapshot } from '@/lib/schema-local';
 import { getDict } from '@/lib/i18n/server';
 import { CollapsibleSummary } from './CollapsibleSummary';
 
 export async function SchemaLocalSection() {
   const t = await getDict();
-  const tables = listLocalSqliteSchema();
+  const snapshot = await getDatabaseSchemaSnapshot();
+  const poolSummary = snapshot.pool
+    ? t.schemaLocal.poolSummary
+      .replace('{total}', String(snapshot.pool.total))
+      .replace('{max}', String(snapshot.pool.max))
+      .replace('{idle}', String(snapshot.pool.idle))
+      .replace('{waiting}', String(snapshot.pool.waiting))
+    : t.schemaLocal.notApplicable;
   return (
     <section className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted">
         <Database className="h-4 w-4 text-accent" aria-hidden /> {t.schemaLocal.heading}
       </h2>
       <p className="mt-1 text-xs text-muted">{t.schemaLocal.sub}</p>
+      <dl className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
+        <div className="rounded-md border border-border bg-bg-elev/30 px-3 py-2">
+          <dt className="text-muted">{t.schemaLocal.backend}</dt>
+          <dd className="mt-0.5 font-semibold text-white">{snapshot.backend === 'postgres' ? 'PostgreSQL' : 'SQLite'}</dd>
+        </div>
+        <div className="rounded-md border border-border bg-bg-elev/30 px-3 py-2">
+          <dt className="text-muted">{t.schemaLocal.migrationVersion}</dt>
+          <dd className="mt-0.5 font-mono text-white">{snapshot.migrationVersion ?? t.schemaLocal.notApplicable}</dd>
+        </div>
+        <div className="rounded-md border border-border bg-bg-elev/30 px-3 py-2">
+          <dt className="text-muted">{t.schemaLocal.pool}</dt>
+          <dd className="mt-0.5 text-white">{poolSummary}</dd>
+        </div>
+      </dl>
       <div className="mt-4 space-y-3">
-        {tables.map((table) => (
+        {snapshot.tables.map((table) => (
           <details key={table.name} className="group rounded-lg border border-border bg-bg-elev/30">
             <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
               <CollapsibleSummary>
@@ -50,4 +71,3 @@ export async function SchemaLocalSection() {
     </section>
   );
 }
-

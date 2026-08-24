@@ -11,16 +11,21 @@ const mocks = vi.hoisted(() => ({
   activityHeatmap: vi.fn(),
   bestRoi: vi.fn(),
   egsSummary: vi.fn(),
-  localSchema: vi.fn(),
+  databaseSchema: vi.fn(),
   ratingHistogram: vi.fn(),
   tagsCompletedPerYear: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({
   activityHeatmap: mocks.activityHeatmap,
-  bestRoi: mocks.bestRoi,
-  ratingHistogram: mocks.ratingHistogram,
-  tagsCompletedPerYear: mocks.tagsCompletedPerYear,
+}));
+
+vi.mock('@/lib/db/repositories/analytics', () => ({
+  getAnalyticsRepository: () => ({
+    bestRoi: mocks.bestRoi,
+    ratingHistogram: mocks.ratingHistogram,
+    tagsCompletedPerYear: mocks.tagsCompletedPerYear,
+  }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -29,7 +34,7 @@ vi.mock('@/lib/i18n/server', () => ({
 }));
 
 vi.mock('@/lib/schema-local', () => ({
-  listLocalSqliteSchema: mocks.localSchema,
+  getDatabaseSchemaSnapshot: mocks.databaseSchema,
 }));
 
 vi.mock('@/lib/schema-egs', () => ({
@@ -57,7 +62,12 @@ beforeEach(() => {
     staleWhileError: false,
     egsUsernameSet: false,
   });
-  mocks.localSchema.mockReset().mockReturnValue([]);
+  mocks.databaseSchema.mockReset().mockResolvedValue({
+    backend: 'sqlite',
+    migrationVersion: null,
+    pool: null,
+    tables: [],
+  });
   mocks.ratingHistogram.mockReset().mockReturnValue([]);
   mocks.tagsCompletedPerYear.mockReset().mockReturnValue([]);
 });
@@ -107,19 +117,41 @@ describe('StatsExtras', () => {
 
 describe('SchemaLocalSection', () => {
   it('renders table metadata and both boolean column states', async () => {
-    mocks.localSchema.mockReturnValue([{
-      name: 'collection',
-      columns: [
-        { name: 'id', type: 'TEXT', notnull: 1, pk: 1, dflt_value: null },
-        { name: 'notes', type: '', notnull: 0, pk: 0, dflt_value: "''" },
-      ],
-    }]);
+    mocks.databaseSchema.mockResolvedValue({
+      backend: 'sqlite',
+      migrationVersion: null,
+      pool: null,
+      tables: [{
+        name: 'collection',
+        columns: [
+          { name: 'id', type: 'TEXT', notnull: 1, pk: 1, dflt_value: null },
+          { name: 'notes', type: '', notnull: 0, pk: 0, dflt_value: "''" },
+        ],
+      }],
+    });
     const html = renderToStaticMarkup(await SchemaLocalSection());
     expect(html).toContain('aria-label="collection"');
     expect(html).toContain('TEXT');
     expect(html).toContain("&#x27;&#x27;");
     expect(html).toContain(dictionaries.en.common.yes);
     expect(html).toContain(dictionaries.en.common.no);
+    expect(html).toContain('SQLite');
+    expect(html).toContain(dictionaries.en.schemaLocal.notApplicable);
+  });
+
+  it('renders PostgreSQL migration and pool diagnostics', async () => {
+    mocks.databaseSchema.mockResolvedValue({
+      backend: 'postgres',
+      migrationVersion: '0001_baseline',
+      pool: { total: 4, max: 10, idle: 3, waiting: 1 },
+      tables: [],
+    });
+    const html = renderToStaticMarkup(await SchemaLocalSection());
+    expect(html).toContain('PostgreSQL');
+    expect(html).toContain('0001_baseline');
+    expect(html).toContain('4/10 open');
+    expect(html).toContain('3 idle');
+    expect(html).toContain('1 waiting');
   });
 });
 
