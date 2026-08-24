@@ -542,6 +542,7 @@ the exhaustive check against schema drift.
 | Table | Purpose |
 | --- | --- |
 | alicenet_stock | AliceNet mirrored inventory and match state |
+| app_job_lock | Owner-safe expiring locks for background jobs |
 | app_setting | Application key/value settings |
 | app_setting_audit | Redacted sensitive-setting change history |
 | character_image | Mirrored character image paths |

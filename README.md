@@ -6,12 +6,12 @@
 
 Self-hosted visual novel collection manager.
 
-VN Collection helps you catalogue, search, sort, and manage a personal visual novel library. It stores your data locally in SQLite, caches metadata from VNDB and ErogameScape, and provides tools for inventory, shelf layout, reading progress, notes, images, tags, recommendations, and source comparison.
+VN Collection helps you catalogue, search, sort, and manage a personal visual novel library. It supports local SQLite storage and a controlled PostgreSQL migration mode, caches metadata from VNDB and ErogameScape, and provides tools for inventory, shelf layout, reading progress, notes, images, tags, recommendations, and source comparison.
 
 No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 
 ![status](https://img.shields.io/badge/status-self--hosted-blue)
-![stack](https://img.shields.io/badge/stack-Next.js%2016%20·%20React%2019%20·%20SQLite-22c55e)
+![stack](https://img.shields.io/badge/stack-Next.js%2016%20·%20React%2019%20·%20SQLite%20%2F%20PostgreSQL-22c55e)
 ![locale](https://img.shields.io/badge/i18n-FR%20·%20EN%20·%20JA-f5c518)
 
 ---
@@ -25,7 +25,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Search locally and remotely across VNs, releases, producers, staff, characters, tags, traits, and EGS entries.
 - Browse discovery pages such as upcoming releases, top-ranked VNs, recommendations, dumped status, and statistics.
 - Customize layouts, density, filters, spoiler visibility, and content display.
-- Export, import, and back up the local SQLite database.
+- Export, import, and back up the configured SQLite or PostgreSQL database.
 - Print QR label sheets for physical editions via `/labels`.
 - Check per-VN shop stock and prices across Eroge Price, Sofmap, Suruga-ya, Mandarake, Melonbooks, Unoya, Trader, WonderGOO, and other linked retailers.
 - Browse and match second-hand stock from AliceNet against VNDB/EGS on the AliceNet shop's page.
@@ -241,16 +241,147 @@ forward automatically.
 
 ---
 
+## Basic Auth reverse proxy
+
+When Nginx protects the deployment with HTTP Basic Auth, include
+`ops/nginx/vndb-public-icons.conf` inside the HTTPS `server` block before the
+authenticated `location /` block:
+
+```nginx
+include /etc/nginx/snippets/vndb-public-icons.conf;
+
+location / {
+    include /etc/nginx/snippets/vndb-basic-auth.conf;
+    proxy_pass http://127.0.0.1:3000;
+}
+```
+
+Safari and iOS can request `favicon.ico` and Apple touch icons from a separate
+`NetworkingExtension` credential context immediately after the document login.
+Challenging those no-content discovery requests can display a second Basic Auth
+prompt. The reviewed snippet returns an empty cacheable response only for those
+icon names. All pages, Next.js assets, and API routes remain behind Basic Auth.
+
+Validate with `sudo nginx -t` before reloading Nginx.
+
+---
+
+## PostgreSQL migration mode
+
+PostgreSQL support is available for the domains already converted to the typed
+asynchronous repository layer. The application-wide cutover is still in
+progress; SQLite remains the default until the repository parity work and full
+browser validation are complete.
+
+PostgreSQL schema changes are deliberate operator actions. The application
+never creates or upgrades its PostgreSQL schema during normal startup:
+
+```bash
+DATABASE_BACKEND=postgres \
+DATABASE_URL=postgresql://user:password@localhost:5432/vndb_collection \
+yarn db:postgres:apply
+```
+
+Migration files under `db/postgres/migrations/` must use sequential
+`0001_name.sql` filenames and an outer `BEGIN`/`COMMIT` wrapper. The migration
+runner serializes operators with a PostgreSQL advisory lock, applies each
+pending file atomically, records it in `schema_migration`, and rolls back a
+failed file. On Node startup, the app compares the exact applied version set
+with the files shipped in the current build. Missing, unexpected, or absent
+version state blocks startup with an actionable error instead of modifying the
+database implicitly.
+
+Review migrations and take a verified backup before running the command against
+an existing database. Never run two application builds with different migration
+sets against the same database during deployment.
+
+The Backup action on `/data` produces an online `.db` snapshot in SQLite mode
+and a streamed `.vncbackup` logical archive in PostgreSQL mode. PostgreSQL
+archives include migration/schema metadata, per-table counts, and a row digest.
+Restore requires typed destructive confirmation, validates the complete archive
+in temporary staging tables, replaces application rows atomically, verifies
+destination counts, and realigns identity sequences. Local media storage is not
+part of either database archive and must be backed up separately. Scheduled
+operator backups with `pg_dump` remain the independent disaster-recovery layer;
+see `docs/POSTGRESQL_OPERATIONS.md`.
+
+Contractual JSON columns remain `TEXT` during the controlled cutover so existing
+repository return shapes and checksums stay compatible. PostgreSQL queries use
+normalized index tables instead of casting historical JSON text. The copy tool
+preserves `NULL` and empty values, copies valid JSON unchanged, and moves every
+non-empty malformed value into `postgres_json_quarantine` while storing `NULL`
+in the destination domain column. The migration report includes the quarantine
+count; a nonzero count requires review before cutover.
+
+PostgreSQL substring search uses a shared NFKC plus lowercase key and `pg_trgm`
+GIN indexes. This preserves literal substring behavior for Latin and Japanese
+text, including full-width compatibility forms, without relying on a language
+tokenizer. User `%`, `_`, and backslash characters are escaped before binding.
+
+### Reproducible local PostgreSQL
+
+The development service uses PostgreSQL 16.10 pinned by multi-architecture image
+digest, binds only to localhost, persists data in a named volume, and waits for
+`pg_isready` before returning:
+
+```bash
+yarn db:postgres:dev:up
+export DATABASE_BACKEND=postgres
+export DATABASE_URL='postgresql://vndb:vndb-local-only@127.0.0.1:55432/vndb_collection'
+yarn db:postgres:apply
+yarn db:postgres:smoke
+```
+
+Stop it without deleting the database volume:
+
+```bash
+yarn db:postgres:dev:down
+```
+
+The isolated test service uses a tmpfs database on port `55433`; stopping it
+deletes all test rows:
+
+```bash
+yarn db:postgres:test:up
+export DATABASE_BACKEND=postgres
+export DATABASE_URL='postgresql://vndb_test:vndb-test-only@127.0.0.1:55433/vndb_collection_test'
+yarn db:postgres:apply
+yarn db:postgres:test:down
+```
+
+These credentials are intentionally fixed for localhost-only development and
+tests. Do not reuse them in a shared or production environment, and do not expose
+either Compose port on a public interface.
+
+---
+
 ## Advanced environment variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `DB_PATH` | `./data/collection.db` | Override SQLite file location |
+| `DATABASE_BACKEND` | `sqlite` | Select writable `sqlite`, compatibility `sqlite-readonly`, or primary `postgres` mode |
+| `DATABASE_URL` | unset | Required PostgreSQL connection URL when `DATABASE_BACKEND=postgres` |
+| `DATABASE_POOL_MAX` | `10` | PostgreSQL pool limit, from 1 to 100 connections |
+| `DATABASE_IDLE_TIMEOUT_MS` | `30000` | PostgreSQL idle connection timeout, from 1,000 to 600,000 ms |
+| `DATABASE_CONNECTION_TIMEOUT_MS` | `5000` | PostgreSQL connection timeout, from 100 to 120,000 ms |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | `30000` | PostgreSQL statement timeout, from 100 to 600,000 ms |
+| `DATABASE_LOCK_TIMEOUT_MS` | `5000` | PostgreSQL lock timeout, from 100 to 120,000 ms |
+| `DATABASE_SSL_MODE` | `disable` | PostgreSQL TLS policy: `disable`, `require`, or `verify-full` |
+| `DATABASE_APPLICATION_NAME` | `vndb-collection` | PostgreSQL client name, limited to 63 characters |
+| `DB_PATH` | `./data/collection.db` | Override the SQLite file location in `sqlite` or `sqlite-readonly` mode |
 | `STORAGE_ROOT` | `./data/storage/` | Override media/image storage directory |
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
+| `VN_PUBLIC_READ_AUTH` | unset | Public API read policy: `token` enforces `VN_ADMIN_TOKEN`; `upstream` declares that the reverse proxy already authenticates every request |
 | `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
 | `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |
 | `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `1` to disable the global `user_activity` audit log (only the literal `1` is honoured; other values are a no-op) |
+
+Leave `VN_PUBLIC_READ_AUTH` unset for the historical localhost or trusted-LAN
+deployment. Use `token` only when the client or reverse proxy supplies
+`Authorization: Bearer <VN_ADMIN_TOKEN>` or `x-admin-token` on API requests.
+Use `upstream` only when the reverse proxy already blocks unauthenticated page
+and API access; this mode suppresses the deployment warning but deliberately
+does not duplicate the upstream authentication check.
 
 ---
 
@@ -261,7 +392,7 @@ forward automatically.
 | Framework | Next.js 16 App Router       |
 | UI        | React 19, Tailwind CSS      |
 | Icons     | lucide-react                |
-| Database  | SQLite via better-sqlite3   |
+| Database  | SQLite via better-sqlite3; controlled PostgreSQL migration in progress |
 | Markdown  | react-markdown + remark-gfm |
 | Tests     | Vitest                      |
 
@@ -312,6 +443,9 @@ Refreshing metadata does not add an item to your collection. Collection membersh
 * [PLAN.md](PLAN.md) — historical implementation notes
 * [CLAUDE.md](CLAUDE.md) — developer and agent guide
 * [TODO/README.md](TODO/README.md) - active audit backlog and verification status
+* [docs/SQLITE_RECOVERY_RUNBOOK.md](docs/SQLITE_RECOVERY_RUNBOOK.md) - safe operator recovery for a corrupt local SQLite database
+* [docs/POSTGRESQL_MIGRATION_RUNBOOK.md](docs/POSTGRESQL_MIGRATION_RUNBOOK.md) - controlled PostgreSQL rehearsal, cutover, validation, and rollback procedure
+* [docs/POSTGRESQL_OPERATIONS.md](docs/POSTGRESQL_OPERATIONS.md) - PostgreSQL health, shutdown, backup, monitoring, and incident operations
 
 ---
 ## Data, media, and compliance

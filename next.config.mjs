@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   poweredByHeader: false,
   allowedDevOrigins: ['127.0.0.1'],
   // better-sqlite3 has a native `.node` binding; keep it external so

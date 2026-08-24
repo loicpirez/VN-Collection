@@ -1,0 +1,29 @@
+name: vndb-collection-test
+
+services:
+  postgres:
+    image: postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74
+    environment:
+      POSTGRES_DB: vndb_collection_test
+      POSTGRES_USER: vndb_test
+      POSTGRES_PASSWORD: vndb-test-only
+    ports:
+      - "127.0.0.1:55433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vndb_test -d vndb_collection_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+    stop_grace_period: 10s
+    shm_size: 256mb

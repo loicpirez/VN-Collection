@@ -1,0 +1,25 @@
+name: vndb-collection-dev
+
+services:
+  postgres:
+    image: postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74
+    environment:
+      POSTGRES_DB: vndb_collection
+      POSTGRES_USER: vndb
+      POSTGRES_PASSWORD: vndb-local-only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - vndb_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vndb -d vndb_collection"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: 256mb
+
+volumes:
+  vndb_postgres_data:

@@ -1,0 +1,44 @@
+name: PostgreSQL integration
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74
+        env:
+          POSTGRES_DB: vndb_collection_test
+          POSTGRES_USER: vndb_test
+          POSTGRES_PASSWORD: vndb-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vndb_test -d vndb_collection_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.14.1
+          cache: yarn
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - run: yarn typecheck
+      - run: yarn test:postgres:run
+        env:
+          POSTGRES_TEST_URL: postgresql://vndb_test:vndb-test-only@127.0.0.1:5432/vndb_collection_test
