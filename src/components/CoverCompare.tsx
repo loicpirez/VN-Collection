@@ -9,6 +9,7 @@ import { type SourceChoice } from '@/lib/source-resolve'
 import { SourceChoiceTooltip } from './SourceChoiceTooltip';
 import {
   VN_COVER_CHANGED_EVENT,
+  getLatestCoverChange,
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
 
@@ -116,13 +117,16 @@ export function CoverCompare({
     };
   }, [vnId, current, initialRotation]);
   useEffect(() => {
-    function onChanged(e: Event) {
-      const detail = (e as CustomEvent<VnCoverChangedDetail>).detail;
+    function applyChange(detail: VnCoverChangedDetail | null) {
       if (!detail || detail.vnId !== vnId) return;
       if (typeof detail.rotation === 'number') {
         setRotation(detail.rotation as 0 | 90 | 180 | 270);
       }
     }
+    function onChanged(e: Event) {
+      applyChange((e as CustomEvent<VnCoverChangedDetail>).detail);
+    }
+    applyChange(getLatestCoverChange(vnId));
     window.addEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
     return () =>
       window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);

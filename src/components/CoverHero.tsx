@@ -4,6 +4,7 @@ import { SafeImage } from './SafeImage';
 import { CoverEditOverlay } from './CoverEditOverlay';
 import {
   VN_COVER_CHANGED_EVENT,
+  getLatestCoverChange,
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
 import { useVnCollectionState } from '@/lib/use-vn-collection-state';
@@ -77,8 +78,7 @@ export function CoverHero({
   useEffect(() => setRemoteFailed(false), [remote, local]);
 
   useEffect(() => {
-    function onChanged(e: Event) {
-      const detail = (e as CustomEvent<VnCoverChangedDetail>).detail;
+    function applyChange(detail: VnCoverChangedDetail | null) {
       if (!detail || detail.vnId !== vnId) return;
       // Either side may be present; respect what the producer sent.
       // For an `upload` event the local path is the truth; for a
@@ -95,6 +95,10 @@ export function CoverHero({
         setRotation(detail.rotation as 0 | 90 | 180 | 270);
       }
     }
+    function onChanged(e: Event) {
+      applyChange((e as CustomEvent<VnCoverChangedDetail>).detail);
+    }
+    applyChange(getLatestCoverChange(vnId));
     window.addEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
     return () => window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
   }, [vnId]);

@@ -156,4 +156,22 @@ describe('CoverCompare', () => {
     });
     await waitFor(() => expect((screen.getByAltText('Rotated Title') as HTMLImageElement).style.transform).toContain('180'));
   });
+
+  it('applies the latest successful mutation when hydration follows dispatch', async () => {
+    act(() => {
+      dispatchCoverChanged({ vnId: 'v90008', newSrc: null, newLocal: null, rotation: 90 });
+    });
+    renderCompare(
+      <CoverCompare
+        vnId="v90008"
+        current="auto"
+        vndb={vndbPoster}
+        egs={emptyPoster}
+        custom={emptyPoster}
+        sexual={0}
+        alt="Late hydrated title"
+      />,
+    );
+    await waitFor(() => expect((screen.getByAltText('Late hydrated title') as HTMLImageElement).style.transform).toContain('90'));
+  });
 });

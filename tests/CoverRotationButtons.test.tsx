@@ -3,7 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CoverRotationButtons } from '@/components/CoverRotationButtons';
-import { dispatchCoverAction, dispatchCoverChanged, VN_COVER_ACTION_EVENT } from '@/lib/cover-banner-events';
+import {
+  dispatchCoverAction,
+  dispatchCoverChanged,
+  VN_COVER_ACTION_EVENT,
+  VN_COVER_CHANGED_EVENT,
+  type VnCoverChangedDetail,
+} from '@/lib/cover-banner-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
@@ -54,6 +60,17 @@ describe('CoverRotationButtons', () => {
     expect(JSON.parse(init.body)).toEqual({ rotation: 90 });
   });
 
+  it('publishes the visual rotation before the request completes', () => {
+    global.fetch = vi.fn(() => new Promise<Response>(() => {}));
+    const listener = vi.fn();
+    window.addEventListener(VN_COVER_CHANGED_EVENT, listener);
+    renderWithProviders(<CoverRotationButtons vnId="v90013" />);
+    fireEvent.click(screen.getByRole('button', { name: t.coverActions.rotateRight }));
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((listener.mock.calls[0][0] as CustomEvent<VnCoverChangedDetail>).detail.rotation).toBe(90);
+    window.removeEventListener(VN_COVER_CHANGED_EVENT, listener);
+  });
+
   it('PATCHes the wrapped rotation when rotating left from zero', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     renderWithProviders(<CoverRotationButtons vnId="v90001" />);
@@ -84,12 +101,16 @@ describe('CoverRotationButtons', () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify({ error: 'rotate failed' }), { status: 500, headers: { 'content-type': 'application/json' } }),
     );
+    const listener = vi.fn();
+    window.addEventListener(VN_COVER_CHANGED_EVENT, listener);
     renderWithProviders(<CoverRotationButtons vnId="v90001" />);
     const resetLabelFor = (deg: number) => t.coverActions.rotationDegrees.replace('{rotation}', String(deg));
     expect(screen.getByText(resetLabelFor(0))).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: t.coverActions.rotateRight }));
     // Optimistic shows 90, then reverts to 0 after the failed request.
     await waitFor(() => expect(screen.getByText(resetLabelFor(0))).toBeTruthy());
+    expect(listener.mock.calls.map(([event]) => (event as CustomEvent<VnCoverChangedDetail>).detail.rotation)).toEqual([90, 0]);
+    window.removeEventListener(VN_COVER_CHANGED_EVENT, listener);
   });
 
   it('syncs rotation from an external cover-changed event for this VN', async () => {

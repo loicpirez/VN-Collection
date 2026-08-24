@@ -8,6 +8,7 @@ import {
   dispatchBannerChanged,
   dispatchCoverAction,
   dispatchCoverChanged,
+  getLatestCoverChange,
   type VnBannerEditDetail,
   type VnCoverActionDetail,
   type VnBannerChangedDetail,
@@ -37,6 +38,7 @@ describe('cover-banner-events', () => {
     expect(() =>
       dispatchCoverChanged({ vnId: 'v1', newSrc: null, newLocal: null }),
     ).not.toThrow();
+    expect(getLatestCoverChange('v1')).toBeNull();
     expect(() =>
       dispatchBannerChanged({ vnId: 'v1', newSrc: null, newLocal: null }),
     ).not.toThrow();
@@ -67,4 +69,5 @@ describe('cover-banner-events', () => {
     const edit: VnBannerEditDetail = { vnId: 'v90017' };
     expect(edit.vnId).toBe('v90017');
   });
+
 });

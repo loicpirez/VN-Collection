@@ -59,9 +59,24 @@ export interface VnBannerChangedDetail {
   rotation?: 0 | 90 | 180 | 270;
 }
 
-/** Type-safe dispatch helper for `VN_COVER_CHANGED_EVENT`. SSR-safe (no-op on the server). */
-export function dispatchCoverChanged(detail: VnCoverChangedDetail): void {
+const latestCoverChanges = new Map<string, VnCoverChangedDetail>();
+
+/** Return the last successful cover mutation dispatched in this browser session. */
+export function getLatestCoverChange(vnId: string): VnCoverChangedDetail | null {
+  if (typeof window === 'undefined') return null;
+  return latestCoverChanges.get(vnId) ?? null;
+}
+
+/**
+ * Dispatch a cover mutation to mounted artwork surfaces.
+ *
+ * @param detail Cover source and transform state to publish.
+ * @param remember Whether late-hydrating consumers should replay the mutation.
+ * @returns Nothing.
+ */
+export function dispatchCoverChanged(detail: VnCoverChangedDetail, remember = true): void {
   if (typeof window === 'undefined') return;
+  if (remember) latestCoverChanges.set(detail.vnId, detail);
   window.dispatchEvent(new CustomEvent<VnCoverChangedDetail>(VN_COVER_CHANGED_EVENT, { detail }));
 }
 

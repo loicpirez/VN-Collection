@@ -87,6 +87,7 @@ export function CoverRotationButtons({
     mutationInFlightRef.current = true;
     mutationAbortRef.current = controller;
     setRotation(next);
+    dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, rotation: next }, false);
     setBusy(true);
     try {
       const r = await fetch(`/api/collection/${ownerVnId}/cover`, {
@@ -106,6 +107,7 @@ export function CoverRotationButtons({
     } catch (e) {
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setRotation(prev);
+      dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, rotation: prev }, false);
       toast.error((e as Error).message);
     } finally {
       if (identityRef.current === ownerVnId && mutationAbortRef.current === controller) {
