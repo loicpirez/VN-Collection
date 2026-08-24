@@ -218,6 +218,18 @@ describe('recommendVns edge contracts', () => {
     expect(highlyRated.results).toEqual([]);
   });
 
+  it('deduplicates a repeated upstream candidate within one tag result', async () => {
+    const duplicate = { id: 'v989045', title: 'duplicate', rating: 80, votecount: 300 };
+    POOL.set('gEdgeDuplicate', [duplicate, duplicate]);
+
+    const result = await recommendVns({ customTagIds: ['gEdgeDuplicate'] });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]?.matchedTags).toEqual([
+      { id: 'gEdgeDuplicate', name: 'gEdgeDuplicate' },
+    ]);
+  });
+
   it('filters spoiler and erotic tags for similar mode and uses the default sparse-tag weight', async () => {
     insertVn('v980050', [
       { id: 'gEdgeSimilarPlain', name: 'plain' },
