@@ -378,7 +378,7 @@ async function enrichItems(items: CollectionItem[]): Promise<void> {
   directResult.rows.forEach(addAspect);
   for (const item of items) {
     item.series = series.get(item.id) ?? [];
-    item.physical_location = places.get(item.id) ?? item.physical_location ?? [];
+    item.physical_location = places.get(item.id) ?? item.physical_location;
     item.aspect_keys = manual.has(item.id)
       ? [manual.get(item.id)!]
       : [...(aspectSets.get(item.id) ?? new Set<AspectKey>())];
@@ -401,10 +401,7 @@ async function listPostgres(options: ListOptions = {}): Promise<CollectionItem[]
   const query = buildCollectionQuery(options);
   if (!query) return [];
   const result = await postgresQuery<CollectionItemDatabaseRow & QueryResultRow>(query.text, query.values);
-  const items = result.rows.flatMap((row) => {
-    const item = mapCollectionItemRow(row);
-    return item ? [item] : [];
-  });
+  const items = result.rows.map((row) => mapCollectionItemRow(row));
   await enrichItems(items);
   return items;
 }

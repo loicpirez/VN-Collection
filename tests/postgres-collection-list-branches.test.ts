@@ -91,8 +91,9 @@ describe('PostgreSQL collection list branch behavior', () => {
     await expect(repository.list()).resolves.toEqual([]);
     await expect(repository.list({ vnIds: [] })).resolves.toEqual([]);
     await expect(repository.listCards()).resolves.toEqual([]);
+    await expect(repository.list({ limit: 0, offset: 0 })).resolves.toEqual([]);
 
-    expect(mocks.postgresQuery).toHaveBeenCalledTimes(2);
+    expect(mocks.postgresQuery).toHaveBeenCalledTimes(3);
   });
 
   it('builds the complete filter surface including negative booleans and bounded paging', async () => {
@@ -176,17 +177,30 @@ describe('PostgreSQL collection list branch behavior', () => {
         ] };
       }
       if (sql.includes('FROM egs_game WHERE')) {
-        return { rows: [{
-          vn_id: 'v90001',
-          egs_id: 10,
-          median: 80,
-          average: 79,
-          count: 12,
-          playtime_median_minutes: 240,
-          source: 'manual',
-          okazu: null,
-          erogame: 1,
-        }] };
+        return { rows: [
+          {
+            vn_id: 'v90001',
+            egs_id: 10,
+            median: 80,
+            average: 79,
+            count: 12,
+            playtime_median_minutes: 240,
+            source: 'manual',
+            okazu: null,
+            erogame: 1,
+          },
+          {
+            vn_id: 'v90002',
+            egs_id: 11,
+            median: null,
+            average: null,
+            count: null,
+            playtime_median_minutes: null,
+            source: 'search',
+            okazu: 0,
+            erogame: null,
+          },
+        ] };
       }
       if (sql.includes('FROM collection_place_index')) {
         return { rows: [
@@ -227,6 +241,7 @@ describe('PostgreSQL collection list branch behavior', () => {
       egs: { okazu: null, erogame: true },
     });
     expect(items[1]?.physical_location).toEqual(['Existing']);
+    expect(items[1]?.egs).toMatchObject({ okazu: false, erogame: null });
     expect(new Set(items[1]?.aspect_keys)).toEqual(new Set(['16:10', '4:3']));
     expect(items[2]).toMatchObject({ aspect_keys: ['unknown'], egs: null });
   });
@@ -272,6 +287,28 @@ describe('PostgreSQL collection list branch behavior', () => {
       source: 'search',
       okazu: false,
       erogame: null,
+    }]]));
+
+    mocks.postgresQuery.mockResolvedValueOnce({ rows: [{
+      vn_id: 'v2',
+      egs_id: 2,
+      median: null,
+      average: null,
+      count: null,
+      playtime_median_minutes: null,
+      source: null,
+      okazu: null,
+      erogame: 1,
+    }] });
+    await expect(repository.egsSummaries(['v2'])).resolves.toEqual(new Map([['v2', {
+      egs_id: 2,
+      median: null,
+      average: null,
+      count: null,
+      playtime_median_minutes: null,
+      source: null,
+      okazu: null,
+      erogame: true,
     }]]));
   });
 

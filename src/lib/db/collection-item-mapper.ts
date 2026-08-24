@@ -142,9 +142,10 @@ function normalizedRotation(raw: number | null | undefined): 0 | 90 | 180 | 270 
  * @param row Joined VN and optional collection row.
  * @returns The normalized item, or `null` when no VN row exists.
  */
-export function mapCollectionItemRow(
-  row: CollectionItemDatabaseRow | undefined,
-): CollectionItem | null {
+export function mapCollectionItemRow(row: CollectionItemDatabaseRow): CollectionItem;
+export function mapCollectionItemRow(row: undefined): null;
+export function mapCollectionItemRow(row: CollectionItemDatabaseRow | undefined): CollectionItem | null;
+export function mapCollectionItemRow(row: CollectionItemDatabaseRow | undefined): CollectionItem | null {
   if (!row) return null;
   const item = {} as CollectionItem;
   item.id = row.id;
