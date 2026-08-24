@@ -50,6 +50,7 @@ describe('desktop grouped navigation portal', () => {
   });
 
   it('lets mobile links dispatch navigation before closing the sheet', () => {
-    expect(source).toContain('onClick={() => window.setTimeout(onClose, 0)}');
+    expect(source).toContain('router.push(item.href);');
+    expect(source).toContain('event.preventDefault();');
   });
 });

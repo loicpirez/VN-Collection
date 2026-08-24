@@ -9,8 +9,9 @@ import { GroupedNav, MoreNavMenu } from '@/components/MoreNavMenu';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 let mockPathname: string | null = '/';
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
@@ -41,6 +42,7 @@ const t = dictionaries.en;
 
 beforeEach(() => {
   mockPathname = '/';
+  mockPush.mockReset();
   vi.restoreAllMocks();
 });
 afterEach(() => {
@@ -320,12 +322,13 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('closes the mobile sheet when a link is chosen', async () => {
+  it('dispatches a mobile route before closing the sheet', async () => {
     const u = userEvent.setup();
     renderWithProviders(<GroupedNav />, { locale: 'en' });
     await u.click(screen.getByRole('button', { name: t.nav.openMenu }));
     const dialog = await screen.findByRole('dialog');
-    await u.click(within(dialog).getAllByRole('link', { name: t.nav.library })[0]);
+    await u.click(within(dialog).getAllByRole('link', { name: t.nav.search })[0]);
+    expect(mockPush).toHaveBeenCalledWith('/search');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 

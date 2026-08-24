@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialogA11y } from './Dialog';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Award,
   Activity,
@@ -423,6 +423,7 @@ function MobileSheet({
   pathname: string | null;
   t: ReturnType<typeof useT>;
 }) {
+  const router = useRouter();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   useDialogA11y({ open: true, onClose, panelRef });
@@ -465,7 +466,11 @@ function MobileSheet({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => window.setTimeout(onClose, 0)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      router.push(item.href);
+                      onClose();
+                    }}
                     aria-current={active ? 'page' : undefined}
                     className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
                       active
