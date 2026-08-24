@@ -1,12 +1,12 @@
 /**
  * R5-114 / R5-115 — pin that `/lists/[id]` and `/series/[id]`
- * preload the ListsPicker membership-count chip via
- * `countListMembershipsByVn()` instead of letting the
+ * preload the ListsPicker membership-count chip via the
+ * provider-neutral collection-list repository instead of letting the
  * `ListsPickerButton` mount with 0 and fetch the count on popover-
  * open.
  *
- * Source-level pins are enough: the helper is a pure DB read with
- * its own focused test, and the call sites just need to wire its
+ * Source-level pins are enough: the repository method has focused
+ * SQLite/PostgreSQL contracts, and the call sites just need to wire its
  * output into the per-card `listCount` projection. The behaviour
  * (the chip shows the right number on first paint) is exercised by
  * the existing component tests / Playwright pass when needed.
@@ -20,33 +20,27 @@ const ROOT = join(__dirname, '..');
 describe('/lists/[id] — R5-114 preloads listCount', () => {
   const src = readFileSync(join(ROOT, 'src/app/lists/[id]/page.tsx'), 'utf8');
 
-  it('imports countListMembershipsByVn from @/lib/db', () => {
-    expect(src).toMatch(/\bcountListMembershipsByVn\b[^;]*from\s+['"]@\/lib\/db['"]/s);
+  it('selects the provider-neutral collection-list repository', () => {
+    expect(src).toContain("import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';");
+    expect(src).toContain('const collectionRepository = getCollectionListRepository();');
   });
 
-  it('calls countListMembershipsByVn() exactly once and stuffs the map into the per-card data', () => {
-    expect(src).toMatch(/countListMembershipsByVn\(\)/);
-    // The `listCard` call site must receive a `listCount` arg
-    // sourced from the map.
+  it('loads membership counts once and projects them into each card', () => {
+    expect(src.match(/collectionRepository\.listMembershipCounts\(\)/g)).toHaveLength(1);
     expect(src).toMatch(/listCounts\.get\(it\.vn_id\)/);
   });
 
-  it('listCardData accepts a listCount parameter and forwards it to CardData', () => {
-    // Slice from `function listCardData(` to the matching closing
-    // paren of the signature (the last `): CardData {`).
-    const sig = src.match(/function\s+listCardData\([\s\S]*?\)\s*:\s*CardData\s*\{/);
-    expect(sig).not.toBeNull();
-    expect(sig![0]).toMatch(/listCount\s*:\s*number/);
-    // And the resulting CardData includes the field.
-    expect(src).toMatch(/listCount,?\s*\n/);
+  it('annotates list_count before the shared CardData projection', () => {
+    expect(src).toMatch(/toCardData\(\{[\s\S]*?list_count:\s*listCounts\.get\(it\.vn_id\)\s*\?\?\s*0/);
   });
 });
 
 describe('/series/[id] — R5-115 preloads listCount', () => {
   const src = readFileSync(join(ROOT, 'src/app/series/[id]/page.tsx'), 'utf8');
 
-  it('imports countListMembershipsByVn from @/lib/db', () => {
-    expect(src).toMatch(/\bcountListMembershipsByVn\b[^;]*from\s+['"]@\/lib\/db['"]/s);
+  it('selects the provider-neutral collection-list repository', () => {
+    expect(src).toContain("import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';");
+    expect(src).toContain('const collectionRepository = getCollectionListRepository();');
   });
 
   it('annotates list_count on each item before toCardData', () => {
@@ -54,6 +48,7 @@ describe('/series/[id] — R5-115 preloads listCount', () => {
     // `toCardData` projector, which reads `it.list_count`. The
     // page must therefore annotate that field on every row
     // before mapping.
+    expect(src.match(/collectionRepository\.listMembershipCounts\(\)/g)).toHaveLength(1);
     expect(src).toMatch(/list_count:\s*listCounts\.get\(/);
   });
 });
