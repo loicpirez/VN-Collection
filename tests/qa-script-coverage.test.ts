@@ -48,6 +48,13 @@ describe('R5-179 — yarn qa is DOM QA gated on .qa', () => {
     expect(QA_SH).toContain('SETTINGS_CODE="${SETTINGS_CODE:-000}"');
   });
 
+  it('rejects truncated HTTP responses and prefers a character fixture with a description', () => {
+    expect(QA_SH).toContain('QA_HTTP_TIMEOUT="${QA_HTTP_TIMEOUT:-60}"');
+    expect(QA_SH).toMatch(/if ! code=\$\(curl[\s\S]*--max-time "\$QA_HTTP_TIMEOUT"/);
+    expect(QA_SH).toContain('did not complete within %ss');
+    expect(QA_SH).toContain("'$.profile.description'");
+  });
+
   it('treats optional cached staff gender as fixture-dependent DOM', () => {
     expect(QA_SH).toContain('GENDER_CHIP_HITS=$(count_pattern "$STAFF_HTML"');
     expect(QA_SH).toContain('gender chip absent (no gender in cached VNDB payload)');
