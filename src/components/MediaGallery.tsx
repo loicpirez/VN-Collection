@@ -221,7 +221,7 @@ export function MediaGallery({
             aria-labelledby={lightboxTitleId}
             aria-describedby={lightboxDescId}
             tabIndex={-1}
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 outline-none"
+            className="fixed inset-0 z-layer-modal flex items-center justify-center p-4 outline-none"
           >
           {/* Sibling backdrop so the close-on-click target is the
               backdrop element itself, not the dialog. Previously a
@@ -655,12 +655,7 @@ function TileKebab({
         aria-haspopup="menu"
         aria-label={t.media.actionsMenu}
         title={t.media.actionsMenu}
-        // 32x32 minimum on touch. `opacity-100` on small viewports
-        // keeps the affordance always visible for touch users;
-        // hover/focus reveals it on desktop only. focus-visible
-        // forces the kebab to appear the moment a keyboard user
-        // tabs into the tile so they never lose the entry point.
-        className="absolute right-1.5 top-1.5 z-10 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm transition-opacity hover:bg-accent hover:text-bg focus-visible:opacity-100 opacity-100 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+        className="card-action-overlay absolute right-1.5 top-1.5 z-10 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-black/70 text-white shadow backdrop-blur-sm hover:bg-accent hover:text-bg"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>

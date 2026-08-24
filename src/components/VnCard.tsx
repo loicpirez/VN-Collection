@@ -286,7 +286,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
           disabled={removingFromWishlist}
           title={t.wishlist.removeOne}
           aria-label={t.wishlist.removeOne}
-          className="absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped disabled:cursor-not-allowed disabled:opacity-60 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className="card-action-overlay absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped disabled:cursor-not-allowed disabled:opacity-60"
         >
           {removingFromWishlist ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
         </button>
@@ -319,7 +319,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
           }}
           disabled={adding}
-          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card transition-opacity hover:bg-accent disabled:opacity-50 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className="card-action-overlay absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card hover:bg-accent disabled:opacity-50"
           title={t.form.add}
         >
           <span className="inline-flex h-3 w-3 items-center justify-center">

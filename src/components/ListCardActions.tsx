@@ -132,7 +132,7 @@ export function ListCardActions({ list }: { list: List }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
-        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted transition-opacity hover:bg-bg-elev hover:text-white focus:opacity-100 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+        className="card-action-overlay flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}

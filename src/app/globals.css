@@ -134,6 +134,23 @@
     border-radius: 8px;
     pointer-events: auto;
   }
+  .card-action-overlay {
+    opacity: 1;
+    transition-property: opacity;
+    transition-duration: 150ms;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .group .card-action-overlay {
+      opacity: 0 !important;
+      pointer-events: none;
+    }
+    .group:hover .card-action-overlay,
+    .group:focus-within .card-action-overlay,
+    .card-action-overlay:focus-visible {
+      opacity: 1 !important;
+      pointer-events: auto;
+    }
+  }
   /*
    * Tiny shared building blocks that the audit flagged for
    * extraction — the repeated class strings ran ~3 kB of duplicated
