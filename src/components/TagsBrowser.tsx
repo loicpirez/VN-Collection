@@ -272,7 +272,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           tabIndex={mode === 'local' ? 0 : -1}
           data-shortcut="tags-tab-local"
           onClick={() => switchMode('local')}
-          className={`rounded px-2.5 py-1 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
         </Link>
@@ -285,7 +285,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           tabIndex={mode === 'vndb' ? 0 : -1}
           data-shortcut="tags-tab-vndb"
           onClick={() => switchMode('vndb')}
-          className={`rounded px-2.5 py-1 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
         </Link>
@@ -299,7 +299,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           debounceMs={Q_DEBOUNCE_MS}
         />
         <select
-          className="input w-full sm:w-auto sm:max-w-[220px]"
+          className="input h-11 w-full sm:w-auto sm:max-w-[220px]"
           aria-label={t.tags.categoryFilter}
           value={category}
           onChange={(e) => setCategory(e.target.value as 'cont' | 'ero' | 'tech' | '')}

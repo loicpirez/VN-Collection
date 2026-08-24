@@ -90,7 +90,7 @@ export default async function QuotesPage({
                       {it.character_name && it.character_id ? (
                         <Link
                           href={`/character/${it.character_id}`}
-                          className="inline-flex min-h-[44px] items-center font-semibold text-white/85 hover:text-accent sm:min-h-0"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center font-semibold text-white/85 hover:text-accent sm:min-h-0 sm:min-w-0"
                         >
                           {it.character_name}
                         </Link>

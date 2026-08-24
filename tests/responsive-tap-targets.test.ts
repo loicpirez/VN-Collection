@@ -124,7 +124,10 @@ describe('responsive tap targets', () => {
     expect(source('src/app/characters/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
     expect(source('src/app/staff/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
     expect(source('src/app/compare/page.tsx')).toContain('min-w-[44px]');
-    expect(source('src/app/quotes/page.tsx')).toContain('inline-flex min-h-[44px] items-center');
+    expect(source('src/app/quotes/page.tsx')).toContain('inline-flex min-h-[44px] min-w-[44px] items-center');
+    expect(source('src/components/CompareVnPicker.tsx')).toContain('min-w-[44px]');
+    expect(source('src/components/SeriesManager.tsx')).toContain('flex min-h-[44px] min-w-0 flex-1');
+    expect(source('src/components/TagsBrowser.tsx')).toContain('className="input h-11 w-full');
   });
 
   it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {

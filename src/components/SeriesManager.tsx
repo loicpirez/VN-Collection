@@ -155,7 +155,7 @@ export function SeriesManager({ initial }: { initial: SeriesRow[] }) {
         >
           {items.map((s) => (
             <div key={s.id} className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-card p-4 hover:border-accent">
-              <Link href={`/series/${s.id}`} className="min-w-0 flex-1">
+              <Link href={`/series/${s.id}`} className="flex min-h-[44px] min-w-0 flex-1 items-center sm:min-h-0">
                 <div className="font-semibold">{s.name}</div>
                 {s.description && <div className="line-clamp-2 text-xs text-muted" title={s.description}>{s.description}</div>}
               </Link>
