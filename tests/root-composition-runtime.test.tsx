@@ -107,21 +107,11 @@ describe('root layout composition', () => {
     expect(html).toContain('--card-density-px:220px');
   });
 
-  it('shows the public read warning on non-loopback hosts without read protection', async () => {
-    const previous = process.env.VN_PUBLIC_READ_AUTH;
-    delete process.env.VN_PUBLIC_READ_AUTH;
-    try {
-      mocks.headers = new Map([['host', 'collection.example.test']]);
-      const publicHtml = renderToStaticMarkup(await RootLayout({ children: null }));
-      expect(publicHtml).toContain(dictionaries.en.app.publicReadWarningTitle);
-
-      mocks.headers = new Map([['host', 'localhost:3000']]);
-      const localHtml = renderToStaticMarkup(await RootLayout({ children: null }));
-      expect(localHtml).not.toContain(dictionaries.en.app.publicReadWarningTitle);
-    } finally {
-      if (previous === undefined) delete process.env.VN_PUBLIC_READ_AUTH;
-      else process.env.VN_PUBLIC_READ_AUTH = previous;
-    }
+  it('does not inject deployment-policy warnings into the application UI', async () => {
+    mocks.headers = new Map([['host', 'collection.example.test']]);
+    const html = renderToStaticMarkup(await RootLayout({ children: null }));
+    expect(html).not.toContain(dictionaries.en.app.publicReadWarningTitle);
+    expect(html).not.toContain(dictionaries.en.app.publicReadWarningBody);
   });
 });
 
