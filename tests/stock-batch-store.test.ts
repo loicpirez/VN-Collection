@@ -37,16 +37,23 @@ describe('durable stock batch store', () => {
     db.prepare(`DELETE FROM stock_batch_job WHERE id LIKE ?`).run(`${PREFIX}%`);
   });
 
-  it('stores and restores a top-level progress snapshot', () => {
+  it('stores and restores a top-level progress snapshot', async () => {
     const input = job({ id: `${PREFIX}stored`, errors: [{ item: 'v90002', message: 'fixture error' }] });
-    upsertDurableStockBatchJob(input);
-    const restored = listDurableStockBatchJobs().find((entry) => entry.id === input.id);
+    await upsertDurableStockBatchJob(input, ['sofmap', 'surugaya']);
+    expect(db.prepare('SELECT providers_json FROM stock_batch_job WHERE id = ?').get(input.id)).toEqual({
+      providers_json: '["sofmap","surugaya"]',
+    });
+    await upsertDurableStockBatchJob({ ...input, done: 2 });
+    expect(db.prepare('SELECT providers_json FROM stock_batch_job WHERE id = ?').get(input.id)).toEqual({
+      providers_json: '["sofmap","surugaya"]',
+    });
+    const restored = (await listDurableStockBatchJobs()).find((entry) => entry.id === input.id);
     expect(restored).toMatchObject({
       id: input.id,
       kind: 'stock-batch',
       vn_id: null,
       total: 4,
-      done: 1,
+      done: 2,
       label_code: 'stock_refresh',
       label_params: { count: 4 },
       current_item: 'v90001',
@@ -58,26 +65,26 @@ describe('durable stock batch store', () => {
     });
   });
 
-  it('stores absent label codes and true cancellation flags', () => {
+  it('stores absent label codes and true cancellation flags', async () => {
     const input = job({
       id: `${PREFIX}flags`,
       label_code: undefined,
       cancelled: true,
       interrupted: true,
     });
-    upsertDurableStockBatchJob(input);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === input.id)).toMatchObject({
+    await upsertDurableStockBatchJob(input);
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === input.id)).toMatchObject({
       label_code: null,
       cancelled: true,
       interrupted: true,
     });
   });
 
-  it('marks unfinished rows as interrupted without fabricating completion', () => {
+  it('marks unfinished rows as interrupted without fabricating completion', async () => {
     const input = job({ id: `${PREFIX}interrupted`, done: 2 });
-    upsertDurableStockBatchJob(input);
-    expect(markUnfinishedDurableStockBatchJobsInterrupted()).toBe(1);
-    const restored = listDurableStockBatchJobs().find((entry) => entry.id === input.id);
+    await upsertDurableStockBatchJob(input);
+    expect(await markUnfinishedDurableStockBatchJobsInterrupted()).toBe(1);
+    const restored = (await listDurableStockBatchJobs()).find((entry) => entry.id === input.id);
     expect(restored?.done).toBe(2);
     expect(restored?.finished_at).not.toBeNull();
     expect(restored?.interrupted).toBe(true);
@@ -87,34 +94,34 @@ describe('durable stock batch store', () => {
     });
   });
 
-  it('prefers the live snapshot when a durable row has the same id', () => {
+  it('prefers the live snapshot when a durable row has the same id', async () => {
     const stored = job({ id: `${PREFIX}merged`, done: 1 });
-    upsertDurableStockBatchJob(stored);
+    await upsertDurableStockBatchJob(stored);
     const live = job({ id: stored.id, done: 3, current_item: 'v90003' });
-    const merged = mergeDurableStockBatchJobs([live]);
+    const merged = await mergeDurableStockBatchJobs([live]);
     expect(merged.find((entry) => entry.id === stored.id)).toMatchObject({
       done: 3,
       current_item: 'v90003',
     });
   });
 
-  it('treats malformed persisted errors as an empty list', () => {
+  it('treats malformed persisted errors as an empty list', async () => {
     const input = job({ id: `${PREFIX}malformed`, finished_at: Date.now() });
-    upsertDurableStockBatchJob(input);
+    await upsertDurableStockBatchJob(input);
     db.prepare(`UPDATE stock_batch_job SET errors_json = ? WHERE id = ?`).run('{"bad":true}', input.id);
-    const restored = listDurableStockBatchJobs().find((entry) => entry.id === input.id);
+    const restored = (await listDurableStockBatchJobs()).find((entry) => entry.id === input.id);
     expect(restored?.errors).toEqual([]);
   });
 
-  it('restores validated current-item codes and discards malformed metadata', () => {
+  it('restores validated current-item codes and discards malformed metadata', async () => {
     const coded = job({
       id: `${PREFIX}coded`,
       current_item: 'EGS anticipated (top 100)',
       current_item_code: 'refresh_egs_anticipated',
       current_item_params: { count: 100 },
     });
-    upsertDurableStockBatchJob(coded);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)).toMatchObject({
+    await upsertDurableStockBatchJob(coded);
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)).toMatchObject({
       current_item_code: 'refresh_egs_anticipated',
       current_item_params: { count: 100 },
     });
@@ -124,7 +131,7 @@ describe('durable stock batch store', () => {
       SET label_code = ?, label_params_json = ?, current_item_code = ?, current_item_params_json = ?
       WHERE id = ?
     `).run('not_a_label', '["bad"]', 'not_an_item', '{"bad":true}', coded.id);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)).toMatchObject({
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)).toMatchObject({
       label_code: null,
       label_params: null,
       current_item_code: null,

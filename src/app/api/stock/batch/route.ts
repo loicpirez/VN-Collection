@@ -6,6 +6,7 @@ import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { cancelJob, finishJob, getJob, isJobCancelled, jobLabel, recordError, setJobCurrent, startJob, tickJob } from '@/lib/download-status';
 import { upsertDurableStockBatchJob } from '@/lib/stock-batch-store';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
+import { acquireBackgroundJobLease } from '@/lib/background-job-lease';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,7 @@ export const runtime = 'nodejs';
 const MAX_BATCH = 5000;
 const MAX_ACTIVE_BATCH_JOBS = 2;
 const STOCK_BATCH_VN_CONCURRENCY = 2;
+const STOCK_BATCH_LEASE_TTL_MS = 30 * 60 * 1000;
 const activeBatchJobs = new Map<string, AbortController>();
 
 interface VnIdsParse {
@@ -50,9 +52,9 @@ function parseProviders(value: unknown): ProviderParse {
   return { providers, unknown };
 }
 
-function persistJob(jobId: string): void {
+async function persistJob(jobId: string, providers?: readonly StockProviderId[]): Promise<void> {
   const job = getJob(jobId);
-  if (job) upsertDurableStockBatchJob(job);
+  if (job) await upsertDurableStockBatchJob(job, providers);
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -78,19 +80,53 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  let lease;
+  try {
+    lease = await acquireBackgroundJobLease('stock-batch', MAX_ACTIVE_BATCH_JOBS, STOCK_BATCH_LEASE_TTL_MS);
+  } catch (error) {
+    console.error('[stock/batch] lease acquisition failed:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'stock batch unavailable', code: 'run_unavailable' },
+      { status: 503 },
+    );
+  }
+  if (!lease) {
+    return NextResponse.json(
+      { error: 'stock batch queue is full', code: 'queue_full' },
+      { status: 429 },
+    );
+  }
+
   const job = startJob('stock-batch', jobLabel('stock_refresh', `Stock refresh × ${vnIds.length}`, { count: vnIds.length }), vnIds.length, null);
   const controller = new AbortController();
   activeBatchJobs.set(job.id, controller);
-  persistJob(job.id);
+  try {
+    await persistJob(job.id, providers);
+  } catch (error) {
+    activeBatchJobs.delete(job.id);
+    finishJob(job.id, { complete: false });
+    try {
+      await lease.release();
+    } catch (releaseError) {
+      console.error('[stock/batch] lease release failed:', sanitizeUnknownError(releaseError));
+    }
+    console.error('[stock/batch] durable job initialization failed:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'stock batch unavailable', code: 'run_unavailable' },
+      { status: 503 },
+    );
+  }
 
   void (async () => {
+    let leaseHealthy = true;
     try {
       for (let start = 0; start < vnIds.length; start += STOCK_BATCH_VN_CONCURRENCY) {
         if (isJobCancelled(job.id) || controller.signal.aborted) break;
+        await lease.renew();
         const chunk = vnIds.slice(start, start + STOCK_BATCH_VN_CONCURRENCY);
         await Promise.all(chunk.map(async (vnId) => {
           setJobCurrent(job.id, vnId);
-          persistJob(job.id);
+          await persistJob(job.id, providers);
           const providerJob = startJob('stock-batch', jobLabel('stock_providers_for_vn', `Providers - ${vnId}`, { vnId }), providers.length, vnId);
           try {
             await refreshStockForVn(vnId, providers, controller.signal, (provider, _done, _total) => {
@@ -102,21 +138,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               const msg = sanitizeUnknownError(e);
               console.error('[stock/batch] refresh failed', { vnId, msg });
               recordError(job.id, vnId, msg);
-              persistJob(job.id);
+              await persistJob(job.id, providers);
             }
           } finally {
             finishJob(providerJob.id, { complete: !controller.signal.aborted });
           }
           if (!isJobCancelled(job.id) && !controller.signal.aborted) {
             tickJob(job.id);
-            persistJob(job.id);
+            await persistJob(job.id, providers);
           }
         }));
+        await lease.renew();
+      }
+    } catch (error) {
+      leaseHealthy = false;
+      controller.abort();
+      if (!isJobCancelled(job.id)) {
+        recordError(job.id, 'stock-batch lease', sanitizeUnknownError(error));
       }
     } finally {
+      try {
+        await lease.release();
+      } catch (error) {
+        leaseHealthy = false;
+        if (!isJobCancelled(job.id)) {
+          recordError(job.id, 'stock-batch lease release', sanitizeUnknownError(error));
+        }
+      }
       activeBatchJobs.delete(job.id);
-      finishJob(job.id, { complete: !isJobCancelled(job.id) && !controller.signal.aborted });
-      persistJob(job.id);
+      finishJob(job.id, { complete: leaseHealthy && !isJobCancelled(job.id) && !controller.signal.aborted });
+      await persistJob(job.id, providers);
     }
   })();
 
@@ -130,6 +181,6 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (!jobId) return NextResponse.json({ error: 'missing jobId' }, { status: 400 });
   activeBatchJobs.get(jobId)?.abort();
   cancelJob(jobId);
-  persistJob(jobId);
+  await persistJob(jobId);
   return NextResponse.json({ cancelled: jobId });
 }

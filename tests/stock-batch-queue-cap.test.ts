@@ -28,12 +28,14 @@ describe('stock batch queue bounds and cancellation', () => {
 
   it('persists the top-level job across progress, cancellation, and finish paths', () => {
     expect(source).toContain('upsertDurableStockBatchJob');
-    expect(source).toContain('persistJob(job.id)');
-    expect(source).toContain('persistJob(jobId)');
-    expect(source).toContain("finishJob(job.id, { complete: !isJobCancelled(job.id) && !controller.signal.aborted })");
+    expect(source).toContain('persistJob(job.id, providers)');
+    expect(source).toContain('persistJob(jobId);');
+    expect(source).toContain("finishJob(job.id, { complete: leaseHealthy && !isJobCancelled(job.id) && !controller.signal.aborted })");
   });
 
   it('releases queue capacity when the background batch finishes', () => {
     expect(source).toContain('activeBatchJobs.delete(job.id)');
+    expect(source).toContain("acquireBackgroundJobLease('stock-batch', MAX_ACTIVE_BATCH_JOBS");
+    expect(source).toContain('await lease.release()');
   });
 });

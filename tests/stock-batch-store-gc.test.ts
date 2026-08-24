@@ -43,42 +43,42 @@ beforeEach(() => {
 });
 
 describe('durable stock batch GC', () => {
-  it('drops finished rows older than the one-hour retention window', () => {
+  it('drops finished rows older than the one-hour retention window', async () => {
     const stale = job({ id: `${PREFIX}stale`, finished_at: Date.now() - 3600 * 1000 - 60_000 });
-    upsertDurableStockBatchJob(stale);
+    await upsertDurableStockBatchJob(stale);
     // The upsert runs gc() after writing; the stale finished row is purged.
-    const rows = listDurableStockBatchJobs().filter((entry) => entry.id === stale.id);
+    const rows = (await listDurableStockBatchJobs()).filter((entry) => entry.id === stale.id);
     expect(rows).toHaveLength(0);
   });
 
-  it('keeps a recently-finished row inside the retention window', () => {
+  it('keeps a recently-finished row inside the retention window', async () => {
     const fresh = job({ id: `${PREFIX}fresh`, finished_at: Date.now() - 1000 });
-    upsertDurableStockBatchJob(fresh);
-    const rows = listDurableStockBatchJobs().filter((entry) => entry.id === fresh.id);
+    await upsertDurableStockBatchJob(fresh);
+    const rows = (await listDurableStockBatchJobs()).filter((entry) => entry.id === fresh.id);
     expect(rows).toHaveLength(1);
   });
 
-  it('keeps unfinished rows regardless of age', () => {
+  it('keeps unfinished rows regardless of age', async () => {
     const running = job({ id: `${PREFIX}running`, started_at: Date.now() - 86_400_000, finished_at: null });
-    upsertDurableStockBatchJob(running);
-    const rows = listDurableStockBatchJobs().filter((entry) => entry.id === running.id);
+    await upsertDurableStockBatchJob(running);
+    const rows = (await listDurableStockBatchJobs()).filter((entry) => entry.id === running.id);
     expect(rows).toHaveLength(1);
   });
 });
 
 describe('markUnfinishedDurableStockBatchJobsInterrupted', () => {
-  it('returns 0 when there is nothing unfinished to transition', () => {
-    upsertDurableStockBatchJob(job({ id: `${PREFIX}done`, finished_at: Date.now() }));
-    expect(markUnfinishedDurableStockBatchJobsInterrupted()).toBe(0);
+  it('returns 0 when there is nothing unfinished to transition', async () => {
+    await upsertDurableStockBatchJob(job({ id: `${PREFIX}done`, finished_at: Date.now() }));
+    expect(await markUnfinishedDurableStockBatchJobsInterrupted()).toBe(0);
   });
 
-  it('transitions every unfinished row and appends one interrupted error each', () => {
-    upsertDurableStockBatchJob(job({ id: `${PREFIX}r1` }));
-    upsertDurableStockBatchJob(job({ id: `${PREFIX}r2` }));
-    const count = markUnfinishedDurableStockBatchJobsInterrupted();
+  it('transitions every unfinished row and appends one interrupted error each', async () => {
+    await upsertDurableStockBatchJob(job({ id: `${PREFIX}r1` }));
+    await upsertDurableStockBatchJob(job({ id: `${PREFIX}r2` }));
+    const count = await markUnfinishedDurableStockBatchJobsInterrupted();
     expect(count).toBeGreaterThanOrEqual(2);
     for (const id of [`${PREFIX}r1`, `${PREFIX}r2`]) {
-      const row = listDurableStockBatchJobs().find((entry) => entry.id === id);
+      const row = (await listDurableStockBatchJobs()).find((entry) => entry.id === id);
       expect(row?.interrupted).toBe(true);
       expect(row?.errors).toContainEqual({ item: 'stock-batch', message: 'Interrupted by server restart' });
     }
@@ -86,67 +86,67 @@ describe('markUnfinishedDurableStockBatchJobsInterrupted', () => {
 });
 
 describe('error-list parsing through the durable round-trip', () => {
-  it('keeps well-formed error entries and discards malformed array elements', () => {
+  it('keeps well-formed error entries and discards malformed array elements', async () => {
     const coded = job({ id: `${PREFIX}errs`, finished_at: Date.now() });
-    upsertDurableStockBatchJob(coded);
+    await upsertDurableStockBatchJob(coded);
     db.prepare(`UPDATE stock_batch_job SET errors_json = ? WHERE id = ?`).run(
       JSON.stringify([{ item: 'v1', message: 'real' }, 'not-an-object', { item: 'v2' }, null]),
       coded.id,
     );
-    const row = listDurableStockBatchJobs().find((entry) => entry.id === coded.id);
+    const row = (await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id);
     expect(row?.errors).toEqual([{ item: 'v1', message: 'real' }]);
   });
 
-  it('treats invalid error JSON as an empty list', () => {
+  it('treats invalid error JSON as an empty list', async () => {
     const coded = job({ id: `${PREFIX}errs2`, finished_at: Date.now() });
-    upsertDurableStockBatchJob(coded);
+    await upsertDurableStockBatchJob(coded);
     db.prepare(`UPDATE stock_batch_job SET errors_json = ? WHERE id = ?`).run('{not json', coded.id);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)?.errors).toEqual([]);
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)?.errors).toEqual([]);
   });
 });
 
 describe('mergeDurableStockBatchJobs', () => {
-  it('returns durable-only rows sorted newest-first', () => {
+  it('returns durable-only rows sorted newest-first', async () => {
     const base = Date.now();
     // Unfinished rows survive gc regardless of age; started_at drives ordering.
-    upsertDurableStockBatchJob(job({ id: `${PREFIX}older`, started_at: base - 5000, finished_at: null }));
-    upsertDurableStockBatchJob(job({ id: `${PREFIX}newer`, started_at: base, finished_at: null }));
-    const merged = mergeDurableStockBatchJobs([]).filter((entry) => entry.id.startsWith(PREFIX));
+    await upsertDurableStockBatchJob(job({ id: `${PREFIX}older`, started_at: base - 5000, finished_at: null }));
+    await upsertDurableStockBatchJob(job({ id: `${PREFIX}newer`, started_at: base, finished_at: null }));
+    const merged = (await mergeDurableStockBatchJobs([])).filter((entry) => entry.id.startsWith(PREFIX));
     const idx = (id: string) => merged.findIndex((entry) => entry.id === id);
     expect(idx(`${PREFIX}newer`)).toBeGreaterThanOrEqual(0);
     expect(idx(`${PREFIX}newer`)).toBeLessThan(idx(`${PREFIX}older`));
   });
 
-  it('adds a live-only job that has no durable counterpart', () => {
+  it('adds a live-only job that has no durable counterpart', async () => {
     const live = job({ id: `${PREFIX}live-only`, done: 2 });
-    const merged = mergeDurableStockBatchJobs([live]);
+    const merged = await mergeDurableStockBatchJobs([live]);
     expect(merged.find((entry) => entry.id === live.id)).toMatchObject({ done: 2 });
   });
 });
 
 describe('text-param validation through the durable round-trip', () => {
-  it('keeps string and number params and discards array / nested-object payloads', () => {
+  it('keeps string and number params and discards array / nested-object payloads', async () => {
     const coded = job({
       id: `${PREFIX}params`,
       label_code: 'stock_refresh',
       label_params: { count: 4, scope: 'collection' },
     });
-    upsertDurableStockBatchJob(coded);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)?.label_params).toEqual({
+    await upsertDurableStockBatchJob(coded);
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)?.label_params).toEqual({
       count: 4,
       scope: 'collection',
     });
 
     // A persisted array is not a valid JobTextParams object → discarded.
     db.prepare(`UPDATE stock_batch_job SET label_params_json = ? WHERE id = ?`).run('[1,2,3]', coded.id);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)?.label_params).toBeNull();
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)?.label_params).toBeNull();
 
     // A param whose value is a nested object is rejected wholesale.
     db.prepare(`UPDATE stock_batch_job SET label_params_json = ? WHERE id = ?`).run('{"a":{"b":1}}', coded.id);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)?.label_params).toBeNull();
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)?.label_params).toBeNull();
 
     // Invalid JSON is treated as absent.
     db.prepare(`UPDATE stock_batch_job SET label_params_json = ? WHERE id = ?`).run('{not json', coded.id);
-    expect(listDurableStockBatchJobs().find((entry) => entry.id === coded.id)?.label_params).toBeNull();
+    expect((await listDurableStockBatchJobs()).find((entry) => entry.id === coded.id)?.label_params).toBeNull();
   });
 });
