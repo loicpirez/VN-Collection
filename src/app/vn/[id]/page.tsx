@@ -222,7 +222,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           href="/"
           aria-label={t.nav.library}
           title={t.nav.library}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden"
+          className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           <span>{t.nav.library}</span>
@@ -354,7 +354,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         href="/"
         aria-label={t.nav.library}
         title={t.nav.library}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden"
+        className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
         <span>{t.nav.library}</span>

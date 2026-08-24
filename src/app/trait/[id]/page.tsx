@@ -75,7 +75,7 @@ export default async function TraitPage({
   if (!trait) {
     return (
       <div className="mx-auto max-w-2xl">
-        <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+        <Link href="/traits" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.traits}
         </Link>
         <div className="rounded-2xl border border-status-dropped/40 bg-status-dropped/5 p-6">
@@ -109,7 +109,7 @@ export default async function TraitPage({
 
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
-      <Link href="/traits" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+      <Link href="/traits" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.traits}
       </Link>
 

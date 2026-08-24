@@ -112,7 +112,7 @@ export default async function LabelsPage({
   return (
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between print:hidden">
-        <Link href="/data" className="inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+        <Link href="/data" className="inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white">
           <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
         </Link>
         <PrintButton label={t.labels.print} />

@@ -249,7 +249,7 @@ export default async function ShelfPage({
 
   return (
     <DensityScopeProvider scope="shelf" className="w-full">
-      <Link href="/data" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+      <Link href="/data" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
 
@@ -325,7 +325,7 @@ export default async function ShelfPage({
         <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <p className="text-sm font-semibold">{t.shelf.empty}</p>
           <p className="mt-2 text-[12px] text-muted">{t.shelf.emptyHint}</p>
-          <Link href="/" className="mt-3 inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20">
+          <Link href="/" className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 sm:min-h-0">
             <ArrowLeft className="h-3 w-3" aria-hidden /> {t.nav.library}
           </Link>
         </div>

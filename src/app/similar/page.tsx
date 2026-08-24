@@ -57,7 +57,7 @@ export default async function SimilarPage({
   if (!isValidVnId(rawSeedId)) {
     return (
       <div className="w-full">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+        <Link href="/" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
         </Link>
         <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
@@ -75,7 +75,7 @@ export default async function SimilarPage({
   if (!seed) {
     return (
       <div className="w-full">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+        <Link href="/" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
           <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
         </Link>
         <p className="rounded-xl border border-status-dropped/40 bg-status-dropped/10 p-4 text-sm">
@@ -184,7 +184,7 @@ export default async function SimilarPage({
 
   return (
     <DensityScopeProvider scope="vnSimilar" className="w-full">
-      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {seed.title}
       </Link>
 

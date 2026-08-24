@@ -112,7 +112,7 @@ export function PlaceDetailClient({ place }: Props) {
       {/* Back */}
       <Link
         href="/places"
-        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-white"
+        className="inline-flex min-h-[44px] items-center gap-1.5 text-sm text-muted hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
         {t.places.title as string}

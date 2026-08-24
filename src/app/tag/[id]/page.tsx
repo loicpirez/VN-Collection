@@ -122,7 +122,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
 
   return (
     <DensityScopeProvider scope="tagPage" className="w-full">
-      <Link href="/tags" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+      <Link href="/tags" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.tags}
       </Link>
 

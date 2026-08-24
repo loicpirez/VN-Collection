@@ -61,7 +61,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <DensityScopeProvider scope="lists">
-      <Link href="/lists" className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+      <Link href="/lists" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.lists.backToLists}
       </Link>
 

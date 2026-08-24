@@ -39,6 +39,41 @@ describe('responsive tap targets', () => {
     expect(source('src/components/LanguageSwitcher.tsx')).toContain('className="h-11 rounded-lg');
   });
 
+  it('keeps mobile route back links touch-safe', () => {
+    const routeSources = [
+      'src/app/brand-overlap/page.tsx',
+      'src/app/character/[id]/page.tsx',
+      'src/app/characters/page.tsx',
+      'src/app/compare/page.tsx',
+      'src/app/dumped/page.tsx',
+      'src/app/egs/page.tsx',
+      'src/app/lists/[id]/page.tsx',
+      'src/app/producer/[id]/page.tsx',
+      'src/app/quotes/page.tsx',
+      'src/app/recommendations/page.tsx',
+      'src/app/release/[id]/page.tsx',
+      'src/app/schema/page.tsx',
+      'src/app/series/[id]/page.tsx',
+      'src/app/shelf/page.tsx',
+      'src/app/similar/page.tsx',
+      'src/app/staff/[id]/page.tsx',
+      'src/app/staff/page.tsx',
+      'src/app/steam/page.tsx',
+      'src/app/top-ranked/page.tsx',
+      'src/app/trait/[id]/page.tsx',
+      'src/app/upcoming/page.tsx',
+      'src/app/vn/[id]/page.tsx',
+      'src/app/year/page.tsx',
+    ].map(source);
+    for (const body of routeSources) {
+      expect(body).not.toContain('mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden');
+    }
+    expect(source('src/app/tag/[id]/page.tsx')).toContain('mb-4 inline-flex min-h-[44px] items-center');
+    expect(source('src/components/PlaceDetailClient.tsx')).toContain('inline-flex min-h-[44px] items-center gap-1.5');
+    expect(source('src/app/labels/page.tsx')).toContain('inline-flex min-h-[44px] items-center gap-1');
+    expect(source('src/app/shelf/page.tsx')).toContain('sm:min-h-0');
+  });
+
   it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {
     const dumped = source('src/app/dumped/page.tsx');
     const ignore = source('src/components/DumpIgnoreButton.tsx');

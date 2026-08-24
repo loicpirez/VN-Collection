@@ -120,7 +120,7 @@ async function EgsPageContent() {
     <DensityScopeProvider scope="egs" className="w-full">
       <Link
         href="/data"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-white md:hidden"
+        className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.data}
       </Link>
