@@ -303,6 +303,15 @@ describe('RoutesSection', () => {
       expect(parseBody(reorderCalls[reorderCalls.length - 1]?.[1]).ids).toEqual([1, 2, 3]);
     });
 
+    fireEvent.click(within(routeItem('Route B')).getByTitle('Marquer non terminée'));
+    await waitFor(() => expect(screen.getByText('1/3 terminée(s)')).toBeTruthy());
+    const incompleteCall = fetchMock.mock.calls.find(([url, init]) =>
+      url === '/api/route/2'
+      && init?.method === 'PATCH'
+      && parseBody(init).completed === false,
+    );
+    expect(parseBody(incompleteCall?.[1])).toMatchObject({ completed: false, completed_date: null });
+
     const deleteRow = routeItem('Heroine A');
     fireEvent.click(within(deleteRow).getByLabelText('Supprimer'));
     const dialog = await screen.findByRole('alertdialog');
