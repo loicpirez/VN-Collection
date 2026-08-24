@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  isValidBoxType,
-  isValidLocation,
-  type OwnedReleasePatch,
-} from '@/lib/db';
+import type { OwnedReleasePatch } from '@/lib/db';
+import { isValidBoxType, isValidLocation } from '@/lib/types';
 import { isAspectKey } from '@/lib/aspect-ratio';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import {

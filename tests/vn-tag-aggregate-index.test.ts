@@ -57,7 +57,7 @@ afterAll(() => {
 describe('PERF-004 — tag aggregates use vn_tag_index', () => {
   it('removes json_each(v.tags) from every collection tag aggregate path', () => {
     const bodies = [
-      SOURCE.split('function computeAggregateStats')[1]?.split('\nexport function isValidStatus')[0] ?? '',
+      SOURCE.split('function computeAggregateStats')[1]?.split('\nexport interface CollectionTagAggregate')[0] ?? '',
       SOURCE.split('export function listCollectionTags')[1]?.split('\n/**\n * Local character search')[0] ?? '',
       SOURCE.split('export function getCoOccurringTags')[1]?.split('\n// Routes per VN')[0] ?? '',
       SOURCE.split('export function yearReview')[1]?.split('\n// Tag completions per year')[0] ?? '',

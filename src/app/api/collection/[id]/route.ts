@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
+import { maybePushStatusToVndb, type CollectionPatch } from '@/lib/db';
 import {
   isValidBoxType,
   isValidEditionType,
   isValidLocation,
   isValidStatus,
-  maybePushStatusToVndb,
-  type CollectionPatch,
-} from '@/lib/db';
+} from '@/lib/types';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';

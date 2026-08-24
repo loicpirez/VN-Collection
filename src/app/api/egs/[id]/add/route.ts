@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidStatus } from '@/lib/db';
-import type { Status } from '@/lib/types';
+import { isValidStatus, type Status } from '@/lib/types';
 import { EgsUnreachable, fetchEgsGame, linkEgsToVn } from '@/lib/erogamescape';
 import { recordActivity } from '@/lib/activity';
 import { upstreamError } from '@/lib/api-error';

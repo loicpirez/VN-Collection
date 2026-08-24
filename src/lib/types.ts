@@ -14,6 +14,26 @@ export type BoxType = (typeof BOX_TYPES)[number];
 export const LOCATIONS = ['unknown', 'fr', 'jp', 'en', 'de', 'cn', 'kr', 'tw', 'us', 'other'] as const;
 export type Location = (typeof LOCATIONS)[number];
 
+/** Return whether a runtime value is a supported collection status. */
+export function isValidStatus(value: unknown): value is Status {
+  return typeof value === 'string' && (STATUSES as readonly string[]).includes(value);
+}
+
+/** Return whether a runtime value is a supported collection location. */
+export function isValidLocation(value: unknown): value is Location {
+  return typeof value === 'string' && (LOCATIONS as readonly string[]).includes(value);
+}
+
+/** Return whether a runtime value is a supported edition type. */
+export function isValidEditionType(value: unknown): value is EditionType {
+  return typeof value === 'string' && (EDITION_TYPES as readonly string[]).includes(value);
+}
+
+/** Return whether a runtime value is a supported physical box type. */
+export function isValidBoxType(value: unknown): value is BoxType {
+  return typeof value === 'string' && (BOX_TYPES as readonly string[]).includes(value);
+}
+
 export interface Screenshot {
   id?: string;
   url: string;

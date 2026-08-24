@@ -4,10 +4,6 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import {
-  STATUSES,
-  EDITION_TYPES,
-  LOCATIONS,
-  BOX_TYPES,
   type BoxType,
   type CollectionCardItem,
   type CollectionFields,
@@ -25,6 +21,14 @@ import {
   type Stats,
   type Status,
 } from './types';
+import { SHELF_MAX, SHELF_MIN } from './shelf-limits';
+export {
+  isValidBoxType,
+  isValidEditionType,
+  isValidLocation,
+  isValidStatus,
+} from './types';
+export { SHELF_MAX, SHELF_MIN } from './shelf-limits';
 import { pushStatusToVndb } from './vndb-sync';
 import {
   aspectKeyForResolution,
@@ -5269,26 +5273,6 @@ function computeAggregateStats(): AggregateStats {
   };
 }
 
-/** Type-guard: is `v` a valid `Status` enum value? */
-export function isValidStatus(v: unknown): v is Status {
-  return typeof v === 'string' && (STATUSES as readonly string[]).includes(v);
-}
-
-/** Type-guard: is `v` a valid `Location` enum value? */
-export function isValidLocation(v: unknown): v is Location {
-  return typeof v === 'string' && (LOCATIONS as readonly string[]).includes(v);
-}
-
-/** Type-guard: is `v` a valid `EditionType` enum value? */
-export function isValidEditionType(v: unknown): v is EditionType {
-  return typeof v === 'string' && (EDITION_TYPES as readonly string[]).includes(v);
-}
-
-/** Type-guard: is `v` a valid `BoxType` enum value? */
-export function isValidBoxType(v: unknown): v is BoxType {
-  return typeof v === 'string' && (BOX_TYPES as readonly string[]).includes(v);
-}
-
 export interface CollectionTagAggregate {
   id: string;
   name: string;
@@ -6196,13 +6180,6 @@ export interface ShelfUnit {
 export interface ShelfUnitWithCount extends ShelfUnit {
   placed_count: number;
 }
-
-/** Smallest persisted shelf dimension accepted by the shelf editor. */
-export const SHELF_MIN = 1;
-// Sanity ceiling so a typo (e.g. cols=99999) doesn't blow up the
-// renderer or the DB. Plenty of headroom for any real-world bookcase.
-/** Largest persisted shelf dimension accepted by the shelf editor. */
-export const SHELF_MAX = 200;
 
 function clampShelfDim(n: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
