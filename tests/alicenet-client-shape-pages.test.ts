@@ -162,7 +162,7 @@ describe('decodeAliceNetItem field-level rejections', () => {
 
   it('accepts a populated row and lowercases the VN id', () => {
     const result = decodeAliceNetStockPage({
-      items: [{ ...baseItem, vn_id: 'V42', egs_id: 7, vn_match_source: 'manual', egs_match_source: 'auto', egs_title: 'EGS title' }],
+      items: [{ ...baseItem, vn_id: 'V42', egs_id: 7, vn_match_source: 'manual', egs_match_source: 'manual', egs_title: 'EGS title' }],
       page,
     });
     expect(result?.items[0]?.vn_id).toBe('v42');
