@@ -108,6 +108,17 @@ describe('route loading skeletons', () => {
     }
   });
 
+  it('matches the VN detail hero, cover overlap, metadata, media, and section geometry', async () => {
+    const html = renderToStaticMarkup(await VnLoading());
+    expect(html).toContain('h-64 w-full');
+    expect(html).toContain('-mt-44');
+    expect(html).toContain('md:grid-cols-[260px_1fr]');
+    expect(html).toContain('max-w-[260px]');
+    expect(html).toContain('grid-cols-3');
+    expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
+    expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>
