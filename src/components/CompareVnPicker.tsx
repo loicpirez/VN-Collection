@@ -237,6 +237,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
           {selected.length < 4 && !showAdd && (
             <button
               type="button"
+              data-shortcut="compare-add-vn"
               onClick={() => {
                 setShowAdd(true);
                 if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
@@ -353,6 +354,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
+          data-shortcut="compare-run"
           onClick={compare}
           disabled={selected.length < 2}
           className="btn btn-primary inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
