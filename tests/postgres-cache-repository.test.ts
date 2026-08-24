@@ -189,6 +189,11 @@ describe('cache repository', () => {
       by_path: [],
     });
     expect(mocks.postgresQuery.mock.calls[0]?.[1]).toEqual([800]);
+    const pathQuery = String(mocks.postgresQuery.mock.calls[1]?.[0]);
+    expect(pathQuery).toContain('FROM (');
+    expect(pathQuery).toContain("GROUP BY SPLIT_PART(cache_key, '|', 1)");
+    expect(pathQuery).toContain('ORDER BY grouped.n DESC, grouped.path COLLATE "C"');
+    expect(pathQuery).not.toContain('GROUP BY path');
   });
 
   it('reports PostgreSQL database status and every token source', async () => {

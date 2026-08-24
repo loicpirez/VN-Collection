@@ -62,6 +62,7 @@ import { createPostgresDiscoveryRepository } from '@/lib/db/repositories/discove
 import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity-name';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresEgsRepository } from '@/lib/db/repositories/egs';
+import { createPostgresCacheRepository } from '@/lib/db/repositories/cache';
 import { createPostgresVnAssetRepository } from '@/lib/db/repositories/vn-assets';
 import { createPostgresCollectionTransferRepository } from '@/lib/db/repositories/collection-transfer';
 import {
@@ -275,6 +276,48 @@ describe('real PostgreSQL migration runtime', () => {
         expect.objectContaining({ cache_key: 'raw:contract:json', body: { ok: true } }),
         expect.objectContaining({ cache_key: 'raw:contract:text', body: '{broken' }),
       ]);
+    });
+  });
+
+  it('groups cache statistics by path through the application repository', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const now = Date.now();
+      await pool.query(`
+        INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES
+          ('POST /vn|first', '{}', $1, $2),
+          ('POST /vn|second', '{"title":"two"}', $1, $2),
+          ('GET /stats|first', '[]', $1, $3)
+      `, [now - 100, now + 10_000, now - 10_000]);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-cache-stats-test';
+      try {
+        const stats = await createPostgresCacheRepository().stats();
+        expect(stats).toMatchObject({
+          total: 3,
+          fresh: 2,
+          stale: 1,
+          by_path: [
+            { path: 'POST /vn', n: 2 },
+            { path: 'GET /stats', n: 1 },
+          ],
+        });
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
     });
   });
 

@@ -190,10 +190,13 @@ export function createPostgresCacheRepository(): CacheRepository {
           FROM vndb_cache
         `, [now]),
         postgresQuery<{ path: string; n: number } & QueryResultRow>(`
-          SELECT SPLIT_PART(cache_key, '|', 1) AS path, COUNT(*) AS n
-          FROM vndb_cache
-          GROUP BY path
-          ORDER BY n DESC, path COLLATE "C"
+          SELECT grouped.path, grouped.n
+          FROM (
+            SELECT SPLIT_PART(cache_key, '|', 1) AS path, COUNT(*) AS n
+            FROM vndb_cache
+            GROUP BY SPLIT_PART(cache_key, '|', 1)
+          ) AS grouped
+          ORDER BY grouped.n DESC, grouped.path COLLATE "C"
           LIMIT 200
         `),
       ]);
