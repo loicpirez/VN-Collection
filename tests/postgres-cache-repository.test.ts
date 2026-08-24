@@ -123,10 +123,12 @@ describe('cache repository', () => {
     mocks.postgresQuery
       .mockResolvedValueOnce({ rows: [], rowCount: 2 })
       .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
       .mockResolvedValueOnce({ rows: [], rowCount: 3 })
       .mockResolvedValueOnce({ rows: [], rowCount: null });
 
     await expect(repository.pruneExpired()).resolves.toBe(2);
+    await expect(repository.pruneExpired()).resolves.toBe(0);
     await expect(repository.clear()).resolves.toBe(0);
     await expect(repository.deleteByPathPrefix('POST /vn')).resolves.toBe(3);
     await expect(repository.deleteByPathPrefix('POST /release')).resolves.toBe(0);
