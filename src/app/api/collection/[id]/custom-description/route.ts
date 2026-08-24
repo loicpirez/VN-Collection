@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isInCollection, setCustomDescription } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { recordActivity } from '@/lib/activity';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 
@@ -8,9 +8,9 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function logActivity(id: string, text: string | null) {
+async function logActivity(id: string, text: string | null): Promise<void> {
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'collection.custom-description',
       entity: 'vn',
       entityId: id,
@@ -39,12 +39,12 @@ async function applyPatch(req: NextRequest, id: string): Promise<NextResponse> {
   }
   const next = (raw as string | null) ?? null;
   try {
-    setCustomDescription(id, next);
+    await getCollectionCoreRepository().setCustomDescription(id, next);
   } catch (e) {
     console.error(`[custom-description:${id}] DB error:`, (e as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
-  logActivity(id, next);
+  await logActivity(id, next);
   return NextResponse.json({ ok: true });
 }
 
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return applyPatch(req, id);
 }
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   return applyPatch(req, id);
 }
 
@@ -83,13 +83,14 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  const collection = getCollectionCoreRepository();
+  if (!await collection.contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   try {
-    setCustomDescription(id, null);
+    await collection.setCustomDescription(id, null);
   } catch (e) {
     console.error(`[custom-description:${id}] DB error:`, (e as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
-  logActivity(id, null);
+  await logActivity(id, null);
   return NextResponse.json({ ok: true });
 }

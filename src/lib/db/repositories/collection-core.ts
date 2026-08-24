@@ -7,6 +7,13 @@ import { postgresQuery, withPostgresTransaction, type PostgresParameter } from '
 /** Mutable fields accepted by collection create and update operations. */
 export type CollectionCorePatch = Partial<Omit<CollectionFields, 'added_at' | 'updated_at'>>;
 
+/** Metadata fields that can select a preferred upstream source. */
+export type CollectionSourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
+/** Supported source-selection values. */
+export type CollectionSourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
+/** Sparse per-field source-selection map. */
+export type CollectionSourcePreferences = Partial<Record<CollectionSourceField, CollectionSourceChoice>>;
+
 interface CollectionSnapshotRow extends QueryResultRow {
   status: string | null;
   user_rating: number | null;
@@ -22,6 +29,10 @@ interface PhysicalLocationRow extends QueryResultRow {
 
 interface VnIdRow extends QueryResultRow {
   vn_id: string;
+}
+
+interface SourcePreferenceRow extends QueryResultRow {
+  source_pref: string | null;
 }
 
 interface CollectionFieldUpdate {
@@ -47,6 +58,42 @@ export interface CollectionCoreRepository {
   resetCustomOrder(): Promise<void>;
   /** List every VN id currently in the collection. */
   listIds(): Promise<string[]>;
+  /** Set or clear the normalized user-authored synopsis. */
+  setCustomDescription(vnId: string, text: string | null): Promise<void>;
+  /** Read validated per-field source preferences. */
+  getSourcePreferences(vnId: string): Promise<CollectionSourcePreferences>;
+  /** Persist non-default per-field source preferences. */
+  setSourcePreferences(vnId: string, preferences: CollectionSourcePreferences): Promise<void>;
+}
+
+const SOURCE_FIELDS = new Set<CollectionSourceField>(['title', 'description', 'image', 'brand', 'rating', 'playtime']);
+const SOURCE_CHOICES = new Set<CollectionSourceChoice>(['auto', 'vndb', 'egs', 'custom']);
+
+function decodeSourcePreferences(raw: string | null): CollectionSourcePreferences {
+  if (!raw) return {};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const result: CollectionSourcePreferences = {};
+    for (const [field, choice] of Object.entries(value as Record<string, unknown>)) {
+      if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice)) {
+        result[field as CollectionSourceField] = choice as CollectionSourceChoice;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function encodeSourcePreferences(preferences: CollectionSourcePreferences): string | null {
+  const normalized: CollectionSourcePreferences = {};
+  for (const [field, choice] of Object.entries(preferences)) {
+    if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice) && choice !== 'auto') {
+      normalized[field as CollectionSourceField] = choice as CollectionSourceChoice;
+    }
+  }
+  return Object.keys(normalized).length > 0 ? JSON.stringify(normalized) : null;
 }
 
 function collectionFieldUpdates(fields: CollectionCorePatch): CollectionFieldUpdate[] {
@@ -227,6 +274,26 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
       const result = await postgresQuery<VnIdRow>('SELECT vn_id FROM collection');
       return result.rows.map((row) => row.vn_id);
     },
+    async setCustomDescription(vnId, text) {
+      const cleaned = text == null ? null : text.trim();
+      await postgresQuery(
+        'UPDATE collection SET custom_description = $1, updated_at = $2 WHERE vn_id = $3',
+        [cleaned ? cleaned.slice(0, 8000) : null, Date.now(), vnId],
+      );
+    },
+    async getSourcePreferences(vnId) {
+      const result = await postgresQuery<SourcePreferenceRow>(
+        'SELECT source_pref FROM collection WHERE vn_id = $1',
+        [vnId],
+      );
+      return decodeSourcePreferences(result.rows[0]?.source_pref ?? null);
+    },
+    async setSourcePreferences(vnId, preferences) {
+      await postgresQuery(
+        'UPDATE collection SET source_pref = $1, updated_at = $2 WHERE vn_id = $3',
+        [encodeSourcePreferences(preferences), Date.now(), vnId],
+      );
+    },
   };
 }
 
@@ -254,6 +321,15 @@ const sqliteRepository: CollectionCoreRepository = {
   },
   async listIds() {
     return (await import('@/lib/db')).listInCollectionVnIds();
+  },
+  async setCustomDescription(vnId, text) {
+    (await import('@/lib/db')).setCustomDescription(vnId, text);
+  },
+  async getSourcePreferences(vnId) {
+    return (await import('@/lib/db')).getSourcePref(vnId);
+  },
+  async setSourcePreferences(vnId, preferences) {
+    (await import('@/lib/db')).setSourcePref(vnId, preferences);
   },
 };
 

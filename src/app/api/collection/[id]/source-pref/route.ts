@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getSourcePref,
-  isInCollection,
-  setSourcePref,
-  type SourceChoice,
-  type SourceField,
-  type SourcePrefMap,
-} from '@/lib/db';
+  getCollectionCoreRepository,
+  type CollectionSourceChoice as SourceChoice,
+  type CollectionSourceField as SourceField,
+  type CollectionSourcePreferences as SourcePrefMap,
+} from '@/lib/db/repositories/collection-core';
 import { recordActivity } from '@/lib/activity';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
@@ -25,8 +23,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  return NextResponse.json({ pref: getSourcePref(id) });
+  const collection = getCollectionCoreRepository();
+  if (!await collection.contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  return NextResponse.json({ pref: await collection.getSourcePreferences(id) });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -36,9 +35,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  const collection = getCollectionCoreRepository();
+  if (!await collection.contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
-  const next: SourcePrefMap = { ...getSourcePref(id) };
+  const next: SourcePrefMap = { ...await collection.getSourcePreferences(id) };
   for (const key of Object.keys(body)) {
     if (!(VALID_FIELDS as string[]).includes(key)) {
       return NextResponse.json({ error: 'unknown field' }, { status: 400 });
@@ -49,9 +49,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     next[key as SourceField] = value as SourceChoice;
   }
-  setSourcePref(id, next);
+  await collection.setSourcePreferences(id, next);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'collection.source-pref',
       entity: 'vn',
       entityId: id,
@@ -61,5 +61,5 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } catch (e) {
     console.error(`[source-pref:${id}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ pref: getSourcePref(id) });
+  return NextResponse.json({ pref: await collection.getSourcePreferences(id) });
 }

@@ -130,6 +130,18 @@ export function registerCoreRepositoryContract(label: string, harness: CoreContr
           physical_location: ['Room B'],
         });
 
+        await collection.setCustomDescription(CORE_CONTRACT_IDS.firstVn, '  Updated personal synopsis  ');
+        await expect(read.getCollectionItem(CORE_CONTRACT_IDS.firstVn)).resolves.toMatchObject({
+          custom_description: 'Updated personal synopsis',
+        });
+        await collection.setSourcePreferences(CORE_CONTRACT_IDS.firstVn, {
+          description: 'egs',
+          image: 'auto',
+        });
+        await expect(collection.getSourcePreferences(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual({
+          description: 'egs',
+        });
+
         await collection.setCustomOrder([
           CORE_CONTRACT_IDS.secondVn,
           CORE_CONTRACT_IDS.firstVn,
