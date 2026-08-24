@@ -729,6 +729,7 @@ async function runRecommendForSeeds(
     staffCount?: Map<string, number>;
   },
 ): Promise<Recommendation[]> {
+  if (resultLimit <= 0) return [];
   // Mode-specific upstream vote floor. `highly-rated` restricts to
   // popular titles (≥100 votes). `hidden-gems` uses a low floor (≥5)
   // to catch genuinely obscure VNs before the post-fetch votecount

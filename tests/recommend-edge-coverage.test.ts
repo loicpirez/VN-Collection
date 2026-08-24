@@ -25,6 +25,7 @@ vi.mock('@/lib/vndb-recommend', () => ({
 
 import { addToCollection, listShelves } from '@/lib/db';
 import { recommendVns } from '@/lib/recommend';
+import { vndbAdvancedSearchRaw } from '@/lib/vndb-recommend';
 
 listShelves();
 const db = new Database(process.env.DB_PATH!);
@@ -63,9 +64,29 @@ beforeEach(() => {
     DELETE FROM vndb_cache WHERE cache_key LIKE '%edge%';
   `);
   POOL.clear();
+  vi.mocked(vndbAdvancedSearchRaw).mockClear();
 });
 
 describe('recommendVns edge contracts', () => {
+  it('returns seed metadata without an upstream fan-out when no results are requested', async () => {
+    insertVn('v980000', [{ id: 'gEdgePreview', name: 'preview', rating: 2 }]);
+
+    const result = await recommendVns({
+      mode: 'similar-to-vn',
+      seedVnId: 'v980000',
+      resultLimit: 0,
+    });
+
+    expect(result.seeds).toEqual([{
+      tagId: 'gEdgePreview',
+      name: 'preview',
+      weight: 2,
+      contributors: ['v980000'],
+    }]);
+    expect(result.results).toEqual([]);
+    expect(vndbAdvancedSearchRaw).not.toHaveBeenCalled();
+  });
+
   it('returns a clean empty similar result when a valid anchor has no usable tags', async () => {
     insertVn('v980001', []);
 
