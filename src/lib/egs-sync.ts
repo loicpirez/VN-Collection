@@ -54,15 +54,13 @@ export async function computeEgsSuggestions(): Promise<{
 
   const egsIds = rows.map((r) => r.egs_id);
   const linked = await getEgsRepository().listCollectionSyncRows(egsIds);
-  const byEgsId = new Map(linked.map((r) => [r.egs_id, r.vn_id]));
-  const local = new Map(linked.map((r) => [r.vn_id, r]));
+  const localByEgsId = new Map(linked.map((row) => [row.egs_id, row]));
 
   const suggestions: EgsSuggestion[] = [];
   for (const r of rows) {
-    const vnId = byEgsId.get(r.egs_id);
-    if (!vnId) continue;
-    const localItem = local.get(vnId);
+    const localItem = localByEgsId.get(r.egs_id);
     if (!localItem) continue;
+    const vnId = localItem.vn_id;
     const egsMinutes = r.total_play_time_hours != null ? Math.round(r.total_play_time_hours * 60) : null;
     const localMinutes = localItem.playtime_minutes;
     const hasPlaytimeJump = egsMinutes != null && egsMinutes > localMinutes;
