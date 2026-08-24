@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollectionItem, setCustomCover, setCoverRotation, normalizeRotation } from '@/lib/db';
+import { getVnAssetRepository, normalizeArtworkRotation } from '@/lib/db/repositories/vn-assets';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  const item = getCollectionItem(id);
+  const reader = getVnReadRepository();
+  const item = await reader.getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
   const ct = req.headers.get('content-type') ?? '';
@@ -69,9 +71,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       throw e;
     }
-    setCustomCover(id, path);
-    recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Uploaded cover', payload: { source: 'upload' } });
-    return NextResponse.json({ item: getCollectionItem(id), cover: path });
+    await getVnAssetRepository().patchArtwork(id, { customCover: path });
+    await recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Uploaded cover', payload: { source: 'upload' } });
+    return NextResponse.json({ item: await reader.getCollectionItem(id), cover: path });
   }
 
   const body = (await readJsonObject(req)) as { source?: string; value?: string };
@@ -97,9 +99,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'invalid source' }, { status: 400 });
   }
 
-  setCustomCover(id, next);
-  recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Set cover', payload: { source } });
-  return NextResponse.json({ item: getCollectionItem(id), cover: next });
+  await getVnAssetRepository().patchArtwork(id, { customCover: next });
+  await recordActivity({ kind: 'cover.set', entity: 'vn', entityId: id, label: 'Set cover', payload: { source } });
+  return NextResponse.json({ item: await reader.getCollectionItem(id), cover: next });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -111,16 +113,16 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const id = normalizeVnId(rawId);
   // Fail loudly when the row isn't in collection — consistent with
   // other DELETE routes and avoids masking stale optimistic UI.
-  if (!getCollectionItem(id)) {
+  const reader = getVnReadRepository();
+  if (!await reader.getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
-  setCustomCover(id, null);
   // Rotation is metadata on the cover. Resetting the cover wipes the
   // rotation too so the user doesn't have to chase a stale 90deg flag
   // back to 0 manually after picking a fresh image.
-  setCoverRotation(id, 0);
-  recordActivity({ kind: 'cover.reset', entity: 'vn', entityId: id, label: 'Reset cover' });
-  return NextResponse.json({ item: getCollectionItem(id) });
+  await getVnAssetRepository().patchArtwork(id, { customCover: null, coverRotation: 0 });
+  await recordActivity({ kind: 'cover.reset', entity: 'vn', entityId: id, label: 'Reset cover' });
+  return NextResponse.json({ item: await reader.getCollectionItem(id) });
 }
 
 /**
@@ -136,15 +138,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!getCollectionItem(id)) {
+  const reader = getVnReadRepository();
+  if (!await reader.getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
   const body = (await readJsonObject(req)) as { rotation?: unknown };
   if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
     return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
   }
-  const next = normalizeRotation(body.rotation);
-  setCoverRotation(id, next);
-  recordActivity({ kind: 'cover.rotate', entity: 'vn', entityId: id, label: 'Rotated cover', payload: { rotation: next } });
-  return NextResponse.json({ item: getCollectionItem(id), rotation: next });
+  const next = normalizeArtworkRotation(body.rotation);
+  await getVnAssetRepository().patchArtwork(id, { coverRotation: next });
+  await recordActivity({ kind: 'cover.rotate', entity: 'vn', entityId: id, label: 'Rotated cover', payload: { rotation: next } });
+  return NextResponse.json({ item: await reader.getCollectionItem(id), rotation: next });
 }

@@ -52,5 +52,23 @@ export function registerQuoteRepositoryContract(
         });
       });
     });
+
+    it('atomically replaces one VN quote mirror', async () => {
+      await harness.withRepository(async (repository) => {
+        await repository.replaceForVn(QUOTE_CONTRACT_IDS.firstVn, [{
+          id: 'q994399',
+          quote: 'Replacement quote',
+          score: 7,
+          character: { id: 'c994399', name: 'Replacement Character' },
+        }]);
+        await expect(repository.list()).resolves.toMatchObject([{
+          quote_id: 'q994399',
+          quote: 'Replacement quote',
+          character_id: 'c994399',
+        }]);
+        await repository.replaceForVn(QUOTE_CONTRACT_IDS.firstVn, []);
+        await expect(repository.list()).resolves.toEqual([]);
+      });
+    });
   });
 }

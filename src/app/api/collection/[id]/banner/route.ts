@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  db,
-  getCollectionItem,
-  normalizeRotation,
-  setBanner,
-  setBannerPosition,
-  setBannerRotation,
-} from '@/lib/db';
+import { getVnAssetRepository, normalizeArtworkRotation } from '@/lib/db/repositories/vn-assets';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { isValidImageSourceValue, saveUpload, UnsupportedFileType } from '@/lib/files';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
@@ -42,7 +36,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  const item = getCollectionItem(id);
+  const reader = getVnReadRepository();
+  const item = await reader.getCollectionItem(id);
   if (!item) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
 
   const ct = req.headers.get('content-type') ?? '';
@@ -75,9 +70,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       throw e;
     }
-    setBanner(id, path);
-    recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Uploaded banner', payload: { source: 'upload' } });
-    return NextResponse.json({ item: getCollectionItem(id), banner: path });
+    await getVnAssetRepository().patchArtwork(id, { bannerImage: path });
+    await recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Uploaded banner', payload: { source: 'upload' } });
+    return NextResponse.json({ item: await reader.getCollectionItem(id), banner: path });
   }
 
   const body = (await readJsonObject(req)) as { source?: string; value?: string };
@@ -107,9 +102,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (next && !isValidImageSourceValue(next)) {
     return NextResponse.json({ error: 'invalid image source' }, { status: 400 });
   }
-  setBanner(id, next);
-  recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Set banner', payload: { source } });
-  return NextResponse.json({ item: getCollectionItem(id), banner: next });
+  await getVnAssetRepository().patchArtwork(id, { bannerImage: next });
+  await recordActivity({ kind: 'banner.set', entity: 'vn', entityId: id, label: 'Set banner', payload: { source } });
+  return NextResponse.json({ item: await reader.getCollectionItem(id), banner: next });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -119,7 +114,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  const reader = getVnReadRepository();
+  if (!await reader.getCollectionItem(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     position?: string | null;
     rotation?: unknown;
@@ -145,19 +141,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (typeof body.rotation !== 'number' || !Number.isFinite(body.rotation)) {
       return NextResponse.json({ error: 'rotation must be a number' }, { status: 400 });
     }
-    nextRotation = normalizeRotation(body.rotation);
+    nextRotation = normalizeArtworkRotation(body.rotation);
   }
-  db.transaction(() => {
-    if (hasPosition) setBannerPosition(id, nextPosition);
-    if (hasRotation) setBannerRotation(id, nextRotation);
-  })();
+  await getVnAssetRepository().patchArtwork(id, {
+    bannerPosition: hasPosition ? nextPosition : undefined,
+    bannerRotation: hasRotation ? nextRotation : undefined,
+  });
   if (hasPosition) {
-    recordActivity({ kind: 'banner.position', entity: 'vn', entityId: id, label: 'Updated banner position', payload: { position: nextPosition } });
+    await recordActivity({ kind: 'banner.position', entity: 'vn', entityId: id, label: 'Updated banner position', payload: { position: nextPosition } });
   }
   if (hasRotation) {
-    recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: nextRotation } });
+    await recordActivity({ kind: 'banner.rotate', entity: 'vn', entityId: id, label: 'Rotated banner', payload: { rotation: nextRotation } });
   }
-  return NextResponse.json({ item: getCollectionItem(id) });
+  return NextResponse.json({ item: await reader.getCollectionItem(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -167,14 +163,15 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!getCollectionItem(id)) {
+  const reader = getVnReadRepository();
+  if (!await reader.getCollectionItem(id)) {
     return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   }
-  db.transaction(() => {
-    setBanner(id, null);
-    setBannerPosition(id, null);
-    setBannerRotation(id, 0);
-  })();
-  recordActivity({ kind: 'banner.reset', entity: 'vn', entityId: id, label: 'Reset banner' });
-  return NextResponse.json({ item: getCollectionItem(id) });
+  await getVnAssetRepository().patchArtwork(id, {
+    bannerImage: null,
+    bannerPosition: null,
+    bannerRotation: 0,
+  });
+  await recordActivity({ kind: 'banner.reset', entity: 'vn', entityId: id, label: 'Reset banner' });
+  return NextResponse.json({ item: await reader.getCollectionItem(id) });
 }

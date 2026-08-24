@@ -10,6 +10,16 @@ export interface QuoteRepository {
   list(query?: string, limit?: number, offset?: number): Promise<QuoteWithVn[]>;
   /** Pick one quote from the local collection mirror. */
   randomLocal(): Promise<LocalQuote | null>;
+  /** Replace every mirrored quote for one VN atomically. */
+  replaceForVn(vnId: string, quotes: readonly MirroredQuote[]): Promise<void>;
+}
+
+/** Minimal VNDB quote payload persisted by the local mirror. */
+export interface MirroredQuote {
+  id: string;
+  quote: string;
+  score: number;
+  character: { id: string; name: string } | null;
 }
 
 interface QuoteRow extends QuoteWithVn, QueryResultRow {}
@@ -78,6 +88,18 @@ export function createPostgresQuoteRepository(): QuoteRepository {
       `);
       return result.rows[0] ?? null;
     },
+    async replaceForVn(vnId, quotes) {
+      await (await import('../postgres')).withPostgresTransaction(async (client) => {
+        await client.query('DELETE FROM vn_quote WHERE vn_id = $1', [vnId]);
+        const fetchedAt = Date.now();
+        for (const quote of quotes) {
+          await client.query(`
+            INSERT INTO vn_quote (quote_id, vn_id, quote, score, character_id, character_name, fetched_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `, [quote.id, vnId, quote.quote, quote.score, quote.character?.id ?? null, quote.character?.name ?? null, fetchedAt]);
+        }
+      });
+    },
   };
 }
 
@@ -87,6 +109,9 @@ const sqliteRepository: QuoteRepository = {
   },
   async randomLocal() {
     return (await import('@/lib/db')).getRandomLocalQuote();
+  },
+  async replaceForVn(vnId, quotes) {
+    (await import('@/lib/db')).setQuotesForVn(vnId, [...quotes]);
   },
 };
 

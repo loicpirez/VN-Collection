@@ -1,17 +1,10 @@
 import 'server-only';
 import { downloadToBucket, fileExists } from './files';
-import {
-  getCharacterImages,
-  getCollectionItem,
-  getEgsForVn,
-  setEgsLocalImage,
-  setLocalImagePaths,
-  setLocalScreenshots,
-  setQuotesForVn,
-  setReleaseImages,
-  setVnPublishers,
-  upsertCharacterImage,
-} from './db';
+import { getEgsRepository } from './db/repositories/egs';
+import { getPeopleRepository } from './db/repositories/people';
+import { getQuoteRepository } from './db/repositories/quote';
+import { getVnAssetRepository } from './db/repositories/vn-assets';
+import { getVnReadRepository } from './db/repositories/vn-read';
 import { getCharactersForVn, getQuotesForVn, getReleasesForVn } from './vndb';
 import { resolveEgsForVn } from './erogamescape';
 import type { ReleaseImage, Screenshot } from './types';
@@ -54,7 +47,7 @@ export function ensureLocalImagesForVn(vnId: string): Promise<EnsureResult> {
 }
 
 async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> {
-  const item = getCollectionItem(vnId);
+  const item = await getVnReadRepository().getCollectionItem(vnId);
   if (!item) return { poster: null, posterThumb: null, screenshots: [], releaseImages: [] };
 
   let poster = item.local_image;
@@ -75,7 +68,7 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
     }
   }
   if (poster !== item.local_image || thumb !== item.local_image_thumb) {
-    setLocalImagePaths(vnId, poster, thumb);
+    await getVnAssetRepository().setLocalImages(vnId, poster, thumb);
   }
 
   // Screenshots: download up to 4 in parallel. VNDB's CDN is happy
@@ -122,7 +115,7 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
     );
   }
   await Promise.all(workers);
-  if (mutated) setLocalScreenshots(vnId, next);
+  if (mutated) await getVnAssetRepository().setScreenshots(vnId, next);
 
   // Release / package images (pkgfront, pkgback, pkgcontent, pkgside, pkgmed, dig)
   const releaseImages = await fetchAndDownloadReleaseImages(vnId);
@@ -137,7 +130,7 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
   }
   try {
     const quotes = await getQuotesForVn(vnId);
-    setQuotesForVn(vnId, quotes);
+    await getQuoteRepository().replaceForVn(vnId, quotes);
   } catch {
     // ignore — quotes may be unavailable
   }
@@ -151,11 +144,12 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
 
   // Mirror the EGS cover locally so it survives offline / EGS being down.
   try {
-    const egs = getEgsForVn(vnId);
+    const egsRepository = getEgsRepository();
+    const egs = await egsRepository.getForVn(vnId);
     if (egs?.egs_id && egs.image_url && (!egs.local_image || !(await fileExists(egs.local_image)))) {
       try {
         const path = await downloadToBucket(egs.image_url, 'vnImage', `${vnId}-egs-cover`);
-        setEgsLocalImage(vnId, path);
+        await egsRepository.setLocalImage(vnId, path);
       } catch {
         // EGS doesn't always have a cover — silently skip
       }
@@ -170,7 +164,8 @@ async function ensureLocalImagesForVnInner(vnId: string): Promise<EnsureResult> 
 async function downloadCharacterImages(characters: VndbCharacter[]): Promise<void> {
   if (characters.length === 0) return;
   const ids = characters.map((c) => c.id);
-  const existing = getCharacterImages(ids);
+  const people = getPeopleRepository();
+  const existing = await people.characterImages(ids);
   const CONCURRENCY = 4;
   let cursor = 0;
   async function workOne(c: VndbCharacter): Promise<void> {
@@ -179,7 +174,7 @@ async function downloadCharacterImages(characters: VndbCharacter[]): Promise<voi
     if (prev?.local_path && prev.url === c.image.url && (await fileExists(prev.local_path))) return;
     try {
       const local = await downloadToBucket(c.image.url, 'character', c.id);
-      upsertCharacterImage(c.id, c.image.url, local);
+      await people.upsertCharacterImage(c.id, c.image.url, local);
     } catch {
       // ignore — image may be unavailable
     }
@@ -213,7 +208,7 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
   }
   if (!releases) return [];
 
-  const existing = getCollectionItem(vnId)?.release_images ?? [];
+  const existing = (await getVnReadRepository().getCollectionItem(vnId))?.release_images ?? [];
   const existingByKey = new Map(existing.map((img) => [`${img.release_id}:${img.id}`, img]));
 
   // Aggregate publishers across every release of this VN. VNDB only
@@ -233,7 +228,7 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
       publishers.push({ id: p.id, name: p.name });
     }
   }
-  setVnPublishers(vnId, publishers);
+  await getVnAssetRepository().setPublishers(vnId, publishers);
 
   const out: ReleaseImage[] = [];
   let idx = 0;
@@ -275,6 +270,6 @@ async function fetchAndDownloadReleaseImages(vnId: string): Promise<ReleaseImage
       out.push(base);
     }
   }
-  setReleaseImages(vnId, out);
+  await getVnAssetRepository().setReleaseImages(vnId, out);
   return out;
 }

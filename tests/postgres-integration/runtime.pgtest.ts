@@ -56,6 +56,7 @@ import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route'
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresEgsRepository } from '@/lib/db/repositories/egs';
+import { createPostgresVnAssetRepository } from '@/lib/db/repositories/vn-assets';
 import {
   registerShelfRepositoryContract,
   SHELF_CONTRACT_IDS,
@@ -105,6 +106,11 @@ import {
   QUOTE_CONTRACT_IDS,
   registerQuoteRepositoryContract,
 } from '../database-contract/quote.contract';
+import {
+  registerVnAssetRepositoryContract,
+  VN_ASSET_CONTRACT_IDS,
+  type VnAssetContractSnapshot,
+} from '../database-contract/vn-assets.contract';
 import {
   EGS_OVERVIEW_CONTRACT_IDS,
   registerEgsOverviewRepositoryContract,
@@ -1711,6 +1717,54 @@ registerEgsRepositoryContract('PostgreSQL', {
       process.env.DATABASE_APPLICATION_NAME = 'vndb-egs-contract';
       try {
         await run(createPostgresEgsRepository());
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+    });
+  },
+});
+
+registerVnAssetRepositoryContract('PostgreSQL', {
+  async withRepository(run) {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query('INSERT INTO vn (id, title, fetched_at) VALUES ($1, $2, 1)', [
+        VN_ASSET_CONTRACT_IDS.vn,
+        'Asset Contract VN',
+      ]);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-vn-asset-contract';
+      try {
+        await run(createPostgresVnAssetRepository(), async () => {
+          const rowResult = await pool.query<Omit<VnAssetContractSnapshot, 'publisherIds'> & QueryResultRow>(`
+            SELECT custom_cover AS "customCover", cover_rotation AS "coverRotation",
+              banner_image AS "bannerImage", banner_position AS "bannerPosition",
+              banner_rotation AS "bannerRotation", local_image AS "localImage",
+              local_image_thumb AS "localImageThumb", screenshots,
+              release_images AS "releaseImages", publishers
+            FROM vn WHERE id = $1
+          `, [VN_ASSET_CONTRACT_IDS.vn]);
+          const publisherResult = await pool.query<{ producer_id: string } & QueryResultRow>(`
+            SELECT producer_id FROM vn_publisher_index WHERE vn_id = $1 ORDER BY producer_id
+          `, [VN_ASSET_CONTRACT_IDS.vn]);
+          return {
+            ...rowResult.rows[0]!,
+            publisherIds: publisherResult.rows.map((row) => row.producer_id),
+          };
+        });
       } finally {
         await closePostgresPool();
         if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
