@@ -778,6 +778,10 @@ for (const { name, fn } of checks) {
   const checkContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await checkContext.addInitScript(() => {
     window.localStorage.setItem('vn_tour_completed_v1', '1');
+    // Interaction QA performs many full-document navigations. Use the
+    // production polling fallback here so canceled dev-server SSE streams
+    // cannot accumulate inside Next and stall unrelated route assertions.
+    Reflect.deleteProperty(window, 'EventSource');
   });
   const checkPage = await checkContext.newPage();
   checkPage.setDefaultTimeout(15000);
