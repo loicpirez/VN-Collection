@@ -22,7 +22,7 @@ describe('reusable client-island hydration', () => {
 
     expect(cover).toContain('setTab(initialTab(egsId, currentCustomCover))');
     expect(cover).toContain('setRotationState(currentRotation)');
-    expect(cover).toContain('}, [vnId, egsId, currentCustomCover, currentRotation])');
+    expect(cover).toContain('}, [vnId, egsId, currentCustomCover, currentRotation, initialOpen])');
     expect(shelf).toContain('const next = initialOverrides ?? { global: initialPrefs, shelves: {} }');
     expect(shelf).toContain('setOverrides(next)');
     expect(shelf).toContain("setScope('global')");
