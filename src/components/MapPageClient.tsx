@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -63,9 +64,11 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
+  const searchListboxId = useId();
 
   const [searchQ, setSearchQ] = useState('');
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+  const [activeSearchResult, setActiveSearchResult] = useState(-1);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchTarget, setSearchTarget] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
@@ -83,6 +86,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
       searchControllerRef.current = null;
       setSearching(false);
       setSearchResults([]);
+      setActiveSearchResult(-1);
       setSearchError(null);
     }
   }, []);
@@ -113,6 +117,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
     searchControllerRef.current = controller;
     setSearching(true);
     setSearchResults([]);
+    setActiveSearchResult(-1);
     setSearchError(null);
     try {
       const res = await fetch(
@@ -124,7 +129,10 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
       if (!data) throw new Error('invalid Nominatim payload');
       if (controller.signal.aborted || searchControllerRef.current !== controller) return;
       if (data.length === 0) setSearchError(t.map.searchEmpty as string);
-      else setSearchResults(data);
+      else {
+        setSearchResults(data);
+        setActiveSearchResult(0);
+      }
     } catch {
       if (!controller.signal.aborted && searchControllerRef.current === controller) setSearchError(t.map.searchError as string);
     } finally {
@@ -139,6 +147,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
     const target = { lat: Number(r.lat), lng: Number(r.lon), zoom: 14 };
     setSearchTarget(target);
     setSearchResults([]);
+    setActiveSearchResult(-1);
     setSearchQ('');
     setSearchError(null);
   }
@@ -149,7 +158,44 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
     setSearching(false);
     setSearchQ('');
     setSearchResults([]);
+    setActiveSearchResult(-1);
     setSearchError(null);
+  }
+
+  function handleSearchKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (searchResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSearchResult((current) => (current + 1) % searchResults.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSearchResult((current) => (current <= 0 ? searchResults.length - 1 : current - 1));
+        return;
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        setActiveSearchResult(0);
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        setActiveSearchResult(searchResults.length - 1);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        clearSearch();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        pickSearchResult(searchResults[activeSearchResult]);
+        return;
+      }
+    }
+    if (e.key === 'Enter') doSearch();
   }
 
   function handleSidebarClick(place: PlaceWithFiniteCoordinates) {
@@ -174,6 +220,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            data-shortcut="map-reset-view"
             onClick={handleResetView}
             className="btn btn-sm bg-bg-elev text-muted hover:text-white"
             title={t.map.resetView as string}
@@ -183,6 +230,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           </button>
           <button
             type="button"
+            data-shortcut="map-add-place"
             onClick={() => setShowAddModal(true)}
             className="btn btn-sm bg-accent text-bg hover:bg-accent/80"
           >
@@ -204,13 +252,18 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               aria-hidden
             />
             <input
+              data-vn-search
               className="input min-h-[44px] w-full pl-9 text-sm"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+              onKeyDown={handleSearchKeyDown}
               disabled={!externalNetworkAllowed}
               placeholder={t.map.searchPlaceholder as string}
               aria-label={t.map.searchPlaceholder as string}
+              role="combobox"
+              aria-expanded={searchResults.length > 0}
+              aria-controls={searchResults.length > 0 ? searchListboxId : undefined}
+              aria-activedescendant={activeSearchResult >= 0 ? `${searchListboxId}-option-${activeSearchResult}` : undefined}
             />
             {(searchQ || searchResults.length > 0) && (
               <button
@@ -237,15 +290,21 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         )}
         {searchResults.length > 0 && (
           <ul
+            id={searchListboxId}
             role="listbox"
             className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
           >
             {searchResults.map((r, i) => (
-              <li key={i} role="option" aria-selected={false}>
+              <li
+                key={i}
+                id={`${searchListboxId}-option-${i}`}
+                role="option"
+                aria-selected={activeSearchResult === i}
+              >
                 <button
                   type="button"
                   onClick={() => pickSearchResult(r)}
-                  className="min-h-[44px] w-full px-3 py-2 text-left text-[12px] text-muted hover:bg-bg-elev hover:text-white"
+                  className={`min-h-[44px] w-full px-3 py-2 text-left text-[12px] hover:bg-bg-elev hover:text-white ${activeSearchResult === i ? 'bg-bg-elev text-white' : 'text-muted'}`}
                 >
                   {r.display_name}
                 </button>
@@ -255,7 +314,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
         )}
       </div>
 
-      <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label={t.map.mapSizeLabel as string}>
+      <div className="mb-4 grid grid-cols-2 gap-1 sm:flex sm:items-center sm:justify-end" role="group" aria-label={t.map.mapSizeLabel as string}>
         {(['compact', 'normal', 'large', 'tall'] as const).map((s) => (
           <button
             key={s}

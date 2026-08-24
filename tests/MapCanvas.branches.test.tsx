@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import type { PlaceWithLinks } from '@/lib/db';
+import { dictionaries, type Locale } from '@/lib/i18n/dictionaries';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -45,6 +46,11 @@ const leaflet = vi.hoisted(() => {
     setView: (c: [number, number], z: number) => FakeMap;
     getCenter: () => { lat: number; lng: number };
     getZoom: () => number;
+    getBounds: () => {
+      pad: (ratio: number) => {
+        contains: (c: [number, number]) => boolean;
+      };
+    };
     invalidateSize: () => void;
     remove: () => void;
   }
@@ -86,6 +92,14 @@ const leaflet = vi.hoisted(() => {
       setView: (c, z) => { map.center = c; map.zoom = z; return map; },
       getCenter: () => ({ lat: map.center[0], lng: map.center[1] }),
       getZoom: () => map.zoom,
+      getBounds: () => ({
+        pad: (ratio) => ({
+          contains: ([lat, lng]) => {
+            const radius = 2 * (1 + ratio);
+            return Math.abs(lat - map.center[0]) <= radius && Math.abs(lng - map.center[1]) <= radius;
+          },
+        }),
+      }),
       invalidateSize: () => { map.invalidated += 1; },
       remove: () => { map.removed = true; },
     };
@@ -268,6 +282,47 @@ describe('MapCanvas branches', () => {
     expect(html).toContain('A &amp; B &lt;x&gt;');
   });
 
+  it('escapes every interpolated popup field before giving HTML to Leaflet', () => {
+    const malicious = '<img src=x onerror=alert(1)>&"\'';
+    render(
+      <MapCanvas
+        places={[place({ id: 1, lat: 10, lng: 20, name: malicious, name_ja: malicious, address: '<address>', stock_count: 2, provider_labels: ['p'] })]}
+        externalNetworkAllowed
+        popupOpenLabel="<open>"
+        popupStockLabel={() => '<stock>'}
+        popupBranchesLabel={() => '<branches>'}
+      />,
+    );
+    const html = leaflet.state.markers[0].popupHtml;
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<open>');
+    expect(html).not.toContain('<stock>');
+    expect(html).not.toContain('<branches>');
+    expect(html).not.toContain('<address>');
+    expect(html).not.toContain('&lt;address&gt;');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;&amp;&quot;&#39;');
+    expect(html).toContain('&lt;open&gt;');
+    expect(html).toContain('&lt;stock&gt;');
+    expect(html).toContain('&lt;branches&gt;');
+  });
+
+  it.each(['en', 'fr', 'ja'] as const)('uses localized popup labels for %s', (locale: Locale) => {
+    const t = dictionaries[locale];
+    render(
+      <MapCanvas
+        places={[place({ id: 1, lat: 10, lng: 20, stock_count: 3, provider_labels: ['A', 'B'] })]}
+        externalNetworkAllowed
+        popupOpenLabel={t.map.popupOpen}
+        popupStockLabel={(n) => t.map.popupStock.replace('{n}', String(n))}
+        popupBranchesLabel={(n) => (n === 1 ? t.map.popupBranch : t.map.popupBranches).replace('{n}', String(n))}
+      />,
+    );
+    const html = leaflet.state.markers[0].popupHtml;
+    expect(html).toContain(t.map.popupOpen);
+    expect(html).toContain(t.map.popupStock.replace('{n}', '3'));
+    expect(html).toContain(t.map.popupBranches.replace('{n}', '2'));
+  });
+
   it('invokes onMarkerFocus when a marker popup opens', () => {
     const onMarkerFocus = vi.fn();
     render(
@@ -306,6 +361,62 @@ describe('MapCanvas branches', () => {
     expect(markerTwo.remove).toHaveBeenCalled();
     // No third marker was created for the reused id.
     expect(leaflet.state.markers).toHaveLength(2);
+  });
+
+  it('bounds-filters large marker sets and resynchronizes after viewport movement', () => {
+    const places = Array.from({ length: 90 }, (_unused, index) => place({
+      id: index + 1,
+      lat: index,
+      lng: index,
+      name: `Shop ${index + 1}`,
+    }));
+    render(
+      <MapCanvas
+        places={places}
+        externalNetworkAllowed
+        {...labels}
+      />,
+    );
+    const map = lastMap();
+    const initialVisible = leaflet.state.markers.filter((marker) => !marker.removed);
+    expect(initialVisible).toHaveLength(3);
+    expect(initialVisible.map((marker) => marker.latlng[0])).toEqual([0, 1, 2]);
+
+    map.center = [50, 50];
+    map.handlers.moveend();
+
+    const movedVisible = leaflet.state.markers.filter((marker) => !marker.removed);
+    expect(movedVisible.map((marker) => marker.latlng[0])).toEqual([48, 49, 50, 51, 52]);
+    expect(initialVisible.every((marker) => marker.removed)).toBe(true);
+  });
+
+  it('keeps an explicitly focused place rendered outside the current large-set viewport', () => {
+    const places = Array.from({ length: 90 }, (_unused, index) => place({
+      id: index + 1,
+      lat: index,
+      lng: index,
+    }));
+    const { rerender } = render(
+      <MapCanvas
+        places={places}
+        externalNetworkAllowed
+        {...labels}
+      />,
+    );
+
+    rerender(
+      <MapCanvas
+        places={places}
+        focusId={90}
+        externalNetworkAllowed
+        {...labels}
+      />,
+    );
+
+    const focusedMarker = leaflet.state.markers.find((marker) => marker.latlng[0] === 89);
+    expect(focusedMarker?.removed).toBe(false);
+    vi.advanceTimersByTime(100);
+    expect(focusedMarker?.openPopup).toHaveBeenCalled();
   });
 
   it('removes a marker whose coordinates become invalid', () => {

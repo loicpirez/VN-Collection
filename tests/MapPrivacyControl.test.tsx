@@ -62,9 +62,13 @@ describe('MapPrivacyControl', () => {
 
   it('dismisses and restores the privacy explanation', async () => {
     renderWithProviders(<MapPrivacyControl />, { locale: 'en' });
-    fireEvent.click(screen.getByRole('button', { name: t.map.externalPrivacyDismiss }));
+    const dismiss = screen.getByRole('button', { name: t.map.externalPrivacyDismiss });
+    expect(dismiss).toHaveClass('min-h-[44px]');
+    expect(dismiss).toHaveClass('min-w-[44px]');
+    fireEvent.click(dismiss);
 
     await waitFor(() => expect(screen.getByRole('button', { name: t.map.externalPrivacyShow })).toBeInTheDocument());
+    expect(screen.getByText(t.map.externalPrivacyHidden)).toBeInTheDocument();
     expect(readMapPrivacyNoticeDismissed()).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: t.map.externalPrivacyShow }));
 
@@ -76,6 +80,7 @@ describe('MapPrivacyControl', () => {
     window.localStorage.setItem(MAP_PRIVACY_NOTICE_DISMISSED_KEY, 'true');
     renderWithProviders(<MapPrivacyControl />, { locale: 'en' });
     await waitFor(() => expect(screen.getByRole('button', { name: t.map.externalPrivacyShow })).toBeInTheDocument());
+    expect(screen.getByText(t.map.externalPrivacyHidden)).toBeInTheDocument();
   });
 });
 

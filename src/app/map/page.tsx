@@ -1,4 +1,4 @@
-import { listPlaces } from '@/lib/db';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
 import { getDict } from '@/lib/i18n/server';
 import { MapPageClient } from '@/components/MapPageClient';
 import { hasFiniteCoordinates } from '@/lib/place-coordinates';
@@ -15,7 +15,7 @@ export async function generateMetadata() {
 
 export default async function MapPage({ searchParams }: Props) {
   const params = await searchParams;
-  const places = listPlaces();
+  const places = await getPlaceRepository().list();
   const requestedFocus = {
     lat: params.lat ? Number(params.lat) : null,
     lng: params.lng ? Number(params.lng) : null,

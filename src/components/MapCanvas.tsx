@@ -17,6 +17,9 @@ const markerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+const MARKER_VIEWPORT_THRESHOLD = 80;
+const MARKER_VIEWPORT_PADDING = 0.35;
+
 interface Props {
   places: PlaceWithLinks[];
   focusLat?: number | null;
@@ -65,6 +68,7 @@ export function MapCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<number, L.Marker>>(new Map());
+  const syncVisibleMarkersRef = useRef<(() => void) | null>(null);
   const onMarkerFocusRef = useRef(onMarkerFocus);
   onMarkerFocusRef.current = onMarkerFocus;
 
@@ -120,8 +124,12 @@ export function MapCanvas({
         writeSavedMapView({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
       }, 400);
     };
-    map.on('moveend', persist);
-    map.on('zoomend', persist);
+    const handleViewportChange = (): void => {
+      persist();
+      syncVisibleMarkersRef.current?.();
+    };
+    map.on('moveend', handleViewportChange);
+    map.on('zoomend', handleViewportChange);
 
     return () => {
       if (saveTimer) clearTimeout(saveTimer);
@@ -136,29 +144,45 @@ export function MapCanvas({
     if (!map) return;
     const withCoords = places.filter(hasFiniteCoordinates);
     const current = markersRef.current;
-    const nextIds = new Set(withCoords.map((p) => p.id));
-    for (const [id, marker] of current.entries()) {
-      if (!nextIds.has(id)) {
-        marker.remove();
-        current.delete(id);
+    const syncVisibleMarkers = (): void => {
+      const paddedBounds = withCoords.length > MARKER_VIEWPORT_THRESHOLD
+        ? map.getBounds().pad(MARKER_VIEWPORT_PADDING)
+        : null;
+      const visiblePlaces = paddedBounds == null
+        ? withCoords
+        : withCoords.filter((place) => (
+            place.id === focusId
+            || paddedBounds.contains([place.lat, place.lng])
+          ));
+      const nextIds = new Set(visiblePlaces.map((place) => place.id));
+      for (const [id, marker] of current.entries()) {
+        if (!nextIds.has(id)) {
+          marker.remove();
+          current.delete(id);
+        }
       }
-    }
-    for (const place of withCoords) {
-      const html = buildPopup(place, popupStockLabel, popupBranchesLabel, popupOpenLabel);
-      const existing = current.get(place.id);
-      if (existing) {
-        const [curLat, curLng] = [existing.getLatLng().lat, existing.getLatLng().lng];
-        if (curLat !== place.lat || curLng !== place.lng) existing.setLatLng([place.lat, place.lng]);
-        existing.setPopupContent(html);
-      } else {
-        const marker = L.marker([place.lat, place.lng], { icon: markerIcon }).addTo(map);
-        marker.bindPopup(html);
-        const pid = place.id;
-        marker.on('popupopen', () => { onMarkerFocusRef.current?.(pid); });
-        current.set(place.id, marker);
+      for (const place of visiblePlaces) {
+        const html = buildPopup(place, popupStockLabel, popupBranchesLabel, popupOpenLabel);
+        const existing = current.get(place.id);
+        if (existing) {
+          const [curLat, curLng] = [existing.getLatLng().lat, existing.getLatLng().lng];
+          if (curLat !== place.lat || curLng !== place.lng) existing.setLatLng([place.lat, place.lng]);
+          existing.setPopupContent(html);
+        } else {
+          const marker = L.marker([place.lat, place.lng], { icon: markerIcon }).addTo(map);
+          marker.bindPopup(html);
+          const pid = place.id;
+          marker.on('popupopen', () => { onMarkerFocusRef.current?.(pid); });
+          current.set(place.id, marker);
+        }
       }
-    }
-  }, [places, popupOpenLabel, popupStockLabel, popupBranchesLabel]);
+    };
+    syncVisibleMarkersRef.current = syncVisibleMarkers;
+    syncVisibleMarkers();
+    return () => {
+      syncVisibleMarkersRef.current = null;
+    };
+  }, [places, focusId, popupOpenLabel, popupStockLabel, popupBranchesLabel]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -194,7 +218,7 @@ export function MapCanvas({
   return (
     <div
       ref={containerRef}
-      className={`relative isolate z-0 w-full overflow-hidden rounded-xl border border-border ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
+      className={`relative isolate z-layer-map w-full overflow-hidden rounded-xl border border-border ${sizeClass ?? 'h-[55vh] min-h-[400px]'}`}
     />
   );
 }

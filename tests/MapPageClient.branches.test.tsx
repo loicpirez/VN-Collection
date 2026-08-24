@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen, within, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { Providers, renderWithProviders } from './helpers/render-component';
@@ -162,6 +162,7 @@ describe('MapPageClient branches', () => {
     );
     const canvas = await screen.findByTestId('map-canvas');
     expect(canvas.getAttribute('data-size-class')).toContain('55vh');
+    expect(screen.getByRole('group', { name: t.map.mapSizeLabel as string })).toHaveClass('grid-cols-2', 'sm:flex');
 
     await user.click(screen.getByRole('button', { name: t.map.mapSizeLarge as string, pressed: false }));
     await waitFor(() =>
@@ -218,6 +219,54 @@ describe('MapPageClient branches', () => {
     await user.type(input, 'Kyoto{Enter}');
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     expect(await screen.findByRole('button', { name: 'Kyoto' })).toBeInTheDocument();
+  });
+
+  it('supports keyboard navigation in geocoding results', async () => {
+    grantConsent();
+    global.fetch = vi.fn(async () =>
+      json([
+        { display_name: 'Tokyo Tower', lat: '35.6586', lon: '139.7454' },
+        { display_name: 'Osaka Station', lat: '34.7025', lon: '135.4959' },
+      ]),
+    );
+    const { user } = renderWithProviders(
+      <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
+      { locale: 'en' },
+    );
+    await screen.findByTestId('map-canvas');
+    const input = screen.getByRole('combobox', { name: t.map.searchPlaceholder as string });
+    await user.type(input, 'Japan');
+    await user.click(screen.getByRole('button', { name: t.places.geocodeButton as string }));
+
+    let options = await screen.findAllByRole('option');
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'Tab' });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'Home' });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'End' });
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    await user.type(input, 'Japan');
+    await user.click(screen.getByRole('button', { name: t.places.geocodeButton as string }));
+    options = await screen.findAllByRole('option');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      const target = screen.getByTestId('map-canvas').getAttribute('data-search-target');
+      expect(JSON.parse(target ?? 'null')).toEqual({ lat: 34.7025, lng: 135.4959, zoom: 14 });
+    });
   });
 
   it('ignores blank geocoding submissions', async () => {

@@ -38,18 +38,21 @@ export function MapPrivacyControl({
 
   if (dismissed) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          writeMapPrivacyNoticeDismissed(false);
-          setDismissed(false);
-        }}
-        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/35 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white"
-        title={t.map.externalPrivacyShow}
-      >
+      <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-2 py-1.5 text-xs text-muted">
         <ShieldCheck className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-        {t.map.externalPrivacyShow}
-      </button>
+        <span className="min-w-0">{t.map.externalPrivacyHidden}</span>
+        <button
+          type="button"
+          onClick={() => {
+            writeMapPrivacyNoticeDismissed(false);
+            setDismissed(false);
+          }}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/60 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white"
+          title={t.map.externalPrivacyShow}
+        >
+          {t.map.externalPrivacyShow}
+        </button>
+      </div>
     );
   }
 
@@ -66,7 +69,7 @@ export function MapPrivacyControl({
                 writeMapPrivacyNoticeDismissed(true);
                 setDismissed(true);
               }}
-              className="tap-target inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-white"
+              className="-m-2 inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-white"
               title={t.map.externalPrivacyDismiss}
               aria-label={t.map.externalPrivacyDismiss}
             >
