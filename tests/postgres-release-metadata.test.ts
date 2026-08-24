@@ -100,17 +100,25 @@ describe('release-metadata repository', () => {
           null,
           release('r90001', 'v90001', [1920, 1080]),
           release('r90002', 'v90001', '1280x720', true),
+          {
+            ...release('r90004', 'v90001', null, false),
+            patch: true,
+            freeware: true,
+            official: false,
+            has_ero: true,
+          },
           release('r90003', 'v90002', null, false),
         ] }) },
       ],
     });
 
-    await expect(repository.materializeForVns(['v90001', 'V90001', 'egs_90001'])).resolves.toBe(2);
+    await expect(repository.materializeForVns(['v90001', 'V90001', 'egs_90001'])).resolves.toBe(3);
     const inserts = mocks.clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO release_meta_cache'));
-    expect(inserts).toHaveLength(2);
+    expect(inserts).toHaveLength(3);
     expect(inserts[0]?.[1]?.slice(0, 5)).toEqual(['r90001', 'v90001', 'Release r90001', null, '["win"]']);
     expect(inserts[0]?.[1]?.[10]).toBeNull();
     expect(inserts[1]?.[1]?.[10]).toBe(1);
+    expect(inserts[2]?.[1]?.slice(8, 13)).toEqual([1, 1, 0, 0, 1]);
     expect(String(mocks.clientQuery.mock.calls.at(-1)?.[0])).toContain('UPDATE owned_release');
     expect(mocks.clientQuery.mock.calls.at(-1)?.[1]).toEqual([['v90001']]);
   });
