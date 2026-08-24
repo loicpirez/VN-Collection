@@ -81,7 +81,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     setPendingClear(false);
   }
 
-  const load = useCallback(async (showLoading = false, fresh = false): Promise<boolean> => {
+  const load = useCallback(async (showLoading: boolean, fresh = false): Promise<boolean> => {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
