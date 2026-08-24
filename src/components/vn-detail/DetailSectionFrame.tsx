@@ -55,7 +55,9 @@ function readPersisted(id: string, fallback: boolean): boolean {
   } catch {
     // localStorage unavailable (private mode / SSR) - fall through.
   }
-  return fallback;
+  const narrowViewport =
+    typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches;
+  return fallback || narrowViewport;
 }
 
 interface Props {
@@ -84,7 +86,10 @@ interface Props {
  * style with a left chevron toggle, an optional `actions` node on the
  * right, and the body below. Collapsed state is per-section and
  * persisted across navigation in `localStorage` under
- * `vn-section-collapsed:<id>`, seeded from `defaultCollapsed`.
+ * `vn-section-collapsed:<id>`, seeded from `defaultCollapsed`. On a
+ * narrow viewport an untouched section starts collapsed so a rich VN
+ * does not become a tens-of-thousands-pixel page; an explicit local
+ * preference always takes precedence.
  *
  * The body is mounted only while expanded so heavy sections that
  * fetch on mount (characters / releases / quotes) stay lazy when the

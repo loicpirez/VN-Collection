@@ -85,6 +85,51 @@ describe('DetailSectionFrame', () => {
     expect(screen.getByRole('button', { name: 'Notes' }).getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('starts an untouched section collapsed on a narrow viewport', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({ matches: true })),
+    });
+    try {
+      renderWithProviders(
+        <DetailSectionFrame id="stock" title="Stock" defaultCollapsed={false} {...labels}>
+          <p>large stock body</p>
+        </DetailSectionFrame>,
+      );
+      expect(screen.getByRole('button', { name: 'Stock' }).getAttribute('aria-expanded')).toBe('false');
+      expect(screen.getByText('large stock body').parentElement?.hidden).toBe(true);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it('keeps an explicit expanded preference on a narrow viewport', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({ matches: true })),
+    });
+    localStorage.setItem('vn-section-collapsed:stock', '0');
+    try {
+      renderWithProviders(
+        <DetailSectionFrame id="stock" title="Stock" defaultCollapsed {...labels}>
+          <p>preferred stock body</p>
+        </DetailSectionFrame>,
+      );
+      expect(screen.getByRole('button', { name: 'Stock' }).getAttribute('aria-expanded')).toBe('true');
+      expect(screen.getByText('preferred stock body').parentElement?.hidden).toBe(false);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   it('renders only the chevron toggle (no title text) when title is empty', () => {
     renderWithProviders(
       <DetailSectionFrame id="staff" title="" defaultCollapsed={false} {...labels}>
