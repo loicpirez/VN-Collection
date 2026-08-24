@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addToCollection, db, upsertVn } from '@/lib/db';
 import * as dbModule from '@/lib/db';
 import * as activityModule from '@/lib/activity';
+import { getCachedCollectionVnIds, invalidateCollectionVnIdsCache } from '@/lib/collection-vn-ids-cache';
 import {
   GET as collectionGET,
   POST as collectionPOST,
@@ -51,6 +52,7 @@ function ctx() {
 }
 
 afterEach(() => {
+  invalidateCollectionVnIdsCache();
   db.prepare('DELETE FROM collection WHERE vn_id = ?').run(VN);
   db.prepare('DELETE FROM vn WHERE id = ?').run(VN);
 });
@@ -119,9 +121,12 @@ describe('POST /api/collection/[id]', () => {
   });
 
   it('200 and persists the new status', async () => {
+    invalidateCollectionVnIdsCache();
+    await expect(getCachedCollectionVnIds()).resolves.not.toContain(VN);
     const res = await collectionPOST(localReq('POST', { status: 'completed' }) as never, ctx());
     expect(res.status).toBe(200);
     expect((await res.json()).item.status).toBe('completed');
+    await expect(getCachedCollectionVnIds()).resolves.toContain(VN);
   });
 });
 
@@ -208,9 +213,12 @@ describe('DELETE /api/collection/[id]', () => {
 
   it('200 with { ok: true } after removing a stored row', async () => {
     addToCollection(VN, { status: 'planning' });
+    invalidateCollectionVnIdsCache();
+    await expect(getCachedCollectionVnIds()).resolves.toContain(VN);
     const res = await collectionDELETE(localReq('DELETE') as never, ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+    await expect(getCachedCollectionVnIds()).resolves.not.toContain(VN);
   });
 
   it('500 with a sanitized response when delete activity logging fails', async () => {

@@ -25,7 +25,7 @@ describe('VN detail action lifecycle', () => {
 
     expect(queue).toContain('if (ac.signal.aborted || identityRef.current !== ownerVnId) return');
     expect(banner).toContain('if (identityRef.current === ownerVnId) router.refresh()');
-    expect(banner).toContain("detail: { vnId: ownerVnId }");
+    expect(banner).toContain('dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: true })');
   });
 
   it('reserves collection removal before awaiting confirmation', () => {
