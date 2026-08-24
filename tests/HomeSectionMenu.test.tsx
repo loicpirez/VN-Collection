@@ -303,6 +303,18 @@ describe('useHomeSection', () => {
     expect(screen.getByTestId('flags').textContent).toBe('false|false|false');
   });
 
+  it('ignores a HOME_LAYOUT_EVENT for another section', () => {
+    renderWithProviders(<HookProbe initialState={{ visible: true, collapsed: false }} />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(HOME_LAYOUT_EVENT, {
+          detail: { sections: { birthdays: { visible: false, collapsed: true } } },
+        }),
+      );
+    });
+    expect(screen.getByTestId('flags').textContent).toBe('false|false|false');
+  });
+
   it('resets to the default on a reset event', () => {
     renderWithProviders(<HookProbe initialState={{ visible: false, collapsed: true }} />);
     expect(screen.getByTestId('flags').textContent).toBe('false|true|true');
