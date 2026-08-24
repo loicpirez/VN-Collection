@@ -23,7 +23,25 @@ vi.mock('@/lib/auth-gate', () => ({
 vi.mock('@/lib/db', () => ({
   getCharacterImages: mocks.getCharacterImages,
   getVnCover: mocks.getVnCover,
-  upsertReleaseResolutionCache: mocks.upsertReleaseResolutionCache,
+}));
+
+vi.mock('@/lib/db/repositories/people', () => ({
+  getPeopleRepository: () => ({ characterImages: mocks.getCharacterImages }),
+}));
+
+vi.mock('@/lib/db/repositories/vn-read', () => ({
+  getVnReadRepository: () => ({
+    getCovers: async () => {
+      const cover = mocks.getVnCover();
+      return cover ? [cover] : [];
+    },
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/owned-release', () => ({
+  getOwnedReleaseRepository: () => ({
+    upsertResolutionCache: mocks.upsertReleaseResolutionCache,
+  }),
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -148,7 +166,7 @@ describe('GET /api/vn/[id]/quotes', () => {
     mocks.getQuotesForVn.mockRejectedValue(new Error('quote upstream failed'));
     const response = await quotesGET(req(`/api/vn/${VN_ID}/quotes`), ctx());
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/quotes' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/quotes] quote upstream failed');
     consoleSpy.mockRestore();
   });
@@ -193,7 +211,7 @@ describe('GET /api/vn/[id]/releases', () => {
     mocks.getReleasesForVn.mockRejectedValue(new Error('release upstream failed'));
     const response = await releasesGET(req(`/api/vn/${VN_ID}/releases`), ctx());
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/releases' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/releases] release upstream failed');
     consoleSpy.mockRestore();
   });

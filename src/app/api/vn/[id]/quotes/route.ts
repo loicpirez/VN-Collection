@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
-import { getCharacterImages, getVnCover } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getQuotesForVn } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
@@ -22,10 +23,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const charIds = quotes
       .map((q) => q.character?.id)
       .filter((cid): cid is string => typeof cid === 'string');
-    const imageMap = getCharacterImages(charIds);
+    const imageMap = await getPeopleRepository().characterImages(charIds);
     // Single VN cover lookup — surfaces the cover fallback for the
     // QuoteAvatar component when no character portrait is available.
-    const vnCover = getVnCover(id);
+    const vnCover = (await getVnReadRepository().getCovers([id]))[0] ?? null;
     const vnCoverPatch = vnCover
       ? {
           vn_image_url: vnCover.image_url,

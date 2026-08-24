@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { getVn } from '@/lib/vndb';
-import { getCollectionItem, upsertVn } from '@/lib/db';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
 import { downloadFullCharForVn } from '@/lib/character-full';
 import { downloadFullProducerForVn } from '@/lib/producer-full';
@@ -23,14 +24,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!isValidVnId(id)) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const cached = getCollectionItem(id);
+  const reader = getVnReadRepository();
+  const cached = await reader.getCollectionItem(id);
   if (cached && cached.fetched_at && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) {
     return NextResponse.json({ vn: cached, in_collection: !!cached.status });
   }
   try {
     const vn = await getVn(id);
     if (!vn) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    upsertVn(vn);
+    await getVnWriteRepository().upsert(vn);
     // Fire-and-forget: pull the full profile + credit history for every
     // staff member / VA / developer this VN credits. Each fan-out
     // registers a tracked job (see lib/download-status.ts) so progress
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     void downloadFullProducerForVn(vn.id).catch((e) => {
       console.error(`[vn:${vn.id}] producer fan-out failed:`, (e as Error).message);
     });
-    const item = getCollectionItem(vn.id);
+    const item = await reader.getCollectionItem(vn.id);
     return NextResponse.json({ vn: item, in_collection: !!item?.status });
   } catch (err) {
     return upstreamError('vn/[id]', err);

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deriveVnAspectKey, getVnAspectOverride, setVnAspectOverride } from '@/lib/db';
 import { ASPECT_KEYS, isAspectKey } from '@/lib/aspect-ratio';
+import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
 import { recordActivity } from '@/lib/activity';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
-function logAspect(kind: 'aspect.set' | 'aspect.clear', id: string, aspectKey?: string) {
+async function logAspect(kind: 'aspect.set' | 'aspect.clear', id: string, aspectKey?: string): Promise<void> {
   try {
-    recordActivity({
+    await recordActivity({
       kind,
       entity: 'vn',
       entityId: id,
@@ -39,8 +39,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  const override = getVnAspectOverride(id);
-  const derived = deriveVnAspectKey(id);
+  const details = getVnDetailRepository();
+  const [override, derived] = await Promise.all([
+    details.aspectOverride(id),
+    details.aspectKey(id),
+  ]);
   return NextResponse.json({ override, derived });
 }
 
@@ -60,26 +63,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'note too long (max 500)' }, { status: 400 });
   }
   if (raw == null) {
-    setVnAspectOverride({ vnId: id, aspectKey: null });
-    logAspect('aspect.clear', id);
+    await getVnDetailRepository().setAspectOverride({ vnId: id, aspectKey: null });
+    await logAspect('aspect.clear', id);
   } else if (typeof raw === 'string' && isAspectKey(raw) && raw !== 'unknown') {
     const note = typeof body.note === 'string' ? body.note : null;
-    setVnAspectOverride({
+    await getVnDetailRepository().setAspectOverride({
       vnId: id,
       aspectKey: raw,
       note,
     });
-    logAspect('aspect.set', id, raw);
+    await logAspect('aspect.set', id, raw);
   } else {
     return NextResponse.json(
       { error: `aspect_key must be one of: ${ASPECT_KEYS.filter((k) => k !== 'unknown').join(', ')} (or null to clear)` },
       { status: 400 },
     );
   }
-  return NextResponse.json({
-    override: getVnAspectOverride(id),
-    derived: deriveVnAspectKey(id),
-  });
+  const details = getVnDetailRepository();
+  const [override, derived] = await Promise.all([
+    details.aspectOverride(id),
+    details.aspectKey(id),
+  ]);
+  return NextResponse.json({ override, derived });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -89,7 +94,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  setVnAspectOverride({ vnId: id, aspectKey: null });
-  logAspect('aspect.clear', id);
-  return NextResponse.json({ override: null, derived: deriveVnAspectKey(id) });
+  await getVnDetailRepository().setAspectOverride({ vnId: id, aspectKey: null });
+  await logAspect('aspect.clear', id);
+  return NextResponse.json({ override: null, derived: await getVnDetailRepository().aspectKey(id) });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listListsForVn } from '@/lib/db';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -13,5 +13,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  return NextResponse.json({ lists: listListsForVn(id) });
+  return NextResponse.json({ lists: await getUserListRepository().listForVn(id) });
 }

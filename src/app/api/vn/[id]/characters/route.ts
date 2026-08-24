@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { getCharactersForVn } from '@/lib/vndb';
-import { getCharacterImages } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     const characters = await getCharactersForVn(id);
-    const localPaths = getCharacterImages(characters.map((c) => c.id));
+    const localPaths = await getPeopleRepository().characterImages(characters.map((c) => c.id));
     const enriched = characters.map((c) => ({
       ...c,
       localImage: localPaths.get(c.id)?.local_path ?? null,

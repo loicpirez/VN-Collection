@@ -18,6 +18,14 @@ vi.mock('@/lib/db', () => ({
   setVnAspectOverride: mocks.setVnAspectOverride,
 }));
 
+vi.mock('@/lib/db/repositories/vn-detail', () => ({
+  getVnDetailRepository: () => ({
+    aspectKey: async (vnId: string) => mocks.deriveVnAspectKey(vnId),
+    aspectOverride: async (vnId: string) => mocks.getVnAspectOverride(vnId),
+    setAspectOverride: async (input: object) => mocks.setVnAspectOverride(input),
+  }),
+}));
+
 import { PATCH } from '@/app/api/vn/[id]/aspect/route';
 
 function req(body: unknown): NextRequest {

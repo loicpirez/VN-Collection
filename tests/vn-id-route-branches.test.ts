@@ -144,7 +144,7 @@ describe('GET /api/vn/[id] route branches', () => {
     mocks.getVn.mockRejectedValue(new Error('token-shaped upstream failure'));
     const response = await GET(req(), ctx());
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]] token-shaped upstream failure');
     consoleSpy.mockRestore();
   });
