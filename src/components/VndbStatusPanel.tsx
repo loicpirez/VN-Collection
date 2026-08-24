@@ -14,6 +14,7 @@ import { fmtNum } from '@/lib/locale-number';
 
 import { readApiErrorLocalized, type KnownApiErrorCode } from '@/lib/api-error-read';
 import { decodeVndbStatusClientState, type VndbStatusClientState } from '@/lib/vndb-ui-client-shape';
+import { clearVndbStatusRequest, requestVndbStatus } from '@/lib/vndb-status-client';
 import type { VndbUlistEntryDetail } from '@/lib/vndb';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 
@@ -80,13 +81,14 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     setPendingClear(false);
   }
 
-  const load = useCallback(async (showLoading = false): Promise<boolean> => {
+  const load = useCallback(async (showLoading = false, fresh = false): Promise<boolean> => {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
     if (showLoading) setLoading(true);
     try {
-      const r = await fetch(`/api/vn/${vnId}/vndb-status`, { cache: 'no-store', signal: controller.signal });
+      if (fresh) clearVndbStatusRequest(vnId);
+      const r = await requestVndbStatus(vnId);
       if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       const d = decodeVndbStatusClientState(await r.json());
       if (!d) throw new Error(t.common.error);
@@ -131,21 +133,22 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     return () => {
       loadAbortRef.current?.abort();
       loadAbortRef.current = null;
+      clearVndbStatusRequest(vnId);
     };
-  }, [load]);
+  }, [load, vnId]);
 
   useEffect(() => {
     function onEgsChanged(e: Event) {
       const detail = (e as CustomEvent<EgsChangedDetail>).detail;
       if (detail && detail.vnId !== vnId) return;
-      void load();
+      void load(false, true);
     }
     window.addEventListener(EGS_CHANGED_EVENT, onEgsChanged);
     return () => window.removeEventListener(EGS_CHANGED_EVENT, onEgsChanged);
   }, [load, vnId]);
 
   const reload = useCallback(() => {
-    void load(true);
+    void load(true, true);
   }, [load]);
 
   if (loading) {
@@ -204,7 +207,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.saved);
-      await load();
+      await load(false, true);
       if (!ownsMutation(ownerVnId, controller)) return;
       // Re-pull the server component so the rest of the VN page (status
       // badge, smart-status hint, activity timeline) reflects the new label.
@@ -232,7 +235,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.removed);
-      await load();
+      await load(false, true);
       if (!ownsMutation(ownerVnId, controller)) return;
       startTransition(() => router.refresh());
     } catch (e) {
@@ -258,7 +261,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
           </a>
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void load(false, true)}
             disabled={mutationBusy}
             className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
             title={t.vndbStatus.refresh}
@@ -287,7 +290,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
         </p>
       )}
 
-      <UlistDetailsEditor vnId={vnId} entry={state.entry} disabled={mutationBusy} onSaved={async () => { await load(); }} />
+      <UlistDetailsEditor vnId={vnId} entry={state.entry} disabled={mutationBusy} onSaved={async () => { await load(false, true); }} />
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {togglable.map((l) => {
