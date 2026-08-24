@@ -438,15 +438,25 @@ check('VNDB tag hierarchy skeleton, tree, click routing, and pagination', async 
 
 check('recommendation seed picker updates URL and explanation exists', async (page) => {
   await gotoClean(page, '/recommendations?mode=similar-to-vn');
+  const seed = await page.evaluate(async () => {
+    const response = await fetch('/api/collection?sort=title&order=asc&page=1');
+    if (!response.ok) return null;
+    const body = await response.json();
+    const first = Array.isArray(body?.items) ? body.items[0] : null;
+    return first && typeof first.id === 'string' && typeof first.title === 'string'
+      ? { id: first.id, title: first.title }
+      : null;
+  });
+  assert(seed, 'recommendation QA requires at least one collection VN');
   const input = page.locator('[data-testid="vn-seed-picker"] input[role="combobox"]').first();
-  await input.fill('v28032');
-  const seedOption = page.locator('[role="option"] button[title="v28032"]').first();
+  await input.fill(seed.title);
+  const seedOption = page.locator(`[role="option"] button[title="${seed.id}"]`).first();
   await seedOption.waitFor({ state: 'visible', timeout: 15000 });
   await seedOption.click();
-  await page.waitForURL(/seed=v28032/, { timeout: 15000 }).catch(() => undefined);
+  await page.waitForURL((url) => url.searchParams.get('seed') === seed.id, { timeout: 15000 }).catch(() => undefined);
   assert(
-    page.url().includes('seed=v28032') ||
-      (await page.locator('[data-testid="vn-seed-chip"][data-seed-id="v28032"]').count()) > 0,
+    new URL(page.url()).searchParams.get('seed') === seed.id ||
+      (await page.locator(`[data-testid="vn-seed-chip"][data-seed-id="${seed.id}"]`).count()) > 0,
     'seed picker did not select/update visible seed',
   );
   assert(await page.locator('text=/Pourquoi|Why|理由/i').count() > 0, 'recommendation explanation panel missing');
@@ -747,18 +757,6 @@ check('narrow VN detail stays bounded with collapsed sections and touch-safe nav
 });
 
 const browser = await launchBrowser();
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-await context.addInitScript(() => {
-  window.localStorage.setItem('vn_tour_completed_v1', '1');
-});
-const page = await context.newPage();
-page.setDefaultTimeout(15000);
-const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
-page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
-});
-
 let pass = 0;
 let fail = 0;
 console.log('browser-interactions preflight');
@@ -770,9 +768,19 @@ console.log(`  VNCOLL_QA        = ${process.env.VNCOLL_QA}`);
 console.log('');
 
 for (const { name, fn } of checks) {
+  const checkContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await checkContext.addInitScript(() => {
+    window.localStorage.setItem('vn_tour_completed_v1', '1');
+  });
+  const checkPage = await checkContext.newPage();
+  checkPage.setDefaultTimeout(15000);
+  const errors = [];
+  checkPage.on('pageerror', (e) => errors.push(e.message));
+  checkPage.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
   try {
-    errors.length = 0;
-    await fn(page);
+    await fn(checkPage);
     const fatal = errors.find((e) => /Functions cannot be passed directly|SqliteError|no such column/i.test(e));
     assert(!fatal, `browser console/runtime fatal: ${fatal}`);
     pass += 1;
@@ -781,10 +789,11 @@ for (const { name, fn } of checks) {
     fail += 1;
     console.error(`✗ ${name}`);
     console.error(`  ${(e && e.stack) || e}`);
+  } finally {
+    await checkContext.close();
   }
 }
 
-await context.close();
 await browser.close();
 console.log('');
 console.log(`Interaction QA summary: PASS=${pass} FAIL=${fail}`);
