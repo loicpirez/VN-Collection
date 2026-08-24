@@ -91,7 +91,7 @@ describe('scrapeTagDag', () => {
     expect(dag?.children).toHaveLength(1);
     expect(dag?.children[0]).toMatchObject({ id: 'g20', name: 'Child One' });
 
-    const readBack = readScrapedTagDag('g100');
+    const readBack = await readScrapedTagDag('g100');
     expect(readBack?.parents).toHaveLength(1);
     expect(readBack?.children).toHaveLength(1);
   });
@@ -106,22 +106,22 @@ describe('scrapeTagDag', () => {
 });
 
 describe('readScrapedTagDag', () => {
-  it('returns null on a cache miss', () => {
-    expect(readScrapedTagDag('g9999')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readScrapedTagDag('g9999')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body fails schema validation', () => {
+  it('returns null when the cached body fails schema validation', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_tag:g300', ?, NULL, NULL, ?, ?)`)
       .run(JSON.stringify({ gid: 'g300', parents: [{ id: 'not-a-tag' }], children: [] }), now, now + 86_400_000);
-    expect(readScrapedTagDag('g300')).toBeNull();
+    await expect(readScrapedTagDag('g300')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body is unparseable JSON', () => {
+  it('returns null when the cached body is unparseable JSON', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_tag:g301', 'not json', NULL, NULL, ?, ?)`)
       .run(now, now + 86_400_000);
-    expect(readScrapedTagDag('g301')).toBeNull();
+    await expect(readScrapedTagDag('g301')).resolves.toBeNull();
   });
 });
 

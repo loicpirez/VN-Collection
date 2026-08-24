@@ -1,8 +1,9 @@
 import 'server-only';
-import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
-import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getVnReadRepository } from './db/repositories/vn-read';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -69,24 +70,25 @@ function decodeScrapedTagDag(raw: string, fetchedAt: number): ScrapedTagDag | nu
  * unparseable. Used as a fast pre-render path so tag pages don't block on
  * a VNDB scrape.
  */
-export function readScrapedTagDag(gid: string): ScrapedTagDag | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(CACHE_KEY(gid)) as { body: string; fetched_at: number } | undefined;
+function decodeScrapedTagCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): ScrapedTagDag | null {
   if (!row) return null;
   return decodeScrapedTagDag(row.body, row.fetched_at);
 }
 
-function write(gid: string, dag: ScrapedTagDag): void {
+export async function readScrapedTagDag(gid: string): Promise<ScrapedTagDag | null> {
+  return decodeScrapedTagCacheRow(await getCacheRepository().get(CACHE_KEY(gid)));
+}
+
+async function write(gid: string, dag: ScrapedTagDag): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(CACHE_KEY(gid), JSON.stringify(dag), now, now + 30 * 24 * 3600 * 1000);
+  await getCacheRepository().put({
+    cache_key: CACHE_KEY(gid),
+    body: JSON.stringify(dag),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + 30 * 24 * 3600 * 1000,
+  });
 }
 
 const PARENTS_BLOCK_RE = /<h2[^>]*>Parent Tags<\/h2>\s*<ul[^>]*>([\s\S]*?)<\/ul>/i;
@@ -126,7 +128,7 @@ export async function scrapeTagDag(
     children: parseList(childrenM?.[1], gid.toLowerCase()),
     fetched_at: Date.now(),
   };
-  write(gid, dag);
+  await write(gid, dag);
   return dag;
 }
 
@@ -139,23 +141,17 @@ export async function scrapeTagDagForVn(
   vnId: string,
   opts: { force?: boolean } = {},
 ): Promise<{ scanned: number; downloaded: number }> {
-  const row = db
-    .prepare('SELECT tags FROM vn WHERE id = ?')
-    .get(vnId) as { tags: string | null } | undefined;
-  if (!row?.tags) return { scanned: 0, downloaded: 0 };
-  const ids = Array.from(new Set(
-    parseJsonArray(row.tags)
-      .map((tag) => asJsonRecord(tag)?.id)
-      .filter((id): id is string => typeof id === 'string' && /^g\d+$/i.test(id))
-      .map((id) => id.toLowerCase()),
-  ));
+  const ids = await getVnReadRepository().getTagIds(vnId);
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = opts.force
+    ? new Map<string, CacheRow>()
+    : await getCacheRepository().getMany(ids.map(CACHE_KEY));
   const stale = opts.force
     ? ids
     : ids.filter((gid) => {
-        const cached = readScrapedTagDag(gid);
+        const cached = decodeScrapedTagCacheRow(cacheRows.get(CACHE_KEY(gid)) ?? null);
         return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };

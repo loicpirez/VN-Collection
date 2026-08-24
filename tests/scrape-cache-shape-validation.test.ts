@@ -40,13 +40,13 @@ describe('scraped cache structure validation', () => {
     expect(readScrapedProducerInfo('p990041')).toBeNull();
   });
 
-  it('rejects malformed tag payloads', () => {
+  it('rejects malformed tag payloads', async () => {
     writeCacheRow('scrape_tag:g990041', JSON.stringify({
       gid: 'g990041',
       parents: {},
       children: [],
     }));
-    expect(readScrapedTagDag('g990041')).toBeNull();
+    await expect(readScrapedTagDag('g990041')).resolves.toBeNull();
   });
 
   it('treats parseable non-array producer credits as empty scrape input', async () => {

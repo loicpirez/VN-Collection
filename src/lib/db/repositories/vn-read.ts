@@ -81,7 +81,7 @@ function decodeExtlinks(raw: string | null): VnRow['extlinks'] {
 function decodeTagIds(raw: string | null): string[] {
   return [...new Set(parseJsonArray(raw).flatMap((value) => {
     const id = asJsonRecord(value)?.id;
-    return typeof id === 'string' && /^g\d+$/i.test(id) ? [id] : [];
+    return typeof id === 'string' && /^g\d+$/i.test(id) ? [id.toLowerCase()] : [];
   }))];
 }
 
