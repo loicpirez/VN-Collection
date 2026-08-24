@@ -216,6 +216,7 @@ describe('SpoilerChip', () => {
 
 describe('SpoilerToggle', () => {
   it('keeps the content panel inside narrow and wide viewports', () => {
+    expect(calculateContentPanelPosition(null, 390, 844)).toBeNull();
     expect(calculateContentPanelPosition(
       { right: 90, bottom: 52 },
       390,

@@ -17,10 +17,11 @@ export interface ContentPanelPosition {
 }
 
 export function calculateContentPanelPosition(
-  trigger: Pick<DOMRect, 'right' | 'bottom'>,
+  trigger: Pick<DOMRect, 'right' | 'bottom'> | null,
   viewportWidth: number,
   viewportHeight: number,
-): ContentPanelPosition {
+): ContentPanelPosition | null {
+  if (!trigger) return null;
   const availableWidth = Math.max(0, viewportWidth - CONTENT_PANEL_GUTTER * 2);
   const width = Math.min(CONTENT_PANEL_WIDTH, availableWidth);
   const maximumLeft = Math.max(CONTENT_PANEL_GUTTER, viewportWidth - width - CONTENT_PANEL_GUTTER);
@@ -68,10 +69,8 @@ export function SpoilerToggle() {
   const [panelPosition, setPanelPosition] = useState<ContentPanelPosition | null>(null);
 
   const positionPanel = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
     setPanelPosition(calculateContentPanelPosition(
-      trigger.getBoundingClientRect(),
+      triggerRef.current?.getBoundingClientRect() ?? null,
       window.innerWidth,
       window.innerHeight,
     ));

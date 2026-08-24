@@ -39,6 +39,8 @@ describe('optional public read authentication', () => {
     expect(publicReadsAreProtected('token')).toBe(true);
     expect(publicReadsAreProtected('upstream')).toBe(true);
     expect(publicReadsAreProtected('open')).toBe(false);
+    process.env.VN_PUBLIC_READ_AUTH = 'token';
+    expect(publicReadsAreProtected()).toBe(true);
   });
 
   it('allows open and upstream reads without app credentials', () => {
