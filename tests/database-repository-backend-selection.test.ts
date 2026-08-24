@@ -101,6 +101,35 @@ import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVnIdentityRepository } from '@/lib/db/repositories/vn-identity';
 import { getSteamRepository } from '@/lib/db/repositories/steam';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
+import { getAnalyticsRepository } from '@/lib/db/repositories/analytics';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
+import { getCollectionTransferRepository } from '@/lib/db/repositories/collection-transfer';
+import { getCompareRepository } from '@/lib/db/repositories/compare';
+import { getDiscoveryRepository } from '@/lib/db/repositories/discovery';
+import { getDumpRepository } from '@/lib/db/repositories/dump';
+import { getEgsOverviewRepository } from '@/lib/db/repositories/egs-overview';
+import { getEgsSchemaRepository } from '@/lib/db/repositories/egs-schema';
+import { getEgsRepository } from '@/lib/db/repositories/egs';
+import { getEntityNameRepository } from '@/lib/db/repositories/entity-name';
+import { getHomeFeedRepository } from '@/lib/db/repositories/home-feed';
+import { getMaintenanceRepository } from '@/lib/db/repositories/maintenance';
+import { getOwnedReleaseRepository } from '@/lib/db/repositories/owned-release';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
+import { getQuoteRepository } from '@/lib/db/repositories/quote';
+import { getReadingQueueRepository } from '@/lib/db/repositories/reading-queue';
+import { getRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
+import { getSavedFilterRepository } from '@/lib/db/repositories/saved-filter';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
+import { getVnAssetRepository } from '@/lib/db/repositories/vn-assets';
+import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
+import { getVnRouteRepository } from '@/lib/db/repositories/vn-route';
 
 describe('database repository backend selection', () => {
   beforeEach(() => {
@@ -303,24 +332,50 @@ describe('database repository backend selection', () => {
 
   it('selects and reuses PostgreSQL repositories when configured', () => {
     mocks.backend.value = 'postgres';
-    const stock = getStockRepository();
-    const queue = getStockQueueRepository();
-    const vn = getVnReadRepository();
-    const settings = getAppSettingRepository();
-    const locks = getAppJobLockRepository();
-    const writer = getVnWriteRepository();
-    const collection = getCollectionCoreRepository();
-    const identity = getVnIdentityRepository();
-    const steam = getSteamRepository();
+    const getters = [
+      getActivityRepository,
+      getAnalyticsRepository,
+      getAppJobLockRepository,
+      getAppSettingRepository,
+      getCacheRepository,
+      getCollectionCoreRepository,
+      getCollectionListRepository,
+      getCollectionTransferRepository,
+      getCompareRepository,
+      getDiscoveryRepository,
+      getDumpRepository,
+      getEgsOverviewRepository,
+      getEgsRepository,
+      getEgsSchemaRepository,
+      getEntityNameRepository,
+      getHomeFeedRepository,
+      getMaintenanceRepository,
+      getOwnedReleaseRepository,
+      getPeopleRepository,
+      getPlaceRepository,
+      getProducerRepository,
+      getQuoteRepository,
+      getReadingQueueRepository,
+      getRecommendationReadRepository,
+      getReleaseMetadataRepository,
+      getSavedFilterRepository,
+      getSeriesRepository,
+      getShelfRepository,
+      getSteamRepository,
+      getStockQueueRepository,
+      getStockRepository,
+      getUserListRepository,
+      getVnAssetRepository,
+      getVnDetailRepository,
+      getVnIdentityRepository,
+      getVnReadRepository,
+      getVnRouteRepository,
+      getVnWriteRepository,
+    ];
 
-    expect(getStockRepository()).toBe(stock);
-    expect(getStockQueueRepository()).toBe(queue);
-    expect(getVnReadRepository()).toBe(vn);
-    expect(getAppSettingRepository()).toBe(settings);
-    expect(getAppJobLockRepository()).toBe(locks);
-    expect(getVnWriteRepository()).toBe(writer);
-    expect(getCollectionCoreRepository()).toBe(collection);
-    expect(getVnIdentityRepository()).toBe(identity);
-    expect(getSteamRepository()).toBe(steam);
+    for (const getRepository of getters) {
+      const repository = getRepository();
+      expect(getRepository()).toBe(repository);
+    }
   });
 });
