@@ -25,9 +25,9 @@ describe('custom dialog root portal contract', () => {
     ]) {
       const body = source(path);
       expect(body, path).toContain('<DialogPortal>');
-      expect(body, path).toContain('z-[1000]');
+      expect(body, path).toContain('z-layer-modal');
     }
-    expect(source('src/components/AssignProviderDialog.tsx')).toContain('z-[1000]');
+    expect(source('src/components/AssignProviderDialog.tsx')).toContain('z-layer-modal');
   });
 
   it('makes the clear-cache backdrop an explicit close target', () => {

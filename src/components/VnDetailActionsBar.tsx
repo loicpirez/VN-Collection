@@ -289,7 +289,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
   // manage their own dialog state. They set data-menu-keep-open on
   // their trigger so ActionMenu does NOT unmount the panel on click -
   // keeping the component mounted long enough for the dialog state to
-  // take effect. The dialog renders at z-[1000] on top; Escape closes
+  // take effect. The dialog renders at the shared modal layer on top; Escape closes
   // both the dialog and the ActionMenu in one keystroke.
   const mapping = (
     <ActionMenu
