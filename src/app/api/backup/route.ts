@@ -4,7 +4,6 @@ import { createReadStream } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 import { readDatabaseConfig } from '@/lib/db/postgres-config';
@@ -48,6 +47,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     rm(dir, { recursive: true, force: true }).catch(() => undefined);
   };
   try {
+    const { db } = await import('@/lib/db');
     await db.backup(tmpPath);
   } catch (e) {
     console.error('[backup] SQLite backup failed:', (e as Error).message);

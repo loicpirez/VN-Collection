@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { restoreFromSqliteFile } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
@@ -98,6 +97,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'file is not a SQLite database' }, { status: 400 });
   }
   try {
+    const { restoreFromSqliteFile } = await import('@/lib/db');
     const summary = await restoreFromSqliteFile(buf);
     await recordActivity({
       kind: 'backup.restore',
