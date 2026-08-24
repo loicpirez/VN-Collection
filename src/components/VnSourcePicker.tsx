@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Library, Loader2, Plus, Search, Sparkles, Star } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { SafeImage } from '@/components/SafeImage';
 import { readApiError } from '@/lib/api-error-read';
+import { formatVndbDateString } from '@/lib/locale-number';
 import {
   decodeEgsSourcePickerResults,
   decodeLocalVnSourcePickerResults,
@@ -66,6 +67,7 @@ export function VnSourcePicker({
   disabled = false,
 }: VnSourcePickerProps) {
   const t = useT();
+  const locale = useLocale();
   const [query, setQuery] = useState('');
   const [activeSource, setActiveSource] = useState<VnPickerSource | 'all'>('all');
   const [library, setLibrary] = useState<VnSourcePickerRow[]>([]);
@@ -178,7 +180,7 @@ export function VnSourcePicker({
                 {t.stock.batchSourceLabels[hit.source]}
               </span>
               {hit.id}
-              {hit.released ? ` / ${hit.released}` : ''}
+              {hit.released ? ` / ${formatVndbDateString(hit.released, locale)}` : ''}
             </span>
           </span>
           {showAddIcon && <Plus className="h-4 w-4 shrink-0 text-accent" aria-hidden />}

@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor, within, cleanup } from '@testing-libra
 import { renderWithProviders } from './helpers/render-component';
 import { VnSourcePicker, type VnPickerHit } from '@/components/VnSourcePicker';
 import { dictionaries, DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
+import { formatVndbDateString } from '@/lib/locale-number';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -104,8 +105,8 @@ describe('VnSourcePicker branches', () => {
     renderWithProviders(<VnSourcePicker onPick={onPick} sources={['vndb']} showAddIcon />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
     const row = await screen.findByRole('button', { name: /Vndb Title/ });
-    // released present -> the " / 2021-05-01" suffix renders (line 210 branch).
-    expect(within(row).getByText(/2021-05-01/)).toBeInTheDocument();
+    expect(within(row).getByText(new RegExp(formatVndbDateString('2021-05-01', DEFAULT_LOCALE)))).toBeInTheDocument();
+    expect(within(row).queryByText(/2021-05-01/)).not.toBeInTheDocument();
     fireEvent.click(row);
     expect(onPick.mock.calls[0][0]).toMatchObject({ id: 'v90002', source: 'vndb', released: '2021-05-01' });
   });
