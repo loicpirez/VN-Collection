@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Bookmark } from 'lucide-react';
-import { countListMembershipsByVn, getAppSetting, getReadingQueueVnIds, getSeries, listCollectionForCards } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { publicUrlFor } from '@/lib/files';
 import { getDict } from '@/lib/i18n/server';
 import { VnCard } from '@/components/VnCard';
@@ -23,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const n = Number(id);
   if (!Number.isFinite(n) || n <= 0) return {};
-  const series = getSeries(n);
+  const series = await getSeriesRepository().get(n);
   return series ? { title: series.name } : {};
 }
 
@@ -31,18 +33,23 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const n = Number(id);
   if (!Number.isFinite(n) || n <= 0) notFound();
-  const series = getSeries(n);
+  const repository = getSeriesRepository();
+  const series = await repository.get(n);
   if (!series) notFound();
-  const t = await getDict();
-  const rawItems = listCollectionForCards({ series: n });
-  const listCounts = countListMembershipsByVn();
-  const queueIds = getReadingQueueVnIds();
+  const collectionRepository = getCollectionListRepository();
+  const [t, rawItems, listCounts, queueIds, layoutSetting] = await Promise.all([
+    getDict(),
+    collectionRepository.listCards({ series: n }),
+    collectionRepository.listMembershipCounts(),
+    collectionRepository.readingQueueIds(),
+    getAppSettingRepository().get('series_detail_section_layout_v1'),
+  ]);
   const items = rawItems.map((it) => ({
     ...it,
     list_count: listCounts.get(it.id) ?? 0,
     in_reading_queue: queueIds.has(it.id),
   }));
-  const layout = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
+  const layout = parseSeriesDetailLayoutV1(layoutSetting);
 
   // Build the section list - each is wrapped into a slot the layout
   // host can reorder / hide / collapse. The grid sits inside `works`

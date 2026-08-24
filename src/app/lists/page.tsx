@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ListChecks, Pin } from 'lucide-react';
-import { listUserLists } from '@/lib/db';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { getDict } from '@/lib/i18n/server';
 import { CreateListForm } from '@/components/CreateListForm';
 import { ListCardActions } from '@/components/ListCardActions';
@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ListsPage() {
   const t = await getDict();
-  const lists = listUserLists();
+  const lists = await getUserListRepository().list();
 
   return (
     <div>

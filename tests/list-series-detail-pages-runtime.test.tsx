@@ -2,44 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ListDetailPage, { generateMetadata as generateListMetadata } from '@/app/lists/[id]/page';
 import SeriesDetailPage, { generateMetadata as generateSeriesMetadata } from '@/app/series/[id]/page';
-import {
-  countListMembershipsByVn,
-  getAppSetting,
-  getReadingQueueVnIds,
-  getSeries,
-  getUserList,
-  listCollectionForCards,
-  listUserListItems,
-  type UserList,
-  type UserListItem,
-} from '@/lib/db';
+import type { UserList, UserListItem } from '@/lib/db/repositories/user-list';
 import { publicUrlFor } from '@/lib/files';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { CollectionCardItem, SeriesWithVns } from '@/lib/types';
 import type { CardData } from '@/components/VnCard';
-
-interface ListDbRow {
-  id: string;
-  title: string;
-  alttitle: string | null;
-  image_url: string | null;
-  image_thumb: string | null;
-  image_sexual: number | null;
-  local_image: string | null;
-  local_image_thumb: string | null;
-  custom_cover: string | null;
-  released: string | null;
-  rating: number | null;
-  user_rating: number | null;
-  playtime_minutes: number | null;
-  length_minutes: number | null;
-  status: string | null;
-  edition_type: string | null;
-  favorite: number | null;
-  developers: string | null;
-  publishers: string | null;
-  relations: string | null;
-}
 
 const navigationMocks = vi.hoisted(() => ({
   notFound: vi.fn(() => {
@@ -47,27 +14,41 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
-const sqlMocks = vi.hoisted(() => {
-  const all = vi.fn<(...ids: string[]) => ListDbRow[]>();
-  return {
-    all,
-    prepare: vi.fn<(sql: string) => { all: typeof all }>(() => ({ all })),
-  };
-});
+const repositoryMocks = vi.hoisted(() => ({
+  getSeries: vi.fn(),
+  getUserList: vi.fn(),
+  listItems: vi.fn(),
+  listCards: vi.fn(),
+  listMembershipCounts: vi.fn(),
+  readingQueueIds: vi.fn(),
+  getSetting: vi.fn(),
+}));
 
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
-vi.mock('@/lib/db', () => ({
-  countListMembershipsByVn: vi.fn(),
-  db: { prepare: sqlMocks.prepare },
-  getAppSetting: vi.fn(),
-  getReadingQueueVnIds: vi.fn(),
-  getSeries: vi.fn(),
-  getUserList: vi.fn(),
-  listCollectionForCards: vi.fn(),
-  listUserListItems: vi.fn(),
+vi.mock('@/lib/db/repositories/series', () => ({
+  getSeriesRepository: () => ({ get: repositoryMocks.getSeries }),
+}));
+
+vi.mock('@/lib/db/repositories/user-list', () => ({
+  getUserListRepository: () => ({
+    get: repositoryMocks.getUserList,
+    items: repositoryMocks.listItems,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/collection-list', () => ({
+  getCollectionListRepository: () => ({
+    listCards: repositoryMocks.listCards,
+    listMembershipCounts: repositoryMocks.listMembershipCounts,
+    readingQueueIds: repositoryMocks.readingQueueIds,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => ({ get: repositoryMocks.getSetting }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -162,32 +143,6 @@ function listItem(vnId: string, orderIndex = 0): UserListItem {
   };
 }
 
-function row(id: string, overrides: Partial<ListDbRow> = {}): ListDbRow {
-  return {
-    id,
-    title: `Title ${id}`,
-    alttitle: null,
-    image_url: null,
-    image_thumb: null,
-    image_sexual: null,
-    local_image: null,
-    local_image_thumb: null,
-    custom_cover: null,
-    released: null,
-    rating: null,
-    user_rating: null,
-    playtime_minutes: null,
-    length_minutes: null,
-    status: null,
-    edition_type: null,
-    favorite: null,
-    developers: null,
-    publishers: null,
-    relations: null,
-    ...overrides,
-  };
-}
-
 function series(overrides: Partial<SeriesWithVns> = {}): SeriesWithVns {
   return {
     id: 7,
@@ -230,15 +185,13 @@ function card(id: string): CollectionCardItem {
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
-  sqlMocks.prepare.mockClear();
-  sqlMocks.all.mockReset().mockReturnValue([]);
-  vi.mocked(countListMembershipsByVn).mockReset().mockReturnValue(new Map());
-  vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
-  vi.mocked(getReadingQueueVnIds).mockReset().mockReturnValue(new Set());
-  vi.mocked(getSeries).mockReset().mockReturnValue(null);
-  vi.mocked(getUserList).mockReset().mockReturnValue(null);
-  vi.mocked(listCollectionForCards).mockReset().mockReturnValue([]);
-  vi.mocked(listUserListItems).mockReset().mockReturnValue([]);
+  repositoryMocks.getSeries.mockReset().mockResolvedValue(null);
+  repositoryMocks.getUserList.mockReset().mockResolvedValue(null);
+  repositoryMocks.listItems.mockReset().mockResolvedValue([]);
+  repositoryMocks.listCards.mockReset().mockResolvedValue([]);
+  repositoryMocks.listMembershipCounts.mockReset().mockResolvedValue(new Map());
+  repositoryMocks.readingQueueIds.mockReset().mockResolvedValue(new Set());
+  repositoryMocks.getSetting.mockReset().mockResolvedValue(null);
   vi.mocked(publicUrlFor).mockReset().mockImplementation((path: string | null | undefined) => path ? `/files/${path}` : null);
 });
 
@@ -251,7 +204,7 @@ describe('series detail page runtime', () => {
   });
 
   it('renders an empty series with the placeholder icon', async () => {
-    vi.mocked(getSeries).mockReturnValue(series());
+    repositoryMocks.getSeries.mockResolvedValue(series());
 
     expect(await generateSeriesMetadata({ params: Promise.resolve({ id: '7' }) })).toEqual({ title: 'Series Name' });
     const html = renderToStaticMarkup(await SeriesDetailPage({ params: Promise.resolve({ id: '7' }) }));
@@ -262,10 +215,10 @@ describe('series detail page runtime', () => {
   });
 
   it('renders banner, cover, description, and enriched VN card state', async () => {
-    vi.mocked(getSeries).mockReturnValue(series({ description: 'Description', cover_path: 'cover.jpg', banner_path: 'banner.jpg' }));
-    vi.mocked(listCollectionForCards).mockReturnValue([card('v1')]);
-    vi.mocked(countListMembershipsByVn).mockReturnValue(new Map([['v1', 3]]));
-    vi.mocked(getReadingQueueVnIds).mockReturnValue(new Set(['v1']));
+    repositoryMocks.getSeries.mockResolvedValue(series({ description: 'Description', cover_path: 'cover.jpg', banner_path: 'banner.jpg' }));
+    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
+    repositoryMocks.listMembershipCounts.mockResolvedValue(new Map([['v1', 3]]));
+    repositoryMocks.readingQueueIds.mockResolvedValue(new Set(['v1']));
 
     const html = renderToStaticMarkup(await SeriesDetailPage({ params: Promise.resolve({ id: '7' }) }));
 
@@ -278,9 +231,9 @@ describe('series detail page runtime', () => {
   });
 
   it('renders series cards with default list counts and empty image URLs when file URLs cannot be resolved', async () => {
-    vi.mocked(getSeries).mockReturnValue(series({ cover_path: 'cover.jpg', banner_path: 'banner.jpg' }));
+    repositoryMocks.getSeries.mockResolvedValue(series({ cover_path: 'cover.jpg', banner_path: 'banner.jpg' }));
     vi.mocked(publicUrlFor).mockReturnValue(null);
-    vi.mocked(listCollectionForCards).mockReturnValue([card('v1')]);
+    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
 
     const html = renderToStaticMarkup(await SeriesDetailPage({ params: Promise.resolve({ id: '7' }) }));
 
@@ -302,7 +255,7 @@ describe('list detail page runtime', () => {
   });
 
   it('renders an empty list with optional list metadata', async () => {
-    vi.mocked(getUserList).mockReturnValue(list({ description: 'Description', color: '#ef4444', pinned: 1 }));
+    repositoryMocks.getUserList.mockResolvedValue(list({ description: 'Description', color: '#ef4444', pinned: 1 }));
 
     expect(await generateListMetadata({ params: Promise.resolve({ id: '1' }) })).toEqual({ title: 'Favorites' });
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
@@ -310,25 +263,41 @@ describe('list detail page runtime', () => {
     expect(html).toContain('Description');
     expect(html).toContain('background-color:#ef4444');
     expect(html).toContain(dictionaries.en.lists.detailEmpty);
-    expect(sqlMocks.prepare).not.toHaveBeenCalled();
+    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: [] });
   });
 
-  it('renders reorder cards, missing-row stubs, and parsed card metadata', async () => {
-    vi.mocked(getUserList).mockReturnValue(list());
-    vi.mocked(listUserListItems).mockReturnValue([listItem('v1'), listItem('v2', 1)]);
-    vi.mocked(getReadingQueueVnIds).mockReturnValue(new Set(['v1']));
-    vi.mocked(countListMembershipsByVn).mockReturnValue(new Map([['v1', 2]]));
-    sqlMocks.all.mockReturnValue([
-      row('v1', {
+  it('renders reorder cards, missing-row stubs, and repository-projected card metadata', async () => {
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue([listItem('v1'), listItem('v2', 1)]);
+    repositoryMocks.readingQueueIds.mockResolvedValue(new Set(['v1']));
+    repositoryMocks.listMembershipCounts.mockResolvedValue(new Map([['v1', 2]]));
+    repositoryMocks.listCards.mockResolvedValue([
+      {
+        ...card('v1'),
         image_thumb: 'thumb.jpg',
         local_image_thumb: 'local-thumb.jpg',
         status: 'playing',
         edition_type: 'physical',
-        favorite: 1,
-        developers: JSON.stringify([{ id: 'p1', name: 'Studio' }, null, { name: '' }]),
-        publishers: 'invalid-json',
-        relations: JSON.stringify([{ relation: 'orig' }, null, { relation: 1 }]),
-      }),
+        favorite: true,
+        developers: [{ id: 'p1', name: 'Studio' }],
+        relations: [{
+          id: 'v9',
+          title: 'Original',
+          alttitle: null,
+          released: null,
+          rating: null,
+          votecount: null,
+          length_minutes: null,
+          languages: [],
+          platforms: [],
+          developers: [],
+          image_url: null,
+          image_thumb: null,
+          image_sexual: null,
+          relation: 'orig',
+          relation_official: true,
+        }],
+      },
     ]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
@@ -345,53 +314,28 @@ describe('list detail page runtime', () => {
     expect(html).toContain('&quot;listCount&quot;:2');
   });
 
-  it('reuses cached card projections for the same row object across renders', async () => {
-    const sharedRow = row('v1', { developers: JSON.stringify([{ name: 'Studio' }]) });
-    vi.mocked(getUserList).mockReturnValue(list());
-    vi.mocked(listUserListItems).mockReturnValue([listItem('v1'), listItem('v1', 1)]);
-    sqlMocks.all.mockReturnValue([sharedRow]);
-
-    renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
-    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
-
-    expect(html).toContain('&quot;developers&quot;:[{&quot;name&quot;:&quot;Studio&quot;}]');
-  });
-
-  it('ignores non-array developer JSON and non-array relation JSON', async () => {
-    vi.mocked(getUserList).mockReturnValue(list());
-    vi.mocked(listUserListItems).mockReturnValue([listItem('v1')]);
-    sqlMocks.all.mockReturnValue([row('v1', {
-      developers: JSON.stringify({ name: 'Not array' }),
-      publishers: JSON.stringify([{ id: 123, name: 'Publisher' }, { id: 'p2' }]),
-      relations: JSON.stringify({ relation: 'orig' }),
-    })]);
+  it('passes ordered membership ids to the collection repository and preserves duplicate rows', async () => {
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue([listItem('v2'), listItem('v1', 1), listItem('v2', 2)]);
+    repositoryMocks.listCards.mockResolvedValue([card('v1'), card('v2')]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
 
-    expect(html).toContain('&quot;developers&quot;:[]');
-    expect(html).toContain('&quot;publishers&quot;:[{&quot;name&quot;:&quot;Publisher&quot;}]');
-    expect(html).toContain('&quot;isFanDisc&quot;:false');
+    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: ['v2', 'v1', 'v2'] });
+    expect(html.match(/&quot;vn_id&quot;:&quot;v2&quot;/g)).toHaveLength(2);
+    expect(html.indexOf('&quot;vn_id&quot;:&quot;v2&quot;')).toBeLessThan(html.indexOf('&quot;vn_id&quot;:&quot;v1&quot;'));
   });
 
-  it('falls back when relation JSON is malformed', async () => {
-    vi.mocked(getUserList).mockReturnValue(list());
-    vi.mocked(listUserListItems).mockReturnValue([listItem('v1')]);
-    sqlMocks.all.mockReturnValue([row('v1', { relations: 'invalid-json' })]);
-
-    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
-
-    expect(html).toContain('&quot;isFanDisc&quot;:false');
-  });
-
-  it('uses paginated cards above the reorder threshold and chunks large VN queries', async () => {
+  it('uses paginated cards above the reorder threshold with one repository query', async () => {
     const items = Array.from({ length: 501 }, (_, index) => listItem(`v${index + 1}`, index));
-    vi.mocked(getUserList).mockReturnValue(list());
-    vi.mocked(listUserListItems).mockReturnValue(items);
-    sqlMocks.all.mockImplementation((...ids) => ids.includes('v1') ? [row('v1')] : []);
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue(items);
+    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
 
-    expect(sqlMocks.prepare).toHaveBeenCalledTimes(2);
+    expect(repositoryMocks.listCards).toHaveBeenCalledOnce();
+    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: items.map((item) => item.vn_id) });
     expect(html).toContain('data-reset-key="list:1"');
     expect(html).toContain('data-testid="vn-card"');
     expect(html).toContain('data-testid="stub-card"');

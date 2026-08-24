@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { listSeries } from '@/lib/db';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { getDict } from '@/lib/i18n/server';
 import { SeriesManager } from '@/components/SeriesManager';
 
@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: dict.nav.series };
 }
 
-export default function SeriesPage() {
-  const series = listSeries();
+export default async function SeriesPage() {
+  const series = await getSeriesRepository().list();
   return <SeriesManager initial={series} />;
 }
