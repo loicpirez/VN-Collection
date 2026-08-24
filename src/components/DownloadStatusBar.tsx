@@ -143,7 +143,10 @@ export function DownloadStatusBar() {
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let pollAbort: AbortController | null = null;
     let es: EventSource | null = null;
-    let useSse = typeof window !== 'undefined' && 'EventSource' in window;
+    let useSse = typeof window !== 'undefined' && shouldUseDownloadStatusSse(
+      window.navigator.userAgent,
+      'EventSource' in window,
+    );
 
     async function pollOnce() {
       const controller = new AbortController();
@@ -274,7 +277,7 @@ export function DownloadStatusBar() {
     // and grows to ~112px on hover - `bottom-32` clears the expanded
     // height). Popover opens upward so it stays inside the viewport.
     <div
-      className="fixed bottom-5 right-2 z-40 flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
+      className="fixed bottom-5 right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {retryingNow && (
@@ -541,4 +544,19 @@ export function DownloadStatusBar() {
       )}
     </div>
   );
+}
+/**
+ * Decide whether download progress should use the long-lived SSE transport.
+ * Safari uses polling because its native Basic Auth handling can challenge a
+ * second time when an EventSource opens immediately after page navigation.
+ *
+ * @param userAgent Browser user-agent string.
+ * @param eventSourceAvailable Whether the runtime exposes EventSource.
+ * @returns True when the SSE transport is available and not Safari-native.
+ */
+export function shouldUseDownloadStatusSse(userAgent: string, eventSourceAvailable: boolean): boolean {
+  if (!eventSourceAvailable) return false;
+  const safariEngine = /Safari\//.test(userAgent);
+  const alternativeBrowser = /(Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|Android)\//.test(userAgent);
+  return !(safariEngine && !alternativeBrowser);
 }

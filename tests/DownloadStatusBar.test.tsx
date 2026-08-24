@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, within, fireEvent, act } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
-import { DownloadStatusBar } from '@/components/DownloadStatusBar';
+import { DownloadStatusBar, shouldUseDownloadStatusSse } from '@/components/DownloadStatusBar';
 
 /** Flush the polling/SSE microtask chain inside React's act() boundary. */
 async function flush(ms = 0) {
@@ -37,6 +37,21 @@ function snapshot(over: Partial<{ throttle: unknown; jobs: unknown[] }> = {}) {
     ...over,
   };
 }
+
+describe('download status transport selection', () => {
+  it('uses polling for Safari native and when EventSource is unavailable', () => {
+    const safari = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
+    expect(shouldUseDownloadStatusSse(safari, true)).toBe(false);
+    expect(shouldUseDownloadStatusSse(safari, false)).toBe(false);
+  });
+
+  it('keeps SSE for Chromium and Firefox', () => {
+    const chrome = 'Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
+    const firefox = 'Mozilla/5.0 Gecko/20100101 Firefox/142.0';
+    expect(shouldUseDownloadStatusSse(chrome, true)).toBe(true);
+    expect(shouldUseDownloadStatusSse(firefox, true)).toBe(true);
+  });
+});
 
 const LIVE_JOB = {
   id: 'job-live-1',
@@ -395,6 +410,16 @@ describe('DownloadStatusBar (SSE path)', () => {
     expect(global.fetch).not.toHaveBeenCalled();
     act(() => FakeEventSource.instances[0].emit(snapshot({ jobs: [LIVE_JOB] })));
     expect(screen.getByRole('button', { name: 'Active downloads' })).not.toBeNull();
+  });
+
+  it('uses polling instead of EventSource on Safari to avoid a second Basic Auth challenge', async () => {
+    vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+    );
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(global.fetch).toHaveBeenCalledWith('/api/download-status', expect.objectContaining({ cache: 'no-store' }));
   });
 
   it('ignores a malformed SSE frame without crashing', async () => {
