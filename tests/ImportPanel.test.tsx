@@ -114,7 +114,7 @@ afterEach(() => {
 
 describe('ImportPanel', () => {
   it('supports picker clicks and drag state without uploading missing files', () => {
-    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     const input = fileInput(container);
     const root = panelRoot(container);
     const click = vi.spyOn(input, 'click');
@@ -132,7 +132,7 @@ describe('ImportPanel', () => {
 
   it('imports JSON from a drop and renders count plus error details', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(jsonSummary(['skipped row'])));
-    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     fireEvent.drop(panelRoot(container), { dataTransfer: { files: [jsonFile()] } });
 
     expect(await screen.findByText(t.dataMgmt.importDone)).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('ImportPanel', () => {
 
   it('imports JSON from the picker without rendering empty error details', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(jsonSummary()));
-    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     fireEvent.change(fileInput(container), { target: { files: [jsonFile()] } });
 
     expect(await screen.findByText(t.dataMgmt.importDone)).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('ImportPanel', () => {
   it('confirms database restores, supports cancellation, and renders skipped tables', async () => {
     confirmMocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     vi.mocked(fetch).mockResolvedValue(jsonResponse(dbSummary([{ name: 'cache', reason: 'missing' }])));
-    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     const input = fileInput(container);
     fireEvent.change(input, { target: { files: [dbFile()] } });
     await flushAsync();
@@ -174,7 +174,7 @@ describe('ImportPanel', () => {
 
   it('streams PostgreSQL logical backups with server-side restore confirmation', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(dbSummary()));
-    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<ImportPanel backend="postgres" />, { locale: 'en' });
     const file = postgresBackupFile();
     fireEvent.change(fileInput(container), { target: { files: [file] } });
 
@@ -195,7 +195,7 @@ describe('ImportPanel', () => {
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockRejectedValueOnce(new Error('network failed'));
-    const first = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const first = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     const input = fileInput(first.container);
     fireEvent.change(input, { target: { files: [jsonFile()] } });
     expect(await screen.findByRole('alert')).toHaveTextContent('import failed');
@@ -212,7 +212,7 @@ describe('ImportPanel', () => {
     vi.mocked(fetch)
       .mockReturnValueOnce(firstUpload.promise)
       .mockResolvedValueOnce(jsonResponse(jsonSummary()));
-    const first = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const first = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     const input = fileInput(first.container);
     fireEvent.change(input, { target: { files: [jsonFile('first.json')] } });
     await flushAsync();
@@ -225,7 +225,7 @@ describe('ImportPanel', () => {
 
     const upload = deferred<Response>();
     vi.mocked(fetch).mockReturnValueOnce(upload.promise);
-    const second = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const second = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     fireEvent.change(fileInput(second.container), { target: { files: [jsonFile()] } });
     await flushAsync();
     const uploadSignal = vi.mocked(fetch).mock.calls[2]?.[1]?.signal;
@@ -235,10 +235,27 @@ describe('ImportPanel', () => {
 
     const confirmation = deferred<boolean>();
     confirmMocks.confirm.mockReturnValueOnce(confirmation.promise);
-    const third = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const third = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
     fireEvent.change(fileInput(third.container), { target: { files: [dbFile()] } });
     third.unmount();
     await act(async () => confirmation.resolve(true));
     expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('exposes only backend-compatible native formats and rejects mismatches before upload', async () => {
+    const sqlite = renderWithProviders(<ImportPanel backend="sqlite" />, { locale: 'en' });
+    expect(fileInput(sqlite.container).accept).toContain('.sqlite3');
+    expect(fileInput(sqlite.container).accept).not.toContain('.vncbackup');
+    fireEvent.change(fileInput(sqlite.container), { target: { files: [postgresBackupFile()] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.dataMgmt.importUnsupportedBackend);
+    expect(fetch).not.toHaveBeenCalled();
+    sqlite.unmount();
+
+    const postgres = renderWithProviders(<ImportPanel backend="postgres" />, { locale: 'en' });
+    expect(fileInput(postgres.container).accept).toContain('.vncbackup');
+    expect(fileInput(postgres.container).accept).not.toContain('.sqlite');
+    fireEvent.change(fileInput(postgres.container), { target: { files: [dbFile()] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.dataMgmt.importUnsupportedBackend);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

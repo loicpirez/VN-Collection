@@ -211,6 +211,7 @@ describe('cache repository', () => {
     });
 
     await expect(repository.databaseStatus()).resolves.toMatchObject({
+      backend: 'postgres',
       db_path: 'PostgreSQL',
       egs_matched: 2,
       cache_total: 4,
@@ -238,7 +239,7 @@ describe('cache repository', () => {
     mocks.deleteCacheByPathPrefix.mockReturnValue(3);
     mocks.getCacheFreshness.mockReturnValue(4);
     mocks.cacheStats.mockReturnValue({ total: 1 });
-    mocks.getDbStatus.mockReturnValue({ db_path: 'sqlite' });
+    mocks.getDbStatus.mockReturnValue({ backend: 'sqlite', db_path: 'sqlite' });
     mocks.statementRun
       .mockReturnValueOnce({ changes: 2 })
       .mockReturnValueOnce({ changes: 3 });
@@ -257,7 +258,7 @@ describe('cache repository', () => {
     await expect(repository.deleteByPatterns(['a%', 'b%'])).resolves.toBe(5);
     await expect(repository.freshness(['a%'])).resolves.toBe(4);
     await expect(repository.stats()).resolves.toEqual({ total: 1 });
-    await expect(repository.databaseStatus()).resolves.toEqual({ db_path: 'sqlite' });
+    await expect(repository.databaseStatus()).resolves.toEqual({ backend: 'sqlite', db_path: 'sqlite' });
     expect(mocks.sqliteTransaction).toHaveBeenCalledOnce();
   });
 

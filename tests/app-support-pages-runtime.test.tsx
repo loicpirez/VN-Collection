@@ -88,6 +88,7 @@ vi.mock('@/components/SelectiveFullDownload', () => ({
 
 function dbStatus(overrides: Partial<ReturnType<typeof getDbStatus>> = {}): ReturnType<typeof getDbStatus> {
   return {
+    backend: 'sqlite',
     db_path: '/tmp/collection.db',
     rows: [{ table: 'vn', count: 2 }],
     egs_matched: 3,

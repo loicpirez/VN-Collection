@@ -11,6 +11,7 @@ import { formatMinutes } from '@/lib/format';
 import { platformLabel } from '@/lib/platform-label';
 import { statusHex } from '@/lib/status-palette';
 import type { ProducerStat } from '@/lib/types';
+import { readDatabaseConfig } from '@/lib/db/postgres-config';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -29,6 +30,7 @@ export default async function StatsPage() {
   const locale = await getLocale();
   const analytics = getAnalyticsRepository();
   const producers = getProducerRepository();
+  const databaseBackend = readDatabaseConfig().backend === 'postgres' ? 'postgres' : 'sqlite';
   const [my, agg, developerStats, publisherStats] = await Promise.all([
     analytics.personal(),
     analytics.aggregate(),
@@ -334,7 +336,7 @@ export default async function StatsPage() {
           </Link>
         </div>
         <p className="mt-3 text-[11px] text-muted">{t.dataMgmt.importHint}</p>
-        <ImportPanel />
+        <ImportPanel backend={databaseBackend} />
       </section>
     </div>
   );

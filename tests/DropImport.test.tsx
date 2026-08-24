@@ -85,7 +85,7 @@ afterEach(() => {
 
 describe('DropImport', () => {
   it('shows the overlay only while file drag depth remains positive', () => {
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('dragenter');
     dispatchDrag('dragenter', transfer([], ['text/plain']));
     expect(screen.queryByText(t.dropImport.title)).not.toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('DropImport', () => {
   });
 
   it('prevents file dragover but ignores dragover and drops without files', () => {
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     expect(dispatchDrag('dragover', transfer([], ['text/plain'])).defaultPrevented).toBe(false);
     expect(dispatchDrag('dragover', transfer()).defaultPrevented).toBe(true);
     expect(dispatchDrag('drop', transfer()).defaultPrevented).toBe(false);
@@ -109,7 +109,7 @@ describe('DropImport', () => {
   });
 
   it('rejects unsupported and malformed dropped files', () => {
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     expect(dispatchDrag('drop', transfer([undefined])).defaultPrevented).toBe(true);
     dispatchDrag('drop', transfer([new File(['x'], 'cover.png')]));
     expect(toastMocks.error).toHaveBeenCalledWith(t.dropImport.unsupported);
@@ -119,7 +119,7 @@ describe('DropImport', () => {
   it('imports JSON, displays progress, refreshes, and suppresses duplicate drops', async () => {
     const pending = deferred<Response>();
     vi.mocked(fetch).mockReturnValue(pending.promise);
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['{}'], 'collection.JSON')]));
     dispatchDrag('drop', transfer([new File(['{}'], 'second.json')]));
     expect(screen.getByText(t.dropImport.importing)).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe('DropImport', () => {
   it('confirms database restore, supports cancellation, and uses the restore endpoint', async () => {
     confirmMocks.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     vi.mocked(fetch).mockResolvedValue(jsonResponse());
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['db'], 'backup.db')]));
     await waitFor(() => expect(confirmMocks.confirm).toHaveBeenCalledTimes(1));
     expect(fetch).not.toHaveBeenCalled();
@@ -151,7 +151,7 @@ describe('DropImport', () => {
 
   it('streams a dropped PostgreSQL logical backup with explicit confirmation', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse());
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="postgres" />, { locale: 'en' });
     const file = new File(['logical backup'], 'backup.vncbackup');
     dispatchDrag('drop', transfer([file]));
 
@@ -172,7 +172,7 @@ describe('DropImport', () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(jsonResponse({ error: 'import failed' }, 500))
       .mockRejectedValueOnce(aborted);
-    renderWithProviders(<DropImport />, { locale: 'en' });
+    renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['{}'], 'first.json')]));
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith('import failed'));
 
@@ -184,7 +184,7 @@ describe('DropImport', () => {
   it('aborts and ignores stale confirmation and upload completions after teardown', async () => {
     const confirmation = deferred<boolean>();
     confirmMocks.confirm.mockReturnValue(confirmation.promise);
-    const first = renderWithProviders(<DropImport />, { locale: 'en' });
+    const first = renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['db'], 'backup.db')]));
     first.unmount();
     await act(async () => confirmation.resolve(true));
@@ -192,7 +192,7 @@ describe('DropImport', () => {
 
     const upload = deferred<Response>();
     vi.mocked(fetch).mockReturnValue(upload.promise);
-    const second = renderWithProviders(<DropImport />, { locale: 'en' });
+    const second = renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['{}'], 'collection.json')]));
     const request = vi.mocked(fetch).mock.calls[0]?.[1];
     second.unmount();
@@ -202,10 +202,23 @@ describe('DropImport', () => {
 
     const failure = deferred<Response>();
     vi.mocked(fetch).mockReturnValue(failure.promise);
-    const third = renderWithProviders(<DropImport />, { locale: 'en' });
+    const third = renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
     dispatchDrag('drop', transfer([new File(['{}'], 'second.json')]));
     third.unmount();
     await act(async () => failure.reject(new Error('late failure')));
     expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it('rejects native backups that do not match the active backend', () => {
+    const sqlite = renderWithProviders(<DropImport backend="sqlite" />, { locale: 'en' });
+    dispatchDrag('drop', transfer([new File(['logical'], 'backup.vncbackup')]));
+    expect(toastMocks.error).toHaveBeenCalledWith(t.dataMgmt.importUnsupportedBackend);
+    expect(fetch).not.toHaveBeenCalled();
+    sqlite.unmount();
+
+    renderWithProviders(<DropImport backend="postgres" />, { locale: 'en' });
+    dispatchDrag('drop', transfer([new File(['SQLite format 3\0'], 'backup.sqlite3')]));
+    expect(toastMocks.error).toHaveBeenLastCalledWith(t.dataMgmt.importUnsupportedBackend);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

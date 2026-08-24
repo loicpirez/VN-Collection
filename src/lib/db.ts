@@ -2858,6 +2858,8 @@ export function getSourcePref(vnId: string): SourcePrefMap {
 }
 
 export interface DbStatus {
+  /** Active primary persistence engine for this SQLite repository. */
+  backend: 'sqlite';
   db_path: string;
   rows: { table: string; count: number }[];
   egs_matched: number;
@@ -2907,6 +2909,7 @@ export function getDbStatus(): DbStatus {
   const dbToken = (db.prepare('SELECT value FROM app_setting WHERE key = ?').get('vndb_token') as { value: string | null } | undefined)?.value;
   const tokenSource: 'db' | 'env' | 'none' = dbToken ? 'db' : process.env.VNDB_TOKEN ? 'env' : 'none';
   return {
+    backend: 'sqlite',
     db_path: resolveDbPath(),
     rows,
     egs_matched: egsCounts.matched ?? 0,

@@ -13,6 +13,7 @@ import {
   type DbRestoreSummary,
   type JsonImportSummary,
 } from '@/lib/data-operations-client-shape';
+import type { DatabaseStatus } from '@/lib/db/repositories/cache';
 
 type Summary =
   | { kind: 'json'; data: JsonImportSummary }
@@ -29,7 +30,8 @@ async function detectKind(file: File): Promise<'json' | 'sqlite' | 'postgres'> {
   return 'json';
 }
 
-export function ImportPanel() {
+/** Import JSON or a native backup compatible with the active database backend. */
+export function ImportPanel({ backend }: { backend: DatabaseStatus['backend'] }) {
   const t = useT();
   const locale = useLocale();
   const { confirm } = useConfirm();
@@ -62,6 +64,9 @@ export function ImportPanel() {
     try {
       const kind = await detectKind(file);
       if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
+      if ((kind === 'sqlite' && backend !== 'sqlite') || (kind === 'postgres' && backend !== 'postgres')) {
+        throw new Error(t.dataMgmt.importUnsupportedBackend);
+      }
       if (kind !== 'json') {
         const ok = await confirm({
           message: t.dataMgmt.restoreConfirm,
@@ -128,7 +133,9 @@ export function ImportPanel() {
       <input
         ref={inputRef}
         type="file"
-        accept="application/json,application/octet-stream,application/x-vndb-collection-backup,.json,.db,.sqlite,.sqlite3,.vncbackup"
+        accept={backend === 'postgres'
+          ? 'application/json,application/x-vndb-collection-backup,.json,.vncbackup'
+          : 'application/json,application/octet-stream,.json,.db,.sqlite,.sqlite3'}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -152,7 +159,9 @@ export function ImportPanel() {
         >
           {t.dataMgmt.importJson}
         </button>
-        <p className="text-[10px] text-muted/70">{t.dataMgmt.importHintTypes}</p>
+        <p className="text-[10px] text-muted/70">
+          {backend === 'postgres' ? t.dataMgmt.importHintTypesPostgres : t.dataMgmt.importHintTypesSqlite}
+        </p>
       </div>
       {summary && summary.kind === 'json' && (
         <div className="mt-3 rounded-lg border border-border bg-bg-card p-3 text-left text-xs">

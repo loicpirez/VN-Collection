@@ -342,6 +342,7 @@ describe('db exported image, EGS, activity, and enum helpers', () => {
     setAppSetting('vndb_token', 'fixture-token');
     const status = getDbStatus();
     expect(getDbPath()).toBe(process.env.DB_PATH);
+    expect(status.backend).toBe('sqlite');
     expect(status.db_path).toBe(process.env.DB_PATH);
     expect(status.vndb_token).toBe('db');
     expect(status.rows.some((row) => row.table === 'vn')).toBe(true);

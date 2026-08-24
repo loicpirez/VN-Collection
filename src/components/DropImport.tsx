@@ -7,17 +7,18 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
+import type { DatabaseStatus } from '@/lib/db/repositories/cache';
 const POSTGRES_BACKUP_CONTENT_TYPE = 'application/x-vndb-collection-backup';
 /**
  * Page-wide drag-and-drop receiver. Mounts a fixed overlay that only
  * appears while the user is dragging a file over the document. Drop forwards
  * to the existing /api/collection/import endpoint (JSON merge) or to
- * /api/backup/restore for .db replacements.
+ * /api/backup/restore for native database replacements.
  *
  * Picks the route by inspecting the file extension - no MIME sniffing,
  * matches how the existing ImportPanel branches.
  */
-export function DropImport() {
+export function DropImport({ backend }: { backend: DatabaseStatus['backend'] }) {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -55,9 +56,14 @@ export function DropImport() {
       if (!file) return;
       const lower = file.name.toLowerCase();
       const isPostgresBackup = lower.endsWith('.vncbackup');
-      const isDb = lower.endsWith('.db') || lower.endsWith('.sqlite') || isPostgresBackup;
+      const isSqliteBackup = lower.endsWith('.db') || lower.endsWith('.sqlite') || lower.endsWith('.sqlite3');
+      const isDb = isSqliteBackup || isPostgresBackup;
       if (!lower.endsWith('.json') && !isDb) {
         toast.error(t.dropImport.unsupported);
+        return;
+      }
+      if ((isSqliteBackup && backend !== 'sqlite') || (isPostgresBackup && backend !== 'postgres')) {
+        toast.error(t.dataMgmt.importUnsupportedBackend);
         return;
       }
       uploadInFlightRef.current = true;
@@ -119,7 +125,7 @@ export function DropImport() {
       document.removeEventListener('dragover', onOver);
       document.removeEventListener('drop', onDrop);
     };
-  }, [router, t, toast, confirm]);
+  }, [backend, router, t, toast, confirm]);
 
   if (!over && !busy) return null;
   return (

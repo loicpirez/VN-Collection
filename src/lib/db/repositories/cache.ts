@@ -25,6 +25,8 @@ export interface CacheStat {
 
 /** Provider-neutral database status shown by the data-management UI. */
 export interface DatabaseStatus {
+  /** Active primary persistence engine. */
+  backend: 'sqlite' | 'postgres';
   db_path: string;
   rows: Array<{ table: string; count: number }>;
   egs_matched: number;
@@ -237,6 +239,7 @@ export function createPostgresCacheRepository(): CacheRepository {
         has_token: 0,
       };
       return {
+        backend: 'postgres',
         db_path: 'PostgreSQL',
         rows: counts,
         egs_matched: row.matched,

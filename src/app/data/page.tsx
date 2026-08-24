@@ -151,7 +151,7 @@ export default async function DataPage() {
           <FileUp className="h-5 w-5 text-accent" aria-hidden /> {t.dataMgmt.importSectionTitle}
         </h2>
         <p className="mb-4 text-xs text-muted">{t.dataMgmt.importHint}</p>
-        <ImportPanel />
+        <ImportPanel backend={status.backend} />
         <p className="mt-3 text-[11px] text-muted">{t.dropImport.dragHint}</p>
       </section>
 
@@ -176,14 +176,7 @@ export default async function DataPage() {
           <Link href="/steam" className="btn">
             <Gamepad2 className="h-4 w-4" aria-hidden /> {t.steam.open}
           </Link>
-          {/*
-            Steam credential CONFIG (api key + SteamID) lives in
-            Settings → Integrations now. This section keeps the
-            entry point + a callout link. The inline form was
-            removed in commit <this one> to fix the IA - /data
-            should be operational (status / actions), not a
-            second home for settings.
-          */}
+          {/* Credential configuration lives in Settings; this page keeps operational actions only. */}
           <OpenSettingsButton tab="integrations" label={t.dataMgmt.integrationsLink} />
         </div>
       </section>
@@ -214,7 +207,7 @@ export default async function DataPage() {
         <SelectiveFullDownload />
       </section>
 
-      <DropImport />
+      <DropImport backend={status.backend} />
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
