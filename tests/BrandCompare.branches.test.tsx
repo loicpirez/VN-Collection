@@ -80,9 +80,13 @@ describe('BrandCompare branches', () => {
       { locale: 'en' },
     );
     fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
-    expect(screen.getByRole('button', { name: t.compare.useVndb })).toBeInTheDocument();
+    const useVndb = screen.getByRole('button', { name: t.compare.useVndb });
+    expect(useVndb).toBeInTheDocument();
     expect(screen.getByRole('button', { name: t.compare.useEgs })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: t.compare.useAuto })).toBeInTheDocument();
+    fireEvent.focus(useVndb);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(t.compare.sourceVndbHint);
+    fireEvent.blur(useVndb);
   });
 
   it('PATCHes the brand preference to EGS when picking the EGS column', async () => {

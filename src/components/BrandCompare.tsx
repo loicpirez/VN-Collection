@@ -6,6 +6,7 @@ import { Check, CornerDownRight, GitCompareArrows, Loader2 } from 'lucide-react'
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
+import { SourceChoiceTooltip } from './SourceChoiceTooltip';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Developer {
@@ -157,6 +158,7 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           pending={(saving || pending) && optimistic === 'vndb'}
           saving={saving}
           useLabel={t.compare.useVndb}
+          choice="vndb"
         >
           <DevChips devs={vndbDevs} />
         </Column>
@@ -168,6 +170,7 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
           pending={(saving || pending) && optimistic === 'egs'}
           saving={saving}
           useLabel={t.compare.useEgs}
+          choice="egs"
         >
           {egsBrand && (
             <span className="inline-block rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs">
@@ -177,19 +180,21 @@ export function BrandCompare({ vnId, current, vndbDevs, egsBrand, label }: Props
         </Column>
       </div>
       <div className="mt-2 text-right">
-        <button
-          type="button"
-          onClick={() => persist('auto')}
-          disabled={saving || pending}
-          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
-            optimistic === 'auto'
-              ? 'bg-accent text-bg font-bold'
-              : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-          }`}
-        >
-          {(saving || pending) && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-          {t.compare.useAuto}
-        </button>
+        <SourceChoiceTooltip choice="auto">
+          <button
+            type="button"
+            onClick={() => persist('auto')}
+            disabled={saving || pending}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
+              optimistic === 'auto'
+                ? 'bg-accent text-bg font-bold'
+                : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {(saving || pending) && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+            {t.compare.useAuto}
+          </button>
+        </SourceChoiceTooltip>
       </div>
     </div>
   );
@@ -222,6 +227,7 @@ function Column({
   pending,
   saving,
   useLabel,
+  choice,
   children,
 }: {
   tone: 'vndb' | 'egs';
@@ -231,6 +237,7 @@ function Column({
   pending: boolean;
   saving: boolean;
   useLabel: string;
+  choice: Extract<SourceChoice, 'vndb' | 'egs'>;
   children: React.ReactNode;
 }) {
   return (
@@ -244,19 +251,21 @@ function Column({
           {label}
           {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
-        <button
-          type="button"
-          onClick={onUse}
-          disabled={active || saving}
-          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
-            active
-              ? 'bg-accent/20 text-accent cursor-default'
-              : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
-          }`}
-        >
-          {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-          {useLabel}
-        </button>
+        <SourceChoiceTooltip choice={choice}>
+          <button
+            type="button"
+            onClick={onUse}
+            disabled={active || saving}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
+              active
+                ? 'bg-accent/20 text-accent cursor-default'
+                : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+            {useLabel}
+          </button>
+        </SourceChoiceTooltip>
       </div>
       {children}
     </div>
