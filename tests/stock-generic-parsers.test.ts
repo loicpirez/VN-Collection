@@ -121,6 +121,32 @@ describe('parseGenericProviderPage — GEO', () => {
       location_label: 'GEO',
     });
   });
+
+  it('rejects a structurally valid card for an unrelated title', () => {
+    const html = `
+      <li>
+        <a class="sendDatalayer" href="/shop/goods/goods.aspx?goods=2">
+          <h3 class="itemName">unrelated product</h3>
+        </a>
+        <div class="sellPtnLeftPrice">1,980円</div>
+        <span class="labelNow">在庫あり</span>
+      </li>
+    `;
+
+    expect(parseGenericProviderPage('geo', html, 'https://ec.geo-online.co.jp/shop/goods', TARGET)).toEqual([]);
+  });
+});
+
+describe('parseGenericProviderPage — Joshin', () => {
+  it('rejects a structurally valid card for an unrelated title', () => {
+    const html = `
+      <div class="search_container_name"><a href="/item/1">unrelated product</a></div>
+      <div class="search_container_price"><div class="price">1,980円</div></div>
+      <div class="search_container_stock">在庫あり</div><div class="search_container_review"></div>
+    `;
+
+    expect(parseGenericProviderPage('joshin', html, 'https://joshinweb.jp/search', TARGET)).toEqual([]);
+  });
 });
 
 describe('parseGenericProviderPage — Yodobashi', () => {
