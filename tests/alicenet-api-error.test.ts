@@ -13,6 +13,14 @@ async function errorBody(error: unknown, fallback = 'fallback'): Promise<Decoded
 }
 
 describe('aliceNetApiError', () => {
+  it('uses the AliceNet operation context by default', async () => {
+    const response = aliceNetApiError(new Error('operation failed'), 'fallback', 502);
+    expect(response.status).toBe(502);
+    const value: unknown = await response.json();
+    const body = decodeApiErrorBody(value);
+    expect(body?.context).toBe('alicenet');
+  });
+
   it('classifies common network and upstream failure modes', async () => {
     await expect(errorBody(new Error('getaddrinfo ENOTFOUND alice.example'))).resolves.toMatchObject({
       error: 'AliceNet host could not be resolved. Check DNS, network, or proxy settings.',

@@ -265,7 +265,7 @@ describe('matchNextAliceNetItems — fresh pass', () => {
       results: [vnHit({ id: 'v50001', title: 'シンセティックタイトル', released: '2019-07-26' })],
       more: false,
     });
-    const result = await matchNextAliceNetItems(5, false);
+    const result = await matchNextAliceNetItems(5);
     expect(result.processed).toBe(1);
     expect(result.matched).toBe(1);
     const row = getAliceNetStockItem('111-000000-001');
