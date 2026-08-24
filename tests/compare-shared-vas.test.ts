@@ -26,12 +26,12 @@ afterAll(() => {
 });
 
 describe('compare page shared seiyuu matching', () => {
-  it('returns no shared credits when fewer than two distinct VNs are compared', () => {
-    expect(findSharedVasForVns([])).toEqual([]);
-    expect(findSharedVasForVns(['v9600', 'v9600'])).toEqual([]);
+  it('returns no shared credits when fewer than two distinct VNs are compared', async () => {
+    await expect(findSharedVasForVns([])).resolves.toEqual([]);
+    await expect(findSharedVasForVns(['v9600', 'v9600'])).resolves.toEqual([]);
   });
 
-  it('groups a shared seiyuu by VN and character instead of flattening by first characters only', () => {
+  it('groups a shared seiyuu by VN and character instead of flattening by first characters only', async () => {
     upsertVn({
       id: 'v9600',
       title: 'fixture A',
@@ -55,7 +55,7 @@ describe('compare page shared seiyuu matching', () => {
       ],
     });
 
-    expect(findSharedVasForVns(['v9600', 'v9601'])).toEqual([
+    await expect(findSharedVasForVns(['v9600', 'v9601'])).resolves.toEqual([
       {
         sid: 's9600',
         va_name: 'voice A',
@@ -71,9 +71,58 @@ describe('compare page shared seiyuu matching', () => {
 
   it('sorts shared seiyuu first and highlights them in the seiyuu row', () => {
     expect(compareSource).toContain('const sharedVaIds = new Set(sharedVas.map((va) => va.sid))');
-    expect(compareSource).toContain('const uniqueVas = Array.from(');
-    expect(compareSource).toContain('Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id))');
-    expect(compareSource).toContain("shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'");
+    expect(compareSource).toContain('const uniqueVas = uniqueVoiceCredits(it)');
+    expect(compareSource).toContain('visibleVoiceCredits(uniqueVas, sharedVaIds)');
+    expect(compareSource).toContain('Number(shared.has(b.staff.id)) - Number(shared.has(a.staff.id))');
+    expect(compareSource).toContain("isShared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'");
+  });
+
+  it('matches alias-only credits by canonical staff id and rejects unrelated same-name actors', async () => {
+    upsertVn({
+      id: 'v9620',
+      title: 'alias fixture A',
+      va: [
+        {
+          note: null,
+          character: { id: 'c9620', name: 'heroine alias A', original: null },
+          staff: { id: 's9620', aid: 1, name: 'legal voice name', original: '本名', lang: 'ja' },
+        },
+        {
+          note: null,
+          character: { id: 'c9621', name: 'unrelated A', original: null },
+          staff: { id: 's9621', aid: 1, name: 'same display name', original: null, lang: 'ja' },
+        },
+      ],
+    });
+    upsertVn({
+      id: 'v9621',
+      title: 'alias fixture B',
+      va: [
+        {
+          note: null,
+          character: { id: 'c9622', name: 'heroine alias B', original: null },
+          staff: { id: 's9620', aid: 2, name: 'credited alias', original: '別名', lang: 'ja' },
+        },
+        {
+          note: null,
+          character: { id: 'c9623', name: 'unrelated B', original: null },
+          staff: { id: 's9622', aid: 1, name: 'same display name', original: null, lang: 'ja' },
+        },
+      ],
+    });
+
+    const shared = await findSharedVasForVns(['v9620', 'v9621']);
+    expect(shared).toHaveLength(1);
+    expect(shared[0]).toMatchObject({
+      sid: 's9620',
+      va_name: 'legal voice name',
+      creditsByVn: [
+        { vn_id: 'v9620', characters: [{ c_id: 'c9620', c_name: 'heroine alias A' }] },
+        { vn_id: 'v9621', characters: [{ c_id: 'c9622', c_name: 'heroine alias B' }] },
+      ],
+      totalCharacters: 2,
+    });
+    expect(shared.some((actor) => actor.va_name === 'same display name')).toBe(false);
   });
 
   it('keeps distinct voice-credit rows for the same VN character and staff when notes differ', () => {
@@ -99,7 +148,7 @@ describe('compare page shared seiyuu matching', () => {
     expect(credits[0].characters.map((c) => c.note)).toEqual(['first route', 'second route']);
   });
 
-  it('sorts multiple shared actors by character count and then by name', () => {
+  it('sorts multiple shared actors by character count and then by name', async () => {
     upsertVn({
       id: 'v9610',
       title: 'fixture D',
@@ -119,7 +168,7 @@ describe('compare page shared seiyuu matching', () => {
         { note: null, character: { id: 'c9616', name: 'heroine J', original: null }, staff: { id: 's9612', aid: 1, name: 'voice B', original: null, lang: 'ja' } },
       ],
     });
-    expect(findSharedVasForVns(['v9610', 'v9611']).map((row) => row.sid)).toEqual([
+    expect((await findSharedVasForVns(['v9610', 'v9611'])).map((row) => row.sid)).toEqual([
       's9610',
       's9611',
       's9612',

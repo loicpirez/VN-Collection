@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, GitCompare, Heart, Sparkles, Star, Users } from 'lucide-react';
-import { db, getCollectionItem } from '@/lib/db';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
+import { getCompareRepository } from '@/lib/db/repositories/compare';
 import { getDict, getLocale } from '@/lib/i18n/server';
-import type { Locale } from '@/lib/i18n/dictionaries';
+import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
+import type { CollectionItem } from '@/lib/types';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { roleLabel } from '@/lib/staff-roles';
@@ -55,37 +57,6 @@ function intersection<T>(sets: Set<T>[]): Set<T> {
   return out;
 }
 
-interface SharedCharacter {
-  c_id: string;
-  c_name: string;
-  per_vn: { vn_id: string; va_name: string }[];
-}
-
-/** Characters appearing in every VN (cross-VN appearances are rare - recurring side characters / mascots). */
-function findSharedCharacters(vnIds: string[]): SharedCharacter[] {
-  if (vnIds.length < 2) return [];
-  const placeholders = vnIds.map(() => '?').join(',');
-  const rows = db
-    .prepare(`
-      SELECT vn_id, c_id, c_name, va_name FROM vn_va_credit
-      WHERE vn_id IN (${placeholders})
-    `)
-    .all(...vnIds) as Array<{ vn_id: string; c_id: string; c_name: string; va_name: string }>;
-  const byChar = new Map<string, { vnIds: Set<string>; entry: SharedCharacter }>();
-  for (const r of rows) {
-    let bucket = byChar.get(r.c_id);
-    if (!bucket) {
-      bucket = { vnIds: new Set(), entry: { c_id: r.c_id, c_name: r.c_name, per_vn: [] } };
-      byChar.set(r.c_id, bucket);
-    }
-    bucket.vnIds.add(r.vn_id);
-    bucket.entry.per_vn.push({ vn_id: r.vn_id, va_name: r.va_name });
-  }
-  return Array.from(byChar.values())
-    .filter((b) => b.vnIds.size === vnIds.length)
-    .map((b) => b.entry);
-}
-
 export default async function ComparePage({
   searchParams,
 }: {
@@ -95,8 +66,8 @@ export default async function ComparePage({
   const ids = parseIds(idsRaw);
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
 
-  const items = ids
-    .map((id) => getCollectionItem(id))
+  const reader = getVnReadRepository();
+  const items = (await Promise.all(ids.map((id) => reader.getCollectionItem(id))))
     .filter((v): v is NonNullable<typeof v> => v != null);
 
   const resolvedIds = new Set(items.map((it) => it.id));
@@ -117,9 +88,9 @@ export default async function ComparePage({
   // Map shared staff ids → display data (name + role for the first VN that has them).
   const sharedStaff = items[0]?.staff?.filter((s) => sharedStaffIds.has(s.id)) ?? [];
   const sharedTagsWithNames = items[0]?.tags?.filter((tg) => sharedTagIds.has(tg.id) && tg.spoiler === 0) ?? [];
-  const sharedVas = findSharedVasForVns(items.map((it) => it.id));
+  const sharedVas = await findSharedVasForVns(items.map((it) => it.id));
   const sharedVaIds = new Set(sharedVas.map((va) => va.sid));
-  const sharedCharacters = findSharedCharacters(items.map((it) => it.id));
+  const sharedCharacters = await getCompareRepository().findSharedCharacters(items.map((it) => it.id));
   const titleById = new Map(items.map((it) => [it.id, it.title]));
 
   // Similarity score - naive but useful: weighted overlap ratio across tags
@@ -269,7 +240,77 @@ export default async function ComparePage({
       )}
 
       {items.length >= 2 && (
-        <div className="scroll-fade-right overflow-x-auto rounded-xl border border-border bg-bg-card">
+        <ul
+          className="grid gap-4 [content-visibility:auto] [contain-intrinsic-size:auto_900px] md:hidden"
+          data-testid="compare-mobile-cards"
+        >
+          {items.map((it) => {
+            const uniqueVas = uniqueVoiceCredits(it);
+            const vas = visibleVoiceCredits(uniqueVas, sharedVaIds);
+            return (
+              <li
+                key={`mobile-${it.id}`}
+                className="overflow-hidden rounded-lg border border-border bg-bg-card [content-visibility:auto] [contain-intrinsic-size:auto_760px]"
+              >
+                <header className="flex gap-4 border-b border-border p-4">
+                  <Link href={`/vn/${it.id}`} className="block aspect-[2/3] w-20 shrink-0 overflow-hidden rounded">
+                    <SafeImage
+                      src={it.image_url || it.image_thumb}
+                      localSrc={it.local_image || it.local_image_thumb}
+                      sexual={it.image_sexual ?? null}
+                      alt={it.title}
+                      className="h-full w-full"
+                    />
+                  </Link>
+                  <div className="min-w-0 self-center">
+                    <Link href={`/vn/${it.id}`} className="line-clamp-3 text-base font-bold hover:text-accent">
+                      {it.title}
+                    </Link>
+                    {it.alttitle && it.alttitle !== it.title && (
+                      <p className="mt-1 line-clamp-2 text-xs text-muted">{it.alttitle}</p>
+                    )}
+                  </div>
+                </header>
+                <dl className="divide-y divide-border/70">
+                  <MobileCompareRow label={t.compareView.row.rating}>
+                    <RatingValue item={it} locale={locale} t={t} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.released}>
+                    {formatVndbDateString(it.released, locale)}
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.length}>
+                    {fmtMinutes(it.length_minutes, locale, t)}
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.languages}>
+                    <LangList langs={it.languages} locale={locale} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.platforms}>
+                    <PlatformValues item={it} shared={sharedPlats} locale={locale} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.developers}>
+                    <DeveloperValues item={it} shared={sharedDevs} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.tags}>
+                    <TagValues item={it} shared={sharedTagIds} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.staff}>
+                    <StaffValues item={it} shared={sharedStaffIds} />
+                  </MobileCompareRow>
+                  <MobileCompareRow label={t.compareView.row.seiyuu}>
+                    <VoiceValues uniqueVas={uniqueVas} visibleVas={vas} shared={sharedVaIds} />
+                  </MobileCompareRow>
+                </dl>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {items.length >= 2 && (
+        <div
+          className="scroll-fade-right hidden overflow-x-auto rounded-xl border border-border bg-bg-card [content-visibility:auto] [contain-intrinsic-size:auto_1050px] md:block"
+          data-testid="compare-desktop-matrix"
+        >
           <div
             className="grid gap-px bg-border [grid-template-columns:var(--cmp-cols-sm)] sm:[grid-template-columns:var(--cmp-cols-md)]"
             style={{
@@ -308,15 +349,7 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.rating} />
             {items.map((it) => (
               <div key={`rating-${it.id}`} className="bg-bg-card p-3 text-sm">
-                <span className="inline-flex items-baseline gap-1 text-accent">
-                  <Star className="h-3 w-3 self-center fill-accent" aria-hidden />
-                  {it.rating != null ? fmtNum(it.rating / 10, locale, 1) : '-'}
-                </span>
-                {it.user_rating != null && (
-                  <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
-                    {fmtNum(it.user_rating / 10, locale, 1)}
-                  </span>
-                )}
+                <RatingValue item={it} locale={locale} t={t} />
               </div>
             ))}
 
@@ -342,111 +375,38 @@ export default async function ComparePage({
             <CellHead label={t.compareView.row.platforms} />
             {items.map((it) => (
               <div key={`plats-${it.id}`} className="bg-bg-card p-3 text-xs">
-                {it.platforms.map((p) => (
-                  <span
-                    key={p}
-                    className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
-                      sharedPlats.has(p) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
-                    }`}
-                    title={p}
-                  >
-                    {platformLabel(p)}
-                  </span>
-                ))}
+                <PlatformValues item={it} shared={sharedPlats} locale={locale} />
               </div>
             ))}
 
             <CellHead label={t.compareView.row.developers} />
             {items.map((it) => (
               <div key={`devs-${it.id}`} className="bg-bg-card p-3 text-xs">
-                {it.developers.map((d, i) => {
-                  const cls = `mr-1 inline-block rounded px-1.5 py-0.5 ${
-                    sharedDevs.has(d.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
-                  }`;
-                  return d.id && /^p\d+$/i.test(d.id) ? (
-                    <Link key={`${d.id}-${i}`} href={`/producer/${d.id}`} className={`${cls} hover:underline`}>
-                      {d.name}
-                    </Link>
-                  ) : (
-                    <span key={`${d.name}-${i}`} className={cls}>{d.name}</span>
-                  );
-                })}
+                <DeveloperValues item={it} shared={sharedDevs} />
               </div>
             ))}
 
             <CellHead label={t.compareView.row.tags} />
             {items.map((it) => (
               <div key={`tags-${it.id}`} className="bg-bg-card p-3 text-xs">
-                <div className="flex flex-wrap gap-1">
-                  {it.tags
-                    .filter((tg) => tg.spoiler === 0)
-                    .slice(0, 14)
-                    .map((tg) => (
-                      <Link
-                        key={tg.id}
-                        href={`/?tag=${encodeURIComponent(tg.id)}`}
-                        className={`rounded px-1.5 py-0.5 text-[10px] hover:underline ${
-                          sharedTagIds.has(tg.id) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
-                        }`}
-                      >
-                        {tg.name}
-                      </Link>
-                    ))}
-                </div>
+                <TagValues item={it} shared={sharedTagIds} />
               </div>
             ))}
 
             <CellHead label={t.compareView.row.staff} />
             {items.map((it) => (
               <div key={`staff-${it.id}`} className="bg-bg-card p-3 text-[11px]">
-                {it.staff
-                  .slice(0, 8)
-                  .map((s, i) => (
-                    <Link
-                      key={`${s.id}-${i}`}
-                      href={`/staff/${s.id}`}
-                      className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 ${
-                        sharedStaffIds.has(s.id) ? 'text-accent' : 'text-muted'
-                      }`}
-                    >
-                      {s.name}
-                    </Link>
-                  ))}
+                <StaffValues item={it} shared={sharedStaffIds} />
               </div>
             ))}
 
             <CellHead label={t.compareView.row.seiyuu} />
             {items.map((it) => {
-              const uniqueVas = Array.from(
-                new Map(it.va.map((v) => [`${v.staff.id}|${v.character.id}|${v.note ?? ''}`, v])).values(),
-              );
-              const vas = uniqueVas
-                .sort((a, b) => Number(sharedVaIds.has(b.staff.id)) - Number(sharedVaIds.has(a.staff.id)))
-                .slice(0, 10);
+              const uniqueVas = uniqueVoiceCredits(it);
+              const vas = visibleVoiceCredits(uniqueVas, sharedVaIds);
               return (
                 <div key={`va-${it.id}`} className="bg-bg-card p-3 text-[11px]">
-                  {vas.length === 0 ? (
-                    <span className="text-muted/60">-</span>
-                  ) : (
-                    vas.map((v) => {
-                      const shared = sharedVaIds.has(v.staff.id);
-                      return (
-                        <Link
-                          key={`${v.staff.id}-${v.character.id}-${v.note ?? 'credit'}`}
-                          href={`/staff/${v.staff.id}`}
-                          className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
-                            shared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
-                          }`}
-                          title={`${v.character.name}${v.note ? ` / ${v.note}` : ''}`}
-                        >
-                          {v.staff.name}
-                        </Link>
-                      );
-                    })
-                  )}
-                  {uniqueVas.length > vas.length && (
-                    <span className="text-muted">+{uniqueVas.length - vas.length}</span>
-                  )}
+                  <VoiceValues uniqueVas={uniqueVas} visibleVas={vas} shared={sharedVaIds} />
                 </div>
               );
             })}
@@ -463,6 +423,155 @@ function CellHead({ label }: { label: string }) {
     <div className="sticky left-0 z-10 bg-bg-elev p-3 text-[10px] font-bold uppercase tracking-wider text-muted">
       {label}
     </div>
+  );
+}
+
+function MobileCompareRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[minmax(6.5rem,0.7fr)_minmax(0,1.3fr)] gap-3 px-4 py-3 text-xs">
+      <dt className="font-bold text-muted">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
+  );
+}
+
+function RatingValue({ item, locale, t }: { item: CollectionItem; locale: Locale; t: Dictionary }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1 text-accent">
+        <Star className="h-3 w-3 fill-accent" aria-hidden />
+        {item.rating != null ? fmtNum(item.rating / 10, locale, 1) : '-'}
+      </span>
+      <span className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] font-bold text-muted">
+        {t.compareView.row.ratingVndb}
+      </span>
+      {item.user_rating != null && (
+        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
+          {t.compareView.row.ratingPersonal} {fmtNum(item.user_rating / 10, locale, 1)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PlatformValues({ item, shared, locale }: { item: CollectionItem; shared: Set<string>; locale: Locale }) {
+  if (item.platforms.length === 0) return <span className="text-muted/60">-</span>;
+  return item.platforms.map((platform) => (
+    <span
+      key={platform}
+      className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
+        shared.has(platform) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+      }`}
+      title={platform}
+    >
+      {platformLabel(platform, locale)}
+    </span>
+  ));
+}
+
+function DeveloperValues({ item, shared }: { item: CollectionItem; shared: Set<string> }) {
+  if (item.developers.length === 0) return <span className="text-muted/60">-</span>;
+  return item.developers.map((developer, index) => {
+    const cls = `mr-1 inline-block rounded px-1.5 py-0.5 ${
+      shared.has(developer.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+    }`;
+    return developer.id && /^p\d+$/i.test(developer.id) ? (
+      <Link key={`${developer.id}-${index}`} href={`/producer/${developer.id}`} className={`${cls} hover:underline`}>
+        {developer.name}
+      </Link>
+    ) : (
+      <span key={`${developer.name}-${index}`} className={cls}>{developer.name}</span>
+    );
+  });
+}
+
+function TagValues({ item, shared }: { item: CollectionItem; shared: Set<string> }) {
+  const tags = item.tags.filter((tag) => tag.spoiler === 0).slice(0, 14);
+  if (tags.length === 0) return <span className="text-muted/60">-</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map((tag) => (
+        <Link
+          key={tag.id}
+          href={`/?tag=${encodeURIComponent(tag.id)}`}
+          className={`rounded px-1.5 py-0.5 text-[10px] hover:underline ${
+            shared.has(tag.id) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
+          }`}
+        >
+          {tag.name}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function StaffValues({ item, shared }: { item: CollectionItem; shared: Set<string> }) {
+  const staff = item.staff.slice(0, 8);
+  if (staff.length === 0) return <span className="text-muted/60">-</span>;
+  return staff.map((member, index) => (
+    <Link
+      key={`${member.id}-${index}`}
+      href={`/staff/${member.id}`}
+      className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 ${
+        shared.has(member.id) ? 'text-accent' : 'text-muted'
+      }`}
+    >
+      {member.name}
+    </Link>
+  ));
+}
+
+type VoiceCredit = CollectionItem['va'][number];
+
+function uniqueVoiceCredits(item: CollectionItem): VoiceCredit[] {
+  return Array.from(
+    new Map(item.va.map((credit) => [
+      `${credit.staff.id}|${credit.character.id}|${credit.note ?? ''}`,
+      credit,
+    ])).values(),
+  );
+}
+
+function visibleVoiceCredits(credits: VoiceCredit[], shared: Set<string>): VoiceCredit[] {
+  return [...credits]
+    .sort((a, b) => Number(shared.has(b.staff.id)) - Number(shared.has(a.staff.id)))
+    .slice(0, 10);
+}
+
+function VoiceValues({
+  uniqueVas,
+  visibleVas,
+  shared,
+}: {
+  uniqueVas: VoiceCredit[];
+  visibleVas: VoiceCredit[];
+  shared: Set<string>;
+}) {
+  return (
+    <>
+      {visibleVas.length === 0 ? (
+        <span className="text-muted/60">-</span>
+      ) : (
+        visibleVas.map((credit) => {
+          const isShared = shared.has(credit.staff.id);
+          return (
+            <Link
+              key={`${credit.staff.id}-${credit.character.id}-${credit.note ?? 'credit'}`}
+              href={`/staff/${credit.staff.id}`}
+              className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
+                isShared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
+              }`}
+              title={`${credit.character.name}${credit.note ? ` / ${credit.note}` : ''}`}
+            >
+              {credit.staff.name}
+            </Link>
+          );
+        })
+      )}
+      {uniqueVas.length > visibleVas.length && (
+        <span className="text-muted">+{uniqueVas.length - visibleVas.length}</span>
+      )}
+    </>
   );
 }
 

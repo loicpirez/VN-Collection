@@ -1,20 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ComparePage, { generateMetadata } from '@/app/compare/page';
-import { getCollectionItem } from '@/lib/db';
 import { findSharedVasForVns, type SharedVa } from '@/lib/compare-credits';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { CollectionItem } from '@/lib/types';
 
-const dbMocks = vi.hoisted(() => ({
-  all: vi.fn(),
+const repositoryMocks = vi.hoisted(() => ({
+  getCollectionItem: vi.fn(),
+  findSharedCharacters: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: () => ({ all: dbMocks.all }),
-  },
-  getCollectionItem: vi.fn(),
+vi.mock('@/lib/db/repositories/vn-read', () => ({
+  getVnReadRepository: () => ({ getCollectionItem: repositoryMocks.getCollectionItem }),
+}));
+
+vi.mock('@/lib/db/repositories/compare', () => ({
+  getCompareRepository: () => ({ findSharedCharacters: repositoryMocks.findSharedCharacters }),
 }));
 
 vi.mock('@/lib/compare-credits', () => ({
@@ -109,9 +110,9 @@ function sharedVa(index: number, overrides: Partial<SharedVa> = {}): SharedVa {
 }
 
 beforeEach(() => {
-  vi.mocked(getCollectionItem).mockReset().mockReturnValue(null);
-  vi.mocked(findSharedVasForVns).mockReset().mockReturnValue([]);
-  dbMocks.all.mockReset().mockReturnValue([]);
+  repositoryMocks.getCollectionItem.mockReset().mockResolvedValue(null);
+  repositoryMocks.findSharedCharacters.mockReset().mockResolvedValue([]);
+  vi.mocked(findSharedVasForVns).mockReset().mockResolvedValue([]);
 });
 
 describe('compare page runtime', () => {
@@ -123,19 +124,19 @@ describe('compare page runtime', () => {
 
     expect(html).toContain('data-testid="picker">[]');
     expect(html).not.toContain(dictionaries.en.compareView.common.similarity);
-    expect(dbMocks.all).not.toHaveBeenCalled();
+    expect(repositoryMocks.findSharedCharacters).toHaveBeenCalledWith([]);
     expect(findSharedVasForVns).toHaveBeenCalledWith([]);
   });
 
   it('normalizes valid ids, limits the picker to four rows, and reports dropped rows', async () => {
-    vi.mocked(getCollectionItem).mockImplementation((id) => id === 'v1' ? collectionItem('v1') : null);
+    repositoryMocks.getCollectionItem.mockImplementation(async (id) => id === 'v1' ? collectionItem('v1') : null);
 
     let html = renderToStaticMarkup(await ComparePage({
       searchParams: Promise.resolve({ ids: ' V1, invalid, v2, v3, v4, v5 ' }),
     }));
 
-    expect(getCollectionItem).toHaveBeenCalledTimes(4);
-    expect(getCollectionItem).not.toHaveBeenCalledWith('v5');
+    expect(repositoryMocks.getCollectionItem).toHaveBeenCalledTimes(4);
+    expect(repositoryMocks.getCollectionItem).not.toHaveBeenCalledWith('v5');
     expect(html).toContain('v2, v3, v4');
     expect(html).toContain(dictionaries.en.compareView.droppedNotice.replace('{n}', '3'));
 
@@ -145,13 +146,17 @@ describe('compare page runtime', () => {
   });
 
   it('renders an empty-overlap matrix for two sparse rows', async () => {
-    vi.mocked(getCollectionItem).mockImplementation((id) => collectionItem(id));
+    repositoryMocks.getCollectionItem.mockImplementation(async (id) => collectionItem(id));
 
     const html = renderToStaticMarkup(await ComparePage({ searchParams: Promise.resolve({ ids: 'v1,v2' }) }));
 
     expect(html).toContain(`${dictionaries.en.compareView.common.similarity}: <span class="font-bold text-accent">0%</span>`);
     expect(html).toContain('data-testid="langs"></span>');
     expect(html).toContain('text-muted/60">-</span>');
+    expect(html).toContain('data-testid="compare-mobile-cards"');
+    expect(html).toContain('data-testid="compare-desktop-matrix"');
+    expect(html).toContain('hidden overflow-x-auto');
+    expect(html).toContain(dictionaries.en.compareView.row.ratingVndb);
     expect(html).not.toContain(dictionaries.en.compareView.common.characters);
   });
 
@@ -209,8 +214,8 @@ describe('compare page runtime', () => {
       tags: [{ id: 'g1', name: 'Shared tag', rating: 3, spoiler: 0 }],
       staff: sharedStaff,
     });
-    vi.mocked(getCollectionItem).mockImplementation((id) => id === 'v1' ? first : second);
-    vi.mocked(findSharedVasForVns).mockReturnValue([
+    repositoryMocks.getCollectionItem.mockImplementation(async (id) => id === 'v1' ? first : second);
+    vi.mocked(findSharedVasForVns).mockResolvedValue([
       sharedVa(1, {
         creditsByVn: [{ vn_id: 'v404', characters: [{ c_id: 'cx', c_name: 'Fallback character' }] }],
       }),
@@ -218,12 +223,14 @@ describe('compare page runtime', () => {
       sharedVa(10, { sid: 'z10' }),
       sharedVa(11, { sid: 'z11' }),
     ]);
-    dbMocks.all.mockReturnValue([
-      { vn_id: 'v1', c_id: 'c1', c_name: 'Recurring character', va_name: 'Actor one' },
-      { vn_id: 'v1', c_id: 'c1', c_name: 'Recurring character', va_name: 'Actor one' },
-      { vn_id: 'v2', c_id: 'c1', c_name: 'Recurring character', va_name: 'Actor two' },
-      { vn_id: 'v1', c_id: 'c2', c_name: 'Solo character', va_name: 'Actor three' },
-    ]);
+    repositoryMocks.findSharedCharacters.mockResolvedValue([{
+      c_id: 'c1',
+      c_name: 'Recurring character',
+      per_vn: [
+        { vn_id: 'v1', va_name: 'Actor one' },
+        { vn_id: 'v2', va_name: 'Actor two' },
+      ],
+    }]);
 
     const html = renderToStaticMarkup(await ComparePage({ searchParams: Promise.resolve({ ids: 'v1,v2' }) }));
 
@@ -240,6 +247,7 @@ describe('compare page runtime', () => {
     expect(html).toContain('First alternate');
     expect(html).not.toContain('>Second VN</p>');
     expect(html).toContain('9.0');
+    expect(html).toContain(`${dictionaries.en.compareView.row.ratingPersonal} 9.0`);
     expect(html).toContain('data-testid="langs">ja,en');
   });
 });
