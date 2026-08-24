@@ -452,13 +452,13 @@ async function AnticipatedSection({
   vndbCovers,
   t,
   locale,
-  startRank = 0,
+  startRank,
 }: {
   rows: EgsAnticipated[];
   vndbCovers: Map<string, VndbCoverInfo>;
   t: Dictionary;
   locale: Locale;
-  startRank?: number;
+  startRank: number;
 }) {
   if (rows.length === 0) {
     return <p className="rounded-xl border border-border bg-bg-card p-4 sm:p-6 text-sm text-muted">{t.upcoming.emptyAnticipated}</p>;

@@ -178,13 +178,13 @@ function ActionRow({
   label,
   onClick,
   danger = false,
-  disabled = false,
+  disabled,
 }: {
   icon: typeof Pin;
   label: string;
   onClick: () => void;
   danger?: boolean;
-  disabled?: boolean;
+  disabled: boolean;
 }) {
   return (
     <button

@@ -1670,13 +1670,13 @@ function ProviderStatusBadge({
   diagnostic,
   count,
   cached,
-  loading = false,
+  loading,
 }: {
   t: ReturnType<typeof useT>;
   diagnostic: NormalizedProviderDiagnostic;
   count: number;
   cached: boolean;
-  loading?: boolean;
+  loading: boolean;
 }) {
   if (loading) {
     return <Loader2 className="h-3 w-3 animate-spin text-accent" aria-hidden />;

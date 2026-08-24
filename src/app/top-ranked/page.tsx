@@ -391,7 +391,7 @@ function TabLink({
  * because we already mirror cached VN metadata; if the VN isn't in
  * the local DB yet, /vn/[id] auto-fetches on first visit.
  */
-async function VndbSection({ rows, t, startRank = 0, locale }: { rows: VndbTopRanked[]; t: Dictionary; startRank?: number; locale: Locale }) {
+async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked[]; t: Dictionary; startRank: number; locale: Locale }) {
   // Overlay locally-mirrored covers when we have them (sharper than
   // VNDB's hosted thumbnail). Same trick the /upcoming page uses.
   const ids = rows.map((r) => r.id);
@@ -484,13 +484,13 @@ function EgsSection({
   rows,
   covers,
   t,
-  startRank = 0,
+  startRank,
   locale,
 }: {
   rows: EgsTopRanked[];
   covers: Map<string, VndbCoverInfo>;
   t: Dictionary;
-  startRank?: number;
+  startRank: number;
   locale: Locale;
 }) {
   return (

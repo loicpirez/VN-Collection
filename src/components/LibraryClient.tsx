@@ -1749,16 +1749,16 @@ const DEFAULT_GRID_MEASUREMENTS: GridMeasurements = {
 
 function Grid({
   items,
-  selectMode = false,
-  selected = new Set<string>(),
+  selectMode,
+  selected,
   onToggle,
-  dense = false,
+  dense,
 }: {
   items: CollectionCardApiItem[];
-  selectMode?: boolean;
-  selected?: Set<string>;
+  selectMode: boolean;
+  selected: Set<string>;
   onToggle?: (id: string) => void;
-  dense?: boolean;
+  dense: boolean;
 }) {
   // Library grid is density-responsive via the shared
   // `--card-density-px` CSS variable (set by <CardDensitySlider>).
