@@ -103,6 +103,51 @@ export const STOCK_PROVIDERS: readonly StockProviderMeta[] = [
   { id: 'alicenet',     label: 'AliceNet',      kind: 'cached',    lookupCapabilities: ['cached_inventory'],                                  resultCapability: 'cached_offers',     supportLevel: 'supported',   physical: true,  physicalStockMode: 'exact_cached',                           cloudflare: false, branchParserImplemented: true,  confirmedPhysicalUsable: true  },
 ];
 
+/** Canonical external hosts owned by each stock provider integration. */
+export const STOCK_PROVIDER_ALLOWED_HOSTS = {
+  eroge_price: ['eroge-price.com'],
+  sofmap: ['a.sofmap.com', 'www.sofmap.com'],
+  surugaya: ['www.suruga-ya.jp', 'www.suruga-ya.com'],
+  hgame1: ['www.hgame1.com'],
+  melonbooks: ['www.melonbooks.co.jp'],
+  mandarake: ['order.mandarake.co.jp', 'www.mandarake.co.jp'],
+  wondergoo: ['www.wonder.co.jp'],
+  trader: ['trader.co.jp', 'www.chuko-tsuhan.com', 'chuko-tsuhan.com', 'www.trader.co.jp'],
+  animate: ['www.animate-onlineshop.jp'],
+  ebten: ['store.kadokawa.co.jp'],
+  getchu: ['www.getchu.com'],
+  gamers: ['www.gamers.co.jp'],
+  gamecity: ['shop.gamecity.ne.jp'],
+  asakusa_mach: ['shopping.yahoo.co.jp'],
+  amazon_jp: ['www.amazon.co.jp'],
+  amiami: ['www.amiami.jp', 'slist.amiami.jp'],
+  otakarasouko: ['www.ec.otakarasouko.com'],
+  geo: ['ec.geo-online.co.jp'],
+  joshin: ['joshinweb.jp'],
+  neowing: ['www.neowing.co.jp'],
+  yodobashi: ['www.yodobashi.com'],
+  bikkuri_takarajima: ['beak-takarajima.celosia.co.jp'],
+  alicenet: ['www.alice-kobe.com'],
+} as const satisfies Record<StockProviderId | 'alicenet', readonly string[]>;
+
+/** Whether a hostname is explicitly assigned to one provider in the canonical catalogue. */
+export function isStockProviderHostAllowed(id: StockProviderId | 'alicenet', host: string): boolean {
+  const allowedHosts: readonly string[] = STOCK_PROVIDER_ALLOWED_HOSTS[id];
+  return allowedHosts.includes(host.toLowerCase());
+}
+
+/** Whether an HTTP(S) URL can be fetched by the specified stock provider integration. */
+export function isStockProviderUrlAllowed(id: StockProviderId | 'alicenet', value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (url.username || url.password) return false;
+    return isStockProviderHostAllowed(id, url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Look up one stock provider's metadata row. */
 export function getProviderMeta(id: StockProviderId | 'alicenet'): StockProviderMeta | undefined {
   return STOCK_PROVIDERS.find((provider) => provider.id === id);

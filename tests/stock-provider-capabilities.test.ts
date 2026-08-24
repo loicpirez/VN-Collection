@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { STOCK_PROVIDER_IDS, getProviderMeta } from '@/lib/stock';
+import {
+  isStockProviderHostAllowed,
+  isStockProviderUrlAllowed,
+} from '@/lib/stock-provider-capabilities';
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
@@ -36,6 +40,17 @@ describe('stock provider capability contract', () => {
         supportLevel: 'manual_only',
       });
     }
+  });
+
+  it('allows only canonical provider hosts and safe HTTP URLs', () => {
+    expect(isStockProviderHostAllowed('sofmap', 'A.SOFMAP.COM')).toBe(true);
+    expect(isStockProviderHostAllowed('sofmap', 'www.amazon.co.jp')).toBe(false);
+    expect(isStockProviderUrlAllowed('sofmap', 'https://a.sofmap.com/product_detail.aspx?sku=1')).toBe(true);
+    expect(isStockProviderUrlAllowed('sofmap', 'http://www.sofmap.com/item')).toBe(true);
+    expect(isStockProviderUrlAllowed('sofmap', 'https://www.amazon.co.jp/dp/B000JF6UD2')).toBe(false);
+    expect(isStockProviderUrlAllowed('sofmap', 'ftp://a.sofmap.com/item')).toBe(false);
+    expect(isStockProviderUrlAllowed('sofmap', 'https://user:pass@a.sofmap.com/item')).toBe(false);
+    expect(isStockProviderUrlAllowed('sofmap', 'not a url')).toBe(false);
   });
 
   it('renders capability metadata in provider tiles', () => {
