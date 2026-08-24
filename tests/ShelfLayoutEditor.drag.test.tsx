@@ -146,6 +146,9 @@ function poolEntry(overrides: Partial<ShelfEntry> = {}): ShelfEntry {
     rel_freeware: false,
     rel_official: true,
     rel_has_ero: false,
+    bundle_id: null,
+    bundle_name: null,
+    bundle_member_count: 0,
     ...overrides,
   };
 }

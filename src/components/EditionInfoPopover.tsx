@@ -63,6 +63,9 @@ export interface EditionInfoPopoverData {
   rel_languages: string[];
   rel_released: string | null;
   rel_resolution: string | null;
+  bundle_id: number | null;
+  bundle_name: string | null;
+  bundle_member_count: number;
 }
 
 /**
@@ -295,7 +298,16 @@ export function EditionInfoTrigger({
             placed ? 'visible opacity-100' : 'invisible opacity-0'
           }`}
         >
-          <p className="line-clamp-2 text-xs font-bold" title={data.vn_title}>{data.vn_title}</p>
+          <p className="line-clamp-2 text-xs font-bold" title={data.bundle_name ?? data.vn_title}>{data.bundle_name ?? data.vn_title}</p>
+          {data.bundle_id !== null && (
+            <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-accent">
+              <Box className="h-2.5 w-2.5" aria-hidden />
+              {t.shelfLayout.bundleBadge.replace('{n}', String(data.bundle_member_count))}
+            </p>
+          )}
+          {data.bundle_id !== null && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={data.vn_title}>{data.vn_title}</p>
+          )}
           {data.rel_title && data.rel_title !== data.vn_title && (
             <p className="mt-0.5 line-clamp-1 text-[11px] text-muted" title={data.rel_title}>{data.rel_title}</p>
           )}
@@ -335,7 +347,7 @@ export function EditionInfoTrigger({
                     <div>
                       {t.form.ownedPlatform}:{' '}
                       <span className="text-white" title={state.platform} aria-label={state.platform}>
-                        {platformLabel(state.platform)}
+                        {platformLabel(state.platform, locale)}
                       </span>
                       <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
                         {t.shelfLayout.ownedBadge}
@@ -347,7 +359,7 @@ export function EditionInfoTrigger({
                     <div>
                       {t.form.ownedPlatform}:{' '}
                       <span className="text-white" title={state.platform} aria-label={state.platform}>
-                        {platformLabel(state.platform)}
+                        {platformLabel(state.platform, locale)}
                       </span>
                       <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
                         {t.shelfLayout.releaseFieldBadge}
@@ -440,7 +452,7 @@ export function EditionInfoTrigger({
                   className="text-white/80"
                   title={otherPlatforms.join(' / ')}
                 >
-                  {otherPlatforms.map((p) => platformLabel(p)).join(' / ')}
+                  {otherPlatforms.map((p) => platformLabel(p, locale)).join(' / ')}
                 </span>
               </div>
               );

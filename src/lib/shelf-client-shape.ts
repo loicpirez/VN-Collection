@@ -100,6 +100,9 @@ function decodeShelfItemBase(value: unknown): {
   rel_released: string | null;
   rel_resolution: string | null;
   dumped: boolean;
+  bundle_id: number | null;
+  bundle_name: string | null;
+  bundle_member_count: number;
 } | null {
   const record = asJsonRecord(value);
   const physicalLocation = decodeStringArray(record?.physical_location);
@@ -137,7 +140,12 @@ function decodeShelfItemBase(value: unknown): {
     !relLanguages ||
     !isNullableString(record.rel_released) ||
     !isNullableString(record.rel_resolution) ||
-    typeof record.dumped !== 'boolean'
+    typeof record.dumped !== 'boolean' ||
+    !(record.bundle_id === null || isIntegerAtLeast(record.bundle_id, 1)) ||
+    !isNullableString(record.bundle_name) ||
+    !isIntegerAtLeast(record.bundle_member_count, 0) ||
+    (record.bundle_id === null && (record.bundle_name !== null || record.bundle_member_count !== 0)) ||
+    (record.bundle_id !== null && (record.bundle_name === null || record.bundle_member_count < 2))
   ) {
     return null;
   }
@@ -170,6 +178,9 @@ function decodeShelfItemBase(value: unknown): {
     rel_released: record.rel_released,
     rel_resolution: record.rel_resolution,
     dumped: record.dumped,
+    bundle_id: record.bundle_id,
+    bundle_name: record.bundle_name,
+    bundle_member_count: record.bundle_member_count,
   };
 }
 

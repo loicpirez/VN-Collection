@@ -42,6 +42,9 @@ function makeData(overrides: Partial<EditionInfoPopoverData> = {}): EditionInfoP
     rel_languages: [],
     rel_released: null,
     rel_resolution: null,
+    bundle_id: null,
+    bundle_name: null,
+    bundle_member_count: 0,
     ...overrides,
   };
 }
@@ -99,6 +102,42 @@ describe('EditionInfoPopover branches', () => {
     expect(screen.getByRole('region', { name: t.shelfLayout.poolItemDetails })).toBeInTheDocument();
   });
 
+  it('does not propagate trigger or popover drag-start events to a draggable parent', async () => {
+    const onPointerDown = vi.fn();
+    const onMouseDown = vi.fn();
+    const onTouchStart = vi.fn();
+    const onClick = vi.fn();
+    renderWithProviders(
+      <div
+        onPointerDown={onPointerDown}
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        onClick={onClick}
+      >
+        <EditionInfoTrigger data={makeData()} />
+      </div>,
+      { locale: 'en' },
+    );
+
+    const button = screen.getByRole('button', { name: t.shelfLayout.poolItemDetails });
+    fireEvent.pointerDown(button);
+    fireEvent.mouseDown(button);
+    fireEvent.touchStart(button);
+    fireEvent.click(button);
+
+    expect(onPointerDown).not.toHaveBeenCalled();
+    expect(onMouseDown).not.toHaveBeenCalled();
+    expect(onTouchStart).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
+
+    const region = await screen.findByRole('region', { name: t.shelfLayout.poolItemDetails });
+    fireEvent.pointerDown(region);
+    fireEvent.mouseDown(region);
+
+    expect(onPointerDown).not.toHaveBeenCalled();
+    expect(onMouseDown).not.toHaveBeenCalled();
+  });
+
   it('applies the scoped hover class when requested', () => {
     renderWithProviders(
       <EditionInfoTrigger data={makeData()} groupHoverHidden groupHoverScope="group/slot" />,
@@ -138,11 +177,48 @@ describe('EditionInfoPopover branches', () => {
     innerWidth.mockRestore();
   });
 
+  it('keeps below placement when both vertical sides are constrained equally', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 20,
+      y: 20,
+      top: 20,
+      right: 120,
+      bottom: 80,
+      left: 20,
+      width: 100,
+      height: 60,
+      toJSON: () => ({}),
+    } as DOMRect);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(220);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(180);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(120);
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(800);
+
+    renderTrigger(makeData());
+    const region = await openPopover();
+
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    await waitFor(() => expect(region.className).toContain('top-full'));
+    expect(region.className).toContain('left-0');
+    expect(rectSpy).toHaveBeenCalled();
+  });
+
   it('renders rel_title and edition_label as distinct secondary lines', async () => {
     renderTrigger(makeData({ rel_title: 'Limited Edition X', edition_label: 'First press' }));
     const region = await openPopover();
     expect(within(region).getByText('Limited Edition X')).toBeInTheDocument();
     expect(within(region).getByText('First press')).toBeInTheDocument();
+  });
+
+  it('identifies a physical bundle while preserving the anchor VN title', async () => {
+    renderTrigger(makeData({ bundle_id: 7, bundle_name: 'Kiss Trilogy', bundle_member_count: 3 }));
+    const region = await openPopover();
+    expect(within(region).getByText('Kiss Trilogy')).toBeInTheDocument();
+    expect(within(region).getByText(t.shelfLayout.bundleBadge.replace('{n}', '3'))).toBeInTheDocument();
+    expect(within(region).getByText('Title Y')).toBeInTheDocument();
   });
 
   it('shows the owned-platform pin with the owned badge when owned_platform is set', async () => {
@@ -168,6 +244,7 @@ describe('EditionInfoPopover branches', () => {
     const region = await openPopover();
     expect(within(region).getByText(t.shelfLayout.platformChooseLabel)).toBeInTheDocument();
     const chooseLink = within(region).getByRole('link', { name: new RegExp(t.form.choosePlatform) });
+    chooseLink.addEventListener('click', (event) => event.preventDefault());
     expect(chooseLink.getAttribute('href')).toContain('edit_release=r90001');
     fireEvent.pointerDown(chooseLink);
     fireEvent.mouseDown(chooseLink);
@@ -332,6 +409,7 @@ describe('EditionInfoPopover branches', () => {
       within(region).getByRole('link', { name: t.shelfLayout.poolOpenVn }),
       within(region).getByRole('link', { name: t.shelfLayout.poolOpenRelease }),
     ]) {
+      link.addEventListener('click', (event) => event.preventDefault());
       fireEvent.pointerDown(link);
       fireEvent.mouseDown(link);
       fireEvent.click(link);

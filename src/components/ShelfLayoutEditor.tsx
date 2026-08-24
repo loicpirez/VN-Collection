@@ -36,7 +36,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { derivePlatformDisplay } from '@/lib/platform-display';
 import { platformLabel } from '@/lib/platform-label';
 import { SafeImage } from '@/components/SafeImage';
@@ -44,6 +44,7 @@ import { useConfirm } from '@/components/ConfirmDialog';
 import { useToast } from '@/components/ToastProvider';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { EditionInfoTrigger, type EditionInfoPopoverData } from '@/components/EditionInfoPopover';
+import { PhysicalBundleDialog } from '@/components/PhysicalBundleDialog';
 import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfSlotEntry, ShelfUnitWithCount } from '@/lib/db';
 import { parseDisplayCellId, parseDragId, parseCellId, type DragSource } from '@/lib/drag-id';
 import { useDialogA11y } from '@/components/Dialog';
@@ -120,6 +121,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
   const [showCreate, setShowCreate] = useState(initialShelves.length === 0);
   const [newName, setNewName] = useState('');
   const [showFrontDisplay, setShowFrontDisplay] = useState(true);
+  const [showBundleManager, setShowBundleManager] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenTitleId = useId();
   const fullscreenPanelRef = useRef<HTMLDivElement | null>(null);
@@ -409,6 +411,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           rel_released: ed.rel_released ?? null,
           rel_resolution: ed.rel_resolution ?? null,
           dumped: ed.dumped,
+          bundle_id: ed.bundle_id,
+          bundle_name: ed.bundle_name,
+          bundle_member_count: ed.bundle_member_count,
         });
         return next;
       });
@@ -533,6 +538,9 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
             rel_released: ed.rel_released ?? null,
             rel_resolution: ed.rel_resolution ?? null,
             dumped: ed.dumped,
+            bundle_id: ed.bundle_id,
+            bundle_name: ed.bundle_name,
+            bundle_member_count: ed.bundle_member_count,
           });
           return next;
         });
@@ -680,6 +688,13 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
     } finally {
       if (shelfMetaRefreshAbortRef.current === ac) shelfMetaRefreshAbortRef.current = null;
     }
+  }
+
+  async function refreshBundleSurfaces(): Promise<void> {
+    await refreshPool();
+    setLoaded({});
+    if (activeIdRef.current !== null) await refreshActiveShelf(activeIdRef.current);
+    await refreshShelfMeta();
   }
 
   async function onDragEnd(e: DragEndEvent) {
@@ -911,7 +926,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
         tabIndex={fullscreen ? -1 : undefined}
         className={
           fullscreen
-            ? 'fixed inset-0 z-50 overflow-auto bg-bg p-3 sm:p-6'
+            ? 'fixed inset-0 z-layer-fullscreen overflow-auto bg-bg p-3 sm:p-6'
             : ''
         }
       >
@@ -1005,6 +1020,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               </span>
               <button
                 type="button"
+                data-shortcut="shelf-fullscreen"
                 onClick={() => setFullscreen((v) => !v)}
                 className="btn btn-xs min-h-[44px] sm:min-h-0"
               >
@@ -1137,12 +1153,17 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
       </section>
 
       <section className="mt-5 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h3 className="mb-1 flex items-center gap-2 text-base font-bold">
-          <Layers className="h-4 w-4 text-accent" aria-hidden /> {t.shelfLayout.unplaced}
-          <span className="rounded bg-bg-elev/60 px-1.5 py-0.5 text-[10px] text-muted">
-            {unplaced.length}
-          </span>
-        </h3>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-base font-bold">
+            <Layers className="h-4 w-4 text-accent" aria-hidden /> {t.shelfLayout.unplaced}
+            <span className="rounded bg-bg-elev/60 px-1.5 py-0.5 text-[10px] text-muted">
+              {unplaced.length}
+            </span>
+          </h3>
+          <button type="button" onClick={() => setShowBundleManager(true)} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 text-xs font-bold text-muted hover:border-accent hover:text-white disabled:opacity-40">
+            <Box className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.bundleManage}
+          </button>
+        </div>
         <p className="mb-3 text-xs text-muted">{t.shelfLayout.unplacedHint}</p>
         <PoolDrop>
           {unplaced.length === 0 ? (
@@ -1164,6 +1185,12 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
           )}
         </PoolDrop>
       </section>
+      <PhysicalBundleDialog
+        open={showBundleManager}
+        onClose={() => setShowBundleManager(false)}
+        candidates={unplaced}
+        onChanged={refreshBundleSurfaces}
+      />
         </div>
       </div>
 
@@ -1450,7 +1477,7 @@ function DraggableDisplayItem({
   return (
     <div
       data-shelf-vn={slot.vn_id}
-      title={`${slot.vn_title} - ${label} / ${slot.position + 1}`}
+      title={`${slot.bundle_name ?? slot.vn_title} - ${label} / ${slot.position + 1}`}
       className={`group/display relative h-full w-full overflow-visible ${
         isDragging ? 'opacity-30' : ''
       } ${highlighted ? 'rounded-md ring-2 ring-accent ring-offset-2 ring-offset-bg-card' : ''
@@ -1491,16 +1518,18 @@ function DraggableDisplayItem({
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        title={slot.vn_title}
+        title={slot.bundle_name ?? slot.vn_title}
         className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent"
       >
-        {slot.vn_title}
+        {slot.bundle_name ?? slot.vn_title}
       </Link>
     </div>
   );
 }
 
 function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
+  const t = useT();
+  const locale = useLocale();
   // Pipe-delimited because synthetic release ids contain a colon
   // (`synthetic:vN`). Splitting on `:` would mis-parse them.
   const id = `pool|${entry.vn_id}|${entry.release_id}`;
@@ -1545,7 +1574,10 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
 	            className="h-full w-full"
 	          />
         </div>
-        <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight" title={entry.vn_title}>{entry.vn_title}</p>
+        <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-tight" title={entry.bundle_name ?? entry.vn_title}>{entry.bundle_name ?? entry.vn_title}</p>
+        {entry.bundle_id !== null && (
+          <p className="line-clamp-1 text-[10px] text-accent">{t.shelfLayout.bundleBadge.replace('{n}', String(entry.bundle_member_count))}</p>
+        )}
         {/*
           Distinguisher line: when the user has two editions of the
           same VN in the pool, both cards used to render the bare
@@ -1566,9 +1598,10 @@ function DraggablePoolItem({ entry }: { entry: ShelfEntry }) {
           });
           const platformChip =
             platformState.kind === 'owned' || platformState.kind === 'release-single'
-              ? platformLabel(platformState.platform)
+              ? platformLabel(platformState.platform, locale)
               : null;
           const distinguisher =
+            entry.bundle_name ??
             entry.edition_label ??
             platformChip ??
             (entry.physical_location.length > 0 ? entry.physical_location[0] : null) ??
@@ -1606,7 +1639,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
   return (
     <div
       data-shelf-vn={slot.vn_id}
-      title={`${slot.vn_title} - ${t.shelfLayout.placedAt
+      title={`${slot.bundle_name ?? slot.vn_title} - ${t.shelfLayout.placedAt
         .replace('{row}', String(slot.row + 1))
         .replace('{col}', String(slot.col + 1))}`}
       className={`group/slot relative h-full w-full overflow-visible ${
@@ -1651,10 +1684,10 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
         href={`/vn/${slot.vn_id}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        title={slot.vn_title}
+        title={slot.bundle_name ?? slot.vn_title}
         className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-bg/85 px-1 py-0.5 text-[9px] font-bold leading-tight text-white opacity-100 transition-opacity hover:text-accent"
       >
-        {slot.vn_title}
+        {slot.bundle_name ?? slot.vn_title}
       </Link>
     </div>
   );
@@ -1815,6 +1848,9 @@ function findEdition(
   rel_languages: string[];
   rel_released: string | null;
   rel_resolution: string | null;
+  bundle_id: number | null;
+  bundle_name: string | null;
+  bundle_member_count: number;
 } | null {
   if (src.kind === 'slot') {
     const slot = slots.find(
@@ -1860,6 +1896,9 @@ function findEdition(
       rel_languages: pooled.rel_languages,
       rel_released: pooled.rel_released,
       rel_resolution: pooled.rel_resolution,
+      bundle_id: pooled.bundle_id,
+      bundle_name: pooled.bundle_name,
+      bundle_member_count: pooled.bundle_member_count,
     };
   }
   return null;
@@ -1918,6 +1957,9 @@ function shelfEntryToPopoverData(entry: ShelfEntry): EditionInfoPopoverData {
     rel_languages: entry.rel_languages,
     rel_released: entry.rel_released,
     rel_resolution: entry.rel_resolution,
+    bundle_id: entry.bundle_id,
+    bundle_name: entry.bundle_name,
+    bundle_member_count: entry.bundle_member_count,
   };
 }
 
@@ -1960,6 +2002,9 @@ function shelfSlotToPopoverData(slot: ShelfSlotEntry): EditionInfoPopoverData {
     rel_languages: slot.rel_languages,
     rel_released: slot.rel_released,
     rel_resolution: slot.rel_resolution,
+    bundle_id: slot.bundle_id,
+    bundle_name: slot.bundle_name,
+    bundle_member_count: slot.bundle_member_count,
   };
 }
 
@@ -1994,6 +2039,9 @@ function displaySlotToPopoverData(slot: ShelfDisplaySlotEntry): EditionInfoPopov
     rel_languages: slot.rel_languages,
     rel_released: slot.rel_released,
     rel_resolution: slot.rel_resolution,
+    bundle_id: slot.bundle_id,
+    bundle_name: slot.bundle_name,
+    bundle_member_count: slot.bundle_member_count,
   };
 }
 
@@ -2040,6 +2088,9 @@ function shelfDisplayToShelfEntry(slot: ShelfDisplaySlotEntry): ShelfEntry {
     rel_freeware: false,
     rel_official: true,
     rel_has_ero: false,
+    bundle_id: slot.bundle_id,
+    bundle_name: slot.bundle_name,
+    bundle_member_count: slot.bundle_member_count,
   };
 }
 
@@ -2081,5 +2132,8 @@ function shelfSlotToShelfEntry(slot: ShelfSlotEntry): ShelfEntry {
     rel_freeware: false,
     rel_official: true,
     rel_has_ero: false,
+    bundle_id: slot.bundle_id,
+    bundle_name: slot.bundle_name,
+    bundle_member_count: slot.bundle_member_count,
   };
 }

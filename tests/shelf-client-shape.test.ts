@@ -46,6 +46,9 @@ const item = {
   rel_released: null,
   rel_resolution: null,
   dumped: false,
+  bundle_id: null,
+  bundle_name: null,
+  bundle_member_count: 0,
 };
 
 describe('shelf client response adapters', () => {
