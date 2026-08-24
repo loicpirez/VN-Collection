@@ -26,7 +26,12 @@ describe('GET /api/maintenance/duplicates branches', () => {
     const res = await route.GET(new NextRequest('http://127.0.0.1/api/maintenance/duplicates'));
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'maintenance.duplicates.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:maintenance.duplicates.GET] duplicate scan failed');
   });
 });
