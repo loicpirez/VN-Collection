@@ -693,10 +693,10 @@ describe('StockPanel branches', () => {
       if (u.endsWith('/stock')) return json(snapshot());
       return json({});
     });
-    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
+    const { user } = renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
+    await user.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: t.stock.clearCache as string }));
+    await user.click(within(dialog).getByRole('button', { name: t.stock.clearCache as string }));
     await waitFor(() => expect(screen.getAllByRole('alert').some((node) => (node.textContent ?? '').includes('clear network failed'))).toBe(true));
   });
 

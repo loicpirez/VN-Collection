@@ -82,6 +82,7 @@ describe('VnSourcePicker branches', () => {
   });
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -163,13 +164,17 @@ describe('VnSourcePicker branches', () => {
   });
 
   it('ignores abort errors from every source', async () => {
+    vi.useFakeTimers();
     const abortError = new Error('aborted');
     abortError.name = 'AbortError';
     global.fetch = vi.fn(() => Promise.reject(abortError));
     renderWithProviders(<VnSourcePicker onPick={vi.fn()} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(screen.getByText(t.search.noResults as string)).toBeInTheDocument());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(screen.getByText(t.search.noResults as string)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
