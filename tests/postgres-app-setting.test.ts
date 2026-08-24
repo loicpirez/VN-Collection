@@ -46,6 +46,9 @@ describe('PostgreSQL application settings', () => {
 
   it('upserts and deletes ordinary settings without an audit query', async () => {
     const repository = createPostgresAppSettingRepository();
+    await repository.setMany([]);
+    expect(withTransactionMock).not.toHaveBeenCalled();
+
     await repository.set('theme', 'dark');
     expect(clientQueryMock).toHaveBeenCalledOnce();
     expect(clientQueryMock.mock.calls[0]?.[0]).toContain('INSERT INTO app_setting');
