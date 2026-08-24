@@ -56,6 +56,7 @@ describe('PostgreSQL read repository edge branches', () => {
     await expect(repository.list(undefined, undefined, Number.NaN)).resolves.toEqual([]);
     expect(mocks.postgresQuery.mock.calls[0]?.[1]).toEqual([200, 0]);
     await expect(repository.randomLocal()).resolves.toEqual(localQuote);
+    await expect(repository.randomLocal()).resolves.toBeNull();
     await repository.replaceForVn('v90001', [{ id: 'q90001', quote: 'Text', score: 1, character: null }]);
     expect(mocks.clientQuery.mock.calls[1]?.[1]).toEqual([
       'q90001', 'v90001', 'Text', 1, null, null, expect.any(Number),
@@ -85,6 +86,23 @@ describe('PostgreSQL read repository edge branches', () => {
     });
     await expect(repository.topRated(70, Number.NaN)).resolves.toEqual([]);
     expect(mocks.postgresQuery.mock.calls[1]?.[1]).toEqual([70, 3]);
+
+    mocks.postgresQuery.mockResolvedValueOnce({
+      rows: [{
+        id: 'v90002',
+        title: 'Full image seed',
+        alttitle: null,
+        released: null,
+        image_url: '/full.jpg',
+        image_thumb: null,
+        image_sexual: null,
+        developers: '[]',
+      }],
+      rowCount: 1,
+    });
+    await expect(repository.seedChip('v90002')).resolves.toMatchObject({
+      image: { url: '/full.jpg', thumbnail: '/full.jpg' },
+    });
   });
 
   it('handles missing EGS cover sources and omitted optional local images', async () => {
