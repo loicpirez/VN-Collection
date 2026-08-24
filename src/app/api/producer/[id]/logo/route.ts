@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
-import { getProducer, setProducerLogo, upsertProducer } from '@/lib/db';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
@@ -21,11 +21,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
-  if (!getProducer(id)) {
+  const repository = getProducerRepository();
+  if (!await repository.get(id)) {
     try {
       const fresh = await fetchProducer(id);
       if (!fresh) return NextResponse.json({ error: 'producer not found' }, { status: 404 });
-      upsertProducer(fresh);
+      await repository.upsert(fresh);
     } catch (err) {
       return upstreamError('producer/[id]/logo', err);
     }
@@ -56,9 +57,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     throw e;
   }
-  setProducerLogo(id, path);
+  await repository.setLogo(id, path);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'producer.logo-set',
       entity: 'producer',
       entityId: id,
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (e) {
     console.error(`[producer:${id}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ producer: getProducer(id) });
+  return NextResponse.json({ producer: await repository.get(id) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -76,12 +77,13 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!/^p\d+$/i.test(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  if (!getProducer(id)) {
+  const repository = getProducerRepository();
+  if (!await repository.get(id)) {
     return NextResponse.json({ error: 'producer not found' }, { status: 404 });
   }
-  setProducerLogo(id, null);
+  await repository.setLogo(id, null);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'producer.logo-clear',
       entity: 'producer',
       entityId: id,
@@ -90,5 +92,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   } catch (e) {
     console.error(`[producer:${id}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ producer: getProducer(id) });
+  return NextResponse.json({ producer: await repository.get(id) });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listProducerStats, listPublisherStats } from '@/lib/db';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,13 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const repository = getProducerRepository();
+  const [producers, publishers] = await Promise.all([
+    repository.listDeveloperStats(),
+    repository.listPublisherStats(),
+  ]);
   return NextResponse.json({
-    producers: listProducerStats(),
-    publishers: listPublisherStats(),
+    producers,
+    publishers,
   });
 }

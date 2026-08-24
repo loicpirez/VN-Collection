@@ -145,7 +145,7 @@ describe('POST /api/producer/[id]/logo route branches', () => {
     mocks.fetchProducer.mockRejectedValue(new Error('upstream detail'));
     const response = await POST(req('POST'), ctx());
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'upstream service unavailable' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'producer/[id]/logo' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:producer/[id]/logo] upstream detail');
     consoleSpy.mockRestore();
   });

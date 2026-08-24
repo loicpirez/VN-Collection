@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Building2, Crown, Download, Package, Trophy, Wrench } from 'lucide-react';
-import { listProducerStats, listPublisherStats } from '@/lib/db';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -35,8 +35,11 @@ export default async function ProducersPage({
   const sp = await searchParams;
   const role: RoleTab = sp.role === 'publisher' ? 'publisher' : 'developer';
 
-  const devStats = listProducerStats();
-  const pubStats = listPublisherStats();
+  const repository = getProducerRepository();
+  const [devStats, pubStats] = await Promise.all([
+    repository.listDeveloperStats(),
+    repository.listPublisherStats(),
+  ]);
   const producers = role === 'publisher' ? pubStats : devStats;
 
   return (
