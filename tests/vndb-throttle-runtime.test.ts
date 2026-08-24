@@ -178,6 +178,14 @@ describe('network-error back-off', () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('does not retry the TimeoutError emitted by AbortSignal.timeout', async () => {
+    const { throttledFetch } = await freshThrottle();
+    providerFetchMock.mockRejectedValueOnce(new DOMException('deadline exceeded', 'TimeoutError'));
+
+    await expect(throttledFetch(VNDB, {})).rejects.toMatchObject({ name: 'TimeoutError' });
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not retry after the caller aborts even when the provider throws another error type', async () => {
     const { throttledFetch } = await freshThrottle();
     const controller = new AbortController();
