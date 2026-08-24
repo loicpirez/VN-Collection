@@ -22,6 +22,12 @@ describe('tutorial tour accessibility and responsive placement', () => {
   });
 
   it('documents the actual expanded step count', () => {
-    expect(SOURCE).toContain('Lightweight 14-step guided pass');
+    expect(SOURCE).toContain('Lightweight 20-step guided pass');
+  });
+
+  it('offers recoverable previous and direct-step navigation', () => {
+    expect(SOURCE).toContain('onClick={previous}');
+    expect(SOURCE).toContain("aria-current={index === step ? 'step' : undefined}");
+    expect(SOURCE).toContain('aria-controls={stepListId}');
   });
 });

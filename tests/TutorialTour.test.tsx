@@ -62,9 +62,11 @@ describe('TutorialTour', () => {
 
     const expectedRoutes = [
       '/search',
+      '/search?source=local',
       '/lists',
       '/recommendations',
       '/upcoming',
+      '/compare',
       '/quotes',
       `/year?y=${new Date().getFullYear()}`,
       '/stats',
@@ -72,6 +74,10 @@ describe('TutorialTour', () => {
       '/shelf?view=layout',
       '/steam',
       '/egs',
+      '/stock',
+      '/places',
+      '/places',
+      '/map',
       '/dumped',
       '/data',
     ];
@@ -84,6 +90,24 @@ describe('TutorialTour', () => {
     fireEvent.click(screen.getByRole('button', { name: t.tour.finish }));
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe('1');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('moves backward and jumps directly through the step list', () => {
+    renderWithProviders(<TutorialTour />, { locale: 'en' });
+    advance(800);
+
+    const back = screen.getByRole('button', { name: t.tour.back });
+    expect(back).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: t.tour.next }));
+    expect(back).toBeEnabled();
+    fireEvent.click(back);
+    expect(navigationMocks.push).toHaveBeenLastCalledWith('/');
+
+    fireEvent.click(screen.getByText(t.tour.stepList));
+    const stockStep = screen.getByRole('button', { name: new RegExp(t.tour.steps.step_stock_title) });
+    fireEvent.click(stockStep);
+    expect(navigationMocks.push).toHaveBeenLastCalledWith('/stock');
+    expect(stockStep).toHaveAttribute('aria-current', 'step');
   });
 
   it('respects persisted completion and closes from Escape or Skip', () => {
