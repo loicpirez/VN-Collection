@@ -32,13 +32,15 @@ describe('/activity URL filter wiring', () => {
     expect(src).toMatch(/name="entity"/);
   });
 
-  it('passes filters into listUserActivity', async () => {
+  it('passes filters into the activity repository', async () => {
     const src = await readFile(PAGE, 'utf8');
     // The page must thread q/kind/entity into the DB query, not just
     // echo them back to the form. Without this assertion a future
     // refactor could keep the inputs but drop the query wiring and
     // every search would silently return the unfiltered list.
-    expect(src).toContain('listUserActivity({');
+    expect(src).toContain("import { getActivityRepository } from '@/lib/db/repositories/activity';");
+    expect(src).toContain('const activity = getActivityRepository();');
+    expect(src).toContain('activity.listUser({');
     expect(src).toContain('q:');
     expect(src).toContain('kind:');
     expect(src).toContain('entity:');
