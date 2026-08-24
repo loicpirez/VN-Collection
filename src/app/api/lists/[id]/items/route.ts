@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addVnToList, getUserList, removeVnFromList, reorderListItems } from '@/lib/db';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -17,7 +17,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!Number.isSafeInteger(listId) || listId <= 0) {
       return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     }
-    if (!getUserList(listId)) return NextResponse.json({ error: 'list not found' }, { status: 404 });
+    const repository = getUserListRepository();
+    if (!await repository.get(listId)) return NextResponse.json({ error: 'list not found' }, { status: 404 });
 
     const body = (await readJsonObject(req)) as { vn_id?: unknown; note?: unknown; order?: unknown };
     if ('order' in body) {
@@ -35,8 +36,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (new Set(ids).size !== ids.length) {
         return NextResponse.json({ error: 'order must not contain duplicates' }, { status: 400 });
       }
-      reorderListItems(listId, ids);
-      recordActivity({
+      await repository.reorder(listId, ids);
+      await recordActivity({
         kind: 'list.reorder',
         entity: 'list',
         entityId: String(listId),
@@ -57,9 +58,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     } else if (body.note !== undefined && body.note !== null) {
       return NextResponse.json({ error: 'note must be a string or null' }, { status: 400 });
     }
-    const item = addVnToList(listId, normalizeVnId(body.vn_id.trim()), note);
+    const item = await repository.addItem(listId, normalizeVnId(body.vn_id.trim()), note);
     if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    recordActivity({
+    await recordActivity({
       kind: 'list.item.add',
       entity: 'vn',
       entityId: item.vn_id,
@@ -86,9 +87,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'invalid vn query param' }, { status: 400 });
     }
     const normalizedVnId = normalizeVnId(vnId);
-    const ok = removeVnFromList(listId, normalizedVnId);
+    const ok = await getUserListRepository().removeItem(listId, normalizedVnId);
     if (!ok) return NextResponse.json({ error: 'not in list' }, { status: 404 });
-    recordActivity({
+    await recordActivity({
       kind: 'list.item.remove',
       entity: 'vn',
       entityId: normalizedVnId,

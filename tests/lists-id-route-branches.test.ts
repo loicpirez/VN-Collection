@@ -357,7 +357,12 @@ describe('POST /api/lists/[id]/items', () => {
     });
     const response = await itemPOST(req('POST', { vn_id: VN_ID }), ctx());
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'internal error' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'lists.items.POST',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:lists.items.POST] add failed');
     consoleSpy.mockRestore();
   });
@@ -406,7 +411,12 @@ describe('DELETE /api/lists/[id]/items', () => {
     });
     const response = await itemDELETE(req('DELETE', undefined, `http://127.0.0.1/api/lists/${LIST_ID}/items?vn=${VN_ID}`), ctx());
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'internal error' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'lists.items.DELETE',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:lists.items.DELETE] remove failed');
     consoleSpy.mockRestore();
   });

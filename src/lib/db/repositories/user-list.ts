@@ -244,9 +244,7 @@ const sqliteRepository: UserListRepository = {
   },
   async addItem(id, vnId, note) {
     const legacy = await import('@/lib/db');
-    const item = legacy.addVnToList(id, vnId.toLowerCase(), note);
-    if (!item) return null;
-    return legacy.listUserListItems(id).find((entry) => entry.vn_id === vnId.toLowerCase()) ?? null;
+    return legacy.addVnToList(id, vnId.toLowerCase(), note);
   },
   async removeItem(id, vnId) {
     return (await import('@/lib/db')).removeVnFromList(id, vnId.toLowerCase());

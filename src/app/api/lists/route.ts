@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createUserList, listUserLists } from '@/lib/db';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -11,7 +12,7 @@ export const runtime = 'nodejs';
 void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({ lists: listUserLists() });
+  return NextResponse.json({ lists: await getUserListRepository().list() });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -58,13 +59,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'icon must be a string or null' }, { status: 400 });
   }
   try {
-    const list = createUserList({
+    const list = await getGeneratedIdRepository().createUserList({
       name: nameResult.value,
       description,
       color,
       icon,
     });
-    recordActivity({
+    await recordActivity({
       kind: 'list.create',
       entity: 'list',
       entityId: String(list.id),

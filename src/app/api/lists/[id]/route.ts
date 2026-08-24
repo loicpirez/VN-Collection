@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteUserList, getUserList, listUserListItems, updateUserList } from '@/lib/db';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -14,9 +14,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (!Number.isSafeInteger(listId) || listId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const list = getUserList(listId);
+  const repository = getUserListRepository();
+  const list = await repository.get(listId);
   if (!list) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  return NextResponse.json({ list, items: listUserListItems(listId) });
+  return NextResponse.json({ list, items: await repository.items(listId) });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -86,9 +87,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.pinned = body.pinned;
   }
   try {
-    const list = updateUserList(listId, patch);
+    const list = await getUserListRepository().update(listId, patch);
     if (!list) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    recordActivity({
+    await recordActivity({
       kind: 'list.update',
       entity: 'list',
       entityId: String(listId),
@@ -110,9 +111,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (!Number.isSafeInteger(listId) || listId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const ok = deleteUserList(listId);
+  const ok = await getUserListRepository().remove(listId);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  recordActivity({
+  await recordActivity({
     kind: 'list.delete',
     entity: 'list',
     entityId: String(listId),
