@@ -193,13 +193,13 @@ export default async function CharactersPage({ searchParams }: PageProps) {
           {params.sort !== 'name' && <input type="hidden" name="sort" value={params.sort} />}
           {params.reverse && <input type="hidden" name="reverse" value="1" />}
           {params.groupBy && <input type="hidden" name="groupBy" value={params.groupBy} />}
-          <label className="inline-flex items-center gap-1 text-xs text-muted">
+          <label className="inline-flex min-h-[44px] items-center gap-2 text-xs text-muted sm:min-h-0">
             <input
               type="checkbox"
               name="ero"
               value="1"
               defaultChecked={includeEro}
-              className="accent-accent"
+              className="h-5 w-5 accent-accent"
             />
             {t.charactersSearch.includeEro}
           </label>

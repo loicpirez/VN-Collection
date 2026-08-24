@@ -346,7 +346,7 @@ function FlagToggle({
       href={on ? offHref : onHref}
       aria-pressed={on}
       title={on ? hintOn : hintOff}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 transition-colors ${
+      className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 transition-colors sm:min-h-0 ${
         on ? activeClass : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
       }`}
     >

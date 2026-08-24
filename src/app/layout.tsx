@@ -130,7 +130,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   aria-label={dict.app.title}
                 >
                   <HeaderSpaceFrame className="nav-width-container flex flex-wrap items-center gap-2 py-3 sm:gap-4">
-                    <Link href="/" className="flex items-center gap-2">
+                    <Link href="/" className="flex min-h-[44px] items-center gap-2 sm:min-h-0">
                       <Library className="h-6 w-6 text-accent" aria-hidden />
                       <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
                     </Link>

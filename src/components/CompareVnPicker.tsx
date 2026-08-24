@@ -369,7 +369,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
           <button
             type="button"
             onClick={() => setShowAdd(false)}
-            className="text-xs text-muted hover:text-white"
+            className="inline-flex min-h-[44px] items-center text-xs text-muted hover:text-white sm:min-h-0"
           >
             {t.common.cancel}
           </button>

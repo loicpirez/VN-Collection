@@ -91,6 +91,42 @@ describe('responsive tap targets', () => {
     expect(staff).toContain('sm:min-w-0');
   });
 
+  it('keeps shared compact navigation and filter primitives touch-safe on mobile', () => {
+    const css = source('src/app/globals.css');
+    expect(css).toMatch(/\.chip\s*\{[\s\S]*min-h-\[44px\][\s\S]*min-w-\[44px\]/);
+    expect(css).toContain('@media (hover: hover) and (pointer: fine) and (min-width: 640px)');
+    for (const path of [
+      'src/components/NavTabStrip.tsx',
+      'src/components/RecommendModeTabs.tsx',
+      'src/app/top-ranked/page.tsx',
+      'src/app/upcoming/page.tsx',
+      'src/app/recommendations/page.tsx',
+      'src/app/producers/page.tsx',
+      'src/app/shelf/page.tsx',
+      'src/app/tag/[id]/page.tsx',
+      'src/app/trait/[id]/page.tsx',
+      'src/components/charts/BarChart.tsx',
+      'src/components/ResetViewDefaultsButton.tsx',
+      'src/components/library/MoreFilters.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('min-h-[44px]');
+      expect(body, path).toContain('sm:min-h-0');
+    }
+  });
+
+  it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
+    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 sm:min-h-0');
+    const library = source('src/components/LibraryClient.tsx');
+    expect(library).toContain('inline-flex min-h-[44px] items-center gap-1.5');
+    expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');
+    expect(source('src/app/activity/page.tsx')).toContain('className="input h-11 w-full"');
+    expect(source('src/app/characters/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
+    expect(source('src/app/staff/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
+    expect(source('src/app/compare/page.tsx')).toContain('min-w-[44px]');
+    expect(source('src/app/quotes/page.tsx')).toContain('inline-flex min-h-[44px] items-center');
+  });
+
   it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {
     const dumped = source('src/app/dumped/page.tsx');
     const ignore = source('src/components/DumpIgnoreButton.tsx');

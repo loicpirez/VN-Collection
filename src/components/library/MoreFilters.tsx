@@ -77,7 +77,7 @@ export function MoreFilters({
               type="button"
               onClick={() => onCycle(key)}
               aria-pressed={tone === 'yes' ? true : tone === 'no' ? 'mixed' : false}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors sm:min-h-0 ${
                 tone === 'yes'
                   ? 'border-status-completed bg-status-completed/15 text-status-completed'
                   : tone === 'no'
@@ -98,7 +98,7 @@ export function MoreFilters({
         <button
           type="button"
           onClick={onReset}
-          className="mt-3 text-[10px] text-muted hover:text-status-dropped"
+          className="mt-3 inline-flex min-h-[44px] items-center text-[10px] text-muted hover:text-status-dropped sm:min-h-0"
         >
           {t.library.moreFilters.resetAll}
         </button>

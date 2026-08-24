@@ -90,7 +90,7 @@ export default async function QuotesPage({
                       {it.character_name && it.character_id ? (
                         <Link
                           href={`/character/${it.character_id}`}
-                          className="font-semibold text-white/85 hover:text-accent"
+                          className="inline-flex min-h-[44px] items-center font-semibold text-white/85 hover:text-accent sm:min-h-0"
                         >
                           {it.character_name}
                         </Link>
@@ -98,7 +98,7 @@ export default async function QuotesPage({
                         <span className="font-semibold text-white/85">{it.character_name}</span>
                       ) : null}
                       {it.character_name && ' / '}
-                      <Link href={`/vn/${it.vn_id}`} className="hover:text-accent">{it.vn_title}</Link>
+                      <Link href={`/vn/${it.vn_id}`} className="inline-flex min-h-[44px] items-center hover:text-accent sm:min-h-0">{it.vn_title}</Link>
                     </span>
                   </span>
                   <span className="font-mono">{it.score}</span>

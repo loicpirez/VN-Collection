@@ -2122,7 +2122,7 @@ function AdvancedFiltersDrawer({
         aria-expanded={open}
         aria-controls={drawerId}
         data-shortcut="lib-filter"
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors sm:min-h-0 ${
           activeCount > 0
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -2257,7 +2257,7 @@ function LibraryActionsMenu({
         aria-controls={menuId}
         aria-label={t.library.toolbarOptionsLabel}
         title={t.library.toolbarOptionsLabel}
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors sm:min-h-0 ${
           open
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -2373,7 +2373,7 @@ function LibraryToolbarDrawer({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={panelId}
-        className={`inline-flex w-full items-center justify-between gap-1.5 rounded-md border px-2.5 py-2 text-xs transition-colors ${
+        className={`inline-flex min-h-[44px] w-full items-center justify-between gap-1.5 rounded-md border px-2.5 py-2 text-xs transition-colors ${
           open
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'

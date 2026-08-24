@@ -170,7 +170,7 @@ export default async function TraitPage({
           <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
             <Link
               href={pageHref(1, false)}
-              className={`rounded px-2 py-1 transition-colors ${
+              className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 transition-colors sm:min-h-0 ${
                 !mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
@@ -178,7 +178,7 @@ export default async function TraitPage({
             </Link>
             <Link
               href={pageHref(1, true)}
-              className={`rounded px-2 py-1 transition-colors ${
+              className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 transition-colors sm:min-h-0 ${
                 mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >

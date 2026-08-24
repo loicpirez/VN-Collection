@@ -225,7 +225,7 @@ function AnticipatedPaginator({
         {page > 1 ? (
           <Link
             href={prevHref}
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent sm:min-h-0"
           >
             <ChevronLeft className="h-3 w-3" aria-hidden /> {t.upcoming.prevPage}
           </Link>
@@ -237,7 +237,7 @@ function AnticipatedPaginator({
         {hasMore ? (
           <Link
             href={nextHref}
-            className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 sm:min-h-0"
           >
             {t.upcoming.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
           </Link>
@@ -303,7 +303,7 @@ function TabLink({
       // aria-current marks the active tab for screen readers; without
       // it the only signal was a color change, which AT can't perceive.
       aria-current={active ? 'page' : undefined}
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 transition-colors ${
+      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-2.5 py-1 transition-colors sm:min-h-0 sm:min-w-0 ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
       }`}
     >

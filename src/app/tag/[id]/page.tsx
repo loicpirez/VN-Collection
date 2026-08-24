@@ -150,14 +150,14 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           <Link
             href={tagPageTabHref(tagId, 'local')}
             aria-current={tab === 'local' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+            className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.tagPage.tabLocal} ({count})
           </Link>
           <Link
             href={tagPageTabHref(tagId, 'vndb')}
             aria-current={tab === 'vndb' ? 'page' : undefined}
-            className={`rounded px-2.5 py-1 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+            className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${tab === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
             {t.tagPage.tabVndb}
           </Link>

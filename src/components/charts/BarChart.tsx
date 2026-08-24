@@ -202,7 +202,7 @@ export function DonutChart({
               {d.href ? (
                 <Link
                   href={d.href}
-                  className="flex flex-1 items-center rounded px-1 py-0.5 hover:bg-bg-elev/40 focus-visible:bg-bg-elev/40"
+                  className="flex min-h-[44px] flex-1 items-center rounded px-1 py-0.5 hover:bg-bg-elev/40 focus-visible:bg-bg-elev/40 sm:min-h-0"
                   title={`${d.label} / ${d.value}`}
                 >
                   {row}

@@ -250,7 +250,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
             <span className="mb-1 inline-flex items-center gap-1">
               <Filter className="h-3 w-3" aria-hidden /> {t.userActivity.kind}
             </span>
-            <select name="kind" defaultValue={kind} className="input w-full">
+            <select name="kind" defaultValue={kind} className="input h-11 w-full">
               <option value="">{t.userActivity.allKinds}</option>
               {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k, t)}</option>)}
             </select>
@@ -284,7 +284,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                           <Link
                             href={`/vn/${row.vn_id}`}
                             title={row.title}
-                            className="truncate text-sm font-semibold hover:text-accent transition-colors"
+                            className="inline-flex min-h-[44px] items-center truncate text-sm font-semibold transition-colors hover:text-accent sm:min-h-0"
                           >
                             {row.title}
                           </Link>

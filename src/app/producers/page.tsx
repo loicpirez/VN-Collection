@@ -105,7 +105,7 @@ function TabLink({
     <Link
       href={href}
       aria-current={active ? 'page' : undefined}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
+      className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors sm:min-h-0 ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:bg-bg-elev'
       }`}
     >
@@ -226,7 +226,7 @@ function ProducerCard({
             </span>
           )}
         </span>
-        <Link href={`/producer/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3 hover:text-accent">
+        <Link href={`/producer/${p.id}`} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 hover:text-accent">
           <ProducerLogo producer={p} size={36} />
           <div className="min-w-0">
             <div className="truncate font-semibold">{p.name}</div>
