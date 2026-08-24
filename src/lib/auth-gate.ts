@@ -1,7 +1,11 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { hasForwardingHeaders, hasTrustedProxyProof } from './trusted-proxy';
+import {
+  hasForwardingHeaders,
+  hasSyntheticLoopbackForwarding,
+  hasTrustedProxyProof,
+} from './trusted-proxy';
 
 /**
  * R5-131 — constant-time comparison for the admin-token check.
@@ -35,9 +39,9 @@ function timingSafeStrEqual(a: string, b: string): boolean {
  *
  * The gate checks two signals:
  *
- *   1. A direct request with no forwarding metadata may use a loopback URL.
- *      Forwarded requests require ALLOW_TRUSTED_PROXY=1 and a matching private
- *      proxy proof, even when Next receives them on 127.0.0.1.
+ *   1. A direct request may use a loopback URL. This includes the complete,
+ *      loopback-only forwarding set synthesized by Next.js. Other forwarded
+ *      requests require ALLOW_TRUSTED_PROXY=1 and a matching private proof.
  *   2. Optional shared secret. When `VN_ADMIN_TOKEN` is configured,
  *      requests that include `Authorization: Bearer <token>` OR the
  *      `x-admin-token` header equal to the secret are also allowed —
@@ -63,12 +67,11 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
     if (header && timingSafeStrEqual(header, adminToken)) return null;
   }
 
-  // A direct request without forwarding metadata may use the loopback
-  // shortcut. A forwarded request is never considered local merely because
-  // Next received it from Nginx at 127.0.0.1.
+  // Next.js synthesizes forwarding metadata even for direct connections, so
+  // the local shortcut accepts only its complete loopback-only shape.
   const url = new URL(req.url);
   const forwarded = hasForwardingHeaders(req);
-  if (!forwarded && isLoopbackHost(url.hostname)) return null;
+  if (isLoopbackHost(url.hostname) && (!forwarded || hasSyntheticLoopbackForwarding(req))) return null;
 
   // The proxy proof authenticates the reverse proxy itself. The forwarded
   // client address may be public and is used for logging, not authorization.
@@ -85,7 +88,7 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
 }
 
 function isLoopbackHost(host: string): boolean {
-  const h = host.split(':')[0].toLowerCase();
+  const h = host.toLowerCase();
   return (
     h === 'localhost' ||
     h === '127.0.0.1' ||

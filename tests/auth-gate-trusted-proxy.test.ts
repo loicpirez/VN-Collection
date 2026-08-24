@@ -56,6 +56,40 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     expect(requireLocalhostOrToken(makeLoopbackReq())).toBeNull();
   });
 
+  it('allows the complete loopback forwarding set synthesized by Next.js', () => {
+    expect(requireLocalhostOrToken(makeLoopbackReq({
+      'x-forwarded-for': '::ffff:127.0.0.1',
+      'x-forwarded-host': '127.0.0.1:3000',
+      'x-forwarded-port': '3000',
+      'x-forwarded-proto': 'http',
+    }))).toBeNull();
+    expect(requireLocalhostOrToken(new NextRequest('http://[::1]/api/settings', {
+      headers: {
+        'x-forwarded-for': '0:0:0:0:0:0:0:1',
+        'x-forwarded-host': '[::1]:3001',
+        'x-forwarded-port': '3001',
+        'x-forwarded-proto': 'http',
+      },
+    }))).toBeNull();
+  });
+
+  it('rejects incomplete or non-local synthetic forwarding metadata', () => {
+    const base = {
+      'x-forwarded-for': '127.0.0.2',
+      'x-forwarded-host': 'localhost:3000',
+      'x-forwarded-port': '3000',
+      'x-forwarded-proto': 'http',
+    };
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-for': '127.0.0.1, 203.0.113.40' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-host': 'collection.example' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-host': 'localhost:3000, collection.example' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-host': '[' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-proto': 'https' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-forwarded-port': '0' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, forwarded: 'for=127.0.0.1' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeLoopbackReq({ ...base, 'x-proxy-secret': 'client-value' }))?.status).toBe(403);
+  });
+
   it('does not treat a forwarded request as local merely because Next received it on loopback', () => {
     expect(requireLocalhostOrToken(makeLoopbackReq({
       'x-forwarded-for': '203.0.113.40',

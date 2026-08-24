@@ -4,6 +4,7 @@ const FORWARDING_HEADERS = [
   'forwarded',
   'x-forwarded-for',
   'x-forwarded-host',
+  'x-forwarded-port',
   'x-forwarded-proto',
 ] as const;
 
@@ -17,6 +18,46 @@ function timingSafeStringEqual(left: string, right: string): boolean {
 /** Return whether a request carries evidence that it passed through a proxy. */
 export function hasForwardingHeaders(request: Request): boolean {
   return FORWARDING_HEADERS.some((header) => request.headers.has(header));
+}
+
+function isLoopbackAddress(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
+  const ipv4 = normalized.replace(/^(?:::ffff:|0:0:0:0:0:ffff:)/, '');
+  const octets = ipv4.split('.');
+  if (octets.length !== 4 || octets.some((octet) => !/^\d{1,3}$/.test(octet))) return false;
+  const numbers = octets.map(Number);
+  return numbers[0] === 127 && numbers.every((octet) => octet <= 255);
+}
+
+function isLoopbackForwardedHost(value: string): boolean {
+  if (value.includes(',')) return false;
+  try {
+    const hostname = new URL(`http://${value.trim()}`).hostname;
+    return hostname.toLowerCase() === 'localhost' || isLoopbackAddress(hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Recognize forwarding metadata synthesized by Next.js for a direct HTTP
+ * loopback connection without accepting client-supplied proxy metadata.
+ *
+ * @param request Incoming request whose forwarding headers are inspected.
+ * @returns True only for a complete, loopback-only Next.js header set.
+ */
+export function hasSyntheticLoopbackForwarding(request: Request): boolean {
+  if (request.headers.has('forwarded') || request.headers.has('x-proxy-secret')) return false;
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedPort = request.headers.get('x-forwarded-port');
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  if (!forwardedFor || !forwardedHost || !forwardedPort || forwardedProto !== 'http') return false;
+  const port = Number(forwardedPort);
+  if (!/^\d{1,5}$/.test(forwardedPort) || port < 1 || port > 65_535) return false;
+  const hops = forwardedFor.split(',').map((hop) => hop.trim());
+  return hops.length > 0 && hops.every((hop) => isLoopbackAddress(hop)) && isLoopbackForwardedHost(forwardedHost);
 }
 
 /**
