@@ -197,12 +197,27 @@ describe('PostgreSQL stock VN reader', () => {
         source: 'search',
         okazu: 1,
         erogame: null,
+      }] })
+      .mockResolvedValueOnce({ rows: [itemRow({ id: 'v90022' })] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{
+        egs_id: 12,
+        median: null,
+        average: null,
+        count: null,
+        playtime_median_minutes: null,
+        source: 'search',
+        okazu: null,
+        erogame: 0,
       }] });
     const repository = createPostgresVnReadRepository();
 
     await expect(repository.getCollectionItem('v90020')).resolves.toMatchObject({ egs: null });
     await expect(repository.getCollectionItem('v90021')).resolves.toMatchObject({
       egs: { okazu: true, erogame: null },
+    });
+    await expect(repository.getCollectionItem('v90022')).resolves.toMatchObject({
+      egs: { okazu: null, erogame: false },
     });
   });
 
