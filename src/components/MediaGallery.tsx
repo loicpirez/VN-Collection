@@ -79,10 +79,14 @@ export function MediaGallery({
         dims: s.dims ?? null,
       })),
     };
+    const seenReleaseImages = new Set<string>();
     for (const img of releaseImages) {
+      const identity = `${img.release_id}:${img.type}:${img.id ?? ''}:${img.url}`;
+      if (seenReleaseImages.has(identity)) continue;
+      seenReleaseImages.add(identity);
       const localizedType = t.media[img.type];
       const item: MediaItem = {
-        key: `${img.release_id}-${img.id ?? img.url}`,
+        key: identity,
         url: img.url,
         thumbnail: img.thumbnail ?? null,
         local: img.local ?? null,
@@ -121,7 +125,7 @@ export function MediaGallery({
   }
 
   const counts: Record<TypeKey, number> = {
-    all: screenshots.length + releaseImages.length,
+    all: TYPE_KEYS.filter((key) => key !== 'all').reduce((total, key) => total + groups[key].length, 0),
     pkgfront: groups.pkgfront.length,
     pkgback: groups.pkgback.length,
     pkgcontent: groups.pkgcontent.length,

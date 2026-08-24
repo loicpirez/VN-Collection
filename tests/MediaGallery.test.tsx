@@ -67,6 +67,15 @@ describe('MediaGallery', () => {
     expect(screen.getAllByRole('button', { name: t.media.actionsMenu }).length).toBe(1);
   });
 
+  it('deduplicates identical release images and reports the rendered count', () => {
+    const duplicate = { ...releaseImages[0] };
+    renderGallery({ screenshots: [], releaseImages: [releaseImages[0], duplicate] });
+
+    expect(screen.getAllByRole('button', { name: t.media.actionsMenu })).toHaveLength(1);
+    const filters = screen.getByRole('group', { name: t.media.filtersLabel });
+    expect(within(filters).getByRole('button', { name: new RegExp(`${t.media.all} 1`) })).toBeTruthy();
+  });
+
   it('opens the lightbox, navigates next, and closes it', async () => {
     renderGallery();
     const tileActivators = screen.getAllByRole('button', { name: new RegExp(t.media.openLightbox) });
