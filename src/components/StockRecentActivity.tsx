@@ -124,12 +124,12 @@ export function StockRecentActivity() {
       {activity && activity.entries.length > 0 && (
         <div className="mt-4">
           <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">{t.stock.recentChecked as string}</h3>
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+          <ul className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
             {activity.entries.map((entry) => (
-              <li key={entry.vnId}>
+              <li key={entry.vnId} className="min-w-0">
                 <Link
                   href={`/stock?vn=${encodeURIComponent(entry.vnId)}`}
-                  className="flex min-h-[44px] items-center justify-between gap-2 rounded-md border border-border bg-bg px-3 py-2 text-xs hover:border-accent hover:text-accent"
+                  className="flex min-h-[44px] min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-bg px-3 py-2 text-xs hover:border-accent hover:text-accent"
                 >
                   <span className="min-w-0 truncate font-semibold">{entry.title ?? entry.vnId}</span>
                   <span className="shrink-0 font-mono text-[10px] text-muted">{entry.vnId}</span>

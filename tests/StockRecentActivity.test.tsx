@@ -62,6 +62,9 @@ describe('StockRecentActivity', () => {
     expect(screen.getByLabelText(t.common.loading)).toHaveAttribute('aria-busy', 'true');
     const recent = await screen.findByRole('link', { name: /Recent title/ });
     expect(recent).toHaveAttribute('href', '/stock?vn=v90001');
+    expect(recent).toHaveClass('min-w-0');
+    expect(recent.parentElement).toHaveClass('min-w-0');
+    expect(recent.closest('ul')).toHaveClass('grid-cols-1', 'min-w-0');
     expect(screen.getByRole('link', { name: /v90002/ })).toHaveAttribute('href', '/stock?vn=v90002');
     expect(screen.getByRole('link', { name: t.stock.openBatchTools })).toHaveAttribute('href', '#stock-batch');
     expect(screen.getByText('Stock refresh x 2')).toBeInTheDocument();
