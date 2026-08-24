@@ -8,6 +8,7 @@ import {
   getCollectionItem,
   getCoOccurringTags,
   getEgsForVn,
+  getPlaceProviderMap,
   getSourcePref,
   getVnAspectOverride,
   isInCollection,
@@ -63,6 +64,7 @@ vi.mock('@/lib/db', () => ({
   getCollectionItem: vi.fn(),
   getCoOccurringTags: vi.fn(),
   getEgsForVn: vi.fn(),
+  getPlaceProviderMap: vi.fn(),
   getSourcePref: vi.fn(),
   getVnAspectOverride: vi.fn(),
   isEgsOnly: (id: string) => id.startsWith('egs_'),
@@ -76,6 +78,37 @@ vi.mock('@/lib/db', () => ({
   materializeReleaseMetaForVn: vi.fn(),
   upsertVn: vi.fn(),
 }));
+
+vi.mock('@/lib/db/repositories/vn-detail', async () => {
+  const database = await import('@/lib/db');
+  return {
+    getVnDetailRepository: () => ({
+      egs: async (vnId: string) => database.getEgsForVn(vnId),
+      sourcePreference: async (vnId: string) => database.getSourcePref(vnId),
+      gameLog: async (vnId: string, limit?: number) => database.listGameLogForVn(vnId, limit),
+      aspectOverride: async (vnId: string) => database.getVnAspectOverride(vnId),
+      aspectKey: async (vnId: string) => database.deriveVnAspectKey(vnId),
+      aspectDisplay: async (vnId: string) => database.deriveVnAspectDisplay(vnId),
+      coOccurringTags: async (vnId: string, limit?: number) => database.getCoOccurringTags(vnId, limit),
+    }),
+  };
+});
+
+vi.mock('@/lib/db/repositories/release-metadata', async () => {
+  const database = await import('@/lib/db');
+  return {
+    getReleaseMetadataRepository: () => ({
+      materializeAspectsForVn: async (vnId: string) => {
+        database.materializeReleaseAspectsForVn(vnId);
+        return 0;
+      },
+      materializeForVns: async (vnIds: readonly string[]) => {
+        for (const vnId of vnIds) database.materializeReleaseMetaForVn(vnId);
+        return 0;
+      },
+    }),
+  };
+});
 
 vi.mock('@/lib/vndb', () => ({
   getVn: vi.fn(),
@@ -128,8 +161,8 @@ vi.mock('@/components/StatusBadge', () => ({
   StatusBadge: ({ status }: { status: string }) => <div>{`status:${status}`}</div>,
 }));
 
-vi.mock('@/components/CoverUploader', () => ({
-  CoverUploader: ({ hasCustom, vnId }: { hasCustom: boolean; vnId: string }) => <div>{`uploader:${vnId}:${hasCustom}`}</div>,
+vi.mock('@/components/CoverPickerTrigger', () => ({
+  CoverPickerTrigger: ({ label, vnId }: { label?: string; vnId: string }) => <div>{`cover-picker:${vnId}:${label ?? 'default'}`}</div>,
 }));
 
 vi.mock('@/components/HeroBanner', () => ({
@@ -413,6 +446,7 @@ beforeEach(() => {
   vi.mocked(getCollectionItem).mockReset().mockReturnValue(null);
   vi.mocked(getCoOccurringTags).mockReset().mockReturnValue([]);
   vi.mocked(getEgsForVn).mockReset().mockReturnValue(null);
+  vi.mocked(getPlaceProviderMap).mockReset().mockReturnValue({});
   vi.mocked(getSourcePref).mockReset().mockReturnValue({});
   vi.mocked(getVnAspectOverride).mockReset().mockReturnValue(null);
   vi.mocked(isInCollection).mockReset().mockReturnValue(false);
@@ -447,7 +481,7 @@ describe('VN detail page runtime', () => {
     expect(html).toContain(dictionaries.en.common.error);
     expect(html).not.toContain('private upstream detail');
     expect(html).toContain('href="https://vndb.org/v90001"');
-    expect(warn).toHaveBeenCalledWith('[vn/v90001] upstream lookup failed:', 'private upstream detail');
+    expect(warn).toHaveBeenCalledWith('[VN_DETAIL_UPSTREAM_LOOKUP_FAILED]', 'v90001', 'private upstream detail');
     warn.mockRestore();
   });
 
@@ -459,6 +493,25 @@ describe('VN detail page runtime', () => {
 
     expect(html).toContain(dictionaries.en.detail.notFoundTitle);
     expect(html).toContain(dictionaries.en.common.error);
+  });
+
+  it('keeps the stock section available and flags unavailable physical-place links', async () => {
+    vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90024'));
+    vi.mocked(getPlaceProviderMap).mockImplementation(() => {
+      throw new Error('place map unavailable');
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const html = await renderPage('v90024');
+
+    expect(html).toContain('data-section="stock"');
+    expect(html).toContain('placeLinksUnavailable&quot;:true');
+    expect(html).toContain('defaultProviderScope&quot;:&quot;physical&quot;');
+    expect(warn).toHaveBeenCalledWith(
+      '[VN_DETAIL_PLACE_PROVIDER_MAP_LOAD_FAILED]',
+      expect.objectContaining({ message: 'place map unavailable' }),
+    );
+    warn.mockRestore();
   });
 
   it('renders the not-found page without an error line when upstream throws an empty message', async () => {
@@ -501,6 +554,18 @@ describe('VN detail page runtime', () => {
 
     expect(await generateMetadata({ params: Promise.resolve({ id: 'V90007' }) })).toEqual({ title: 'Fetched v90007' });
     expect(upsertVn).toHaveBeenCalledWith(vndbVn('v90007'));
+  });
+
+  it('uses the same full title for metadata and the visible heading', async () => {
+    const item = collectionItem('v90025', {
+      title: 'Gakuen',
+      alttitle: null,
+      titles: [{ lang: 'en', title: 'Josou Gakuen', latin: null, official: true, main: true }],
+    });
+    vi.mocked(getCollectionItem).mockReturnValue(item);
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: 'v90025' }) })).toEqual({ title: 'Josou Gakuen' });
+    expect(await renderPage('v90025')).toContain('title:Josou Gakuen:Gakuen');
   });
 
   it('renders a rich non-collection VNDB page and lazy-section skeletons', async () => {
@@ -665,12 +730,12 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('href="/series/3"');
   });
 
-  it('uses explicit and fallback cover priorities and uploads when no owned cover exists', async () => {
+  it('uses explicit and fallback cover priorities and opens the picker when no owned cover exists', async () => {
     vi.mocked(isInCollection).mockReturnValue(true);
     vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90010'));
     let html = await renderPage('v90010');
     expect(html).toContain('cover-hero:v90010:none:none');
-    expect(html).toContain('uploader:v90010:false');
+    expect(html).toContain('cover-picker:v90010:Upload a cover');
 
     vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90011', {
       custom_cover: 'https://example.com/custom.jpg',

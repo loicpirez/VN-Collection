@@ -7,33 +7,54 @@ function source(path: string): string {
 }
 
 describe('VN detail compact artwork and platform disclosure', () => {
-  it('keeps one icon-only cover edit entry on compact viewports', () => {
-    const body = source('src/components/CoverEditOverlay.tsx');
-    expect(body).toContain('min-h-[44px] min-w-[44px]');
-    expect(body).toContain('<span className="hidden sm:inline">{t.coverPicker.open}</span>');
+  it('keeps artwork overlays off compact covers and exposes one responsive toolbar entry', () => {
+    const overlay = source('src/components/CoverEditOverlay.tsx');
+    const menu = source('src/components/ArtworkActionMenu.tsx');
+    const hero = source('src/components/HeroBanner.tsx');
+    expect(overlay).toContain('hidden min-h-[44px]');
+    expect(overlay).toContain('can-hover:sm:min-h-[36px]');
+    expect(overlay).toContain('md:inline-flex');
+    expect(menu).toContain('sr-only sm:not-sr-only');
+    expect(menu).toContain('<PortalPopover');
+    expect(hero).not.toContain('aria-label={t.banner.adjust}\n                  >\n                  <Crosshair className="h-3.5 w-3.5"');
   });
 
-  it('keeps one resident cover-picker owner mounted outside the collapsible media menu', () => {
+  it('keeps one resident lazy artwork owner mounted outside the collapsible media menu', () => {
     const actions = source('src/components/VnDetailActionsBar.tsx');
     const picker = source('src/components/CoverSourcePicker.tsx');
     const trigger = source('src/components/CoverPickerTrigger.tsx');
 
-    expect(actions).toContain('const coverPicker = (');
-    expect(actions).toContain('showTrigger={false}');
+    expect(actions).toContain('const artworkPickers = (');
+    expect(actions).toContain('<LazyArtworkPickers');
     expect(actions).toContain('<CoverPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />');
-    expect(actions).toContain('{coverPicker}');
+    expect(actions).toContain('<BannerPickerTrigger vnId={vn.id} className={ACTION_BUTTON_CLASSES} />');
+    expect(actions).toContain('<ArtworkTransformControls vnId={vn.id} />');
+    expect(actions).toContain('{artworkPickers}');
+    expect(actions).not.toContain('{coverPicker}');
     expect(picker).toContain('{showTrigger && (');
     expect(trigger).toContain("window.dispatchEvent(new CustomEvent('vn:open-cover-picker', { detail: { vnId } }))");
   });
 
-  it('exposes truncated platform names through hover, focus, and tap disclosure', () => {
+  it('routes empty cover and banner states to the resident source pickers', () => {
+    const page = source('src/app/vn/[id]/page.tsx');
+    const hero = source('src/components/HeroBanner.tsx');
+    expect(page).toContain('label={t.cover.uploadCta}');
+    expect(page).not.toContain('<CoverUploader');
+    expect(hero).toContain('label={t.banner.uploadCta}');
+    expect(hero).toContain('!liveSrc && currentInCollection');
+  });
+
+  it('exposes truncated platform names through a shared click and keyboard popover', () => {
     const body = source('src/app/vn/[id]/page.tsx');
-    expect(body).toContain('const hiddenPlatforms = vn.platforms.slice(10)');
-    expect(body).toContain("title={hiddenLabels.join(', ')}");
-    expect(body).toContain('inline-flex min-h-[44px] cursor-pointer');
-    expect(body).toContain('sm:min-h-[28px]');
-    expect(body).toContain('className="absolute right-0 top-full z-20');
-    expect(body).toContain('group-open:flex group-hover:flex group-focus-within:flex');
-    expect(body).toContain('href={`/search?platforms=${encodeURIComponent(p)}`}');
+    const disclosure = source('src/components/PlatformOverflowDisclosure.tsx');
+    expect(body).toContain('<PlatformOverflowDisclosure');
+    expect(body).toContain('items={vn.platforms.slice(10).map((code) => ({');
+    expect(disclosure).toContain('aria-expanded={open}');
+    expect(disclosure).toContain('aria-haspopup="dialog"');
+    expect(disclosure).toContain('min-h-[44px]');
+    expect(disclosure).toContain('sm:min-h-[28px]');
+    expect(disclosure).toContain('<PortalPopover');
+    expect(disclosure).toContain('href={`/search?platforms=${encodeURIComponent(item.code)}`}');
+    expect(disclosure).not.toContain('group-hover');
   });
 });

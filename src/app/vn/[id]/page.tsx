@@ -5,27 +5,16 @@ import Link from 'next/link';
 import { after } from 'next/server';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, Home, MapPin, Package, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
-import {
-  deriveVnAspectDisplay,
-  deriveVnAspectKey,
-  getAppSetting,
-  getCollectionItem,
-  getCoOccurringTags,
-  getEgsForVn,
-  getPlaceProviderMap,
-  getSourcePref,
-  getVnAspectOverride,
-  isEgsOnly,
-  isInCollection,
-  isInCollectionMany,
-  listActivityForVn,
-  listGameLogForVn,
-  listListsForVn,
-  listSeries,
-  materializeReleaseAspectsForVn,
-  materializeReleaseMetaForVn,
-  upsertVn,
-} from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
+import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
+import { getPlaceRepository } from '@/lib/db/repositories/place';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
+import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { parseVnDetailLayoutV1, type VnSectionId } from '@/lib/vn-detail-layout';
 import { platformLabel } from '@/lib/platform-label';
 import { VnDetailLayout } from '@/components/VnDetailLayout';
@@ -33,6 +22,8 @@ import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
+import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
+import { resolveVnDisplayTitles } from '@/lib/vn-display-title';
 
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
 import { getDict, getLocale } from '@/lib/i18n/server';
@@ -41,7 +32,7 @@ import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { EditForm } from '@/components/EditForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
-import { CoverUploader } from '@/components/CoverUploader';
+import { CoverPickerTrigger } from '@/components/CoverPickerTrigger';
 
 import { HeroBanner } from '@/components/HeroBanner';
 
@@ -51,13 +42,13 @@ import { TagCoOccurrence } from '@/components/TagCoOccurrence';
 import { ReadingSpeedBadge } from '@/components/ReadingSpeedBadge';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { SeriesAutoSuggest } from '@/components/SeriesAutoSuggest';
-import { detectSeriesForVn } from '@/lib/series-detect';
 import { SessionPanel } from '@/components/SessionPanel';
 import { CoverEditOverlay } from '@/components/CoverEditOverlay';
 import { CoverHero } from '@/components/CoverHero';
 import { CoverRotationButtons } from '@/components/CoverRotationButtons';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
+import { PlatformOverflowDisclosure } from '@/components/PlatformOverflowDisclosure';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
 import { NotesSectionToggle } from '@/components/NotesSectionToggle';
@@ -122,35 +113,12 @@ function combinedScore(vndb: number | null, egs: number | null): number | null {
   return Math.round((vndb + egs) / 2);
 }
 
-function titleCandidates(vn: CollectionItem): string[] {
-  const candidates = [
-    vn.title,
-    vn.alttitle,
-    ...vn.titles.flatMap((title) => [title.title, title.latin]),
-  ];
-  return candidates
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .map((value) => value.trim());
-}
-
-function displayTitleForVn(vn: CollectionItem): string {
-  const current = vn.title.trim();
-  const normalized = current.toLocaleLowerCase();
-  const longerContainingCurrent = titleCandidates(vn)
-    .filter((candidate) => {
-      const lower = candidate.toLocaleLowerCase();
-      return lower !== normalized && lower.includes(normalized) && candidate.length > current.length;
-    })
-    .sort((a, b) => a.length - b.length)[0];
-  return longerContainingCurrent ?? current;
-}
-
-function safePlaceProviderMap(): Record<string, number> {
+async function safePlaceProviderMap(): Promise<{ map: Record<string, number>; available: boolean }> {
   try {
-    return getPlaceProviderMap();
+    return { map: await getPlaceRepository().providerMap(), available: true };
   } catch (error) {
-    console.warn('[vn/detail] failed to load place provider map:', error);
-    return {};
+    console.warn(OPERATION_LOG_CODES.vnDetailPlaceProviderMapLoadFailed, error);
+    return { map: {}, available: false };
   }
 }
 
@@ -169,14 +137,15 @@ function safePlaceProviderMap(): Record<string, number> {
  * flagged this as the "vn(id) - VN Collection" bug.
  *
  * The function never auto-adds the VN to the collection -
- * `upsertVn` writes to the `vn` cache table only. Membership in
+ * The VN writer updates the `vn` cache table only. Membership in
  * `collection` stays under explicit operator control.
  */
 const loadVn = cache(
   async (id: string): Promise<{ vn: CollectionItem | null; error: string | null }> => {
-    const cached = getCollectionItem(id);
+    const reader = getVnReadRepository();
+    const cached = await reader.getCollectionItem(id);
     // EGS-only synthetic VNs aren't on VNDB - always serve from cache.
-    if (isEgsOnly(id)) {
+    if (await reader.isEgsOnly(id)) {
       return { vn: cached, error: null };
     }
     if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return { vn: cached, error: null };
@@ -187,8 +156,8 @@ const loadVn = cache(
         const t = await getDict();
         return { vn: null, error: t.detail.vndbNoResult.replace('{id}', id) };
       }
-      upsertVn(fresh);
-      return { vn: getCollectionItem(id), error: null };
+      await getVnWriteRepository().upsert(fresh);
+      return { vn: await reader.getCollectionItem(id), error: null };
     } catch (e) {
       const msg = (e as Error).message || '';
       if (cached) return { vn: cached, error: null };
@@ -212,7 +181,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // the row immediately; for a not-yet-seen VNDB id we fetch
   // and upsert ONCE per request.
   const { vn } = await loadVn(id);
-  const title = vn ? displayTitleForVn(vn) : `VN ${id}`;
+  const title = vn ? resolveVnDisplayTitles(vn).primary : `VN ${id}`;
   return { title };
 }
 
@@ -240,7 +209,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const { vn, error } = await loadVn(id);
   if (!vn) {
     if (error) {
-      console.warn(`[vn/${id}] upstream lookup failed:`, error);
+      console.warn(OPERATION_LOG_CODES.vnDetailUpstreamLookupFailed, id, error);
     }
     return (
       <div className="mx-auto max-w-2xl">
@@ -282,27 +251,57 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
       </div>
     );
   }
-  const inCol = isInCollection(id);
-  const displayTitle = displayTitleForVn(vn);
-  const resolvedAltTitle =
-    vn.alttitle && vn.alttitle !== displayTitle
-      ? vn.alttitle
-      : displayTitle !== vn.title
-        ? vn.title
-        : vn.alttitle;
-  const displayAltTitle = resolvedAltTitle !== displayTitle ? resolvedAltTitle : undefined;
-  const allSeries = listSeries();
-  const listsForThisVn = listListsForVn(id);
+  const collectionRepository = getCollectionCoreRepository();
+  const detailRepository = getVnDetailRepository();
+  const inCol = await collectionRepository.contains(id);
+  const { primary: displayTitle, alternate: displayAltTitle } = resolveVnDisplayTitles(vn);
+  const seriesRepository = getSeriesRepository();
+  const isCanonicalVn = isVndbVnId(vn.id);
+  const [
+    allSeries,
+    listsForThisVn,
+    relationOwnedSet,
+    seriesSuggestion,
+    egsRow,
+    sourcePref,
+    initialGameLog,
+    initialAspectOverride,
+    initialAspectKey,
+    vnAspectDisplay,
+    cooccurringTags,
+    placeProviderMap,
+    layoutSetting,
+    activityEntries,
+  ] = await Promise.all([
+    seriesRepository.list(),
+    getUserListRepository().listForVn(id),
+    collectionRepository.containsMany(vn.relations.map((relation) => relation.id)),
+    inCol ? seriesRepository.suggest(id) : Promise.resolve(null),
+    detailRepository.egs(vn.id),
+    detailRepository.sourcePreference(vn.id),
+    inCol ? detailRepository.gameLog(vn.id, 200) : Promise.resolve([]),
+    isCanonicalVn ? detailRepository.aspectOverride(vn.id) : Promise.resolve(null),
+    isCanonicalVn ? detailRepository.aspectKey(vn.id) : Promise.resolve('unknown' as const),
+    isCanonicalVn
+      ? detailRepository.aspectDisplay(vn.id)
+      : Promise.resolve({ aspect: 'unknown' as const, aspects: [], width: null, height: null, source: 'unknown' as const }),
+    inCol ? detailRepository.coOccurringTags(vn.id, 18) : Promise.resolve([]),
+    safePlaceProviderMap(),
+    getAppSettingRepository().get('vn_detail_section_layout_v1'),
+    inCol ? getActivityRepository().listForVn(vn.id, 50) : Promise.resolve([]),
+  ]);
   if (isVndbVnId(vn.id)) {
     const vnIdToMaterialize = vn.id;
-    after(() => {
-      materializeReleaseAspectsForVn(vnIdToMaterialize);
-      materializeReleaseMetaForVn(vnIdToMaterialize);
+    after(async () => {
+      const releases = getReleaseMetadataRepository();
+      await Promise.all([
+        releases.materializeAspectsForVn(vnIdToMaterialize),
+        releases.materializeForVns([vnIdToMaterialize]),
+      ]);
     });
   }
   const status = (vn.status as Status | undefined) ?? null;
-  // Per-field source preference (VNDB / EGS / Custom) - pulled per-VN, defaults to Auto.
-  const egsRow = getEgsForVn(vn.id);
+  // Per-field source preference (VNDB / EGS / Custom) defaults to Auto.
   const vndbRating = vn.rating ?? null;
   const egsRating = egsRow?.median ?? null;
   const unifiedRating = combinedScore(vndbRating, egsRating);
@@ -311,7 +310,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     : vndbRating != null ? t.detail.scoreUnifiedVndb
     : egsRating != null ? t.detail.scoreUnifiedEgs
     : t.detail.scoreUnavailable;
-  const sourcePref = getSourcePref(vn.id);
   // Three independent poster sources so the compare panel can show them
   // side-by-side without conflating custom into the VNDB column.
   const vndbPoster = {
@@ -347,6 +345,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const editionType = (vn.edition_type as EditionType | undefined) ?? 'none';
   const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
   const isFanDisc = vn.relations.some((r) => r.relation === 'orig');
+  const detailLayout = parseVnDetailLayoutV1(layoutSetting);
 
   return (
     <div className="w-full">
@@ -379,8 +378,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         synthetic `egs_*` VNs that already surface a dedicated EGS-
         only state through `<MatchBadges>` below.
       */}
-      {!inCol && !vn.id.startsWith('egs_') && (
-        <NotInCollectionBanner vnId={vn.id} />
+      {!vn.id.startsWith('egs_') && (
+        <NotInCollectionBanner vnId={vn.id} initialInCollection={inCol} />
       )}
 
       <div className="relative rounded-2xl border border-border bg-bg-card shadow-card">
@@ -430,7 +429,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   />
                   {inCol && !heroPoster.remote && !heroPoster.local && (
                     <div className="absolute inset-x-2 bottom-2 z-10 flex justify-center">
-                      <CoverUploader vnId={vn.id} hasCustom={!!vn.custom_cover} variant="inline" />
+                      <CoverPickerTrigger
+                        vnId={vn.id}
+                        label={t.cover.uploadCta}
+                        className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-card/95 px-3 py-2 text-xs font-semibold text-white shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent"
+                      />
                     </div>
                   )}
                 </div>
@@ -451,13 +454,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 simple-branch path; users with a custom or EGS cover
                 had no rotation surface at all on the actual cover.
               */}
-              {inCol && (
-                <CoverRotationButtons
-                  vnId={vn.id}
-                  initialRotation={vn.cover_rotation}
-                  anchor="top-right"
-                />
-              )}
+              <CoverRotationButtons
+                vnId={vn.id}
+                initialRotation={vn.cover_rotation}
+                anchor="top-right"
+                inCollection={inCol}
+              />
             </div>
           </div>
 
@@ -644,43 +646,25 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         aria-label={p}
                         className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
                       >
-                        {platformLabel(p)}
+                        {platformLabel(p, locale)}
                       </Link>
                     ))}
-                    {vn.platforms.length > 10 && (() => {
-                      const hiddenPlatforms = vn.platforms.slice(10);
-                      const hiddenLabels = hiddenPlatforms.map(platformLabel);
-                      const moreLabel = t.form.andNMore.replace('{n}', String(hiddenPlatforms.length));
-                      return (
-                        <details className="group relative">
-                          <summary
-                            className="inline-flex min-h-[44px] cursor-pointer list-none items-center rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-[28px] sm:px-1.5 sm:py-0.5 [&::-webkit-details-marker]:hidden"
-                            title={hiddenLabels.join(', ')}
-                            aria-label={`${moreLabel}: ${hiddenLabels.join(', ')}`}
-                          >
-                            {moreLabel}
-                          </summary>
-                          <div className="absolute right-0 top-full z-20 mt-1 hidden min-w-44 max-w-64 flex-wrap gap-1 rounded-md border border-border bg-bg-card p-2 shadow-card group-open:flex group-hover:flex group-focus-within:flex">
-                            {hiddenPlatforms.map((p) => (
-                              <Link
-                                key={p}
-                                href={`/search?platforms=${encodeURIComponent(p)}`}
-                                className="rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
-                              >
-                                {platformLabel(p)}
-                              </Link>
-                            ))}
-                          </div>
-                        </details>
-                      );
-                    })()}
+                    {vn.platforms.length > 10 && (
+                      <PlatformOverflowDisclosure
+                        items={vn.platforms.slice(10).map((code) => ({
+                          code,
+                          label: platformLabel(code, locale),
+                        }))}
+                        moreLabel={t.form.andNMore.replace('{n}', String(vn.platforms.length - 10))}
+                        label={t.detail.platforms}
+                        closeLabel={t.common.close}
+                      />
+                    )}
                   </dd>
                 </div>
               )}
               {(() => {
-                const aspectDisplay = isVndbVnId(vn.id)
-                  ? deriveVnAspectDisplay(vn.id)
-                  : { aspect: 'unknown' as const, aspects: [], width: null, height: null, source: 'unknown' as const };
+                const aspectDisplay = vnAspectDisplay;
                 const isUnknown = aspectDisplay.aspect === 'unknown';
                 const sourceLabel =
                   aspectDisplay.source === 'manual' ? t.detail.aspectSourceManual
@@ -925,7 +909,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         // user's saved order / visibility. Collapse state is owned by
         // each section's `DetailSectionFrame` (seeded from
         // `collapsedByDefault`, persisted per section in localStorage).
-        const layout = parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1'));
+        const layout = detailLayout;
         const sectionNodes: Partial<Record<VnSectionId, React.ReactNode>> = {};
         if (inCol) {
           sectionNodes['notes'] = <NotesSectionToggle notes={vn.notes} emptyLabel={t.form.notesEmpty} />;
@@ -935,7 +919,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // something to offer - otherwise the section frame would
           // render an empty collapsible card for a card that used to
           // vanish entirely.
-          const seriesSuggestion = detectSeriesForVn(vn.id);
           if (seriesSuggestion && (seriesSuggestion.existing.length > 0 || seriesSuggestion.suggestedName)) {
             sectionNodes['series-suggest'] = <SeriesAutoSuggest vnId={vn.id} suggestion={seriesSuggestion} />;
           }
@@ -945,9 +928,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               <SessionPanel
                 vnId={vn.id}
                 currentMinutes={vn.playtime_minutes ?? 0}
-                initialLog={listGameLogForVn(vn.id, 200)}
+                initialLog={initialGameLog}
               />
-              <ActivityTimeline vnId={vn.id} initial={listActivityForVn(vn.id, 50)} />
+              <ActivityTimeline vnId={vn.id} initial={activityEntries} />
             </div>
           );
         }
@@ -955,10 +938,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // Single IN(...) lookup beats one isInCollection() SELECT
           // per relation. With ~30 relations this used to be 30
           // round-trips per VN page render.
-          const ownedSet = isInCollectionMany(vn.relations.map((r) => r.id));
           sectionNodes['relations'] = (
             <RelationsSection
-              relations={vn.relations.map((r) => ({ ...r, in_collection: ownedSet.has(r.id) }))}
+              relations={vn.relations.map((r) => ({ ...r, in_collection: relationOwnedSet.has(r.id) }))}
             />
           );
         }
@@ -1005,13 +987,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           sectionNodes['staff'] = <StaffSection staff={vn.staff} />;
         }
         {
-          const initialOverride = isVndbVnId(vn.id) ? getVnAspectOverride(vn.id) : null;
-          const initialDerived = deriveVnAspectKey(vn.id);
           sectionNodes['aspect-override'] = (
             <AspectOverrideControl
               vnId={vn.id}
-              initialDerived={initialDerived}
-              initialOverride={initialOverride ? { aspect_key: initialOverride.aspect_key, note: initialOverride.note } : null}
+              initialDerived={initialAspectKey}
+              initialOverride={initialAspectOverride ? { aspect_key: initialAspectOverride.aspect_key, note: initialAspectOverride.note } : null}
             />
           );
         }
@@ -1020,7 +1000,6 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // signal (2+ shared-tag rows); computing it here lets the
           // host skip the section entirely below that threshold so the
           // frame is never empty.
-          const cooccurringTags = getCoOccurringTags(vn.id, 18);
           if (cooccurringTags.length >= 2) {
             sectionNodes['tag-overlap'] = <TagCoOccurrence rows={cooccurringTags} />;
           }
@@ -1047,7 +1026,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               title={displayTitle}
               altTitle={displayAltTitle}
               vndbAliases={vn.aliases}
-              placeMap={safePlaceProviderMap()}
+              placeMap={placeProviderMap.map}
+              placeLinksUnavailable={!placeProviderMap.available}
+              defaultProviderScope="physical"
               bare
             />
           </StockPanelBoundary>
