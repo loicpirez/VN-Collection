@@ -25,7 +25,7 @@ export function ClearCacheModal({
   useDialogA11y({ open: true, onClose: onCancel, panelRef });
   return (
     <DialogPortal>
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-layer-modal flex items-center justify-center p-4">
         <button
           type="button"
           aria-label={t.common.close as string}

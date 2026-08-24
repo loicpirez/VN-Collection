@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { StockLookupClient } from '@/components/StockLookupClient';
 import type { VnPickerHit } from '@/components/VnSourcePicker';
@@ -30,17 +30,23 @@ vi.mock('@/components/StockPanel', () => ({
     vnId,
     title,
     placeMap,
+    placeLinksUnavailable,
+    titleResolutionUnavailable,
     defaultProviderScope,
   }: {
     vnId: string;
     title?: string;
     placeMap?: Record<string, number>;
+    placeLinksUnavailable?: boolean;
+    titleResolutionUnavailable?: boolean;
     defaultProviderScope?: 'all' | 'physical';
   }) => (
     <div data-testid="stock-panel">
       <span data-testid="panel-vn">{vnId}</span>
       <span data-testid="panel-title">{title ?? ''}</span>
       <span data-testid="panel-places">{Object.keys(placeMap ?? {}).join(',')}</span>
+      <span data-testid="panel-place-warning">{String(placeLinksUnavailable ?? false)}</span>
+      <span data-testid="panel-title-warning">{String(titleResolutionUnavailable ?? false)}</span>
       <span data-testid="panel-provider-scope">{defaultProviderScope ?? ''}</span>
     </div>
   ),
@@ -49,6 +55,10 @@ vi.mock('@/components/StockPanel', () => ({
 /** The batch client mounts its own network lifecycle; stub it out. */
 vi.mock('@/components/StockBatchClient', () => ({
   StockBatchClient: () => <div data-testid="batch-client" />,
+}));
+
+vi.mock('@/components/StockRecentActivity', () => ({
+  StockRecentActivity: () => <div data-testid="recent-stock-activity" />,
 }));
 
 vi.mock('@/components/AliceNetClient', () => ({
@@ -109,6 +119,7 @@ describe('StockLookupClient', () => {
     // The provider-map fetch still fires on mount.
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getByTestId('batch-client')).toBeTruthy();
+    expect(screen.getByTestId('recent-stock-activity')).toBeTruthy();
     expect(screen.queryByTestId('alicenet-client')).toBeNull();
   });
 
@@ -118,8 +129,10 @@ describe('StockLookupClient', () => {
     expect(screen.getByTestId('stock-panel')).toBeTruthy();
     expect(screen.getByTestId('panel-vn').textContent).toBe('v90042');
     expect(screen.getByTestId('panel-provider-scope').textContent).toBe('all');
+    expect(screen.queryByTestId('recent-stock-activity')).toBeNull();
     // Title arrives from /api/vn/[id].
     await waitFor(() => expect(screen.getByTestId('panel-title').textContent).toBe('Resolved Title'));
+    expect(screen.getByTestId('panel-title-warning').textContent).toBe('false');
     const urls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u === '/api/vn/v90042')).toBe(true);
   });
@@ -145,6 +158,7 @@ describe('StockLookupClient', () => {
     // Panel still mounted; title stays empty (no crash on the failed fetch).
     expect(screen.getByTestId('stock-panel')).toBeTruthy();
     expect(screen.getByTestId('panel-title').textContent).toBe('');
+    await waitFor(() => expect(screen.getByTestId('panel-title-warning').textContent).toBe('true'));
   });
 
   it('ignores failed and undecodable provider-map responses', async () => {
@@ -152,6 +166,7 @@ describe('StockLookupClient', () => {
     renderWithProviders(<StockLookupClient initialVnId="v90042" />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getByTestId('panel-places').textContent).toBe('');
+    await waitFor(() => expect(screen.getByTestId('panel-place-warning').textContent).toBe('true'));
 
     vi.restoreAllMocks();
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -159,6 +174,7 @@ describe('StockLookupClient', () => {
     renderWithProviders(<StockLookupClient initialVnId="v90043" />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/places/provider-map', expect.any(Object)));
     expect(screen.getAllByTestId('panel-places').at(-1)?.textContent).toBe('');
+    await waitFor(() => expect(screen.getAllByTestId('panel-place-warning').at(-1)?.textContent).toBe('true'));
   });
 
   it('keeps the title empty for undecodable and aborted title responses', async () => {
@@ -166,6 +182,7 @@ describe('StockLookupClient', () => {
     renderWithProviders(<StockLookupClient initialVnId="v90042" />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/vn/v90042', expect.any(Object)));
     expect(screen.getByTestId('panel-title').textContent).toBe('');
+    await waitFor(() => expect(screen.getByTestId('panel-title-warning').textContent).toBe('true'));
 
     vi.restoreAllMocks();
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -174,6 +191,57 @@ describe('StockLookupClient', () => {
     global.fetch = routedFetchWithFailures({ titleReject: abortError });
     renderWithProviders(<StockLookupClient initialVnId="v90043" />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/vn/v90043', expect.any(Object)));
+    expect(console.error).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId('panel-title-warning').at(-1)?.textContent).toBe('false');
+  });
+
+  it('logs a stable operation code when title enrichment rejects', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failure = new Error('network title failure');
+    global.fetch = routedFetchWithFailures({ titleReject: failure });
+
+    renderWithProviders(<StockLookupClient initialVnId="v90046" />);
+    await waitFor(() => expect(screen.getByTestId('panel-title-warning').textContent).toBe('true'));
+    expect(errorSpy).toHaveBeenCalledWith('[VN_STOCK_TITLE_RESOLVE_FAILED]', failure);
+  });
+
+  it('ignores successful enrichment responses that settle after unmount', async () => {
+    let resolveMap: (response: Response) => void = () => undefined;
+    let resolveTitle: (response: Response) => void = () => undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL) => new Promise<Response>((resolve) => {
+      if (String(url).startsWith('/api/places/provider-map')) resolveMap = resolve;
+      else resolveTitle = resolve;
+    }));
+    const view = renderWithProviders(<StockLookupClient initialVnId="v90044" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+    view.unmount();
+    await act(async () => {
+      resolveMap(json({ map: { 'Late Shop': 1 } }));
+      resolveTitle(json({ vn: { title: 'Late title' } }));
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId('stock-panel')).toBeNull();
+  });
+
+  it('ignores enrichment errors that settle after unmount', async () => {
+    let rejectMap: (error: Error) => void = () => undefined;
+    let rejectTitle: (error: Error) => void = () => undefined;
+    global.fetch = vi.fn((url: RequestInfo | URL) => new Promise<Response>((_resolve, reject) => {
+      if (String(url).startsWith('/api/places/provider-map')) rejectMap = reject;
+      else rejectTitle = reject;
+    }));
+    const view = renderWithProviders(<StockLookupClient initialVnId="v90045" />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+    view.unmount();
+    await act(async () => {
+      rejectMap(new Error('late map failure'));
+      rejectTitle(new Error('late title failure'));
+      await Promise.resolve();
+    });
+
     expect(console.error).not.toHaveBeenCalled();
   });
 });

@@ -6,34 +6,50 @@ import { useT } from '@/lib/i18n/client';
 import { StockBatchClient } from './StockBatchClient';
 import { StockPanel } from './StockPanel';
 import { StockPanelBoundary } from './StockPanelBoundary';
+import { StockRecentActivity } from './StockRecentActivity';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
 import { decodePlaceProviderMapResponse } from '@/lib/place-client-shape';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeVnTitleResponse } from '@/lib/vn-summary-client-shape';
+import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
 
 export function StockLookupClient({ initialVnId }: { initialVnId: string | null }) {
   const t = useT();
   const router = useRouter();
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null);
   const [placeMap, setPlaceMap] = useState<Record<string, number>>({});
+  const [placeLinksUnavailable, setPlaceLinksUnavailable] = useState(false);
+  const [titleResolutionUnavailable, setTitleResolutionUnavailable] = useState(false);
 
   useEffect(() => {
     const ctrl = new AbortController();
+    setPlaceLinksUnavailable(false);
     fetch('/api/places/provider-map', { cache: 'no-store', signal: ctrl.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         return decodePlaceProviderMapResponse(await r.json());
       })
       .then((map) => {
-        if (!ctrl.signal.aborted && map) setPlaceMap(map);
+        if (ctrl.signal.aborted) return;
+        if (map) setPlaceMap(map);
+        else setPlaceLinksUnavailable(true);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if ((error as Error).name !== 'AbortError' && !ctrl.signal.aborted) {
+          setPlaceLinksUnavailable(true);
+        }
+      });
     return () => ctrl.abort();
   }, [t.common.error]);
 
   useEffect(() => {
-    if (!initialVnId) { setResolvedTitle(null); return; }
+    if (!initialVnId) {
+      setResolvedTitle(null);
+      setTitleResolutionUnavailable(false);
+      return;
+    }
     setResolvedTitle(null);
+    setTitleResolutionUnavailable(false);
     const ctrl = new AbortController();
     fetch(`/api/vn/${encodeURIComponent(initialVnId)}`, { cache: 'no-store', signal: ctrl.signal })
       .then(async (r) => {
@@ -41,11 +57,14 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
         return decodeVnTitleResponse(await r.json());
       })
       .then((title) => {
-        if (!ctrl.signal.aborted && title) setResolvedTitle(title);
+        if (ctrl.signal.aborted) return;
+        if (title) setResolvedTitle(title);
+        else setTitleResolutionUnavailable(true);
       })
       .catch((e: unknown) => {
-        if ((e as Error).name === 'AbortError') return;
-        console.error('[StockLookupClient] resolve title failed:', e);
+        if ((e as Error).name === 'AbortError' || ctrl.signal.aborted) return;
+        console.error(OPERATION_LOG_CODES.vnStockTitleResolveFailed, e);
+        setTitleResolutionUnavailable(true);
       });
     return () => ctrl.abort();
   }, [initialVnId, t.common.error]);
@@ -85,14 +104,19 @@ export function StockLookupClient({ initialVnId }: { initialVnId: string | null 
               vnId={initialVnId}
               title={resolvedTitle ?? undefined}
               placeMap={placeMap}
+              placeLinksUnavailable={placeLinksUnavailable}
+              titleResolutionUnavailable={titleResolutionUnavailable}
               defaultProviderScope="all"
             />
           </StockPanelBoundary>
         </div>
       ) : (
-        <div className="mt-5 rounded-xl border border-dashed border-border bg-bg-card p-6 text-sm text-muted">
-          {t.stock.pickVn}
-        </div>
+        <>
+          <div className="mt-5 rounded-xl border border-dashed border-border bg-bg-card p-6 text-sm text-muted">
+            {t.stock.pickVn}
+          </div>
+          <StockRecentActivity />
+        </>
       )}
 
       <StockBatchClient />

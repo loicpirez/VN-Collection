@@ -197,6 +197,21 @@ describe('StockPanel', () => {
     expect(getStockCalls).toHaveLength(0);
   });
 
+  it('shows non-blocking enrichment diagnostics only for the failed dependency', () => {
+    global.fetch = routeFetch();
+    const view = renderWithProviders(
+      <StockPanel vnId="v90001" initialSnapshot={snapshot()} placeLinksUnavailable />,
+    );
+    expect(screen.getByText(t.stock.placeLinksUnavailable as string)).toBeTruthy();
+    expect(screen.queryByText(t.stock.titleResolutionUnavailable as string)).toBeNull();
+
+    view.rerender(
+      <StockPanel vnId="v90001" initialSnapshot={snapshot()} titleResolutionUnavailable />,
+    );
+    expect(screen.getByText(t.stock.titleResolutionUnavailable as string)).toBeTruthy();
+    expect(screen.queryByText(t.stock.placeLinksUnavailable as string)).toBeNull();
+  });
+
   it('loads the snapshot via GET on mount when no initialSnapshot is given', async () => {
     global.fetch = routeFetch();
     renderWithProviders(<StockPanel vnId="v90001" />);
@@ -241,6 +256,37 @@ describe('StockPanel', () => {
     fireEvent.click(screen.getByText(t.stock.providers as string));
     fireEvent.click(screen.getByRole('button', { name: t.stock.groupPhysical as string }));
     expect(screen.getByRole('button', { name: t.stock.checkPhysical as string })).toBeTruthy();
+  });
+
+  it('uses physical providers by default on VN detail and all providers on generic stock', async () => {
+    const snap = snapshot({
+      offers: [],
+      providers: [
+        provider({ id: 'physical_shop', label: 'Physical Shop', physical: true, physicalStockMode: 'exact_online', confirmedPhysicalUsable: true }),
+        provider({ id: 'online_shop', label: 'Online Shop' }),
+      ],
+      statuses: [],
+      summary: { total: 0, available: 0, best_price: null, related_available: 0, needs_review: 0, rejected: 0, last_refresh: null },
+    });
+    const physicalPosts = vi.fn<(body: unknown) => Response>(() => json(snap));
+    global.fetch = routeFetch({ snapshot: snap, onPost: physicalPosts });
+    const physicalView = renderWithProviders(<StockPanel vnId="v90001" defaultProviderScope="physical" />);
+    await waitFor(() => expect(screen.getByRole('button', { name: new RegExp(t.stock.checkPhysical as string) })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.checkPhysical as string) }));
+    await waitFor(() => expect(physicalPosts).toHaveBeenCalledTimes(1));
+    expect(physicalPosts.mock.calls[0][0]).toEqual({ providers: ['physical_shop'] });
+    physicalView.unmount();
+
+    const allPosts = vi.fn<(body: unknown) => Response>(() => json(snap));
+    global.fetch = routeFetch({ snapshot: snap, onPost: allPosts });
+    renderWithProviders(<StockPanel vnId="v90001" defaultProviderScope="all" />);
+    await waitFor(() => expect(screen.getByRole('button', { name: new RegExp(t.stock.check as string) })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.check as string) }));
+    await waitFor(() => expect(allPosts).toHaveBeenCalledTimes(2));
+    expect(allPosts.mock.calls.map((call) => call[0])).toEqual([
+      { providers: ['physical_shop'] },
+      { providers: ['online_shop'] },
+    ]);
   });
 
   it('renders the post-check empty state when there are no offers but statuses exist', async () => {
@@ -642,6 +688,16 @@ describe('StockPanel', () => {
     global.fetch = routeFetch({ snapshot: snap });
     renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} placeMap={{ 'Branch Alpha': 3 }} />);
     await waitFor(() => expect(screen.getByTestId('physical-locations')).toBeTruthy());
+  });
+
+  it('omits unsafe external links from stock offer cards', async () => {
+    const snap = snapshot({
+      offers: [offer({ url: 'javascript:alert(1)' })],
+    });
+    global.fetch = routeFetch({ snapshot: snap });
+    renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} />);
+    await waitFor(() => expect(screen.getByText('Title Y')).toBeTruthy());
+    expect(screen.queryByRole('link', { name: `${t.stock.openShop}: Studio X Shop` })).toBeNull();
   });
 
   it('paginates the game offer group when there are more than the page size', async () => {

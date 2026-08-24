@@ -134,6 +134,8 @@ export function StockPanel({
   initialSnapshot,
   showErogePrice = true,
   placeMap = {},
+  placeLinksUnavailable = false,
+  titleResolutionUnavailable = false,
   bare = false,
   defaultProviderScope = 'physical',
 }: {
@@ -145,6 +147,8 @@ export function StockPanel({
   initialSnapshot?: StockSnapshot;
   showErogePrice?: boolean;
   placeMap?: Record<string, number>;
+  placeLinksUnavailable?: boolean;
+  titleResolutionUnavailable?: boolean;
   defaultProviderScope?: 'all' | 'physical';
   /**
    * Drop the outer card chrome (border / background / rounding) so the
@@ -921,6 +925,7 @@ export function StockPanel({
           </button>
           <button
             type="button"
+            data-shortcut="stock-refresh"
             onClick={refresh}
             disabled={refreshing || refreshSelectionCount === 0}
             className="btn btn-primary min-h-[44px]"
@@ -936,6 +941,21 @@ export function StockPanel({
           ? (t.stock.checkingProviders as string).replace('{count}', `${progress.done}/${progress.total}`)
           : ''}
       </p>
+
+      {(placeLinksUnavailable || titleResolutionUnavailable) && (
+        <div className="mt-3 space-y-1" role="status" aria-live="polite">
+          {titleResolutionUnavailable && (
+            <p className="rounded-md border border-status-on_hold/35 bg-status-on_hold/10 px-3 py-2 text-xs text-status-on_hold">
+              {t.stock.titleResolutionUnavailable as string}
+            </p>
+          )}
+          {placeLinksUnavailable && (
+            <p className="rounded-md border border-status-on_hold/35 bg-status-on_hold/10 px-3 py-2 text-xs text-status-on_hold">
+              {t.stock.placeLinksUnavailable as string}
+            </p>
+          )}
+        </div>
+      )}
 
       {providers.length > 0 && (
         <details

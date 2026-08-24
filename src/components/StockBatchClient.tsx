@@ -355,7 +355,7 @@ export function StockBatchClient() {
   }, [queuePageCount]);
 
   return (
-    <div className="mt-5 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
+    <section id="stock-batch" className="mt-5 scroll-mt-24 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
       <h2 className="text-base font-bold text-white">{t.stock.batchPageTitle as string}</h2>
       <p className="mt-1 text-sm text-muted">{t.stock.batchPageSubtitle as string}</p>
 
@@ -563,6 +563,6 @@ export function StockBatchClient() {
           <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
       )}
-    </div>
+    </section>
   );
 }
