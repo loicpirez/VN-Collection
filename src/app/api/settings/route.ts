@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, getAppSetting, getDisabledStockProviders, setAppSetting } from '@/lib/db';
+import {
+  getAppSettingRepository,
+  type AppSettingWrite,
+} from '@/lib/db/repositories/app-setting';
+import { getStockRepository } from '@/lib/db/repositories/stock';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import {
   parseHomeSectionLayoutV1,
@@ -36,8 +40,8 @@ import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 import {
   getProxyConfigForDisplay,
   getStockProviderProxyDisplay,
-  saveProxyConfig,
-  saveStockProviderProxyConfig,
+  prepareProxyConfigUpdate,
+  prepareStockProviderProxyUpdate,
   type ProviderId,
 } from '@/lib/proxy-config';
 import { STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
@@ -186,56 +190,108 @@ export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const tokenRow = getAppSetting('vndb_token');
-    const steamKey = getAppSetting('steam_api_key');
+    const settings = getAppSettingRepository();
+    const [
+      tokenRow,
+      steamKey,
+      randomQuoteSource,
+      defaultSort,
+      defaultOrder,
+      defaultGroup,
+      homeLayout,
+      vnLayout,
+      seriesLayout,
+      staffLayout,
+      characterLayout,
+      producerLayout,
+      shelfPrefs,
+      shelfOverrides,
+      writeback,
+      backupEnabled,
+      backupUrl,
+      steamId,
+      egsUsername,
+      fanout,
+      retryWithoutProxy,
+      disabledProviders,
+      vndbProxy,
+      mirrorProxy,
+      egsProxy,
+      stockProxy,
+      shopProxyRows,
+    ] = await Promise.all([
+      settings.get('vndb_token'),
+      settings.get('steam_api_key'),
+      settings.get('random_quote_source'),
+      settings.get('default_sort'),
+      settings.get('default_order'),
+      settings.get('default_group'),
+      settings.get('home_section_layout_v1'),
+      settings.get('vn_detail_section_layout_v1'),
+      settings.get('series_detail_section_layout_v1'),
+      settings.get('staff_detail_section_layout_v1'),
+      settings.get('character_detail_section_layout_v1'),
+      settings.get('producer_detail_section_layout_v1'),
+      settings.get('shelf_view_prefs_v1'),
+      settings.get('shelf_display_overrides_v1'),
+      settings.get('vndb_writeback'),
+      settings.get('vndb_backup_enabled'),
+      settings.get('vndb_backup_url'),
+      settings.get('steam_id'),
+      settings.get('egs_username'),
+      settings.get('vndb_fanout'),
+      settings.get('stock_retry_without_proxy'),
+      getStockRepository().disabledProviders(),
+      getProxyConfigForDisplay('vndb'),
+      getProxyConfigForDisplay('vndbmirror'),
+      getProxyConfigForDisplay('egs'),
+      getProxyConfigForDisplay('stock'),
+      Promise.all(STOCK_PROVIDER_IDS.map(async (id) => [
+        `${id}_proxy_config`,
+        await getStockProviderProxyDisplay(id),
+      ] as const)),
+    ]);
     return NextResponse.json({
       vndb_token: maskToken(tokenRow),
-      random_quote_source: getAppSetting('random_quote_source') ?? 'all',
-      default_sort: getAppSetting('default_sort') ?? 'updated_at',
-      default_order: getAppSetting('default_order') ?? 'desc',
-      default_group: getAppSetting('default_group') ?? 'none',
-      home_section_layout_v1: parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1')),
-      vn_detail_section_layout_v1: parseVnDetailLayoutV1(getAppSetting('vn_detail_section_layout_v1')),
-      series_detail_section_layout_v1: parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1')),
-      staff_detail_section_layout_v1: parseStaffDetailLayoutV1(getAppSetting('staff_detail_section_layout_v1')),
-      character_detail_section_layout_v1: parseCharacterDetailLayoutV1(getAppSetting('character_detail_section_layout_v1')),
-      producer_detail_section_layout_v1: parseProducerDetailLayoutV1(getAppSetting('producer_detail_section_layout_v1')),
-      shelf_view_prefs_v1: parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1')),
+      random_quote_source: randomQuoteSource ?? 'all',
+      default_sort: defaultSort ?? 'updated_at',
+      default_order: defaultOrder ?? 'desc',
+      default_group: defaultGroup ?? 'none',
+      home_section_layout_v1: parseHomeSectionLayoutV1(homeLayout),
+      vn_detail_section_layout_v1: parseVnDetailLayoutV1(vnLayout),
+      series_detail_section_layout_v1: parseSeriesDetailLayoutV1(seriesLayout),
+      staff_detail_section_layout_v1: parseStaffDetailLayoutV1(staffLayout),
+      character_detail_section_layout_v1: parseCharacterDetailLayoutV1(characterLayout),
+      producer_detail_section_layout_v1: parseProducerDetailLayoutV1(producerLayout),
+      shelf_view_prefs_v1: parseShelfViewPrefsV1(shelfPrefs),
       // Wrapped per-shelf overrides. The GET path always returns the
       // wrapped shape; the legacy `shelf_view_prefs_v1` key above
       // still carries the global defaults for back-compat callers.
-      shelf_display_overrides_v1: parseShelfDisplayOverridesV1(
-        getAppSetting('shelf_display_overrides_v1'),
-      ),
-      vndb_writeback: getAppSetting('vndb_writeback') === '1',
-      vndb_backup_enabled: getAppSetting('vndb_backup_enabled') === '1',
+      shelf_display_overrides_v1: parseShelfDisplayOverridesV1(shelfOverrides),
+      vndb_writeback: writeback === '1',
+      vndb_backup_enabled: backupEnabled === '1',
       // Mask: never echo the raw URL on GET (it can contain auth
       // tokens, query strings, or proxy paths the user pasted without
       // realizing). The UI uses `host` to display "currently routing
       // through <host>" and PATCHes the full URL when the user edits.
-      vndb_backup_url: maskBackupUrl(getAppSetting('vndb_backup_url')),
+      vndb_backup_url: maskBackupUrl(backupUrl),
       // No more last-4 preview of the Steam API key — confirming
       // possession of a specific key by an attacker is information
       // disclosure. UI gets a boolean only.
       steam_api_key: { hasKey: !!steamKey, preview: null },
-      steam_id: getAppSetting('steam_id') ?? '',
-      egs_username: getAppSetting('egs_username') ?? '',
-      vndb_fanout: getAppSetting('vndb_fanout') !== '0',
-      stock_disabled_providers: [...getDisabledStockProviders()],
-      stock_retry_without_proxy: getAppSetting('stock_retry_without_proxy') === '1',
-      vndb_proxy_config: getProxyConfigForDisplay('vndb'),
-      vndbmirror_proxy_config: getProxyConfigForDisplay('vndbmirror'),
-      egs_proxy_config: getProxyConfigForDisplay('egs'),
-      stock_proxy_config: getProxyConfigForDisplay('stock'),
+      steam_id: steamId ?? '',
+      egs_username: egsUsername ?? '',
+      vndb_fanout: fanout !== '0',
+      stock_disabled_providers: [...disabledProviders],
+      stock_retry_without_proxy: retryWithoutProxy === '1',
+      vndb_proxy_config: vndbProxy,
+      vndbmirror_proxy_config: mirrorProxy,
+      egs_proxy_config: egsProxy,
+      stock_proxy_config: stockProxy,
       // Per-shop overrides — one display row per stock provider id.
       // Spreading the object keeps the GET response shape flat so
       // existing clients don't need to change.
-      ...Object.fromEntries(
-        STOCK_PROVIDER_IDS.map((id) => [
-          `${id}_proxy_config`,
-          getStockProviderProxyDisplay(id),
-        ]),
-      ),
+      ...Object.fromEntries(shopProxyRows),
     });
   } catch (err) {
     console.error('[settings GET] DB error:', (err as Error).message);
@@ -256,16 +312,17 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     }
   }
   const changedKeys = Object.keys(body);
-  const writes: Array<() => void> = [];
+  const settings = getAppSettingRepository();
+  const writes: AppSettingWrite[] = [];
   try {
   if ('vndb_token' in body) {
     const v = body.vndb_token;
     if (v == null || v === '') {
-      writes.push(() => setAppSetting('vndb_token', null));
+      writes.push({ key: 'vndb_token', value: null });
     } else {
       const token = validateTokenShape(v, 'vndb_token');
       if (!token.ok) return NextResponse.json({ error: token.error }, { status: 400 });
-      writes.push(() => setAppSetting('vndb_token', token.value));
+      writes.push({ key: 'vndb_token', value: token.value });
     }
   }
   if ('random_quote_source' in body) {
@@ -273,33 +330,33 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (v !== 'all' && v !== 'mine') {
       return NextResponse.json({ error: 'random_quote_source must be all|mine' }, { status: 400 });
     }
-    writes.push(() => setAppSetting('random_quote_source', v));
+    writes.push({ key: 'random_quote_source', value: v });
   }
   if ('default_sort' in body) {
     const v = body.default_sort;
     if (typeof v !== 'string' || !VALID_SORTS.has(v)) {
       return NextResponse.json({ error: `default_sort must be one of: ${[...VALID_SORTS].join(', ')}` }, { status: 400 });
     }
-    writes.push(() => setAppSetting('default_sort', v));
+    writes.push({ key: 'default_sort', value: v });
   }
   if ('default_order' in body) {
     const v = body.default_order;
     if (typeof v !== 'string' || !VALID_ORDERS.has(v)) {
       return NextResponse.json({ error: `default_order must be one of: ${[...VALID_ORDERS].join(', ')}` }, { status: 400 });
     }
-    writes.push(() => setAppSetting('default_order', v));
+    writes.push({ key: 'default_order', value: v });
   }
   if ('default_group' in body) {
     const v = body.default_group;
     if (typeof v !== 'string' || !VALID_GROUPS.has(v)) {
       return NextResponse.json({ error: `default_group must be one of: ${[...VALID_GROUPS].join(', ')}` }, { status: 400 });
     }
-    writes.push(() => setAppSetting('default_group', v));
+    writes.push({ key: 'default_group', value: v });
   }
   if ('home_section_layout_v1' in body) {
     const v = body.home_section_layout_v1;
     if (v == null) {
-      writes.push(() => setAppSetting('home_section_layout_v1', null));
+      writes.push({ key: 'home_section_layout_v1', value: null });
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       // Partial patches are merged on top of the persisted layout so a
       // single section's hide/collapse doesn't clobber the order array
@@ -307,7 +364,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       // `{ sections: { [id]: state } }`; the drag-reorder handler only
       // sends `{ order: [...] }`. Full payloads are accepted too for
       // import/reset paths.
-      const current = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+      const current = parseHomeSectionLayoutV1(await settings.get('home_section_layout_v1'));
       const patch = v as Record<string, unknown>;
       const merged: unknown = {
         sections: {
@@ -319,7 +376,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         order: Array.isArray(patch.order) ? patch.order : current.order,
       };
       const normalized = validateHomeSectionLayoutV1(merged);
-      writes.push(() => setAppSetting('home_section_layout_v1', JSON.stringify(normalized)));
+      writes.push({ key: 'home_section_layout_v1', value: JSON.stringify(normalized) });
     } else {
       return NextResponse.json(
         { error: 'home_section_layout_v1 must be an object or null' },
@@ -330,10 +387,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('vn_detail_section_layout_v1' in body) {
     const v = body.vn_detail_section_layout_v1;
     if (v == null) {
-      writes.push(() => setAppSetting('vn_detail_section_layout_v1', null));
+      writes.push({ key: 'vn_detail_section_layout_v1', value: null });
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       const normalized = validateVnDetailLayoutV1(v);
-      writes.push(() => setAppSetting('vn_detail_section_layout_v1', JSON.stringify(normalized)));
+      writes.push({ key: 'vn_detail_section_layout_v1', value: JSON.stringify(normalized) });
     } else {
       return NextResponse.json(
         { error: 'vn_detail_section_layout_v1 must be an object or null' },
@@ -344,9 +401,9 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('series_detail_section_layout_v1' in body) {
     const v = body.series_detail_section_layout_v1;
     if (v == null) {
-      writes.push(() => setAppSetting('series_detail_section_layout_v1', null));
+      writes.push({ key: 'series_detail_section_layout_v1', value: null });
     } else if (typeof v === 'object' && !Array.isArray(v)) {
-      const current = parseSeriesDetailLayoutV1(getAppSetting('series_detail_section_layout_v1'));
+      const current = parseSeriesDetailLayoutV1(await settings.get('series_detail_section_layout_v1'));
       const patch = v as Record<string, unknown>;
       const merged: unknown = {
         sections: {
@@ -358,7 +415,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         order: Array.isArray(patch.order) ? patch.order : current.order,
       };
       const normalized = validateSeriesDetailLayoutV1(merged);
-      writes.push(() => setAppSetting('series_detail_section_layout_v1', JSON.stringify(normalized)));
+      writes.push({ key: 'series_detail_section_layout_v1', value: JSON.stringify(normalized) });
     } else {
       return NextResponse.json(
         { error: 'series_detail_section_layout_v1 must be an object or null' },
@@ -374,7 +431,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (!(key in body)) continue;
     const v = (body as Record<string, unknown>)[key];
     if (v == null) {
-      writes.push(() => setAppSetting(key, null));
+      writes.push({ key: key, value: null });
       continue;
     }
     if (typeof v !== 'object' || Array.isArray(v)) {
@@ -383,7 +440,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    const current = parse(getAppSetting(key));
+    const current = parse(await settings.get(key));
     const patch = v as Record<string, unknown>;
     const merged: unknown = {
       sections: {
@@ -395,15 +452,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       order: Array.isArray(patch.order) ? patch.order : current.order,
     };
     const normalized = validate(merged);
-    writes.push(() => setAppSetting(key, JSON.stringify(normalized)));
+    writes.push({ key: key, value: JSON.stringify(normalized) });
   }
   if ('shelf_view_prefs_v1' in body) {
     const v = body.shelf_view_prefs_v1;
     if (v == null) {
-      writes.push(() => setAppSetting('shelf_view_prefs_v1', null));
+      writes.push({ key: 'shelf_view_prefs_v1', value: null });
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       const normalized = validateShelfViewPrefsV1(v);
-      writes.push(() => setAppSetting('shelf_view_prefs_v1', JSON.stringify(normalized)));
+      writes.push({ key: 'shelf_view_prefs_v1', value: JSON.stringify(normalized) });
     } else {
       return NextResponse.json(
         { error: 'shelf_view_prefs_v1 must be an object or null' },
@@ -418,10 +475,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     // every per-shelf override row intact. `null` resets to defaults.
     const v = body.shelf_display_overrides_v1;
     if (v == null) {
-      writes.push(() => setAppSetting('shelf_display_overrides_v1', null));
+      writes.push({ key: 'shelf_display_overrides_v1', value: null });
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       const current = parseShelfDisplayOverridesV1(
-        getAppSetting('shelf_display_overrides_v1'),
+        await settings.get('shelf_display_overrides_v1'),
       );
       const patch = v as Record<string, unknown>;
       const merged = {
@@ -437,7 +494,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
             : current.shelves,
       };
       const normalized = validateShelfDisplayOverridesV1(merged);
-      writes.push(() => setAppSetting('shelf_display_overrides_v1', JSON.stringify(normalized)));
+      writes.push({ key: 'shelf_display_overrides_v1', value: JSON.stringify(normalized) });
     } else {
       return NextResponse.json(
         { error: 'shelf_display_overrides_v1 must be an object or null' },
@@ -450,26 +507,26 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'vndb_writeback must be boolean' }, { status: 400 });
     }
     const vndbWriteback = body.vndb_writeback;
-    writes.push(() => setAppSetting('vndb_writeback', vndbWriteback ? '1' : null));
+    writes.push({ key: 'vndb_writeback', value: vndbWriteback ? '1' : null });
   }
   if ('stock_retry_without_proxy' in body) {
     if (typeof body.stock_retry_without_proxy !== 'boolean') {
       return NextResponse.json({ error: 'stock_retry_without_proxy must be boolean' }, { status: 400 });
     }
     const stockRetryWithoutProxy = body.stock_retry_without_proxy;
-    writes.push(() => setAppSetting('stock_retry_without_proxy', stockRetryWithoutProxy ? '1' : null));
+    writes.push({ key: 'stock_retry_without_proxy', value: stockRetryWithoutProxy ? '1' : null });
   }
   if ('vndb_backup_enabled' in body) {
     if (typeof body.vndb_backup_enabled !== 'boolean') {
       return NextResponse.json({ error: 'vndb_backup_enabled must be boolean' }, { status: 400 });
     }
     const vndbBackupEnabled = body.vndb_backup_enabled;
-    writes.push(() => setAppSetting('vndb_backup_enabled', vndbBackupEnabled ? '1' : null));
+    writes.push({ key: 'vndb_backup_enabled', value: vndbBackupEnabled ? '1' : null });
   }
   if ('vndb_backup_url' in body) {
     const v = body.vndb_backup_url;
     if (v == null || v === '') {
-      writes.push(() => setAppSetting('vndb_backup_url', null));
+      writes.push({ key: 'vndb_backup_url', value: null });
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
       if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 300) {
@@ -482,7 +539,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         );
       }
       const normalizedUrl = trimmed.replace(/\/+$/, '');
-      writes.push(() => setAppSetting('vndb_backup_url', normalizedUrl));
+      writes.push({ key: 'vndb_backup_url', value: normalizedUrl });
     } else {
       return NextResponse.json({ error: 'vndb_backup_url must be a string' }, { status: 400 });
     }
@@ -492,38 +549,38 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'vndb_fanout must be boolean' }, { status: 400 });
     }
     const vndbFanout = body.vndb_fanout;
-    writes.push(() => setAppSetting('vndb_fanout', vndbFanout === false ? '0' : null));
+    writes.push({ key: 'vndb_fanout', value: vndbFanout === false ? '0' : null });
   }
   if ('steam_api_key' in body) {
     const v = body.steam_api_key;
     if (v == null || v === '') {
-      writes.push(() => setAppSetting('steam_api_key', null));
+      writes.push({ key: 'steam_api_key', value: null });
     } else {
       const steamKey = validateTokenShape(v, 'steam_api_key');
       if (!steamKey.ok) return NextResponse.json({ error: steamKey.error }, { status: 400 });
-      writes.push(() => setAppSetting('steam_api_key', steamKey.value));
+      writes.push({ key: 'steam_api_key', value: steamKey.value });
     }
   }
   if ('steam_id' in body) {
     const v = body.steam_id;
     if (v == null || v === '') {
-      writes.push(() => setAppSetting('steam_id', null));
+      writes.push({ key: 'steam_id', value: null });
     } else {
       const steamId = validateTokenShape(v, 'steam_id');
       if (!steamId.ok) return NextResponse.json({ error: steamId.error }, { status: 400 });
-      writes.push(() => setAppSetting('steam_id', steamId.value));
+      writes.push({ key: 'steam_id', value: steamId.value });
     }
   }
   if ('egs_username' in body) {
     const v = body.egs_username;
     if (v == null || v === '') {
-      writes.push(() => setAppSetting('egs_username', null));
+      writes.push({ key: 'egs_username', value: null });
     } else if (typeof v === 'string') {
       const trimmed = v.trim();
       if (!/^[A-Za-z0-9_]{1,32}$/.test(trimmed)) {
         return NextResponse.json({ error: 'invalid EGS username' }, { status: 400 });
       }
-      writes.push(() => setAppSetting('egs_username', trimmed));
+      writes.push({ key: 'egs_username', value: trimmed });
     } else {
       return NextResponse.json({ error: 'egs_username must be a string' }, { status: 400 });
     }
@@ -531,10 +588,10 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if ('stock_disabled_providers' in body) {
     const v = body.stock_disabled_providers;
     if (v == null) {
-      writes.push(() => setAppSetting('stock_disabled_providers', null));
+      writes.push({ key: 'stock_disabled_providers', value: null });
     } else if (Array.isArray(v) && v.every((item) => typeof item === 'string' && STOCK_PROVIDER_IDS.includes(item as (typeof STOCK_PROVIDER_IDS)[number]))) {
       const disabledProviders = [...new Set(v)];
-      writes.push(() => setAppSetting('stock_disabled_providers', disabledProviders.length > 0 ? JSON.stringify(disabledProviders) : null));
+      writes.push({ key: 'stock_disabled_providers', value: disabledProviders.length > 0 ? JSON.stringify(disabledProviders) : null });
     } else {
       return NextResponse.json({ error: 'stock_disabled_providers must be an array of valid provider IDs' }, { status: 400 });
     }
@@ -553,11 +610,9 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    const patch = v as Record<string, unknown>;
-    writes.push(() => {
-      const err = saveProxyConfig(providerId, patch);
-      if (err) throw new SettingValidationError(err);
-    });
+    const prepared = await prepareProxyConfigUpdate(providerId, v as Record<string, unknown>);
+    if (!prepared.update) throw new SettingValidationError(prepared.error ?? 'invalid proxy configuration');
+    writes.push(prepared.update);
   }
   // Per-shop overrides. The membership in STOCK_PROVIDER_PROXY_KEY_SET is
   // the gate — saveStockProviderProxyConfig validates again before any
@@ -572,23 +627,21 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       );
     }
     const providerId = key.replace(/_proxy_config$/, '');
-    const patch = v as Record<string, unknown>;
-    writes.push(() => {
-      const err = saveStockProviderProxyConfig(providerId, patch);
-      if (err) throw new SettingValidationError(`${key}: ${err}`);
-    });
+    const prepared = await prepareStockProviderProxyUpdate(providerId, v as Record<string, unknown>);
+    if (!prepared.update) {
+      throw new SettingValidationError(`${key}: ${prepared.error ?? 'invalid proxy configuration'}`);
+    }
+    writes.push(prepared.update);
   }
-    db.transaction(() => {
-      for (const write of writes) write();
-      if (changedKeys.length > 0) {
-        recordActivity({
-          kind: 'settings.update',
-          entity: 'settings',
-          label: 'Updated settings',
-          payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
-        });
-      }
-    })();
+    await settings.setMany(writes);
+    if (changedKeys.length > 0) {
+      await recordActivity({
+        kind: 'settings.update',
+        entity: 'settings',
+        label: 'Updated settings',
+        payload: { keys: changedKeys, values: maskPayloadValues(body as Record<string, unknown>) },
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof SettingValidationError) {

@@ -1,5 +1,5 @@
 import 'server-only';
-import { getAppSetting, setAppSetting } from './db';
+import { getAppSettingRepository } from './db/repositories/app-setting';
 import { ALICENET_PROVIDER_ID } from './stock-provider-constants';
 
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h';
@@ -81,8 +81,8 @@ function sanitizeStoredProxyConfig(value: unknown): StoredProxyConfig {
   return config;
 }
 
-function readDbConfig(provider: ProviderId): StoredProxyConfig {
-  const raw = getAppSetting(PROXY_DB_KEY[provider]);
+async function readDbConfig(provider: ProviderId): Promise<StoredProxyConfig> {
+  const raw = await getAppSettingRepository().get(PROXY_DB_KEY[provider]);
   if (!raw) return {};
   try {
     return sanitizeStoredProxyConfig(JSON.parse(raw));
@@ -91,8 +91,8 @@ function readDbConfig(provider: ProviderId): StoredProxyConfig {
   }
 }
 
-function readDbConfigByKey(key: string): StoredProxyConfig {
-  const raw = getAppSetting(key);
+async function readDbConfigByKey(key: string): Promise<StoredProxyConfig> {
+  const raw = await getAppSettingRepository().get(key);
   if (!raw) return {};
   try {
     return sanitizeStoredProxyConfig(JSON.parse(raw));
@@ -133,10 +133,10 @@ function resolveFromStored(envPrefix: string | null, db: StoredProxyConfig): Pro
  * Returns null when disabled or incomplete.
  * Never logs the returned config — it contains credentials.
  */
-export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
+export async function resolveProxyConfig(provider: ProviderId): Promise<ProxyConfig | null> {
   if (provider === ALICENET_PROVIDER_ID) return null;
   const envPrefix = ENV_PREFIX[provider as EnvBackedProviderId];
-  return resolveFromStored(envPrefix, readDbConfig(provider));
+  return resolveFromStored(envPrefix, await readDbConfig(provider));
 }
 
 /**
@@ -153,15 +153,15 @@ export function resolveProxyConfig(provider: ProviderId): ProxyConfig | null {
  * (AmiAmi, Suruga-ya, GEO) through a separate proxy without having to
  * funnel every other shop through it.
  */
-export function resolveStockProviderProxy(providerId: StockProxyProviderId): ProxyConfig | null {
+export async function resolveStockProviderProxy(providerId: StockProxyProviderId): Promise<ProxyConfig | null> {
   // Sanity-check the provider id so we never look up arbitrary keys.
   if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return resolveProxyConfig('stock');
   if (providerId === ALICENET_PROVIDER_ID) {
-    return resolveFromStored(null, readDbConfig('stock'));
+    return resolveFromStored(null, await readDbConfig('stock'));
   }
   const envPrefix = providerId.toUpperCase();
   const dbKey = `${providerId}_proxy_config`;
-  const perShop = resolveFromStored(envPrefix, readDbConfigByKey(dbKey));
+  const perShop = resolveFromStored(envPrefix, await readDbConfigByKey(dbKey));
   if (perShop) return perShop;
   return resolveProxyConfig('stock');
 }
@@ -171,8 +171,8 @@ export function resolveStockProviderProxy(providerId: StockProxyProviderId): Pro
  * active for this provider. Lets the stock refresh decide whether a
  * direct-connection retry is meaningful without exposing credentials.
  */
-export function isStockProviderProxied(providerId: StockProxyProviderId): boolean {
-  return resolveStockProviderProxy(providerId) !== null;
+export async function isStockProviderProxied(providerId: StockProxyProviderId): Promise<boolean> {
+  return (await resolveStockProviderProxy(providerId)) !== null;
 }
 
 /**
@@ -187,7 +187,7 @@ export function buildProxyUrl(config: ProxyConfig): string {
 }
 
 /** Returns the stored proxy settings for display (password masked). */
-export function getProxyConfigForDisplay(provider: ProviderId): ProxyDisplayConfig {
+export async function getProxyConfigForDisplay(provider: ProviderId): Promise<ProxyDisplayConfig> {
   if (provider === ALICENET_PROVIDER_ID) {
     return {
       enabled: false,
@@ -198,7 +198,7 @@ export function getProxyConfigForDisplay(provider: ProviderId): ProxyDisplayConf
       hasPassword: false,
     };
   }
-  const db = readDbConfig(provider);
+  const db = await readDbConfig(provider);
   return {
     enabled: db.enabled === true,
     protocol: VALID_PROTOCOLS.has(db.protocol ?? '')
@@ -217,7 +217,7 @@ export function getProxyConfigForDisplay(provider: ProviderId): ProxyDisplayConf
  * override the generic `stock_proxy_config` for one shop without affecting
  * the others.
  */
-export function getStockProviderProxyDisplay(providerId: StockProxyProviderId): ProxyDisplayConfig {
+export async function getStockProviderProxyDisplay(providerId: StockProxyProviderId): Promise<ProxyDisplayConfig> {
   if (!/^[a-z][a-z0-9_]*$/.test(providerId)) {
     return {
       enabled: false,
@@ -228,7 +228,7 @@ export function getStockProviderProxyDisplay(providerId: StockProxyProviderId): 
       hasPassword: false,
     };
   }
-  const db = readDbConfigByKey(`${providerId}_proxy_config`);
+  const db = await readDbConfigByKey(`${providerId}_proxy_config`);
   return {
     enabled: db.enabled === true,
     protocol: VALID_PROTOCOLS.has(db.protocol ?? '')
@@ -245,40 +245,47 @@ export function getStockProviderProxyDisplay(providerId: StockProxyProviderId): 
 const PRIVATE_HOST_RE =
   /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|localhost$)/i;
 
-/**
- * Validates and persists proxy settings for a provider.
- * Preserves the stored password when the submitted value is empty or the mask sentinel.
- * Returns an error string on validation failure, null on success.
- */
-export function saveProxyConfig(
-  provider: ProviderId,
+interface ProxyPatchSuccess {
+  next: StoredProxyConfig;
+  error: null;
+}
+
+interface ProxyPatchFailure {
+  next: null;
+  error: string;
+}
+
+function applyProxyPatch(
+  existing: StoredProxyConfig,
   patch: Record<string, unknown>,
-): string | null {
-  if (provider === ALICENET_PROVIDER_ID) return 'AliceNet proxy is configured through stock_proxy_config';
-  const existing = readDbConfig(provider);
+): ProxyPatchSuccess | ProxyPatchFailure {
   const next: StoredProxyConfig = { ...existing };
 
   if ('enabled' in patch) {
-    if (typeof patch.enabled !== 'boolean') return 'enabled must be boolean';
+    if (typeof patch.enabled !== 'boolean') return { next: null, error: 'enabled must be boolean' };
     next.enabled = patch.enabled;
   }
 
   if ('protocol' in patch) {
-    if (typeof patch.protocol !== 'string') return 'protocol must be a string';
+    if (typeof patch.protocol !== 'string') return { next: null, error: 'protocol must be a string' };
     if (!VALID_PROTOCOLS.has(patch.protocol))
-      return `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}`;
+      return { next: null, error: `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}` };
     next.protocol = patch.protocol;
   }
 
   if ('host' in patch) {
-    if (patch.host != null && typeof patch.host !== 'string') return 'host must be a string';
-    if (typeof patch.host === 'string' && patch.host.length > 255) return 'host too long (max 255)';
+    if (patch.host != null && typeof patch.host !== 'string') {
+      return { next: null, error: 'host must be a string' };
+    }
+    if (typeof patch.host === 'string' && patch.host.length > 255) {
+      return { next: null, error: 'host too long (max 255)' };
+    }
     const h = (typeof patch.host === 'string' ? patch.host : '').trim();
     if (h) {
       if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(h))
-        return 'host must be a valid hostname';
+        return { next: null, error: 'host must be a valid hostname' };
       if (PRIVATE_HOST_RE.test(h))
-        return 'host must not be a private or loopback address';
+        return { next: null, error: 'host must not be a private or loopback address' };
     }
     next.host = h || undefined;
   }
@@ -290,29 +297,26 @@ export function saveProxyConfig(
     } else {
       const p = Number(raw);
       if (!Number.isInteger(p) || p < 1 || p > 65535)
-        return 'port must be an integer between 1 and 65535';
+        return { next: null, error: 'port must be an integer between 1 and 65535' };
       next.port = p;
     }
   }
 
   if ('username' in patch) {
     const u = patch.username;
-    if (u != null && typeof u !== 'string') return 'username must be a string';
-    if (typeof u === 'string' && u.length > 256) return 'username too long (max 256)';
+    if (u != null && typeof u !== 'string') return { next: null, error: 'username must be a string' };
+    if (typeof u === 'string' && u.length > 256) {
+      return { next: null, error: 'username too long (max 256)' };
+    }
     next.username = (typeof u === 'string' ? u : '').trim() || undefined;
   }
 
   if ('password' in patch) {
     const pw = patch.password;
-    if (pw != null && typeof pw !== 'string') return 'password must be a string';
-    if (typeof pw === 'string' && pw.length > 256) return 'password too long (max 256)';
-    // Three intents resolve cleanly:
-    // 1. `pw === null` → explicit clear (the "Clear" button in
-    //    the Integrations UI). Drop the stored password.
-    // 2. `pw === ''` or `pw === PROXY_PASSWORD_MASK` → no-op
-    //    (the form blurred with no real edit, or echoed the
-    //    masked value back).
-    // 3. anything else → save as new password.
+    if (pw != null && typeof pw !== 'string') return { next: null, error: 'password must be a string' };
+    if (typeof pw === 'string' && pw.length > 256) {
+      return { next: null, error: 'password too long (max 256)' };
+    }
     if (pw === null) {
       next.password = undefined;
     } else {
@@ -323,84 +327,61 @@ export function saveProxyConfig(
     }
   }
 
-  setAppSetting(PROXY_DB_KEY[provider], JSON.stringify(next));
+  return { next, error: null };
+}
+
+/** Validated application-setting write prepared without mutating persistence. */
+export interface PreparedProxyConfigUpdate {
+  key: string;
+  value: string;
+}
+
+/** Validate and serialize one fixed-provider proxy update. */
+export async function prepareProxyConfigUpdate(
+  provider: ProviderId,
+  patch: Record<string, unknown>,
+): Promise<{ update: PreparedProxyConfigUpdate | null; error: string | null }> {
+  if (provider === ALICENET_PROVIDER_ID) {
+    return { update: null, error: 'AliceNet proxy is configured through stock_proxy_config' };
+  }
+  const result = applyProxyPatch(await readDbConfig(provider), patch);
+  if (result.error) return { update: null, error: result.error };
+  return {
+    update: { key: PROXY_DB_KEY[provider], value: JSON.stringify(result.next) },
+    error: null,
+  };
+}
+
+/** Validate and serialize one shop-specific proxy update. */
+export async function prepareStockProviderProxyUpdate(
+  providerId: StockProxyProviderId,
+  patch: Record<string, unknown>,
+): Promise<{ update: PreparedProxyConfigUpdate | null; error: string | null }> {
+  if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return { update: null, error: 'invalid provider id' };
+  const key = `${providerId}_proxy_config`;
+  const result = applyProxyPatch(await readDbConfigByKey(key), patch);
+  if (result.error) return { update: null, error: result.error };
+  return { update: { key, value: JSON.stringify(result.next) }, error: null };
+}
+
+/** Validate and persist proxy settings for a fixed provider. */
+export async function saveProxyConfig(
+  provider: ProviderId,
+  patch: Record<string, unknown>,
+): Promise<string | null> {
+  const prepared = await prepareProxyConfigUpdate(provider, patch);
+  if (!prepared.update) return prepared.error;
+  await getAppSettingRepository().set(prepared.update.key, prepared.update.value);
   return null;
 }
 
-/**
- * Per-shop write variant — persists to `<providerId>_proxy_config`.
- * Mirrors `saveProxyConfig` validation but keys off the free-form shop id.
- */
-export function saveStockProviderProxyConfig(
+/** Validate and persist one shop-specific proxy update. */
+export async function saveStockProviderProxyConfig(
   providerId: StockProxyProviderId,
   patch: Record<string, unknown>,
-): string | null {
-  if (!/^[a-z][a-z0-9_]*$/.test(providerId)) return 'invalid provider id';
-  const dbKey = `${providerId}_proxy_config`;
-  const existing = readDbConfigByKey(dbKey);
-  const next: StoredProxyConfig = { ...existing };
-
-  if ('enabled' in patch) {
-    if (typeof patch.enabled !== 'boolean') return 'enabled must be boolean';
-    next.enabled = patch.enabled;
-  }
-
-  if ('protocol' in patch) {
-    if (typeof patch.protocol !== 'string') return 'protocol must be a string';
-    if (!VALID_PROTOCOLS.has(patch.protocol))
-      return `protocol must be one of: ${[...VALID_PROTOCOLS].join(', ')}`;
-    next.protocol = patch.protocol;
-  }
-
-  if ('host' in patch) {
-    if (patch.host != null && typeof patch.host !== 'string') return 'host must be a string';
-    if (typeof patch.host === 'string' && patch.host.length > 255) return 'host too long (max 255)';
-    const h = (typeof patch.host === 'string' ? patch.host : '').trim();
-    if (h) {
-      if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(h))
-        return 'host must be a valid hostname';
-      if (PRIVATE_HOST_RE.test(h))
-        return 'host must not be a private or loopback address';
-    }
-    next.host = h || undefined;
-  }
-
-  if ('port' in patch) {
-    const raw = patch.port;
-    if (raw == null || raw === '') {
-      next.port = undefined;
-    } else {
-      const p = Number(raw);
-      if (!Number.isInteger(p) || p < 1 || p > 65535)
-        return 'port must be an integer between 1 and 65535';
-      next.port = p;
-    }
-  }
-
-  if ('username' in patch) {
-    const u = patch.username;
-    if (u != null && typeof u !== 'string') return 'username must be a string';
-    if (typeof u === 'string' && u.length > 256) return 'username too long (max 256)';
-    next.username = (typeof u === 'string' ? u : '').trim() || undefined;
-  }
-
-  if ('password' in patch) {
-    const pw = patch.password;
-    if (pw != null && typeof pw !== 'string') return 'password must be a string';
-    if (typeof pw === 'string' && pw.length > 256) return 'password too long (max 256)';
-    // `pw === null` → explicit clear (Clear button). Empty string
-    // / mask = no-op (form blur or echo). Anything else = new
-    // password.
-    if (pw === null) {
-      next.password = undefined;
-    } else {
-      const value = pw;
-      if (value !== '' && value !== PROXY_PASSWORD_MASK) {
-        next.password = value;
-      }
-    }
-  }
-
-  setAppSetting(dbKey, JSON.stringify(next));
+): Promise<string | null> {
+  const prepared = await prepareStockProviderProxyUpdate(providerId, patch);
+  if (!prepared.update) return prepared.error;
+  await getAppSettingRepository().set(prepared.update.key, prepared.update.value);
   return null;
 }

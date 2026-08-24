@@ -2563,7 +2563,7 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
   const refreshOneProvider = async (provider: StockProviderId): Promise<void> => {
     if (signal?.aborted) return;
     const now = Date.now();
-    const canRetryDirect = retryWithoutProxy && isStockProviderProxied(provider);
+    const canRetryDirect = retryWithoutProxy && await isStockProviderProxied(provider);
     const providerCtrl = new AbortController();
     const onOuterAbort = () => providerCtrl.abort();
     signal?.addEventListener('abort', onOuterAbort, { once: true });

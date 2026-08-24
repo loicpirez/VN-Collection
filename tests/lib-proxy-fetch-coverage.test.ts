@@ -119,7 +119,7 @@ afterEach(() => {
 
 describe('providerFetch routing', () => {
   it('falls back to safeFetch when no proxy is configured for the provider', async () => {
-    mResolveProxy.mockReturnValue(null);
+    mResolveProxy.mockResolvedValue(null);
     const sentinel = new Response('direct', { status: 200 });
     mSafeFetch.mockResolvedValue(sentinel);
     const { providerFetch } = await import('@/lib/proxy-fetch');
@@ -130,7 +130,7 @@ describe('providerFetch routing', () => {
   });
 
   it('tunnels through a built proxy agent when a config is present', async () => {
-    mResolveProxy.mockReturnValue(PROXY);
+    mResolveProxy.mockResolvedValue(PROXY);
     responseQueue.push({ statusCode: 200, headers: {}, body: Buffer.from('ok') });
     const { providerFetch } = await import('@/lib/proxy-fetch');
     const res = await providerFetch('https://api.vndb.org/kana/vn', { method: 'GET' }, 'egs');
@@ -142,7 +142,7 @@ describe('providerFetch routing', () => {
 
 describe('stockProviderFetch routing', () => {
   it('uses safeFetch directly inside runStockFetchDirect even when a proxy exists', async () => {
-    mResolveStockProxy.mockReturnValue(PROXY);
+    mResolveStockProxy.mockResolvedValue(PROXY);
     const sentinel = new Response('forced-direct', { status: 200 });
     mSafeFetch.mockResolvedValue(sentinel);
     const { stockProviderFetch, runStockFetchDirect } = await import('@/lib/proxy-fetch');
@@ -154,7 +154,7 @@ describe('stockProviderFetch routing', () => {
   });
 
   it('falls back to safeFetch when no stock proxy is configured', async () => {
-    mResolveStockProxy.mockReturnValue(null);
+    mResolveStockProxy.mockResolvedValue(null);
     const sentinel = new Response('direct', { status: 200 });
     mSafeFetch.mockResolvedValue(sentinel);
     const { stockProviderFetch } = await import('@/lib/proxy-fetch');
@@ -163,7 +163,7 @@ describe('stockProviderFetch routing', () => {
   });
 
   it('tunnels through the resolved stock proxy when present', async () => {
-    mResolveStockProxy.mockReturnValue(PROXY);
+    mResolveStockProxy.mockResolvedValue(PROXY);
     responseQueue.push({ statusCode: 200, headers: {}, body: Buffer.from('shop') });
     const { stockProviderFetch } = await import('@/lib/proxy-fetch');
     const res = await stockProviderFetch('https://www.suruga-ya.jp/x', {}, 'surugaya');
@@ -174,7 +174,7 @@ describe('stockProviderFetch routing', () => {
 
 describe('buildAgent failure', () => {
   it('throws a sanitised error (never the proxy URL) when the agent constructor fails', async () => {
-    mResolveProxy.mockReturnValue({ ...PROXY, protocol: 'http' });
+    mResolveProxy.mockResolvedValue({ ...PROXY, protocol: 'http' });
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.doMock('https-proxy-agent', () => ({
       HttpsProxyAgent: class {

@@ -75,7 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Fixed-provider path (vndb, egs, …).
   if (FIXED_PROVIDERS.has(provider)) {
     const providerId = provider as ProviderId;
-    const config = resolveProxyConfig(providerId);
+    const config = await resolveProxyConfig(providerId);
     if (!config) {
       return NextResponse.json(
         { error: 'proxy is not configured or disabled for this provider' },
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // their per-shop config end-to-end.
   if (STOCK_PROVIDERS.has(provider) || provider === ALICENET_PROVIDER_ID) {
     const shopId = provider as StockProviderId | typeof ALICENET_PROVIDER_ID;
-    const config = resolveStockProviderProxy(shopId);
+    const config = await resolveStockProviderProxy(shopId);
     if (!config) {
       return NextResponse.json(
         { error: 'proxy is not configured or disabled for this provider' },

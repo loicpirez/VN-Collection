@@ -274,7 +274,7 @@ export async function providerFetch(
   init: RequestInit,
   provider: ProviderId,
 ): Promise<Response> {
-  const config = resolveProxyConfig(provider);
+  const config = await resolveProxyConfig(provider);
   if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));
@@ -291,7 +291,7 @@ export async function stockProviderFetch(
   providerId: string,
 ): Promise<Response> {
   if (directFetchStore.getStore() === true) return safeFetch(url, init);
-  const config = resolveStockProviderProxy(providerId);
+  const config = await resolveStockProviderProxy(providerId);
   if (!config) return safeFetch(url, init);
   const agent = await buildAgent(config);
   return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));

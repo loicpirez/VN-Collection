@@ -44,7 +44,7 @@ describe('saveProxyConfig: password handling', () => {
     const { getAppSetting } = await import('../src/lib/db');
 
     expect(
-      proxy.saveProxyConfig('egs', {
+      await proxy.saveProxyConfig('egs', {
         enabled: true,
         host: 'proxy.test',
         port: 1080,
@@ -55,7 +55,7 @@ describe('saveProxyConfig: password handling', () => {
     const beforeClear = JSON.parse(getAppSetting('egs_proxy_config') ?? '{}') as StoredRow;
     expect(beforeClear.password).toBe('sekret');
 
-    expect(proxy.saveProxyConfig('egs', { password: null })).toBeNull();
+    expect(await proxy.saveProxyConfig('egs', { password: null })).toBeNull();
     const afterClear = JSON.parse(getAppSetting('egs_proxy_config') ?? '{}') as StoredRow;
     expect(afterClear.password).toBeUndefined();
   });
@@ -65,7 +65,7 @@ describe('saveProxyConfig: password handling', () => {
     const { getAppSetting } = await import('../src/lib/db');
 
     expect(
-      proxy.saveProxyConfig('egs', {
+      await proxy.saveProxyConfig('egs', {
         enabled: true,
         host: 'proxy.test',
         port: 1080,
@@ -73,10 +73,10 @@ describe('saveProxyConfig: password handling', () => {
         password: 'sekret',
       }),
     ).toBeNull();
-    expect(proxy.saveProxyConfig('egs', { password: '' })).toBeNull();
+    expect(await proxy.saveProxyConfig('egs', { password: '' })).toBeNull();
     expect((JSON.parse(getAppSetting('egs_proxy_config') ?? '{}') as StoredRow).password).toBe('sekret');
 
-    expect(proxy.saveProxyConfig('egs', { password: proxy.PROXY_PASSWORD_MASK })).toBeNull();
+    expect(await proxy.saveProxyConfig('egs', { password: proxy.PROXY_PASSWORD_MASK })).toBeNull();
     expect((JSON.parse(getAppSetting('egs_proxy_config') ?? '{}') as StoredRow).password).toBe('sekret');
   });
 });

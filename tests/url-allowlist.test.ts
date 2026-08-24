@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isAllowedHttpTarget, isPrivateIpv4, assertNoPrivateIpRebind } from '@/lib/url-allowlist';
+import { ALLOWED_HTTP_HOSTS, isAllowedHttpTarget, isPrivateIpv4, assertNoPrivateIpRebind } from '@/lib/url-allowlist';
+import { STOCK_PROVIDER_ALLOWED_HOSTS } from '@/lib/stock-provider-capabilities';
 
 vi.mock('node:dns/promises', () => ({
   resolve4: vi.fn(),
@@ -19,6 +20,46 @@ const mockResolve4 = vi.mocked(resolve4);
  */
 
 describe('isAllowedHttpTarget', () => {
+  it('keeps every allowlisted host owned by a provider or documented media/API source', () => {
+    const providerHosts = new Set<string>(Object.values(STOCK_PROVIDER_ALLOWED_HOSTS).flat());
+    const documentedMediaAndApiHosts = new Set<string>([
+      's2.vndb.org',
+      's.vndb.org',
+      't.vndb.org',
+      'cdn.vndb.org',
+      'api.vndb.org',
+      'vndb.org',
+      'api.yorhel.org',
+      'erogamescape.dyndns.org',
+      'erogamescape.org',
+      'api.steampowered.com',
+      'pics.dmm.co.jp',
+      'pics.dmm.com',
+      'img.dlsite.jp',
+      'gyutto.com',
+      'gyutto.jp',
+      'image.itch.zone',
+      'cdn.steamgriddb.com',
+      'shared.cloudflare.steamstatic.com',
+      'steamcdn-a.akamaihd.net',
+      'media.steampowered.com',
+      'cdn.akamai.steamstatic.com',
+      'lemmasoft.renai.us',
+      'www.entergram.co.jp',
+      'entergram.co.jp',
+    ]);
+
+    const providerHostsMissingFromAllowlist = Array.from(providerHosts)
+      .filter((host) => !ALLOWED_HTTP_HOSTS.has(host))
+      .sort();
+    const unownedAllowedHosts = Array.from(ALLOWED_HTTP_HOSTS)
+      .filter((host) => !providerHosts.has(host) && !documentedMediaAndApiHosts.has(host))
+      .sort();
+
+    expect(providerHostsMissingFromAllowlist).toEqual([]);
+    expect(unownedAllowedHosts).toEqual([]);
+  });
+
   // -- positive cases ----------------------------------------------
   it.each([
     'https://s2.vndb.org/cv/12.jpg',
