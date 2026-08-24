@@ -52,7 +52,7 @@ describe('shelf editor reconciliation ownership', () => {
     expect(SHELF).toContain('disabled={busy}');
     expect(SHELF).toContain('{activeShelf.cols} x {activeShelf.rows}');
     expect(SHELF).toContain('`${row + 1}/${col + 1}`');
-    expect(SHELF).toContain('`${slot.vn_title} - ${label} / ${slot.position + 1}`');
+    expect(SHELF).toContain('`${slot.bundle_name ?? slot.vn_title} - ${label} / ${slot.position + 1}`');
     expect(SHELF).not.toContain('{activeShelf.cols} × {activeShelf.rows}');
   });
 });
