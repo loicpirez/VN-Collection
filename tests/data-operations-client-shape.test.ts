@@ -3,6 +3,7 @@ import {
   decodeDbRestoreSummary,
   decodeJsonImportSummary,
   decodeMaintenanceDuplicateGroups,
+  decodeMaintenanceStockProviders,
   decodeMaintenanceStaleVns,
 } from '@/lib/data-operations-client-shape';
 
@@ -25,6 +26,21 @@ describe('data operations client response adapters', () => {
       fetched_at: 12,
       has_cover: true,
       has_egs: false,
+    }]);
+    expect(decodeMaintenanceStockProviders({
+      providers: [{
+        provider: 'sofmap',
+        latest_status_at: 300,
+        status_rows: 4,
+        last_batch_started_at: 200,
+        updated_after_last_batch: true,
+      }],
+    })).toEqual([{
+      provider: 'sofmap',
+      latest_status_at: 300,
+      status_rows: 4,
+      last_batch_started_at: 200,
+      updated_after_last_batch: true,
     }]);
   });
 
@@ -63,6 +79,20 @@ describe('data operations client response adapters', () => {
     expect(decodeMaintenanceDuplicateGroups({ groups: [{ prefix: 'x', ids: ['bad'] }] })).toBeNull();
     expect(decodeMaintenanceStaleVns({ rows: Array(201).fill(null) })).toBeNull();
     expect(decodeMaintenanceStaleVns({ rows: [{ id: 'v1' }] })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: Array(101).fill(null) })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: [{ provider: 'unknown' }] })).toBeNull();
+    const provider = {
+      provider: 'sofmap',
+      latest_status_at: null,
+      status_rows: 0,
+      last_batch_started_at: null,
+      updated_after_last_batch: null,
+    };
+    expect(decodeMaintenanceStockProviders({ providers: [provider, provider] })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: [{ ...provider, latest_status_at: -1 }] })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: [{ ...provider, status_rows: 1.5 }] })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: [{ ...provider, last_batch_started_at: -1 }] })).toBeNull();
+    expect(decodeMaintenanceStockProviders({ providers: [{ ...provider, updated_after_last_batch: 'yes' }] })).toBeNull();
     expect(decodeJsonImportSummary({
       ok: true,
       summary: {

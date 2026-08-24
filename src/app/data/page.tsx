@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Activity, ArrowRight, CalendarRange, CornerDownRight, Database, Download, FileJson, FileSpreadsheet, FileUp, Gamepad2, HardDrive, KeyRound, QrCode, Sparkles } from 'lucide-react';
-import { getDbStatus } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { getAuthInfo } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DataPage() {
   const t = await getDict();
   const locale = await getLocale();
-  const status = getDbStatus();
+  const status = await getCacheRepository().databaseStatus();
   let auth: { id: string; username: string; permissions: string[] } | null = null;
   let authError: string | undefined;
   try {

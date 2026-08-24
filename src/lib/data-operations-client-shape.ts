@@ -1,9 +1,11 @@
 import { asJsonRecord } from './json-shape';
+import { STOCK_PROVIDER_IDS, type StockProviderId } from './stock-provider-constants';
 import { isValidVnId, normalizeVnId } from './vn-id-shape';
 
 const MAX_DUPLICATE_GROUPS = 20_000;
 const MAX_DUPLICATE_IDS = 20_000;
 const MAX_STALE_ROWS = 200;
+const MAX_STOCK_PROVIDER_ROWS = 100;
 const MAX_SUMMARY_ROWS = 10_000;
 
 /** Duplicate-title group rendered by the data-maintenance panel. */
@@ -21,6 +23,15 @@ export interface MaintenanceStaleVn {
   has_egs: boolean;
 }
 
+/** Freshness evidence for one live stock provider. */
+export interface MaintenanceStockProviderFreshness {
+  provider: StockProviderId;
+  latest_status_at: number | null;
+  status_rows: number;
+  last_batch_started_at: number | null;
+  updated_after_last_batch: boolean | null;
+}
+
 /** Summary returned after importing a JSON collection backup. */
 export interface JsonImportSummary {
   vns_upserted: number;
@@ -30,7 +41,7 @@ export interface JsonImportSummary {
   errors: string[];
 }
 
-/** Summary returned after restoring a SQLite backup. */
+/** Summary returned after restoring a SQLite or PostgreSQL backup. */
 export interface DbRestoreSummary {
   tables: { name: string; rows_replaced: number }[];
   skipped: { name: string; reason: string }[];
@@ -100,6 +111,45 @@ export function decodeMaintenanceStaleVns(value: unknown): MaintenanceStaleVn[] 
 }
 
 /**
+ * Decode provider freshness evidence from the stock-maintenance route.
+ *
+ * @param value Parsed local API payload.
+ * @returns Safe provider rows, or `null` for malformed or duplicate input.
+ */
+export function decodeMaintenanceStockProviders(value: unknown): MaintenanceStockProviderFreshness[] | null {
+  const providers = asJsonRecord(value)?.providers;
+  if (!Array.isArray(providers) || providers.length > MAX_STOCK_PROVIDER_ROWS) return null;
+  const validProviders = new Set<string>(STOCK_PROVIDER_IDS);
+  const seen = new Set<StockProviderId>();
+  const out: MaintenanceStockProviderFreshness[] = [];
+  for (const value of providers) {
+    const row = asJsonRecord(value);
+    if (
+      !row ||
+      typeof row.provider !== 'string' ||
+      !validProviders.has(row.provider) ||
+      seen.has(row.provider as StockProviderId) ||
+      (row.latest_status_at !== null && !isNonNegativeInteger(row.latest_status_at)) ||
+      !isNonNegativeInteger(row.status_rows) ||
+      (row.last_batch_started_at !== null && !isNonNegativeInteger(row.last_batch_started_at)) ||
+      (row.updated_after_last_batch !== null && typeof row.updated_after_last_batch !== 'boolean')
+    ) {
+      return null;
+    }
+    const provider = row.provider as StockProviderId;
+    seen.add(provider);
+    out.push({
+      provider,
+      latest_status_at: row.latest_status_at,
+      status_rows: row.status_rows,
+      last_batch_started_at: row.last_batch_started_at,
+      updated_after_last_batch: row.updated_after_last_batch,
+    });
+  }
+  return out;
+}
+
+/**
  * Decode a completed JSON-import summary.
  *
  * @param value Parsed local API payload.
@@ -127,7 +177,7 @@ export function decodeJsonImportSummary(value: unknown): JsonImportSummary | nul
 }
 
 /**
- * Decode a completed SQLite-restore summary.
+ * Decode a completed database-restore summary.
  *
  * @param value Parsed local API payload.
  * @returns Safe restore summary, or `null` for malformed input.
