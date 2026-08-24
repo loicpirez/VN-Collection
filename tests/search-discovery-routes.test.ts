@@ -279,7 +279,7 @@ describe('GET /api/egs/search', () => {
     searchEgsCandidatesMock.mockRejectedValue(new Error('unexpected EGS failure'));
     const res = await egsSearchGET(loopback('/api/egs/search?q=egs', '10.16.0.4'));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'egs/search' });
     consoleSpy.mockRestore();
   });
 });

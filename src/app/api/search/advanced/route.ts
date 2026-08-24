@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { advancedSearchVn, type AdvancedSearchOptions } from '@/lib/vndb';
-import { isInCollectionMany } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { PayloadTooLargeError, readBodyWithLimit } from '@/lib/read-limited-body';
+import {
+  VNDB_ADVANCED_SEARCH_PAGE_MAX,
+  VNDB_ADVANCED_SEARCH_PAGE_SIZE_MAX,
+} from '@/lib/search-result-limits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -54,8 +58,8 @@ function parseAdvancedBody(raw: unknown): { ok: true; opts: AdvancedSearchOption
     yearMin: { min: 1900, max: 2100 },
     yearMax: { min: 1900, max: 2100 },
     ratingMin: { min: 0, max: 100 },
-    results: { min: 1, max: 100 },
-    page: { min: 1, max: 100 },
+    results: { min: 1, max: VNDB_ADVANCED_SEARCH_PAGE_SIZE_MAX },
+    page: { min: 1, max: VNDB_ADVANCED_SEARCH_PAGE_MAX },
   };
   for (const key of ['lengthMin', 'lengthMax', 'yearMin', 'yearMax', 'ratingMin', 'results', 'page'] as const) {
     if (key in r) {
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const data = await advancedSearchVn(parsed.opts);
     // Single IN(...) lookup instead of one SELECT per result.
-    const ownedIds = isInCollectionMany(data.results.map((v) => v.id));
+    const ownedIds = await getCollectionCoreRepository().containsMany(data.results.map((v) => v.id));
     const results = data.results.map((v) => ({ ...v, in_collection: ownedIds.has(v.id) }));
     return NextResponse.json({ results, more: data.more });
   } catch (err) {

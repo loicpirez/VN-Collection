@@ -107,6 +107,6 @@ describe('POST /api/search/advanced validation', () => {
     const response = await POST(request({ q: 'valid' }));
 
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await response.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'search/advanced' });
   });
 });
