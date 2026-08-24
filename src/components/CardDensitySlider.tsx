@@ -115,7 +115,7 @@ export function CardDensitySlider({
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-1.5 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
+        className="h-11 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"
@@ -202,7 +202,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-1.5 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
+        className="h-11 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"

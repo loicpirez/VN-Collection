@@ -55,6 +55,14 @@ describe('CardDensitySlider responsive shrink', () => {
     }
   });
 
+  it('gives both native range inputs a 44px touch box', () => {
+    const rangeBlock = SOURCE.match(/type="range"[\s\S]+?className="[^"]+"/g) ?? [];
+    expect(rangeBlock).toHaveLength(2);
+    for (const block of rangeBlock) {
+      expect(block).toMatch(/h-11 w-20/);
+    }
+  });
+
   it('buttons keep their 44×44 tap target AND become shrink-0 so the row collapses cleanly', () => {
     // `min-h-[44px] min-w-[44px]` is the WCAG 2.5.5 floor; the new
     // `shrink-0` modifier ensures the buttons don't compete with the
