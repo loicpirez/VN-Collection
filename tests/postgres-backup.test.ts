@@ -28,6 +28,7 @@ const MIGRATIONS = [
   '0006_physical_bundles',
   '0007_query_plan_indexes',
   '0008_normalized_json_indexes',
+  '0009_drop_legacy_alicenet_indexes',
 ];
 
 function result<Row extends QueryResultRow>(rows: Row[]): QueryResult<Row> {
