@@ -1,16 +1,18 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { getReleasesForVn, getRelease, type VndbRelease } from './vndb';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
 import { asJsonRecord, parseJsonRecord } from './json-shape';
 import { decodeVndbRelease } from './vndb-release-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getVnReadRepository } from './db/repositories/vn-read';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'release_full:';
 const TTL_MS = 30 * 24 * 3600 * 1000;
 
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 function key(rid: string): string {
@@ -25,26 +27,27 @@ export interface ReleaseFullPayload {
 /**
  * `null` on missing / unparseable rows so callers fall back to a fresh fetch.
  */
-export function readReleaseFullCache(rid: string): ReleaseFullPayload | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key(rid)) as { body: string; fetched_at: number } | undefined;
+function decodeReleaseCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): ReleaseFullPayload | null {
   if (!row) return null;
   const parsed = parseJsonRecord(row.body);
   const release = parsed ? decodeVndbRelease(parsed.release) : null;
   return release ? { release, fetched_at: row.fetched_at } : null;
 }
 
-function writeReleaseFullCache(rid: string, payload: ReleaseFullPayload): void {
+export async function readReleaseFullCache(rid: string): Promise<ReleaseFullPayload | null> {
+  return decodeReleaseCacheRow(await getCacheRepository().get(key(rid)));
+}
+
+async function writeReleaseFullCache(rid: string, payload: ReleaseFullPayload): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key(rid), JSON.stringify(payload), now, now + TTL_MS);
+  await getCacheRepository().put({
+    cache_key: key(rid),
+    body: JSON.stringify(payload),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + TTL_MS,
+  });
 }
 
 /**
@@ -54,7 +57,7 @@ export async function downloadFullReleaseInfo(rid: string): Promise<ReleaseFullP
   const release = await getRelease(rid);
   if (!release) return null;
   const payload: ReleaseFullPayload = { release, fetched_at: Date.now() };
-  writeReleaseFullCache(rid, payload);
+  await writeReleaseFullCache(rid, payload);
   return payload;
 }
 
@@ -68,13 +71,10 @@ export async function downloadScreenshotReleasesForVn(
   vnId: string,
   opts: { force?: boolean } = {},
 ): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  type LocalVn = { raw: string | null } | null;
-  const row = (await import('./db')).db
-    .prepare('SELECT raw FROM vn WHERE id = ?')
-    .get(vnId) as LocalVn;
-  if (!row?.raw) return { scanned: 0, downloaded: 0 };
-  const parsed = parseJsonRecord(row.raw);
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const raw = await getVnReadRepository().getRawPayload(vnId);
+  if (!raw) return { scanned: 0, downloaded: 0 };
+  const parsed = parseJsonRecord(raw);
   const ids = Array.from(new Set(
     (Array.isArray(parsed?.screenshots) ? parsed.screenshots : [])
       .map((value) => asJsonRecord(asJsonRecord(value)?.release)?.id)
@@ -83,8 +83,9 @@ export async function downloadScreenshotReleasesForVn(
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(ids.map(key));
   const stale = ids.filter((rid) => {
-    const cached = readReleaseFullCache(rid);
+    const cached = decodeReleaseCacheRow(cacheRows.get(key(rid)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };
@@ -111,7 +112,7 @@ export async function downloadScreenshotReleasesForVn(
  * fan-out so "Download all" truly fans into releases too.
  */
 export async function downloadFullReleasesForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
   let releases: VndbRelease[] = [];
   try {
     releases = await getReleasesForVn(vnId, 100);
@@ -121,8 +122,9 @@ export async function downloadFullReleasesForVn(vnId: string, opts: { force?: bo
   if (releases.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(releases.map((release) => key(release.id)));
   const stale = releases.filter((r) => {
-    const cached = readReleaseFullCache(r.id);
+    const cached = decodeReleaseCacheRow(cacheRows.get(key(r.id)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
   if (stale.length === 0) return { scanned: releases.length, downloaded: 0 };
@@ -131,7 +133,7 @@ export async function downloadFullReleasesForVn(vnId: string, opts: { force?: bo
   let downloaded = 0;
   for (const r of stale) {
     const payload: ReleaseFullPayload = { release: r, fetched_at: now };
-    writeReleaseFullCache(r.id, payload);
+    await writeReleaseFullCache(r.id, payload);
     downloaded += 1;
     tickJob(job.id);
   }

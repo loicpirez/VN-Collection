@@ -163,44 +163,44 @@ beforeEach(() => {
 });
 
 describe('readReleaseFullCache', () => {
-  it('returns null on a cache miss', () => {
-    expect(readReleaseFullCache('r90099')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readReleaseFullCache('r90099')).resolves.toBeNull();
   });
 
-  it('returns null when the stored body is not valid JSON', () => {
+  it('returns null when the stored body is not valid JSON', async () => {
     writeCacheRow('release_full:r90098', '{ not json');
-    expect(readReleaseFullCache('r90098')).toBeNull();
+    await expect(readReleaseFullCache('r90098')).resolves.toBeNull();
   });
 
-  it('decodes a well-formed release row and splices the row fetched_at', () => {
+  it('decodes a well-formed release row and splices the row fetched_at', async () => {
     writeCacheRow(
       'release_full:r90001',
       JSON.stringify({ release: validRelease(), fetched_at: NOW - 999_999 }),
       NOW,
     );
-    const got = readReleaseFullCache('r90001');
+    const got = await readReleaseFullCache('r90001');
     expect(got).not.toBeNull();
     expect(got!.release.id).toBe('r90001');
     expect(got!.release.producers[0].id).toBe('p90001');
     expect(got!.fetched_at).toBe(NOW);
   });
 
-  it('lowercases the rid before lookup', () => {
+  it('lowercases the rid before lookup', async () => {
     writeCacheRow('release_full:r90002', JSON.stringify({ release: { ...validRelease(), id: 'r90002' } }));
-    expect(readReleaseFullCache('R90002')).not.toBeNull();
+    expect(await readReleaseFullCache('R90002')).not.toBeNull();
   });
 
-  it('rejects a row whose release fails the strict decoder', () => {
+  it('rejects a row whose release fails the strict decoder', async () => {
     writeCacheRow(
       'release_full:r90003',
       JSON.stringify({ release: { ...validRelease(), id: 'r90003', producers: [{ id: 'p90003' }] } }),
     );
-    expect(readReleaseFullCache('r90003')).toBeNull();
+    await expect(readReleaseFullCache('r90003')).resolves.toBeNull();
   });
 
-  it('rejects a row missing the release envelope entirely', () => {
+  it('rejects a row missing the release envelope entirely', async () => {
     writeCacheRow('release_full:r90004', JSON.stringify({ fetched_at: NOW }));
-    expect(readReleaseFullCache('r90004')).toBeNull();
+    await expect(readReleaseFullCache('r90004')).resolves.toBeNull();
   });
 });
 

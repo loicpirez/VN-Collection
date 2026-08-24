@@ -222,13 +222,13 @@ describe('downloadFullReleaseInfo', () => {
     getReleaseMock.mockResolvedValue(release('r90500'));
     const payload = await downloadFullReleaseInfo('r90500');
     expect(payload).not.toBeNull();
-    expect(readReleaseFullCache('r90500')?.release.id).toBe('r90500');
+    expect((await readReleaseFullCache('r90500'))?.release.id).toBe('r90500');
   });
 
   it('returns null and writes nothing when VNDB does not recognise the id', async () => {
     getReleaseMock.mockResolvedValue(null);
     expect(await downloadFullReleaseInfo('r90599')).toBeNull();
-    expect(readReleaseFullCache('r90599')).toBeNull();
+    await expect(readReleaseFullCache('r90599')).resolves.toBeNull();
   });
 });
 
@@ -244,8 +244,8 @@ describe('downloadScreenshotReleasesForVn', () => {
     const r = await downloadScreenshotReleasesForVn(VN, { force: true });
     expect(r).toEqual({ scanned: 2, downloaded: 2 });
     expect(getReleaseMock).toHaveBeenCalledTimes(2);
-    expect(readReleaseFullCache('r90500')).not.toBeNull();
-    expect(readReleaseFullCache('r90501')).not.toBeNull();
+    expect(await readReleaseFullCache('r90500')).not.toBeNull();
+    expect(await readReleaseFullCache('r90501')).not.toBeNull();
   });
 
   it('skips screenshot releases already fresh in the cache', async () => {
@@ -264,7 +264,7 @@ describe('downloadScreenshotReleasesForVn', () => {
     const r = await downloadScreenshotReleasesForVn(VN, { force: true });
     expect(r.scanned).toBe(2);
     expect(r.downloaded).toBe(1);
-    expect(readReleaseFullCache('r90503')).not.toBeNull();
+    expect(await readReleaseFullCache('r90503')).not.toBeNull();
   });
 
   it('does not count screenshot releases missing upstream', async () => {
@@ -292,8 +292,8 @@ describe('downloadFullReleasesForVn', () => {
     getReleasesForVnMock.mockResolvedValue([release('r90510'), release('r90511')]);
     const r = await downloadFullReleasesForVn(VN, { force: true });
     expect(r).toEqual({ scanned: 2, downloaded: 2 });
-    expect(readReleaseFullCache('r90510')).not.toBeNull();
-    expect(readReleaseFullCache('r90511')).not.toBeNull();
+    expect(await readReleaseFullCache('r90510')).not.toBeNull();
+    expect(await readReleaseFullCache('r90511')).not.toBeNull();
   });
 
   it('skips releases already fresh in the cache', async () => {

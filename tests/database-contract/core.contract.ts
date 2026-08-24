@@ -110,6 +110,12 @@ export function registerCoreRepositoryContract(label: string, harness: CoreContr
         await expect(read.getTagIds(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual([
           CORE_CONTRACT_IDS.firstTag,
         ]);
+        const rawPayload = await read.getRawPayload(CORE_CONTRACT_IDS.firstVn);
+        expect(JSON.parse(rawPayload ?? '{}')).toMatchObject({
+          id: CORE_CONTRACT_IDS.firstVn,
+          title: '東京物語',
+        });
+        await expect(read.getRawPayload('v991399')).resolves.toBeNull();
         await expect(inspect.tagIds(CORE_CONTRACT_IDS.firstVn)).resolves.toEqual([CORE_CONTRACT_IDS.firstTag]);
         await expect(read.getStockContext(CORE_CONTRACT_IDS.firstVn)).resolves.toMatchObject({
           title: '東京物語',

@@ -85,12 +85,12 @@ describe('full-cache structure validation', () => {
     await expect(readTraitFullCache('i990030')).resolves.toBeNull();
   });
 
-  it('rejects incomplete release payloads', () => {
+  it('rejects incomplete release payloads', async () => {
     writeCacheRow('release_full:r990030', JSON.stringify({ release: { id: 'r990030', title: 'Fixture' } }));
-    expect(readReleaseFullCache('r990030')).toBeNull();
+    await expect(readReleaseFullCache('r990030')).resolves.toBeNull();
   });
 
-  it('rejects release payloads with malformed nested rows', () => {
+  it('rejects release payloads with malformed nested rows', async () => {
     writeCacheRow('release_full:r990031', JSON.stringify({
       release: {
         id: 'r990031',
@@ -118,7 +118,7 @@ describe('full-cache structure validation', () => {
         images: [],
       },
     }));
-    expect(readReleaseFullCache('r990031')).toBeNull();
+    await expect(readReleaseFullCache('r990031')).resolves.toBeNull();
   });
 
   it('treats parseable non-array VN tags as empty fan-out input', async () => {

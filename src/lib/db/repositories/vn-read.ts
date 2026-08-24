@@ -38,6 +38,8 @@ export interface VnReadRepository {
   getCovers(vnIds: readonly string[]): Promise<LocalVnCoverRow[]>;
   /** Return the valid tag identifiers persisted on one VN. */
   getTagIds(vnId: string): Promise<string[]>;
+  /** Return the canonical raw VNDB payload persisted for one VN. */
+  getRawPayload(vnId: string): Promise<string | null>;
 }
 
 interface PostgresStockVnRow extends QueryResultRow {
@@ -169,6 +171,13 @@ export function createPostgresVnReadRepository(): VnReadRepository {
       );
       return decodeTagIds(result.rows[0]?.tags ?? null);
     },
+    async getRawPayload(vnId) {
+      const result = await postgresQuery<{ raw: string | null } & QueryResultRow>(
+        'SELECT raw FROM vn WHERE id = $1',
+        [vnId],
+      );
+      return result.rows[0]?.raw ?? null;
+    },
   };
 }
 
@@ -214,6 +223,11 @@ const sqliteRepository: VnReadRepository = {
     const { db } = await import('@/lib/db');
     const row = db.prepare('SELECT tags FROM vn WHERE id = ?').get(vnId) as PersistedTagRow | undefined;
     return decodeTagIds(row?.tags ?? null);
+  },
+  async getRawPayload(vnId) {
+    const { db } = await import('@/lib/db');
+    const row = db.prepare('SELECT raw FROM vn WHERE id = ?').get(vnId) as { raw: string | null } | undefined;
+    return row?.raw ?? null;
   },
 };
 
