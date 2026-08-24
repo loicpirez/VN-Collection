@@ -5,6 +5,8 @@ import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const originalDbPath = process.env.DB_PATH;
+const originalDatabaseBackend = process.env.DATABASE_BACKEND;
+const originalDatabaseUrl = process.env.DATABASE_URL;
 const originalCwd = process.cwd();
 const createdDirs: string[] = [];
 
@@ -17,11 +19,45 @@ afterEach(() => {
   delete dbGlobal().__vndb_db;
   process.chdir(originalCwd);
   process.env.DB_PATH = originalDbPath;
+  if (originalDatabaseBackend === undefined) delete process.env.DATABASE_BACKEND;
+  else process.env.DATABASE_BACKEND = originalDatabaseBackend;
+  if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = originalDatabaseUrl;
   vi.resetModules();
   for (const path of createdDirs.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
 describe('AliceNet persisted identifier migration', () => {
+  it('opens an existing SQLite source without migrations and rejects writes in read-only mode', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sqlite-readonly-mode-'));
+    createdDirs.push(dir);
+    process.env.DB_PATH = join(dir, 'source.db');
+    process.env.DATABASE_BACKEND = 'sqlite-readonly';
+    const seeded = new Database(process.env.DB_PATH);
+    seeded.exec('CREATE TABLE source_row (id INTEGER PRIMARY KEY, label TEXT NOT NULL); INSERT INTO source_row VALUES (1, \'kept\');');
+    seeded.close();
+
+    vi.resetModules();
+    const mod = await import('@/lib/db');
+    expect(mod.db.prepare('SELECT label FROM source_row WHERE id = 1').get()).toEqual({ label: 'kept' });
+    expect(mod.db.pragma('query_only', { simple: true })).toBe(1);
+    expect(mod.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='vn'`).get()).toBeUndefined();
+    expect(() => mod.db.prepare('INSERT INTO source_row (label) VALUES (?)').run('blocked')).toThrow(/readonly/i);
+  });
+
+  it('fails before touching SQLite when PostgreSQL is the primary backend', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'postgres-no-sqlite-'));
+    createdDirs.push(dir);
+    process.env.DB_PATH = join(dir, 'must-not-exist', 'collection.db');
+    process.env.DATABASE_BACKEND = 'postgres';
+    process.env.DATABASE_URL = 'postgres://localhost/database';
+
+    vi.resetModules();
+    const mod = await import('@/lib/db');
+    expect(() => mod.db.prepare('SELECT 1')).toThrow(/Legacy SQLite access is disabled/);
+    expect(() => mod.getDbPath()).toThrow(/Legacy SQLite access is disabled/);
+  });
+
   it('uses the default relative DB path below the current working directory when DB_PATH is absent', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'alicenet-default-db-path-'));
     createdDirs.push(dir);

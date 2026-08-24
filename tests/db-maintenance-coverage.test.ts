@@ -88,8 +88,13 @@ function staffMigrationDb(over: {
       if (sql.includes("key = 'migration_staff_credit_unique_v1'")) {
         return { get: () => over.marker != null ? { value: over.marker } : undefined };
       }
-      if (sql.includes("VALUES ('migration_staff_credit_unique_v1', '1')")) {
-        return { run: () => { markerWritten = true; } };
+      if (sql.includes('INSERT INTO app_setting') && sql.includes('ON CONFLICT(key) DO UPDATE')) {
+        return {
+          run: (key: string) => {
+            expect(key).toBe('migration_staff_credit_unique_v1');
+            markerWritten = true;
+          },
+        };
       }
       throw new Error(`unexpected SQL: ${sql}`);
     },
