@@ -56,6 +56,7 @@ import {
   fetchVnCovers,
   getAuthInfo,
   getCharacter,
+  getCharactersForTraitPage,
   getCharactersForVn,
   getGlobalStats,
   getProducer,
@@ -323,6 +324,15 @@ describe('character helpers', () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([charRow('c90001')])));
     const chars = await getCharactersForVn('v90010');
     expect(chars.map((c) => c.id)).toEqual(['c90001']);
+  });
+
+  it('uses the default trait character page options', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([charRow('c90004')])));
+    const page = await getCharactersForTraitPage('i90001');
+    expect(page.results.map((character) => character.id)).toEqual(['c90004']);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body).toMatchObject({ results: 60, page: 1 });
+    expect(body.filters).toEqual(['trait', '=', ['i90001', 0]]);
   });
 
   it('getCharacter returns null on empty results', async () => {
