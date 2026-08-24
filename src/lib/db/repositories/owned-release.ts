@@ -120,7 +120,7 @@ interface ExistsRow extends QueryResultRow {
 }
 
 interface PostgresCommandExecutor {
-  query<Row extends QueryResultRow>(text: string, values?: readonly PostgresParameter[]): Promise<{ rows: Row[]; rowCount: number | null }>;
+  query<Row extends QueryResultRow>(text: string, values: readonly PostgresParameter[]): Promise<{ rows: Row[]; rowCount: number | null }>;
 }
 
 const OWNED_RELEASE_SELECT = `
@@ -321,7 +321,7 @@ async function setAspectOverride(
 
 function transactionExecutor(client: PoolClient): PostgresCommandExecutor {
   return {
-    async query<Row extends QueryResultRow>(text: string, values: readonly PostgresParameter[] = []) {
+    async query<Row extends QueryResultRow>(text: string, values: readonly PostgresParameter[]) {
       const result = await client.query<Row>(text, [...values]);
       return { rows: result.rows, rowCount: result.rowCount };
     },
@@ -331,7 +331,7 @@ function transactionExecutor(client: PoolClient): PostgresCommandExecutor {
 /** Create the PostgreSQL-backed owned-edition repository. */
 export function createPostgresOwnedReleaseRepository(): OwnedReleaseRepository {
   const direct: PostgresCommandExecutor = {
-    async query<Row extends QueryResultRow>(text: string, values: readonly PostgresParameter[] = []) {
+    async query<Row extends QueryResultRow>(text: string, values: readonly PostgresParameter[]) {
       const result = await postgresQuery<Row>(text, values);
       return { rows: result.rows, rowCount: result.rowCount };
     },
