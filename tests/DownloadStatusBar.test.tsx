@@ -427,6 +427,7 @@ describe('DownloadStatusBar (SSE path)', () => {
     await flush();
     const es = FakeEventSource.instances[0];
     act(() => es.onmessage?.({ data: 'not json{' }));
+    act(() => es.onmessage?.({ data: '{}' }));
     act(() => es.emit(snapshot({ jobs: [LIVE_JOB] })));
     expect(screen.getByRole('button', { name: 'Active downloads' })).not.toBeNull();
   });
