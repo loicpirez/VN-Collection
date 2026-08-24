@@ -46,6 +46,20 @@ const {
   fetchUpcomingForCollectionMock: vi.fn(async () => []),
 }));
 
+const {
+  acquireRefreshLeaseMock,
+  refreshLeaseRenewMock,
+  refreshLeaseReleaseMock,
+} = vi.hoisted(() => ({
+  acquireRefreshLeaseMock: vi.fn(),
+  refreshLeaseRenewMock: vi.fn(),
+  refreshLeaseReleaseMock: vi.fn(),
+}));
+
+vi.mock('@/lib/background-job-lease', () => ({
+  acquireBackgroundJobLease: acquireRefreshLeaseMock,
+}));
+
 vi.mock('@/lib/egs-sync', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/egs-sync')>();
   return { ...actual, computeEgsSuggestions: computeEgsSuggestionsMock, applyEgsSuggestions: applyEgsSuggestionsMock };
@@ -101,6 +115,13 @@ function loopback(path: string, method = 'GET', body?: unknown): NextRequest {
 }
 
 beforeEach(() => {
+  refreshLeaseRenewMock.mockReset().mockResolvedValue(undefined);
+  refreshLeaseReleaseMock.mockReset().mockResolvedValue(true);
+  acquireRefreshLeaseMock.mockReset().mockResolvedValue({
+    name: 'global-refresh',
+    renew: refreshLeaseRenewMock,
+    release: refreshLeaseReleaseMock,
+  });
   computeEgsSuggestionsMock.mockReset();
   applyEgsSuggestionsMock.mockReset();
   pullStatusesMock.mockReset();
@@ -221,6 +242,39 @@ describe('POST /api/vndb/pull-statuses', () => {
 });
 
 describe('POST /api/refresh/global', () => {
+  it('rejects an unavailable or occupied distributed refresh lease', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    acquireRefreshLeaseMock.mockRejectedValueOnce(new Error('database offline'));
+    const unavailable = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toEqual({ error: 'global refresh unavailable', code: 'run_unavailable' });
+
+    acquireRefreshLeaseMock.mockResolvedValueOnce(null);
+    const occupied = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
+    expect(occupied.status).toBe(429);
+    expect(await occupied.json()).toEqual({ error: 'a global refresh is already running', code: 'queue_full' });
+    consoleSpy.mockRestore();
+  });
+
+  it('fails closed if lease ownership is lost before a refresh task', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    refreshLeaseRenewMock.mockRejectedValueOnce(new Error('background job lease lost'));
+    const response = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'global refresh unavailable', code: 'run_unavailable' });
+    expect(refreshLeaseReleaseMock).toHaveBeenCalledOnce();
+    consoleSpy.mockRestore();
+  });
+
+  it('contains a lease release failure after a completed refresh', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    refreshLeaseReleaseMock.mockRejectedValueOnce(new Error('release unavailable'));
+    const response = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
+    expect(response.status).toBe(200);
+    expect(consoleSpy).toHaveBeenCalledWith('[refresh/global] lease release failed:', 'release unavailable');
+    consoleSpy.mockRestore();
+  });
+
   it('200 completing every fan-out task with all upstreams stubbed', async () => {
     db.prepare('INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('v90301', 'Refresh VN', Date.now());
     db.prepare('INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('vbad', 'Invalid Refresh VN', Date.now());

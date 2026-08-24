@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, materializeReleaseMetaForCollectionVns } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
 import { jobCurrentItem, jobLabel, startJob, tickJob, finishJob, recordError, setJobCurrent, type JobCurrentItemCode, type JobTextParams } from '@/lib/download-status';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
@@ -8,11 +10,14 @@ import { fetchVndbTopRanked } from '@/lib/top-ranked';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
+import { acquireBackgroundJobLease } from '@/lib/background-job-lease';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+const GLOBAL_REFRESH_LEASE_TTL_MS = 30 * 60 * 1000;
 
 /**
  * `getAuthInfo` may throw when the VNDB token is missing or VNDB is
@@ -44,6 +49,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // admin-token boundary so a LAN attacker can't denial-of-cache us.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+
+  let lease;
+  try {
+    lease = await acquireBackgroundJobLease('global-refresh', 1, GLOBAL_REFRESH_LEASE_TTL_MS);
+  } catch (error) {
+    console.error('[refresh/global] lease acquisition failed:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'global refresh unavailable', code: 'run_unavailable' },
+      { status: 503 },
+    );
+  }
+  if (!lease) {
+    return NextResponse.json(
+      { error: 'a global refresh is already running', code: 'queue_full' },
+      { status: 429 },
+    );
+  }
+
+  try {
 
   // First sweep: delete every cache row this refresh is supposed to
   // re-populate. Without this step the next call to getGlobalStats() /
@@ -78,10 +102,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     '% /trait|%',
     '% /vn:top-ranked:%',
   ];
-  const bust = db.prepare(
-    'DELETE FROM vndb_cache WHERE ' +
-    BUST_PATTERNS.map(() => 'cache_key LIKE ?').join(' OR '),
-  );
   // Wipe the materialised per-release metadata too. The shelf
   // popover / owned-editions surfaces read from `release_meta_cache`
   // (not the raw `POST /release` JSON), so without this step the
@@ -89,26 +109,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // surfaces would keep rendering the stale platforms / languages
   // until the per-VN `materializeReleaseMetaForVn` ran. We bust
   // here and re-materialize per-VN below.
-  const bustReleaseMeta = db.prepare('DELETE FROM release_meta_cache');
   // VN ids in the collection — every one gets its own materialize
   // job so the operator can see progress per-VN in the global
   // download status panel. Restricted to real `vNNN` ids; synthetic
   // `egs_*` entries are no-ops inside the materializer.
-  const collectionVnIds = (
-    db.prepare(
-      `SELECT vn_id FROM collection WHERE vn_id LIKE 'v%'
-       ORDER BY vn_id`,
-    ).all() as Array<{ vn_id: string }>
-  )
-    .map((r) => r.vn_id)
+  const collectionVnIds = (await getCollectionCoreRepository().listIds())
     .filter((id) => isVndbVnId(id));
   // Each task has a stable `name` plus the existing run() closure.
   const tasks: Array<{ name: string; code: JobCurrentItemCode; params?: JobTextParams; run: () => Promise<unknown> }> = [
-    { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: async () => { bust.run(...BUST_PATTERNS); } },
+    { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: () => getCacheRepository().deleteByPatterns(BUST_PATTERNS) },
     {
       name: 'Release metadata cache (bust)',
       code: 'refresh_release_metadata_cache',
-      run: async () => { bustReleaseMeta.run(); },
+      run: () => getReleaseMetadataRepository().clear(),
     },
     { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100) },
     { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100) },
@@ -126,7 +139,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     {
       name: 'Release metadata · all collection VNs',
       code: 'refresh_release_metadata_collection',
-      run: async () => { materializeReleaseMetaForCollectionVns(collectionVnIds); },
+      run: () => getReleaseMetadataRepository().materializeForVns(collectionVnIds),
     },
   ];
 
@@ -139,6 +152,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let done = 0;
   let failed = 0;
   for (const t of tasks) {
+    await lease.renew();
     setJobCurrent(job.id, jobCurrentItem(t.code, t.name, t.params));
     try {
       await t.run();
@@ -151,7 +165,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
   finishJob(job.id);
-  recordActivity({
+  await recordActivity({
     kind: 'refresh.global',
     entity: 'cache',
     entityId: 'global',
@@ -160,4 +174,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   return NextResponse.json({ ok: true, done, failed, total: tasks.length });
+  } catch (error) {
+    console.error('[refresh/global] lease lost:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'global refresh unavailable', code: 'run_unavailable' },
+      { status: 503 },
+    );
+  } finally {
+    try {
+      await lease.release();
+    } catch (error) {
+      console.error('[refresh/global] lease release failed:', sanitizeUnknownError(error));
+    }
+  }
 }
