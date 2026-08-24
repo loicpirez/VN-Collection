@@ -13,6 +13,7 @@ import { Dialog } from './Dialog';
 import { SafeImage } from './SafeImage';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
+import { SkeletonRows } from './Skeleton';
 
 const PAGE_SIZE = 24;
 
@@ -230,7 +231,7 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
       <section className="mt-6 border-t border-border pt-4">
         <h3 className="mb-2 text-sm font-bold">{t.shelfLayout.bundleExisting}</h3>
         {loading ? (
-          <p className="inline-flex items-center gap-2 text-xs text-muted"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />{t.shelfLayout.saving}</p>
+          <SkeletonRows count={3} withThumb={false} label={t.common.loading} />
         ) : bundles.length === 0 ? (
           <p className="text-sm text-muted">{t.shelfLayout.bundleEmpty}</p>
         ) : (

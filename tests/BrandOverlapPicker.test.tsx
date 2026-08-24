@@ -39,7 +39,8 @@ describe('BrandOverlapPicker', () => {
     // A fetch that never settles keeps the component in its loading branch.
     global.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
     const { container } = renderWithProviders(<BrandOverlapPicker initialA={null} initialB={null} />, { locale: 'en' });
-    expect(container.querySelector('svg.lucide-loader-circle')).not.toBeNull();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(container.querySelectorAll('.animate-pulse')).toHaveLength(4);
     expect(container.querySelector('form')).toBeNull();
   });
 

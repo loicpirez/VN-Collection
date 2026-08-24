@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { asJsonRecord } from '@/lib/json-shape';
 import { useT } from '@/lib/i18n/client';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 type LoadState = 'idle' | 'loading' | 'partial' | 'error' | 'complete';
 
@@ -71,10 +72,9 @@ export function TagRemoteLoader({
   if (!enabled || state === 'complete') return null;
   if (state === 'loading' || state === 'idle') {
     return (
-      <div className="mt-3 inline-flex items-center gap-2 text-xs text-muted" role="status">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-        {t.common.loading}
-      </div>
+      <SkeletonBoundary label={t.common.loading} className="mt-3">
+        <SkeletonBlock className="h-3.5 w-40" />
+      </SkeletonBoundary>
     );
   }
   return (

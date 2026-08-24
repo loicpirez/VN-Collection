@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftRight, ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { decodeProducerPickerResults, type ProducerPickerRow as Producer } from '@/lib/picker-client-shape';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 /**
  * Two side-by-side producer pickers. Loads the local producer list from
@@ -48,9 +49,15 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
 
   if (loading) {
     return (
-      <div className="mt-4 inline-flex items-center gap-2 text-xs text-muted">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-      </div>
+      <SkeletonBoundary
+        label={t.common.loading}
+        className="mt-4 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto]"
+      >
+        <SkeletonBlock className="h-11 w-full" />
+        <SkeletonBlock className="mx-auto h-5 w-5 rounded-full" />
+        <SkeletonBlock className="h-11 w-full" />
+        <SkeletonBlock className="h-11 w-full sm:w-24" />
+      </SkeletonBoundary>
     );
   }
 

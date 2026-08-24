@@ -1,12 +1,13 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeVnAspectClientState } from '@/lib/vn-detail-client-shape';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 /**
  * Per-VN aspect-ratio override + display. Surfaces the currently
  * derived aspect (manual / per-edition / cached release resolution /
@@ -128,14 +129,14 @@ export function AspectOverrideControl({
 
   if (loading) {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-busy
-        className="p-3 text-xs text-muted"
-      >
-        <Loader2 className="inline h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-      </div>
+      <SkeletonBoundary label={t.common.loading} className="space-y-2 p-3 sm:p-4">
+        <SkeletonBlock className="h-3 w-4/5" />
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <SkeletonBlock key={index} className="h-8 w-14" />
+          ))}
+        </div>
+      </SkeletonBoundary>
     );
   }
 

@@ -10,6 +10,7 @@ import { fetchAllCollectionItems } from '@/lib/collection-api-client';
 import { decodeCollectionSelectiveRow, type CollectionSelectiveRow } from '@/lib/collection-client-shape';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeSelectiveDownloadQueuedCount } from '@/lib/operation-client-shape';
+import { SkeletonRows } from './Skeleton';
 type SortKey = 'title' | 'added_at' | 'updated_at' | 'released' | 'rating' | 'user_rating' | 'playtime' | 'status';
 type SortOrder = 'asc' | 'desc';
 type NumericSortKey = 'added_at' | 'updated_at' | 'rating' | 'user_rating' | 'playtime';
@@ -356,7 +357,9 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
       </div>
 
       {loading ? (
-        <p className="text-xs text-muted">{t.common.loading}</p>
+        <div className="max-h-[min(28rem,55vh)] min-h-32 overflow-hidden">
+          <SkeletonRows count={5} withThumb={false} label={t.common.loading} />
+        </div>
       ) : (
         // Min height keeps the toolbar from "popping" when the user
         // narrows the filter to nothing; max height adapts to the viewport

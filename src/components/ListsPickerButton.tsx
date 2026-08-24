@@ -12,6 +12,7 @@ import {
   decodeOrganizerUserLists,
   type OrganizerUserList as UserList,
 } from '@/lib/organizer-client-shape';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 
 interface Props {
   vnId: string;
@@ -301,9 +302,11 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
             </button>
           </div>
           {loading && (
-            <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted">
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {t.common.loading}
-            </div>
+            <SkeletonBoundary label={t.common.loading} className="space-y-1.5 py-1">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-8 w-full" />
+              ))}
+            </SkeletonBoundary>
           )}
           {!loading && lists && memberships && (
             <>
