@@ -125,7 +125,7 @@ describe('fetchVndbTopRanked', () => {
         jsonResponse({ results: [vnRow('v90010', { rating: 80 }), vnRow('v90011', { rating: 90 })], more: true }),
       )
       .mockResolvedValueOnce(jsonResponse({ results: [vnRow('v90012', { rating: 85 })], more: false }));
-    const out = await fetchVndbTopRanked(10);
+    const out = await fetchVndbTopRanked();
     // Clamp lifts the minimum to 10 results; both pages were consulted.
     expect(providerFetchMock).toHaveBeenCalledTimes(2);
     // Output is rating-descending regardless of page arrival order.
@@ -160,6 +160,12 @@ describe('fetchVndbTopRanked', () => {
 });
 
 describe('fetchVndbTopRankedPage', () => {
+  it('uses the public paging defaults', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ results: [], more: false }));
+    const out = await fetchVndbTopRankedPage();
+    expect(out).toMatchObject({ page: 1, pageSize: 50, hasMore: false, rows: [] });
+  });
+
   it('clamps page + pageSize and reports hasMore', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ results: [vnRow('v90030')], more: true }));
     const out = await fetchVndbTopRankedPage(0, 5, 50);
@@ -275,7 +281,7 @@ describe('fetchAllUpcomingFromVndb', () => {
     providerFetchMock
       .mockResolvedValueOnce(jsonResponse({ results: [releaseRow('r90010')], more: true }))
       .mockResolvedValueOnce(jsonResponse({ results: [releaseRow('r90010'), releaseRow('r90011')], more: false }));
-    const out = await fetchAllUpcomingFromVndb(50);
+    const out = await fetchAllUpcomingFromVndb();
     expect(out.map((r) => r.id)).toEqual(['r90010', 'r90011']);
     const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
     expect(body.filters[0]).toBe('and');
