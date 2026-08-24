@@ -122,6 +122,15 @@ async function safePlaceProviderMap(): Promise<{ map: Record<string, number>; av
   }
 }
 
+async function revalidateCachedVn(id: string): Promise<void> {
+  try {
+    const fresh = await getVn(id);
+    if (fresh) await getVnWriteRepository().upsert(fresh);
+  } catch (error) {
+    console.warn(OPERATION_LOG_CODES.vnDetailUpstreamLookupFailed, id, error);
+  }
+}
+
 /**
  * Resolve a VN id to its on-screen detail data.
  *
@@ -149,10 +158,13 @@ const loadVn = cache(
       return { vn: cached, error: null };
     }
     if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return { vn: cached, error: null };
+    if (cached) {
+      void revalidateCachedVn(id);
+      return { vn: cached, error: null };
+    }
     try {
       const fresh = await getVn(id);
       if (!fresh) {
-        if (cached) return { vn: cached, error: null };
         const t = await getDict();
         return { vn: null, error: t.detail.vndbNoResult.replace('{id}', id) };
       }
@@ -160,7 +172,6 @@ const loadVn = cache(
       return { vn: await reader.getCollectionItem(id), error: null };
     } catch (e) {
       const msg = (e as Error).message || '';
-      if (cached) return { vn: cached, error: null };
       return { vn: null, error: msg };
     }
   },
