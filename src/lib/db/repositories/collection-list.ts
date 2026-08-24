@@ -228,8 +228,8 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
   pushBooleanClause(where, options.matchVndb, "SUBSTRING(v.id FROM 1 FOR 4) <> 'egs_'");
   pushBooleanClause(where, options.matchEgs, 'e.vn_id IS NOT NULL');
   pushBooleanClause(where, options.fanDisc, `EXISTS (
-    SELECT 1 FROM jsonb_array_elements(COALESCE(NULLIF(v.relations, ''), '[]')::jsonb) relation
-    WHERE relation->>'relation' = 'orig'
+    SELECT 1 FROM vn_relation_index relation
+    WHERE relation.vn_id = v.id AND relation.relation = 'orig'
   )`);
   pushBooleanClause(where, options.hasNotes, "NULLIF(TRIM(c.notes), '') IS NOT NULL");
   pushBooleanClause(where, options.hasCustomCover, "NULLIF(TRIM(v.custom_cover), '') IS NOT NULL");
@@ -487,14 +487,16 @@ async function preparePostgresAspectData(vnIds: readonly string[]): Promise<void
       `, [row.release_id, row.vn_id, parsed.width, parsed.height, row.resolution, aspectKeyForResolution(parsed.width, parsed.height), now]);
     }
     await client.query(`
-      UPDATE owned_release owned SET owned_platform = release.platforms::jsonb->>0
-      FROM release_meta_cache release
+      UPDATE owned_release owned SET owned_platform = release.platform
+      FROM (
+        SELECT release_id, MIN(platform) AS platform
+        FROM release_platform_index
+        GROUP BY release_id
+        HAVING COUNT(*) = 1
+      ) release
       WHERE owned.release_id = release.release_id
         AND owned.vn_id = ANY($1::text[])
         AND owned.owned_platform IS NULL
-        AND release.platforms IS NOT NULL
-        AND jsonb_typeof(release.platforms::jsonb) = 'array'
-        AND jsonb_array_length(release.platforms::jsonb) = 1
     `, [vnIds]);
     const signaled = await hasAspectSignal(client, vnIds);
     const missing = vnIds.filter((vnId) => !signaled.has(vnId));

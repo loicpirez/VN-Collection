@@ -175,6 +175,10 @@ interface SchemaRow extends QueryResultRow {
   schema: string;
 }
 
+interface TableNameRow extends QueryResultRow {
+  table_name: string;
+}
+
 const execFileAsync = promisify(execFile);
 
 function requiredTestUrl(): string {
@@ -229,8 +233,19 @@ describe('real PostgreSQL migration runtime', () => {
         FROM information_schema.tables
         WHERE table_schema = current_schema()
       `);
+      const normalizedIndexTables = await pool.query<TableNameRow>(`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name IN ('release_platform_index', 'vn_relation_index')
+        ORDER BY table_name
+      `);
       expect(activeSchema.rows[0]?.schema).toBe(schema);
-      expect(tables.rows[0]?.count).toBe(55);
+      expect(tables.rows[0]?.count).toBe(57);
+      expect(normalizedIndexTables.rows).toEqual([
+        { table_name: 'release_platform_index' },
+        { table_name: 'vn_relation_index' },
+      ]);
       const quarantineColumns = await pool.query<CountRow>(`
         SELECT COUNT(*)::int AS count
         FROM information_schema.columns

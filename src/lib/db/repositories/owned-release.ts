@@ -412,18 +412,18 @@ export function createPostgresOwnedReleaseRepository(): OwnedReleaseRepository {
         if (patch.owned_platform == null) {
           await executor.query(`
             UPDATE owned_release SET owned_platform = (
-              SELECT rm.platforms::jsonb ->> 0
-              FROM release_meta_cache rm
-              WHERE rm.release_id = owned_release.release_id
-                AND jsonb_typeof(rm.platforms::jsonb) = 'array'
-                AND jsonb_array_length(rm.platforms::jsonb) = 1
+              SELECT MIN(platform)
+              FROM release_platform_index
+              WHERE release_id = owned_release.release_id
+              GROUP BY release_id
+              HAVING COUNT(*) = 1
             )
             WHERE vn_id = $1 AND release_id = $2 AND owned_platform IS NULL
               AND EXISTS (
-                SELECT 1 FROM release_meta_cache rm
-                WHERE rm.release_id = owned_release.release_id
-                  AND jsonb_typeof(rm.platforms::jsonb) = 'array'
-                  AND jsonb_array_length(rm.platforms::jsonb) = 1
+                SELECT 1 FROM release_platform_index
+                WHERE release_id = owned_release.release_id
+                GROUP BY release_id
+                HAVING COUNT(*) = 1
               )
           `, [vnId, releaseId]);
         }

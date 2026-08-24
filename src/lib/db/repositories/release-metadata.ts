@@ -164,13 +164,16 @@ export function createPostgresReleaseMetadataRepository(): ReleaseMetadataReposi
         }
         await client.query(`
           UPDATE owned_release
-          SET owned_platform = release_meta.platforms::jsonb ->> 0
-          FROM release_meta_cache release_meta
-          WHERE owned_release.release_id = release_meta.release_id
+          SET owned_platform = release_platform.platform
+          FROM (
+            SELECT release_id, MIN(platform) AS platform
+            FROM release_platform_index
+            GROUP BY release_id
+            HAVING COUNT(*) = 1
+          ) release_platform
+          WHERE owned_release.release_id = release_platform.release_id
             AND owned_release.vn_id = ANY($1::text[])
             AND owned_release.owned_platform IS NULL
-            AND jsonb_typeof(release_meta.platforms::jsonb) = 'array'
-            AND jsonb_array_length(release_meta.platforms::jsonb) = 1
         `, [normalized]);
         return count;
       });
