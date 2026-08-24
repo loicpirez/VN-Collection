@@ -520,7 +520,7 @@ describe('reading-queue lifecycle', () => {
     });
     const res = await readingQueueGET();
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({ ok: false, error: 'internal error', code: 'internal_error', context: 'reading-queue.GET' });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:reading-queue.GET] queue list failed');
     listSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -534,7 +534,7 @@ describe('reading-queue lifecycle', () => {
     });
     const res = await readingQueuePOST(loopback('/api/reading-queue', 'POST', { vn_id: VN_A }));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({ ok: false, error: 'internal error', code: 'internal_error', context: 'reading-queue.POST' });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:reading-queue.POST] queue add failed');
     addSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -547,7 +547,7 @@ describe('reading-queue lifecycle', () => {
     });
     const res = await readingQueueDELETE(loopback(`/api/reading-queue?vn_id=${VN_A}`, 'DELETE'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({ ok: false, error: 'internal error', code: 'internal_error', context: 'reading-queue.DELETE' });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:reading-queue.DELETE] queue remove failed');
     removeSpy.mockRestore();
     consoleSpy.mockRestore();
@@ -560,7 +560,7 @@ describe('reading-queue lifecycle', () => {
     });
     const res = await readingQueuePATCH(loopback('/api/reading-queue', 'PATCH', { ids: [VN_A] }));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({ ok: false, error: 'internal error', code: 'internal_error', context: 'reading-queue.PATCH' });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:reading-queue.PATCH] queue reorder failed');
     reorderSpy.mockRestore();
     consoleSpy.mockRestore();

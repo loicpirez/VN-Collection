@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { countFinishedInYear, getReadingGoal, setReadingGoal } from '@/lib/db';
+import { getAnalyticsRepository } from '@/lib/db/repositories/analytics';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -19,11 +19,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const year = Number.isSafeInteger(rawYear) && rawYear >= YEAR_MIN && rawYear <= YEAR_MAX
     ? rawYear
     : new Date().getFullYear();
-  return NextResponse.json({
-    year,
-    goal: getReadingGoal(year),
-    finished: countFinishedInYear(year),
-  });
+  const repository = getAnalyticsRepository();
+  const [goal, finished] = await Promise.all([
+    repository.readingGoal(year),
+    repository.countFinishedInYear(year),
+  ]);
+  return NextResponse.json({ year, goal, finished });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -37,9 +38,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!targetResult.ok) return NextResponse.json({ error: targetResult.error }, { status: 400 });
   const year = yearResult.value;
   const target = targetResult.value;
-  const goal = setReadingGoal(year, target);
+  const goal = await getAnalyticsRepository().setReadingGoal(year, target);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'reading-goal.set',
       entity: 'reading-goal',
       entityId: String(year),

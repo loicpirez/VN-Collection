@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  addToReadingQueue,
-  isInCollection,
-  listReadingQueue,
-  removeFromReadingQueue,
-  reorderReadingQueue,
-} from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getReadingQueueRepository } from '@/lib/db/repositories/reading-queue';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -19,7 +14,7 @@ void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
   try {
-    return NextResponse.json({ entries: listReadingQueue() });
+    return NextResponse.json({ entries: await getReadingQueueRepository().list() });
   } catch (err) {
     return internalError('reading-queue.GET', err);
   }
@@ -34,11 +29,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
     }
     const vnId = normalizeVnId(body.vn_id);
-    if (!isInCollection(vnId)) {
+    if (!await getCollectionCoreRepository().contains(vnId)) {
       return NextResponse.json({ error: 'add VN to collection first' }, { status: 400 });
     }
-    const entry = addToReadingQueue(vnId);
-    recordActivity({ kind: 'reading_queue.add', entity: 'vn', entityId: vnId, label: 'Added to reading queue' });
+    const entry = await getReadingQueueRepository().add(vnId);
+    await recordActivity({ kind: 'reading_queue.add', entity: 'vn', entityId: vnId, label: 'Added to reading queue' });
     return NextResponse.json({ entry });
   } catch (err) {
     return internalError('reading-queue.POST', err);
@@ -54,9 +49,9 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'vn_id required' }, { status: 400 });
     }
     const normalizedVnId = normalizeVnId(vnId);
-    const ok = removeFromReadingQueue(normalizedVnId);
+    const ok = await getReadingQueueRepository().remove(normalizedVnId);
     if (!ok) return NextResponse.json({ error: 'not in queue' }, { status: 404 });
-    recordActivity({ kind: 'reading_queue.remove', entity: 'vn', entityId: normalizedVnId, label: 'Removed from reading queue' });
+    await recordActivity({ kind: 'reading_queue.remove', entity: 'vn', entityId: normalizedVnId, label: 'Removed from reading queue' });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('reading-queue.DELETE', err);
@@ -79,8 +74,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (new Set(ids).size !== ids.length) {
       return NextResponse.json({ error: 'ids must not contain duplicates' }, { status: 400 });
     }
-    reorderReadingQueue(ids);
-    recordActivity({ kind: 'reading_queue.reorder', entity: 'reading_queue', label: 'Reordered reading queue', payload: { ids } });
+    await getReadingQueueRepository().reorder(ids);
+    await recordActivity({ kind: 'reading_queue.reorder', entity: 'reading_queue', label: 'Reordered reading queue', payload: { ids } });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return internalError('reading-queue.PATCH', err);
