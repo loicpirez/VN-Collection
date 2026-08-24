@@ -19,11 +19,28 @@ const sqliteMocks = vi.hoisted(() => ({
   iterate: vi.fn(),
 }));
 
+const runtimeMocks = vi.hoisted(() => ({
+  backend: 'sqlite',
+  getPostgresPool: vi.fn(),
+}));
+
 vi.mock('@/lib/db', () => ({
   db: { prepare: sqliteMocks.prepare },
 }));
 
+vi.mock('@/lib/db/postgres-config', () => ({
+  readDatabaseConfig: () => runtimeMocks.backend === 'postgres'
+    ? { backend: 'postgres' }
+    : { backend: 'sqlite' },
+}));
+
+vi.mock('@/lib/db/postgres', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/postgres')>();
+  return { ...actual, getPostgresPool: runtimeMocks.getPostgresPool };
+});
+
 import {
+  createRawCacheExport,
   createPostgresRawCacheExport,
   createSqliteRawCacheExport,
 } from '@/lib/db/raw-cache-export';
@@ -58,6 +75,7 @@ class FakeClient implements RawCacheExportClient {
       failOn?: RegExp;
       closeFails?: boolean;
       rollbackFails?: boolean;
+      emptyCount?: boolean;
     } = {},
   ) {}
 
@@ -72,6 +90,7 @@ class FakeClient implements RawCacheExportClient {
     }
     if (this.options.failOn?.test(sql)) throw new Error('synthetic database failure');
     if (sql.startsWith('SELECT COUNT(*)')) {
+      if (this.options.emptyCount) return result([]);
       return result(typedRows<Row>([{ count: 2 }]));
     }
     if (sql.startsWith('FETCH FORWARD')) {
@@ -112,6 +131,7 @@ function returningIterator(onReturn: () => void): IterableIterator<RawRow> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtimeMocks.backend = 'sqlite';
   sqliteMocks.prepare.mockImplementation((sql: string) => sql.includes('COUNT(*)')
     ? { get: () => ({ count: 2 }) }
     : { iterate: sqliteMocks.iterate });
@@ -119,6 +139,20 @@ beforeEach(() => {
 });
 
 describe('raw cache export', () => {
+  it('selects the configured backend and uses the shared PostgreSQL pool', async () => {
+    const sqlite = await createRawCacheExport();
+    await new Response(sqlite.stream).text();
+
+    const client = new FakeClient();
+    runtimeMocks.backend = 'postgres';
+    runtimeMocks.getPostgresPool.mockReturnValueOnce(new FakePool(client));
+    const postgres = await createRawCacheExport();
+    await new Response(postgres.stream).text();
+
+    expect(runtimeMocks.getPostgresPool).toHaveBeenCalledOnce();
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
   it('streams valid SQLite JSON while preserving malformed cached bodies', async () => {
     const download = await createSqliteRawCacheExport();
     const parsed = JSON.parse(await new Response(download.stream).text()) as {
@@ -177,6 +211,11 @@ describe('raw cache export', () => {
   });
 
   it('cleans up PostgreSQL setup and cursor failures', async () => {
+    const begin = new FakeClient({ failOn: /^BEGIN/ });
+    await expect(createPostgresRawCacheExport(new FakePool(begin))).rejects.toThrow('synthetic database failure');
+    expect(begin.queries).not.toContain('ROLLBACK');
+    expect(begin.release).toHaveBeenCalledTimes(1);
+
     const setup = new FakeClient({ failOn: /^SELECT COUNT/ });
     await expect(createPostgresRawCacheExport(new FakePool(setup))).rejects.toThrow('synthetic database failure');
     expect(setup.queries).toContain('ROLLBACK');
@@ -187,6 +226,13 @@ describe('raw cache export', () => {
     await expect(new Response(download.stream).text()).rejects.toThrow('synthetic database failure');
     expect(fetch.queries).toContain('ROLLBACK');
     expect(fetch.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses zero when the PostgreSQL count query returns no row', async () => {
+    const client = new FakeClient({ emptyCount: true });
+    const download = await createPostgresRawCacheExport(new FakePool(client));
+    const parsed = JSON.parse(await new Response(download.stream).text()) as { entry_count: number };
+    expect(parsed.entry_count).toBe(0);
   });
 
   it('still releases the PostgreSQL client when close and rollback fail', async () => {
