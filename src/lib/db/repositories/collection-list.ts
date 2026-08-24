@@ -287,10 +287,10 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
     : options._projection === 'full-no-raw'
       ? FULL_NO_RAW_VN_COLUMNS
       : 'v.*';
-  const safeLimit = Number.isFinite(options.limit) && (options.limit ?? 0) > 0
+  const safeLimit = Number.isFinite(options.limit) && options.limit! > 0
     ? Math.min(10_000, Math.floor(options.limit!))
     : 10_000;
-  const safeOffset = Number.isFinite(options.offset) && (options.offset ?? 0) > 0
+  const safeOffset = Number.isFinite(options.offset) && options.offset! > 0
     ? Math.min(10_000_000, Math.floor(options.offset!))
     : 0;
   const limit = bindings.add(safeLimit);
