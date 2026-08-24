@@ -146,25 +146,15 @@ describe('LayoutSettingsTab branches', () => {
     expect((within(libraryRow).getByRole('button', { name: t.settings.densityReset as string }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('clamps the scoped density at the floor and ceiling', async () => {
+  it('applies only the fixed scoped-density presets', async () => {
     renderLayout();
     await waitFor(() => expect(screen.getByText(t.pageSpace.scope.library as string)).toBeInTheDocument());
     const libraryRow = rowFor(t.pageSpace.scope.library as string);
-    const slider = within(libraryRow).getByRole('slider', { name: t.cardDensity.label as string });
-    const denser = within(libraryRow).getByRole('button', { name: t.cardDensity.denser as string });
-    const larger = within(libraryRow).getByRole('button', { name: t.cardDensity.larger as string });
-
-    // Pin to the floor, then one more denser step clamps (no change).
-    fireEvent.change(slider, { target: { value: '120' } });
-    await waitFor(() => expect(within(libraryRow).getByText('120px')).toBeInTheDocument());
-    fireEvent.click(denser);
-    await waitFor(() => expect(within(libraryRow).getByText('120px')).toBeInTheDocument());
-
-    // Pin to the ceiling, then one more larger step clamps (no change).
-    fireEvent.change(slider, { target: { value: '480' } });
-    await waitFor(() => expect(within(libraryRow).getByText('480px')).toBeInTheDocument());
-    fireEvent.click(larger);
-    await waitFor(() => expect(within(libraryRow).getByText('480px')).toBeInTheDocument());
+    expect(within(libraryRow).queryByRole('slider')).toBeNull();
+    fireEvent.click(within(libraryRow).getByRole('button', { name: `${t.cardDensity.presetLabel}: ${t.cardDensity.preset.compact}` }));
+    await waitFor(() => expect(within(libraryRow).getByText('160px')).toBeInTheDocument());
+    fireEvent.click(within(libraryRow).getByRole('button', { name: `${t.cardDensity.presetLabel}: ${t.cardDensity.preset.balanced}` }));
+    await waitFor(() => expect(within(libraryRow).getByText('220px')).toBeInTheDocument());
   });
 
   it('cancels the reset-everything confirmation without clearing overrides', async () => {

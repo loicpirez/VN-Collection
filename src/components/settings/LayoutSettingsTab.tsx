@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Eye, EyeOff, GripVertical, Maximize2, Minimize2, RotateCcw, Settings2 } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ChevronDown, ChevronUp, Check, Eye, EyeOff, GripVertical, RotateCcw, Settings2 } from 'lucide-react';
 import {
   DndContext,
   KeyboardSensor,
@@ -21,8 +22,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   CARD_DENSITY_DEFAULT,
-  CARD_DENSITY_MAX,
-  CARD_DENSITY_MIN,
   DENSITY_SCOPES,
   clampCardDensity,
   clearAllScopeDensities,
@@ -39,6 +38,7 @@ import {
   clearPageSpaceOverrides,
   hasPageSpaceOverride,
   resolvePageSpacePreset,
+  resolvePageSpaceScope,
   type PageSpaceOverrides,
   type PageSpacePreset,
   type PageSpaceScope,
@@ -777,6 +777,12 @@ const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly Densit
   egs: ['egs'],
 };
 
+const CARD_DENSITY_PRESETS = [
+  { id: 'compact', value: 160 },
+  { id: 'balanced', value: 220 },
+  { id: 'comfortable', value: 320 },
+] as const;
+
 /**
  * Settings → Display panel for per-page layout overrides. It combines
  * page spacing and scoped card-density state in one row per route
@@ -786,11 +792,14 @@ const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly Densit
  */
 function PerPageLayoutPanel() {
   const t = useT();
+  const pathname = usePathname();
   const { settings, set } = useDisplaySettings();
   const { confirm } = useConfirm();
   const [hydrated, setHydrated] = useState(false);
   const pageSpace = settings.pageSpace;
   const density = settings.density;
+  const activePageScope = resolvePageSpaceScope(pathname ?? '');
+  const activePageSpaceOverridden = hasPageSpaceOverride(settings, activePageScope);
 
   useEffect(() => {
     setHydrated(true);
@@ -854,6 +863,22 @@ function PerPageLayoutPanel() {
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
       <span className="text-sm font-semibold">{t.settings.perPageLayout}</span>
       <span className="text-[11px] text-muted">{t.settings.perPageLayoutHint}</span>
+      {activePageSpaceOverridden && (
+        <div
+          role="status"
+          aria-label={t.contentWidth.customOverride}
+          className="flex flex-wrap items-center gap-1.5 border-y border-accent/25 bg-accent/5 px-2 py-1.5 text-[11px]"
+        >
+          <span className="font-semibold text-white">{t.pageSpace.scope[activePageScope]}</span>
+          <span
+            className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
+            title={t.contentWidth.customOverride}
+          >
+            {t.contentWidth.customOverrideChip}
+          </span>
+          <span className="text-muted">{t.pageSpace.preset[resolvePageSpacePreset(settings, activePageScope)]}</span>
+        </div>
+      )}
       <ul className="mt-1 grid gap-2">
         {PAGE_SPACE_SCOPES.map((scope) => {
           const activePreset = resolvePageSpacePreset(settings, scope);
@@ -914,53 +939,46 @@ function PerPageLayoutPanel() {
                       const overridden = hasScopeOverride(settings, densityScope);
                       const resolved = resolveScopedDensity(settings, densityScope, null);
                       return (
-                        <span
+                        <div
                           key={densityScope}
-                          className={`grid w-full max-w-[20rem] grid-cols-[44px_minmax(4rem,1fr)_44px_2.5rem_44px] items-center gap-1 rounded-md border px-2 py-1 ${
+                          className={`w-full rounded-md border p-2 ${
                             overridden ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-elev/40'
                           }`}
                           title={overridden ? t.settings.densityReset : t.settings.followsDefault}
                         >
-                          <button
-                            type="button"
-                            onClick={() => setScopeDensity(densityScope, resolved - 20)}
-                            aria-label={t.cardDensity.denser}
-                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent"
-                          >
-                            <Minimize2 className="h-3 w-3" aria-hidden />
-                          </button>
-                          <input
-                            type="range"
-                            min={CARD_DENSITY_MIN}
-                            max={CARD_DENSITY_MAX}
-                            step={10}
-                            value={resolved}
-                            onChange={(e) => setScopeDensity(densityScope, Number(e.target.value))}
-                            aria-label={t.cardDensity.label}
-                            className="h-1.5 min-w-0 w-full cursor-pointer accent-accent"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setScopeDensity(densityScope, resolved + 20)}
-                            aria-label={t.cardDensity.larger}
-                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent"
-                          >
-                            <Maximize2 className="h-3 w-3" aria-hidden />
-                          </button>
-                          <span className={`w-9 text-right text-[10px] tabular-nums ${overridden ? 'text-accent' : 'text-muted/80'}`}>
-                            {resolved}px
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => resetDensityScope(densityScope)}
-                            disabled={!overridden}
-                            aria-label={t.settings.densityReset}
-                            title={t.settings.densityReset}
-                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
-                          >
-                            <RotateCcw className="h-3 w-3" aria-hidden />
-                          </button>
-                        </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="mr-1 text-[10px] font-semibold text-muted">{t.cardDensity.presetLabel}</span>
+                            {CARD_DENSITY_PRESETS.map((preset) => (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                aria-label={`${t.cardDensity.presetLabel}: ${t.cardDensity.preset[preset.id]}`}
+                                aria-pressed={resolved === preset.value}
+                                onClick={() => setScopeDensity(densityScope, preset.value)}
+                                className={`min-h-[44px] rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                                  resolved === preset.value
+                                    ? 'border-accent bg-accent/15 text-accent'
+                                    : 'border-border bg-bg-card/50 text-muted hover:border-accent hover:text-accent'
+                                }`}
+                              >
+                                {t.cardDensity.preset[preset.id]}
+                              </button>
+                            ))}
+                            <span className={`ml-auto min-w-10 text-right text-[10px] tabular-nums ${overridden ? 'text-accent' : 'text-muted/80'}`}>
+                              {resolved}px
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => resetDensityScope(densityScope)}
+                              disabled={!overridden}
+                              aria-label={t.settings.densityReset}
+                              title={t.settings.densityReset}
+                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
+                            >
+                              <RotateCcw className="h-3 w-3" aria-hidden />
+                            </button>
+                          </div>
+                        </div>
                       );
                     })
                   ) : (

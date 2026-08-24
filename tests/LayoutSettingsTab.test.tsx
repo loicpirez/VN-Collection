@@ -88,21 +88,23 @@ describe('LayoutSettingsTab', () => {
 
   it('hydrates the per-page panel and updates spacing plus density overrides', async () => {
     renderLayout();
-    await waitFor(() => expect(screen.getByText(t.pageSpace.scope.library as string)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(t.pageSpace.scope.library as string).length).toBeGreaterThan(0));
 
     const libraryRow = closestListItem(screen.getByText(t.pageSpace.scope.library as string));
     fireEvent.click(within(libraryRow).getByRole('button', { name: t.pageSpace.preset.compact as string }));
     expect(within(libraryRow).getByText(t.pageSpace.customOverride as string)).toBeTruthy();
-    fireEvent.click(within(libraryRow).getByRole('button', { name: t.cardDensity.larger as string }));
-    expect(within(libraryRow).getByText('240px')).toBeTruthy();
-    fireEvent.click(within(libraryRow).getByRole('button', { name: t.cardDensity.denser as string }));
-    expect(within(libraryRow).getByText('220px')).toBeTruthy();
-    fireEvent.change(within(libraryRow).getByRole('slider', { name: t.cardDensity.label as string }), { target: { value: '300' } });
-    expect(within(libraryRow).getByText('300px')).toBeTruthy();
+    const activeOverride = screen.getByRole('status', { name: t.contentWidth.customOverride as string });
+    expect(within(activeOverride).getByText(t.pageSpace.scope.library as string)).toBeTruthy();
+    expect(within(activeOverride).getByText(t.contentWidth.customOverrideChip as string)).toBeTruthy();
+    expect(within(activeOverride).getByText(t.pageSpace.preset.compact as string)).toBeTruthy();
+    fireEvent.click(within(libraryRow).getByRole('button', { name: `${t.cardDensity.presetLabel}: ${t.cardDensity.preset.comfortable}` }));
+    expect(within(libraryRow).getByText('320px')).toBeTruthy();
+    expect(within(libraryRow).queryByRole('slider')).toBeNull();
     fireEvent.click(within(libraryRow).getByRole('button', { name: t.settings.densityReset as string }));
     expect(within(libraryRow).getByText('220px')).toBeTruthy();
     fireEvent.click(within(libraryRow).getByRole('button', { name: t.settings.pageSpaceReset as string }));
     expect(within(libraryRow).getByText(t.pageSpace.defaultPreset.replace('{preset}', t.pageSpace.preset.standard))).toBeTruthy();
+    expect(screen.queryByRole('status', { name: t.contentWidth.customOverride as string })).toBeNull();
   });
 
   it('applies global spacing presets', async () => {
@@ -123,7 +125,7 @@ describe('LayoutSettingsTab', () => {
       JSON.stringify({ pageSpace: { library: 'compact' }, density: { library: 240 } }),
     );
     renderLayout();
-    await waitFor(() => expect(screen.getByText(t.pageSpace.scope.library as string)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(t.pageSpace.scope.library as string).length).toBeGreaterThan(0));
     const pageReset = screen.getByRole('button', { name: t.settings.pageSpaceResetAll as string }) as HTMLButtonElement;
     const densityReset = screen.getByRole('button', { name: t.settings.perPageResetAll as string }) as HTMLButtonElement;
     await waitFor(() => {

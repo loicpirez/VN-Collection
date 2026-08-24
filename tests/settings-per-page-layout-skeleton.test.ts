@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const LAYOUT_SOURCE = readFileSync(
+  join(process.cwd(), 'src/components/settings/LayoutSettingsTab.tsx'),
+  'utf8',
+);
+
 const SOURCE = [
   'src/components/SettingsButton.tsx',
   'src/components/settings/LayoutSettingsTab.tsx',
@@ -23,11 +28,11 @@ describe('Settings per-page layout panel', () => {
     expect(SOURCE).toContain('savingToken ? <Loader2');
   });
 
-  it('reserves a stable density track so sliders cannot overlap spacing presets', () => {
+  it('uses fixed density presets without an overlapping range control', () => {
     expect(SOURCE).toContain('lg:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)]');
     expect(SOURCE).toContain('min-w-0 space-y-2');
     expect(SOURCE).toContain('border-t border-border/40 pt-2');
-    expect(SOURCE).toContain('grid w-full max-w-[20rem] grid-cols-[44px_minmax(4rem,1fr)_44px_2.5rem_44px]');
-    expect(SOURCE).toContain('h-1.5 min-w-0 w-full cursor-pointer accent-accent');
+    expect(LAYOUT_SOURCE).toContain('CARD_DENSITY_PRESETS.map');
+    expect(LAYOUT_SOURCE).not.toContain('type="range"');
   });
 });
