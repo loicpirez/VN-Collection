@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { fetchEgsGame } from '@/lib/erogamescape';
 import { isAllowedHttpTarget as isAllowedTarget } from '@/lib/url-allowlist';
 import { safeFetch } from '@/lib/safe-fetch';
@@ -8,6 +7,9 @@ import { tooManyRequests } from '@/lib/rate-limit-response';
 import { decodeCachedEgsCoverUrl, decodeEgsCoverRaw, decodeEgsCoverRawJson, type EgsCoverRawRow } from '@/lib/egs-cover-raw';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { getEgsRepository } from '@/lib/db/repositories/egs';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 /**
  * Cover resolver for EGS games. EGS records external-shop ids on each game
  * (DMM, Suruga-ya, DLsite, gyutto, banner_url) but stores no cover of its
@@ -37,15 +39,8 @@ const CACHE_TTL_MS = 7 * 24 * 3600 * 1000;
 const NEGATIVE_TTL_MS = 60 * 60 * 1000;
 const PROBE_TIMEOUT_MS = 3500;
 
-interface CacheRow {
-  body: string;
-  expires_at: number;
-}
-
-function readCached(key: string): string | null | undefined {
-  const row = db
-    .prepare('SELECT body, expires_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key) as CacheRow | undefined;
+async function readCached(key: string): Promise<string | null | undefined> {
+  const row = await getCacheRepository().get(key);
   if (!row || row.expires_at < Date.now()) return undefined;
   try {
     return decodeCachedEgsCoverUrl(JSON.parse(row.body));
@@ -54,16 +49,16 @@ function readCached(key: string): string | null | undefined {
   }
 }
 
-function writeCached(key: string, url: string | null, ttl: number): void {
+async function writeCached(key: string, url: string | null, ttl: number): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key, JSON.stringify({ url }), now, now + ttl);
+  await getCacheRepository().put({
+    cache_key: key,
+    body: JSON.stringify({ url }),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + ttl,
+  });
 }
 
 /**
@@ -111,15 +106,13 @@ async function probeImage(url: string): Promise<boolean> {
   }
 }
 
-function readLocalRaw(egsId: number): EgsCoverRawRow {
-  const row = db
-    .prepare('SELECT vn_id, raw_json FROM egs_game WHERE egs_id = ? LIMIT 1')
-    .get(egsId) as { vn_id: string | null; raw_json: string | null } | undefined;
+async function readLocalRaw(egsId: number): Promise<EgsCoverRawRow> {
+  const row = await getEgsRepository().getCoverSource(egsId);
   return decodeEgsCoverRawJson(row?.raw_json, row?.vn_id ?? null);
 }
 
 async function readRawWithFallback(egsId: number): Promise<EgsCoverRawRow> {
-  const local = readLocalRaw(egsId);
+  const local = await readLocalRaw(egsId);
   if (local.banner_url || local.surugaya_1 || local.dmm || local.dlsite_id || local.gyutto_id) {
     return local;
   }
@@ -131,11 +124,9 @@ async function readRawWithFallback(egsId: number): Promise<EgsCoverRawRow> {
   }
 }
 
-function vndbCoverFor(vnId: string | null | undefined, origin: string): string | null {
+async function vndbCoverFor(vnId: string | null | undefined, origin: string): Promise<string | null> {
   if (!vnId || !isVndbVnId(vnId)) return null;
-  const row = db
-    .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
-    .get(vnId) as { image_url: string | null; local_image: string | null } | undefined;
+  const row = (await getVnReadRepository().getCovers([vnId]))[0];
   if (!row) return null;
   // NextResponse.redirect demands an absolute URL — pin the local-file
   // path to the request's own origin so the resolver can be called from
@@ -254,7 +245,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const origin = new URL(req.url).origin;
 
   const cacheKey = `egs:cover-resolved:${egsId}`;
-  const cached = readCached(cacheKey);
+  const cached = await readCached(cacheKey);
   if (cached === null) return new NextResponse(null, { status: 404 });
   if (typeof cached === 'string' && cached.length > 0) {
     if (isLocalOrRelativeTarget(cached, origin)) return proxyImage(cached, origin);
@@ -267,21 +258,21 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // 1) Curated EGS banner.
   const banner = (raw.banner_url ?? '').trim();
   if (banner && isProxyImageTargetAllowed(banner, origin)) {
-    writeCached(cacheKey, banner, CACHE_TTL_MS);
+    await writeCached(cacheKey, banner, CACHE_TTL_MS);
     return proxyImage(banner, origin);
   }
 
   // 2) VNDB cover via linked vn_id.
-  const vndbUrl = vndbCoverFor(raw.vn_id, origin);
+  const vndbUrl = await vndbCoverFor(raw.vn_id, origin);
   if (vndbUrl && isProxyImageTargetAllowed(vndbUrl, origin)) {
-    writeCached(cacheKey, vndbUrl, CACHE_TTL_MS);
+    await writeCached(cacheKey, vndbUrl, CACHE_TTL_MS);
     return proxyImage(vndbUrl, origin);
   }
 
   // 3) EGS image.php — probe, since it 404s often.
   const egsUrl = `${EGS_BASE}/image.php?game=${egsId}`;
   if (await probeImage(egsUrl)) {
-    writeCached(cacheKey, egsUrl, CACHE_TTL_MS);
+    await writeCached(cacheKey, egsUrl, CACHE_TTL_MS);
     return proxyImage(egsUrl, origin);
   }
 
@@ -289,10 +280,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // don't break the browser fetch.
   const shop = shopUrl(raw);
   if (shop) {
-    writeCached(cacheKey, shop, CACHE_TTL_MS);
+    await writeCached(cacheKey, shop, CACHE_TTL_MS);
     return proxyImage(shop, origin);
   }
 
-  writeCached(cacheKey, null, NEGATIVE_TTL_MS);
+  await writeCached(cacheKey, null, NEGATIVE_TTL_MS);
   return new NextResponse(null, { status: 404 });
 }

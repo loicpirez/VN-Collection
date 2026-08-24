@@ -49,6 +49,10 @@ export function registerEgsRepositoryContract(label: string, harness: EgsContrac
         const ids = EGS_CONTRACT_IDS;
         await expect(repository.getForVn(ids.vn)).resolves.toBeNull();
         await repository.upsertForVn(egsRow());
+        await expect(repository.getCoverSource(ids.egs)).resolves.toEqual({
+          vn_id: ids.vn,
+          raw_json: '{"genre":"test"}',
+        });
         await expect(repository.getForVn(ids.vn)).resolves.toMatchObject({
           egs_id: ids.egs,
           gamename: 'EGS Contract Game',

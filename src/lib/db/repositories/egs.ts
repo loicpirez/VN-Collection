@@ -9,6 +9,12 @@ export type EgsUpsert = Omit<EgsRow, 'fetched_at' | 'local_image'> & {
   local_image?: string | null;
 };
 
+/** Minimal persisted EGS payload required by cover resolution. */
+export interface EgsCoverSourceRow {
+  vn_id: string | null;
+  raw_json: string | null;
+}
+
 interface EgsStorageRow extends QueryResultRow, EgsRow {}
 interface VnEgsLinkRow extends QueryResultRow, VnEgsLink {}
 interface EgsVnLinkRow extends QueryResultRow, EgsVnLink {}
@@ -21,6 +27,8 @@ interface EgsVnMapRow extends QueryResultRow {
 export interface EgsRepository {
   /** Read one cached EGS resolution by VN id. */
   getForVn(vnId: string): Promise<EgsRow | null>;
+  /** Read raw cover-source metadata by EGS game id. */
+  getCoverSource(egsId: number): Promise<EgsCoverSourceRow | null>;
   /** Insert or refresh one EGS resolution while preserving a downloaded image. */
   upsertForVn(row: EgsUpsert): Promise<void>;
   /** Set or clear the locally downloaded EGS image path. */
@@ -65,6 +73,12 @@ export function createPostgresEgsRepository(): EgsRepository {
       const result = await postgresQuery<EgsStorageRow>(`
         SELECT ${EGS_COLUMNS} FROM egs_game WHERE vn_id = $1
       `, [vnId]);
+      return result.rows[0] ?? null;
+    },
+    async getCoverSource(egsId) {
+      const result = await postgresQuery<EgsCoverSourceRow & QueryResultRow>(`
+        SELECT vn_id, raw_json FROM egs_game WHERE egs_id = $1 LIMIT 1
+      `, [egsId]);
       return result.rows[0] ?? null;
     },
     async upsertForVn(row) {
@@ -180,6 +194,12 @@ export function createPostgresEgsRepository(): EgsRepository {
 const sqliteRepository: EgsRepository = {
   async getForVn(vnId) {
     return (await import('@/lib/db')).getEgsForVn(vnId);
+  },
+  async getCoverSource(egsId) {
+    const row = (await import('@/lib/db')).db
+      .prepare('SELECT vn_id, raw_json FROM egs_game WHERE egs_id = ? LIMIT 1')
+      .get(egsId) as EgsCoverSourceRow | undefined;
+    return row ?? null;
   },
   async upsertForVn(row) {
     (await import('@/lib/db')).upsertEgsForVn(row);

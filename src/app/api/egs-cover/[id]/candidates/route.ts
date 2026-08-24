@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { decodeEgsCoverRawJson } from '@/lib/egs-cover-raw';
 import { isAllowedHttpTarget } from '@/lib/url-allowlist';
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { getEgsRepository } from '@/lib/db/repositories/egs';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -40,11 +41,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!Number.isSafeInteger(egsId) || egsId <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  const row = db
-    .prepare(
-      'SELECT raw_json, vn_id FROM egs_game WHERE egs_id = ?',
-    )
-    .get(egsId) as { raw_json: string | null; vn_id: string | null } | undefined;
+  const row = await getEgsRepository().getCoverSource(egsId);
 
   const raw = decodeEgsCoverRawJson(row?.raw_json, row?.vn_id ?? null);
 
@@ -56,9 +53,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   if (raw.vn_id && isVndbVnId(raw.vn_id)) {
-    const vn = db
-      .prepare('SELECT image_url, local_image FROM vn WHERE id = ?')
-      .get(raw.vn_id) as { image_url: string | null; local_image: string | null } | undefined;
+    const vn = (await getVnReadRepository().getCovers([raw.vn_id]))[0];
     const cdn = vn?.local_image ? `/api/files/${vn.local_image}` : vn?.image_url ?? null;
     if (cdn && canRenderCandidateUrl(cdn)) {
       out.push({ source: 'vndb', url: cdn, label: `VNDB ${raw.vn_id}` });
