@@ -263,6 +263,7 @@ describe('KeyboardShortcuts', () => {
     rendered.rerender(controls);
     key('f');
     key('o');
+    key('z');
     expect(handlers.shelfFullscreen).toHaveBeenCalledTimes(1);
     expect(handlers.shelfOptions).toHaveBeenCalledTimes(1);
 
@@ -270,6 +271,7 @@ describe('KeyboardShortcuts', () => {
     rendered.rerender(controls);
     key('a');
     key('r');
+    key('z');
     expect(handlers.mapAdd).toHaveBeenCalledTimes(1);
     expect(handlers.mapReset).toHaveBeenCalledTimes(1);
 
@@ -277,6 +279,7 @@ describe('KeyboardShortcuts', () => {
     rendered.rerender(controls);
     key('a');
     key('c');
+    key('z');
     expect(handlers.compareAdd).toHaveBeenCalledTimes(1);
     expect(handlers.compareRun).toHaveBeenCalledTimes(1);
 
@@ -285,6 +288,7 @@ describe('KeyboardShortcuts', () => {
     key('1');
     key('2');
     key('3');
+    key('z');
     expect(handlers.searchVndb).toHaveBeenCalledTimes(1);
     expect(handlers.searchEgs).toHaveBeenCalledTimes(1);
     expect(handlers.searchLocal).toHaveBeenCalledTimes(1);
@@ -293,6 +297,7 @@ describe('KeyboardShortcuts', () => {
     rendered.rerender(controls);
     key('r');
     key('b');
+    key('z');
     expect(handlers.stockRefresh).toHaveBeenCalledTimes(1);
     expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
   });
