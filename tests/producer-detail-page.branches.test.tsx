@@ -162,4 +162,21 @@ describe('producer detail page branches', () => {
     expect(html).toContain('Parent producer');
     expect(readScrapedProducerInfo).toHaveBeenCalledTimes(1);
   });
+
+  it('omits the scraped-relations section for a resolved empty payload', async () => {
+    vi.mocked(readScrapedProducerInfo).mockResolvedValue({ ...scraped, relations: [] });
+
+    const stream = await renderToReadableStream(
+      await ProducerPage({
+        params: Promise.resolve({ id: 'p1' }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    suspendState.resolve?.();
+    await stream.allReady;
+    const html = await new Response(stream).text();
+
+    expect(html).not.toContain('Parent producer');
+    expect(html).not.toContain('data-section="scraped-relations"');
+  });
 });
