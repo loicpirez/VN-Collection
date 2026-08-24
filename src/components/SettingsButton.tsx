@@ -315,7 +315,7 @@ export function SettingsButton() {
       {mounted && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
+              className="fixed inset-0 z-layer-modal flex items-start justify-center overflow-y-auto bg-black/70 p-2 backdrop-blur-sm sm:p-6"
               onClick={(e) => {
                 if (e.target === e.currentTarget) setOpen(false);
               }}
@@ -422,6 +422,12 @@ export function SettingsButton() {
                         description={t.settings.preferNativeTitleDesc}
                         value={settings.preferNativeTitle}
                         onChange={(v) => set('preferNativeTitle', v)}
+                      />
+                      <Toggle
+                        label={t.settings.wishlistHideOwned}
+                        description={t.settings.wishlistHideOwnedDesc}
+                        value={settings.wishlistHideOwned}
+                        onChange={(v) => set('wishlistHideOwned', v)}
                       />
                       <Toggle
                         label={t.settings.headerFollowsPageSpace}

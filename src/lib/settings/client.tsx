@@ -69,6 +69,8 @@ export interface DisplaySettings {
   hideSexual: boolean;
   /** Library grid density: false = comfortable (default), true = dense. */
   denseLibrary: boolean;
+  /** Hide wishlist entries already present in the collection unless the URL overrides it. */
+  wishlistHideOwned: boolean;
   /**
    * Legacy / default density used when a scope has no entry in
    * `density`. Kept for backwards compatibility with the cookie /
@@ -123,6 +125,7 @@ const DEFAULTS: DisplaySettings = {
   preferNativeTitle: false,
   hideSexual: false,
   denseLibrary: false,
+  wishlistHideOwned: true,
   cardDensityPx: 220,
   density: {},
   pageSpace: {},
@@ -208,6 +211,7 @@ export function sanitizeDisplaySettings(input: unknown): Partial<DisplaySettings
     'preferNativeTitle',
     'hideSexual',
     'denseLibrary',
+    'wishlistHideOwned',
     'headerFollowsPageSpace',
     'showSexualTraits',
   ] as const) {

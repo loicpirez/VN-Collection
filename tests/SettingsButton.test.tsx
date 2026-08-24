@@ -324,6 +324,10 @@ describe('SettingsButton', () => {
     expect(within(dialog).getByRole('tab', { name: t.settings.tabs.display as string }).getAttribute('aria-selected')).toBe('true');
 
     const hideImages = within(dialog).getByRole('switch', { name: t.settings.hideImages as string });
+    const wishlistHideOwned = within(dialog).getByRole('switch', { name: t.settings.wishlistHideOwned as string });
+    expect(wishlistHideOwned.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(wishlistHideOwned);
+    expect(wishlistHideOwned.getAttribute('aria-checked')).toBe('false');
     fireEvent.click(hideImages);
     expect(hideImages.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(within(dialog).getByRole('button', { name: t.settings.resetDisplay as string }));
@@ -335,6 +339,7 @@ describe('SettingsButton', () => {
     const confirmDialog = await screen.findByRole('alertdialog');
     fireEvent.click(within(confirmDialog).getByRole('button', { name: t.common.confirm as string }));
     await waitFor(() => expect(hideImages.getAttribute('aria-checked')).toBe('false'));
+    expect(wishlistHideOwned.getAttribute('aria-checked')).toBe('true');
 
     fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.shortcuts as string }));
     expect(within(dialog).getByText(t.shortcuts.help as string)).toBeTruthy();

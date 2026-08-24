@@ -12,6 +12,7 @@ describe('sanitizeDisplaySettings', () => {
     expect(sanitizeDisplaySettings({
       hideImages: true,
       blurR18: false,
+      wishlistHideOwned: false,
       nsfwThreshold: 99,
       cardDensityPx: 10,
       density: { library: 999, wishlist: 10, injected: 200 },
@@ -21,6 +22,7 @@ describe('sanitizeDisplaySettings', () => {
     })).toEqual({
       hideImages: true,
       blurR18: false,
+      wishlistHideOwned: false,
       nsfwThreshold: 2,
       cardDensityPx: CARD_DENSITY_MIN,
       density: { library: CARD_DENSITY_MAX, wishlist: CARD_DENSITY_MIN },
