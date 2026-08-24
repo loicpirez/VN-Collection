@@ -321,6 +321,7 @@ describe('PlaceVnBrowser branches', () => {
     serve([
       vn({ vn_id: 'v10016', title: 'Alpha Title', alttitle: 'First Alt', min_price: 900, in_collection: 0 }),
       vn({ vn_id: 'v10018', title: 'Beta Title', alttitle: 'Needle Alt', min_price: 3_200, in_collection: 0 }),
+      vn({ vn_id: 'v10020', title: 'Gamma Title', alttitle: null, min_price: 1_500, in_collection: 0 }),
     ]);
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Alpha Title')).toBeTruthy());
