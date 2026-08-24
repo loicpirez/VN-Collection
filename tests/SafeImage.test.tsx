@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SafeImage } from '@/components/SafeImage';
 import { I18nProvider } from '@/lib/i18n/client';
@@ -160,6 +160,52 @@ describe('SafeImage runtime', () => {
     image = screen.getByRole('img', { name: 'Cover' });
     expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
     expect(image).not.toHaveClass('transition-[filter,opacity,transform]');
+  });
+
+  it('waits for successful and rejected image decoding before revealing the frame', async () => {
+    const { container, rerender } = render(withLocale(
+      <SafeImage src="/decoded.jpg" alt="Decoded cover" priority />,
+    ));
+    let image = screen.getByRole('img', { name: 'Decoded cover' });
+    const decodeSuccess = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(image, 'decode', { configurable: true, value: decodeSuccess });
+    fireEvent.load(image);
+    await waitFor(() => expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull());
+    expect(decodeSuccess).toHaveBeenCalledTimes(1);
+
+    rerender(withLocale(<SafeImage src="/decode-rejected.jpg" alt="Rejected decode cover" priority />));
+    image = screen.getByRole('img', { name: 'Rejected decode cover' });
+    const decodeFailure = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('decode failed'));
+    Object.defineProperty(image, 'decode', { configurable: true, value: decodeFailure });
+    fireEvent.load(image);
+    await waitFor(() => expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull());
+    expect(decodeFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a decoded frame when the image URL changed while decoding', async () => {
+    let resolveDecode!: () => void;
+    const pendingDecode = new Promise<void>((resolve) => {
+      resolveDecode = resolve;
+    });
+    const { container, rerender } = render(withLocale(
+      <SafeImage src="/stale-decode.jpg" alt="Changing cover" priority />,
+    ));
+    const staleImage = screen.getByRole('img', { name: 'Changing cover' });
+    Object.defineProperty(staleImage, 'decode', {
+      configurable: true,
+      value: vi.fn<() => Promise<void>>().mockReturnValue(pendingDecode),
+    });
+    fireEvent.load(staleImage);
+
+    rerender(withLocale(<SafeImage src="/current-decode.jpg" alt="Changing cover" priority />));
+    await act(async () => {
+      resolveDecode();
+      await pendingDecode;
+    });
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
+
+    rerender(withLocale(<SafeImage src="/stale-decode.jpg" alt="Changing cover" priority />));
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
   });
 
   it('waits for intersection, ignores non-intersections, and surfaces load errors', () => {
