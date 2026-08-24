@@ -15,6 +15,7 @@ import { createPostgresActivityRepository } from '@/lib/db/repositories/activity
 import { createPostgresDumpRepository } from '@/lib/db/repositories/dump';
 import { createPostgresEgsSchemaRepository } from '@/lib/db/repositories/egs-schema';
 import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity-name';
+import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresReadingQueueRepository } from '@/lib/db/repositories/reading-queue';
 import {
   createPostgresVnAssetRepository,
@@ -63,6 +64,14 @@ describe('PostgreSQL repository edge branches', () => {
   it('fails closed on absent dump and EGS summary rows', async () => {
     await expect(createPostgresDumpRepository().summary()).rejects.toThrow('dump summary query returned no row');
     await expect(createPostgresEgsSchemaRepository().summary()).rejects.toThrow('EGS schema summary query returned no row');
+  });
+
+  it('uses the default stale threshold for PostgreSQL maintenance', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(40 * 86_400 * 1000);
+    await expect(createPostgresMaintenanceRepository().findStaleVns()).resolves.toEqual([]);
+    expect(postgresQueryMock.mock.calls[0]?.[1]).toEqual([10 * 86_400 * 1000]);
+    vi.useRealTimers();
   });
 
   it('sorts dump states and handles empty and capped progress ratios', async () => {
