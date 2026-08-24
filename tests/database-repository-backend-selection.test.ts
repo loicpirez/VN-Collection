@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteStockSource: vi.fn(),
   isInCollection: vi.fn(),
   isInCollectionMany: vi.fn(),
+  migrateVnId: vi.fn(),
   getCachedTitleResolution: vi.fn(),
   getAppSetting: vi.fn(),
   getCollectionItem: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock('@/lib/db', () => ({
   getStockRetryWithoutProxy: mocks.getStockRetryWithoutProxy,
   isInCollection: mocks.isInCollection,
   isInCollectionMany: mocks.isInCollectionMany,
+  migrateVnId: mocks.migrateVnId,
   listInCollectionVnIds: mocks.listInCollectionVnIds,
   listRecentVnStockOffers: mocks.listRecentVnStockOffers,
   listStockAliases: mocks.listStockAliases,
@@ -97,6 +99,7 @@ import { getStockQueueRepository } from '@/lib/db/repositories/stock-queue';
 import { getStockRepository } from '@/lib/db/repositories/stock';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
+import { getVnIdentityRepository } from '@/lib/db/repositories/vn-identity';
 
 describe('database repository backend selection', () => {
   beforeEach(() => {
@@ -292,6 +295,11 @@ describe('database repository backend selection', () => {
     expect(mocks.resetCollectionCustomOrder).toHaveBeenCalledOnce();
   });
 
+  it('delegates VN identity migration to SQLite', async () => {
+    await getVnIdentityRepository().migrate('egs_90001', 'v90001');
+    expect(mocks.migrateVnId).toHaveBeenCalledWith('egs_90001', 'v90001');
+  });
+
   it('selects and reuses PostgreSQL repositories when configured', () => {
     mocks.backend.value = 'postgres';
     const stock = getStockRepository();
@@ -301,6 +309,7 @@ describe('database repository backend selection', () => {
     const locks = getAppJobLockRepository();
     const writer = getVnWriteRepository();
     const collection = getCollectionCoreRepository();
+    const identity = getVnIdentityRepository();
 
     expect(getStockRepository()).toBe(stock);
     expect(getStockQueueRepository()).toBe(queue);
@@ -309,5 +318,6 @@ describe('database repository backend selection', () => {
     expect(getAppJobLockRepository()).toBe(locks);
     expect(getVnWriteRepository()).toBe(writer);
     expect(getCollectionCoreRepository()).toBe(collection);
+    expect(getVnIdentityRepository()).toBe(identity);
   });
 });

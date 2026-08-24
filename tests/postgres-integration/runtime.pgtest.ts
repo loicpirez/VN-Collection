@@ -36,6 +36,7 @@ import { createPostgresOwnedReleaseRepository } from '@/lib/db/repositories/owne
 import { createPostgresShelfRepository } from '@/lib/db/repositories/shelf';
 import { createPostgresCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { createPostgresVnWriteRepository } from '@/lib/db/repositories/vn-write';
+import { createPostgresVnIdentityRepository } from '@/lib/db/repositories/vn-identity';
 import { createPostgresStockRepository } from '@/lib/db/repositories/stock';
 import { createPostgresStockQueueRepository } from '@/lib/db/repositories/stock-queue';
 import { getStockProviderMaintenanceRepository } from '@/lib/db/repositories/stock-provider-maintenance';
@@ -1776,4 +1777,130 @@ registerVnAssetRepositoryContract('PostgreSQL', {
       }
     });
   },
+});
+
+describe('PostgreSQL VN identity migration', () => {
+  it('moves personal and commercial references while preserving canonical metadata', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const fromId = 'egs_995001';
+      const toId = 'v995002';
+      const now = Date.now();
+      await pool.query(`
+        INSERT INTO vn (id, title, fetched_at, egs_only) VALUES
+          ($1, 'Synthetic', 1, 1),
+          ($2, 'Canonical', 2, 0)
+      `, [fromId, toId]);
+      await pool.query(`
+        INSERT INTO collection (vn_id, status, user_rating, playtime_minutes, favorite, added_at, updated_at)
+        VALUES ($1, 'completed', 77, 120, 1, $3, $3), ($2, 'planning', 99, 0, 0, $3, $3)
+      `, [fromId, toId, now]);
+      await pool.query(`
+        INSERT INTO collection_place_index (vn_id, place) VALUES ($1, 'Shelf A'), ($2, 'Shelf B')
+      `, [fromId, toId]);
+      await pool.query(`
+        INSERT INTO owned_release (vn_id, release_id, notes, added_at, condition)
+        VALUES ($1, 'r995001', 'source edition', $3, 'new'),
+               ($2, 'r995001', 'target edition', $3, 'used')
+      `, [fromId, toId, now]);
+      await pool.query(`
+        INSERT INTO physical_bundle (name, anchor_vn_id, anchor_release_id, created_at, updated_at)
+        VALUES ('Synthetic bundle', $1, 'r995001', $2, $2)
+      `, [fromId, now]);
+      await pool.query(`
+        INSERT INTO vn_quote (quote_id, vn_id, quote, fetched_at) VALUES ('q995001', $1, 'line', $2)
+      `, [fromId, now]);
+      await pool.query(`
+        INSERT INTO reading_queue (vn_id, position, added_at) VALUES ($1, 3, $3), ($2, 9, $3)
+      `, [fromId, toId, now]);
+      await pool.query(`
+        INSERT INTO vn_stock_alias (vn_id, alias_term, created_at) VALUES ($1, 'Synthetic alias', $2)
+      `, [fromId, now]);
+      await pool.query(`
+        INSERT INTO staff_credit_index (sid, vn_id, is_va) VALUES
+          ('s995001', $1, 1), ('s995002', $2, 0)
+      `, [fromId, toId]);
+      await pool.query(`
+        INSERT INTO vn_tag_index (vn_id, tag_id, spoiler) VALUES
+          ($1, 'g995001', 0), ($2, 'g995002', 0)
+      `, [fromId, toId]);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-identity-contract';
+      try {
+        await createPostgresVnIdentityRepository().migrate(fromId, toId);
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+
+      await expect(pool.query('SELECT id FROM vn WHERE id = $1', [fromId])).resolves.toMatchObject({ rows: [] });
+      await expect(pool.query('SELECT title FROM vn WHERE id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ title: 'Canonical' }],
+      });
+      await expect(pool.query('SELECT status, user_rating FROM collection WHERE vn_id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ status: 'completed', user_rating: 77 }],
+      });
+      await expect(pool.query('SELECT place FROM collection_place_index WHERE vn_id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ place: 'Shelf A' }],
+      });
+      await expect(pool.query('SELECT notes, condition FROM owned_release WHERE vn_id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ notes: 'source edition', condition: 'new' }],
+      });
+      await expect(pool.query('SELECT anchor_vn_id FROM physical_bundle')).resolves.toMatchObject({
+        rows: [{ anchor_vn_id: toId }],
+      });
+      await expect(pool.query('SELECT vn_id FROM vn_quote WHERE quote_id = $1', ['q995001'])).resolves.toMatchObject({
+        rows: [{ vn_id: toId }],
+      });
+      await expect(pool.query('SELECT position FROM reading_queue WHERE vn_id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ position: 3 }],
+      });
+      await expect(pool.query('SELECT alias_term FROM vn_stock_alias WHERE vn_id = $1', [toId])).resolves.toMatchObject({
+        rows: [{ alias_term: 'Synthetic alias' }],
+      });
+      await expect(pool.query('SELECT sid FROM staff_credit_index WHERE vn_id = $1 ORDER BY sid', [toId])).resolves.toMatchObject({
+        rows: [{ sid: 's995001' }, { sid: 's995002' }],
+      });
+      await expect(pool.query('SELECT tag_id FROM vn_tag_index WHERE vn_id = $1 ORDER BY tag_id', [toId])).resolves.toMatchObject({
+        rows: [{ tag_id: 'g995002' }],
+      });
+    });
+  });
+
+  it('rejects missing source and target rows without partial writes', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query("INSERT INTO vn (id, title, fetched_at) VALUES ('v995010', 'Target', 1)");
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      try {
+        const repository = createPostgresVnIdentityRepository();
+        await expect(repository.migrate('egs_995011', 'v995099')).rejects.toThrow('target v995099 not in vn table');
+        await expect(repository.migrate('egs_995011', 'v995010')).rejects.toThrow('source egs_995011 not in vn table');
+        await expect(repository.migrate('v995010', 'v995010')).resolves.toBeUndefined();
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+      }
+    });
+  });
 });

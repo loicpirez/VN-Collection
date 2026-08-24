@@ -123,6 +123,21 @@ describe('POST /api/vn/[id]/link-vndb', () => {
     expect(await res.json()).toEqual({ ok: true, vn_id: REAL_VN });
   });
 
+  it('keeps a completed identity migration successful when activity logging fails', async () => {
+    upsertVn({ id: EGS_VN, title: 'Synthetic EGS' });
+    addToCollection(EGS_VN, { status: 'planning' });
+    getVnMock.mockResolvedValue({ id: REAL_VN, title: 'Real Target' });
+    recordActivityMock.mockRejectedValue(new Error('activity unavailable'));
+
+    const response = await linkVndbPOST(
+      localReq('/api/vn/egs_90401/link-vndb', 'POST', { vndb_id: REAL_VN }),
+      ctx(EGS_VN),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, vn_id: REAL_VN });
+  });
+
   it('404 when the target VNDB id does not resolve', async () => {
     upsertVn({ id: EGS_VN, title: 'Synthetic EGS' });
     addToCollection(EGS_VN, { status: 'planning' });
@@ -139,7 +154,7 @@ describe('POST /api/vn/[id]/link-vndb', () => {
     getVnMock.mockRejectedValue(new Error('vndb target failed'));
     const res = await linkVndbPOST(localReq('/api/vn/egs_90401/link-vndb', 'POST', { vndb_id: REAL_VN }), ctx(EGS_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/link-vndb' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/link-vndb] vndb target failed');
     consoleSpy.mockRestore();
   });
@@ -186,7 +201,7 @@ describe('GET /api/vn/[id]/vndb-status', () => {
     labelsMock.mockRejectedValue(new Error('ulist labels failed'));
     const res = await statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/vndb-status' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/vndb-status] ulist labels failed');
     consoleSpy.mockRestore();
   });
@@ -231,7 +246,7 @@ describe('PATCH /api/vn/[id]/vndb-status', () => {
     patchMock.mockRejectedValue(new Error('ulist patch failed'));
     const res = await statusPATCH(localReq('/api/vn/v90402/vndb-status', 'PATCH', { finished: null }), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/vndb-status' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/vndb-status] ulist patch failed');
     consoleSpy.mockRestore();
   });
@@ -314,7 +329,7 @@ describe('DELETE /api/vn/[id]/vndb-status', () => {
     deleteMock.mockRejectedValue(new Error('ulist delete failed'));
     const res = await statusDELETE(localReq('/api/vn/v90402/vndb-status', 'DELETE'), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/vndb-status' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/vndb-status] ulist delete failed');
     consoleSpy.mockRestore();
   });
@@ -360,7 +375,7 @@ describe('GET /api/vn/[id]/erogamescape', () => {
     resolveMock.mockRejectedValue(new Error('egs resolve failed'));
     const res = await egsGET(localReq('/api/vn/v90402/erogamescape', 'GET'), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/erogamescape' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/erogamescape] egs resolve failed');
     consoleSpy.mockRestore();
   });
@@ -412,7 +427,7 @@ describe('POST /api/vn/[id]/erogamescape', () => {
     linkMock.mockRejectedValue(new Error('egs link failed'));
     const res = await egsPOST(localReq('/api/vn/v90402/erogamescape', 'POST', { egs_id: 12345 }), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/erogamescape' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/erogamescape] egs link failed');
     consoleSpy.mockRestore();
   });
