@@ -151,7 +151,7 @@ function statusFor(provider: string) {
 
 describe('refreshStockForVn — VN resolution', () => {
   it('throws when the VN cannot be loaded', async () => {
-    await expect(refreshStockForVn('v99990000', ['wondergoo'])).rejects.toThrow('VN not found');
+    await expect(refreshStockForVn('v99990000')).rejects.toThrow('VN not found');
   });
 
   it('hydrates a missing VNDB VN before refreshing it', async () => {

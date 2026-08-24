@@ -420,7 +420,7 @@ function uniqTargets(targets: StockTarget[]): StockTarget[] {
   return out;
 }
 
-function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn: StockVnContext, extraTerms: string[] = []): StockTarget[] {
+function releaseTargetsForProvider(releases: VndbRelease[], provider: StockProviderId, vn: StockVnContext, extraTerms: string[]): StockTarget[] {
   const targets: StockTarget[] = [];
   for (const release of releases) {
     const jan = janFromRelease(release);
@@ -482,8 +482,8 @@ function allTargetsForProvider(
   releases: VndbRelease[],
   provider: StockProviderId,
   vn: StockVnContext,
-  discovered: Map<StockProviderId, StockTarget[]> = new Map(),
-  extraTerms: string[] = [],
+  discovered: Map<StockProviderId, StockTarget[]>,
+  extraTerms: string[],
 ): StockTarget[] {
   const sourceRank = (source: StockTarget['source']): number =>
     source === 'direct' || source === 'manual' ? 0 : 2;
@@ -707,7 +707,7 @@ function withSofmapAdultBypass(url: string): string {
   return url + (url.includes('?') ? '&' : '?') + 'aac=on';
 }
 
-async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshSofmap(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -834,7 +834,7 @@ export function extractHgame1SearchLinks(html: string, baseUrl: string): string[
   return out;
 }
 
-async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshHgame1(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -910,7 +910,7 @@ export function extractMelonbooksProductLinks(html: string, baseUrl: string): st
   return out;
 }
 
-async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -970,7 +970,7 @@ export function parseMandarakeDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -1025,7 +1025,7 @@ export function parseWondergooDetail(html: string, url: string, target: StockTar
   };
 }
 
-async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshWondergoo(vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -1236,8 +1236,8 @@ async function refreshTrader(
   vn: StockVnContext,
   _discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
-  signal?: AbortSignal,
-  aliases: string[] = [],
+  signal: AbortSignal | undefined,
+  aliases: string[],
 ): Promise<VnStockOfferInput[]> {
   const queries = titleQueries(vn, aliases).slice(0, 3);
   const classifyTarget: ClassifyTarget = {
@@ -1640,7 +1640,7 @@ function providerEncoding(provider: StockProviderId): string | undefined {
   return undefined;
 }
 
-async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshGenericProvider(provider: StockProviderId, vnId: string, releases: VndbRelease[], vn: StockVnContext, discovered: Map<StockProviderId, StockTarget[]>, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
   const offers: VnStockOfferInput[] = [];
   const classifyTarget: ClassifyTarget = {
     title: vn.title,
@@ -2026,7 +2026,7 @@ function retailerToOffer(
   });
 }
 
-async function refreshErogePrice(vnId: string, vn: StockVnContext, now: number, signal?: AbortSignal, aliases: string[] = []): Promise<VnStockOfferInput[]> {
+async function refreshErogePrice(vnId: string, vn: StockVnContext, now: number, signal: AbortSignal | undefined, aliases: string[]): Promise<VnStockOfferInput[]> {
 
   let previousManualPin: number | null = null;
   try {
@@ -2328,8 +2328,8 @@ async function refreshSurugaya(
   vn: StockVnContext,
   _discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
-  signal?: AbortSignal,
-  aliases: string[] = [],
+  signal: AbortSignal | undefined,
+  aliases: string[],
 ): Promise<VnStockOfferInput[]> {
   const queries = titleQueries(vn, aliases).slice(0, 3);
   const classifyTarget: ClassifyTarget = {
@@ -2463,8 +2463,8 @@ async function refreshProvider(
   vn: StockVnContext,
   discovered: Map<StockProviderId, StockTarget[]>,
   now: number,
-  signal?: AbortSignal,
-  aliases: string[] = [],
+  signal: AbortSignal | undefined,
+  aliases: string[],
 ): Promise<VnStockOfferInput[]> {
   if (provider === 'eroge_price') return refreshErogePrice(vnId, vn, now, signal, aliases);
   if (provider === 'sofmap') return refreshSofmap(vnId, releases, vn, discovered, now, signal, aliases);
