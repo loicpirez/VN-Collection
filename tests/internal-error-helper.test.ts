@@ -3,7 +3,7 @@
  *
  * `internalError(route, err)` is the canonical catch-block helper for
  * unexpected DB / runtime failures inside an `/api/*` route. It must:
- *   - Return `NextResponse.json({ error: 'internal error' }, 500)`.
+ *   - Return the canonical discriminated API error body with status 500.
  *   - Log the raw detail (with route label) to `console.error` so the
  *     operator can still diagnose locally.
  *   - Never echo the raw message to the client (defence-in-depth
@@ -21,7 +21,12 @@ describe('internalError — behaviour', () => {
     const res = internalError('test-route', new Error('boom'));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body).toEqual({ error: 'internal error' });
+    expect(body).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'test-route',
+    });
   });
 
   it('logs the detail to console.error with the route label', () => {
@@ -89,6 +94,27 @@ describe('internalError — behaviour', () => {
       expect(typeof res.status).toBe('number');
       expect(typeof res.headers.get).toBe('function');
       expect(res.headers.get('content-type')).toMatch(/application\/json/i);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns a stable sanitized response for PostgreSQL failures', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const error = Object.assign(new Error('duplicate key violates users_email_key'), {
+        code: '23505',
+        table: 'users',
+        constraint: 'users_email_key',
+      });
+      const response = internalError('write', error);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        ok: false,
+        error: 'database conflict',
+        code: 'db_unique_conflict',
+        context: 'write',
+      });
     } finally {
       spy.mockRestore();
     }

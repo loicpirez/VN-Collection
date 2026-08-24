@@ -1,3 +1,19 @@
+import { decodeApiErrorBody } from './api-error-shape';
+
+/** Structured client result for one failed API response. */
+export interface ApiErrorReadResult {
+  /** Local fallback or sanitized server message selected for display. */
+  message: string;
+  /** Stable machine-readable error code when supplied by the route. */
+  code: string | null;
+  /** Stable route or operation context when supplied by the route. */
+  context: string | null;
+  /** HTTP response status. */
+  status: number;
+  /** Whether malformed, missing, or protected server text forced the fallback. */
+  usedFallback: boolean;
+}
+
 /**
  * R5-147 client-side companion to `lib/api-error.ts`. The server
  * returns `{ error: string }` on every non-2xx response (see
@@ -14,18 +30,36 @@
  * an i18n-localized "Something went wrong" string). Errors thrown
  * during JSON parsing are swallowed silently — `fallback` wins.
  */
-export async function readApiError(r: Response, fallback: string): Promise<string> {
+export async function readApiErrorDetails(r: Response, fallback: string): Promise<ApiErrorReadResult> {
   try {
-    const body = (await r.json()) as { error?: unknown };
-    if (typeof body.error === 'string' && body.error.length > 0) {
-      return body.error;
-    }
+    const value: unknown = await r.json();
+    const body = decodeApiErrorBody(value);
+    if (!body) return { message: fallback, code: null, context: null, status: r.status, usedFallback: true };
+    const protectedMessage = body.code?.startsWith('db_') ?? false;
+    return {
+      message: protectedMessage ? fallback : body.error,
+      code: body.code,
+      context: body.context,
+      status: r.status,
+      usedFallback: protectedMessage,
+    };
   } catch {
     // The response body isn't valid JSON (e.g. an HTML error page
     // from the platform proxy). Fall back to the caller-supplied
     // string — never let a parse error mask the original failure.
   }
-  return fallback;
+  return { message: fallback, code: null, context: null, status: r.status, usedFallback: true };
+}
+
+/**
+ * Read a failed API response while preserving the historical string contract.
+ *
+ * @param r Failed fetch response whose JSON body may be canonical or legacy.
+ * @param fallback Localized message used for malformed or protected payloads.
+ * @returns Sanitized server text when safe, otherwise `fallback`.
+ */
+export async function readApiError(r: Response, fallback: string): Promise<string> {
+  return (await readApiErrorDetails(r, fallback)).message;
 }
 
 /**
@@ -36,11 +70,34 @@ export async function readApiError(r: Response, fallback: string): Promise<strin
  * route's verbatim English `error` text into a toast.
  */
 export type KnownApiErrorCode =
+  | 'collection_unavailable'
+  | 'vndb_malformed_payload'
+  | 'vndb_rate_limited'
   | 'vndb_token_required'
   | 'vndb_unavailable'
   | 'steam_sync_failed'
   | 'steam_not_configured'
-  | 'egs_game_not_found';
+  | 'egs_game_not_found'
+  | 'needs_mapping'
+  | 'already_exists'
+  | 'queue_full'
+  | 'invalid_operation'
+  | 'run_unavailable'
+  | 'db_unique_conflict'
+  | 'db_reference_conflict'
+  | 'db_retryable_conflict'
+  | 'db_timeout'
+  | 'db_unavailable'
+  | 'db_internal'
+  | 'upstream_unavailable'
+  | 'internal_error'
+  | 'alicenet_dns_failure'
+  | 'alicenet_timeout'
+  | 'alicenet_connection_refused'
+  | 'alicenet_forbidden'
+  | 'alicenet_not_found'
+  | 'alicenet_parse_failed'
+  | 'alicenet_operation_failed';
 
 /**
  * Localized companion to {@link readApiError}. Reads the response's
@@ -56,16 +113,10 @@ export async function readApiErrorLocalized(
   messages: Partial<Record<KnownApiErrorCode, string>>,
   fallback: string,
 ): Promise<string> {
-  try {
-    const body = (await r.json()) as { code?: unknown };
-    if (typeof body.code === 'string' && body.code.length > 0) {
-      const localized = messages[body.code as KnownApiErrorCode];
-      if (typeof localized === 'string' && localized.length > 0) {
-        return localized;
-      }
-    }
-  } catch {
-    return fallback;
+  const result = await readApiErrorDetails(r, fallback);
+  if (result.code) {
+    const localized = messages[result.code as KnownApiErrorCode];
+    if (typeof localized === 'string' && localized.length > 0) return localized;
   }
   return fallback;
 }

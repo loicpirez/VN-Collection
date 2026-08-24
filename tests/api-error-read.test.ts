@@ -16,7 +16,7 @@
  *      `(await *.json()).error` shape either.
  */
 import { describe, expect, it } from 'vitest';
-import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
+import { readApiError, readApiErrorDetails, readApiErrorLocalized } from '@/lib/api-error-read';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -60,20 +60,82 @@ describe('readApiError — R5-147 behaviour', () => {
     const r3 = new Response(JSON.stringify({ error: null }), { status: 500 });
     expect(await readApiError(r3, 'fallback')).toBe('fallback');
   });
+
+  it('uses the localized caller fallback for database error codes', async () => {
+    const response = new Response(JSON.stringify({
+      error: 'database unavailable',
+      code: 'db_unavailable',
+    }));
+    expect(await readApiError(response, 'Base de donnees indisponible')).toBe('Base de donnees indisponible');
+  });
+
+  it('preserves canonical code, context, status, and fallback provenance', async () => {
+    const response = new Response(JSON.stringify({
+      ok: false,
+      error: 'upstream service unavailable',
+      code: 'upstream_unavailable',
+      context: 'wishlist/read',
+    }), { status: 502 });
+    expect(await readApiErrorDetails(response, 'fallback')).toEqual({
+      message: 'upstream service unavailable',
+      code: 'upstream_unavailable',
+      context: 'wishlist/read',
+      status: 502,
+      usedFallback: false,
+    });
+  });
+
+  it('returns structured fallback details for invalid bodies and protected database errors', async () => {
+    expect(await readApiErrorDetails(new Response('{', { status: 503 }), 'fallback')).toEqual({
+      message: 'fallback',
+      code: null,
+      context: null,
+      status: 503,
+      usedFallback: true,
+    });
+    expect(await readApiErrorDetails(new Response(JSON.stringify({
+      error: 'database unavailable',
+      code: 'db_unavailable',
+      context: 'collection/list',
+    }), { status: 503 }), 'localized database error')).toEqual({
+      message: 'localized database error',
+      code: 'db_unavailable',
+      context: 'collection/list',
+      status: 503,
+      usedFallback: true,
+    });
+  });
 });
 
 describe('readApiErrorLocalized', () => {
   const messages = { vndb_unavailable: 'Localized unavailable' };
 
   it('maps a known response code to the localized message', async () => {
-    const response = new Response(JSON.stringify({ code: 'vndb_unavailable' }), { status: 503 });
+    const response = new Response(JSON.stringify({ error: 'unavailable', code: 'vndb_unavailable' }), { status: 503 });
     expect(await readApiErrorLocalized(response, messages, 'fallback')).toBe('Localized unavailable');
+  });
+
+  it('maps a normalized database code without exposing the server fallback', async () => {
+    const response = new Response(JSON.stringify({
+      error: 'database unavailable',
+      code: 'db_unavailable',
+    }), { status: 503 });
+    expect(await readApiErrorLocalized(
+      response,
+      { db_unavailable: 'Base de donnees indisponible' },
+      'fallback',
+    )).toBe('Base de donnees indisponible');
   });
 
   it('falls back for missing, unknown, empty, or malformed codes', async () => {
     expect(await readApiErrorLocalized(new Response('{}'), messages, 'fallback')).toBe('fallback');
     expect(await readApiErrorLocalized(new Response(JSON.stringify({ code: 'unknown' })), messages, 'fallback')).toBe('fallback');
     expect(await readApiErrorLocalized(new Response(JSON.stringify({ code: '' })), messages, 'fallback')).toBe('fallback');
+    expect(await readApiErrorLocalized(
+      new Response(JSON.stringify({ error: 'unavailable', code: 'vndb_unavailable' })),
+      { vndb_unavailable: '' },
+      'fallback',
+    )).toBe('fallback');
     expect(await readApiErrorLocalized(new Response('not-json'), messages, 'fallback')).toBe('fallback');
   });
 });

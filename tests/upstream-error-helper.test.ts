@@ -19,7 +19,12 @@ describe('upstreamErrorbehaviour', () => {
     const res = upstreamError('test-route', new Error('upstream 503: details'));
     expect(res.status).toBe(502);
     const body = await res.json();
-    expect(body).toEqual({ error: 'upstream service unavailable' });
+    expect(body).toEqual({
+      ok: false,
+      error: 'upstream service unavailable',
+      code: 'upstream_unavailable',
+      context: 'test-route',
+    });
   });
 
   it('logs the detail to console.error with the route label', () => {

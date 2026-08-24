@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server';
+import { normalizeDatabaseError } from './db/errors';
+import { apiErrorBody } from './api-error-shape';
 
-/**
- * Standard shape every error response in `/api/*` SHOULD conform to.
- * Routes return `{ error: string }` today; the optional `code` and
- * `detail` slots are reserved for future use (e.g. machine-readable
- * error categorisation, structured field-level diagnostics). The
- * helpers below all emit values that satisfy this type.
- */
-export interface ApiErrorBody {
-  error: string;
-  code?: string;
-  detail?: string;
-}
+export type { ApiErrorBody } from './api-error-shape';
 
 /**
  * R5-129: standard upstream-error response for API route catch
@@ -48,7 +39,7 @@ export function upstreamError(route: string, err: unknown): NextResponse {
   const detail = err instanceof Error ? err.message : String(err);
   console.error(`[upstream:${route}] ${detail}`);
   return NextResponse.json(
-    { error: 'upstream service unavailable' },
+    apiErrorBody('upstream service unavailable', 'upstream_unavailable', route),
     { status: 502 },
   );
 }
@@ -66,8 +57,15 @@ export function upstreamError(route: string, err: unknown): NextResponse {
 export function internalError(route: string, err: unknown): NextResponse {
   const detail = err instanceof Error ? err.message : String(err);
   console.error(`[internal:${route}] ${detail}`);
+  const databaseError = normalizeDatabaseError(err);
+  if (databaseError) {
+    return NextResponse.json(
+      apiErrorBody(databaseError.message, databaseError.code, route),
+      { status: databaseError.status },
+    );
+  }
   return NextResponse.json(
-    { error: 'internal error' },
+    apiErrorBody('internal error', 'internal_error', route),
     { status: 500 },
   );
 }
