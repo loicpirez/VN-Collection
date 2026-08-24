@@ -33,6 +33,8 @@ interface QueuedResponse {
   chunks?: Buffer[];
   responseError?: Error;
   postChunksError?: Error;
+  duplicateEnd?: boolean;
+  requestErrorAfterEnd?: Error;
   waitForAbort?: boolean;
 }
 interface CapturedRequest {
@@ -73,6 +75,10 @@ function fakeRequest(
     if (queued.postChunksError) res.emit('error', queued.postChunksError);
     if (queued.waitForAbort) return;
     res.emit('end');
+    if (queued.duplicateEnd) res.emit('end');
+    if (queued.requestErrorAfterEnd) {
+      queueMicrotask(() => req.emit('error', queued.requestErrorAfterEnd));
+    }
   };
   return req;
 }
@@ -334,6 +340,20 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
     const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
     expect(res.status).toBe(304);
     expect(await res.text()).toBe('');
+  });
+
+  it('ignores duplicate terminal events after a response has resolved', async () => {
+    responseQueue.push({
+      statusCode: 200,
+      headers: {},
+      body: Buffer.from('done'),
+      duplicateEnd: true,
+      requestErrorAfterEnd: new Error('late request error'),
+    });
+    const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+    const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+    expect(await res.text()).toBe('done');
+    await Promise.resolve();
   });
 
   it('downgrades a 303 redirect to GET and drops the request body', async () => {
