@@ -53,7 +53,9 @@ describe('SafeImage loading skeleton', () => {
     expect(source).toContain('const [loaded, setLoaded] = useState(false)');
     expect(source).toContain('data-safe-image-skeleton');
     expect(source).toContain('const loadingSkeleton = !loaded ? (');
-    expect(source).toContain('loadedUrlsRef.current.add(url)');
+    expect(source).toContain("import { cacheLoadedImage, isImageLoadCached } from '@/lib/image-load-cache';");
+    expect(source).toContain('if (url && isImageLoadCached(url))');
+    expect(source).toContain('cacheLoadedImage(url)');
     expect(source).toContain('setLoaded(true)');
     expect(source).toContain("loaded ? 'opacity-100' : 'opacity-0'");
   });
