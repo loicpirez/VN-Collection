@@ -66,6 +66,8 @@ describe('home-feed repository', () => {
   });
 
   it('executes every SQLite feed through the selected repository', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2030, 6, 8, 12));
     mocks.readConfig.mockReturnValue({ backend: 'sqlite' });
     const queue = [{ vn_id: 'v90004', position: 2 }];
     const samples = [{ playtime: 90, vndb: null, egs: 80 }];
@@ -80,7 +82,7 @@ describe('home-feed repository', () => {
 
     await expect(repository.listReadingQueueVns()).resolves.toBe(queue);
     await expect(repository.listReadingSpeedSamples()).resolves.toBe(samples);
-    await expect(repository.listAnniversaries(new Date(2030, 6, 8))).resolves.toEqual([
+    await expect(repository.listAnniversaries()).resolves.toEqual([
       expect.objectContaining({ id: 'v90004', years: 5 }),
     ]);
     expect(mocks.prepare).toHaveBeenCalledTimes(3);
