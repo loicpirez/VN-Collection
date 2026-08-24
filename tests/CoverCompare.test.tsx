@@ -67,8 +67,12 @@ describe('CoverCompare', () => {
     // All three column "use" buttons should now be present.
     expect(screen.getByRole('button', { name: t.compare.useVndb })).toBeTruthy();
     expect(screen.getByRole('button', { name: t.compare.useEgs })).toBeTruthy();
-    expect(screen.getByRole('button', { name: t.compare.useCustom })).toBeTruthy();
+    const useCustom = screen.getByRole('button', { name: t.compare.useCustom });
+    expect(useCustom).toBeTruthy();
     expect(screen.getByRole('button', { name: t.compare.useAuto })).toBeTruthy();
+    fireEvent.focus(useCustom);
+    expect(screen.getByRole('tooltip').textContent).toBe(t.compare.sourceCustomHint);
+    fireEvent.blur(useCustom);
   });
 
   it('PATCHes source-pref when selecting a column in compare mode', async () => {

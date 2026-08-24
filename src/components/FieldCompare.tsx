@@ -6,6 +6,8 @@ import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
 import { resolveField, type SourceChoice } from '@/lib/source-resolve';
 import { VndbMarkup } from './VndbMarkup';
+import { AcronymLabel } from './AcronymLabel';
+import { SourceChoiceTooltip } from './SourceChoiceTooltip';
 
 import { readApiError } from '@/lib/api-error-read';
 type Field = 'description' | 'brand' | 'image';
@@ -152,9 +154,18 @@ export function FieldCompare({
                 aria-label={label}
                 className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[10px]"
                 onKeyDown={(e) => {
-                  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                  if (
+                    e.key !== 'ArrowLeft' &&
+                    e.key !== 'ArrowRight' &&
+                    e.key !== 'Home' &&
+                    e.key !== 'End'
+                  ) return;
                   e.preventDefault();
-                  const next = activeTab === 'vndb' ? 'egs' : 'vndb';
+                  const next =
+                    e.key === 'Home' ? 'vndb'
+                    : e.key === 'End' ? 'egs'
+                    : activeTab === 'vndb' ? 'egs'
+                    : 'vndb';
                   setActiveTab(next);
                   document.getElementById(next === 'vndb' ? vndbTabId : egsTabId)?.focus();
                 }}
@@ -174,7 +185,7 @@ export function FieldCompare({
                   }`}
                   title={!vndbHas ? t.compare.emptySide : undefined}
                 >
-                  VNDB{!vndbHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
+                  <AcronymLabel acronym="vndb" />{!vndbHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
                 </button>
                 <button
                   type="button"
@@ -191,21 +202,23 @@ export function FieldCompare({
                   }`}
                   title={!egsHas ? t.compare.emptySide : undefined}
                 >
-                  EGS{!egsHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
+                  <AcronymLabel acronym="egs" />{!egsHas && (<><Ban className="ml-0.5 inline-block h-2.5 w-2.5 align-middle opacity-60" aria-hidden /><span className="sr-only">{t.compare.emptySide}</span></>)}
                 </button>
               </div>
             )}
             {canCompare && !isPinned && (
-              <button
-                type="button"
-                onClick={() => persist(activeTab)}
-                disabled={saving || pending}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
-                title={t.compare.setDefault}
-              >
-                <PinIcon className="h-3 w-3" aria-hidden />
-                {t.compare.setDefault}
-              </button>
+              <SourceChoiceTooltip choice={activeTab}>
+                <button
+                  type="button"
+                  onClick={() => persist(activeTab)}
+                  disabled={saving || pending}
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+                  title={t.compare.setDefault}
+                >
+                  <PinIcon className="h-3 w-3" aria-hidden />
+                  {t.compare.setDefault}
+                </button>
+              </SourceChoiceTooltip>
             )}
             {canCompare && (
               <button
@@ -258,6 +271,7 @@ export function FieldCompare({
           saving={saving}
           text={vndb ?? null}
           useLabel={t.compare.useVndb}
+          choice="vndb"
         />
         <ColumnCard
           tone="egs"
@@ -269,20 +283,23 @@ export function FieldCompare({
           saving={saving}
           text={egs ?? null}
           useLabel={t.compare.useEgs}
+          choice="egs"
         />
       </div>
       <div className="mt-2 text-right">
-        <button
-          type="button"
-          onClick={() => persist('auto')}
-          disabled={saving || pending}
-          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
-            optimistic === 'auto' ? 'bg-accent text-bg font-bold' : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
-          }`}
-        >
-          {(saving || pending) && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-          {t.compare.useAuto}
-        </button>
+        <SourceChoiceTooltip choice="auto">
+          <button
+            type="button"
+            onClick={() => persist('auto')}
+            disabled={saving || pending}
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
+              optimistic === 'auto' ? 'bg-accent text-bg font-bold' : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            {(saving || pending) && optimistic === 'auto' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+            {t.compare.useAuto}
+          </button>
+        </SourceChoiceTooltip>
       </div>
     </div>
   );
@@ -313,6 +330,7 @@ function ColumnCard({
   saving,
   text,
   useLabel,
+  choice,
 }: {
   tone: 'vndb' | 'egs';
   label: string;
@@ -323,6 +341,7 @@ function ColumnCard({
   saving: boolean;
   text: string | null;
   useLabel: string;
+  choice: Extract<SourceChoice, 'vndb' | 'egs'>;
 }) {
   return (
     <div
@@ -336,19 +355,21 @@ function ColumnCard({
           {active && <Check className="ml-1 inline-block h-3 w-3 align-middle text-accent" aria-hidden />}
         </span>
         {!empty && (
-          <button
-            type="button"
-            onClick={onUse}
-            disabled={active || saving}
-            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
-              active
-                ? 'bg-accent/20 text-accent cursor-default'
-                : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
-            }`}
-          >
-            {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-            {useLabel}
-          </button>
+          <SourceChoiceTooltip choice={choice}>
+            <button
+              type="button"
+              onClick={onUse}
+              disabled={active || saving}
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
+                active
+                  ? 'bg-accent/20 text-accent cursor-default'
+                  : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'
+              }`}
+            >
+              {pending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+              {useLabel}
+            </button>
+          </SourceChoiceTooltip>
         )}
       </div>
       {empty ? <p className="text-[11px] italic text-muted/70">-</p> : text && <Body text={text} />}

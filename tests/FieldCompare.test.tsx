@@ -43,6 +43,11 @@ describe('FieldCompare', () => {
     expect(screen.getByRole('tab', { name: 'VNDB' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'EGS' })).toBeTruthy();
     expect(screen.getByText('VNDB text')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'EGS' }));
+    const setDefault = screen.getByRole('button', { name: t.compare.setDefault });
+    fireEvent.focus(setDefault);
+    expect(screen.getByRole('tooltip').textContent).toBe(t.compare.sourceEgsHint);
+    fireEvent.blur(setDefault);
   });
 
   it('switches the displayed body when clicking the EGS tab', () => {
@@ -63,6 +68,17 @@ describe('FieldCompare', () => {
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: 'EGS' }).getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'VNDB' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('navigates collapsed source tabs with Home and End', () => {
+    renderWithProviders(
+      <FieldCompare vnId="v90001" field="description" current="auto" vndb="VNDB text" egs="EGS text" label="Synopsis" />,
+    );
+    const tablist = screen.getByRole('tablist', { name: 'Synopsis' });
+    fireEvent.keyDown(tablist, { key: 'End' });
+    expect(screen.getByRole('tab', { name: 'EGS' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(tablist, { key: 'Home' });
     expect(screen.getByRole('tab', { name: 'VNDB' }).getAttribute('aria-selected')).toBe('true');
   });
 
