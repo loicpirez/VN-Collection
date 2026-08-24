@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { listActivityKinds, listUserActivity, maskActivityPayload, recordActivity } from '@/lib/activity';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
 
 describe('user activity', () => {
   afterEach(() => {
@@ -49,6 +50,16 @@ describe('user activity', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].entity).toBeNull();
     await expect(listUserActivity()).resolves.toHaveLength(1);
+  });
+
+  it('does not disrupt a completed mutation when activity persistence rejects asynchronously', async () => {
+    const repository = getActivityRepository();
+    const recordSpy = vi.spyOn(repository, 'record').mockRejectedValueOnce(new Error('activity unavailable'));
+    try {
+      await expect(recordActivity({ kind: 'fixture.async-failure' })).resolves.toBeUndefined();
+    } finally {
+      recordSpy.mockRestore();
+    }
   });
 
   it('records the round-4-followup mutation kinds end-to-end', async () => {
