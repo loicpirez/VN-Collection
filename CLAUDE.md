@@ -98,7 +98,7 @@ Owner runs it locally on `localhost:3000`. No login, no cloud, no telemetry.
 
 **What it does**: mirrors metadata + images from [VNDB Kana API v2](https://api.vndb.org/kana)
 **and** [ErogameScape's public SQL form](https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/)
-into a local SQLite, lets the owner annotate every VN (status, playtime, notes,
+into the configured SQLite or PostgreSQL database, lets the owner annotate every VN (status, playtime, notes,
 edition inventory, banner …), groups them in series / routes, and surfaces stats.
 VNDB and EGS coexist per-field via a source-resolve helper (auto / VNDB / EGS).
 
@@ -119,7 +119,7 @@ sharing remain out of scope.
 | Framework | **Next.js 16** App Router · React 19 · TypeScript strict |
 | Styling | **Tailwind 3.4**, no component lib, dark theme baked in `globals.css` |
 | Icons | **lucide-react** — never use unicode pictographs |
-| DB | **better-sqlite3 11**, sync, WAL, single file at `data/collection.db` |
+| DB | Typed asynchronous repositories backed by **SQLite / better-sqlite3 11** for local installs or **PostgreSQL 16** for production. SQLite defaults to `data/collection.db`; production schema changes use ordered migrations. |
 | Markdown | react-markdown + remark-gfm (notes only) |
 | Tests | Vitest (`yarn test` / `yarn test:watch`). Per-worker temp SQLite via `tests/setup.ts`. Smoke tests under `scripts/smoke.sh`. |
 | Next.js version | 16.x with Turbopack default. `next dev` writes to `.next/dev`, `next build` to `.next/`. Concurrent execution works. |
@@ -245,7 +245,7 @@ vndb-collection/
 │   │   ├── CachePanel.tsx · ImportPanel.tsx
 │   │   └── charts/BarChart.tsx         # HBarChart, VBarChart, DonutChart (SVG)
 │   └── lib/
-│       ├── db.ts                       # SQLite, schema migrations, all queries
+│       ├── db.ts                       # SQLite compatibility facade and bootstrap
 │       ├── vndb.ts                     # VNDB API client (server-only)
 │       ├── vndb-cache.ts               # cachedFetch with TTL + ETag + dedupe
 │       ├── vndb-types.ts               # types shared with client (no 'server-only')

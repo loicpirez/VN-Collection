@@ -6,7 +6,7 @@
 
 Self-hosted visual novel collection manager.
 
-VN Collection helps you catalogue, search, sort, and manage a personal visual novel library. It supports local SQLite storage and a controlled PostgreSQL migration mode, caches metadata from VNDB and ErogameScape, and provides tools for inventory, shelf layout, reading progress, notes, images, tags, recommendations, and source comparison.
+VN Collection helps you catalogue, search, sort, and manage a personal visual novel library. It supports SQLite for simple local installs and PostgreSQL for production deployments, caches metadata from VNDB and ErogameScape, and provides tools for inventory, shelf layout, reading progress, notes, images, tags, recommendations, and source comparison.
 
 No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 
@@ -266,12 +266,14 @@ Validate with `sudo nginx -t` before reloading Nginx.
 
 ---
 
-## PostgreSQL migration mode
+## Database backends and PostgreSQL operations
 
-PostgreSQL support is available for the domains already converted to the typed
-asynchronous repository layer. The application-wide cutover is still in
-progress; SQLite remains the default until the repository parity work and full
-browser validation are complete.
+SQLite and PostgreSQL implement the complete typed asynchronous repository
+contract. SQLite remains the zero-configuration default for local installs;
+`DATABASE_BACKEND=postgres` selects the production-capable PostgreSQL backend.
+The reference production deployment completed its verified PostgreSQL cutover
+in August 2026. `sqlite-readonly` remains available only for migration
+verification and deliberate rollback preparation.
 
 PostgreSQL schema changes are deliberate operator actions. The application
 never creates or upgrades its PostgreSQL schema during normal startup:
@@ -392,7 +394,7 @@ does not duplicate the upstream authentication check.
 | Framework | Next.js 16 App Router       |
 | UI        | React 19, Tailwind CSS      |
 | Icons     | lucide-react                |
-| Database  | SQLite via better-sqlite3; controlled PostgreSQL migration in progress |
+| Database  | SQLite via better-sqlite3 or PostgreSQL 16 |
 | Markdown  | react-markdown + remark-gfm |
 | Tests     | Vitest                      |
 
@@ -403,16 +405,14 @@ No hosted backend, no tracking, no third-party analytics.
 ## Architecture
 
 ```text
-VNDB API / ErogameScape
-          │
-          ▼
-Next.js server routes
-          │
-          ▼
-SQLite cache + local collection DB
-          │
-          ▼
 React UI
+   │
+   ▼
+Next.js server routes
+   ├── VNDB API / ErogameScape
+   └── Typed repository contract
+          ├── SQLite
+          └── PostgreSQL
 ```
 
 Main local data:
