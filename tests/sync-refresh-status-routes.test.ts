@@ -145,6 +145,7 @@ beforeEach(() => {
   fetchAllUpcomingMock.mockResolvedValue([]);
   fetchUpcomingForCollectionMock.mockReset();
   fetchUpcomingForCollectionMock.mockResolvedValue([]);
+  db.prepare("DELETE FROM vndb_cache WHERE cache_key = 'egs:anticipated:100'").run();
   db.prepare("DELETE FROM collection WHERE vn_id IN ('v90301', 'vbad')").run();
   db.prepare("DELETE FROM vn WHERE id IN ('v90301', 'vbad')").run();
 });
@@ -280,6 +281,8 @@ describe('POST /api/refresh/global', () => {
     db.prepare('INSERT OR IGNORE INTO vn (id, title, fetched_at) VALUES (?, ?, ?)').run('vbad', 'Invalid Refresh VN', Date.now());
     addToCollection('v90301', {});
     addToCollection('vbad', {});
+    db.prepare(`INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`)
+      .run('egs:anticipated:100', '[]', 1, 2);
     const res = await refreshGlobalPOST(loopback('/api/refresh/global', 'POST', {}));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -287,6 +290,9 @@ describe('POST /api/refresh/global', () => {
     expect(body.total).toBeGreaterThan(0);
     expect(body.done).toBe(body.total);
     expect(getGlobalStatsMock).toHaveBeenCalled();
+    expect(fetchEgsAnticipatedMock).toHaveBeenCalledWith(100, { force: true });
+    expect(fetchEgsTopRankedMock).toHaveBeenCalledWith(100, undefined, { force: true });
+    expect(db.prepare("SELECT 1 FROM vndb_cache WHERE cache_key = 'egs:anticipated:100'").get()).toBeDefined();
   });
 
   it('200 with failed count when a fan-out task throws and authinfo fallback swallows VNDB auth failures', async () => {

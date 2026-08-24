@@ -522,6 +522,24 @@ describe('fetchEgsAnticipated', () => {
     expect(mockProviderFetch).not.toHaveBeenCalled();
     expect(cached[0].vndb_id).toBe('v777');
   });
+
+  it('force-refreshes a non-empty anticipated cache instead of returning it', async () => {
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'sellday', 'brand_name', 'vndb', 'will_buy', 'probably', 'watching'],
+      ['210', 'Cached row', '2099-01-01', 'Brand A', '', '1', '0', '0'],
+    ])));
+    await fetchEgsAnticipated(61);
+    mockProviderFetch.mockReset();
+    queueFetches(ok(tableHtml([
+      ['id', 'gamename', 'sellday', 'brand_name', 'vndb', 'will_buy', 'probably', 'watching'],
+      ['211', 'Fresh row', '2099-02-01', 'Brand B', '', '2', '1', '0'],
+    ])));
+
+    const refreshed = await fetchEgsAnticipated(61, { force: true });
+
+    expect(refreshed.map((row) => row.egs_id)).toEqual([211]);
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
+  });
 });
 
 describe('fetchEgsAnticipatedPage', () => {
@@ -651,6 +669,19 @@ describe('fetchEgsTopRanked', () => {
     expect(await fetchEgsTopRanked(100, 10)).toEqual([]);
     const row = db.prepare(`SELECT body FROM vndb_cache WHERE cache_key = 'egs:top-ranked:10:100'`).get();
     expect(row).toBeUndefined();
+  });
+
+  it('force-refreshes a non-empty top-ranked cache instead of returning it', async () => {
+    const header = ['id', 'gamename', 'furigana', 'brand_id', 'brand_name', 'median', 'median2', 'average2', 'count2', 'sellday', 'banner_url', 'okazu', 'erogame', 'vndb'];
+    queueFetches(ok(tableHtml([header, ['410', 'Cached row', '', '', '', '80', '', '78', '40', '', '', 'f', 'f', '']])));
+    await fetchEgsTopRanked(101, 11);
+    mockProviderFetch.mockReset();
+    queueFetches(ok(tableHtml([header, ['411', 'Fresh row', '', '', '', '82', '', '80', '50', '', '', 'f', 'f', '']])));
+
+    const refreshed = await fetchEgsTopRanked(101, 11, { force: true });
+
+    expect(refreshed.map((row) => row.egs_id)).toEqual([411]);
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
   });
 });
 

@@ -85,12 +85,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // not do.
   const BUST_PATTERNS: ReadonlyArray<string> = [
     'egs:cover-resolved:%',
-    // Real EGS anticipated cache keys are `egs:anticipated:%` —
-    // the previous `anticipated:%` pattern matched zero rows so
-    // the global refresh silently left the /upcoming?tab=anticipated
-    // cache stale up to 12h.
-    'egs:anticipated:%',
-    'egs:top-ranked:%',
     '% /stats|%',
     '% /schema|%',
     '% /authinfo|%',
@@ -123,8 +117,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       code: 'refresh_release_metadata_cache',
       run: () => getReleaseMetadataRepository().clear(),
     },
-    { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100) },
-    { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100) },
+    { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100, { force: true }) },
+    { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100, undefined, { force: true }) },
     { name: 'VNDB top-ranked (top 100)', code: 'refresh_vndb_top_ranked', params: { count: 100 }, run: () => fetchVndbTopRanked(100) },
     { name: 'VNDB stats', code: 'refresh_vndb_stats', run: () => getGlobalStats() },
     { name: 'VNDB schema', code: 'refresh_vndb_schema', run: () => getSchema() },

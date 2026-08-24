@@ -936,6 +936,10 @@ export interface EgsAnticipated {
 
 const ANTICIPATED_TTL_MS = 12 * 3600 * 1000;
 
+interface EgsBulkFetchOptions {
+  force?: boolean;
+}
+
 /**
  * Upcoming games ranked by EGS users' pre-release purchase intent. EGS
  * stores three labels on `userreview.before_purchase_will`:
@@ -948,12 +952,15 @@ const ANTICIPATED_TTL_MS = 12 * 3600 * 1000;
  *
  * Cached for 12h — counts move slowly and the SQL form is rate-limited.
  */
-export async function fetchEgsAnticipated(limit = 100): Promise<EgsAnticipated[]> {
+export async function fetchEgsAnticipated(
+  limit = 100,
+  options: EgsBulkFetchOptions = {},
+): Promise<EgsAnticipated[]> {
   const safe = Math.min(200, Math.max(5, Math.floor(limit)));
   const cacheK = cacheKey('anticipated', String(safe));
   // Skip the cache when it stored a previous EMPTY result (same
   // pattern as fetchEgsTopRanked above).
-  const cached = await readCache(cacheK, decodeEgsAnticipatedRows);
+  const cached = options.force ? null : await readCache(cacheK, decodeEgsAnticipatedRows);
   if (cached && cached.length > 0) {
     return await applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
@@ -1189,6 +1196,7 @@ const EGS_TOP_TTL_MS = 12 * 3600 * 1000;
 export async function fetchEgsTopRanked(
   limit = 100,
   minVotes: number = EGS_TOP_MIN_VOTES,
+  options: EgsBulkFetchOptions = {},
 ): Promise<EgsTopRanked[]> {
   const safeLimit = Math.min(300, Math.max(10, Math.floor(limit)));
   const safeMin = Math.max(1, Math.floor(minVotes));
@@ -1200,7 +1208,7 @@ export async function fetchEgsTopRanked(
   // when the real cause was a transient network failure. Now an
   // empty cached array just triggers a fresh fetch. A genuine
   // non-empty cache hit still short-circuits as before.
-  const cached = await readCache(cacheK, decodeEgsTopRankedRows);
+  const cached = options.force ? null : await readCache(cacheK, decodeEgsTopRankedRows);
   if (cached && cached.length > 0) {
     return await applyManualEgsToVndb(cached.map((r) => ({ ...r })));
   }
