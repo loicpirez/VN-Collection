@@ -266,6 +266,16 @@ describe('list detail page runtime', () => {
     expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: [] });
   });
 
+  it('uses the singular item count for a one-entry list', async () => {
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue([listItem('v1')]);
+    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
+
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(html).toContain(dictionaries.en.lists.vnCountSingular.replace('{n}', '1'));
+  });
+
   it('renders reorder cards, missing-row stubs, and repository-projected card metadata', async () => {
     repositoryMocks.getUserList.mockResolvedValue(list());
     repositoryMocks.listItems.mockResolvedValue([listItem('v1'), listItem('v2', 1)]);
