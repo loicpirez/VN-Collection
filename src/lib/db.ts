@@ -9936,23 +9936,19 @@ export function addVnToList(listId: number, vnId: string, note?: string | null):
   const list = getUserList(listId);
   if (!list) return null;
   return db.transaction(() => {
+    const normalizedVnId = vnId.toLowerCase();
     const now = Date.now();
     const next = (db
       .prepare('SELECT COALESCE(MAX(order_index), -1) + 1 AS n FROM user_list_vn WHERE list_id = ?')
       .get(listId) as { n: number }).n;
-    db.prepare(`
+    const item = db.prepare(`
       INSERT INTO user_list_vn (list_id, vn_id, order_index, added_at, note)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(list_id, vn_id) DO UPDATE SET note = excluded.note
-    `).run(listId, vnId, next, now, note ?? null);
+      RETURNING list_id, vn_id, order_index, added_at, note
+    `).get(listId, normalizedVnId, next, now, note ?? null) as UserListItem;
     db.prepare('UPDATE user_list SET updated_at = ? WHERE id = ?').run(now, listId);
-    return {
-      list_id: listId,
-      vn_id: vnId,
-      order_index: next,
-      added_at: now,
-      note: note ?? null,
-    } satisfies UserListItem;
+    return item;
   })();
 }
 
