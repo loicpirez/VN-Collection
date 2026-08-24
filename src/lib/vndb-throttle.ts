@@ -125,6 +125,7 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
       res = await providerFetch(url, init ?? {}, provider);
     } catch (err) {
       release();
+      if (init?.signal?.aborted === true || (err instanceof Error && err.name === 'AbortError')) throw err;
       if (attempt > MAX_RETRY) throw err;
       await sleep(Math.min(MAX_RETRY_AFTER_MS, NET_ERR_RETRY_BASE_MS * (2 ** (attempt - 1))));
       continue;

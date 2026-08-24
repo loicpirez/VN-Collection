@@ -100,6 +100,14 @@ const mResolveStockProxy = vi.mocked(resolveStockProviderProxy);
 
 const PROXY: ProxyConfig = { protocol: 'socks5h', host: 'proxy.invalid', port: 1080, username: null, password: null };
 
+function latestSafeFetchInit(): RequestInit {
+  const call = mSafeFetch.mock.calls.at(-1);
+  if (!call) throw new Error('safeFetch was not called');
+  const init = call[1];
+  if (!init) throw new Error('safeFetch did not receive request options');
+  return init;
+}
+
 beforeEach(() => {
   captured.length = 0;
   responseQueue.length = 0;
@@ -125,8 +133,25 @@ describe('providerFetch routing', () => {
     const { providerFetch } = await import('@/lib/proxy-fetch');
     const res = await providerFetch('https://api.vndb.org/kana/vn', { method: 'GET' }, 'vndb');
     expect(res).toBe(sentinel);
-    expect(mSafeFetch).toHaveBeenCalledWith('https://api.vndb.org/kana/vn', { method: 'GET' });
+    expect(mSafeFetch).toHaveBeenCalledWith(
+      'https://api.vndb.org/kana/vn',
+      expect.objectContaining({ method: 'GET', signal: expect.any(AbortSignal) }),
+    );
     expect(captured).toHaveLength(0);
+  });
+
+  it('combines a caller abort signal with the provider deadline', async () => {
+    mResolveProxy.mockResolvedValue(null);
+    mSafeFetch.mockResolvedValue(new Response('direct', { status: 200 }));
+    const controller = new AbortController();
+    const { providerFetch } = await import('@/lib/proxy-fetch');
+
+    await providerFetch('https://api.vndb.org/kana/vn', { signal: controller.signal }, 'vndbmirror');
+    const forwarded = latestSafeFetchInit().signal;
+    expect(forwarded).toBeInstanceOf(AbortSignal);
+    expect(forwarded?.aborted).toBe(false);
+    controller.abort();
+    expect(forwarded?.aborted).toBe(true);
   });
 
   it('tunnels through a built proxy agent when a config is present', async () => {
@@ -150,6 +175,7 @@ describe('stockProviderFetch routing', () => {
       stockProviderFetch('https://www.suruga-ya.jp/x', { method: 'GET' }, 'surugaya'),
     );
     expect(res).toBe(sentinel);
+    expect(latestSafeFetchInit().signal).toBeInstanceOf(AbortSignal);
     expect(captured).toHaveLength(0);
   });
 
@@ -160,6 +186,7 @@ describe('stockProviderFetch routing', () => {
     const { stockProviderFetch } = await import('@/lib/proxy-fetch');
     const res = await stockProviderFetch('https://www.suruga-ya.jp/x', {}, 'surugaya');
     expect(res).toBe(sentinel);
+    expect(latestSafeFetchInit().signal).toBeInstanceOf(AbortSignal);
   });
 
   it('tunnels through the resolved stock proxy when present', async () => {

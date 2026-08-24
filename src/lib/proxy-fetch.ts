@@ -11,6 +11,25 @@ import { isAllowedHttpTarget, resolveAndCheckHostname } from './url-allowlist';
 
 const directFetchStore = new AsyncLocalStorage<boolean>();
 
+const PROVIDER_TIMEOUT_MS: Record<ProviderId, number> = {
+  vndb: 12_000,
+  vndbmirror: 12_000,
+  egs: 20_000,
+  alicenet: 30_000,
+  stock: 30_000,
+};
+const STOCK_PROVIDER_TIMEOUT_MS = 30_000;
+
+function withRequestTimeout(init: RequestInit, timeoutMs: number): RequestInit {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return {
+    ...init,
+    signal: init.signal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : timeoutSignal,
+  };
+}
+
 /**
  * Run `fn` with proxying disabled for every `stockProviderFetch` call made
  * inside it (including nested awaits). The stock-refresh fallback uses this
@@ -73,6 +92,23 @@ function performProxyRequest(
   const isHttps = parsed.protocol === 'https:';
   const requester = isHttps ? httpsRequest : httpRequest;
   return new Promise<RawProxyResponse>((resolve, reject) => {
+    let settled = false;
+    let abortHandler: (() => void) | null = null;
+    const cleanup = () => {
+      if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+    };
+    const resolveOnce = (value: RawProxyResponse) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
     const req = requester(
       {
         hostname: parsed.hostname,
@@ -94,16 +130,16 @@ function performProxyRequest(
           if (total > MAX_BYTES) {
             aborted = true;
             res.destroy();
-            reject(new Error(`proxy response exceeded ${MAX_BYTES} bytes`));
+            rejectOnce(new Error(`proxy response exceeded ${MAX_BYTES} bytes`));
             return;
           }
           chunks.push(chunk);
         });
         res.on('end', () => {
-          if (!aborted) resolve({ statusCode: res.statusCode ?? 0, headers: res.headers, raw: Buffer.concat(chunks) });
+          if (!aborted) resolveOnce({ statusCode: res.statusCode ?? 0, headers: res.headers, raw: Buffer.concat(chunks) });
         });
         res.on('error', (e) => {
-          if (!aborted) reject(e);
+          if (!aborted) rejectOnce(e);
         });
       },
     );
@@ -111,20 +147,17 @@ function performProxyRequest(
     if (signal) {
       if (signal.aborted) {
         req.destroy();
-        reject(new DOMException('Signal aborted', 'AbortError'));
+        rejectOnce(new DOMException('Signal aborted', 'AbortError'));
         return;
       }
-      signal.addEventListener(
-        'abort',
-        () => {
-          req.destroy();
-          reject(new DOMException('Signal aborted', 'AbortError'));
-        },
-        { once: true },
-      );
+      abortHandler = () => {
+        req.destroy();
+        rejectOnce(new DOMException('Signal aborted', 'AbortError'));
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
     }
 
-    req.on('error', reject);
+    req.on('error', rejectOnce);
     if (bodyStr) req.write(bodyStr);
     req.end();
   });
@@ -274,10 +307,11 @@ export async function providerFetch(
   init: RequestInit,
   provider: ProviderId,
 ): Promise<Response> {
+  const boundedInit = withRequestTimeout(init, PROVIDER_TIMEOUT_MS[provider]);
   const config = await resolveProxyConfig(provider);
-  if (!config) return safeFetch(url, init);
+  if (!config) return safeFetch(url, boundedInit);
   const agent = await buildAgent(config);
-  return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));
+  return nodeAgentFetch(url, boundedInit, undefined, createProxyHopResolver(agent));
 }
 
 /**
@@ -290,9 +324,10 @@ export async function stockProviderFetch(
   init: RequestInit,
   providerId: string,
 ): Promise<Response> {
-  if (directFetchStore.getStore() === true) return safeFetch(url, init);
+  const boundedInit = withRequestTimeout(init, STOCK_PROVIDER_TIMEOUT_MS);
+  if (directFetchStore.getStore() === true) return safeFetch(url, boundedInit);
   const config = await resolveStockProviderProxy(providerId);
-  if (!config) return safeFetch(url, init);
+  if (!config) return safeFetch(url, boundedInit);
   const agent = await buildAgent(config);
-  return nodeAgentFetch(url, init, undefined, createProxyHopResolver(agent));
+  return nodeAgentFetch(url, boundedInit, undefined, createProxyHopResolver(agent));
 }

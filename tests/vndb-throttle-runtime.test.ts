@@ -169,6 +169,24 @@ describe('network-error back-off', () => {
     await settled;
     expect(providerFetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('does not retry an AbortError from the provider deadline', async () => {
+    const { throttledFetch } = await freshThrottle();
+    providerFetchMock.mockRejectedValueOnce(new DOMException('timed out', 'AbortError'));
+
+    await expect(throttledFetch(VNDB, {})).rejects.toMatchObject({ name: 'AbortError' });
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry after the caller aborts even when the provider throws another error type', async () => {
+    const { throttledFetch } = await freshThrottle();
+    const controller = new AbortController();
+    controller.abort();
+    providerFetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    await expect(throttledFetch(VNDB, { signal: controller.signal })).rejects.toThrow(/fetch failed/);
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('soft circuit breaker + stats', () => {
