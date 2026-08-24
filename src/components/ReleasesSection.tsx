@@ -163,7 +163,7 @@ const ReleaseRow = memo(function ReleaseRow({
                 aria-label={p}
                 className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
               >
-                {platformLabel(p)}
+                {platformLabel(p, locale)}
               </Link>
             ))}
           </span>

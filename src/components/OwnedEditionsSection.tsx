@@ -449,7 +449,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                             <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
                           ))}
                           {release?.platforms.slice(0, 3).map((p) => (
-                            <span key={p} title={p}>{platformLabel(p)}</span>
+                            <span key={p} title={p}>{platformLabel(p, locale)}</span>
                           ))}
                         </div>
                       </div>
@@ -539,7 +539,7 @@ function EditionSummary({ edition }: { edition: OwnedEdition }) {
               <Field
                 icon={<Tag className="h-3 w-3" aria-hidden />}
                 label={t.form.ownedPlatform}
-                value={platformLabel(platformState.platform)}
+                value={platformLabel(platformState.platform, locale)}
                 title={platformState.platform}
               />
             );
@@ -1263,7 +1263,7 @@ function EditionPicker({
                     </span>
                   ))}
                   {r.platforms.slice(0, 3).map((p) => (
-                    <span key={p}>{platformLabel(p)}</span>
+                    <span key={p}>{platformLabel(p, locale)}</span>
                   ))}
                   {res && <span>{res}</span>}
                 </div>
