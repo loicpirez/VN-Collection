@@ -28,6 +28,13 @@ an empty capability set. Re-run `systemd-analyze security vndb.service` after a
 unit change and treat a material regression from the measured 2.9 exposure
 score as a deployment review item, not as an automatic tuning target.
 
+Install the reviewed unit from `ops/systemd/vndb.service`. Next's standalone
+process exits with status 143 after the requested `SIGTERM`; the unit records
+that one status as successful so a deliberate rolling restart does not create a
+false failure alert. `Restart=on-failure` still applies to every unexpected exit
+status. After changing the unit, run `systemctl daemon-reload`, restart once,
+and verify both `Result=success` and `NRestarts=0`.
+
 ## Deployment contract
 
 - Apply reviewed migrations with `yarn db:postgres:apply` as a separate

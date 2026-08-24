@@ -48,4 +48,21 @@ describe('PostgreSQL production deployment contract', () => {
     const integration = read('tests/postgres-integration/runtime.pgtest.ts');
     expect(integration).not.toMatch(/\b(?:describe|it|test)\.(?:skip|skipIf|only)\s*\(/);
   });
+
+  it('versions the hardened systemd service and treats deliberate shutdown as successful', () => {
+    const service = read('ops/systemd/vndb.service');
+    expect(service).toContain('EnvironmentFile=/etc/vndb/vndb.env');
+    expect(service).toContain('Environment=HOSTNAME=127.0.0.1');
+    expect(service).toContain('ExecStart=/usr/bin/node /var/www/vndb-current/.next/standalone/server.js');
+    expect(service).toContain('Restart=on-failure');
+    expect(service).toContain('KillSignal=SIGTERM');
+    expect(service).toContain('SuccessExitStatus=143');
+    expect(service).toContain('CapabilityBoundingSet=\n');
+    expect(service).toContain('NoNewPrivileges=true');
+    expect(service).toContain('ProtectSystem=full');
+    expect(service).toContain('ProtectHome=true');
+    expect(service).toContain('ReadOnlyPaths=/var/www/vndb-releases');
+    expect(service).toContain('ReadWritePaths=/var/www/vndb/data');
+    expect(service).not.toContain('DATABASE_URL=');
+  });
 });
