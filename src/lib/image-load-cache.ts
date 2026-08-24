@@ -11,6 +11,8 @@ export function cacheLoadedImage(src: string): void {
   loadedImageUrls.delete(src);
   loadedImageUrls.add(src);
   if (loadedImageUrls.size <= IMAGE_LOAD_CACHE_LIMIT) return;
-  const oldest = loadedImageUrls.values().next();
-  if (!oldest.done) loadedImageUrls.delete(oldest.value);
+  for (const oldest of loadedImageUrls) {
+    loadedImageUrls.delete(oldest);
+    break;
+  }
 }
