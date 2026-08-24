@@ -303,10 +303,9 @@ function ProducerScrapedRelations({
   info,
   t,
 }: {
-  info: ScrapedProducerInfo | null;
+  info: ScrapedProducerInfo;
   t: Awaited<ReturnType<typeof getDict>>;
 }) {
-  if (!info || info.relations.length === 0) return null;
   return (
     <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
       <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.producers.scrapedRelations}</h2>

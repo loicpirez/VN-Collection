@@ -163,7 +163,7 @@ describe('producer detail page branches', () => {
     expect(readScrapedProducerInfo).toHaveBeenCalledTimes(1);
   });
 
-  it('omits the scraped-relations section for a resolved empty payload', async () => {
+  it('renders the stats empty state for a resolved empty relations payload', async () => {
     vi.mocked(readScrapedProducerInfo).mockResolvedValue({ ...scraped, relations: [] });
 
     const stream = await renderToReadableStream(
@@ -177,6 +177,6 @@ describe('producer detail page branches', () => {
     const html = await new Response(stream).text();
 
     expect(html).not.toContain('Parent producer');
-    expect(html).not.toContain('data-section="scraped-relations"');
+    expect(html).toContain('data-section="stats"');
   });
 });
