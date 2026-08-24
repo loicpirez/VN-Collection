@@ -283,7 +283,9 @@ describe('VndbStatusPanel branches', () => {
 
   it('surfaces a localized toast error when a label toggle fails', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'PATCH') return json({ code: 'vndb_token_required' }, 401);
+      if (init?.method === 'PATCH') {
+        return json({ ok: false, error: 'VNDB token required', code: 'vndb_token_required', context: 'vndb-status/update' }, 401);
+      }
       return json(statePayload({ entry: true, labelIds: [1] }));
     });
     render();
@@ -413,7 +415,9 @@ describe('VndbStatusPanel branches', () => {
 
   it('surfaces a localized toast error when clear-all fails after confirmation', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'DELETE') return json({ code: 'vndb_unavailable' }, 503);
+      if (init?.method === 'DELETE') {
+        return json({ ok: false, error: 'upstream service unavailable', code: 'vndb_unavailable', context: 'vndb-status/delete' }, 503);
+      }
       return json(statePayload({ entry: true, labelIds: [1] }));
     });
     render();
@@ -543,7 +547,9 @@ describe('VndbStatusPanel branches', () => {
 
     it('shows a localized toast error when the editor save request fails', async () => {
       global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-        if (init?.method === 'PATCH') return json({ code: 'vndb_unavailable' }, 503);
+        if (init?.method === 'PATCH') {
+          return json({ ok: false, error: 'upstream service unavailable', code: 'vndb_unavailable', context: 'vndb-status/update' }, 503);
+        }
         return json(statePayload({ entry: true, vote: 70, labelIds: [1] }));
       });
       render();

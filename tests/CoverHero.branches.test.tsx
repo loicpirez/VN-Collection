@@ -48,7 +48,7 @@ describe('CoverHero branches', () => {
       dispatchCoverChanged({ vnId: 'v90011', newSrc: null, newLocal: null });
     });
     // No usable source anywhere → SafeImage placeholder (role=img).
-    expect(screen.getByRole('img', { name: 'Reset cover' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Image unavailable: Reset cover' })).toBeInTheDocument();
   });
 
   it('applies a rotation delivered on the cover-changed event', () => {
@@ -105,7 +105,7 @@ describe('CoverHero branches', () => {
     act(() => {
       img.dispatchEvent(new Event('error'));
     });
-    expect(screen.getByRole('img', { name: 'No local cover' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Image unavailable: No local cover' })).toBeInTheDocument();
   });
 
   it('re-syncs client state to new server-rendered props on rerender', () => {
