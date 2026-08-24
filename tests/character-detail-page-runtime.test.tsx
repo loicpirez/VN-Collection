@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CharacterPage from '@/app/character/[id]/page';
-import {
-  findCharacterSiblings,
-  getAppSetting,
-  getVasForCharacter,
-  isInCollectionMany,
-  type CharacterSibling,
-  type CharacterVoiceCredit,
+import type {
+  CharacterSibling,
+  CharacterVoiceCredit,
 } from '@/lib/db';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { readScrapedCharacterInfo, type ScrapedCharacterInfo } from '@/lib/scrape-character-instances';
@@ -20,15 +16,25 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const peopleMocks = vi.hoisted(() => ({
+  characterSiblings: vi.fn(),
+  voiceActorsForCharacter: vi.fn(),
+}));
+
+const collectionMocks = vi.hoisted(() => ({
+  containsMany: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
-vi.mock('@/lib/db', () => ({
-  findCharacterSiblings: vi.fn(),
-  getAppSetting: vi.fn(),
-  getVasForCharacter: vi.fn(),
-  isInCollectionMany: vi.fn(),
+vi.mock('@/lib/db/repositories/people', () => ({
+  getPeopleRepository: () => peopleMocks,
+}));
+
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => collectionMocks,
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -128,12 +134,11 @@ const scraped: ScrapedCharacterInfo = {
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
-  vi.mocked(findCharacterSiblings).mockReset().mockReturnValue([]);
-  vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
-  vi.mocked(getVasForCharacter).mockReset().mockReturnValue([]);
-  vi.mocked(isInCollectionMany).mockReset().mockReturnValue(new Set());
+  peopleMocks.characterSiblings.mockReset().mockResolvedValue([]);
+  peopleMocks.voiceActorsForCharacter.mockReset().mockResolvedValue([]);
+  collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
   vi.mocked(getCharacter).mockReset().mockResolvedValue(character());
-  vi.mocked(readScrapedCharacterInfo).mockReset().mockReturnValue(null);
+  vi.mocked(readScrapedCharacterInfo).mockReset().mockResolvedValue(null);
 });
 
 describe('character detail page runtime', () => {
@@ -198,10 +203,10 @@ describe('character detail page runtime', () => {
         { id: 'v2', role: 'appears', spoiler: 0 },
       ],
     }));
-    vi.mocked(findCharacterSiblings).mockReturnValue([sibling]);
-    vi.mocked(getVasForCharacter).mockReturnValue([voiceCredit]);
-    vi.mocked(isInCollectionMany).mockReturnValue(new Set(['v1']));
-    vi.mocked(readScrapedCharacterInfo).mockReturnValue(scraped);
+    peopleMocks.characterSiblings.mockResolvedValue([sibling]);
+    peopleMocks.voiceActorsForCharacter.mockResolvedValue([voiceCredit]);
+    collectionMocks.containsMany.mockResolvedValue(new Set(['v1']));
+    vi.mocked(readScrapedCharacterInfo).mockResolvedValue(scraped);
 
     const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
 

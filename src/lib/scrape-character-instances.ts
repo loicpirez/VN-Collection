@@ -1,9 +1,10 @@
 import 'server-only';
-import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
 import { asJsonRecord, parseJsonRecord } from './json-shape';
 import { isVndbVnId } from './vn-id-shape';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getPeopleRepository } from './db/repositories/people';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -97,24 +98,27 @@ function decodeScrapedCharacterInfo(raw: string, fetchedAt: number): ScrapedChar
  * or `null` on miss / parse error. Lets the character page render the cast
  * blocks without a synchronous web scrape.
  */
-export function readScrapedCharacterInfo(cid: string): ScrapedCharacterInfo | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(CACHE_KEY(cid)) as { body: string; fetched_at: number } | undefined;
+function decodeScrapedCharacterCacheRow(
+  row: Pick<CacheRow, 'body' | 'fetched_at'> | null,
+): ScrapedCharacterInfo | null {
   if (!row) return null;
   return decodeScrapedCharacterInfo(row.body, row.fetched_at);
 }
 
-function write(cid: string, info: ScrapedCharacterInfo): void {
+export async function readScrapedCharacterInfo(cid: string): Promise<ScrapedCharacterInfo | null> {
+  return decodeScrapedCharacterCacheRow(await getCacheRepository().get(CACHE_KEY(cid)));
+}
+
+async function write(cid: string, info: ScrapedCharacterInfo): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(CACHE_KEY(cid), JSON.stringify(info), now, now + 30 * 24 * 3600 * 1000);
+  await getCacheRepository().put({
+    cache_key: CACHE_KEY(cid),
+    body: JSON.stringify(info),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + 30 * 24 * 3600 * 1000,
+  });
 }
 
 const INSTANCES_BLOCK_RE = /<h1[^>]*>Instances<\/h1>\s*<table[^>]*>([\s\S]*?)<\/table>/i;
@@ -178,7 +182,7 @@ export async function scrapeCharacterInfo(
     voiced_by: voiced,
     fetched_at: Date.now(),
   };
-  write(cid, info);
+  await write(cid, info);
   return info;
 }
 
@@ -190,17 +194,18 @@ export async function scrapeCharactersForVn(
   vnId: string,
   opts: { force?: boolean } = {},
 ): Promise<{ scanned: number; downloaded: number }> {
-  const rows = db
-    .prepare(`SELECT DISTINCT c_id FROM vn_va_credit WHERE vn_id = ?`)
-    .all(vnId) as { c_id: string }[];
-  const ids = rows.map((r) => r.c_id).filter((s) => /^c\d+$/i.test(s));
+  const ids = (await getPeopleRepository().voiceCharacterIdsForVn(vnId))
+    .filter((characterId) => /^c\d+$/i.test(characterId));
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = opts.force
+    ? new Map<string, CacheRow>()
+    : await getCacheRepository().getMany(ids.map(CACHE_KEY));
   const stale = opts.force
     ? ids
     : ids.filter((cid) => {
-        const cached = readScrapedCharacterInfo(cid);
+        const cached = decodeScrapedCharacterCacheRow(cacheRows.get(CACHE_KEY(cid)) ?? null);
         return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };

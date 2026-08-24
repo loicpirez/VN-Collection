@@ -103,7 +103,7 @@ describe('scrapeCharacterInfo', () => {
     expect(info?.voiced_by[0]).toMatchObject({ sid: 's200', staff_name: 'Seiyuu X', vn_id: 'v10', note: null });
 
     // Persisted under the lowercased cache key and decodable on read-back.
-    const readBack = readScrapedCharacterInfo('c100');
+    const readBack = await readScrapedCharacterInfo('c100');
     expect(readBack?.instances).toHaveLength(2);
     expect(readBack?.voiced_by).toHaveLength(1);
   });
@@ -114,7 +114,7 @@ describe('scrapeCharacterInfo', () => {
     }));
     const info = await scrapeCharacterInfo('C300');
     expect(info?.cid).toBe('c300');
-    expect(readScrapedCharacterInfo('c300')).not.toBeNull();
+    expect(await readScrapedCharacterInfo('c300')).not.toBeNull();
   });
 
   it('produces empty arrays when neither block is present', async () => {
@@ -126,29 +126,29 @@ describe('scrapeCharacterInfo', () => {
 });
 
 describe('readScrapedCharacterInfo', () => {
-  it('returns null on a cache miss', () => {
-    expect(readScrapedCharacterInfo('c9999')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readScrapedCharacterInfo('c9999')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body fails schema validation', () => {
+  it('returns null when the cached body fails schema validation', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_character:c500', ?, NULL, NULL, ?, ?)`)
       .run(JSON.stringify({ cid: 'c500', instances: [{ bad: true }], voiced_by: [] }), now, now + 86_400_000);
-    expect(readScrapedCharacterInfo('c500')).toBeNull();
+    await expect(readScrapedCharacterInfo('c500')).resolves.toBeNull();
   });
 
-  it('returns null when a cached voice row omits its note', () => {
+  it('returns null when a cached voice row omits its note', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_character:c502', ?, NULL, NULL, ?, ?)`)
       .run(JSON.stringify({ cid: 'c502', instances: [], voiced_by: [{ sid: 's1', staff_name: 'Voice', vn_id: 'v1', vn_title: 'VN' }] }), now, now + 86_400_000);
-    expect(readScrapedCharacterInfo('c502')).toBeNull();
+    await expect(readScrapedCharacterInfo('c502')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body is unparseable JSON', () => {
+  it('returns null when the cached body is unparseable JSON', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_character:c501', '{broken', NULL, NULL, ?, ?)`)
       .run(now, now + 86_400_000);
-    expect(readScrapedCharacterInfo('c501')).toBeNull();
+    await expect(readScrapedCharacterInfo('c501')).resolves.toBeNull();
   });
 });
 

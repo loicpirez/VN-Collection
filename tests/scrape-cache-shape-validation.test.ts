@@ -23,13 +23,13 @@ beforeEach(() => {
 });
 
 describe('scraped cache structure validation', () => {
-  it('rejects malformed character payloads', () => {
+  it('rejects malformed character payloads', async () => {
     writeCacheRow('scrape_character:c990041', JSON.stringify({
       cid: 'c990041',
       instances: {},
       voiced_by: [],
     }));
-    expect(readScrapedCharacterInfo('c990041')).toBeNull();
+    await expect(readScrapedCharacterInfo('c990041')).resolves.toBeNull();
   });
 
   it('rejects malformed producer payloads', () => {

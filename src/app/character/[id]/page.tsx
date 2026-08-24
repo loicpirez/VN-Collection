@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
-import { findCharacterSiblings, getVasForCharacter, getAppSetting, isInCollectionMany } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { Check } from 'lucide-react';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -126,20 +128,25 @@ export default async function CharacterPage({
   // strongest role, and exposes `releaseCount` so the card can render
   // "N editions" instead of stacking identical covers.
   const sortedVns = dedupAppearances(char.vns).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
-  const appearsInOwned = isInCollectionMany(sortedVns.map((v) => v.id));
+  const appearsInOwned = await getCollectionCoreRepository().containsMany(sortedVns.map((v) => v.id));
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
-  const vas = getVasForCharacter(id);
+  const people = getPeopleRepository();
   // Other VNDB character records with the SAME display name - covers
   // the case where VNDB editors split a recurring character across
   // volumes of a series (e.g. the same protagonist may carry
   // different character ids in volume 1 vs volume 3).
-  const siblings = findCharacterSiblings(id);
+  const [vas, siblings] = await Promise.all([
+    people.voiceActorsForCharacter(id),
+    people.characterSiblings(id),
+  ]);
   // vndb.org HTML scrape - provides character "instances" and the full
   // per-VN voice-actor map that the Kana API doesn't expose.
-  const scraped = readScrapedCharacterInfo(id);
-  const initialLayout = parseCharacterDetailLayoutV1(getAppSetting(CHARACTER_DETAIL_SETTINGS_KEY));
+  const scraped = await readScrapedCharacterInfo(id);
+  const initialLayout = parseCharacterDetailLayoutV1(
+    await getAppSettingRepository().get(CHARACTER_DETAIL_SETTINGS_KEY),
+  );
 
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
