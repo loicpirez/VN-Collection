@@ -79,6 +79,15 @@ describe('AddEditPlaceModal branches', () => {
     expect(within(dialog).getByText('Branch Hint')).toBeInTheDocument();
   });
 
+  it('uses a context-specific title in create mode', () => {
+    renderWithProviders(
+      <AddEditPlaceModal place={null} createLabel="Add map place" onClose={vi.fn()} onSaved={vi.fn()} />,
+      { locale: 'en' },
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Add map place' });
+    expect(within(dialog).getByRole('heading', { name: 'Add map place' })).toBeInTheDocument();
+  });
+
   it('renders the edit title and prefilled values when editing', () => {
     renderWithProviders(
       <AddEditPlaceModal place={place()} onClose={vi.fn()} onSaved={vi.fn()} />,

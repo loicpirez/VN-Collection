@@ -403,6 +403,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
       {showAddModal && (
         <AddEditPlaceModal
           place={null}
+          createLabel={t.map.addPlace as string}
           onClose={() => setShowAddModal(false)}
           onSaved={(newId) => {
             setShowAddModal(false);

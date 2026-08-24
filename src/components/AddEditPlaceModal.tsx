@@ -18,11 +18,13 @@ type PlaceKind = 'shop' | 'chain' | 'storage';
 interface Props {
   place: PlaceWithLinks | null;
   initialBranch?: string | null;
+  /** Context-specific title used while creating a place; edit mode keeps its dedicated label. */
+  createLabel?: string;
   onClose: () => void;
   onSaved: (newId?: number) => void;
 }
 
-export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Props) {
+export function AddEditPlaceModal({ place, initialBranch, createLabel, onClose, onSaved }: Props) {
   const t = useT();
   const locale = useLocale();
   const { confirm } = useConfirm();
@@ -32,6 +34,7 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
   const saveInFlightRef = useRef(false);
   const identity = `${place?.id ?? 'new'}|${initialBranch ?? ''}`;
   const identityRef = useRef<string | null>(identity);
+  const dialogTitle = place ? (t.places.editPlace as string) : createLabel ?? (t.places.addPlace as string);
 
   const initial = {
     name: place?.name ?? initialBranch ?? '',
@@ -243,13 +246,13 @@ export function AddEditPlaceModal({ place, initialBranch, onClose, onSaved }: Pr
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={place ? (t.places.editPlace as string) : (t.places.addPlace as string)}
+        aria-label={dialogTitle}
         tabIndex={-1}
         className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-bg-card p-6 shadow-card outline-none overflow-y-auto max-h-[90vh]"
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-white">
-            {place ? (t.places.editPlace as string) : (t.places.addPlace as string)}
+            {dialogTitle}
             {initialBranch && !place && (
               <span className="ml-2 text-[11px] font-normal text-muted">{initialBranch}</span>
             )}
