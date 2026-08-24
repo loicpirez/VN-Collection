@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, Award, ChevronLeft, ChevronRight, Clock, Sparkles, Star } from 'lucide-react';
-import { getReadingGoal, yearReview } from '@/lib/db';
+import { getAnalyticsRepository } from '@/lib/db/repositories/analytics';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
 import { ActivityHeatmap } from '@/components/ActivityHeatmap';
@@ -32,8 +32,11 @@ export default async function YearPage({
   const { y } = await searchParams;
   const year = pickYear(y);
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  const review = yearReview(year);
-  const goal = getReadingGoal(year);
+  const analytics = getAnalyticsRepository();
+  const [review, goal] = await Promise.all([
+    analytics.yearReview(year),
+    analytics.readingGoal(year),
+  ]);
   const progress = goal?.target ? Math.min(100, Math.round((review.completed / goal.target) * 100)) : null;
 
   const navYear = (delta: number) => `/year?y=${year + delta}`;
