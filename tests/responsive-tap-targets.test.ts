@@ -74,6 +74,23 @@ describe('responsive tap targets', () => {
     expect(source('src/app/shelf/page.tsx')).toContain('sm:min-h-0');
   });
 
+  it('keeps compact metadata and card links touch-safe on mobile', () => {
+    for (const path of [
+      'src/app/top-ranked/page.tsx',
+      'src/app/staff/[id]/page.tsx',
+      'src/app/release/[id]/page.tsx',
+      'src/components/StaffExtraCredits.tsx',
+      'src/components/CastSection.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('min-h-[44px]');
+      expect(body, path).toContain('sm:min-h-0');
+    }
+    const staff = source('src/app/staff/[id]/page.tsx');
+    expect(staff).toContain('min-w-[44px]');
+    expect(staff).toContain('sm:min-w-0');
+  });
+
   it('keeps dumped tracker navigation and ignore actions touch-safe without inflating desktop rows', () => {
     const dumped = source('src/app/dumped/page.tsx');
     const ignore = source('src/components/DumpIgnoreButton.tsx');

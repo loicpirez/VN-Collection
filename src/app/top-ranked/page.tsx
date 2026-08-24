@@ -347,7 +347,7 @@ function MinVotesChips({
             key={preset}
             href={href}
             aria-pressed={isActive}
-            className={`inline-flex items-center rounded border px-1.5 py-0.5 tabular-nums transition-colors ${
+            className={`inline-flex min-h-[44px] items-center rounded border px-1.5 py-0.5 tabular-nums transition-colors sm:min-h-0 ${
               isActive
                 ? 'border-accent bg-accent/20 text-accent font-bold'
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -435,7 +435,7 @@ async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked
               <Link
                 href={`/vn/${v.id}`}
                 title={v.title}
-                className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent"
+                className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent sm:min-h-0"
               >
                 {v.title}
               </Link>
@@ -540,7 +540,7 @@ function EgsSection({
                   href={href}
                   {...linkProps}
                   title={r.gamename}
-                  className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent"
+                  className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent sm:min-h-0"
                 >
                   {r.gamename}
                 </Link>
@@ -619,7 +619,7 @@ function EgsSection({
                   return href ? (
                     <Link
                       href={href}
-                      className="mt-0.5 line-clamp-1 text-[10px] text-muted hover:text-accent"
+                      className="mt-0.5 min-h-[44px] line-clamp-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
                       title={r.brand_name}
                     >
                       {r.brand_name}
@@ -633,7 +633,7 @@ function EgsSection({
                     href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${r.egs_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent"
+                    className="inline-flex min-h-[44px] items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
                     aria-label={t.egs.openOnEgs}
                   >
                     <ExternalLink className="h-3 w-3" aria-hidden /> EGS

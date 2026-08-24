@@ -131,7 +131,7 @@ export default async function StaffPage({
               {profile?.lang && (
                 <Link
                   href={`/staff?lang=${encodeURIComponent(profile.lang)}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent sm:min-h-0"
                   title={profile.lang}
                 >
                   <Globe className="h-3 w-3" aria-hidden />
@@ -141,7 +141,7 @@ export default async function StaffPage({
               {gender && (
                 <Link
                   href={`/staff?sex=${encodeURIComponent(gender)}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent sm:min-h-0"
                 >
                   <User className="h-3 w-3" aria-hidden />
                   {t.staff.gender}:{' '}
@@ -150,7 +150,7 @@ export default async function StaffPage({
               )}
               <a
                 href="#production-credits"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent sm:min-h-0"
                 title={t.staff.productionCredits}
               >
                 <Users className="h-3 w-3" aria-hidden />
@@ -158,7 +158,7 @@ export default async function StaffPage({
               </a>
               <a
                 href="#voice-credits"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 lowercase hover:border-accent hover:text-accent sm:min-h-0"
                 title={t.staff.voiceCredits}
               >
                 <Mic2 className="h-3 w-3" aria-hidden />
@@ -204,7 +204,7 @@ export default async function StaffPage({
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                        className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
                       >
                         {l.label}
                       </a>
@@ -237,13 +237,13 @@ export default async function StaffPage({
           <Filter className="ml-1 h-3 w-3 text-muted" aria-hidden />
           <Link
             href={`/staff/${id}`}
-            className={`rounded px-2 py-1 ${!inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+            className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 sm:min-h-0 ${!inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
           >
             {t.staff.filterAll} ({totalAll})
           </Link>
           <Link
             href={`/staff/${id}?scope=collection`}
-            className={`rounded px-2 py-1 ${inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+            className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 sm:min-h-0 ${inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
           >
             {t.staff.filterInCollection} ({totalCol})
           </Link>
@@ -329,7 +329,7 @@ export default async function StaffPage({
                       <li key={c.id} className="flex items-start gap-2">
                         <Link
                           href={`/character/${c.id}`}
-                          className="block h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40"
+                          className="block h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 sm:h-10 sm:w-10"
                           aria-label={c.name}
                         >
                           <SafeImage
@@ -343,7 +343,7 @@ export default async function StaffPage({
                           <Link
                             href={`/character/${c.id}`}
                             title={c.name}
-                            className="line-clamp-1 font-semibold text-white/85 hover:text-accent"
+                            className="min-h-[44px] line-clamp-1 font-semibold text-white/85 hover:text-accent sm:min-h-0"
                           >
                             {c.name}
                           </Link>
@@ -504,7 +504,7 @@ function VnCard({
           <Link
             href={`/vn/${vn.id}`}
             title={vn.title}
-            className="line-clamp-2 flex-1 text-xs font-bold transition-colors hover:text-accent"
+            className="min-h-[44px] flex-1 line-clamp-2 text-xs font-bold transition-colors hover:text-accent sm:min-h-0"
           >
             {vn.title}
           </Link>
@@ -515,7 +515,7 @@ function VnCard({
               rel="noopener noreferrer"
               aria-label={openOnVndb}
               title={openOnVndb}
-              className="shrink-0 text-muted hover:text-accent"
+              className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center text-muted hover:text-accent sm:min-h-0 sm:min-w-0"
             >
               <ExternalLink className="h-3 w-3" aria-hidden />
             </a>

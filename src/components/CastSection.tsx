@@ -51,7 +51,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                 />
               </Link>
               <div className="min-w-0 flex-1">
-                <Link href={`/character/${c.id}`} className="line-clamp-2 text-xs font-bold hover:text-accent" title={c.name}>
+                <Link href={`/character/${c.id}`} className="min-h-[44px] line-clamp-2 text-xs font-bold hover:text-accent sm:min-h-0" title={c.name}>
                   {c.name}
                 </Link>
                 {c.original && c.original !== c.name && (
@@ -59,7 +59,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                 )}
                 <Link
                   href={`/staff/${s.id}`}
-                  className="mt-1 inline-block text-[11px] text-muted hover:text-accent"
+                  className="mt-1 inline-flex min-h-[44px] items-center text-[11px] text-muted hover:text-accent sm:min-h-0"
                   title={v.note ?? undefined}
                 >
                   {t.characters.castLabel}: <span className="font-semibold">{s.name}</span>
