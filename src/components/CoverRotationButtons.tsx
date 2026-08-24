@@ -1,6 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
@@ -38,8 +37,6 @@ export function CoverRotationButtons({
 }: Props) {
   const t = useT();
   const toast = useToast();
-  const router = useRouter();
-  const [, startTransition] = useTransition();
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [busy, setBusy] = useState(false);
   const identityRef = useRef<string | null>(vnId);
@@ -103,7 +100,6 @@ export function CoverRotationButtons({
       // `<SafeImage rotation={…}>` consumers read this event and
       // repaint instantly without a full router.refresh.
       dispatchCoverChanged({ vnId: ownerVnId, newSrc: null, newLocal: null, rotation: next });
-      startTransition(() => router.refresh());
     } catch (e) {
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       setRotation(prev);
