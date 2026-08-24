@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, EyeOff, HardDriveDownload, LayoutGrid, PackageOpen, Plus, XCircle } from 'lucide-react';
-import { getDumpSummary, listDumpStatus, listVnIdsOnShelf } from '@/lib/db';
+import type { DumpStatusEntry } from '@/lib/db';
+import { getDumpRepository } from '@/lib/db/repositories/dump';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -57,7 +58,7 @@ type BucketKey = Exclude<DumpTab, 'all'>;
  * use the same logic - drift between the two would surface as
  * "tab says 3, list shows 4".
  */
-function classify(e: ReturnType<typeof listDumpStatus>[number]): BucketKey {
+function classify(e: DumpStatusEntry): BucketKey {
   if (e.dumped_ignored) return 'ignored';
   if (e.collection_dumped || (e.total_editions > 0 && e.dumped_editions >= e.total_editions)) return 'complete';
   if (e.total_editions === 0) return 'none';
@@ -74,14 +75,16 @@ export default async function DumpedPage({
   const sp = await searchParams;
   const tab = parseTab(sp.tab);
 
-  const summary = getDumpSummary();
-  const entries = listDumpStatus();
+  const dumpRepository = getDumpRepository();
+  const [summary, entries, onShelf] = await Promise.all([
+    dumpRepository.summary(),
+    dumpRepository.listStatus(),
+    dumpRepository.listShelfVnIds(),
+  ]);
   // VN ids that have at least one placed edition on any shelf
   // (regular slot or face-out display slot). Drives the per-row
   // "Voir sur l'étagère" deep-link so the user can jump from the
   // dump tracker straight to the layout editor.
-  const onShelf = listVnIdsOnShelf();
-
   // Pre-compute per-tab counts so the chips show "{tab} / {n}" without
   // re-filtering inside the JSX. Counts are independent of the active
   // tab. The `all` count excludes the `none` bucket (per the spec -
@@ -299,6 +302,12 @@ export default async function DumpedPage({
                         )}
                       </div>
                     </Link>
+                    {e.dumped_ignored && (
+                      <div className="mx-2 mb-1 inline-flex items-center gap-1 rounded-md border border-border bg-bg-card/60 px-2 py-1 text-[10px] font-semibold text-muted">
+                        <EyeOff className="h-3 w-3" aria-hidden />
+                        {t.dumped.ignoredBanner}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5 border-t border-border/60 px-2 pb-2 pt-1.5">
                       {onShelfHere && (
                         <Link

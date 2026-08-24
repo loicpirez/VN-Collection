@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DumpedPage, { generateMetadata as generateDumpedMetadata } from '@/app/dumped/page';
-import { getDumpSummary, listDumpStatus, listVnIdsOnShelf, type DumpStatusEntry, type DumpSummary } from '@/lib/db';
+import type { DumpStatusEntry, DumpSummary } from '@/lib/db';
 
-vi.mock('@/lib/db', () => ({
-  getDumpSummary: vi.fn(),
-  listDumpStatus: vi.fn(),
-  listVnIdsOnShelf: vi.fn(),
+const dumpRepository = vi.hoisted(() => ({
+  summary: vi.fn(),
+  listStatus: vi.fn(),
+  listShelfVnIds: vi.fn(),
+}));
+
+vi.mock('@/lib/db/repositories/dump', () => ({
+  getDumpRepository: () => dumpRepository,
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -73,9 +77,9 @@ function entry(
 }
 
 beforeEach(() => {
-  vi.mocked(getDumpSummary).mockReset().mockReturnValue(summary());
-  vi.mocked(listDumpStatus).mockReset().mockReturnValue([]);
-  vi.mocked(listVnIdsOnShelf).mockReset().mockReturnValue(new Set());
+  dumpRepository.summary.mockReset().mockResolvedValue(summary());
+  dumpRepository.listStatus.mockReset().mockResolvedValue([]);
+  dumpRepository.listShelfVnIds.mockReset().mockResolvedValue(new Set());
 });
 
 describe('dump tracker page runtime', () => {
@@ -90,15 +94,15 @@ describe('dump tracker page runtime', () => {
   });
 
   it('renders tracked buckets, clamps summary progress, and links shelf placements', async () => {
-    vi.mocked(getDumpSummary).mockReturnValue(summary({ totalVns: 1, fullyDumpedVns: 2 }));
-    vi.mocked(listDumpStatus).mockReturnValue([
+    dumpRepository.summary.mockResolvedValue(summary({ totalVns: 1, fullyDumpedVns: 2 }));
+    dumpRepository.listStatus.mockResolvedValue([
       entry('v1', { collection_dumped: true, vn_image_thumb: 'https://example.test/thumb.jpg' }),
       entry('v2', { total_editions: 2, dumped_editions: 2, vn_local_image_thumb: '/local/v2.jpg' }),
       entry('v3', { total_editions: 2, dumped_editions: 1 }),
       entry('v4', { total_editions: 0 }),
       entry('v5', { dumped_ignored: true }),
     ]);
-    vi.mocked(listVnIdsOnShelf).mockReturnValue(new Set(['v3']));
+    dumpRepository.listShelfVnIds.mockResolvedValue(new Set(['v3']));
 
     const html = renderToStaticMarkup(await DumpedPage({ searchParams: Promise.resolve({}) }));
 
@@ -119,8 +123,8 @@ describe('dump tracker page runtime', () => {
   });
 
   it('uses the first tab query value and renders the no-edition CTA anchor', async () => {
-    vi.mocked(getDumpSummary).mockReturnValue(summary({ totalVns: 1 }));
-    vi.mocked(listDumpStatus).mockReturnValue([entry('v4', { total_editions: 0 })]);
+    dumpRepository.summary.mockResolvedValue(summary({ totalVns: 1 }));
+    dumpRepository.listStatus.mockResolvedValue([entry('v4', { total_editions: 0 })]);
 
     const html = renderToStaticMarkup(await DumpedPage({
       searchParams: Promise.resolve({ tab: ['none', 'missing'] }),
@@ -133,8 +137,8 @@ describe('dump tracker page runtime', () => {
   });
 
   it('renders ignored entries in their dedicated tab', async () => {
-    vi.mocked(getDumpSummary).mockReturnValue(summary({ totalVns: 1 }));
-    vi.mocked(listDumpStatus).mockReturnValue([entry('v5', { dumped_ignored: true })]);
+    dumpRepository.summary.mockResolvedValue(summary({ totalVns: 1 }));
+    dumpRepository.listStatus.mockResolvedValue([entry('v5', { dumped_ignored: true })]);
 
     const html = renderToStaticMarkup(await DumpedPage({
       searchParams: Promise.resolve({ tab: 'ignored' }),
@@ -142,12 +146,13 @@ describe('dump tracker page runtime', () => {
 
     expect(html).toContain('data-reset-key="ignored"');
     expect(html).toContain('Visual novel v5');
+    expect(html).toContain('Ignored in active tracking');
     expect(html).toContain('ignore:v5:true');
   });
 
   it('renders missing and complete edition states in their dedicated tabs', async () => {
-    vi.mocked(getDumpSummary).mockReturnValue(summary({ totalVns: 2, fullyDumpedVns: 1 }));
-    vi.mocked(listDumpStatus).mockReturnValue([
+    dumpRepository.summary.mockResolvedValue(summary({ totalVns: 2, fullyDumpedVns: 1 }));
+    dumpRepository.listStatus.mockResolvedValue([
       entry('v1', { total_editions: 2, dumped_editions: 2 }),
       entry('v2', { total_editions: 2, dumped_editions: 1 }),
     ]);
@@ -168,8 +173,8 @@ describe('dump tracker page runtime', () => {
   });
 
   it('falls invalid tabs back to all and renders zero-denominator tab percentages', async () => {
-    vi.mocked(getDumpSummary).mockReturnValue(summary({ totalVns: 1 }));
-    vi.mocked(listDumpStatus).mockReturnValue([entry('v4', { total_editions: 0 })]);
+    dumpRepository.summary.mockResolvedValue(summary({ totalVns: 1 }));
+    dumpRepository.listStatus.mockResolvedValue([entry('v4', { total_editions: 0 })]);
 
     const html = renderToStaticMarkup(await DumpedPage({
       searchParams: Promise.resolve({ tab: 'unsupported' }),
