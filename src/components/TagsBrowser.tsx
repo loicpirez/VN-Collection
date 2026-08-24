@@ -72,7 +72,7 @@ interface TagsBrowserProps {
   initialTree?: VndbTagHomeTree | null;
 }
 
-export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps = {}) {
+export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initialTree = null }: TagsBrowserProps) {
   const t = useT();
   const locale = useLocale();
   const search = useSearchParams();

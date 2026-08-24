@@ -46,7 +46,7 @@ export const SAVED_FILTERS_OPEN_EVENT = 'vn:open-saved-filters';
  * SAVED_FILTERS_OPEN_EVENT bus from the Library "Options" menu. The
  * popover itself remains visible when open.
  */
-export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolean } = {}) {
+export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolean }) {
   const t = useT();
   const router = useRouter();
   const sp = useSearchParams();

@@ -42,7 +42,7 @@ interface Props {
   label?: string;
 }
 
-export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props = {}) {
+export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();

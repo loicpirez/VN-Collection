@@ -269,7 +269,7 @@ const SearchInput = memo(function SearchInput({
   );
 });
 
-export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode } = {}) {
+export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
   const showControls = mode !== 'grid-only';
   const showGrid = mode !== 'controls-only';
   const t = useT();

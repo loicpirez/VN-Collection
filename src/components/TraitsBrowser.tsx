@@ -58,7 +58,7 @@ const TraitsSearchInput = memo(function TraitsSearchInput({
   );
 });
 
-export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null } = {}) {
+export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number | null }) {
   const t = useT();
   const locale = useLocale();
   const search = useSearchParams();

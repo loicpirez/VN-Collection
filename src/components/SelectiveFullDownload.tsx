@@ -85,7 +85,7 @@ interface Props {
  *     with `defaultFilters` from the current URL, so the picker already
  *     matches what the user can see in the grid behind the modal.
  */
-export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmitDone }: Props = {}) {
+export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmitDone }: Props) {
   const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<CollectionSelectiveRow[]>([]);
