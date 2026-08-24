@@ -43,7 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (picks.length === 0) return NextResponse.json({ applied: 0 });
   const result = await applyEgsSuggestions(picks);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'egs.sync-apply',
       entity: 'egs',
       entityId: null,
