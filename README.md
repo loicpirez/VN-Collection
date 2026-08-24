@@ -253,8 +253,23 @@ include /etc/nginx/snippets/vndb-public-icons.conf;
 location / {
     include /etc/nginx/snippets/vndb-basic-auth.conf;
     proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    include /etc/nginx/snippets/vndb-proxy-proof.conf;
 }
 ```
+
+Generate one random proxy secret. Store it as `TRUSTED_PROXY_SECRET` in the
+application environment with `ALLOW_TRUSTED_PROXY=1`, and install a root-only
+`/etc/nginx/snippets/vndb-proxy-proof.conf` from
+`ops/nginx/vndb-trusted-proxy.conf.example` using the same value. Nginx must
+overwrite `X-Proxy-Secret`; never forward the client-supplied value. Keep the
+installed snippet mode `0600`. This proof lets the application distinguish a
+Basic-Auth-protected request relayed over loopback from a direct local request.
+Forwarded host and protocol are trusted for Origin checks only after that proof
+matches.
 
 Safari and iOS can request `favicon.ico` and Apple touch icons from a separate
 `NetworkingExtension` credential context immediately after the document login.
@@ -374,8 +389,8 @@ either Compose port on a public interface.
 | `STORAGE_ROOT` | `./data/storage/` | Override media/image storage directory |
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
 | `VN_PUBLIC_READ_AUTH` | unset | Public API read policy: `token` enforces `VN_ADMIN_TOKEN`; `upstream` declares that the reverse proxy already authenticates every request |
-| `ALLOW_TRUSTED_PROXY` | unset | Enable trusted proxy mode for reverse-proxy setups |
-| `TRUSTED_PROXY_SECRET` | unset | Secret shared with the trusted proxy |
+| `ALLOW_TRUSTED_PROXY` | unset | Set to `1` only when the reverse proxy injects the private proof header |
+| `TRUSTED_PROXY_SECRET` | unset | Random secret shared with the trusted proxy and stored outside the repository |
 | `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `1` to disable the global `user_activity` audit log (only the literal `1` is honoured; other values are a no-op) |
 
 Leave `VN_PUBLIC_READ_AUTH` unset for the historical localhost or trusted-LAN

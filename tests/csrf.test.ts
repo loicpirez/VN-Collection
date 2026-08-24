@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { csrfGuard } from '@/lib/csrf';
 
 /**
@@ -18,6 +18,23 @@ function req(method: string, headers: Record<string, string> = {}): Request {
 }
 
 describe('csrfGuard', () => {
+  const saved = {
+    ALLOW_TRUSTED_PROXY: process.env.ALLOW_TRUSTED_PROXY,
+    TRUSTED_PROXY_SECRET: process.env.TRUSTED_PROXY_SECRET,
+  };
+
+  beforeEach(() => {
+    delete process.env.ALLOW_TRUSTED_PROXY;
+    delete process.env.TRUSTED_PROXY_SECRET;
+  });
+
+  afterEach(() => {
+    if (saved.ALLOW_TRUSTED_PROXY === undefined) delete process.env.ALLOW_TRUSTED_PROXY;
+    else process.env.ALLOW_TRUSTED_PROXY = saved.ALLOW_TRUSTED_PROXY;
+    if (saved.TRUSTED_PROXY_SECRET === undefined) delete process.env.TRUSTED_PROXY_SECRET;
+    else process.env.TRUSTED_PROXY_SECRET = saved.TRUSTED_PROXY_SECRET;
+  });
+
   it('lets safe methods through without inspection', () => {
     expect(csrfGuard(req('GET'))).toBeNull();
     expect(csrfGuard(req('HEAD'))).toBeNull();
@@ -134,6 +151,46 @@ describe('csrfGuard', () => {
       }),
     );
     expect(resp?.status).toBe(403);
+  });
+
+  it('uses the forwarded public origin only when the proxy proof is valid', () => {
+    process.env.ALLOW_TRUSTED_PROXY = '1';
+    process.env.TRUSTED_PROXY_SECRET = 'trusted-proxy-secret';
+    const headers = {
+      'content-type': 'application/json',
+      origin: 'https://collection.example',
+      'x-forwarded-for': '203.0.113.40',
+      'x-forwarded-host': 'collection.example',
+      'x-forwarded-proto': 'https',
+      'x-proxy-secret': 'trusted-proxy-secret',
+    };
+    expect(csrfGuard(req('POST', headers))).toBeNull();
+    expect(csrfGuard(req('POST', { ...headers, 'x-proxy-secret': 'wrong' }))?.status).toBe(403);
+  });
+
+  it('rejects malformed or incomplete forwarded origins instead of trusting them', () => {
+    process.env.ALLOW_TRUSTED_PROXY = '1';
+    process.env.TRUSTED_PROXY_SECRET = 'trusted-proxy-secret';
+    const base = {
+      'content-type': 'application/json',
+      origin: 'https://collection.example',
+      'x-forwarded-for': '203.0.113.40',
+      'x-proxy-secret': 'trusted-proxy-secret',
+    };
+    expect(csrfGuard(req('POST', {
+      ...base,
+      'x-forwarded-host': 'collection.example',
+      'x-forwarded-proto': 'ftp',
+    }))?.status).toBe(403);
+    expect(csrfGuard(req('POST', {
+      ...base,
+      'x-forwarded-proto': 'https',
+    }))?.status).toBe(403);
+    expect(csrfGuard(req('POST', {
+      ...base,
+      'x-forwarded-host': '[',
+      'x-forwarded-proto': 'https',
+    }))?.status).toBe(403);
   });
 
   it('allows programmatic JSON clients with no headers (curl / our own UI)', () => {

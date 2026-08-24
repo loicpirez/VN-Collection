@@ -1,0 +1,4 @@
+# Copy to a root-readable Nginx snippet, replace the placeholder with the same
+# random value as TRUSTED_PROXY_SECRET, and keep the installed file mode 0600.
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Proxy-Secret "REPLACE_WITH_TRUSTED_PROXY_SECRET";

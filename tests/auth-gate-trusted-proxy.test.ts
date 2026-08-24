@@ -24,8 +24,8 @@ function makeExternalReq(headers: Record<string, string> = {}): NextRequest {
   });
 }
 
-function makeLoopbackReq(): NextRequest {
-  return new NextRequest('http://127.0.0.1/api/settings', { method: 'GET' });
+function makeLoopbackReq(headers: Record<string, string> = {}): NextRequest {
+  return new NextRequest('http://127.0.0.1/api/settings', { method: 'GET', headers });
 }
 
 describe('AUD-SEC-015 — trusted proxy secret gate', () => {
@@ -54,6 +54,14 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
     expect(requireLocalhostOrToken(makeLoopbackReq())).toBeNull();
+  });
+
+  it('does not treat a forwarded request as local merely because Next received it on loopback', () => {
+    expect(requireLocalhostOrToken(makeLoopbackReq({
+      'x-forwarded-for': '203.0.113.40',
+      'x-forwarded-host': 'collection.example',
+      'x-forwarded-proto': 'https',
+    }))?.status).toBe(403);
   });
 
   it('forged X-Forwarded-For: 127.0.0.1 without ALLOW_TRUSTED_PROXY is denied', () => {
@@ -87,6 +95,18 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     expect(res?.status).toBe(403);
   });
 
+  it('rejects a same-length incorrect proxy proof', () => {
+    process.env.ALLOW_TRUSTED_PROXY = '1';
+    process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
+    const res = requireLocalhostOrToken(
+      makeExternalReq({
+        'x-forwarded-for': '203.0.113.40',
+        'x-proxy-secret': 'x'.repeat(TEST_SECRET.length),
+      }),
+    );
+    expect(res?.status).toBe(403);
+  });
+
   it('X-Forwarded-For without X-Proxy-Secret is denied when a secret is configured', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
@@ -96,12 +116,12 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     expect(res?.status).toBe(403);
   });
 
-  it('X-Forwarded-For with correct X-Proxy-Secret is allowed', () => {
+  it('a forwarded public client with the correct proxy proof is allowed', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
     const res = requireLocalhostOrToken(
       makeExternalReq({
-        'x-forwarded-for': '127.0.0.1',
+        'x-forwarded-for': '203.0.113.40',
         'x-proxy-secret': TEST_SECRET,
       }),
     );
@@ -121,27 +141,23 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     expect(res?.status).toBe(403);
   });
 
-  it('X-Forwarded-For with non-loopback IP is denied even with correct secret', () => {
+  it('accepts a loopback application URL only when its forwarding metadata has valid proof', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
     const res = requireLocalhostOrToken(
-      makeExternalReq({
-        'x-forwarded-for': '192.168.1.1',
+      makeLoopbackReq({
+        'x-forwarded-for': '203.0.113.40',
+        'x-forwarded-host': 'collection.example',
+        'x-forwarded-proto': 'https',
         'x-proxy-secret': TEST_SECRET,
       }),
     );
-    expect(res).not.toBeNull();
-    expect(res?.status).toBe(403);
+    expect(res).toBeNull();
   });
 
-  it('accepts the loopback 127 subnet with a correct proxy secret', () => {
+  it('does not accept a proxy proof without forwarding metadata', () => {
     process.env.ALLOW_TRUSTED_PROXY = '1';
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
-    expect(requireLocalhostOrToken(
-      makeExternalReq({
-        'x-forwarded-for': '127.0.0.2',
-        'x-proxy-secret': TEST_SECRET,
-      }),
-    )).toBeNull();
+    expect(requireLocalhostOrToken(makeExternalReq({ 'x-proxy-secret': TEST_SECRET }))?.status).toBe(403);
   });
 });

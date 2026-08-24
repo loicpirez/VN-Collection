@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { trustedForwardedOrigin } from './trusted-proxy';
 
 /**
  * Minimal CSRF gate for state-mutating API routes.
@@ -48,11 +49,12 @@ export function csrfGuard(req: Request): NextResponse | null {
     return NextResponse.json({ error: 'cross-site request denied' }, { status: 403 });
   }
 
-  // Fallback for older clients: compare Origin/Referer to the
-  // request URL's origin. `Origin: null` is rejected — sandboxed
+  // Fallback for older clients: compare Origin/Referer to the public origin
+  // proven by the trusted proxy, or otherwise the request URL's origin.
+  // `Origin: null` is rejected — sandboxed
   // iframes and certain extension surfaces emit it, and the cost of
   // declining them is far smaller than letting them mutate state.
-  const expected = new URL(req.url).origin;
+  const expected = trustedForwardedOrigin(req) ?? new URL(req.url).origin;
   const origin = req.headers.get('origin');
   if (origin) {
     if (origin === expected) return null;

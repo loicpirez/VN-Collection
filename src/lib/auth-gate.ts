@@ -1,6 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
+import { hasForwardingHeaders, hasTrustedProxyProof } from './trusted-proxy';
 
 /**
  * R5-131 — constant-time comparison for the admin-token check.
@@ -34,16 +35,16 @@ function timingSafeStrEqual(a: string, b: string): boolean {
  *
  * The gate checks two signals:
  *
- *   1. Request origin is loopback (`127.0.0.1`, `::1`, `localhost`).
- *      X-Forwarded-For is consulted only when ALLOW_TRUSTED_PROXY=1
- *      is set, so a misconfigured reverse proxy can't bypass.
+ *   1. A direct request with no forwarding metadata may use a loopback URL.
+ *      Forwarded requests require ALLOW_TRUSTED_PROXY=1 and a matching private
+ *      proxy proof, even when Next receives them on 127.0.0.1.
  *   2. Optional shared secret. When `VN_ADMIN_TOKEN` is configured,
  *      requests that include `Authorization: Bearer <token>` OR the
  *      `x-admin-token` header equal to the secret are also allowed —
  *      lets the user reach these routes from another device they
  *      control without exposing them to the LAN.
  *
- * The default (no env vars) is "loopback only". This matches the
+ * The default (no env vars) is "direct loopback only". This matches the
  * self-hosted single-user posture and breaks nothing for the local
  * dev / `localhost:3000` case.
  *
@@ -62,27 +63,16 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
     if (header && timingSafeStrEqual(header, adminToken)) return null;
   }
 
-  // 2) Loopback check. Inspect the URL host (set by Next from the
-  // incoming Host header) and, when the proxy override is on, also
-  // accept x-forwarded-for from a trusted proxy whose forwarded
-  // address is itself loopback.
+  // A direct request without forwarding metadata may use the loopback
+  // shortcut. A forwarded request is never considered local merely because
+  // Next received it from Nginx at 127.0.0.1.
   const url = new URL(req.url);
-  if (isLoopbackHost(url.hostname)) return null;
+  const forwarded = hasForwardingHeaders(req);
+  if (!forwarded && isLoopbackHost(url.hostname)) return null;
 
-  // AUD-SEC-015: Only trust X-Forwarded-For when ALLOW_TRUSTED_PROXY=1
-  // AND the request carries X-Proxy-Secret matching TRUSTED_PROXY_SECRET.
-  // Without the shared secret, any client can forge X-Forwarded-For: 127.0.0.1
-  // and bypass the loopback gate. The reverse proxy (nginx/Caddy) must be
-  // configured to inject the secret header on every forwarded request.
-  if (process.env.ALLOW_TRUSTED_PROXY === '1') {
-    const secret = process.env.TRUSTED_PROXY_SECRET?.trim();
-    const proofHeader = req.headers.get('x-proxy-secret')?.trim();
-    const secretOk = secret ? timingSafeStrEqual(proofHeader ?? '', secret) : false;
-    if (secretOk) {
-      const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-      if (forwarded && isLoopbackIp(forwarded)) return null;
-    }
-  }
+  // The proxy proof authenticates the reverse proxy itself. The forwarded
+  // client address may be public and is used for logging, not authorization.
+  if (forwarded && hasTrustedProxyProof(req)) return null;
 
   // Deny.
   return NextResponse.json(
@@ -102,11 +92,4 @@ function isLoopbackHost(host: string): boolean {
     h === '::1' ||
     h === '[::1]'
   );
-}
-
-function isLoopbackIp(ip: string): boolean {
-  const v = ip.replace(/^\[|\]$/g, '');
-  if (v === '127.0.0.1' || v === '::1') return true;
-  if (v.startsWith('127.')) return true;
-  return false;
 }
