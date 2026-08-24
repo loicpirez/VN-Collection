@@ -2,9 +2,9 @@
  * Regression pin: lightbox prev/next/close buttons must stack ABOVE the
  * displayed image on responsive viewports.
  *
- * container is rendered AFTER the buttons in the JSX tree and sits at
- * `max-w-[92vw]` on mobile, the image painted on top of the buttons,
- * making them visually disappear once it finished loading
+ * container is rendered AFTER the buttons in the JSX tree. Without an
+ * explicit stacking order, the image can paint on top of the buttons and
+ * make them visually disappear once it finishes loading.
  *
  * The fix pins each button at `z-20` and the image container at `z-10`
  * so the nav controls are always reachable.
@@ -55,10 +55,11 @@ describe('MediaGallery lightbox nav z-index', () => {
   });
 
   it('image container is explicitly at z-10 (below nav, above backdrop)', () => {
-    // The image wrapper carries both `relative` and `z-10` so we can pin
-    // it directly. Without z-10, the natural document-order stacking
-    // covered the nav buttons.
-    expect(SOURCE).toMatch(/className="relative z-10 max-h-\[90vh\] max-w-\[95vw\]"/);
+    // The image wrapper carries both `relative` and `z-10`. Its responsive
+    // dimensions now come from lightboxFrameStyle so the skeleton and loaded
+    // image reserve the same frame instead of changing geometry after load.
+    expect(SOURCE).toMatch(/data-media-lightbox-frame[\s\S]*className="relative z-10 bg-bg-elev"/);
+    expect(SOURCE).toContain('style={lightboxFrameStyle(visible[active])}');
   });
 
   it('nav buttons retain a backdrop-blur background so the image stays partially visible', () => {
