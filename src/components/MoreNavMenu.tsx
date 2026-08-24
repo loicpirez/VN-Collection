@@ -392,7 +392,7 @@ function NavGroup({
                 role="menuitem"
                 onClick={() => setOpen(false)}
                 aria-current={itemActive ? 'page' : undefined}
-                className={`tap-target flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                className={`flex min-h-11 min-w-0 items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
                   itemActive
                     ? 'bg-accent/15 text-accent font-semibold'
                     : 'text-muted hover:bg-bg-elev hover:text-white'

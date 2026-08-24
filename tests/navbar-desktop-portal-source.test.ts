@@ -34,6 +34,11 @@ describe('desktop grouped navigation portal', () => {
     expect(source).toContain('triggerRef.current?.focus({ preventScroll: true })');
   });
 
+  it('uses real 44px menu rows without pseudo-element overflow', () => {
+    expect(source).toContain('flex min-h-11 min-w-0 items-center gap-2');
+    expect(source).not.toContain('className={`tap-target flex items-center gap-2 rounded-md');
+  });
+
   it('reveals navigation labels by real header width and priority', () => {
     expect(layoutSource).toContain('nav-width-container flex flex-wrap');
     expect(source).toContain('className="nav-primary-label"');
