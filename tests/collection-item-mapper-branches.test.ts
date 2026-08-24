@@ -4,7 +4,7 @@ import {
   type CollectionItemDatabaseRow,
 } from '@/lib/db/collection-item-mapper';
 
-function row(): CollectionItemDatabaseRow {
+function row(overrides: Partial<CollectionItemDatabaseRow> = {}): CollectionItemDatabaseRow {
   return {
     id: 'v90001',
     title: 'Mapper fixture',
@@ -46,6 +46,7 @@ function row(): CollectionItemDatabaseRow {
     staff: '[]',
     va: '[]',
     fetched_at: 1,
+    ...overrides,
   };
 }
 
@@ -62,5 +63,12 @@ describe('collection item mapper branch behavior', () => {
 
     expect(item.languages).toEqual(['en']);
     expect(Object.keys(item)).toContain('languages');
+  });
+
+  it('falls back when a lazy JSON field contains malformed persisted data', () => {
+    const item = mapCollectionItemRow(row({ languages: '{malformed' }));
+    if (!item) throw new Error('fixture row did not map');
+
+    expect(item.languages).toEqual([]);
   });
 });

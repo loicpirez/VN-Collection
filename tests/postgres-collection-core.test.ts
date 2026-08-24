@@ -237,4 +237,31 @@ describe('PostgreSQL collection core repository', () => {
     expect(postgresQueryMock).toHaveBeenNthCalledWith(1, 'UPDATE collection SET custom_order = 0');
     expect(postgresQueryMock).toHaveBeenNthCalledWith(2, 'SELECT vn_id FROM collection');
   });
+
+  it('normalizes custom descriptions and rejects malformed source preferences', async () => {
+    const repository = createPostgresCollectionCoreRepository();
+    await repository.setCustomDescription('v90040', null);
+    await repository.setCustomDescription('v90040', '   ');
+    await repository.setCustomDescription('v90040', `  ${'x'.repeat(8_100)}  `);
+    expect(postgresQueryMock.mock.calls.slice(0, 3).map((call) => call[1]?.[0])).toEqual([
+      null,
+      null,
+      'x'.repeat(8_000),
+    ]);
+
+    postgresQueryMock
+      .mockResolvedValueOnce({ rows: [{ source_pref: '{malformed' }] })
+      .mockResolvedValueOnce({ rows: [{ source_pref: '[]' }] })
+      .mockResolvedValueOnce({ rows: [{ source_pref: '{"title":"vndb","rating":"invalid","other":"egs"}' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    await expect(repository.getSourcePreferences('v90040')).resolves.toEqual({});
+    await expect(repository.getSourcePreferences('v90040')).resolves.toEqual({});
+    await expect(repository.getSourcePreferences('v90040')).resolves.toEqual({ title: 'vndb' });
+    await expect(repository.getSourcePreferences('v90040')).resolves.toEqual({});
+
+    await repository.setSourcePreferences('v90040', { title: 'auto', rating: 'egs' });
+    await repository.setSourcePreferences('v90040', { title: 'auto' });
+    expect(postgresQueryMock.mock.calls.at(-2)?.[1]?.[0]).toBe('{"rating":"egs"}');
+    expect(postgresQueryMock.mock.calls.at(-1)?.[1]?.[0]).toBeNull();
+  });
 });
