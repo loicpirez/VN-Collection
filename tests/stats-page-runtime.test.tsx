@@ -1,13 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import StatsPage, { generateMetadata } from '@/app/stats/page';
-import {
-  getAggregateStats,
-  getStats,
-  listProducerStats,
-  listPublisherStats,
-  type AggregateStats,
-} from '@/lib/db';
+import type { AggregateStats } from '@/lib/db';
 import { getAuthInfo, getGlobalStats } from '@/lib/vndb';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { ProducerStat } from '@/lib/types';
@@ -15,18 +9,24 @@ import type { ProducerStat } from '@/lib/types';
 const mocks = vi.hoisted(() => ({
   averageRating: null as number | null,
   favorites: 0,
+  personal: vi.fn(),
+  aggregate: vi.fn(),
+  developerStats: vi.fn(),
+  publisherStats: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: vi.fn((sql: string) => ({
-      get: vi.fn(() => sql.includes('favorite = 1') ? { n: mocks.favorites } : { m: mocks.averageRating }),
-    })),
-  },
-  getAggregateStats: vi.fn(),
-  getStats: vi.fn(),
-  listProducerStats: vi.fn(),
-  listPublisherStats: vi.fn(),
+vi.mock('@/lib/db/repositories/producer', () => ({
+  getProducerRepository: () => ({
+    listDeveloperStats: mocks.developerStats,
+    listPublisherStats: mocks.publisherStats,
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/analytics', () => ({
+  getAnalyticsRepository: () => ({
+    personal: mocks.personal,
+    aggregate: mocks.aggregate,
+  }),
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -102,10 +102,16 @@ function producer(id: string, name: string, vnCount: number): ProducerStat {
 beforeEach(() => {
   mocks.averageRating = null;
   mocks.favorites = 0;
-  vi.mocked(getStats).mockReset().mockReturnValue({ total: 0, playtime_minutes: 0, byStatus: [] });
-  vi.mocked(getAggregateStats).mockReset().mockReturnValue(aggregate());
-  vi.mocked(listProducerStats).mockReset().mockReturnValue([]);
-  vi.mocked(listPublisherStats).mockReset().mockReturnValue([]);
+  mocks.personal.mockReset().mockResolvedValue({
+    total: 0,
+    playtime_minutes: 0,
+    byStatus: [],
+    favorites: 0,
+    avg_user_rating: null,
+  });
+  mocks.aggregate.mockReset().mockResolvedValue(aggregate());
+  mocks.developerStats.mockReset().mockResolvedValue([]);
+  mocks.publisherStats.mockReset().mockResolvedValue([]);
   vi.mocked(getGlobalStats).mockReset().mockResolvedValue({
     vn: 1,
     releases: 2,
@@ -139,15 +145,17 @@ describe('stats page runtime', () => {
     const month = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
     mocks.averageRating = 87;
     mocks.favorites = 2;
-    vi.mocked(getStats).mockReturnValue({
+    mocks.personal.mockResolvedValue({
       total: 3,
       playtime_minutes: 150,
+      favorites: mocks.favorites,
+      avg_user_rating: mocks.averageRating,
       byStatus: [
         { status: 'playing', n: 2 },
         { status: 'dropped', n: 1 },
       ],
     });
-    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+    mocks.aggregate.mockResolvedValue(aggregate({
       ratingDistribution: [{ bucket: 8, count: 2 }, { bucket: 9, count: 0 }],
       finishedByMonth: [{ month, count: 1, minutes: 150 }],
       byLanguage: [{ lang: 'ja', count: 3 }],
@@ -163,8 +171,8 @@ describe('stats page runtime', () => {
         sum_playtime_minutes: 60,
       },
     }));
-    vi.mocked(listProducerStats).mockReturnValue([producer('p1', 'Developer', 4)]);
-    vi.mocked(listPublisherStats).mockReturnValue([producer('p2', 'Publisher', 3)]);
+    mocks.developerStats.mockResolvedValue([producer('p1', 'Developer', 4)]);
+    mocks.publisherStats.mockResolvedValue([producer('p2', 'Publisher', 3)]);
     vi.mocked(getAuthInfo).mockResolvedValue({ id: 'u1', username: 'reader', permissions: ['listread'] });
 
     const html = renderToStaticMarkup(await StatsPage());
@@ -194,12 +202,14 @@ describe('stats page runtime', () => {
   });
 
   it('keeps malformed year labels and handles zero EGS median plus permission-free auth', async () => {
-    vi.mocked(getStats).mockReturnValue({
+    mocks.personal.mockResolvedValue({
       total: 1,
       playtime_minutes: 0,
       byStatus: [],
+      favorites: 0,
+      avg_user_rating: null,
     });
-    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+    mocks.aggregate.mockResolvedValue(aggregate({
       byYear: [{ year: 'unknown', count: 1 }],
       egs: {
         matched: 0,
@@ -208,7 +218,7 @@ describe('stats page runtime', () => {
         sum_playtime_minutes: 0,
       },
     }));
-    vi.mocked(listPublisherStats).mockReturnValue([producer('p3', 'Publisher only', 1)]);
+    mocks.publisherStats.mockResolvedValue([producer('p3', 'Publisher only', 1)]);
     vi.mocked(getAuthInfo).mockResolvedValue({ id: 'u2', username: 'guest', permissions: [] });
 
     const html = renderToStaticMarkup(await StatsPage());
@@ -221,12 +231,14 @@ describe('stats page runtime', () => {
   });
 
   it('renders individual years when the release-year span is small', async () => {
-    vi.mocked(getStats).mockReturnValue({
+    mocks.personal.mockResolvedValue({
       total: 1,
       playtime_minutes: 0,
       byStatus: [],
+      favorites: 0,
+      avg_user_rating: null,
     });
-    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+    mocks.aggregate.mockResolvedValue(aggregate({
       byYear: [{ year: '2020', count: 1 }, { year: '2022', count: 2 }],
     }));
 
@@ -237,12 +249,14 @@ describe('stats page runtime', () => {
   });
 
   it('falls back for unknown status labels and skips non-numeric years in wide ranges', async () => {
-    vi.mocked(getStats).mockReturnValue({
+    mocks.personal.mockResolvedValue({
       total: 2,
       playtime_minutes: 0,
       byStatus: [{ status: 'custom_status', n: 1 }],
+      favorites: 0,
+      avg_user_rating: null,
     });
-    vi.mocked(getAggregateStats).mockReturnValue(aggregate({
+    mocks.aggregate.mockResolvedValue(aggregate({
       byYear: [{ year: '1990', count: 1 }, { year: '200x', count: 9 }, { year: '2025', count: 2 }],
     }));
 

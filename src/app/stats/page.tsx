@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BarChart3, Database, Globe, KeyRound, Languages, MapPin, Package, Sparkles, Star, Tags as TagsIcon, User as UserIcon, Wrench } from 'lucide-react';
-import { db, getAggregateStats, getStats, listProducerStats, listPublisherStats } from '@/lib/db';
+import { getAnalyticsRepository } from '@/lib/db/repositories/analytics';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getAuthInfo, getGlobalStats, type VndbStatsGlobal } from '@/lib/vndb';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -9,6 +10,7 @@ import { fmtNum } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
 import { platformLabel } from '@/lib/platform-label';
 import { statusHex } from '@/lib/status-palette';
+import type { ProducerStat } from '@/lib/types';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -22,34 +24,17 @@ import { StatsExtras } from '@/components/StatsExtras';
 
 export const dynamic = 'force-dynamic';
 
-interface MyStats {
-  total: number;
-  playtime_minutes: number;
-  byStatus: { status: string; n: number }[];
-  favorites: number;
-  avg_user_rating: number | null;
-}
-
-function getMyStats(): MyStats {
-  const base = getStats();
-  const fav = (db.prepare('SELECT COUNT(*) AS n FROM collection WHERE favorite = 1').get() as { n: number }).n;
-  const avg = (db
-    .prepare('SELECT AVG(user_rating) AS m FROM collection WHERE user_rating IS NOT NULL')
-    .get() as { m: number | null }).m;
-  return {
-    total: base.total,
-    playtime_minutes: base.playtime_minutes,
-    byStatus: base.byStatus,
-    favorites: fav,
-    avg_user_rating: avg,
-  };
-}
-
 export default async function StatsPage() {
   const t = await getDict();
   const locale = await getLocale();
-  const my = getMyStats();
-  const agg = getAggregateStats();
+  const analytics = getAnalyticsRepository();
+  const producers = getProducerRepository();
+  const [my, agg, developerStats, publisherStats] = await Promise.all([
+    analytics.personal(),
+    analytics.aggregate(),
+    producers.listDeveloperStats(),
+    producers.listPublisherStats(),
+  ]);
   let global: VndbStatsGlobal | null = null;
   let globalError: string | null = null;
   try {
@@ -185,7 +170,12 @@ export default async function StatsPage() {
         </Card>
       )}
 
-      <ProducerRankCards t={t} locale={locale} />
+      <ProducerRankCards
+        t={t}
+        locale={locale}
+        developerStats={developerStats}
+        publisherStats={publisherStats}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         {agg.byLanguage.length > 0 && (
@@ -212,7 +202,7 @@ export default async function StatsPage() {
                 filter, /search's advanced drawer does. */}
             <HBarChart
               data={agg.byPlatform.map((d) => ({
-                label: platformLabel(d.platform),
+                label: platformLabel(d.platform, locale),
                 value: d.count,
                 href: `/search?platforms=${encodeURIComponent(d.platform)}`,
               }))}
@@ -357,9 +347,19 @@ export default async function StatsPage() {
  * publisher-only studio appears under publishers without polluting
  * the developer side, matching VNDB's release-level role model.
  */
-function ProducerRankCards({ t, locale }: { t: Awaited<ReturnType<typeof getDict>>; locale: Locale }) {
-  const devs = listProducerStats().slice(0, 10);
-  const pubs = listPublisherStats().slice(0, 10);
+function ProducerRankCards({
+  t,
+  locale,
+  developerStats,
+  publisherStats,
+}: {
+  t: Awaited<ReturnType<typeof getDict>>;
+  locale: Locale;
+  developerStats: ProducerStat[];
+  publisherStats: ProducerStat[];
+}) {
+  const devs = developerStats.slice(0, 10);
+  const pubs = publisherStats.slice(0, 10);
   if (devs.length === 0 && pubs.length === 0) return null;
   return (
     <div className="grid gap-6 md:grid-cols-2">

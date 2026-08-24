@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Award, Clock, Layers, Star } from 'lucide-react';
-import { bestRoi, ratingHistogram, tagsCompletedPerYear } from '@/lib/db';
+import { getAnalyticsRepository } from '@/lib/db/repositories/analytics';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
 import { formatMinutes } from '@/lib/format';
@@ -19,9 +19,12 @@ import { formatMinutes } from '@/lib/format';
 export async function StatsExtras() {
   const t = await getDict();
   const locale = await getLocale();
-  const hist = ratingHistogram();
-  const roi = bestRoi(15);
-  const tagYears = tagsCompletedPerYear(8);
+  const analytics = getAnalyticsRepository();
+  const [hist, roi, tagYears] = await Promise.all([
+    analytics.ratingHistogram(),
+    analytics.bestRoi(15),
+    analytics.tagsCompletedPerYear(8),
+  ]);
 
   const histMax = Math.max(1, ...hist.flatMap((b) => [b.mine, b.vndb]));
   const tagYearMap = new Map<number, Map<string, number>>();
