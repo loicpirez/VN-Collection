@@ -432,6 +432,15 @@ describe('year-review / ROI / histogram / heatmap / textual search', () => {
     expect(searchTextual('n')).toEqual([]);
   });
 
+  it('updates the custom description through the collection patch contract', () => {
+    upsertVn({ id: 'v90441', title: 'Custom description patch' });
+    addToCollection('v90441', { status: 'planning' });
+
+    updateCollection('v90441', { custom_description: 'Patched synopsis' });
+
+    expect(getCollectionItem('v90441')?.custom_description).toBe('Patched synopsis');
+  });
+
   it('findDuplicates groups VNs by normalized title; findStaleVns surfaces old / cover-less rows', () => {
     upsertVn({ id: 'v90450', title: 'Same Title!' });
     upsertVn({ id: 'v90451', title: 'same title' });
