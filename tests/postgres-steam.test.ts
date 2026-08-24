@@ -57,6 +57,15 @@ describe('PostgreSQL Steam repository', () => {
     await expect(repository.searchCollection('   ', 12)).resolves.toEqual([]);
   });
 
+  it('returns null for an absent app link and zero when no playtime row is applied', async () => {
+    const repository = createPostgresSteamRepository();
+    postgresQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(repository.getLinkByAppid(99)).resolves.toBeNull();
+
+    clientQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(repository.applyPlaytime([{ vn_id: 'v90001', playtime_minutes: 5 }])).resolves.toBe(0);
+  });
+
   it('keeps a manual link when auto detection proposes a replacement', async () => {
     clientQueryMock.mockResolvedValueOnce({ rows: [manualLink], rowCount: 1 });
     await expect(createPostgresSteamRepository().setLink({
