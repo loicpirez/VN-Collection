@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteRoute, getRoute, updateRoute, type RoutePatch } from '@/lib/db';
+import { getVnRouteRepository, type RoutePatch } from '@/lib/db/repositories/vn-route';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ routeId: s
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const r = getRoute(id);
+  const r = await getVnRouteRepository().get(id);
   if (!r) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({ route: r });
 }
@@ -28,7 +28,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  if (!getRoute(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  const repository = getVnRouteRepository();
+  if (!await repository.get(id)) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const fields: RoutePatch = {};
   if ('name' in body) {
@@ -62,9 +63,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ routeId: 
     if (typeof v === 'string' && v.length > 10_000) return NextResponse.json({ error: 'notes too long (max 10000)' }, { status: 400 });
     fields.notes = (v as string | null) || null;
   }
-  const updated = updateRoute(id, fields);
+  const updated = await repository.update(id, fields);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'collection.route-update',
       entity: 'vn',
       entityId: updated?.vn_id ?? null,
@@ -86,11 +87,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ routeId:
   const { routeId } = await ctx.params;
   const id = parseId(routeId);
   if (id == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const existing = getRoute(id);
-  const ok = deleteRoute(id);
+  const repository = getVnRouteRepository();
+  const existing = await repository.get(id);
+  const ok = await repository.delete(id);
   if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'collection.route-delete',
       entity: 'vn',
       entityId: existing?.vn_id ?? null,
