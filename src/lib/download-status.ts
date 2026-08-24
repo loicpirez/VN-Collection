@@ -62,7 +62,12 @@ export type JobCurrentItemCode =
   | 'refresh_upcoming_all'
   | 'refresh_tags_default'
   | 'refresh_traits_default'
-  | 'refresh_release_metadata_collection';
+  | 'refresh_release_metadata_collection'
+  | 'alicenet_phase_stock'
+  | 'alicenet_phase_vndb_primary'
+  | 'alicenet_phase_vndb_retry'
+  | 'alicenet_phase_vndb_from_egs'
+  | 'alicenet_phase_egs';
 
 export type JobTextParams = Record<string, string | number>;
 
@@ -97,11 +102,31 @@ export interface DownloadJob {
   current_item?: string | null;
   current_item_code?: JobCurrentItemCode | null;
   current_item_params?: JobTextParams | null;
-  errors: { item: string; message: string }[];
+  errors: DownloadJobError[];
   started_at: number;
   finished_at: number | null;
   cancelled?: boolean;
   interrupted?: boolean;
+}
+
+/** One bounded, user-visible failure recorded against a background job. */
+export interface DownloadJobError {
+  /** Entity or phase fallback identifying the failed work item. */
+  item: string;
+  /** Sanitized fallback message suitable for logs and untranslated clients. */
+  message: string;
+  /** Optional stable diagnostic code used by clients for localization. */
+  code?: string;
+  /** Optional stable phase or item-label code used by clients for localization. */
+  item_code?: string;
+}
+
+/** Optional machine-readable metadata attached to a recorded job failure. */
+export interface DownloadJobErrorMetadata {
+  /** Stable diagnostic code describing the failure cause. */
+  code?: string;
+  /** Stable current-item code describing the failed phase. */
+  itemCode?: string;
 }
 
 const JOB_LABEL_CODES: ReadonlySet<string> = new Set<JobLabelCode>([
@@ -142,6 +167,11 @@ const JOB_CURRENT_ITEM_CODES: ReadonlySet<string> = new Set<JobCurrentItemCode>(
   'refresh_tags_default',
   'refresh_traits_default',
   'refresh_release_metadata_collection',
+  'alicenet_phase_stock',
+  'alicenet_phase_vndb_primary',
+  'alicenet_phase_vndb_retry',
+  'alicenet_phase_vndb_from_egs',
+  'alicenet_phase_egs',
 ]);
 
 /** Return whether a persisted label code belongs to the supported job-label contract. */
@@ -337,11 +367,22 @@ export function setJobCurrent(jobId: string, item: string | JobCurrentItemSpec |
  * @param jobId   The job identifier returned by `startJob`.
  * @param item    Short identifier for the failing item (e.g. a staff id or character id).
  * @param message Human-readable error description (typically `(e as Error).message`).
+ * @param metadata Optional stable cause and phase codes for localized clients.
  */
-export function recordError(jobId: string, item: string, message: string): void {
+export function recordError(
+  jobId: string,
+  item: string,
+  message: string,
+  metadata: DownloadJobErrorMetadata = {},
+): void {
   const j = jobs.get(jobId);
   if (!j) return;
-  j.errors.push({ item, message });
+  j.errors.push({
+    item,
+    message,
+    ...(metadata.code ? { code: metadata.code } : {}),
+    ...(metadata.itemCode ? { item_code: metadata.itemCode } : {}),
+  });
   // Surface to server logs so the user can correlate via the UI link.
   console.error(`[download:${j.kind}] ${item}: ${message}`);
   emit();

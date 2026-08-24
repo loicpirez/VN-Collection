@@ -144,6 +144,7 @@ describe('download-status pub/sub', () => {
     expect(isJobLabelCode('global_refresh')).toBe(true);
     expect(isJobLabelCode('bad-code')).toBe(false);
     expect(isJobCurrentItemCode('refresh_egs_top_ranked')).toBe(true);
+    expect(isJobCurrentItemCode('alicenet_phase_stock')).toBe(true);
     expect(isJobCurrentItemCode('bad-code')).toBe(false);
   });
 
@@ -163,6 +164,20 @@ describe('download-status pub/sub', () => {
     expect(getJob(job.id)?.total).toBe(1387);
     setJobTotal(job.id, -5);
     expect(getJob(job.id)?.total).toBe(0);
+  });
+
+  it('preserves optional stable error and phase codes', () => {
+    const job = startJob('alicenet', 'AliceNet', 1);
+    recordError(job.id, 'Stock download', 'Unavailable', {
+      code: 'alicenet_upstream_unavailable',
+      itemCode: 'alicenet_phase_stock',
+    });
+    expect(getJob(job.id)?.errors).toEqual([{
+      item: 'Stock download',
+      message: 'Unavailable',
+      code: 'alicenet_upstream_unavailable',
+      item_code: 'alicenet_phase_stock',
+    }]);
   });
 
   it('treats missing job lifecycle mutations as no-ops', () => {

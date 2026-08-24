@@ -94,6 +94,8 @@ export type KnownApiErrorCode =
   | 'alicenet_dns_failure'
   | 'alicenet_timeout'
   | 'alicenet_connection_refused'
+  | 'alicenet_rate_limited'
+  | 'alicenet_upstream_unavailable'
   | 'alicenet_forbidden'
   | 'alicenet_not_found'
   | 'alicenet_parse_failed'

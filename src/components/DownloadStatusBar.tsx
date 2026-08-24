@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   decodeDownloadStatusSnapshot,
   type DownloadStatusJob as Job,
+  type DownloadStatusJobError,
   type DownloadStatusSnapshot as Snapshot,
 } from '@/lib/download-status-snapshot';
 
@@ -27,6 +28,26 @@ function translatedCurrentItem(t: ReturnType<typeof useT>, job: Job): string {
   if (!job.current_item_code) return job.current_item_name ? `${job.current_item_name} (${job.current_item})` : job.current_item;
   const templates = t.downloadStatus.currentItems as Record<string, string | undefined>;
   return interpolate(templates[job.current_item_code] ?? job.current_item, job.current_item_params);
+}
+
+function translatedErrorItem(t: ReturnType<typeof useT>, error: DownloadStatusJobError): string {
+  if (!error.item_code) return error.item;
+  const templates = t.downloadStatus.currentItems as Record<string, string | undefined>;
+  return templates[error.item_code] ?? error.item;
+}
+
+function translatedErrorMessage(t: ReturnType<typeof useT>, error: DownloadStatusJobError): string {
+  const messages: Record<string, string | undefined> = {
+    alicenet_dns_failure: t.alicenet.alicenetDnsFailure,
+    alicenet_timeout: t.alicenet.alicenetTimeout,
+    alicenet_connection_refused: t.alicenet.alicenetConnectionRefused,
+    alicenet_rate_limited: t.alicenet.alicenetRateLimited,
+    alicenet_upstream_unavailable: t.alicenet.alicenetUpstreamUnavailable,
+    alicenet_forbidden: t.alicenet.alicenetForbidden,
+    alicenet_not_found: t.alicenet.alicenetNotFound,
+    alicenet_parse_failed: t.alicenet.alicenetParseFailed,
+  };
+  return (error.code ? messages[error.code] : null) ?? error.message;
 }
 
 function CurrentItemText({ t, job, currentItem }: { t: ReturnType<typeof useT>; job: Job; currentItem: string }) {
@@ -487,18 +508,22 @@ export function DownloadStatusBar() {
                     const hiddenErrors = j.errors.length - shownErrors.length;
                     return (
                       <ul className="mt-1.5 space-y-0.5 text-[10px] text-status-dropped">
-                        {shownErrors.map((e, i) => (
-                          <li key={`${j.id}-err-${i}`} className="truncate" title={`${e.item}: ${e.message}`}>
-                            <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" aria-hidden />
-                            <span className="font-bold">
-                              {idToHref(e.item) ? (
-                                <EntityLink id={e.item} />
-                              ) : (
-                                e.item
-                              )}
-                            </span>: {e.message}
-                          </li>
-                        ))}
+                        {shownErrors.map((e, i) => {
+                          const errorItem = translatedErrorItem(t, e);
+                          const errorMessage = translatedErrorMessage(t, e);
+                          return (
+                            <li key={`${j.id}-err-${i}`} className="truncate" title={`${errorItem}: ${errorMessage}`}>
+                              <AlertTriangle className="mr-1 inline-block h-2.5 w-2.5" aria-hidden />
+                              <span className="font-bold">
+                                {idToHref(e.item) ? (
+                                  <EntityLink id={e.item} />
+                                ) : (
+                                  errorItem
+                                )}
+                              </span>: {errorMessage}
+                            </li>
+                          );
+                        })}
                         {j.errors.length > 3 && (
                           <li>
                             <button

@@ -97,8 +97,13 @@ const ERROR_JOB = {
     { item: 'c90024', message: 'fail c' },
     { item: 'g90025', message: 'fail g' },
     { item: 'i90026', message: 'fail i' },
-    { item: 'freeform label', message: 'fail free' },
-    { item: 'v90022', message: 'fail d' },
+    {
+      item: 'fallback stock phase',
+      item_code: 'alicenet_phase_stock',
+      message: 'raw unavailable',
+      code: 'alicenet_upstream_unavailable',
+    },
+    { item: 'v90022', item_code: 'unknown_phase', message: 'fail d' },
   ],
   started_at: 1,
   finished_at: 3,
@@ -237,7 +242,8 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     expect(within(region).getByRole('link', { name: 'c90024' }).getAttribute('href')).toBe('/character/c90024');
     expect(within(region).getByRole('link', { name: 'g90025' }).getAttribute('href')).toBe('/tag/g90025');
     expect(within(region).getByRole('link', { name: 'i90026' }).getAttribute('href')).toBe('/trait/i90026');
-    expect(within(region).queryByRole('link', { name: 'freeform label' })).toBeNull();
+    expect(within(region).getByText(/AliceNet \/ stock download/)).not.toBeNull();
+    expect(within(region).getByText(/AliceNet is temporarily unavailable/)).not.toBeNull();
     fireEvent.click(within(errorList).getByRole('button', { expanded: true }));
     expect(within(region).queryByText(/fail d/)).toBeNull();
   });

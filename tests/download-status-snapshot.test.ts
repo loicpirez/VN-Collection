@@ -13,13 +13,21 @@ describe('decodeDownloadStatusSnapshot', () => {
         total: 3,
         done: 1,
         current_item: null,
-        errors: [{ item: 'v90001', message: 'Unavailable' }],
+        errors: [{ item: 'AliceNet stock download', item_code: 'alicenet_phase_stock', message: 'Unavailable', code: 'alicenet_upstream_unavailable' }],
         started_at: 10,
         finished_at: null,
       }],
     })).toMatchObject({
       throttle: { active: 1, queued: 2, retryAfterMs: 500 },
-      jobs: [{ id: 'job-1', errors: [{ item: 'v90001', message: 'Unavailable' }] }],
+      jobs: [{
+        id: 'job-1',
+        errors: [{
+          item: 'AliceNet stock download',
+          item_code: 'alicenet_phase_stock',
+          message: 'Unavailable',
+          code: 'alicenet_upstream_unavailable',
+        }],
+      }],
     });
   });
 
@@ -35,7 +43,12 @@ describe('decodeDownloadStatusSnapshot', () => {
           label: 'Staff',
           total: 1,
           done: 0,
-          errors: [{ item: null }, { item: 's90001', message: 'Unavailable' }],
+          errors: [
+            { item: null },
+            { item: 'bad-code', message: 'Unavailable', code: 503 },
+            { item: 'bad-item-code', message: 'Unavailable', item_code: false },
+            { item: 's90001', message: 'Unavailable' },
+          ],
           started_at: 10,
           finished_at: null,
         },

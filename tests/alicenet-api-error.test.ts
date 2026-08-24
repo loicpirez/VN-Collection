@@ -34,6 +34,14 @@ describe('aliceNetApiError', () => {
       error: 'AliceNet connection was refused. Check the configured proxy or source availability.',
       code: 'alicenet_connection_refused',
     });
+    await expect(errorBody(new Error('AliceNet HTTP 429 Too Many Requests'))).resolves.toMatchObject({
+      error: 'AliceNet is rate limiting requests. Wait before retrying or reduce the request rate.',
+      code: 'alicenet_rate_limited',
+    });
+    await expect(errorBody(new Error('AliceNet HTTP 503'))).resolves.toMatchObject({
+      error: 'AliceNet is temporarily unavailable. Retry later or check the AliceNet proxy settings.',
+      code: 'alicenet_upstream_unavailable',
+    });
     await expect(errorBody(new Error('HTTP 403 forbidden'))).resolves.toMatchObject({
       error: 'AliceNet rejected the request. Check source availability or proxy access.',
       code: 'alicenet_forbidden',

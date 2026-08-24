@@ -16,8 +16,14 @@ const JOB_KINDS: ReadonlySet<string> = new Set([
  * One background-job error rendered in the download-status panel.
  */
 export interface DownloadStatusJobError {
+  /** Entity or phase fallback identifying the failed work item. */
   item: string;
+  /** Sanitized fallback message from the server. */
   message: string;
+  /** Optional stable diagnostic code used for localization. */
+  code?: string;
+  /** Optional stable phase or item-label code used for localization. */
+  item_code?: string;
 }
 
 /**
@@ -132,8 +138,17 @@ function decodeJob(value: unknown): DownloadStatusJob | null {
   }
   const errors = record.errors.flatMap((error) => {
     const item = asJsonRecord(error);
-    return item && typeof item.item === 'string' && typeof item.message === 'string'
-      ? [{ item: item.item, message: item.message }]
+    return item &&
+      typeof item.item === 'string' &&
+      typeof item.message === 'string' &&
+      (item.code === undefined || typeof item.code === 'string') &&
+      (item.item_code === undefined || typeof item.item_code === 'string')
+      ? [{
+          item: item.item,
+          message: item.message,
+          ...(typeof item.code === 'string' ? { code: item.code } : {}),
+          ...(typeof item.item_code === 'string' ? { item_code: item.item_code } : {}),
+        }]
       : [];
   });
   return {

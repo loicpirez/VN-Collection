@@ -22,6 +22,7 @@ vi.mock('@/lib/alicenet', async (importOriginal) => {
 import { DELETE, POST } from '@/app/api/alicenet/run/route';
 import { getJob } from '@/lib/download-status';
 import { getAppJobLockRepository } from '@/lib/db/repositories/app-job-lock';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { db } from '@/lib/db';
 
 const SCRAPE = { count: 3, added: 1, updated: 1, removed: 1, fetched_at: 1700000000 };
@@ -130,8 +131,35 @@ describe('alicenet run route branches', () => {
     const jobId = await startAndFinish('match-vndb');
     expect(vndbFromEgsMock).toHaveBeenCalledTimes(1);
     const job = getJob(jobId);
-    expect(job?.errors.length).toBeGreaterThan(0);
+    expect(job?.errors).toContainEqual({
+      item: 'AliceNet VNDB match',
+      item_code: 'alicenet_phase_vndb_primary',
+      message: 'vndb unreachable',
+      code: 'alicenet_operation_failed',
+    });
+    expect(job?.done).toBeLessThanOrEqual(job?.total ?? 0);
     expect(consoleSpy.mock.calls.some((c) => String(c[0]).includes('[download:alicenet]'))).toBe(true);
+    consoleSpy.mockRestore();
+  });
+
+  it('classifies a source outage and preserves the last successful fetch time', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await getAppSettingRepository().set('alicenet_last_fetch', '1700000000');
+    refreshMock.mockRejectedValue(new Error('AliceNet HTTP 503'));
+
+    const jobId = await startAndFinish('download');
+
+    expect(await getAppSettingRepository().get('alicenet_last_fetch')).toBe('1700000000');
+    expect(getJob(jobId)).toMatchObject({
+      total: 0,
+      done: 0,
+      errors: [{
+        item: 'AliceNet stock download',
+        item_code: 'alicenet_phase_stock',
+        message: 'AliceNet is temporarily unavailable. Retry later or check the AliceNet proxy settings.',
+        code: 'alicenet_upstream_unavailable',
+      }],
+    });
     consoleSpy.mockRestore();
   });
 

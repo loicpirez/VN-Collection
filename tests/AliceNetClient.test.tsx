@@ -470,7 +470,12 @@ describe('AliceNetClient', () => {
           throttle: { active: 0, queued: 0 },
           jobs: [{
             id: 'alice-job-1', kind: 'alicenet', vn_id: null, label: 'AliceNet pipeline',
-            total: 10, done: 4, current_item: 'Batch 5', errors: [{ item: 'row', message: 'failed' }],
+            total: 10, done: 4, current_item: 'Batch 5', errors: [{
+              item: 'AliceNet stock download',
+              item_code: 'alicenet_phase_stock',
+              message: 'raw upstream message',
+              code: 'alicenet_upstream_unavailable',
+            }],
             started_at: 10, finished_at: null,
           }, {
             id: 'alice-job-older', kind: 'alicenet', vn_id: null, label: 'Older AliceNet pipeline',
@@ -492,11 +497,99 @@ describe('AliceNetClient', () => {
     expect(screen.getByText('Batch 5')).toBeInTheDocument();
     expect(screen.getByText('4/10 (40%)')).toBeInTheDocument();
     expect(screen.getByText('1 error(s)')).toBeInTheDocument();
+    expect(screen.getByText(/AliceNet \/ stock download/)).toBeInTheDocument();
+    expect(screen.getByText('AliceNet is temporarily unavailable. Retry later or check the AliceNet proxy.')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'AliceNet progress' })).toHaveAttribute('aria-valuenow', '4');
 
     await user.click(screen.getByRole('button', { name: 'Stop' }));
     await waitFor(() => expect(deletes).toEqual(['/api/alicenet/run?jobId=alice-job-1']));
     expect(await screen.findByText('Stop requested. The operation will stop after the current batch.')).toBeInTheDocument();
+  });
+
+  it('renders a finished source outage without a lingering loading animation', async () => {
+    let statusCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        statusCalls += 1;
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-failed',
+            kind: 'alicenet',
+            vn_id: null,
+            label: 'AliceNet stock download',
+            label_code: 'alicenet_download',
+            total: 0,
+            done: 0,
+            current_item: null,
+            errors: [{
+              item: 'AliceNet stock download',
+              item_code: 'alicenet_phase_stock',
+              message: 'raw HTTP 503',
+              code: 'alicenet_upstream_unavailable',
+            }, {
+              item: 'Fallback phase',
+              message: 'Fallback message',
+            }, {
+              item: 'Unknown phase',
+              item_code: 'unknown_phase',
+              message: 'Unknown coded message',
+              code: 'unknown_error',
+            }, {
+              item: 'Hidden phase',
+              message: 'Hidden message',
+            }],
+            started_at: 10,
+            finished_at: statusCalls > 1 ? 20 : null,
+          }],
+        });
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    const { user } = renderClient();
+    await screen.findByText('AliceNet stock download');
+    expect(await screen.findByText('Operation finished with errors', {}, { timeout: 3_000 })).toBeInTheDocument();
+    expect(screen.getByText('0/0')).toBeInTheDocument();
+    expect(screen.getByText('AliceNet is temporarily unavailable. Retry later or check the AliceNet proxy.')).toBeInTheDocument();
+    expect(screen.getByText(/Fallback phase/)).toBeInTheDocument();
+    expect(screen.getByText(/Unknown phase/)).toBeInTheDocument();
+    expect(screen.getByText('1 more error(s)')).toBeInTheDocument();
+    const progress = screen.getByRole('progressbar', { name: 'AliceNet progress' });
+    expect(progress.firstElementChild).not.toHaveClass('animate-pulse');
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('Operation finished with errors')).toBeNull();
+  });
+
+  it('announces a cancelled background operation after it stops', async () => {
+    let statusCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        statusCalls += 1;
+        return json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-cancelled',
+            kind: 'alicenet',
+            vn_id: null,
+            label: 'AliceNet EGS match',
+            total: 5,
+            done: 2,
+            current_item: statusCalls > 1 ? null : 'Batch 3',
+            errors: [],
+            cancelled: statusCalls > 1,
+            started_at: 10,
+            finished_at: statusCalls > 1 ? 20 : null,
+          }],
+        });
+      }
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+
+    renderClient();
+    await screen.findByText('AliceNet EGS match');
+    expect(await screen.findByText('Cancelled', {}, { timeout: 3_000 })).toBeInTheDocument();
   });
 
   it('shows the localized fallback when stopping a job rejects with a non-Error value', async () => {

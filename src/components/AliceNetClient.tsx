@@ -2,6 +2,7 @@
 import dynamic from 'next/dynamic';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BookHeart,
   Building2,
   CircleStop,
@@ -81,6 +82,7 @@ import {
 import {
   decodeDownloadStatusSnapshot,
   type DownloadStatusJob,
+  type DownloadStatusJobError,
 } from '@/lib/download-status-snapshot';
 
 async function readAliceNetApiError(
@@ -92,6 +94,8 @@ async function readAliceNetApiError(
     alicenet_dns_failure: t.alicenet.alicenetDnsFailure,
     alicenet_timeout: t.alicenet.alicenetTimeout,
     alicenet_connection_refused: t.alicenet.alicenetConnectionRefused,
+    alicenet_rate_limited: t.alicenet.alicenetRateLimited,
+    alicenet_upstream_unavailable: t.alicenet.alicenetUpstreamUnavailable,
     alicenet_forbidden: t.alicenet.alicenetForbidden,
     alicenet_not_found: t.alicenet.alicenetNotFound,
     alicenet_parse_failed: t.alicenet.alicenetParseFailed,
@@ -99,6 +103,30 @@ async function readAliceNetApiError(
     upstream_unavailable: fallback,
     internal_error: fallback,
   }, fallback);
+}
+
+function translatedAliceNetJobLabel(t: ReturnType<typeof useT>, job: DownloadStatusJob): string {
+  const labels = t.downloadStatus.jobLabels as Record<string, string | undefined>;
+  return (job.label_code ? labels[job.label_code] : null) ?? job.label;
+}
+
+function translatedAliceNetJobItem(t: ReturnType<typeof useT>, code: string | null | undefined, fallback: string): string {
+  const items = t.downloadStatus.currentItems as Record<string, string | undefined>;
+  return (code ? items[code] : null) ?? fallback;
+}
+
+function translatedAliceNetJobError(t: ReturnType<typeof useT>, error: DownloadStatusJobError): string {
+  const messages: Record<string, string | undefined> = {
+    alicenet_dns_failure: t.alicenet.alicenetDnsFailure,
+    alicenet_timeout: t.alicenet.alicenetTimeout,
+    alicenet_connection_refused: t.alicenet.alicenetConnectionRefused,
+    alicenet_rate_limited: t.alicenet.alicenetRateLimited,
+    alicenet_upstream_unavailable: t.alicenet.alicenetUpstreamUnavailable,
+    alicenet_forbidden: t.alicenet.alicenetForbidden,
+    alicenet_not_found: t.alicenet.alicenetNotFound,
+    alicenet_parse_failed: t.alicenet.alicenetParseFailed,
+  };
+  return (error.code ? messages[error.code] : null) ?? error.message;
 }
 
 const ALICENET_PREFS_KEY = 'vncoll.alicenet.prefs.v1';
@@ -1142,6 +1170,24 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
   const HeadingTag = embedded ? 'h2' : 'h1';
   const displayedJob = jobStatusError ? null : activeJob;
+  const displayedJobFinished = displayedJob?.finished_at != null;
+  const displayedJobFailed = (displayedJob?.errors.length ?? 0) > 0;
+  const displayedJobCancelled = displayedJob?.cancelled === true;
+  const displayedJobLabel = displayedJob ? translatedAliceNetJobLabel(t, displayedJob) : '';
+  const displayedJobState = displayedJob
+    ? displayedJobCancelled
+      ? t.downloadStatus.kindCancelled
+      : displayedJobFinished && displayedJobFailed
+        ? t.alicenet.alicenetJobFailed
+        : displayedJobFinished
+          ? t.alicenet.alicenetJobCompleted
+          : displayedJob.current_item
+            ? translatedAliceNetJobItem(t, displayedJob.current_item_code, displayedJob.current_item)
+            : t.alicenet.alicenetProgressBackground
+    : '';
+  const displayedJobPercent = displayedJob && displayedJob.total > 0
+    ? Math.round(Math.min(1, displayedJob.done / displayedJob.total) * 100)
+    : 0;
 
   return (
     <DensityScopeProvider scope="aliceNet" className={embedded ? 'mt-8' : 'page-space mx-auto max-w-screen-2xl px-4 py-6'}>
@@ -1173,7 +1219,11 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
       {(displayedJob || jobStatusError) && (
         <section
-          className="mb-5 rounded-lg border border-accent/35 bg-accent/5 p-3"
+          className={`mb-5 rounded-lg border p-3 ${displayedJobFailed || displayedJobCancelled
+            ? 'border-status-dropped/45 bg-status-dropped/5'
+            : displayedJobFinished
+              ? 'border-status-completed/40 bg-status-completed/5'
+              : 'border-accent/35 bg-accent/5'}`}
           aria-label={t.alicenet.alicenetJobStatus}
           aria-live="polite"
         >
@@ -1181,16 +1231,16 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             <>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-white" title={displayedJob.label}>{displayedJob.label}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted">
-                    {displayedJob.current_item || t.alicenet.alicenetProgressBackground}
+                  <p className="truncate text-xs font-semibold text-white" title={displayedJobLabel}>{displayedJobLabel}</p>
+                  <p className={`mt-0.5 truncate text-[11px] ${displayedJobFailed || displayedJobCancelled ? 'text-status-dropped' : 'text-muted'}`}>
+                    {displayedJobState}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums text-muted">
                     {displayedJob.total > 0
-                      ? `${Math.min(displayedJob.done, displayedJob.total)}/${displayedJob.total} (${Math.round(Math.min(1, displayedJob.done / displayedJob.total) * 100)}%)`
-                      : t.alicenet.alicenetProgressPreparing}
+                      ? `${Math.min(displayedJob.done, displayedJob.total)}/${displayedJob.total} (${displayedJobPercent}%)`
+                      : displayedJobFinished ? '0/0' : t.alicenet.alicenetProgressPreparing}
                   </span>
                   {displayedJob.finished_at === null && (
                     <button
@@ -1214,10 +1264,30 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
                 aria-valuenow={displayedJob.total > 0 ? Math.min(displayedJob.done, displayedJob.total) : undefined}
               >
                 <div
-                  className={`h-full rounded-full bg-accent transition-[width] duration-300 ${displayedJob.total === 0 ? 'w-1/3 animate-pulse' : ''}`}
-                  style={displayedJob.total > 0 ? { width: `${Math.round(Math.min(1, displayedJob.done / displayedJob.total) * 100)}%` } : undefined}
+                  className={`h-full rounded-full transition-[width] duration-300 ${displayedJobFinished
+                    ? displayedJobFailed || displayedJobCancelled ? 'bg-status-dropped' : 'bg-status-completed'
+                    : 'bg-accent'} ${!displayedJobFinished && displayedJob.total === 0 ? 'w-1/3 animate-pulse' : ''}`}
+                  style={displayedJob.total > 0 ? { width: `${displayedJobPercent}%` } : undefined}
                 />
               </div>
+              {displayedJob.errors.length > 0 && (
+                <ul className="mt-2 space-y-1 text-[11px] text-status-dropped">
+                  {displayedJob.errors.slice(0, 3).map((error, index) => (
+                    <li key={`${error.item}-${index}`} className="flex items-start gap-1.5">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      <span>
+                        <strong>{translatedAliceNetJobItem(t, error.item_code, error.item)}:</strong>{' '}
+                        {translatedAliceNetJobError(t, error)}
+                      </span>
+                    </li>
+                  ))}
+                  {displayedJob.errors.length > 3 && (
+                    <li className="pl-[18px] text-muted">
+                      {t.alicenet.alicenetJobMoreErrors.replace('{count}', String(displayedJob.errors.length - 3))}
+                    </li>
+                  )}
+                </ul>
+              )}
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                 <span className={displayedJob.errors.length > 0 ? 'text-status-dropped' : 'text-muted'}>
                   {t.alicenet.alicenetJobErrors.replace('{count}', String(displayedJob.errors.length))}

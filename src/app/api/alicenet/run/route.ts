@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
-import { cancelJob, finishJob, isJobCancelled, jobLabel, recordError, setJobTotal, startJob, tickJob, type JobLabelCode } from '@/lib/download-status';
+import { cancelJob, finishJob, isJobCancelled, jobCurrentItem, jobLabel, recordError, setJobCurrent, setJobTotal, startJob, tickJob, type JobCurrentItemCode, type JobLabelCode } from '@/lib/download-status';
 import { matchNextAliceNetItems, matchVndbFromEgsForAliceNet, refreshAliceNetStock, searchEgsForAliceNetNoVndb } from '@/lib/alicenet';
+import { classifyAliceNetError } from '@/lib/alicenet-api-error';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { acquireBackgroundJobLease } from '@/lib/background-job-lease';
 
@@ -25,10 +26,14 @@ interface PhaseResult {
 }
 
 interface Phase {
+  code: JobCurrentItemCode;
+  fallback: string;
   run: (runStartedAt: number) => Promise<PhaseResult>;
 }
 
 const scrapePhase: Phase = {
+  code: 'alicenet_phase_stock',
+  fallback: 'AliceNet stock download',
   run: async () => {
     const result = await refreshAliceNetStock();
     await getAppSettingRepository().set('alicenet_last_fetch', String(result.fetched_at));
@@ -37,11 +42,23 @@ const scrapePhase: Phase = {
 };
 
 function matchNextPhase(retryNone: boolean): Phase {
-  return { run: (runStartedAt) => matchNextAliceNetItems(5, retryNone, runStartedAt) };
+  return {
+    code: retryNone ? 'alicenet_phase_vndb_retry' : 'alicenet_phase_vndb_primary',
+    fallback: retryNone ? 'AliceNet VNDB retry' : 'AliceNet VNDB match',
+    run: (runStartedAt) => matchNextAliceNetItems(5, retryNone, runStartedAt),
+  };
 }
 
-const vndbFromEgsPhase: Phase = { run: (runStartedAt) => matchVndbFromEgsForAliceNet(10, runStartedAt) };
-const searchEgsPhase: Phase = { run: (runStartedAt) => searchEgsForAliceNetNoVndb(10, false, runStartedAt) };
+const vndbFromEgsPhase: Phase = {
+  code: 'alicenet_phase_vndb_from_egs',
+  fallback: 'AliceNet VNDB links from EGS',
+  run: (runStartedAt) => matchVndbFromEgsForAliceNet(10, runStartedAt),
+};
+const searchEgsPhase: Phase = {
+  code: 'alicenet_phase_egs',
+  fallback: 'AliceNet EGS match',
+  run: (runStartedAt) => searchEgsForAliceNetNoVndb(10, false, runStartedAt),
+};
 
 function phasesForOp(op: AliceNetOp): Phase[] {
   switch (op) {
@@ -98,10 +115,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const runStartedAt = Date.now();
     let total = 0;
     let leaseHealthy = true;
+    let phasesHealthy = true;
     try {
       for (const phase of phases) {
         if (isJobCancelled(job.id)) break;
         await lease.renew();
+        setJobCurrent(job.id, jobCurrentItem(phase.code, phase.fallback));
         let counted = false;
         for (;;) {
           if (isJobCancelled(job.id)) break;
@@ -110,7 +129,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             result = await phase.run(runStartedAt);
           } catch (error) {
             if (!isJobCancelled(job.id)) {
-              recordError(job.id, labelSpec.fallback, sanitizeUnknownError(error));
+              phasesHealthy = false;
+              const classified = classifyAliceNetError(error, 'AliceNet operation failed.');
+              recordError(job.id, phase.fallback, classified.error, {
+                code: classified.code,
+                itemCode: phase.code,
+              });
             }
             break;
           }
@@ -138,7 +162,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           recordError(job.id, 'AliceNet lease release', sanitizeUnknownError(error));
         }
       }
-      finishJob(job.id, { complete: leaseHealthy && !isJobCancelled(job.id) });
+      finishJob(job.id, { complete: leaseHealthy && phasesHealthy && !isJobCancelled(job.id) });
     }
   })();
 
