@@ -575,6 +575,85 @@ describe('real PostgreSQL migration runtime', () => {
   });
 });
 
+describe('PostgreSQL repository transaction rollback', () => {
+  it('rolls back collection add, update, and remove after downstream failures', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query("INSERT INTO vn (id, title, fetched_at) VALUES ('v998001', 'Rollback fixture', 1)");
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-rollback-contract';
+
+      try {
+        const repository = createPostgresCollectionCoreRepository();
+        await pool.query(`
+          CREATE FUNCTION fail_place_index_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN RAISE EXCEPTION 'synthetic place index failure'; END
+          $$;
+          CREATE TRIGGER fail_place_index_insert
+          BEFORE INSERT ON collection_place_index
+          FOR EACH ROW EXECUTE FUNCTION fail_place_index_insert()
+        `);
+        await expect(repository.add('v998001', { physical_location: ['Rollback shelf'] }))
+          .rejects.toThrow('synthetic place index failure');
+        await expect(pool.query("SELECT vn_id FROM collection WHERE vn_id = 'v998001'"))
+          .resolves.toMatchObject({ rowCount: 0 });
+
+        await pool.query('DROP TRIGGER fail_place_index_insert ON collection_place_index');
+        await pool.query('DROP FUNCTION fail_place_index_insert()');
+        await repository.add('v998001', { status: 'planning', physical_location: ['Rollback shelf'] });
+
+        await pool.query(`
+          CREATE FUNCTION fail_activity_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN RAISE EXCEPTION 'synthetic activity failure'; END
+          $$;
+          CREATE TRIGGER fail_activity_insert
+          BEFORE INSERT ON vn_activity
+          FOR EACH ROW EXECUTE FUNCTION fail_activity_insert()
+        `);
+        await expect(repository.update('v998001', { status: 'completed' }))
+          .rejects.toThrow('synthetic activity failure');
+        const unchanged = await pool.query<{ status: string } & QueryResultRow>(
+          "SELECT status FROM collection WHERE vn_id = 'v998001'",
+        );
+        expect(unchanged.rows).toEqual([{ status: 'planning' }]);
+        await expect(pool.query("SELECT id FROM vn_activity WHERE vn_id = 'v998001'"))
+          .resolves.toMatchObject({ rowCount: 0 });
+
+        await pool.query('DROP TRIGGER fail_activity_insert ON vn_activity');
+        await pool.query('DROP FUNCTION fail_activity_insert()');
+        await pool.query(`
+          CREATE FUNCTION fail_collection_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN RAISE EXCEPTION 'synthetic collection delete failure'; END
+          $$;
+          CREATE TRIGGER fail_collection_delete
+          BEFORE DELETE ON collection
+          FOR EACH ROW EXECUTE FUNCTION fail_collection_delete()
+        `);
+        await expect(repository.remove('v998001')).rejects.toThrow('synthetic collection delete failure');
+        await expect(pool.query("SELECT vn_id FROM collection WHERE vn_id = 'v998001'"))
+          .resolves.toMatchObject({ rowCount: 1 });
+        await expect(pool.query("SELECT vn_id FROM collection_place_index WHERE vn_id = 'v998001'"))
+          .resolves.toMatchObject({ rowCount: 1 });
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+    });
+  });
+});
+
 registerCompareRepositoryContract('PostgreSQL', {
   async withRepository(run) {
     await withIsolatedSchema(async (pool) => {
