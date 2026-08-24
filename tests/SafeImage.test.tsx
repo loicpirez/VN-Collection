@@ -23,6 +23,7 @@ vi.mock('@/lib/settings/client', () => ({
 let intersectionTarget: Element | null = null;
 let intersectionCallback: IntersectionObserverCallback | null = null;
 let intersectionObserver: MockIntersectionObserver | null = null;
+let intersectionObserverConstructions = 0;
 let resizeTarget: Element | null = null;
 let resizeCallback: ResizeObserverCallback | null = null;
 let resizeObserver: MockResizeObserver | null = null;
@@ -39,6 +40,7 @@ class MockIntersectionObserver implements IntersectionObserver {
   takeRecords = (): IntersectionObserverEntry[] => [];
 
   constructor(callback: IntersectionObserverCallback) {
+    intersectionObserverConstructions += 1;
     intersectionCallback = callback;
     intersectionObserver = this;
   }
@@ -109,6 +111,7 @@ beforeEach(() => {
   intersectionTarget = null;
   intersectionCallback = null;
   intersectionObserver = null;
+  intersectionObserverConstructions = 0;
   resizeTarget = null;
   resizeCallback = null;
   resizeObserver = null;
@@ -131,7 +134,10 @@ describe('SafeImage runtime', () => {
 
     settingsState.current.hideImages = false;
     rerender(withLocale(<SafeImage alt="Missing cover" rotation={90} />));
-    expect(screen.getByRole('img', { name: 'Missing cover' })).toHaveTextContent(dictionaries.en.common.noImage);
+    expect(screen.getByRole('img', { name: 'Image unavailable: Missing cover' })).toHaveTextContent(dictionaries.en.common.noImage);
+
+    rerender(withLocale(<SafeImage alt="" />));
+    expect(screen.getByRole('img', { name: 'Image unavailable' })).toHaveTextContent(dictionaries.en.common.noImage);
   });
 
   it('loads local-first priority images, resets recycled URLs, and reuses loaded URLs', () => {
@@ -171,7 +177,22 @@ describe('SafeImage runtime', () => {
 
     fireEvent.error(image);
     expect(onLoadError).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('img', { name: 'Lazy cover' })).toHaveTextContent(dictionaries.en.common.noImage);
+    expect(screen.getByRole('img', { name: 'Image unavailable: Lazy cover' })).toHaveTextContent(dictionaries.en.common.noImage);
+  });
+
+  it('shares one intersection observer across lazy images and releases the empty pool', () => {
+    const rendered = render(withLocale(
+      <>
+        <SafeImage src="/lazy-a.jpg" alt="Lazy A" />
+        <SafeImage src="/lazy-b.jpg" alt="Lazy B" />
+      </>,
+    ));
+
+    expect(intersectionObserverConstructions).toBe(1);
+    expect(intersectionObserver?.observe).toHaveBeenCalledTimes(2);
+    rendered.unmount();
+    expect(intersectionObserver?.unobserve).toHaveBeenCalledTimes(2);
+    expect(intersectionObserver?.disconnect).toHaveBeenCalledTimes(1);
   });
 
   it('loads without IntersectionObserver and falls back from a missing remote source to local storage', () => {
@@ -180,7 +201,7 @@ describe('SafeImage runtime', () => {
     const { rerender } = render(withLocale(<SafeImage localSrc="vn/fallback.jpg" alt="Fallback cover" />));
     expect(screen.getByRole('img', { name: 'Fallback cover' })).toHaveAttribute('src', '/api/files/vn/fallback.jpg');
     rerender(withLocale(<SafeImage alt="No fallback" />));
-    expect(screen.getByRole('img', { name: 'No fallback' })).toHaveTextContent(dictionaries.en.common.noImage);
+    expect(screen.getByRole('img', { name: 'Image unavailable: No fallback' })).toHaveTextContent(dictionaries.en.common.noImage);
   });
 
   it('reveals blurred explicit images without bubbling the click', () => {

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Eye, EyeOff, ImageOff, ShieldAlert } from 'lucide-react';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useT } from '@/lib/i18n/client';
+import { observeIntersectionOnce } from '@/lib/intersection-observer-pool';
+import { cacheLoadedImage, isImageLoadCached } from '@/lib/image-load-cache';
 
 export interface SafeImageProps {
   src?: string | null;
@@ -39,7 +41,7 @@ function publicLocal(rel: string | null | undefined): string | null {
  *   2. Local-first source resolution: when `localSrc` is provided and the
  *      "Prefer local images" setting is on, render the mirrored copy from
  *      /api/files/{path} instead of the remote VNDB CDN.
- *   3. Lazy loading via IntersectionObserver. Native `loading="lazy"`
+ *   3. Lazy loading via a shared IntersectionObserver pool. Native `loading="lazy"`
  *      ships in every modern browser but breaks subtly on grids inside
  *      overflow-scroll containers, transformed parents, and SSR/hydration
  *      mismatches - symptom: image stays blank while the user scrolls past.
@@ -98,7 +100,7 @@ export function SafeImage({
   const [loaded, setLoaded] = useState(false);
   const [wasPreloaded, setWasPreloaded] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const loadedUrlsRef = useRef<Set<string>>(new Set());
+  const urlRef = useRef('');
   // Track the container's rendered size so 90/270 rotations can scale
   // up to fill the box. The state is only "live" when rotation is
   // 90/270 - keeps the ResizeObserver out of the hot path for the
@@ -131,10 +133,14 @@ export function SafeImage({
   const url = settings.preferLocalImages ? local || src || '' : src || local || '';
   const explicit = isExplicit(sexual, settings.nsfwThreshold);
   const shouldBlur = explicit && settings.blurR18 && !reveal;
+  const unavailableLabel = alt
+    ? `${t.common.imageUnavailable}: ${alt}`
+    : t.common.imageUnavailable;
 
   useEffect(() => {
+    urlRef.current = url;
     setErrored(false);
-    if (url && loadedUrlsRef.current.has(url)) {
+    if (url && isImageLoadCached(url)) {
       setWasPreloaded(true);
       setLoaded(true);
       setInView(true);
@@ -145,29 +151,29 @@ export function SafeImage({
     }
   }, [url, priority]);
 
+  async function handleLoad(image: HTMLImageElement): Promise<void> {
+    if (typeof image.decode === 'function') {
+      try {
+        await image.decode();
+      } catch {
+        // The load event still proves that the browser produced a usable frame.
+      }
+    }
+    if (urlRef.current !== url) return;
+    cacheLoadedImage(url);
+    setLoaded(true);
+  }
+
   useEffect(() => {
     if (priority || inView) return;
     if (settings.hideImages) return;
     const el = containerRef.current;
     if (!el) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setInView(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setInView(true);
-            io.disconnect();
-            break;
-          }
-        }
-      },
+    return observeIntersectionOnce(
+      el,
+      () => setInView(true),
       { rootMargin: '500px 0px', threshold: 0.01 },
     );
-    io.observe(el);
-    return () => io.disconnect();
   }, [priority, inView, settings.hideImages]);
 
   if (settings.hideImages) {
@@ -190,7 +196,7 @@ export function SafeImage({
         className={`flex flex-col items-center justify-center gap-1 bg-bg-elev text-muted ${className}`}
         style={style}
         role="img"
-        aria-label={alt}
+        aria-label={unavailableLabel}
       >
         <ImageOff className="h-6 w-6" aria-hidden />
         <span className="text-[11px]">{t.common.noImage}</span>
@@ -224,10 +230,7 @@ export function SafeImage({
             loading={priority ? 'eager' : 'lazy'}
             className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} ${wasPreloaded ? '' : 'transition-[filter,opacity,transform] duration-200'} ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
             style={rotationStyle}
-            onLoad={() => {
-              loadedUrlsRef.current.add(url);
-              setLoaded(true);
-            }}
+            onLoad={(event) => { void handleLoad(event.currentTarget); }}
             onError={() => {
               setErrored(true);
               onLoadError?.();

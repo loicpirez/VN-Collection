@@ -1,6 +1,8 @@
 'use client';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ImageOff } from 'lucide-react';
+import { useT } from '@/lib/i18n/client';
+import { cacheLoadedImage, isImageLoadCached } from '@/lib/image-load-cache';
 
 export interface LoadingImageProps {
   /** Resolved image URL to render. */
@@ -39,13 +41,33 @@ export function LoadingImage({
   loading = 'lazy',
   ariaHidden = false,
 }: LoadingImageProps) {
-  const [loaded, setLoaded] = useState(false);
+  const t = useT();
+  const srcRef = useRef(src);
+  const [loaded, setLoaded] = useState(() => isImageLoadCached(src));
   const [errored, setErrored] = useState(false);
+  const unavailableLabel = alt
+    ? `${t.common.imageUnavailable}: ${alt}`
+    : t.common.imageUnavailable;
 
   useEffect(() => {
-    setLoaded(false);
+    srcRef.current = src;
+    setLoaded(isImageLoadCached(src));
     setErrored(false);
   }, [src]);
+
+  async function handleLoad(img: HTMLImageElement): Promise<void> {
+    if (typeof img.decode === 'function') {
+      try {
+        await img.decode();
+      } catch {
+        // A failed decode should fall through to the browser's loaded image
+        // state instead of leaving the skeleton mounted forever.
+      }
+    }
+    if (srcRef.current !== src) return;
+    cacheLoadedImage(src);
+    setLoaded(true);
+  }
 
   return (
     <span className={`relative inline-block overflow-hidden ${className}`} style={style}>
@@ -60,7 +82,7 @@ export function LoadingImage({
         <span
           data-loading-image-error
           role={ariaHidden ? undefined : 'img'}
-          aria-label={ariaHidden ? undefined : alt}
+          aria-label={ariaHidden ? undefined : unavailableLabel}
           aria-hidden={ariaHidden || undefined}
           className="absolute inset-0 flex items-center justify-center bg-bg-elev text-muted"
         >
@@ -76,7 +98,7 @@ export function LoadingImage({
           decoding="async"
           loading={loading}
           className={`${imageClassName} transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setLoaded(true)}
+          onLoad={(event) => { void handleLoad(event.currentTarget); }}
           onError={() => setErrored(true)}
         />
       )}
