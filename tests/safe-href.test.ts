@@ -53,8 +53,7 @@ describe('safeHref — R5-124 behaviour', () => {
     expect(safeHref('   ')).toBeNull();
     expect(safeHref(null)).toBeNull();
     expect(safeHref(undefined)).toBeNull();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(safeHref(123 as any)).toBeNull();
+    expect(safeHref(123)).toBeNull();
   });
 });
 

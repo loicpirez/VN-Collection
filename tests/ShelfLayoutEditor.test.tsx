@@ -584,17 +584,18 @@ describe('ShelfLayoutEditor', () => {
 
   it('honors the ?highlight search param by selecting the shelf holding that VN', async () => {
     vi.useFakeTimers();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const g = globalThis as any;
-    const savedScroll = g.Element?.prototype?.scrollIntoView;
-    const hadCss = 'CSS' in g;
-    const savedCss = g.CSS;
+    const savedScroll = Element.prototype.scrollIntoView;
+    const hadCss = 'CSS' in globalThis;
+    const savedCss = globalThis.CSS;
     try {
       const scrollSpy = vi.fn();
       // jsdom elements lack scrollIntoView; stub it so the 120ms timer is safe.
-      g.Element.prototype.scrollIntoView = scrollSpy;
+      Element.prototype.scrollIntoView = scrollSpy;
       // This jsdom build has no CSS.escape; provide a minimal shim.
-      g.CSS = { ...(savedCss ?? {}), escape: (s: string) => s.replace(/["\\]/g, '\\$&') };
+      Object.defineProperty(globalThis, 'CSS', {
+        configurable: true,
+        value: { ...(savedCss ?? {}), escape: (s: string) => s.replace(/["\\]/g, '\\$&') },
+      });
       searchParamsValue = new URLSearchParams('highlight=v90042');
       const shelves = [unit({ id: 1, name: 'Studio X' }), unit({ id: 2, name: 'Studio W' })];
       global.fetch = fetchWithGrid(shelves, {
@@ -618,9 +619,9 @@ describe('ShelfLayoutEditor', () => {
       });
       expect(scrollSpy).toHaveBeenCalled();
     } finally {
-      g.Element.prototype.scrollIntoView = savedScroll;
-      if (hadCss) g.CSS = savedCss;
-      else delete g.CSS;
+      Element.prototype.scrollIntoView = savedScroll;
+      if (hadCss) Object.defineProperty(globalThis, 'CSS', { configurable: true, value: savedCss });
+      else Reflect.deleteProperty(globalThis, 'CSS');
       vi.useRealTimers();
     }
   });

@@ -111,8 +111,7 @@ describe('ShelfScrollFrame', () => {
 
   it('falls back to no ResizeObserver without throwing', () => {
     const saved = globalThis.ResizeObserver;
-    // @ts-expect-error simulate an environment lacking ResizeObserver
-    globalThis.ResizeObserver = undefined;
+    vi.stubGlobal('ResizeObserver', undefined);
     expect(() =>
       renderWithProviders(
         <ShelfScrollFrame>
@@ -120,7 +119,7 @@ describe('ShelfScrollFrame', () => {
         </ShelfScrollFrame>,
       ),
     ).not.toThrow();
-    globalThis.ResizeObserver = saved;
+    vi.stubGlobal('ResizeObserver', saved);
   });
 
   it('does not observe a child element when the frame has no child node', () => {

@@ -17,7 +17,7 @@
  *
  * Safe to import from client components — no `server-only` here.
  */
-export function safeHref(raw: string | null | undefined): string | null {
+export function safeHref(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;

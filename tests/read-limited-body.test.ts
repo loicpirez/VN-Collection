@@ -40,12 +40,12 @@ function streamingReq(
     },
     cancel,
   });
-  const req = new Request('http://localhost/test', {
+  const init: RequestInit & { duplex: 'half' } = {
     method: 'POST',
     body: stream,
-    // @ts-expect-error duplex is required by undici for a stream body
     duplex: 'half',
-  });
+  };
+  const req = new Request('http://localhost/test', init);
   return { req, cancel };
 }
 
