@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  addGameLogEntry,
-  deleteGameLogEntry,
-  isInCollection,
-  listGameLogForVn,
-  updateGameLogEntry,
-} from '@/lib/db';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
 import { recordActivity } from '@/lib/activity';
 import { normalizeVnId, validateVnIdOr400 } from '@/lib/vn-id';
 import { validateIsoDate, validateSafeInt } from '@/lib/input-validators';
 
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-function logGameLogActivity(
+async function logGameLogActivity(
   kind: 'collection.game-log-add' | 'collection.game-log-update' | 'collection.game-log-delete',
   id: string,
   label: string,
   minutes: number | null,
   hasNote: boolean,
-) {
+): Promise<void> {
   try {
-    recordActivity({
+    await recordActivity({
       kind,
       entity: 'vn',
       entityId: id,
@@ -57,8 +53,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-  return NextResponse.json({ entries: listGameLogForVn(id, 200) });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  return NextResponse.json({ entries: await getVnDetailRepository().gameLog(id, 200) });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -80,7 +76,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   let at: number | undefined;
   if (body.logged_at != null) {
     const loggedAt = validateIsoDate(body.logged_at);
@@ -94,8 +90,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     minutes = parsedMinutes.value > 0 ? parsedMinutes.value : null;
   }
   try {
-    const entry = addGameLogEntry(id, note, at, minutes);
-    logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
+    const entry = await getGeneratedIdRepository().addGameLogEntry(id, note, at, minutes);
+    await logGameLogActivity('collection.game-log-add', id, 'Added game-log entry', minutes, !!body.note);
     return NextResponse.json({ entry });
   } catch (e) {
     console.error('[game-log] addGameLogEntry failed:', (e as Error).message);
@@ -110,7 +106,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     id?: unknown;
     note?: unknown;
@@ -141,14 +137,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
   }
   try {
-    const entry = updateGameLogEntry(id, eid, patch);
+    const entry = await getVnDetailRepository().updateGameLog(id, eid, patch);
     if (!entry) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
     const minutes =
       patch.session_minutes === undefined
         ? entry.session_minutes ?? null
         : patch.session_minutes ?? null;
     const hasNote = patch.note !== undefined ? !!patch.note : !!entry.note;
-    logGameLogActivity('collection.game-log-update', id, 'Updated game-log entry', minutes, hasNote);
+    await logGameLogActivity('collection.game-log-update', id, 'Updated game-log entry', minutes, hasNote);
     return NextResponse.json({ entry });
   } catch (e) {
     console.error('[game-log] updateGameLogEntry failed:', (e as Error).message);
@@ -163,13 +159,13 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!isInCollection(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+  if (!await getCollectionCoreRepository().contains(id)) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
   const eid = Number(req.nextUrl.searchParams.get('entry'));
   if (!Number.isSafeInteger(eid) || eid <= 0) {
     return NextResponse.json({ error: 'entry required' }, { status: 400 });
   }
-  const ok = deleteGameLogEntry(id, eid);
+  const ok = await getVnDetailRepository().deleteGameLog(id, eid);
   if (!ok) return NextResponse.json({ error: 'entry not found' }, { status: 404 });
-  logGameLogActivity('collection.game-log-delete', id, 'Deleted game-log entry', null, false);
+  await logGameLogActivity('collection.game-log-delete', id, 'Deleted game-log entry', null, false);
   return NextResponse.json({ ok: true });
 }

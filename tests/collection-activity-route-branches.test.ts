@@ -108,7 +108,12 @@ describe('GET /api/collection/[id]/activity', () => {
     });
     const response = await GET(req('GET'), ctx());
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'internal error' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'collection.activity.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:collection.activity.GET] db failed');
     consoleSpy.mockRestore();
   });
@@ -161,7 +166,12 @@ describe('POST /api/collection/[id]/activity', () => {
     });
     const response = await POST(req('POST', { text: 'Manual note' }), ctx());
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'internal error' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'collection.activity.POST',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:collection.activity.POST] insert failed');
     consoleSpy.mockRestore();
   });
@@ -210,7 +220,12 @@ describe('DELETE /api/collection/[id]/activity', () => {
     });
     const response = await DELETE(req('DELETE', undefined, `http://127.0.0.1/api/collection/${VN_ID}/activity?entry=${ENTRY_ID}`), ctx());
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: 'internal error' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'collection.activity.DELETE',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:collection.activity.DELETE] delete failed');
     consoleSpy.mockRestore();
   });
