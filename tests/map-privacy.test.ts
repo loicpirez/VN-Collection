@@ -55,10 +55,14 @@ describe('map third-party privacy boundary', () => {
     const mapPage = source('src/components/MapPageClient.tsx');
     const modal = source('src/components/AddEditPlaceModal.tsx');
     const canvas = source('src/components/MapCanvas.tsx');
-    expect(canvas).toContain('relative isolate z-0 w-full overflow-hidden');
-    expect(mapPage).toContain('className="absolute z-30 mt-1');
+    const styles = source('src/app/globals.css');
+    expect(canvas).toContain('relative isolate z-layer-map w-full overflow-hidden');
+    expect(mapPage).toContain('className="absolute z-layer-popover mt-1');
     expect(mapPage).not.toContain('z-[9999]');
-    expect(modal).toContain('className="fixed inset-0 z-[1000]');
+    expect(modal).toContain('className="fixed inset-0 z-layer-modal');
+    expect(styles).toContain('--z-layer-map: 0;');
+    expect(styles).toContain('--z-layer-popover: 700;');
+    expect(styles).toContain('--z-layer-modal: 1000;');
   });
 
   it('aborts stale geocoding work and active requests after consent revocation', () => {

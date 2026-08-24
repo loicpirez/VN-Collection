@@ -292,7 +292,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           <ul
             id={searchListboxId}
             role="listbox"
-            className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
+            className="absolute z-layer-popover mt-1 w-full overflow-hidden rounded-lg border border-border bg-bg-card shadow-card"
           >
             {searchResults.map((r, i) => (
               <li
