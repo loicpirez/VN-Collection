@@ -212,26 +212,23 @@ export function VnSeedPicker({
   );
 
   const selectVn = useCallback(
-    (vnId: string) => {
-      const selected = hits.find((hit) => hit.id === vnId);
-      if (selected) {
-        setOptimisticSeed({
-          id: selected.id,
-          title: selected.title,
-          alttitle: selected.alttitle,
-          released: selected.released,
-          developer: selected.developer,
-          image: selected.image,
-        });
-      }
-      const nextParams = setSeed(searchParams, vnId);
+    (selected: VnHit) => {
+      setOptimisticSeed({
+        id: selected.id,
+        title: selected.title,
+        alttitle: selected.alttitle,
+        released: selected.released,
+        developer: selected.developer,
+        image: selected.image,
+      });
+      const nextParams = setSeed(searchParams, selected.id);
       setOpen(false);
       setQuery('');
       setHits([]);
       setEditing(false);
       navigateTo(nextParams);
     },
-    [hits, navigateTo, searchParams],
+    [navigateTo, searchParams],
   );
 
   const clearCurrentSeed = useCallback(() => {
@@ -253,7 +250,7 @@ export function VnSeedPicker({
       } else if (e.key === 'Enter') {
         if (hits[highlight]) {
           e.preventDefault();
-          selectVn(hits[highlight].id);
+          selectVn(hits[highlight]);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -399,7 +396,7 @@ export function VnSeedPicker({
                   <li key={`${hit.source}:${hit.id}`} role="option" aria-selected={active}>
                     <button
                       type="button"
-                      onClick={() => selectVn(hit.id)}
+                      onClick={() => selectVn(hit)}
                       onMouseEnter={() => setHighlight(idx)}
                       title={hit.id}
                       className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${
