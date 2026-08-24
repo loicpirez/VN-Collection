@@ -55,7 +55,7 @@ describe('ActionMenu', () => {
         <ActionMenu label="Actions" trigger={<span>Open</span>}>
           <span>Plain text</span>
           <button type="button" data-menu-keep-open>Keep</button>
-          <a href="#target">Navigate</a>
+          <a href="#target" onClick={(event) => event.preventDefault()}>Navigate</a>
         </ActionMenu>
       </div>,
     );

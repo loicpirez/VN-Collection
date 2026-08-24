@@ -769,9 +769,11 @@ describe('ShelfLayoutEditor drag operations', () => {
     expect(screen.queryByText('synthetic:v90009')).toBeNull();
 
     const slotLink = screen.getByRole('link', { name: 'Slotted Visual' });
+    slotLink.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(slotLink);
     fireEvent.pointerDown(slotLink);
     const displayLink = screen.getByRole('link', { name: 'Display Top' });
+    displayLink.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(displayLink);
     fireEvent.pointerDown(displayLink);
 

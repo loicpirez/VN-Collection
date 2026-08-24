@@ -188,6 +188,7 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     // Finished job label embeds the VN id, rendered as a link to /vn/v90011.
     const vnLink = within(region).getByRole('link', { name: /Title Z/ });
     expect(vnLink.getAttribute('href')).toBe('/vn/v90011');
+    vnLink.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(vnLink);
     expect(screen.getByRole('region', { name: 'Active downloads' })).not.toBeNull();
   });
