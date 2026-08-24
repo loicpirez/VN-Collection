@@ -80,6 +80,30 @@ The AliceNet price index must match both the cast and null-group expression in
 sequential scan; the clean migration replay above proved the corrected
 expression selects `idx_alicenet_page_price`.
 
+## Production staff-page verification
+
+After the PostgreSQL cutover, the highest-cardinality local staff record was
+measured through the complete server-rendered route and with the exact
+repository statements. This supplements the migration-rehearsal plans above;
+it does not replace them.
+
+| Surface | Production cardinality/result | Execution |
+| --- | ---: | ---: |
+| Complete staff route, first sample | HTTP 200 | 0.424 s |
+| Complete staff route, four warm samples | HTTP 200 | 0.270-0.294 s |
+| Production-credit query | 5 rows | 0.434 ms |
+| Voice-credit query | 223 rows | 9.315 ms |
+| Alias/sibling resolution | 8 names, no sibling match | 11.197 ms |
+
+The credit lookups selected their `sid` indexes, VN lookups used the primary
+key or a small in-memory hash, collection joins stayed in memory, and every
+sort used quicksort without a spill. The sibling lookup deliberately begins
+from the 167-row collection for production credits and scans the 21,341-row
+voice-credit table in memory; at 11.197 ms this was cheaper and simpler than an
+additional broad name index. No timeout, lock wait, temporary-file sort, or
+unbounded row estimate appeared. Reconsider that decision only when measured
+latency or cardinality materially changes.
+
 ## Recapture procedure
 
 Use a restored non-production database with production-like cardinality:

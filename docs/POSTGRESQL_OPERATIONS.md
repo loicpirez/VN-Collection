@@ -4,6 +4,30 @@ This document covers steady-state operation after a reviewed PostgreSQL
 cutover. Use the migration runbook for rehearsal, initial copy, verification,
 cutover, and rollback.
 
+## Production baseline
+
+The 2026-08-24/25 cutover established this verified baseline:
+
+- PostgreSQL 16.15 listens on loopback only, requires SCRAM authentication,
+  uses data-page checksums, and limits the server to 50 connections;
+- separate migrator, application, and backup roles implement least privilege,
+  while the web pool is capped at 10 connections;
+- all nine ordered migrations are recorded and 57 application tables are
+  present;
+- the non-root systemd service reads a root-owned mode-0640 environment file,
+  writes only to its data directory, and has no Linux capabilities;
+- the application port is loopback-only and Nginx owns public HTTPS, HSTS, and
+  Basic Auth;
+- readiness reports `backend=postgres`, database availability, and bounded pool
+  counters without exposing a connection string or SQL detail.
+
+The systemd sandbox includes `NoNewPrivileges`, private temporary files and
+devices, a read-only system surface, protected home/kernel/control groups,
+restricted namespaces and realtime operations, invisible process details, and
+an empty capability set. Re-run `systemd-analyze security vndb.service` after a
+unit change and treat a material regression from the measured 2.9 exposure
+score as a deployment review item, not as an automatic tuning target.
+
 ## Deployment contract
 
 - Apply reviewed migrations with `yarn db:postgres:apply` as a separate
@@ -89,6 +113,28 @@ At minimum:
    backups.
 
 Never test restore over the active production database.
+
+### Installed production schedules
+
+The production host has two persistent systemd timers:
+
+- a daily custom-format PostgreSQL dump, scheduled from 03:35 UTC with a
+  randomized delay and retained for 35 days;
+- a weekly media-storage archive, scheduled from 04:30 UTC on Sunday with a
+  randomized delay and retained for 35 days.
+
+Both writers use a root-owned destination and restrictive umask. The database
+job authenticates with the dedicated backup role, writes through a temporary
+file, validates the completed archive with `pg_restore --list`, writes a
+SHA-256 sidecar, and only then exposes the new restore point. The storage job
+uses the same temporary-file, checksum, and atomic-publication pattern.
+
+The cutover dump was restored into an isolated temporary database after all
+nine migrations were applied. Counts for collection, VN, AliceNet, and schema
+migrations matched production; all 57 public tables were present and no
+constraint remained unvalidated. The temporary restore was removed only after
+that proof passed. Keep at least one current encrypted copy outside the
+database host; the on-host timers do not protect against total host loss.
 
 ### In-application logical backups
 

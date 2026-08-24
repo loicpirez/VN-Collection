@@ -6,10 +6,10 @@ switch production traffic.
 
 ## Current constraints
 
-- SQLite remains the default while application-wide repository parity is in
-  progress. `DATABASE_BACKEND=sqlite-readonly` is the explicit compatibility
-  mode for final source validation: it opens an existing file without creating
-  directories, applying migrations, or permitting application writes.
+- SQLite remains the supported local default. Production completed its
+  PostgreSQL cutover on 2026-08-24/25. `DATABASE_BACKEND=sqlite-readonly` is the
+  explicit compatibility mode for source validation: it opens an existing file
+  without creating directories, applying migrations, or permitting writes.
 - The migration reads SQLite in read-only mode and never edits the source file.
 - The migration does not implement an online delta or dual writes. Final
   migration therefore requires a maintenance window with all application writes
@@ -266,3 +266,26 @@ Attach the following to the change record:
 - full test, coverage, build, and browser QA summaries;
 - pre/post-cutover health and latency samples;
 - decision, operator, timestamps, and rollback-window close time.
+
+## Verified production completion record
+
+The 2026-08-24/25 production execution followed this runbook and retained its
+evidence under a timestamped, read-only rollback archive:
+
+| Gate | Verified result |
+| --- | --- |
+| Source safety | Application writers stopped; SQLite database, WAL/SHM when present, storage, configuration, and prior PostgreSQL state copied and checksummed without modifying the source |
+| SQLite integrity | `quick_check` returned `ok`; foreign-key check returned no rows |
+| Schema | PostgreSQL 16.15; nine ordered migrations; 57 public application tables |
+| Copy | 405,179 rows copied across all 53 source-manifest tables |
+| Independent verifier | Row counts and primary-key sets/checksums matched; 28 JSON contracts and six representative aggregates passed; quarantine count was zero |
+| Runtime parity | PostgreSQL repository suite passed 92/92; browser structure passed 29/29 and interactions passed 25/25 in Chromium and WebKit |
+| Recovery | Final custom dump checksum and archive listing passed; isolated restore reproduced key counts, nine migrations, 57 tables, and zero invalid constraints |
+| Cutover | Readiness reported PostgreSQL available; critical application routes and public authenticated WebKit flows passed before normal jobs resumed |
+
+After cutover, the global metadata refresh completed all 13 phases. All 166
+real VNDB identifiers in the collection were refreshed; the only remaining
+collection row is an intentional synthetic EGS-only record. Developer and tag
+indexes were rebuilt to 3,543 and 101,076 rows. A failed EGS upstream request
+does not erase the previously verified cache, and AliceNet retains its last
+known catalogue when its own upstream returns HTTP 503.
