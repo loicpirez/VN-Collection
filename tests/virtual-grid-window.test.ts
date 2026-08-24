@@ -103,6 +103,8 @@ describe('LibraryClient virtual grid wiring', () => {
 
   it('marks the live grid when virtualization is active for browser QA', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
-    expect(gridBody).toContain('aria-rowcount');
+    expect(gridBody).toContain('position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}');
+    expect(gridBody).toContain('setSize={items.length}');
+    expect(gridBody).not.toContain('aria-rowcount');
   });
 });
