@@ -5,6 +5,9 @@ import {
   decodeVndbUlistLabelsResponse,
 } from './vndb-client-shape';
 import type { VndbUlistEntry, VndbUlistEntryDetail, VndbUlistLabel } from './vndb';
+import type { WishlistFacets, WishlistPageMetadata, WishlistSummary } from './wishlist-pagination';
+import { decodeNumberedPageMeta } from './server-pagination';
+import { isValidVnId, normalizeVnId } from './vn-id-shape';
 
 const MAX_WISHLIST_ROWS = 1_000;
 
@@ -31,6 +34,19 @@ export interface WishlistClientItem extends VndbUlistEntry {
 export interface WishlistClientState {
   needsAuth: boolean;
   items: WishlistClientItem[];
+  page?: WishlistPageMetadata;
+  facets?: WishlistFacets;
+  summary?: WishlistSummary;
+  download_items?: Array<{ id: string; title: string }>;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function decodeUniqueStrings(value: unknown, maximum: number): string[] | null {
+  if (!Array.isArray(value) || value.length > maximum || !value.every((entry) => typeof entry === 'string')) return null;
+  return new Set(value).size === value.length ? value : null;
 }
 
 function isNullableFiniteNumber(value: unknown): value is number | null {
@@ -104,8 +120,55 @@ export function decodeWishlistClientState(value: unknown): WishlistClientState |
     }
     items.push({ ...entry, in_collection: row.in_collection, egs });
   }
-  return {
+  const base: WishlistClientState = {
     needsAuth: record.needsAuth === true,
     items,
+  };
+  if (record.page === undefined) return base;
+  const page = decodeNumberedPageMeta(record.page, 120);
+  const pageRecord = asJsonRecord(record.page);
+  const facets = asJsonRecord(record.facets);
+  const summary = asJsonRecord(record.summary);
+  const languages = decodeUniqueStrings(facets?.languages, 256);
+  const platforms = decodeUniqueStrings(facets?.platforms, 256);
+  if (
+    !page ||
+    !pageRecord ||
+    typeof pageRecord.grouped !== 'boolean' ||
+    !facets || !languages || !platforms ||
+    !summary ||
+    !isNonNegativeInteger(summary.total) ||
+    !isNonNegativeInteger(summary.owned) ||
+    !isNonNegativeInteger(summary.todo) ||
+    summary.owned + summary.todo !== summary.total ||
+    !Array.isArray(record.download_items) ||
+    record.download_items.length > MAX_WISHLIST_ROWS
+  ) {
+    return null;
+  }
+  const downloadItems: Array<{ id: string; title: string }> = [];
+  const downloadIds = new Set<string>();
+  for (const value of record.download_items) {
+    const row = asJsonRecord(value);
+    if (!row || typeof row.id !== 'string' || !isValidVnId(row.id) || typeof row.title !== 'string') return null;
+    const id = normalizeVnId(row.id);
+    if (downloadIds.has(id)) return null;
+    downloadIds.add(id);
+    downloadItems.push({ id, title: row.title });
+  }
+  return {
+    ...base,
+    page: {
+      page: page.page,
+      page_size: page.page_size,
+      total: page.total,
+      total_pages: page.total_pages,
+      start: page.start,
+      end: page.end,
+      grouped: pageRecord.grouped,
+    },
+    facets: { languages, platforms },
+    summary: { total: summary.total, owned: summary.owned, todo: summary.todo },
+    download_items: downloadItems,
   };
 }
