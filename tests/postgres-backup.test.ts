@@ -12,6 +12,13 @@ import {
 import { POSTGRES_TABLE_ORDER, type PostgresMigrationTable } from '@/lib/db/postgres-migration-manifest';
 import type { PostgresParameter } from '@/lib/db/postgres';
 
+const postgresDefaults = vi.hoisted(() => ({ getPostgresPool: vi.fn() }));
+
+vi.mock('@/lib/db/postgres', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/postgres')>();
+  return { ...actual, getPostgresPool: postgresDefaults.getPostgresPool };
+});
+
 const MIGRATIONS = [
   '0001_baseline',
   '0002_json_quarantine',
@@ -163,6 +170,20 @@ async function expectRestoreError(text: string, message: string | RegExp): Promi
 }
 
 describe('PostgreSQL logical backup', () => {
+  it('uses the shared PostgreSQL pool for export and restore by default', async () => {
+    const exportClient = new FakeClient({ mode: 'export' });
+    postgresDefaults.getPostgresPool.mockReturnValueOnce(new FakePool(exportClient));
+    const download = await createPostgresBackupDownload();
+    const bytes = new Uint8Array(await new Response(download.stream).arrayBuffer());
+
+    const restoreClient = new FakeClient({ mode: 'restore' });
+    postgresDefaults.getPostgresPool.mockReturnValueOnce(new FakePool(restoreClient));
+    const summary = await restorePostgresBackup(byteStream(bytes), bytes.byteLength + 1);
+
+    expect(summary.tables[0]).toEqual({ name: 'vn', rows_replaced: 2 });
+    expect(postgresDefaults.getPostgresPool).toHaveBeenCalledTimes(2);
+  });
+
   it('streams a snapshot and restores it through verified staging tables', async () => {
     const exported = await downloadBytes();
     expect(exported.client.queries).toContain('COMMIT');
