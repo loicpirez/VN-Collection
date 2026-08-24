@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSeries, listSeries } from '@/lib/db';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -12,7 +13,7 @@ export const runtime = 'nodejs';
 void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({ series: listSeries() });
+  return NextResponse.json({ series: await getSeriesRepository().list() });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -28,9 +29,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     description = descResult.value;
   }
   try {
-    const created = createSeries(nameResult.value, description);
+    const created = await getGeneratedIdRepository().createSeries(nameResult.value, description);
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'series.create',
         entity: 'series',
         entityId: String(created.id),

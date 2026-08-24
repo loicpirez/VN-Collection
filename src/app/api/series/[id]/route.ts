@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteSeries, getSeries, updateSeries } from '@/lib/db';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { recordActivity } from '@/lib/activity';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const s = getSeries(n);
+  const s = await getSeriesRepository().get(n);
   if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json({ series: s });
 }
@@ -81,10 +81,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     patch.banner_path = body.banner_path;
   }
-  const s = updateSeries(n, patch);
+  const repository = getSeriesRepository();
+  const s = await repository.update(n, patch);
   if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 });
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'series.update',
       entity: 'series',
       entityId: String(n),
@@ -94,7 +95,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } catch (e) {
     console.error(`[series:${n}] activity log failed:`, (e as Error).message);
   }
-  return NextResponse.json({ series: getSeries(n) });
+  return NextResponse.json({ series: await repository.get(n) });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -103,11 +104,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const n = parseId(id);
   if (n == null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const existing = getSeries(n);
+  const repository = getSeriesRepository();
+  const existing = await repository.get(n);
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  deleteSeries(n);
+  await repository.remove(n);
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'series.delete',
       entity: 'series',
       entityId: String(n),

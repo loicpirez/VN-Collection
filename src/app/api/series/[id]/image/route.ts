@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSeries, updateSeries } from '@/lib/db';
+import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { saveUpload, UnsupportedFileType } from '@/lib/files';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!Number.isSafeInteger(sid) || sid <= 0) {
     return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   }
-  if (!getSeries(sid)) {
+  const repository = getSeriesRepository();
+  if (!await repository.get(sid)) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
   const ct = req.headers.get('content-type') ?? '';
@@ -69,10 +70,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     throw e;
   }
-  if (kind === 'banner') updateSeries(sid, { banner_path: path });
-  else updateSeries(sid, { cover_path: path });
+  if (kind === 'banner') await repository.update(sid, { banner_path: path });
+  else await repository.update(sid, { cover_path: path });
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'series.image-upload',
       entity: 'series',
       entityId: String(sid),
