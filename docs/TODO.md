@@ -1,4 +1,9 @@
-# TODO — full audit (2026-05-30)
+# Historical audit snapshot (2026-05-30)
+
+This report is retained as implementation history. The active source of truth is
+[`TODO/README.md`](../TODO/README.md), which links the current audit and database
+migration rounds. Statuses below have been reconciled where later work closed an
+item that was still open in this snapshot.
 
 Fresh audit of the current codebase, one pass per field, then one fix agent per field. Each row was verified at the cited `file:line`; statuses below reflect the fix pass. Columns: `ID | category | issue | file(s) | — | fix | status`.
 
@@ -34,7 +39,7 @@ Fresh audit of the current codebase, one pass per field, then one fix agent per 
 | I18N-005 | i18n | Hardcoded English placeholder "e.g. 3676" on the EGS-id input | src/components/ErogePricePanel.tsx:781 | — | Uses t.erogePrice.manualMatch.addCandidatePlaceholder (fr/en/ja) | DONE_WITH_DIFF (commit 9868f9f2) |
 | PERF-001 | performance | StockPricesSection statically imported ErogePricePanel, shipping recharts in the VN detail eager bundle | src/components/StockPricesSection.tsx:5 | — | Lazy-loaded ErogePricePanel via next/dynamic | DONE_WITH_DIFF (commit 6e3c0a99) |
 | PERF-002 | performance | NotesSectionToggle statically imported MarkdownView, eagerly bundling react-markdown + remark-gfm | src/components/NotesSectionToggle.tsx:6 | — | Lazy-loaded MarkdownView via next/dynamic | DONE_WITH_DIFF (commit 6e3c0a99) |
-| PERF-003 | performance | Home page mounts LibraryClient twice; the /api/collection fetch is not gated by mode, so both instances run the full scan + getStats and parse it twice | src/components/LibraryClient.tsx:449 | — | Share one fetch result across the two home sections (provider/context or single owner); a stats-only gate is unsafe because the controls instance feeds items to Random Pick | NEEDS-DESIGN (controls instance consumes items via randomPickCandidates; safe dedup requires a structural provider refactor of the ~2117-line load-bearing component) |
+| PERF-003 | performance | Home page mounts LibraryClient twice; the /api/collection fetch is not gated by mode, so both instances could run the full scan + getStats and parse it twice | src/components/LibraryClient.tsx, src/components/HomeLibrarySection.tsx | — | Identical in-flight collection requests now share one promise with consumer ownership and last-consumer cancellation; the split sections retain independent layout controls. | DONE_WITH_DIFF (verified by tests/performance-query-shapes.test.ts) |
 | RESP-001 | responsive | "Add to collection" + button is a 28px (h-7 w-7) essential control with no tap-target | src/components/AddMissingVnButton.tsx:52 | — | Added the tap-target utility | DONE_WITH_DIFF (commit 61979e76) |
 | RESP-002 | responsive | Modal close (X) button sizes only the 16px icon; ~16px hit target | src/components/CompareWithButton.tsx:118 | — | Added tap-target + p-1 to the close button | DONE_WITH_DIFF (commit 61979e76) |
 | RESP-003 | responsive | AliceNet match-dialog close (X) button is bare with no tap-target around a 16px icon | src/components/alicenet/AliceNetLinkDialog.tsx:103 | — | Added tap-target + p-1 to reach the 44px hit area | DONE_WITH_DIFF (commit 61979e76) |
