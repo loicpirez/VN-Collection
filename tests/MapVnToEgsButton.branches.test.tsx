@@ -378,6 +378,7 @@ describe('MapVnToEgsButton branches', () => {
   });
 
   it('does not toast when a failed mutation rejects after identity changes', async () => {
+    vi.useFakeTimers();
     const mutation = deferred<Response>();
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (String(url).startsWith('/api/egs/search')) return json(RICH_CANDIDATES);
@@ -386,14 +387,17 @@ describe('MapVnToEgsButton branches', () => {
       return json({ ok: true });
     });
     const view = renderWithProviders(<MapVnToEgsButton vnId="v90001" seedQuery="Seed Name" />, { locale: 'en' });
-    await view.user.click(screen.getByRole('button', { name: 'Map to EGS' }));
-    const dialog = await screen.findByRole('dialog');
-    await within(dialog).findByText('Candidate One');
-    await view.user.click(within(dialog).getByRole('button', { name: 'Use this' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Map to EGS' }));
+    const dialog = screen.getByRole('dialog');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(within(dialog).getByText('Candidate One')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use this' }));
 
     view.rerender(<MapVnToEgsButton vnId="v90001" seedQuery="Different Name" />);
-    mutation.reject(new Error('late failure'));
-    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    await act(async () => mutation.reject(new Error('late failure')));
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(refresh).not.toHaveBeenCalled();
   });
 });
