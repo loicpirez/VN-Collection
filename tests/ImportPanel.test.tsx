@@ -76,6 +76,12 @@ function dbFile(name = 'backup.db') {
   return new File(['SQLite format 3\0content'], name, { type: 'application/octet-stream' });
 }
 
+function postgresBackupFile(name = 'backup.vncbackup') {
+  return new File([
+    '{"type":"header","format":"vndb-collection-postgres-backup","version":1}\n',
+  ], name, { type: 'application/x-vndb-collection-backup' });
+}
+
 async function flushAsync() {
   await act(async () => {
     await Promise.resolve();
@@ -164,6 +170,23 @@ describe('ImportPanel', () => {
     expect(fetch).toHaveBeenCalledWith('/api/backup/restore', expect.objectContaining({ method: 'POST' }));
     expect(screen.getByText(`1 ${t.dataMgmt.restoreSkipped}`)).toBeInTheDocument();
     expect(screen.getByText('cache: missing')).toBeInTheDocument();
+  });
+
+  it('streams PostgreSQL logical backups with server-side restore confirmation', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(dbSummary()));
+    const { container } = renderWithProviders(<ImportPanel />, { locale: 'en' });
+    const file = postgresBackupFile();
+    fireEvent.change(fileInput(container), { target: { files: [file] } });
+
+    expect(await screen.findByText(t.dataMgmt.restoreDone)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith('/api/backup/restore', expect.objectContaining({
+      method: 'POST',
+      body: file,
+      headers: {
+        'Content-Type': 'application/x-vndb-collection-backup',
+        'X-VNCOLL-Restore-Confirm': 'RESTORE',
+      },
+    }));
   });
 
   it('reports HTTP, malformed JSON, malformed database, and network failures', async () => {

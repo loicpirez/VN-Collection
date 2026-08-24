@@ -19,10 +19,14 @@ type Summary =
   | { kind: 'db'; data: DbRestoreSummary };
 
 const SQLITE_MAGIC = 'SQLite format 3\0';
+const POSTGRES_BACKUP_MARKER = '"format":"vndb-collection-postgres-backup"';
+const POSTGRES_BACKUP_CONTENT_TYPE = 'application/x-vndb-collection-backup';
 
-async function detectKind(file: File): Promise<'json' | 'db'> {
-  const head = await file.slice(0, SQLITE_MAGIC.length).text();
-  return head === SQLITE_MAGIC ? 'db' : 'json';
+async function detectKind(file: File): Promise<'json' | 'sqlite' | 'postgres'> {
+  const head = await file.slice(0, 512).text();
+  if (head.startsWith(SQLITE_MAGIC)) return 'sqlite';
+  if (head.includes(POSTGRES_BACKUP_MARKER) || file.name.toLowerCase().endsWith('.vncbackup')) return 'postgres';
+  return 'json';
 }
 
 export function ImportPanel() {
@@ -58,7 +62,7 @@ export function ImportPanel() {
     try {
       const kind = await detectKind(file);
       if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
-      if (kind === 'db') {
+      if (kind !== 'json') {
         const ok = await confirm({
           message: t.dataMgmt.restoreConfirm,
           tone: 'danger',
@@ -68,12 +72,22 @@ export function ImportPanel() {
       }
       const fd = new FormData();
       fd.append('file', file);
-      const url = kind === 'db' ? '/api/backup/restore' : '/api/collection/import';
-      const res = await fetch(url, { method: 'POST', body: fd, signal: ctrl.signal });
+      const url = kind === 'json' ? '/api/collection/import' : '/api/backup/restore';
+      const res = await fetch(url, kind === 'postgres'
+        ? {
+          method: 'POST',
+          body: file,
+          headers: {
+            'Content-Type': POSTGRES_BACKUP_CONTENT_TYPE,
+            'X-VNCOLL-Restore-Confirm': 'RESTORE',
+          },
+          signal: ctrl.signal,
+        }
+        : { method: 'POST', body: fd, signal: ctrl.signal });
       if (!res.ok) throw new Error(await readApiError(res, t.dataMgmt.importError));
       const data = await res.json();
       if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
-      if (kind === 'db') {
+      if (kind !== 'json') {
         const summary = decodeDbRestoreSummary(data);
         if (!summary) throw new Error(t.dataMgmt.importError);
         setSummary({ kind: 'db', data: summary });
@@ -114,7 +128,7 @@ export function ImportPanel() {
       <input
         ref={inputRef}
         type="file"
-        accept="application/json,application/octet-stream,.json,.db,.sqlite,.sqlite3"
+        accept="application/json,application/octet-stream,application/x-vndb-collection-backup,.json,.db,.sqlite,.sqlite3,.vncbackup"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

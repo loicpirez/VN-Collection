@@ -7,6 +7,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
 import { readApiError } from '@/lib/api-error-read';
+const POSTGRES_BACKUP_CONTENT_TYPE = 'application/x-vndb-collection-backup';
 /**
  * Page-wide drag-and-drop receiver. Mounts a fixed overlay that only
  * appears while the user is dragging a file over the document. Drop forwards
@@ -53,7 +54,8 @@ export function DropImport() {
       const file = e.dataTransfer.files[0];
       if (!file) return;
       const lower = file.name.toLowerCase();
-      const isDb = lower.endsWith('.db') || lower.endsWith('.sqlite');
+      const isPostgresBackup = lower.endsWith('.vncbackup');
+      const isDb = lower.endsWith('.db') || lower.endsWith('.sqlite') || isPostgresBackup;
       if (!lower.endsWith('.json') && !isDb) {
         toast.error(t.dropImport.unsupported);
         return;
@@ -75,7 +77,17 @@ export function DropImport() {
         const fd = new FormData();
         fd.append('file', file);
         const url = isDb ? '/api/backup/restore' : '/api/collection/import';
-        const r = await fetch(url, { method: 'POST', body: fd, signal: ctrl.signal });
+        const r = await fetch(url, isPostgresBackup
+          ? {
+            method: 'POST',
+            body: file,
+            headers: {
+              'Content-Type': POSTGRES_BACKUP_CONTENT_TYPE,
+              'X-VNCOLL-Restore-Confirm': 'RESTORE',
+            },
+            signal: ctrl.signal,
+          }
+          : { method: 'POST', body: fd, signal: ctrl.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         if (ctrl.signal.aborted || !mountedRef.current || uploadCtrlRef.current !== ctrl) return;
         toast.success(t.dropImport.ok);
@@ -111,7 +123,7 @@ export function DropImport() {
 
   if (!over && !busy) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-bg/80 backdrop-blur">
+    <div className="pointer-events-none fixed inset-0 z-layer-status flex items-center justify-center bg-bg/80 backdrop-blur">
       <div className="rounded-2xl border-2 border-dashed border-accent bg-bg-card px-8 py-6 text-center">
         <UploadCloud className="mx-auto h-10 w-10 text-accent" aria-hidden />
         <h2 className="mt-2 text-lg font-bold">{busy ? t.dropImport.importing : t.dropImport.title}</h2>

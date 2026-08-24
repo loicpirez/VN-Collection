@@ -149,6 +149,23 @@ describe('DropImport', () => {
     });
   });
 
+  it('streams a dropped PostgreSQL logical backup with explicit confirmation', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse());
+    renderWithProviders(<DropImport />, { locale: 'en' });
+    const file = new File(['logical backup'], 'backup.vncbackup');
+    dispatchDrag('drop', transfer([file]));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/backup/restore', expect.objectContaining({
+      method: 'POST',
+      body: file,
+      headers: {
+        'Content-Type': 'application/x-vndb-collection-backup',
+        'X-VNCOLL-Restore-Confirm': 'RESTORE',
+      },
+    })));
+    expect(confirmMocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ requireTyping: 'RESTORE' }));
+  });
+
   it('reports HTTP failures and ignores AbortError failures', async () => {
     const aborted = new Error('aborted');
     aborted.name = 'AbortError';
