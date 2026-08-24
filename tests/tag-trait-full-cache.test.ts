@@ -85,16 +85,16 @@ describe('readTagFullCache', () => {
 describe('readTraitFullCache', () => {
   beforeEach(() => clearCache());
 
-  it('returns null on cache miss', () => {
-    expect(readTraitFullCache('i90001')).toBeNull();
+  it('returns null on cache miss', async () => {
+    await expect(readTraitFullCache('i90001')).resolves.toBeNull();
   });
 
-  it('returns null on corrupt JSON body', () => {
+  it('returns null on corrupt JSON body', async () => {
     writeCacheRow('trait_full:i90002', '{still not json');
-    expect(readTraitFullCache('i90002')).toBeNull();
+    await expect(readTraitFullCache('i90002')).resolves.toBeNull();
   });
 
-  it('round-trips a stored payload and uses the row fetched_at', () => {
+  it('round-trips a stored payload and uses the row fetched_at', async () => {
     const stored = {
       trait: {
         id: 'i90003',
@@ -111,13 +111,13 @@ describe('readTraitFullCache', () => {
       fetched_at: NOW - 100_000,
     };
     writeCacheRow('trait_full:i90003', JSON.stringify(stored), NOW);
-    const got = readTraitFullCache('i90003');
+    const got = await readTraitFullCache('i90003');
     expect(got).not.toBeNull();
     expect(got!.trait.id).toBe('i90003');
     expect(got!.fetched_at).toBe(NOW);
   });
 
-  it('lowercases the iid before lookup', () => {
+  it('lowercases the iid before lookup', async () => {
     writeCacheRow('trait_full:i90004', JSON.stringify({
       trait: {
         id: 'i90004',
@@ -133,6 +133,6 @@ describe('readTraitFullCache', () => {
       },
       fetched_at: NOW,
     }));
-    expect(readTraitFullCache('I90004')).not.toBeNull();
+    await expect(readTraitFullCache('I90004')).resolves.not.toBeNull();
   });
 });

@@ -157,6 +157,10 @@ export function registerPeopleRepositoryContract(
 
     it('reads, batches, and updates character portraits', async () => {
       await harness.withRepository(async (repository) => {
+        await expect(repository.characterIdsForVn(PEOPLE_CONTRACT_IDS.ownedVn)).resolves.toEqual([
+          PEOPLE_CONTRACT_IDS.primaryCharacter,
+        ]);
+        await expect(repository.characterIdsForVn('v999999')).resolves.toEqual([]);
         await expect(repository.characterImage('c999999')).resolves.toBeNull();
         await expect(repository.characterImages([])).resolves.toEqual(new Map());
         await expect(repository.characterImage(

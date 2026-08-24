@@ -479,7 +479,7 @@ describe('downloadFullTraitInfo', () => {
   it('returns null and writes nothing when VNDB does not recognise the trait id', async () => {
     getTraitMock.mockResolvedValue(null);
     expect(await downloadFullTraitInfo('i90590')).toBeNull();
-    expect(readTraitFullCache('i90590')).toBeNull();
+    await expect(readTraitFullCache('i90590')).resolves.toBeNull();
   });
 });
 
@@ -514,7 +514,7 @@ describe('downloadFullTraitsForVn', () => {
     const r = await downloadFullTraitsForVn(VN, { force: true });
     expect(r.scanned).toBe(1);
     expect(r.downloaded).toBe(1);
-    expect(readTraitFullCache('i90500')).not.toBeNull();
+    await expect(readTraitFullCache('i90500')).resolves.not.toBeNull();
   });
 
   it('records an error and continues when one trait fetch rejects', async () => {

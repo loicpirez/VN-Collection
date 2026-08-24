@@ -378,24 +378,24 @@ describe('readTagFullCache', () => {
 });
 
 describe('readTraitFullCache', () => {
-  it('returns null on a cache miss', () => {
-    expect(readTraitFullCache('i90099')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readTraitFullCache('i90099')).resolves.toBeNull();
   });
 
-  it('decodes a well-formed trait row and splices the row fetched_at', () => {
+  it('decodes a well-formed trait row and splices the row fetched_at', async () => {
     writeCacheRow(
       'trait_full:i90001',
       JSON.stringify({ trait: validTrait(), fetched_at: NOW - 1 }),
       NOW,
     );
-    const got = readTraitFullCache('i90001');
+    const got = await readTraitFullCache('i90001');
     expect(got).not.toBeNull();
     expect(got!.trait.id).toBe('i90001');
     expect(got!.fetched_at).toBe(NOW);
   });
 
-  it('rejects a trait whose group_id is not a trait id', () => {
+  it('rejects a trait whose group_id is not a trait id', async () => {
     writeCacheRow('trait_full:i90002', JSON.stringify({ trait: { ...validTrait(), id: 'i90002', group_id: 'bad' } }));
-    expect(readTraitFullCache('i90002')).toBeNull();
+    await expect(readTraitFullCache('i90002')).resolves.toBeNull();
   });
 });

@@ -1,17 +1,19 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { getTrait, type VndbTrait } from './vndb';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
 import { parseJsonRecord } from './json-shape';
 import { decodeCharacterFullPayload } from './character-full';
 import { decodeVndbTrait } from './vndb-profile-row-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getPeopleRepository } from './db/repositories/people';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 const KEY_PREFIX = 'trait_full:';
 const TTL_MS = 30 * 24 * 3600 * 1000;
 
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 function key(iid: string): string {
@@ -28,26 +30,27 @@ export interface TraitFullPayload {
  * Lets trait tooltips and the /trait page render from cache before any
  * live VNDB fetch.
  */
-export function readTraitFullCache(iid: string): TraitFullPayload | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key(iid)) as { body: string; fetched_at: number } | undefined;
+function decodeTraitCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): TraitFullPayload | null {
   if (!row) return null;
   const parsed = parseJsonRecord(row.body);
   const trait = decodeVndbTrait(parsed?.trait);
   return trait ? { trait, fetched_at: row.fetched_at } : null;
 }
 
-function writeTraitFullCache(iid: string, payload: TraitFullPayload): void {
+export async function readTraitFullCache(iid: string): Promise<TraitFullPayload | null> {
+  return decodeTraitCacheRow(await getCacheRepository().get(key(iid)));
+}
+
+async function writeTraitFullCache(iid: string, payload: TraitFullPayload): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(key(iid), JSON.stringify(payload), now, now + TTL_MS);
+  await getCacheRepository().put({
+    cache_key: key(iid),
+    body: JSON.stringify(payload),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + TTL_MS,
+  });
 }
 
 /**
@@ -58,7 +61,7 @@ export async function downloadFullTraitInfo(iid: string): Promise<TraitFullPaylo
   const trait = await getTrait(iid);
   if (!trait) return null;
   const payload: TraitFullPayload = { trait, fetched_at: Date.now() };
-  writeTraitFullCache(iid, payload);
+  await writeTraitFullCache(iid, payload);
   return payload;
 }
 
@@ -67,39 +70,25 @@ export async function downloadFullTraitInfo(iid: string): Promise<TraitFullPaylo
  * record (description, aliases, char_count, sexual, group, etc.).
  */
 export async function downloadFullTraitsForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  // Narrow via the index (vn_id → character_id) instead of scanning every
-  // cached character_full body.
-  const cidRows = db
-    .prepare('SELECT character_id FROM character_vn_index WHERE vn_id = ?')
-    .all(vnId) as { character_id: string }[];
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const characterIds = await getPeopleRepository().characterIdsForVn(vnId);
   const ids = new Set<string>();
-  if (cidRows.length > 0) {
-    const keys = cidRows.map((r) => `char_full:${r.character_id.toLowerCase()}`);
-    // Chunk to stay under SQLite's SQLITE_MAX_VARIABLE_NUMBER (default
-    // 999) — a VN that credits hundreds of characters would otherwise
-    // crash the prepared statement at runtime. Matches the convention
-    // in lib/db.ts (`isInCollectionMany`, `getEgsForVns`).
-    const CHUNK = 500;
-    for (let i = 0; i < keys.length; i += CHUNK) {
-      const chunk = keys.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const rows = db
-        .prepare(`SELECT body FROM vndb_cache WHERE cache_key IN (${placeholders})`)
-        .all(...chunk) as { body: string }[];
-      for (const r of rows) {
-        const parsed = decodeCharacterFullPayload(r.body, 0);
-        for (const value of parsed?.profile?.traits ?? []) {
-          ids.add(value.id);
-        }
+  if (characterIds.length > 0) {
+    const characterKeys = characterIds.map((characterId) => `char_full:${characterId.toLowerCase()}`);
+    const rows = await getCacheRepository().getMany(characterKeys);
+    for (const row of rows.values()) {
+      const parsed = decodeCharacterFullPayload(row.body, row.fetched_at);
+      for (const value of parsed?.profile?.traits ?? []) {
+        ids.add(value.id);
       }
     }
   }
   if (ids.size === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(Array.from(ids, key));
   const stale = Array.from(ids).filter((iid) => {
-    const cached = readTraitFullCache(iid);
+    const cached = decodeTraitCacheRow(cacheRows.get(key(iid)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
   if (stale.length === 0) return { scanned: ids.size, downloaded: 0 };

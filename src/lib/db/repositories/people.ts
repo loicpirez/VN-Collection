@@ -133,6 +133,7 @@ export interface PeopleRepository {
   characterImage(characterId: string): Promise<CharacterImageRecord | null>;
   characterImages(characterIds: readonly string[]): Promise<Map<string, CharacterImageRecord>>;
   upsertCharacterImage(characterId: string, url: string | null, localPath: string | null): Promise<void>;
+  characterIdsForVn(vnId: string): Promise<string[]>;
 }
 
 interface ProductionRow extends QueryResultRow {
@@ -624,6 +625,14 @@ export function createPostgresPeopleRepository(): PeopleRepository {
           fetched_at = EXCLUDED.fetched_at
       `, [characterId, url, localPath, Date.now()]);
     },
+    async characterIdsForVn(vnId) {
+      const result = await postgresQuery<{ character_id: string } & QueryResultRow>(`
+        SELECT character_id FROM character_vn_index
+        WHERE vn_id = $1
+        ORDER BY character_id COLLATE "C"
+      `, [vnId]);
+      return result.rows.map((row) => row.character_id);
+    },
   };
 }
 
@@ -663,6 +672,15 @@ const sqliteRepository: PeopleRepository = {
   },
   async upsertCharacterImage(characterId, url, localPath) {
     (await import('@/lib/db')).upsertCharacterImage(characterId, url, localPath);
+  },
+  async characterIdsForVn(vnId) {
+    const { db } = await import('@/lib/db');
+    const rows = db.prepare(`
+      SELECT character_id FROM character_vn_index
+      WHERE vn_id = ?
+      ORDER BY character_id COLLATE NOCASE
+    `).all(vnId) as Array<{ character_id: string }>;
+    return rows.map((row) => row.character_id);
   },
 };
 
