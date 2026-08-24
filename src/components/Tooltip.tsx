@@ -82,7 +82,7 @@ export function Tooltip({ content, children, side = 'top', disabled = false }: T
         <span
           id={tooltipId}
           role="tooltip"
-          className={`pointer-events-none absolute z-50 whitespace-nowrap rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] font-medium text-white shadow-lg ${SIDE_CLASSES[side]}`}
+          className={`pointer-events-none absolute z-50 max-w-[min(20rem,calc(100vw-1rem))] whitespace-normal break-words rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] font-medium text-white shadow-lg ${SIDE_CLASSES[side]}`}
         >
           {content}
         </span>

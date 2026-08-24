@@ -33,8 +33,9 @@ import {
  *
  * Contract:
  *
- *   - Renders the panel via portal at `z-index: 1200` so it always
- *     floats above cards / hero banner / sticky toolbars.
+ *   - Renders the panel via portal on the shared popover layer so it
+ *     floats above cards / hero banner / sticky toolbars but below
+ *     modal, toast, confirmation, and accessibility surfaces.
  *   - Collision-aware viewport flip: prefers below+right, falls back
  *     to above / left when the trigger is close to a viewport edge.
  *     The horizontal axis flips when the trigger sits within the

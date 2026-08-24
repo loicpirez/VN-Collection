@@ -208,7 +208,7 @@ function ConfirmDialog({
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={bodyId}
-      className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-layer-confirmation flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
       onClick={() => onClose(false)}
     >
       <div
@@ -360,7 +360,7 @@ function PromptDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-layer-confirmation flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
       onClick={() => onClose(null)}
     >
       <div

@@ -13,7 +13,7 @@
  *   - Clamps to viewport margins so the panel never lands off-screen.
  *   - Bottom-sheet fallback when the viewport is narrower than the
  *     mobile breakpoint.
- *   - z-index = 1200 so the portal always floats above the cards.
+ *   - z-index = 700 so the portal floats above content and below dialogs.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -38,7 +38,7 @@ function makeRect(top: number, left: number, width = 100, height = 30): Rect {
 
 describe('portal popover constants', () => {
   it('locks the public z-index + margin + breakpoint contract', () => {
-    expect(PORTAL_POPOVER_Z_INDEX).toBe(1200);
+    expect(PORTAL_POPOVER_Z_INDEX).toBe(700);
     expect(PORTAL_POPOVER_VIEWPORT_MARGIN).toBe(8);
     expect(PORTAL_POPOVER_BOTTOM_SHEET_BP).toBe(640);
     expect(PORTAL_POPOVER_BOTTOM_SHEET_VW).toBe(80);

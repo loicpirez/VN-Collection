@@ -127,7 +127,7 @@ export function Dialog({
     : 'max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)] overflow-y-auto ';
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-layer-modal flex items-center justify-center p-3 sm:p-6">
       <div
         className="absolute inset-0 bg-bg/80 backdrop-blur"
         aria-hidden

@@ -19,7 +19,7 @@
  *                                          height as a percentage
  *                                          of the viewport height.
  */
-export const PORTAL_POPOVER_Z_INDEX = 1200;
+export const PORTAL_POPOVER_Z_INDEX = 700;
 export const PORTAL_POPOVER_VIEWPORT_MARGIN = 8;
 export const PORTAL_POPOVER_BOTTOM_SHEET_BP = 640;
 export const PORTAL_POPOVER_BOTTOM_SHEET_VW = 80;
