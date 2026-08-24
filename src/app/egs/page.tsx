@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, ExternalLink, Search as SearchIcon, Sparkles, Star } from 'lucide-react';
-import { db } from '@/lib/db';
+import {
+  getEgsOverviewRepository,
+  type EgsOverviewData,
+} from '@/lib/db/repositories/egs-overview';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
 import { EgsSyncBlock } from '@/components/EgsSyncBlock';
@@ -14,18 +17,6 @@ import { SafeImage } from '@/components/SafeImage';
 import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
 
 export const dynamic = 'force-dynamic';
-
-interface EgsLink {
-  vn_id: string;
-  vn_title: string;
-  vn_image_thumb: string | null;
-  vn_local_image_thumb: string | null;
-  vn_image_sexual: number | null;
-  egs_id: number;
-  median: number | null;
-  playtime_minutes: number | null;
-  source: string | null;
-}
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -73,17 +64,7 @@ function egsSourceChipClass(source: string | null): string {
  * navigate the two integrations from the same data-management
  * mental model.
  */
-interface EgsPageData {
-  links: EgsLink[];
-  unlinkedRows: Array<{
-    vn_id: string;
-    vn_title: string;
-    vn_alttitle: string | null;
-    vn_image_thumb: string | null;
-    vn_local_image_thumb: string | null;
-    vn_image_sexual: number | null;
-  }>;
-  unmatched: number;
+interface EgsPageData extends EgsOverviewData {
   error: string | null;
 }
 
@@ -93,58 +74,9 @@ interface EgsPageData {
  * the whole page - the error band renders instead and the operator can
  * still reach the EGS sync block at the top.
  */
-function loadEgsPageData(): EgsPageData {
+async function loadEgsPageData(): Promise<EgsPageData> {
   try {
-    const links = db
-      .prepare(`
-        SELECT
-          v.id            AS vn_id,
-          v.title         AS vn_title,
-          v.image_thumb   AS vn_image_thumb,
-          v.local_image_thumb AS vn_local_image_thumb,
-          v.image_sexual  AS vn_image_sexual,
-          e.egs_id        AS egs_id,
-          e.median        AS median,
-          e.playtime_median_minutes AS playtime_minutes,
-          e.source        AS source
-        FROM egs_game e
-        JOIN vn v ON v.id = e.vn_id
-        JOIN collection c ON c.vn_id = e.vn_id
-        ORDER BY v.title COLLATE NOCASE ASC
-      `)
-      .all() as EgsLink[];
-
-    const unmatched = (
-      db
-        .prepare(`
-          SELECT COUNT(*) AS n FROM collection c
-          WHERE NOT EXISTS (
-            SELECT 1 FROM egs_game e WHERE e.vn_id = c.vn_id AND e.source IS NOT NULL
-          )
-        `)
-        .get() as { n: number }
-    ).n;
-
-    const unlinkedRows = db
-      .prepare(`
-        SELECT
-          v.id              AS vn_id,
-          v.title           AS vn_title,
-          v.alttitle        AS vn_alttitle,
-          v.image_thumb     AS vn_image_thumb,
-          v.local_image_thumb AS vn_local_image_thumb,
-          v.image_sexual    AS vn_image_sexual
-        FROM collection c
-        JOIN vn v ON v.id = c.vn_id
-        WHERE NOT EXISTS (
-          SELECT 1 FROM egs_game e WHERE e.vn_id = c.vn_id AND e.source IS NOT NULL
-        )
-        ORDER BY v.title COLLATE NOCASE ASC
-        LIMIT 50
-      `)
-      .all() as EgsPageData['unlinkedRows'];
-
-    return { links, unlinkedRows, unmatched, error: null };
+    return { ...await getEgsOverviewRepository().load(), error: null };
   } catch (e) {
     return { links: [], unlinkedRows: [], unmatched: 0, error: (e as Error).message };
   }
@@ -181,7 +113,7 @@ function EgsPageSkeleton({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
 async function EgsPageContent() {
   const t = await getDict();
   const locale = await getLocale();
-  const { links, unlinkedRows, unmatched, error } = loadEgsPageData();
+  const { links, unlinkedRows, unmatched, error } = await loadEgsPageData();
   const matched = links.length;
 
   return (

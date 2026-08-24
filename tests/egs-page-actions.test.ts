@@ -17,7 +17,8 @@ const PAGE_SRC = readFileSync('src/app/egs/page.tsx', 'utf8');
 
 describe('/egs page UX deepening', () => {
   it('wraps the DB load in try/catch + surfaces a clear error band', () => {
-    expect(PAGE_SRC).toMatch(/function loadEgsPageData\(\)[\s\S]*?try\s*\{[\s\S]*?\}\s*catch/);
+    expect(PAGE_SRC).toMatch(/async function loadEgsPageData\(\)[\s\S]*?try\s*\{[\s\S]*?\}\s*catch/);
+    expect(PAGE_SRC).toMatch(/getEgsOverviewRepository\(\)\.load\(\)/);
     expect(PAGE_SRC).toMatch(/role="alert"/);
     expect(PAGE_SRC).toMatch(/errorBandTitle/);
   });

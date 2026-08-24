@@ -28,13 +28,11 @@ const dbMocks = vi.hoisted(() => ({
   unmatched: 0,
   unlinkedRows: [] as UnlinkedRow[],
   error: null as Error | null,
-  prepare: vi.fn(),
+  load: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: dbMocks.prepare,
-  },
+vi.mock('@/lib/db/repositories/egs-overview', () => ({
+  getEgsOverviewRepository: () => ({ load: dbMocks.load }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -125,15 +123,13 @@ beforeEach(() => {
   dbMocks.unmatched = 0;
   dbMocks.unlinkedRows = [];
   dbMocks.error = null;
-  dbMocks.prepare.mockReset().mockImplementation((sql: string) => {
+  dbMocks.load.mockReset().mockImplementation(async () => {
     if (dbMocks.error) throw dbMocks.error;
-    if (sql.includes('SELECT COUNT(*) AS n')) {
-      return { get: () => ({ n: dbMocks.unmatched }) };
-    }
-    if (sql.includes('FROM egs_game e\n        JOIN vn v')) {
-      return { all: () => dbMocks.links };
-    }
-    return { all: () => dbMocks.unlinkedRows };
+    return {
+      links: dbMocks.links,
+      unmatched: dbMocks.unmatched,
+      unlinkedRows: dbMocks.unlinkedRows,
+    };
   });
 });
 
