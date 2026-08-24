@@ -91,7 +91,7 @@ describe('recommendVns() — modes', () => {
         { id: 'v90002', title: 'owned-A', rating: 82, votecount: 300 },
         { id: 'v99999', title: 'fresh-B', rating: 80, votecount: 250 },
       ]);
-      const r = await recommendVns({ mode: 'because-you-liked' });
+      const r = await recommendVns();
       const ids = r.results.map((x) => x.id);
       expect(ids).not.toContain('v90002');
       expect(ids).toContain('v99999');
