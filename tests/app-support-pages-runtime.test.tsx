@@ -4,15 +4,22 @@ import DataPage, { generateMetadata as generateDataMetadata } from '@/app/data/p
 import SchemaPage, { generateMetadata as generateSchemaMetadata } from '@/app/schema/page';
 import YearPage, { generateMetadata as generateYearMetadata } from '@/app/year/page';
 import SteamLayout, { generateMetadata as generateSteamMetadata } from '@/app/steam/layout';
-import { getCacheFreshness, getDbStatus, getReadingGoal, yearReview } from '@/lib/db';
+import { getCacheFreshness, getDbStatus, type YearReview } from '@/lib/db';
 import { getAuthInfo, getSchema } from '@/lib/vndb';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 vi.mock('@/lib/db', () => ({
   getCacheFreshness: vi.fn(),
   getDbStatus: vi.fn(),
-  getReadingGoal: vi.fn(),
+}));
+
+const analyticsMocks = vi.hoisted(() => ({
+  readingGoal: vi.fn(),
   yearReview: vi.fn(),
+}));
+
+vi.mock('@/lib/db/repositories/analytics', () => ({
+  getAnalyticsRepository: () => analyticsMocks,
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -93,7 +100,7 @@ function dbStatus(overrides: Partial<ReturnType<typeof getDbStatus>> = {}): Retu
   };
 }
 
-function review(overrides: Partial<ReturnType<typeof yearReview>> = {}): ReturnType<typeof yearReview> {
+function review(overrides: Partial<YearReview> = {}): YearReview {
   return {
     year: 2025,
     completed: 4,
@@ -111,8 +118,8 @@ beforeEach(() => {
   vi.mocked(getAuthInfo).mockReset().mockResolvedValue({ id: 'u1', username: 'alice', permissions: ['listread'] });
   vi.mocked(getCacheFreshness).mockReset().mockReturnValue(123);
   vi.mocked(getSchema).mockReset().mockResolvedValue({ enums: { platform: ['win'] } });
-  vi.mocked(yearReview).mockReset().mockReturnValue(review());
-  vi.mocked(getReadingGoal).mockReset().mockReturnValue({ year: 2025, target: 8, updated_at: 1 });
+  analyticsMocks.yearReview.mockReset().mockResolvedValue(review());
+  analyticsMocks.readingGoal.mockReset().mockResolvedValue({ year: 2025, target: 8, updated_at: 1 });
 });
 
 describe('support app pages runtime', () => {
@@ -170,7 +177,7 @@ describe('support app pages runtime', () => {
     });
 
     let html = renderToStaticMarkup(await YearPage({ searchParams: Promise.resolve({ y: '2025' }) }));
-    expect(yearReview).toHaveBeenCalledWith(2025);
+    expect(analyticsMocks.yearReview).toHaveBeenCalledWith(2025);
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('50%');
     expect(html).toContain('Drama');
@@ -178,8 +185,8 @@ describe('support app pages runtime', () => {
     expect(html).toContain('9.2');
     expect(html).toContain('2025');
 
-    vi.mocked(yearReview).mockReturnValueOnce(review({ completed: 0, avgUserRating: null, topTags: [], best: [] }));
-    vi.mocked(getReadingGoal).mockReturnValueOnce(null);
+    analyticsMocks.yearReview.mockResolvedValueOnce(review({ completed: 0, avgUserRating: null, topTags: [], best: [] }));
+    analyticsMocks.readingGoal.mockResolvedValueOnce(null);
     html = renderToStaticMarkup(await YearPage({ searchParams: Promise.resolve({ y: '0' }) }));
     expect(html).toContain('>-</div>');
     expect(html).not.toContain('role="progressbar"');
