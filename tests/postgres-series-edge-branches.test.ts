@@ -85,6 +85,20 @@ describe('PostgreSQL series edge branches', () => {
     });
   });
 
+  it('keeps a meaningful common title without applying the volume fallback', async () => {
+    postgresQueryMock
+      .mockResolvedValueOnce({ rows: [{ title: 'Shared title 1' }] })
+      .mockResolvedValueOnce({ rows: [{ relations: JSON.stringify([relation('v90002', 'Shared title 2')]) }] })
+      .mockResolvedValueOnce({ rows: [{ relations: null }] })
+      .mockResolvedValueOnce({ rows: [{ vn_id: 'v90002' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(createPostgresSeriesRepository().suggest('v90001')).resolves.toMatchObject({
+      suggestedName: 'Shared title',
+    });
+  });
+
   it('persists explicit null media fields and skips an empty member batch', async () => {
     const repository = createPostgresSeriesRepository();
     postgresQueryMock.mockResolvedValueOnce({ rows: [{
