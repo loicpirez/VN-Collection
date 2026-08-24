@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 
 const cwd = process.cwd();
 const port = process.env.PORT || '3101';
@@ -69,9 +69,80 @@ async function waitForEnabled(locator, timeout = 10000) {
   throw new Error('control did not become enabled');
 }
 
+async function assertResponsiveNavigation(page) {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await gotoClean(page, '/');
+  const discover = page.getByRole('button', { name: /Découvrir|Discover|見つける/i }).first();
+  await discover.click();
+  const menu = page.getByRole('menu', { name: /Découvrir|Discover|見つける/i });
+  await menu.waitFor({ state: 'visible', timeout: 10000 });
+  const desktopGeometry = await menu.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      internalOverflow: element.scrollWidth - element.clientWidth,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    };
+  });
+  assert(desktopGeometry.left >= 0, `desktop nav menu underflows left by ${-desktopGeometry.left}px`);
+  assert(desktopGeometry.right <= desktopGeometry.viewportWidth, `desktop nav menu overflows right by ${desktopGeometry.right - desktopGeometry.viewportWidth}px`);
+  assert(desktopGeometry.internalOverflow <= 1, `desktop nav menu has ${desktopGeometry.internalOverflow}px internal horizontal overflow`);
+  assert(desktopGeometry.documentOverflow <= 1, `desktop navigation creates ${desktopGeometry.documentOverflow}px page overflow`);
+  await menu.locator('a[href="/upcoming"]').click();
+  await page.waitForURL((url) => url.pathname === '/upcoming', { timeout: 10000 });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoClean(page, '/');
+  await page.getByRole('button', { name: /Ouvrir le menu|Open menu|メニューを開く/i }).click();
+  const sheet = page.getByRole('dialog', { name: /Ouvrir le menu|Open menu|メニューを開く/i });
+  await sheet.waitFor({ state: 'visible', timeout: 10000 });
+  const mobileGeometry = await sheet.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      internalOverflow: element.scrollWidth - element.clientWidth,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    };
+  });
+  assert(mobileGeometry.left >= 0, `mobile nav sheet underflows left by ${-mobileGeometry.left}px`);
+  assert(mobileGeometry.right <= mobileGeometry.viewportWidth, `mobile nav sheet overflows right by ${mobileGeometry.right - mobileGeometry.viewportWidth}px`);
+  assert(mobileGeometry.internalOverflow <= 1, `mobile nav sheet has ${mobileGeometry.internalOverflow}px internal horizontal overflow`);
+  assert(mobileGeometry.documentOverflow <= 1, `mobile navigation creates ${mobileGeometry.documentOverflow}px page overflow`);
+  await sheet.locator('a[href="/wishlist"]').click();
+  await page.waitForURL((url) => url.pathname === '/wishlist', { timeout: 10000 });
+}
+
 check('detail pages do not crash across RSC boundary', async (page) => {
   for (const url of ['/character/c84419', '/character/c90980', '/staff/s12799', '/staff/s1073?scope=collection', '/producer/p604']) {
     await gotoClean(page, url);
+  }
+});
+
+check('responsive navigation remains bounded and navigable', async (page) => {
+  try {
+    await assertResponsiveNavigation(page);
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+});
+
+check('WebKit navigation remains bounded and navigable', async () => {
+  const webkitBrowser = await webkit.launch({ headless: true });
+  const webkitContext = await webkitBrowser.newContext({ viewport: { width: 1366, height: 768 } });
+  await webkitContext.addInitScript(() => {
+    window.localStorage.setItem('vn_tour_completed_v1', '1');
+  });
+  const webkitPage = await webkitContext.newPage();
+  webkitPage.setDefaultTimeout(15000);
+  try {
+    await assertResponsiveNavigation(webkitPage);
+  } finally {
+    await webkitContext.close();
+    await webkitBrowser.close();
   }
 });
 
@@ -99,6 +170,102 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
     assert(/Défauts globaux|Global defaults|デフォルト/i.test(text), 'global defaults heading missing');
     assert(/Surcharges? par page|Per-page overrides|ページ別/i.test(text), 'per-page density heading missing');
     await page.keyboard.press('Escape');
+  }
+});
+
+check('map place dialog stays above live Leaflet panes', async (page) => {
+  await gotoClean(page, '/map');
+  const allowExternalMap = page.getByRole('button', {
+    name: /Autoriser la carte externe|Allow external map|外部マップを許可/i,
+  });
+  if ((await allowExternalMap.count()) > 0) await allowExternalMap.first().click();
+  const leafletPane = page.locator('.leaflet-pane').first();
+  await leafletPane.waitFor({ state: 'visible', timeout: 15000 });
+
+  await page.getByRole('button', { name: /Ajouter un lieu|Add place|場所を追加/i }).first().click();
+  const dialog = page.getByRole('dialog', { name: /Ajouter un lieu|Add place|場所を追加/i });
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+  const stacking = await dialog.evaluate((panel) => {
+    const rect = panel.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + Math.min(rect.height / 2, 80));
+    const modalRoot = panel.parentElement;
+    const mapPane = document.querySelector('.leaflet-pane');
+    return {
+      hitInsideDialog: hit instanceof Node && panel.contains(hit),
+      modalZ: Number.parseInt(modalRoot ? getComputedStyle(modalRoot).zIndex : '0', 10) || 0,
+      mapZ: Number.parseInt(mapPane ? getComputedStyle(mapPane).zIndex : '0', 10) || 0,
+    };
+  });
+  assert(stacking.hitInsideDialog, 'Leaflet intercepts hit testing inside the Add Place dialog');
+  assert(stacking.modalZ > stacking.mapZ, `map z-index ${stacking.mapZ} is not below modal z-index ${stacking.modalZ}`);
+  await dialog.getByRole('button', { name: /Fermer|Close|閉じる/i }).first().click();
+});
+
+check('AliceNet shop runs background progress and stop controls on its place page', async (page) => {
+  await gotoClean(page, '/places');
+  const aliceNetCard = page.locator('article').filter({ hasText: 'AliceNet' }).first();
+  await aliceNetCard.waitFor({ state: 'visible', timeout: 10000 });
+  const placeHref = await aliceNetCard.locator('a[href^="/places/"]').first().getAttribute('href');
+  assert(Boolean(placeHref), 'AliceNet place card has no detail-page link');
+
+  let jobStarted = false;
+  let stopRequested = false;
+  await page.route('**/api/download-status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        throttle: { active: 0, queued: 0 },
+        jobs: jobStarted
+          ? [{
+              id: 'qa-alicenet-job',
+              kind: 'alicenet',
+              vn_id: null,
+              label: 'AliceNet QA pipeline',
+              total: 5,
+              done: 2,
+              current_item: 'Matching QA title',
+              errors: [],
+              started_at: Date.now() - 1000,
+              finished_at: null,
+            }]
+          : [],
+      }),
+    });
+  });
+  await page.route('**/api/alicenet/run**', async (route) => {
+    const method = route.request().method();
+    if (method === 'POST') {
+      jobStarted = true;
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ jobId: 'qa-alicenet-job' }) });
+      return;
+    }
+    if (method === 'DELETE') {
+      stopRequested = true;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    await gotoClean(page, placeHref);
+    await page.getByRole('button', { name: /Tout mettre à jour|Download all|すべてダウンロード/i }).click();
+    const progress = page.getByRole('progressbar', { name: /Progression AliceNet|AliceNet progress|AliceNet進捗/i });
+    await progress.waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForSelector('[role="progressbar"][aria-valuenow="2"][aria-valuemax="5"]', { timeout: 10000 });
+    assert((await progress.getAttribute('aria-valuemax')) === '5', 'AliceNet progress total is not exposed');
+    assert(await page.getByText('2/5 (40%)', { exact: true }).isVisible(), 'AliceNet percentage counter is not visible');
+    assert(await page.getByText('Matching QA title', { exact: true }).isVisible(), 'AliceNet current item is not visible');
+    const stopResponse = page.waitForResponse((response) =>
+      response.url().includes('/api/alicenet/run?jobId=') && response.request().method() === 'DELETE',
+    );
+    await page.getByRole('button', { name: /Arrêter|Stop|停止/i }).first().click();
+    await stopResponse;
+    assert(stopRequested, 'AliceNet Stop did not call the background-job DELETE route');
+  } finally {
+    await page.unroute('**/api/download-status');
+    await page.unroute('**/api/alicenet/run**');
   }
 });
 
@@ -295,6 +462,46 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await page.waitForTimeout(800);
   const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   assert(before !== after, `shelf cell width CSS variable did not change (${before} -> ${after})`);
+});
+
+check('shelf scroll frame clips wide rows and paints fades only at hidden edges', async (page) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  try {
+    await gotoClean(page, '/shelf');
+    const frame = page.locator('[data-shelf-scroll-frame]').first();
+    await frame.waitFor({ state: 'visible', timeout: 10000 });
+    const geometry = await frame.evaluate((viewport) => {
+      const content = viewport.firstElementChild;
+      const viewportRect = viewport.getBoundingClientRect();
+      const contentRect = content?.getBoundingClientRect();
+      return {
+        hiddenWidth: viewport.scrollWidth - viewport.clientWidth,
+        contentExtendsRight: Boolean(contentRect && contentRect.right > viewportRect.right + 1),
+        overflowX: getComputedStyle(viewport).overflowX,
+      };
+    });
+    assert(geometry.hiddenWidth > 1, 'shelf fixture does not create horizontal overflow');
+    assert(geometry.contentExtendsRight, 'wide shelf content is not clipped at the viewport edge');
+    assert(['auto', 'scroll'].includes(geometry.overflowX), `shelf overflow-x is ${geometry.overflowX}`);
+    await page.locator('[data-shelf-scroll-fade="right"]').first().waitFor({ state: 'visible', timeout: 5000 });
+    assert((await page.locator('[data-shelf-scroll-fade="left"]').count()) === 0, 'left shelf fade is visible at scroll origin');
+
+    await frame.evaluate((viewport) => {
+      viewport.scrollLeft = (viewport.scrollWidth - viewport.clientWidth) / 2;
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+    await page.locator('[data-shelf-scroll-fade="left"]').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('[data-shelf-scroll-fade="right"]').first().waitFor({ state: 'visible', timeout: 5000 });
+
+    await frame.evaluate((viewport) => {
+      viewport.scrollLeft = viewport.scrollWidth;
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+    await page.locator('[data-shelf-scroll-fade="right"]').waitFor({ state: 'detached', timeout: 5000 });
+    await page.locator('[data-shelf-scroll-fade="left"]').first().waitFor({ state: 'visible', timeout: 5000 });
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
 });
 
 check('section layout controls hide/collapse and save without moving identity', async (page) => {
