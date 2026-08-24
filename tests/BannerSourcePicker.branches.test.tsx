@@ -62,6 +62,20 @@ afterEach(() => {
 });
 
 describe('BannerSourcePicker branches', () => {
+  it('opens as a resident dialog from a scoped external trigger', async () => {
+    renderPicker({ showTrigger: false });
+    expect(screen.queryByRole('button', { name: new RegExp(t.bannerPicker.open) })).toBeNull();
+    fireEvent(window, new Event('vn:open-banner-picker'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: t.common.close }));
+
+    fireEvent(window, new CustomEvent('vn:open-banner-picker', { detail: { vnId: 'v99999' } }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent(window, new CustomEvent('vn:open-banner-picker', { detail: { vnId: 'v90001' } }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t.coverPicker.custom })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('moves between tabs with the arrow keys', async () => {
     renderPicker();
     await open();
@@ -212,15 +226,22 @@ describe('BannerSourcePicker branches', () => {
   });
 
   it('closes from the backdrop and the explicit close button', async () => {
-    const { container } = renderPicker();
+    renderPicker();
     await open();
-    const backdropPanel = container.ownerDocument.querySelector('.fixed.inset-0.z-\\[1000\\]') as HTMLElement;
+    const backdropPanel = screen.getByRole('dialog').parentElement;
+    if (!backdropPanel) throw new Error('Dialog backdrop owner is missing');
     fireEvent.click(backdropPanel);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     await open();
     fireEvent.click(screen.getByRole('button', { name: t.common.close }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('opens immediately when mounted by a lazy dialog owner', () => {
+    renderPicker({ showTrigger: false, initialOpen: true });
+    expect(screen.queryByRole('button', { name: new RegExp(t.bannerPicker.open) })).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('closes from Escape through the dialog a11y handler', async () => {

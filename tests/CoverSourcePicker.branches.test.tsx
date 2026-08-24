@@ -61,6 +61,12 @@ afterEach(() => {
 });
 
 describe('CoverSourcePicker branches', () => {
+  it('opens immediately when mounted by a lazy dialog owner', () => {
+    renderPicker({ showTrigger: false, initialOpen: true });
+    expect(screen.queryByRole('button', { name: new RegExp(t.coverPicker.open) })).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('ignores an open event addressed to a different VN', async () => {
     renderPicker({ showTrigger: false });
     act(() => {

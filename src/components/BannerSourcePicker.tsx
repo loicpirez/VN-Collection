@@ -11,7 +11,7 @@ import type { ReleaseImage, Screenshot } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeUploadedBannerPath } from '@/lib/image-source-client-shape';
-interface Props {
+export interface BannerSourcePickerProps {
   vnId: string;
   /** Current custom banner path/URL - null when none is set. */
   currentBanner: string | null;
@@ -23,6 +23,10 @@ interface Props {
   releaseImages: ReleaseImage[];
   /** Optional classes for the visible trigger button. */
   triggerClassName?: string;
+  /** Whether to render the inline trigger in addition to the resident dialog owner. */
+  showTrigger?: boolean;
+  /** Open immediately when a lazy dialog owner mounts after the user's first request. */
+  initialOpen?: boolean;
 }
 
 type Tab = 'default' | 'custom';
@@ -47,11 +51,13 @@ export function BannerSourcePicker({
   screenshots,
   releaseImages,
   triggerClassName = 'btn',
-}: Props) {
+  showTrigger = true,
+  initialOpen = false,
+}: BannerSourcePickerProps) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   // Default to Custom - the picker exists mostly so users can upload /
   // paste / pick from gallery. Resetting to default is a single click
   // from the Custom tab anyway.
@@ -75,7 +81,7 @@ export function BannerSourcePicker({
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
     identityRef.current = vnId;
-    setOpen(false);
+    setOpen(initialOpen);
     setTab('custom');
     setBusy(false);
     setUrlValue('');
@@ -85,9 +91,20 @@ export function BannerSourcePicker({
       mutationInFlightRef.current = false;
       identityRef.current = null;
     };
-  }, [vnId]);
+  }, [vnId, initialOpen]);
 
   useDialogA11y({ open, onClose: () => setOpen(false), panelRef: dialogRef });
+
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ vnId?: string }>).detail;
+      if (detail?.vnId && detail.vnId !== vnId) return;
+      setOpen(true);
+      setTab('custom');
+    }
+    window.addEventListener('vn:open-banner-picker', onOpen as EventListener);
+    return () => window.removeEventListener('vn:open-banner-picker', onOpen as EventListener);
+  }, [vnId]);
 
   function beginMutation(): AbortController | null {
     if (mutationInFlightRef.current) return null;
@@ -228,20 +245,21 @@ export function BannerSourcePicker({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={triggerClassName}
-        title={t.bannerPicker.openTitle}
-        data-menu-keep-open=""
-      >
-        <ImageIcon className="h-4 w-4" aria-hidden />
-        {t.bannerPicker.open}
-      </button>
+      {showTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={triggerClassName}
+          title={t.bannerPicker.openTitle}
+        >
+          <ImageIcon className="h-4 w-4" aria-hidden />
+          {t.bannerPicker.open}
+        </button>
+      )}
       {open && (
         <DialogPortal>
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            className="fixed inset-0 z-layer-modal flex items-center justify-center p-4"
             onClick={() => setOpen(false)}
           >
             <div className="absolute inset-0 bg-black/80" aria-hidden />

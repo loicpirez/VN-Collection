@@ -18,7 +18,7 @@ import {
   type EgsCoverCandidate,
 } from '@/lib/image-source-client-shape';
 import type { SourceChoice } from '@/lib/source-resolve';
-interface Props {
+export interface CoverSourcePickerProps {
   vnId: string;
   /** VNDB's default image URL - clicking "use VNDB" clears any override. */
   vndbImage: string | null;
@@ -45,6 +45,8 @@ interface Props {
   triggerClassName?: string;
   /** Whether to render the inline trigger in addition to the resident dialog owner. */
   showTrigger?: boolean;
+  /** Open immediately when a lazy dialog owner mounts after the user's first request. */
+  initialOpen?: boolean;
 }
 
 type Tab = 'vndb' | 'egs' | 'custom';
@@ -75,11 +77,12 @@ export function CoverSourcePicker({
   releaseImages,
   triggerClassName = 'btn',
   showTrigger = true,
-}: Props) {
+  initialOpen = false,
+}: CoverSourcePickerProps) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [tab, setTab] = useState<Tab>(initialTab(egsId, currentCustomCover));
   const [busy, setBusy] = useState(false);
   const [rotation, setRotationState] = useState<0 | 90 | 180 | 270>(currentRotation);
@@ -110,7 +113,7 @@ export function CoverSourcePicker({
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
     identityRef.current = vnId;
-    setOpen(false);
+    setOpen(initialOpen);
     setTab(initialTab(egsId, currentCustomCover));
     setBusy(false);
     setRotationState(currentRotation);
@@ -121,7 +124,7 @@ export function CoverSourcePicker({
       mutationInFlightRef.current = false;
       identityRef.current = null;
     };
-  }, [vnId, egsId, currentCustomCover, currentRotation]);
+  }, [vnId, egsId, currentCustomCover, currentRotation, initialOpen]);
 
   // body-scroll lock + ESC + focus trap. Replaces the previous
   // bespoke ESC handler with the shared hook so every modal in the
@@ -389,7 +392,7 @@ export function CoverSourcePicker({
       {open && (
         <DialogPortal>
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            className="fixed inset-0 z-layer-modal flex items-center justify-center p-4"
             onClick={() => setOpen(false)}
           >
             <div className="absolute inset-0 bg-black/80" aria-hidden />

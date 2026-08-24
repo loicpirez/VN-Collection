@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CoverPickerTrigger } from '@/components/CoverPickerTrigger';
+import { dictionaries } from '@/lib/i18n/dictionaries';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -28,12 +29,22 @@ describe('CoverPickerTrigger', () => {
     );
     const btn = screen.getByRole('button');
     expect(btn.className).toContain('custom-trigger');
-    expect(container.querySelector('[data-menu-keep-open]')).not.toBeNull();
+    expect(container.querySelector('[data-menu-keep-open]')).toBeNull();
 
     await user.click(btn);
     expect(onOpen).toHaveBeenCalledTimes(1);
     const ev = onOpen.mock.calls[0][0] as CustomEvent<{ vnId: string }>;
     expect(ev.detail.vnId).toBe('v90001');
     window.removeEventListener('vn:open-cover-picker', onOpen as EventListener);
+  });
+
+  it('uses a surface-specific label without changing the picker title', () => {
+    renderWithProviders(
+      <CoverPickerTrigger vnId="v90002" className="empty-cover" label="Upload cover" />,
+      { locale: 'en' },
+    );
+    expect(screen.getByRole('button', { name: 'Upload cover' }).getAttribute('title')).toBe(
+      dictionaries.en.coverPicker.openTitle,
+    );
   });
 });
