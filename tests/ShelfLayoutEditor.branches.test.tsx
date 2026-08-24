@@ -19,6 +19,22 @@ vi.mock('@/components/SafeImage', () => ({
 vi.mock('@/components/EditionInfoPopover', () => ({
   EditionInfoTrigger: () => <span data-mock-edition-info />,
 }));
+vi.mock('@/components/PhysicalBundleDialog', () => ({
+  PhysicalBundleDialog: ({
+    open,
+    onClose,
+    onChanged,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    onChanged: () => void | Promise<void>;
+  }) => open ? (
+    <div role="dialog" aria-label="Bundle manager">
+      <button type="button" onClick={onClose}>Close bundle manager</button>
+      <button type="button" onClick={() => void onChanged()}>Refresh bundle surfaces</button>
+    </div>
+  ) : null,
+}));
 
 import { ShelfLayoutEditor } from '@/components/ShelfLayoutEditor';
 
@@ -801,5 +817,64 @@ describe('ShelfLayoutEditor branches', () => {
     await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
     expect(screen.getAllByText('Title Y').length).toBeGreaterThan(0);
     expect(screen.queryByText('synthetic:v90001')).toBeNull();
+  });
+
+  it('opens, refreshes, and closes bundle management for an active shelf', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/shelves?pool=1') {
+        return json({
+          shelves: [unit()],
+          unplaced: [poolEntry({ bundle_id: 7, bundle_name: 'Archive box', bundle_member_count: 2 })],
+        });
+      }
+      if (url === '/api/shelves/1') return json({ shelf: bareUnit(), slots: [], displays: [] });
+      if (url === '/api/shelves') return json({ shelves: [unit({ placed_count: 1 })] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      <ShelfLayoutEditor
+        initialShelves={[unit()]}
+        initialUnplaced={[poolEntry({ bundle_id: 7, bundle_name: 'Archive box', bundle_member_count: 2 })]}
+      />,
+      { locale: 'en' },
+    );
+    await waitFor(() => expect(screen.getByRole('tabpanel')).toBeTruthy());
+    expect(screen.getByText('2 editions')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage bundles' }));
+    expect(screen.getByRole('dialog', { name: 'Bundle manager' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh bundle surfaces' }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => input === '/api/shelves?pool=1')).toBe(true);
+      expect(fetchMock.mock.calls.filter(([input]) => input === '/api/shelves/1')).toHaveLength(2);
+      expect(fetchMock.mock.calls.some(([input]) => input === '/api/shelves')).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close bundle manager' }));
+    expect(screen.queryByRole('dialog', { name: 'Bundle manager' })).toBeNull();
+  });
+
+  it('refreshes bundle surfaces without requesting shelf details when no shelf exists', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/shelves?pool=1') return json({ shelves: [], unplaced: [] });
+      if (url === '/api/shelves') return json({ shelves: [] });
+      return json({ ok: true });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<ShelfLayoutEditor initialShelves={[]} initialUnplaced={[]} />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: 'Manage bundles' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh bundle surfaces' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/shelves',
+      expect.objectContaining({ cache: 'no-store' }),
+    ));
+    expect(fetchMock.mock.calls.some(([input]) => /^\/api\/shelves\/\d+$/.test(String(input)))).toBe(false);
   });
 });
