@@ -184,6 +184,27 @@
     padding-left: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-left));
     padding-right: max(var(--page-space-gutter-base, 0.75rem), env(safe-area-inset-right));
   }
+
+  .nav-width-container {
+    container-type: inline-size;
+  }
+
+  .nav-primary-label,
+  .nav-group-label {
+    display: none;
+  }
+
+  @container (min-width: 72rem) {
+    .nav-primary-label {
+      display: inline;
+    }
+  }
+
+  @container (min-width: 88rem) {
+    .nav-group-label {
+      display: inline;
+    }
+  }
   @media (min-width: 640px) {
     .page-space-frame {
       padding-left: max(var(--page-space-gutter-sm, 1.5rem), env(safe-area-inset-left));

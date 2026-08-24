@@ -41,6 +41,11 @@ import {
   X,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import {
+  buildNavigationRegistry,
+  type NavigationGroupId,
+  type NavigationRouteId,
+} from '@/lib/navigation-registry';
 
 interface NavItem {
   href: string;
@@ -59,11 +64,10 @@ interface NavItem {
  * Top-level navigation. Built as a grouped, responsive layout:
  *
  *   ▸ Mobile (< md): single hamburger → right-slide sheet, grouped flat list.
- *   ▸ md - lg (768 - 1023): icon-only primary links + grouped dropdowns
- *     identified by icon + chevron. Tooltips and aria-labels preserve a11y.
- *     Keeps FR labels (Bibliothèque, Personnages, Rechercher) from
- *     overflowing the header on the most-used breakpoint.
- *   ▸ lg+ (≥ 1024): icon + label primary + icon + label + chevron groups.
+ *   ▸ md+: icon-only primary links + grouped dropdowns identified by icon
+ *     and chevron. Tooltips and aria-labels preserve a11y.
+ *   ▸ Header width 72rem+: the three high-priority labels become visible.
+ *   ▸ Header width 88rem+: category labels become visible as well.
  *
  * Active route gets an accent background plus `aria-current="page"` so
  * screen readers and the visual layer agree. The "More" catch-all bin
@@ -75,6 +79,7 @@ export function GroupedNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileSheetId = useId();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const navigation = useMemo(() => buildNavigationRegistry(currentYear), [currentYear]);
 
   // i18n labels live here so they update under the same render cycle as the
   // rest of the layout - duplicating into a static const would force a full
@@ -86,51 +91,82 @@ export function GroupedNav() {
   // named entry next to it. Lists are one extra click away in
   // Discover but every NavGroup item is also surfaced in the mobile
   // sheet for parity.
-  const primary: NavItem[] = [
-    { href: '/', label: t.nav.library, icon: Library, exact: true },
-    { href: '/wishlist', label: t.nav.wishlist, icon: Heart },
-    { href: '/search', label: t.nav.search, icon: SearchIcon },
-  ];
-
-  const discover: NavItem[] = [
-    { href: '/upcoming', label: t.nav.upcoming, icon: CalendarRange },
-    { href: '/top-ranked', label: t.nav.topRanked, icon: Crown },
-    { href: '/recommendations', label: t.nav.recommend, icon: Wand2 },
-    { href: '/similar', label: t.nav.similar, icon: Sparkles },
-    { href: '/compare', label: t.nav.compare, icon: GitCompare },
-    { href: '/quotes', label: t.nav.quotes, icon: Quote },
-    { href: '/lists', label: t.nav.lists, icon: ListChecks },
-  ];
-
-  const browse: NavItem[] = [
-    { href: '/producers', label: t.nav.producers, icon: Trophy },
-    { href: '/series', label: t.nav.series, icon: Bookmark },
-    { href: '/tags', label: t.nav.tags, icon: Tags },
-    { href: '/traits', label: t.nav.traits, icon: Sparkles },
-    { href: '/characters', label: t.nav.characters, icon: UserSquare },
-    { href: '/staff', label: t.nav.staff, icon: Mic },
-  ];
+  const labels: Record<NavigationRouteId, string> = {
+    library: t.nav.library,
+    wishlist: t.nav.wishlist,
+    search: t.nav.search,
+    upcoming: t.nav.upcoming,
+    topRanked: t.nav.topRanked,
+    recommendations: t.nav.recommend,
+    similar: t.nav.similar,
+    compare: t.nav.compare,
+    quotes: t.nav.quotes,
+    lists: t.nav.lists,
+    producers: t.nav.producers,
+    series: t.nav.series,
+    tags: t.nav.tags,
+    traits: t.nav.traits,
+    characters: t.nav.characters,
+    staff: t.nav.staff,
+    brandOverlap: t.nav.brandOverlap,
+    stats: t.nav.stats,
+    shelf: t.nav.shelf,
+    year: t.nav.year,
+    labels: t.nav.labels,
+    dumped: t.nav.dumped,
+    activity: t.nav.activity,
+    steam: t.nav.steam,
+    egs: t.nav.egs,
+    stock: t.nav.stock,
+    places: t.nav.places,
+    map: t.nav.map,
+    schema: t.nav.schema,
+    data: t.nav.data,
+  };
+  const icons: Record<NavigationRouteId, LucideIcon> = {
+    library: Library,
+    wishlist: Heart,
+    search: SearchIcon,
+    upcoming: CalendarRange,
+    topRanked: Crown,
+    recommendations: Wand2,
+    similar: Sparkles,
+    compare: GitCompare,
+    quotes: Quote,
+    lists: ListChecks,
+    producers: Trophy,
+    series: Bookmark,
+    tags: Tags,
+    traits: Sparkles,
+    characters: UserSquare,
+    staff: Mic,
+    brandOverlap: GitMerge,
+    stats: BarChart3,
+    shelf: LayoutGrid,
+    year: Award,
+    labels: Tag,
+    dumped: HardDriveDownload,
+    activity: Activity,
+    steam: Globe,
+    egs: Gamepad2,
+    stock: PackageSearch,
+    places: MapPin,
+    map: Map,
+    schema: FileCode2,
+    data: Database,
+  };
+  const groupItems = (group: NavigationGroupId): NavItem[] => navigation
+    .filter((item) => item.group === group)
+    .map((item) => ({ ...item, label: labels[item.id], icon: icons[item.id] }));
+  const primary = groupItems('primary');
+  const discover = groupItems('discover');
+  const browse = groupItems('browse');
 
   // /shelf used to share the Library icon, which was visually
   // identical to the home link - replaced with LayoutGrid (a more
   // shelf-like grid metaphor). /egs used to share Sparkles with
   // /traits - Gamepad2 disambiguates it as a games database.
-  const insights: NavItem[] = [
-    { href: '/brand-overlap', label: t.nav.brandOverlap, icon: GitMerge },
-    { href: '/stats', label: t.nav.stats, icon: BarChart3 },
-    { href: '/shelf', label: t.nav.shelf, icon: LayoutGrid },
-    { href: `/year?y=${currentYear}`, label: t.nav.year, icon: Award },
-    { href: '/labels', label: t.nav.labels, icon: Tag },
-    { href: '/dumped', label: t.nav.dumped, icon: HardDriveDownload },
-    { href: '/activity', label: t.nav.activity, icon: Activity },
-    { href: '/steam', label: t.nav.steam, icon: Globe },
-    { href: '/egs', label: t.nav.egs, icon: Gamepad2 },
-    { href: '/stock', label: t.nav.stock, icon: PackageSearch },
-    { href: '/places', label: t.nav.places, icon: MapPin },
-    { href: '/map', label: t.nav.map, icon: Map },
-    { href: '/schema', label: t.nav.schema, icon: FileCode2 },
-    { href: '/data', label: t.nav.data, icon: Database },
-  ];
+  const insights = groupItems('insights');
 
   // Active when any item in the group matches the current route - the
   // dropdown trigger lights up so the user knows roughly where they are
@@ -223,14 +259,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
       }`}
     >
       <item.icon className="h-4 w-4" aria-hidden />
-      {/* Text label is hidden md→2xl-1 (768-1535px) and only shows
-          at 2xl (1536px+). Earlier breakpoints (lg, xl) overflowed
-          on realistic laptop widths (1366x768 = ~1280-1300px) with
-          French labels like "Bibliothèque" / "Rechercher" /
-          "Découvrir" / "Données & Stats" + the right-side controls
-          (Spoiler / Settings / Language). The aria-label + title
-          attributes preserve a11y + tooltips while icons are alone. */}
-      <span className="hidden 2xl:inline">{item.label}</span>
+      <span className="nav-primary-label">{item.label}</span>
     </Link>
   );
 }
@@ -252,14 +281,15 @@ function NavGroup({
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8, maxHeight: 0, scrollable: false });
+  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8, width: 320, maxHeight: 0, scrollable: false, columns: 1 });
   const menuId = useId();
 
   function updateMenuPosition() {
     const rect = triggerRef.current!.getBoundingClientRect();
     const gutter = 8;
-    const width = 224;
-    const naturalHeight = items.length * 44 + 8;
+    const columns = items.length >= 10 && window.innerWidth >= 640 ? 2 : 1;
+    const width = Math.max(160, Math.min(columns > 1 ? 640 : 320, window.innerWidth - gutter * 2));
+    const naturalHeight = Math.ceil(items.length / columns) * 44 + 8;
     const maxHeight = Math.max(44, window.innerHeight - gutter * 2);
     const renderedHeight = Math.min(naturalHeight, maxHeight);
     const belowTop = rect.bottom + 4;
@@ -268,8 +298,10 @@ function NavGroup({
     setMenuPosition({
       left: Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter)),
       top: fitsBelow ? belowTop : aboveTop,
+      width,
       maxHeight,
       scrollable: naturalHeight > maxHeight,
+      columns,
     });
   }
 
@@ -332,10 +364,7 @@ function NavGroup({
         }`}
       >
         {Icon && <Icon className="h-4 w-4" aria-hidden />}
-        {/* Group label hidden md→2xl-1, shown only at 2xl+ (1536px)
-            to match the NavLink primary-nav breakpoint and avoid
-            French overflow on laptop displays. */}
-        <span className="hidden 2xl:inline">{label}</span>
+        <span className="nav-group-label">{label}</span>
         <ChevronDown className="h-3 w-3" aria-hidden />
       </button>
       {open && createPortal(
@@ -344,10 +373,12 @@ function NavGroup({
           id={menuId}
           role="menu"
           aria-label={label}
-          className="fixed z-[1100] w-56 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
+          className="fixed z-layer-popover grid w-[min(20rem,calc(100vw-1rem))] gap-1 rounded-lg border border-border bg-bg-card p-1 text-sm shadow-card"
           style={{
             left: menuPosition.left,
             top: menuPosition.top,
+            width: menuPosition.width,
+            gridTemplateColumns: menuPosition.columns > 1 ? 'repeat(2, minmax(0, 1fr))' : undefined,
             maxHeight: menuPosition.maxHeight,
             overflowY: menuPosition.scrollable ? 'auto' : 'visible',
           }}
@@ -396,7 +427,7 @@ function MobileSheet({
   const titleId = useId();
   useDialogA11y({ open: true, onClose, panelRef });
   return createPortal(
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-layer-popover md:hidden">
       <div className="absolute inset-0 bg-bg/80 backdrop-blur" onClick={onClose} aria-hidden />
       <div
         id={id}

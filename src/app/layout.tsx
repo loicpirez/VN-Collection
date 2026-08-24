@@ -114,7 +114,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 */}
                 <a
                   href="#main-content"
-                  className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[1300] focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-bg focus:shadow-card"
+                  className="sr-only z-layer-accessibility focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-bg focus:shadow-card"
                 >
                   {dict.app.skipToContent}
                 </a>
@@ -125,11 +125,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   // stacking context; the navbar MUST overlay them
                   // while scrolling. Modals / menus still sit at
                   // z-50/z-60 above the navbar.
-                  className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur"
+                  className="sticky top-0 z-layer-navigation border-b border-border bg-bg/90 backdrop-blur"
                   style={{ paddingTop: 'env(safe-area-inset-top)' }}
                   aria-label={dict.app.title}
                 >
-                  <HeaderSpaceFrame className="flex flex-wrap items-center gap-2 py-3 sm:gap-4">
+                  <HeaderSpaceFrame className="nav-width-container flex flex-wrap items-center gap-2 py-3 sm:gap-4">
                     <Link href="/" className="flex items-center gap-2">
                       <Library className="h-6 w-6 text-accent" aria-hidden />
                       <span className="text-base font-bold tracking-wide">{dict.app.title}</span>

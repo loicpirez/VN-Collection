@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { AnchorHTMLAttributes, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -14,6 +15,26 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
   redirect: vi.fn(),
+}));
+
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    onClick,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) => (
+    <a
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+      {...props}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 const t = dictionaries.en;
@@ -165,10 +186,94 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     renderWithProviders(<GroupedNav />, { locale: 'en' });
     await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
     const menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
-    expect(menu.style.left).toBe('68px');
+    expect(menu.className).toContain('w-[min(20rem,calc(100vw-1rem))]');
+    expect(menu.style.left).toBe('8px');
     expect(menu.style.top).toBe('8px');
     expect(menu.style.maxHeight).toBe('84px');
     expect(menu.style.overflowY).toBe('auto');
+    rectSpy.mockRestore();
+  });
+
+  it('splits long desktop dropdowns into two columns when there is room', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: HTMLElement) {
+      if (this.getAttribute('aria-label') === t.nav.groupInsights) {
+        return {
+          x: 120,
+          y: 20,
+          left: 120,
+          top: 20,
+          right: 180,
+          bottom: 44,
+          width: 60,
+          height: 24,
+          toJSON: () => ({}),
+        };
+      }
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      };
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 });
+    const u = userEvent.setup();
+    renderWithProviders(<GroupedNav />, { locale: 'en' });
+    await u.click(screen.getByRole('button', { name: t.nav.groupInsights }));
+    const menu = await screen.findByRole('menu', { name: t.nav.groupInsights });
+    expect(menu.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))');
+    expect(menu.style.width).toBe('640px');
+    expect(menu.style.overflowY).toBe('visible');
+    rectSpy.mockRestore();
+  });
+
+  it('repositions an open dropdown on resize and scroll', async () => {
+    let left = 40;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(this: HTMLElement) {
+      if (this.getAttribute('aria-label') === t.nav.groupBrowse) {
+        return {
+          x: left,
+          y: 30,
+          left,
+          top: 30,
+          right: left + 60,
+          bottom: 54,
+          width: 60,
+          height: 24,
+          toJSON: () => ({}),
+        };
+      }
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      };
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 });
+    const u = userEvent.setup();
+    renderWithProviders(<GroupedNav />, { locale: 'en' });
+    await u.click(screen.getByRole('button', { name: t.nav.groupBrowse }));
+    const menu = await screen.findByRole('menu', { name: t.nav.groupBrowse });
+    expect(menu.style.left).toBe('40px');
+    left = 220;
+    fireEvent.resize(window);
+    await waitFor(() => expect(menu.style.left).toBe('220px'));
+    left = 260;
+    fireEvent.scroll(window);
+    await waitFor(() => expect(menu.style.left).toBe('260px'));
     rectSpy.mockRestore();
   });
 
