@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { internalError } from '@/lib/api-error';
 import { readCachedCharactersForVns } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,14 +20,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   let vnIds: string[];
   try {
-    vnIds = (db.prepare('SELECT vn_id AS id FROM collection').all() as { id: string }[]).map(
-      (r) => r.id,
-    );
-  } catch (e) {
-    console.error('[collection/traits] db.prepare failed:', (e as Error).message);
-    return NextResponse.json({ error: 'database error' }, { status: 500 });
+    vnIds = await getCollectionCoreRepository().listIds();
+  } catch (error) {
+    return internalError('collection.traits.GET', error);
   }
-  const cachedCharacters = readCachedCharactersForVns(vnIds);
+  const cachedCharacters = await readCachedCharactersForVns(vnIds);
   const map = new Map<string, Aggregate>();
   let withCache = 0;
   for (const vnId of vnIds) {

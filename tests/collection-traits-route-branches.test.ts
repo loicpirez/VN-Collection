@@ -5,15 +5,13 @@ type CollectionTraitsRoute = typeof import('@/app/api/collection/traits/route');
 
 async function loadRoute(): Promise<CollectionTraitsRoute> {
   vi.resetModules();
-  vi.doMock('@/lib/db', () => ({
-    db: {
-      prepare: () => ({
-        all: () => [{ id: 'v90001' }, { id: 'v90002' }, { id: 'v90003' }],
-      }),
-    },
+  vi.doMock('@/lib/db/repositories/collection-core', () => ({
+    getCollectionCoreRepository: () => ({
+      listIds: vi.fn().mockResolvedValue(['v90001', 'v90002', 'v90003']),
+    }),
   }));
   vi.doMock('@/lib/vndb', () => ({
-    readCachedCharactersForVns: () =>
+    readCachedCharactersForVns: vi.fn().mockResolvedValue(
       new Map([
         [
           'v90001',
@@ -40,28 +38,27 @@ async function loadRoute(): Promise<CollectionTraitsRoute> {
           ],
         ],
       ]),
+    ),
   }));
   return import('@/app/api/collection/traits/route');
 }
 
 async function loadRouteWithDbFailure(): Promise<CollectionTraitsRoute> {
   vi.resetModules();
-  vi.doMock('@/lib/db', () => ({
-    db: {
-      prepare: () => {
-        throw new Error('collection trait query failed');
-      },
-    },
+  vi.doMock('@/lib/db/repositories/collection-core', () => ({
+    getCollectionCoreRepository: () => ({
+      listIds: vi.fn().mockRejectedValue(new Error('collection trait query failed')),
+    }),
   }));
   vi.doMock('@/lib/vndb', () => ({
-    readCachedCharactersForVns: () => new Map(),
+    readCachedCharactersForVns: vi.fn().mockResolvedValue(new Map()),
   }));
   return import('@/app/api/collection/traits/route');
 }
 
 describe('GET /api/collection/traits aggregation branches', () => {
   afterEach(() => {
-    vi.doUnmock('@/lib/db');
+    vi.doUnmock('@/lib/db/repositories/collection-core');
     vi.doUnmock('@/lib/vndb');
     vi.resetModules();
   });
@@ -122,7 +119,14 @@ describe('GET /api/collection/traits aggregation branches', () => {
     const res = await route.GET(new NextRequest('http://127.0.0.1/api/collection/traits'));
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'database error' });
-    expect(consoleSpy).toHaveBeenCalledWith('[collection/traits] db.prepare failed:', 'collection trait query failed');
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'collection.traits.GET',
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[internal:collection.traits.GET] collection trait query failed',
+    );
   });
 });
