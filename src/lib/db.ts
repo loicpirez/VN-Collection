@@ -4258,9 +4258,8 @@ export function listCollection({
     where.push(`(${branches.join(' OR ')})`);
   }
   if (vnIds && vnIds.length > 0) {
-    const placeholders = vnIds.map(() => '?').join(',');
-    where.push(`v.id IN (${placeholders})`);
-    params.push(...vnIds);
+    where.push('v.id IN (SELECT value FROM json_each(?))');
+    params.push(JSON.stringify(vnIds));
   }
   let join = '';
   if (series) {

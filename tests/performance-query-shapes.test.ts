@@ -19,16 +19,22 @@ describe('place registry query shape', () => {
 });
 
 describe('bounded VN card lookup queries', () => {
-  it.each([
-    'src/components/ReadingQueueStrip.tsx',
-    'src/app/lists/[id]/page.tsx',
-  ])('%s chunks VN ids before constructing placeholders', (path) => {
-    const body = source(path);
-    expect(body).toContain('const VN_QUERY_CHUNK = 500');
-    expect(body).toContain('index += VN_QUERY_CHUNK');
-    expect(body).toContain('ids.slice(index, index + VN_QUERY_CHUNK)');
-    expect(body).toContain('.all(...chunk)');
-    expect(body).not.toContain('.all(...ids)');
+  it('loads the reading queue through one bounded repository query', () => {
+    const component = source('src/components/ReadingQueueStrip.tsx');
+    const repository = source('src/lib/db/repositories/home-feed.ts');
+    expect(component).toContain('getHomeFeedRepository().listReadingQueueVns()');
+    expect(repository).toContain('LIMIT 1000');
+    expect(repository).not.toContain('WHERE v.id IN (${placeholders})');
+  });
+
+  it('loads list cards through a repository and binds SQLite VN ids as one JSON value', () => {
+    const page = source('src/app/lists/[id]/page.tsx');
+    const legacy = source('src/lib/db.ts');
+    const listCollectionBody = legacy.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
+    expect(page).toContain('collectionRepository.listCards({ vnIds: items.map((item) => item.vn_id) })');
+    expect(listCollectionBody).toContain("v.id IN (SELECT value FROM json_each(?))");
+    expect(listCollectionBody).toContain('params.push(JSON.stringify(vnIds))');
+    expect(listCollectionBody).not.toContain('params.push(...vnIds)');
   });
 });
 
@@ -36,10 +42,10 @@ describe('home library request shape', () => {
   it('coalesces identical in-flight collection requests across split sections', () => {
     const body = source('src/components/LibraryClient.tsx');
     expect(body).toContain('const pendingCollectionRequests = new Map<string, PendingCollectionRequest>()');
-    expect(body).toContain('function requestCollection(url: string, fallbackError: string)');
+    expect(body).toContain('function requestCollection(url: string, fallbackError: string, serverError: string)');
     expect(body).toContain('activeRequest.consumers += 1');
     expect(body).toContain('activeRequest.controller.abort()');
-    expect(body).toContain('const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid)');
+    expect(body).toContain('const request = requestCollection(`/api/collection?${params}`, t.library.collectionInvalid, t.library.collectionUnavailable)');
     expect(body).not.toContain("fetch(`/api/collection?${params}`, { signal: ctrl.signal, cache: 'no-store' })");
   });
 });
@@ -108,17 +114,25 @@ describe('collection-scale placeholder lists', () => {
   });
 
   it('chunks upcoming cover and collection-membership lookups', () => {
-    const body = source('src/app/upcoming/page.tsx');
-    expect(body).toContain('const chunk = ids.slice(i, i + CHUNK)');
-    expect(body).toContain('.all(...chunk)');
-    expect(body).not.toContain('.all(...ids)');
+    const page = source('src/app/upcoming/page.tsx');
+    const legacy = source('src/lib/db.ts');
+    const membership = legacy.split('export function isInCollectionMany')[1]?.split('\nexport ')[0] ?? '';
+    expect(page).toContain('const ANTICIPATED_PAGE_SIZE = 50');
+    expect(page).toContain('fetchVnCovers(vndbIds)');
+    expect(page).toContain('getCollectionCoreRepository().containsMany(ids)');
+    expect(membership).toContain('const CHUNK = 500');
+    expect(membership).toContain('vnIds.slice(i, i + CHUNK)');
+    expect(membership).not.toContain('.all(...vnIds)');
   });
 
   it('chunks Steam suggestion metadata lookups', () => {
-    const body = source('src/lib/steam.ts');
-    expect(body).toContain('const chunk = ids.slice(i, i + CHUNK)');
-    expect(body).toContain('.all(...chunk)');
-    expect(body).not.toContain('.all(...ids)');
+    const caller = source('src/lib/steam.ts');
+    const repository = source('src/lib/db/repositories/steam.ts');
+    expect(caller).toContain('steamRepository.listSuggestionRows(ids)');
+    expect(repository).toContain('vnIds.slice(offset, offset + 500)');
+    expect(repository).toContain('.all(...chunk)');
+    expect(repository).toContain('c.vn_id = ANY($1::text[])');
+    expect(repository).not.toContain('.all(...vnIds)');
   });
 
   it.each([
@@ -151,12 +165,15 @@ describe('collection-scale placeholder lists', () => {
   it('hydrates collection trait cache rows through one chunked batch helper', () => {
     const dbBody = source('src/lib/db.ts');
     const cacheBody = source('src/lib/vndb-cache.ts');
+    const repository = source('src/lib/db/repositories/cache.ts');
     const routeBody = source('src/app/api/collection/traits/route.ts');
     const helper = dbBody.split('export function getCacheRows')[1]?.split('/** Insert or replace one cache row. */')[0] ?? '';
     expect(helper).toContain('const CHUNK = 500');
     expect(helper).toContain('keys.slice(i, i + CHUNK)');
     expect(helper).toContain('.all(...chunk)');
-    expect(cacheBody).toContain('getCacheRows(keys)');
+    expect(cacheBody).toContain('getCacheRepository().getMany(keys)');
+    expect(repository).toContain("return (await import('@/lib/db')).getCacheRows(keys)");
+    expect(repository).toContain('cache_key = ANY($1::text[])');
     expect(routeBody).toContain('readCachedCharactersForVns(vnIds)');
     expect(routeBody).not.toContain('readCachedCharactersForVn(vnId)');
   });
