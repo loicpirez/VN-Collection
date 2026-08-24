@@ -136,14 +136,14 @@ export default async function TraitPage({
               </p>
             )}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-wrap sm:items-center">
             {/* Density slider controls the character grid below. */}
-            <CardDensitySlider scope="characterWorks" />
+            <CardDensitySlider scope="characterWorks" className="w-full min-w-0 sm:w-auto" />
             <a
               href={`https://vndb.org/${trait.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn"
+              className="btn w-full justify-center sm:w-auto"
             >
               <ExternalLink className="h-4 w-4" aria-hidden /> VNDB
             </a>

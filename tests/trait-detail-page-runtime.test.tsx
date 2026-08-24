@@ -187,6 +187,8 @@ describe('trait detail page runtime', () => {
     expect(html).toContain('https://example.test/c1.jpg:/local/c1.jpg:Character 1');
     expect(html).toContain('Owned VN');
     expect(html).toContain('href="/trait/I1?page=2"');
+    expect(html).toContain('w-full min-w-0 flex-col');
+    expect(html).toContain('w-full justify-center sm:w-auto');
     expect(getCharactersForTraitPage).toHaveBeenCalledWith('I1', { results: 60, page: 1 });
   });
 
