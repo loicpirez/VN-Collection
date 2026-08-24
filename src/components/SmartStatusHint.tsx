@@ -46,10 +46,12 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
     };
   }, [vnId]);
 
+  const playtime = playtimeMinutes ?? 0;
+  const estimatedLength = vndbLengthMinutes ?? 0;
   const shouldShow = status === 'playing'
-    && (playtimeMinutes ?? 0) > 0
-    && (vndbLengthMinutes ?? 0) > 0
-    && (playtimeMinutes ?? 0) >= (vndbLengthMinutes ?? 0)
+    && playtime > 0
+    && estimatedLength > 0
+    && playtime >= estimatedLength
     && !dismissed;
   if (!shouldShow) return null;
 
