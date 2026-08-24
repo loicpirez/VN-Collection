@@ -73,6 +73,7 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+import { scheduleVndbBackgroundRefresh } from '@/lib/vndb-background-refresh';
 
 const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then((m) => m.MediaGallery), {
   loading: () => (
@@ -159,7 +160,7 @@ const loadVn = cache(
     }
     if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return { vn: cached, error: null };
     if (cached) {
-      void revalidateCachedVn(id);
+      scheduleVndbBackgroundRefresh(() => revalidateCachedVn(id));
       return { vn: cached, error: null };
     }
     try {

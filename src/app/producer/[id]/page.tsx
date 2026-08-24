@@ -18,6 +18,7 @@ import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { safeHref } from '@/lib/safe-href';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+import { scheduleVndbBackgroundRefresh } from '@/lib/vndb-background-refresh';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
@@ -31,17 +32,20 @@ async function loadProducer(id: string): Promise<ProducerRow | null> {
   const repository = getProducerRepository();
   const cached = await repository.get(id);
   if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return cached;
+  if (cached) {
+    scheduleVndbBackgroundRefresh(async () => {
+      const fresh = await fetchProducer(id);
+      if (fresh) await repository.upsert(fresh);
+    });
+    return cached;
+  }
   try {
     const fresh = await fetchProducer(id);
-    if (!fresh) return cached;
+    if (!fresh) return null;
     await repository.upsert(fresh);
     return repository.get(id);
   } catch {
-    // VNDB unreachable - serve the stale cached row so the page still
-    // renders. The freshness check above ensures we'd have refetched
-    // when next.js's revalidate window expired anyway; until then a
-    // stale producer record is far better than a 500.
-    return cached;
+    return null;
   }
 }
 

@@ -161,6 +161,7 @@ describe('producer detail page runtime', () => {
       searchParams: Promise.resolve({}),
     }));
     expect(html).toContain('Producer');
+    await vi.waitFor(() => expect(fetchProducer).toHaveBeenCalledTimes(1));
 
     vi.mocked(fetchProducer).mockRejectedValueOnce(new Error('offline'));
     html = renderToStaticMarkup(await ProducerPage({
@@ -168,6 +169,7 @@ describe('producer detail page runtime', () => {
       searchParams: Promise.resolve({}),
     }));
     expect(html).toContain('Producer');
+    await vi.waitFor(() => expect(fetchProducer).toHaveBeenCalledTimes(2));
   });
 
   it('upserts a fetched producer and reads back its mirrored row', async () => {

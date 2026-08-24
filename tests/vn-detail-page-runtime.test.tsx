@@ -565,6 +565,9 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('recent:v90026');
     expect(upsertVn).not.toHaveBeenCalled();
 
+    expect(await renderPage('v90027')).toContain('recent:v90027');
+    expect(getVn).toHaveBeenCalledTimes(1);
+
     resolveRefresh(vndbVn('v90026'));
     await vi.waitFor(() => expect(upsertVn).toHaveBeenCalledWith(vndbVn('v90026')));
   });
