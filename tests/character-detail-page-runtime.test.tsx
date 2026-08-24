@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import CharacterPage from '@/app/character/[id]/page';
+import CharacterPage, { generateMetadata } from '@/app/character/[id]/page';
 import type {
   CharacterSibling,
   CharacterVoiceCredit,
@@ -148,6 +148,30 @@ beforeEach(() => {
 });
 
 describe('character detail page runtime', () => {
+  it('builds metadata from cache, VNDB, and deterministic fallback titles', async () => {
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce({
+      profile: character({ name: 'Cached title' }),
+      fetched_at: 1,
+    });
+    await expect(generateMetadata({ params: Promise.resolve({ id: 'C1' }) })).resolves.toEqual({
+      title: 'Cached title',
+    });
+    expect(getCharacter).not.toHaveBeenCalled();
+
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce(null);
+    vi.mocked(getCharacter).mockResolvedValueOnce(character({ name: 'Remote title' }));
+    await expect(generateMetadata({ params: Promise.resolve({ id: 'c2' }) })).resolves.toEqual({
+      title: 'Remote title',
+    });
+
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce(null);
+    vi.mocked(getCharacter).mockRejectedValueOnce(new Error('offline'));
+    await expect(generateMetadata({ params: Promise.resolve({ id: 'C3' }) })).resolves.toEqual({ title: 'c3' });
+    await expect(generateMetadata({ params: Promise.resolve({ id: 'not-a-character' }) })).resolves.toEqual({
+      title: 'not-a-character',
+    });
+  });
+
   it('rejects malformed, missing, and upstream-failed character ids', async () => {
     await expect(CharacterPage({ params: Promise.resolve({ id: 'bad' }) })).rejects.toThrow('not-found');
 

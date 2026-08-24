@@ -1,5 +1,7 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { ArrowLeft, ExternalLink, Mic2, Star, Users } from 'lucide-react';
 import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { getPeopleRepository } from '@/lib/db/repositories/people';
@@ -29,6 +31,22 @@ import {
 export const dynamic = 'force-dynamic';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
+
+const loadCharacter = cache(async (id: string): Promise<VndbCharacter | null> => {
+  try {
+    const cached = await readCharacterFullCache(id).catch(() => null);
+    return cached ? cached.profile : await getCharacter(id);
+  } catch {
+    return null;
+  }
+});
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  if (!/^c\d+$/i.test(id)) return { title: id };
+  const character = await loadCharacter(id);
+  return { title: character?.name ?? id.toLowerCase() };
+}
 
 function fmtBirthday(b: [number, number] | null, locale: Locale): string | null {
   if (!b) return null;
@@ -66,17 +84,7 @@ export default async function CharacterPage({
   const { id } = await params;
   if (!/^c\d+$/i.test(id)) notFound();
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  let char: VndbCharacter | null = null;
-  try {
-    const cached = await readCharacterFullCache(id).catch(() => null);
-    char = cached ? cached.profile : await getCharacter(id);
-  } catch {
-    // VNDB unreachable / throttled / payload malformed - fall through
-    // to `notFound()` below rather than 500ing. The user sees the
-    // same UX as "really doesn't exist", which is the right policy
-    // for a read-only detail page that can't recover client-side.
-    char = null;
-  }
+  const char = await loadCharacter(id);
   if (!char) notFound();
 
   // Each metadata row can optionally carry an `href` that points
