@@ -17,7 +17,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const result = await pullStatusesFromVndb();
   const status = result.ok ? 200 : result.needsAuth ? 401 : 500;
   if (result.ok) {
-    recordActivity({
+    await recordActivity({
       kind: 'vndb.status.pull',
       entity: 'vndb',
       entityId: 'ulist',
