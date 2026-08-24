@@ -19,6 +19,7 @@ const MIGRATIONS = [
   '0004_text_search',
   '0005_stock_batch_providers',
   '0006_physical_bundles',
+  '0007_query_plan_indexes',
 ];
 
 function result<Row extends QueryResultRow>(rows: Row[]): QueryResult<Row> {

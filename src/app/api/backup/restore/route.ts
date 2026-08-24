@@ -4,6 +4,13 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 import { precheckContentLength } from '@/lib/upload-precheck';
 import { reparseWithLimit, PayloadTooLargeError } from '@/lib/read-limited-body';
+import { readDatabaseConfig } from '@/lib/db/postgres-config';
+import {
+  POSTGRES_BACKUP_CONTENT_TYPE,
+  POSTGRES_BACKUP_MAX_BYTES,
+  PostgresBackupTooLargeError,
+  restorePostgresBackup,
+} from '@/lib/db/backup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +27,42 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Restoring overwrites every row — must be loopback / token only.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+  const databaseConfig = readDatabaseConfig();
+  if (databaseConfig.backend === 'sqlite-readonly') {
+    return NextResponse.json({ error: 'database is read-only' }, { status: 409 });
+  }
+  if (databaseConfig.backend === 'postgres') {
+    if (req.headers.get('x-vncoll-restore-confirm') !== 'RESTORE') {
+      return NextResponse.json({ error: 'restore confirmation required' }, { status: 400 });
+    }
+    const contentType = req.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+    if (contentType !== POSTGRES_BACKUP_CONTENT_TYPE) {
+      return NextResponse.json({ error: 'expected a PostgreSQL logical backup' }, { status: 415 });
+    }
+    const postgresTooLarge = precheckContentLength(req, POSTGRES_BACKUP_MAX_BYTES);
+    if (postgresTooLarge) return postgresTooLarge;
+    if (!req.body) return NextResponse.json({ error: 'missing backup body' }, { status: 400 });
+    try {
+      const summary = await restorePostgresBackup(req.body, POSTGRES_BACKUP_MAX_BYTES);
+      await recordActivity({
+        kind: 'backup.restore',
+        entity: 'backup',
+        entityId: 'postgres',
+        label: 'PostgreSQL logical backup restore',
+        payload: {
+          tables: summary.tables.length,
+          rows: summary.tables.reduce((total, table) => total + table.rows_replaced, 0),
+        },
+      });
+      return NextResponse.json({ ok: true, summary });
+    } catch (e) {
+      if (e instanceof PostgresBackupTooLargeError) {
+        return NextResponse.json({ error: `file too large (max ${POSTGRES_BACKUP_MAX_BYTES} bytes)` }, { status: 413 });
+      }
+      console.error('[backup/restore] PostgreSQL restore failed:', (e as Error).message);
+      return NextResponse.json({ error: 'restore failed' }, { status: 500 });
+    }
+  }
   const ct = req.headers.get('content-type') ?? '';
   if (!ct.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 });
@@ -56,7 +99,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   try {
     const summary = await restoreFromSqliteFile(buf);
-    recordActivity({
+    await recordActivity({
       kind: 'backup.restore',
       entity: 'backup',
       entityId: 'sqlite',

@@ -7,6 +7,8 @@ import { Readable } from 'node:stream';
 import { db } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
+import { readDatabaseConfig } from '@/lib/db/postgres-config';
+import { createPostgresBackupDownload } from '@/lib/db/backup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,6 +17,30 @@ export const maxDuration = 120;
 export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
+
+  if (readDatabaseConfig().backend === 'postgres') {
+    try {
+      const backup = await createPostgresBackupDownload();
+      await recordActivity({
+        kind: 'backup.export',
+        entity: 'backup',
+        entityId: new Date().toISOString().slice(0, 10),
+        label: 'PostgreSQL logical backup export',
+      });
+      return new NextResponse(backup.stream, {
+        status: 200,
+        headers: {
+          'Content-Type': backup.contentType,
+          'Content-Disposition': `attachment; filename="${backup.filename}"`,
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    } catch (e) {
+      console.error('[backup] PostgreSQL backup failed:', (e as Error).message);
+      return NextResponse.json({ error: 'backup failed' }, { status: 500 });
+    }
+  }
 
   const dir = await mkdtemp(join(tmpdir(), 'vndb-backup-'));
   const tmpPath = join(dir, 'snapshot.db');
@@ -38,7 +64,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const date = new Date().toISOString().slice(0, 10);
-  recordActivity({
+  await recordActivity({
     kind: 'backup.export',
     entity: 'backup',
     entityId: date,

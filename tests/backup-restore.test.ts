@@ -47,6 +47,20 @@ beforeEach(() => {
 });
 
 describe('POST /api/backup/restore', () => {
+  it('rejects restore while SQLite compatibility mode is read-only', async () => {
+    const previous = process.env.DATABASE_BACKEND;
+    process.env.DATABASE_BACKEND = 'sqlite-readonly';
+    try {
+      const res = await POST(makeRequest(new Blob([makeSqliteFile()])));
+      expect(res.status).toBe(409);
+      await expect(res.json()).resolves.toEqual({ error: 'database is read-only' });
+      expect(mockRestore).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.DATABASE_BACKEND;
+      else process.env.DATABASE_BACKEND = previous;
+    }
+  });
+
   it('rejects request from non-localhost origin with 403', async () => {
     const buf = makeSqliteFile();
     const file = new Blob([buf]);
