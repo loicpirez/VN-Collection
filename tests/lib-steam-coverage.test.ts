@@ -28,6 +28,7 @@ import { cachedFetch } from '@/lib/vndb-cache';
 import {
   computeSteamSuggestions,
   fetchOwnedGames,
+  getSteamLinkForVn as getSteamLinkForVnFromService,
   listUnlinkedSteamGames,
   readSteamConfig,
   recordSync,
@@ -304,5 +305,17 @@ describe('recordSync', () => {
     setSteamLink({ vnId: 'v90151', appid: 1, steamName: 'Synced', source: 'manual' });
     await recordSync('v90151', 360);
     expect(getSteamLinkForVn('v90151')?.last_synced_minutes).toBe(360);
+  });
+});
+
+describe('getSteamLinkForVn', () => {
+  it('returns the persisted mapping through the Steam service contract', async () => {
+    seedVn('v90161', 'Mapped');
+    setSteamLink({ vnId: 'v90161', appid: 61, steamName: 'Mapped', source: 'manual' });
+
+    await expect(getSteamLinkForVnFromService('v90161')).resolves.toMatchObject({
+      vn_id: 'v90161',
+      appid: 61,
+    });
   });
 });
