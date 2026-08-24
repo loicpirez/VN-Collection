@@ -130,6 +130,12 @@ describe('stock API response adapters', () => {
   });
 
   it('accepts every provider capability enum member and omitted optional provider fields', () => {
+    for (const kind of ['direct', 'aggregate', 'cached']) {
+      expect(decodeStockSnapshot({
+        ...snapshot,
+        providers: [{ ...provider, kind }],
+      })).not.toBeNull();
+    }
     for (const lookupCapability of ['aggregate_price', 'direct_link', 'jan_lookup', 'title_search', 'cached_inventory']) {
       expect(decodeStockSnapshot({
         ...snapshot,
