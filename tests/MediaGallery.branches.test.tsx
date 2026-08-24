@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
-import { MediaGallery } from '@/components/MediaGallery';
+import { lightboxFrameStyle, MediaGallery } from '@/components/MediaGallery';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
@@ -38,6 +38,31 @@ describe('MediaGallery branches', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('reserves a responsive lightbox frame before the image loads', () => {
+    expect(lightboxFrameStyle({ aspect: 'landscape', dims: [1920, 1080] })).toEqual({
+      aspectRatio: '1920 / 1080',
+      width: 'min(92vw, 1920px, calc(88vh * 1.7777777777777777))',
+    });
+    expect(lightboxFrameStyle({ aspect: 'square', dims: null })).toEqual({
+      aspectRatio: '1 / 1',
+      width: 'min(92vw, 1200px, calc(88vh * 1))',
+    });
+    expect(lightboxFrameStyle({ aspect: 'portrait', dims: [0, 0] })).toEqual({
+      aspectRatio: '2 / 3',
+      width: 'min(92vw, 1200px, calc(88vh * 0.6666666666666666))',
+    });
+  });
+
+  it('shows a non-collapsing animated skeleton when the lightbox opens', async () => {
+    renderGallery(twoScreens, []);
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(t.media.openLightbox) })[0]);
+    const dialog = await screen.findByRole('dialog');
+    const frame = dialog.querySelector<HTMLElement>('[data-media-lightbox-frame]');
+    expect(frame).not.toBeNull();
+    expect(frame).toHaveStyle({ aspectRatio: '1920 / 1080' });
+    expect(frame?.querySelector('[data-safe-image-skeleton]')).toHaveClass('animate-pulse');
   });
 
   it('groups every release image type and localizes the chip labels', () => {

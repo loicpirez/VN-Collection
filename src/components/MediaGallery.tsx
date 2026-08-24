@@ -1,5 +1,5 @@
 'use client';
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -45,6 +45,25 @@ export interface MediaItem {
 
 const TYPE_KEYS = ['all', 'pkgfront', 'pkgback', 'pkgcontent', 'pkgside', 'pkgmed', 'dig', 'screenshots'] as const;
 type TypeKey = (typeof TYPE_KEYS)[number];
+
+export function lightboxFrameStyle(item: Pick<MediaItem, 'aspect' | 'dims'>): CSSProperties {
+  const fallback: [number, number] = item.aspect === 'landscape'
+    ? [16, 9]
+    : item.aspect === 'square'
+      ? [1, 1]
+      : [2, 3];
+  const validDimensions = item.dims && item.dims[0] > 0 && item.dims[1] > 0
+    ? item.dims
+    : null;
+  const dimensions = validDimensions ?? fallback;
+  const [width, height] = dimensions;
+  const ratio = width / height;
+  const intrinsicWidth = validDimensions ? `${width}px` : '1200px';
+  return {
+    aspectRatio: `${width} / ${height}`,
+    width: `min(92vw, ${intrinsicWidth}, calc(88vh * ${ratio}))`,
+  };
+}
 
 export function MediaGallery({
   vnId,
@@ -270,14 +289,21 @@ export function MediaGallery({
               </button>
             </>
           )}
-          <div className="relative z-10 max-h-[90vh] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+          <div
+            data-media-lightbox-frame
+            className="relative z-10 bg-bg-elev"
+            style={lightboxFrameStyle(visible[active])}
+            onClick={(e) => e.stopPropagation()}
+          >
             <SafeImage
+              key={visible[active].key}
               src={visible[active].url}
               localSrc={visible[active].local}
               alt={visible[active].alt}
               sexual={visible[active].sexual}
-              className="max-h-[88vh] max-w-[92vw] rounded-lg"
+              className="h-full w-full rounded-lg"
               fit="contain"
+              priority
             />
             <div id={lightboxDescId} className="absolute -bottom-7 left-0 right-0 text-center text-xs text-muted">
               {active + 1} / {visible.length}
