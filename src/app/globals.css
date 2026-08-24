@@ -3,12 +3,35 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --z-layer-map: 0;
+    --z-layer-navigation: 400;
+    --z-layer-fullscreen: 500;
+    --z-layer-status: 600;
+    --z-layer-popover: 700;
+    --z-layer-modal: 1000;
+    --z-layer-toast: 1100;
+    --z-layer-confirmation: 1200;
+    --z-layer-accessibility: 1300;
+  }
   html, body {
     @apply bg-bg text-white antialiased;
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   }
+}
+
+@layer utilities {
+  .z-layer-map { z-index: var(--z-layer-map); }
+  .z-layer-navigation { z-index: var(--z-layer-navigation); }
+  .z-layer-fullscreen { z-index: var(--z-layer-fullscreen); }
+  .z-layer-status { z-index: var(--z-layer-status); }
+  .z-layer-popover { z-index: var(--z-layer-popover); }
+  .z-layer-modal { z-index: var(--z-layer-modal); }
+  .z-layer-toast { z-index: var(--z-layer-toast); }
+  .z-layer-confirmation { z-index: var(--z-layer-confirmation); }
+  .z-layer-accessibility { z-index: var(--z-layer-accessibility); }
 }
 
 @layer components {
