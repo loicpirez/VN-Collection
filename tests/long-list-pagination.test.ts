@@ -43,10 +43,13 @@ describe('stock offer group pagination', () => {
 describe('stock batch queue pagination', () => {
   const client = source('src/components/StockBatchClient.tsx');
   const route = source('src/app/api/stock/queue/route.ts');
+  const repository = source('src/lib/db/repositories/stock-queue.ts');
 
   it('bounds scope responses and editable queue size', () => {
     expect(route).toContain('const MAX_PAGE_SIZE = 500');
-    expect(route).toContain('LIMIT ? OFFSET ?');
+    expect(route).toContain('getStockQueueRepository().list(scope, pageSize, offset)');
+    expect(repository).toContain('LIMIT ? OFFSET ?');
+    expect(repository).toContain('LIMIT $1 OFFSET $2');
     expect(client).toContain('const STOCK_BATCH_QUEUE_CAP = 5000');
     expect(client).toContain('const STOCK_BATCH_SCOPE_PAGE_SIZE = 500');
   });
@@ -79,10 +82,11 @@ describe('physical stock branch pagination', () => {
 describe('wishlist card pagination', () => {
   const wishlist = source('src/components/WishlistClient.tsx');
 
-  it('windows sorted wishlist rows before grouping and card rendering', () => {
+  it('uses the bounded server page and retains a bounded local fallback', () => {
     expect(wishlist).toContain('const WISHLIST_PAGE_SIZE = 60');
     expect(wishlist).toContain('const pageItems = useMemo(');
-    expect(wishlist).toContain('() => sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE)');
+    expect(wishlist).toContain('() => serverPage ? sorted : sorted.slice(pageStart, pageStart + WISHLIST_PAGE_SIZE)');
+    expect(wishlist).toContain("params.set('pageSize', String(WISHLIST_PAGE_SIZE))");
     expect(wishlist).toContain("if (group === 'none') return [{ key: '', items: pageItems }]");
     expect(wishlist).toContain('for (const it of pageItems)');
   });
@@ -140,10 +144,11 @@ describe('place stock VN pagination', () => {
 describe('place registry pagination', () => {
   const browser = source('src/components/PlaceBrowser.tsx');
 
-  it('windows filtered places and unassigned branches before rendering', () => {
+  it('uses bounded server pages and retains bounded local fallbacks', () => {
     expect(browser).toContain('const PLACE_REGISTRY_PAGE_SIZE = 60');
-    expect(browser).toContain('const visiblePlaces = filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
-    expect(browser).toContain('const visibleUnassigned = filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
+    expect(browser).toContain('const visiblePlaces = placePage ? filtered : filtered.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
+    expect(browser).toContain('const visibleUnassigned = unassignedPage');
+    expect(browser).toContain(': filteredUnassigned.slice(pageStart, pageStart + PLACE_REGISTRY_PAGE_SIZE)');
     expect(browser).toContain('visiblePlaces.map((place)');
     expect(browser).toContain('visibleUnassigned.map((branch)');
     expect(browser).toContain('t.places.registryPaginationLabel');
