@@ -55,7 +55,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error(`[full-download:${vnId}] producers:`, (e as Error).message);
     });
   }
-  recordActivity({
+  await recordActivity({
     kind: 'download.full',
     entity: 'collection',
     entityId: 'selected',

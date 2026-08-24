@@ -164,7 +164,12 @@ describe('GET /api/collection filter parsing', () => {
     try {
       const res = await GET(request());
       expect(res.status).toBe(500);
-      expect(await res.json()).toEqual({ error: 'internal error' });
+      expect(await res.json()).toEqual({
+        ok: false,
+        error: 'internal error',
+        code: 'collection_unavailable',
+        context: 'collection/list',
+      });
       expect(consoleSpy).toHaveBeenCalledWith('[collection] DB error:', 'private collection listing failure');
     } finally {
       listSpy.mockRestore();

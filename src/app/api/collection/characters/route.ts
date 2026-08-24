@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { searchLocalCharacters } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { parseBoundedQueryInteger } from '@/lib/api-query';
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const sp = req.nextUrl.searchParams;
   const q = (sp.get('q') ?? '').slice(0, Q_MAX).trim();
   const cap = parseBoundedQueryInteger(sp.get('limit'), { fallback: 200, min: 1, max: 500 });
-  const rows = searchLocalCharacters({ q: q || undefined, limit: cap });
+  const rows = await getPeopleRepository().searchCharacters({ q: q || undefined, limit: cap });
   const characters = rows.map((row) => ({
     ...row.profile,
     voice_languages: row.voice_languages,

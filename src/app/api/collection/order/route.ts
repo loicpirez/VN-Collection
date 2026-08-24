@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resetCollectionCustomOrder, setCollectionCustomOrder } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -30,9 +30,9 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'ids must not contain duplicates' }, { status: 400 });
   }
   try {
-    setCollectionCustomOrder(ids);
+    await getCollectionCoreRepository().setCustomOrder(ids);
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'collection.custom-order',
         entity: 'collection',
         entityId: null,
@@ -53,9 +53,9 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    resetCollectionCustomOrder();
+    await getCollectionCoreRepository().resetCustomOrder();
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'collection.custom-order',
         entity: 'collection',
         entityId: null,

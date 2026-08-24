@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { listCollectionTagsMock } = vi.hoisted(() => ({
-  listCollectionTagsMock: vi.fn(),
+const { listTagsMock } = vi.hoisted(() => ({
+  listTagsMock: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  listCollectionTags: listCollectionTagsMock,
+vi.mock('@/lib/db/repositories/collection-list', () => ({
+  getCollectionListRepository: () => ({ listTags: listTagsMock }),
 }));
 
 import { GET } from '@/app/api/collection/tags/route';
@@ -18,10 +18,11 @@ function req(): NextRequest {
 describe('GET /api/collection/tags branches', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    listTagsMock.mockReset();
   });
 
   it('mirrors collection tag aggregates into the shared tag response shape', async () => {
-    listCollectionTagsMock.mockReturnValue([
+    listTagsMock.mockResolvedValue([
       { id: 'g90001', name: 'Drama', category: null, count: 3 },
       { id: 'g90002', name: 'Mystery', category: 'ero', count: 1 },
     ]);
@@ -57,14 +58,17 @@ describe('GET /api/collection/tags branches', () => {
 
   it('returns the standard internal error response when tag aggregation fails', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    listCollectionTagsMock.mockImplementation(() => {
-      throw new Error('tag db failed');
-    });
+    listTagsMock.mockRejectedValue(new Error('tag db failed'));
 
     const res = await GET(req());
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'collection.tags.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:collection.tags.GET] tag db failed');
   });
 });

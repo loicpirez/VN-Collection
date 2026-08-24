@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listCollectionTags } from '@/lib/db';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const aggregates = listCollectionTags();
+    const aggregates = await getCollectionListRepository().listTags();
     // Mirror the shape returned by /api/tags so the same UI renders both.
     const tags = aggregates.map((a) => ({
       id: a.id,

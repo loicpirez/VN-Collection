@@ -199,9 +199,10 @@ describe('listCollectionForCards — behaviour', () => {
 });
 
 describe('R5-144 /api/collection route', () => {
-  it('uses listCollectionForCards without a rich-detail query escape hatch', () => {
+  it('uses the lightweight repository projection without a rich-detail query escape hatch', () => {
     const src = readFileSync(join(__dirname, '..', 'src/app/api/collection/route.ts'), 'utf8');
-    expect(src).toMatch(/listCollectionForCards/);
+    expect(src).toMatch(/repository\.listCards/);
+    expect(src).not.toMatch(/listCollectionForCards/);
     expect(src).not.toMatch(/detail.*===\s*'full'/);
     expect(src).not.toMatch(/wantsFullDetail/);
   });

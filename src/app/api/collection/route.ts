@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  countListMembershipsByVn,
-  db,
-  getReadingQueueVnIds,
-  getStats,
-  isValidEditionType,
-  isValidStatus,
-  listCollectionForCards,
-  materializeAspectForCollectionVns,
-  materializeReleaseAspectsForCollectionVns,
-  materializeReleaseMetaForCollectionVns,
-  type ListOptions,
-} from '@/lib/db';
+import type { ListOptions } from '@/lib/db';
 import { isAspectKey } from '@/lib/aspect-ratio';
 import { clampQuery } from '@/lib/api-query';
 import type { CollectionCardApiItem } from '@/lib/types';
-
-import { isVndbVnId } from '@/lib/vn-id-shape';
+import { EDITION_TYPES, STATUSES } from '@/lib/types';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 
 import { PUBLIC_READ_ROUTE } from '@/lib/api-route-meta';
+import { getCachedCollectionVnIds } from '@/lib/collection-vn-ids-cache';
+import { apiErrorBody } from '@/lib/api-error-shape';
+import {
+  parseOptionalQueryBoolean,
+  parseOptionalQueryInteger,
+  parseOptionalQueryNumber,
+} from '@/lib/query-params';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 void PUBLIC_READ_ROUTE;
@@ -44,56 +39,12 @@ const DEFAULT_COLLECTION_PAGE_SIZE = 240;
 const MAX_COLLECTION_PAGE_SIZE = 500;
 const MAX_COLLECTION_PAGE = 20_000;
 
-function parsePositiveInteger(raw: string | null, fallback: number, max: number): number | null {
-  if (raw == null || raw === '') return fallback;
-  if (!/^\d+$/.test(raw)) return null;
-  const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
-  return Math.min(parsed, max);
+function isValidStatus(value: string): value is NonNullable<ListOptions['status']> {
+  return (STATUSES as readonly string[]).includes(value);
 }
 
-function parseOptionalNumber(raw: string | null, min: number, max: number): number | undefined | null {
-  if (raw == null || raw === '') return undefined;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
-  return parsed;
-}
-
-function parseOptionalBoolean(raw: string | null): boolean | undefined | null {
-  if (raw == null || raw === '') return undefined;
-  if (raw === '1') return true;
-  if (raw === '0') return false;
-  return null;
-}
-
-function parseOptionalSafeInteger(raw: string | null, min: number, max: number): number | undefined | null {
-  if (raw == null || raw === '') return undefined;
-  if (!/^\d+$/.test(raw)) return null;
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
-}
-
-/**
- * 30-second in-process cache for the full-collection `vn_id` scan that
- * feeds aspect materialization. The scan result is the complete set of
- * collection VN ids and does not vary by request parameters, so a
- * keyless TTL is sufficient; the materialize helpers below are
- * idempotent and short-circuit per VN, so a slightly stale id list at
- * most defers a freshly added VN's aspect backfill by one TTL window.
- * Mirrors the `getAggregateStats` cache shape in `@/lib/db`.
- */
-let collectionVnIdsCache: { at: number; data: string[] } | null = null;
-const COLLECTION_VN_IDS_TTL_MS = 30_000;
-
-function getCachedCollectionVnIds(): string[] {
-  if (collectionVnIdsCache && Date.now() - collectionVnIdsCache.at < COLLECTION_VN_IDS_TTL_MS) {
-    return collectionVnIdsCache.data;
-  }
-  const data = (
-    db.prepare('SELECT vn_id FROM collection').all() as Array<{ vn_id: string }>
-  ).map((r) => r.vn_id);
-  collectionVnIdsCache = { at: Date.now(), data };
-  return data;
+function isValidEditionType(value: string): value is NonNullable<ListOptions['edition']> {
+  return (EDITION_TYPES as readonly string[]).includes(value);
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -117,36 +68,34 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const sortRaw = sp.get('sort') ?? 'updated_at';
   const orderRaw = sp.get('order') ?? 'desc';
   const dumpedRaw = sp.get('dumped');
-  const page = parsePositiveInteger(sp.get('page'), 1, MAX_COLLECTION_PAGE);
-  const pageSize = parsePositiveInteger(
-    sp.get('limit'),
-    DEFAULT_COLLECTION_PAGE_SIZE,
-    MAX_COLLECTION_PAGE_SIZE,
-  );
-  const ratingMin = parseOptionalNumber(sp.get('ratingMin'), 0, 100);
-  const ratingMax = parseOptionalNumber(sp.get('ratingMax'), 0, 100);
-  const playtimeMinHours = parseOptionalNumber(sp.get('playtimeMin'), 0, 100_000);
-  const playtimeMaxHours = parseOptionalNumber(sp.get('playtimeMax'), 0, 100_000);
-  const nsfwThreshold = parseOptionalNumber(sp.get('nsfwThreshold'), 0, 2);
-  const series = parseOptionalSafeInteger(seriesRaw, 1, 2_147_483_647);
-  const yearMin = parseOptionalSafeInteger(yearMinRaw, 1, 9999);
-  const yearMax = parseOptionalSafeInteger(yearMaxRaw, 1, 9999);
-  const dumped = parseOptionalBoolean(dumpedRaw);
+  const parsedPage = parseOptionalQueryInteger(sp.get('page'), { minimum: 1, maximum: MAX_COLLECTION_PAGE });
+  const parsedPageSize = parseOptionalQueryInteger(sp.get('limit'), { minimum: 1, maximum: MAX_COLLECTION_PAGE_SIZE });
+  const page = parsedPage === undefined ? 1 : parsedPage;
+  const pageSize = parsedPageSize === undefined ? DEFAULT_COLLECTION_PAGE_SIZE : parsedPageSize;
+  const ratingMin = parseOptionalQueryNumber(sp.get('ratingMin'), { minimum: 0, maximum: 100 });
+  const ratingMax = parseOptionalQueryNumber(sp.get('ratingMax'), { minimum: 0, maximum: 100 });
+  const playtimeMinHours = parseOptionalQueryNumber(sp.get('playtimeMin'), { minimum: 0, maximum: 100_000 });
+  const playtimeMaxHours = parseOptionalQueryNumber(sp.get('playtimeMax'), { minimum: 0, maximum: 100_000 });
+  const nsfwThreshold = parseOptionalQueryNumber(sp.get('nsfwThreshold'), { minimum: 0, maximum: 2 });
+  const series = parseOptionalQueryInteger(seriesRaw, { minimum: 1, maximum: 2_147_483_647, clampMaximum: false });
+  const yearMin = parseOptionalQueryInteger(yearMinRaw, { minimum: 1, maximum: 9999, clampMaximum: false });
+  const yearMax = parseOptionalQueryInteger(yearMaxRaw, { minimum: 1, maximum: 9999, clampMaximum: false });
+  const dumped = parseOptionalQueryBoolean(dumpedRaw);
   const booleanFilters = {
-    onlyEgsOnly: parseOptionalBoolean(sp.get('only_egs_only')),
-    matchVndb: parseOptionalBoolean(sp.get('match_vndb')),
-    matchEgs: parseOptionalBoolean(sp.get('match_egs')),
-    fanDisc: parseOptionalBoolean(sp.get('fan_disc')),
-    hasNotes: parseOptionalBoolean(sp.get('has_notes')),
-    hasCustomCover: parseOptionalBoolean(sp.get('has_custom_cover')),
-    hasBanner: parseOptionalBoolean(sp.get('has_banner')),
-    isFavorite: parseOptionalBoolean(sp.get('is_favorite')),
-    hasReleased: parseOptionalBoolean(sp.get('has_released')),
-    isNsfw: parseOptionalBoolean(sp.get('is_nsfw')),
-    isNukige: parseOptionalBoolean(sp.get('is_nukige')),
-    inReadingQueue: parseOptionalBoolean(sp.get('in_reading_queue')),
-    inList: parseOptionalBoolean(sp.get('in_list')),
-    excludeNsfw: parseOptionalBoolean(sp.get('exclude_nsfw')),
+    onlyEgsOnly: parseOptionalQueryBoolean(sp.get('only_egs_only')),
+    matchVndb: parseOptionalQueryBoolean(sp.get('match_vndb')),
+    matchEgs: parseOptionalQueryBoolean(sp.get('match_egs')),
+    fanDisc: parseOptionalQueryBoolean(sp.get('fan_disc')),
+    hasNotes: parseOptionalQueryBoolean(sp.get('has_notes')),
+    hasCustomCover: parseOptionalQueryBoolean(sp.get('has_custom_cover')),
+    hasBanner: parseOptionalQueryBoolean(sp.get('has_banner')),
+    isFavorite: parseOptionalQueryBoolean(sp.get('is_favorite')),
+    hasReleased: parseOptionalQueryBoolean(sp.get('has_released')),
+    isNsfw: parseOptionalQueryBoolean(sp.get('is_nsfw')),
+    isNukige: parseOptionalQueryBoolean(sp.get('is_nukige')),
+    inReadingQueue: parseOptionalQueryBoolean(sp.get('in_reading_queue')),
+    inList: parseOptionalQueryBoolean(sp.get('in_list')),
+    excludeNsfw: parseOptionalQueryBoolean(sp.get('exclude_nsfw')),
   };
   // ?aspect supports comma-separated multi-select (e.g.
   // ?aspect=4:3,16:9). Repeated params (sp.getAll) are also
@@ -210,9 +159,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // small INSERT batch on first run). For non-aspect requests we
   // skip the work entirely.
   try {
+    const repository = getCollectionListRepository();
     const requestsAspect = aspectValid.length > 0;
     if (requestsAspect) {
-      const allVnIds = getCachedCollectionVnIds();
+      const allVnIds = await getCachedCollectionVnIds();
       // STEP 1: pull aspect from cached VNDB release payloads (per
       // VN, idempotent + short-circuits). The Library was the
       // surface where the user observed VNs with 800x600 (→ 4:3)
@@ -221,21 +171,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       // /api/vn/[id]/releases had never been invoked for those
       // VNs from the Library page. Materializing here makes the
       // Library agree with the VN detail page.
-      const vndbIds = allVnIds.filter(isVndbVnId);
-      // STEP 1a: batch-materialize aspect from cached VNDB release payloads.
-      // Single-pass over vndb_cache; skips VNs that already have a
-      // non-unknown signal. Replaces the previous per-VN loop (DBA-001).
-      materializeReleaseAspectsForCollectionVns(vndbIds);
-      // STEP 1b: pull platform / media metadata from release cache
-      // using the batch helper — replaces the previous per-VN loop
-      // that called materializeReleaseMetaForVn individually (AUD-DB-001).
-      materializeReleaseMetaForCollectionVns(vndbIds);
-      // STEP 2: screenshots fallback for VNs that still have no
-      // signal after step 1.
-      materializeAspectForCollectionVns(allVnIds);
+      await repository.prepareAspectData(allVnIds);
     }
 
-    const raw = listCollectionForCards({
+    const raw = await repository.listCards({
       status: status as ListOptions['status'],
       q,
       producer: producer || undefined,
@@ -281,8 +220,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Annotate each row with its list-membership count once, here, so
     // the library grid renders the ListsPicker badge correctly on first
     // paint without needing a popover open per card.
-    const listCounts = countListMembershipsByVn();
-    const queueIds = getReadingQueueVnIds();
+    const [listCounts, queueIds, stats] = await Promise.all([
+      repository.listMembershipCounts(),
+      repository.readingQueueIds(),
+      repository.stats(),
+    ]);
     const items: CollectionCardApiItem[] = pageItems.map((it) => {
       const {
         notes,
@@ -304,7 +246,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
     return NextResponse.json({
       items,
-      stats: getStats(),
+      stats,
       pagination: {
         page,
         page_size: pageSize,
@@ -314,6 +256,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   } catch (err) {
     console.error('[collection] DB error:', (err as Error).message);
-    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+    return NextResponse.json(
+      apiErrorBody('internal error', 'collection_unavailable', 'collection/list'),
+      { status: 500 },
+    );
   }
 }
