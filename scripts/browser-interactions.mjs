@@ -247,7 +247,11 @@ check('AliceNet shop runs background progress and stop controls on its place pag
     const method = route.request().method();
     if (method === 'POST') {
       jobStarted = true;
-      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ jobId: 'qa-alicenet-job' }) });
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId: 'qa-alicenet-job', op: 'pipeline' }),
+      });
       return;
     }
     if (method === 'DELETE') {
@@ -353,21 +357,9 @@ check('media action menu opens in a portal and is not clipped', async (page) => 
 check('spoiler hover and click reveal text without opaque block', async (page) => {
   for (const url of ['/vn/v32132', '/character/c69497', '/vn/v5262']) {
     await gotoClean(page, url);
-    // Two-step locator strategy. The hidden-branch SpoilerChip
-    // unmounts when revealed (button → Link), so we tag the target
-    // upfront, do the hover assertion on the original handle, then
-    // re-query a STABLE wrapper after the click so the revealed
-    // state attribute can be read off the new node.
     const hiddenLoc = page.locator('[data-spoiler-state="hidden"]').first();
     if ((await hiddenLoc.count()) === 0) continue;
-    // Tag the targeted spoiler with a unique data attribute so we
-    // can find it again after re-render via a fresh query.
-    const markerId = `spoiler-target-${Math.random().toString(36).slice(2, 10)}`;
-    await hiddenLoc.evaluate(
-      (el, m) => el.setAttribute('data-qa-target', m),
-      markerId,
-    );
-    const handle = await page.locator(`[data-qa-target="${markerId}"]`).first().elementHandle();
+    const handle = await hiddenLoc.elementHandle();
     if (!handle) continue;
     await handle.hover();
     await page.waitForTimeout(200);
@@ -378,20 +370,11 @@ check('spoiler hover and click reveal text without opaque block', async (page) =
     );
     await page.mouse.move(5, 5);
     await page.waitForTimeout(200);
-    // Click via the live locator (re-queries each interaction) so a
-    // SpoilerChip whose button unmounts into a Link still receives
-    // the click — the original handle may be detached by then.
-    const liveTarget = page.locator(`[data-qa-target="${markerId}"]`).first();
-    await liveTarget.click();
+    // SpoilerChip keeps its outer wrapper stable across the gated
+    // button -> revealed link transition.
+    await handle.click();
     await page.waitForTimeout(300);
-    // The data-qa-target tag survives React re-render iff React
-    // preserves the element (SpoilerReveal wrapper). For
-    // SpoilerChip the button is unmounted but the parent <span>
-    // wraps both branches — climb to its parent to find the new
-    // [data-spoiler-state="revealed"] under the same subtree.
-    const clickState =
-      (await page.locator(`[data-qa-target="${markerId}"]`).first().getAttribute('data-spoiler-state').catch(() => null)) ??
-      (await page.locator('[data-spoiler-state="revealed"]').first().getAttribute('data-spoiler-state').catch(() => null));
+    const clickState = await handle.getAttribute('data-spoiler-state');
     assert(
       clickState === 'revealed',
       `${url} spoiler did not persist after click (state=${clickState})`,
@@ -612,17 +595,14 @@ check('/vn/v26180 toolbar buttons have consistent height', async (page) => {
 
 check('/vn/v4327 spoiler hover reveals text, click persists', async (page) => {
   await gotoClean(page, '/vn/v4327');
-  // Tag the targeted spoiler so we can survive the SpoilerChip
-  // button → Link unmount on click.
   const hiddenLoc = page.locator('[data-spoiler-state="hidden"]').first();
   if ((await hiddenLoc.count()) === 0) {
     // No hidden spoiler on this page — skip
     return;
   }
-  const markerId = `spoiler-target-${Math.random().toString(36).slice(2, 10)}`;
-  await hiddenLoc.evaluate((el, m) => el.setAttribute('data-qa-target', m), markerId);
-  const handle = await page.locator(`[data-qa-target="${markerId}"]`).first().elementHandle();
+  const handle = await hiddenLoc.elementHandle();
   if (!handle) return;
+  const maskedText = (await handle.innerText()).trim();
   // Hover: should transition to transient or revealed
   await handle.hover();
   await page.waitForTimeout(300);
@@ -631,23 +611,14 @@ check('/vn/v4327 spoiler hover reveals text, click persists', async (page) => {
     hoverState === 'transient' || hoverState === 'revealed',
     `spoiler did not reveal on hover (state=${hoverState})`,
   );
-  // The real content should now be readable (not sr-only). Read it
-  // from the tagged subtree.
-  const contentText = await handle.$$eval(
-    'span:not(.hidden):not([aria-hidden="true"])',
-    (nodes) => (nodes.length === 0 ? '' : (nodes[nodes.length - 1].textContent ?? '')),
-  );
-  assert(contentText.length > 0, 'spoiler real content is empty after hover reveal');
-  // Move away and click to persist. Re-query via the marker so the
-  // SpoilerChip unmount doesn't strand the click on a detached node.
+  const contentText = (await handle.innerText()).trim();
+  assert(contentText.length > 0 && contentText !== maskedText, 'spoiler real content is empty after hover reveal');
+  // Move away and click the stable outer wrapper to persist.
   await page.mouse.move(5, 5);
   await page.waitForTimeout(300);
-  const liveTarget = page.locator(`[data-qa-target="${markerId}"]`).first();
-  await liveTarget.click();
+  await handle.click();
   await page.waitForTimeout(300);
-  const clickState =
-    (await page.locator(`[data-qa-target="${markerId}"]`).first().getAttribute('data-spoiler-state').catch(() => null)) ??
-    (await page.locator('[data-spoiler-state="revealed"]').first().getAttribute('data-spoiler-state').catch(() => null));
+  const clickState = await handle.getAttribute('data-spoiler-state');
   assert(clickState === 'revealed', `spoiler did not persist after click (state=${clickState})`);
 });
 
@@ -738,6 +709,13 @@ check('narrow VN detail stays bounded with collapsed sections and touch-safe nav
   await page.setViewportSize({ width: 390, height: 844 });
   try {
     await gotoClean(page, '/vn/v26180');
+    const sectionHeaderSelector =
+      'section[id^="section-"] > section > div:first-child > button[aria-expanded]';
+    await page.waitForFunction((selector) => {
+      const controls = Array.from(document.querySelectorAll(selector));
+      return controls.length > 0
+        && controls.every((control) => control.getAttribute('aria-expanded') === 'false');
+    }, sectionHeaderSelector, { timeout: 10000 });
     const result = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll('nav a[href^="#section-"]'));
       const sectionControls = Array.from(
