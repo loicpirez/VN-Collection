@@ -18,8 +18,8 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { BCP47, fmtDate as fmtDateShared } from '@/lib/locale-number';
-import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
+import { BCP47 } from '@/lib/locale-number';
+import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 import { readApiError } from '@/lib/api-error-read';
 import {
@@ -39,12 +39,14 @@ const ICONS: Record<Kind, typeof History> = {
   manual: FileText,
 };
 
-function fmtDate(ts: number, locale: string, timeZone: string): string {
-  return fmtDateShared(new Date(ts), locale as Locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+function fmtDate(ts: number, locale: Locale, timeZone: string | null): string {
+  return formatHydrationSafeDate(
+    new Date(ts),
+    locale,
+    { dateStyle: 'medium', timeStyle: 'short' },
     timeZone,
-  });
+    'date-time',
+  );
 }
 
 function Arrow() {

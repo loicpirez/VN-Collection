@@ -3,10 +3,9 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpenText, Check, Clock, Loader2, Pencil, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useLocale, useT } from '@/lib/i18n/client';
-import { BCP47 } from '@/lib/locale-number';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { timeAgo } from '@/lib/time-ago';
-import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
+import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 
@@ -381,12 +380,14 @@ export function GameLog({ vnId, initial, liveSessionMinutes = 0 }: Props) {
   );
 }
 
-function fmtTime(ts: number, locale: Locale, timeZone: string): string {
-  return new Date(ts).toLocaleTimeString(BCP47[locale], {
-    hour: '2-digit',
-    minute: '2-digit',
+function fmtTime(ts: number, locale: Locale, timeZone: string | null): string {
+  return formatHydrationSafeDate(
+    new Date(ts),
+    locale,
+    { hour: '2-digit', minute: '2-digit' },
     timeZone,
-  });
+    'time',
+  );
 }
 
 function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): string {
@@ -394,17 +395,16 @@ function relative(ts: number, now: number | null, t: ReturnType<typeof useT>): s
   return timeAgo(ts, t, now);
 }
 
-function groupByDay(entries: GameLogEntry[], locale: Locale, timeZone: string): { day: string; items: GameLogEntry[] }[] {
-  const fmt = new Intl.DateTimeFormat(BCP47[locale], {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone,
-  });
+function groupByDay(entries: GameLogEntry[], locale: Locale, timeZone: string | null): { day: string; items: GameLogEntry[] }[] {
   const map = new Map<string, GameLogEntry[]>();
   for (const e of entries) {
-    const k = fmt.format(new Date(e.logged_at));
+    const k = formatHydrationSafeDate(
+      new Date(e.logged_at),
+      locale,
+      { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
+      timeZone,
+      'date',
+    );
     const cur = map.get(k);
     if (cur) cur.push(e);
     else map.set(k, [e]);

@@ -3,11 +3,10 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { fmtDate } from '@/lib/locale-number';
 import { timeAgo } from '@/lib/time-ago';
 import { useToast } from './ToastProvider';
 import { readApiError } from '@/lib/api-error-read';
-import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
+import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 /**
  * R5-058 / R5-106 / R5-215 - context-specific refresh button.
@@ -140,13 +139,15 @@ export function RefreshScopeButton({
   );
 }
 
-function FreshnessChip({ lastUpdatedAt, now, timeZone }: { lastUpdatedAt: number | null; now: number | null; timeZone: string }) {
+function FreshnessChip({ lastUpdatedAt, now, timeZone }: { lastUpdatedAt: number | null; now: number | null; timeZone: string | null }) {
   const t = useT();
   const locale = useLocale();
   const stale =
     lastUpdatedAt == null || (now != null && now - lastUpdatedAt > 7 * 86_400_000);
   const label = timeAgo(lastUpdatedAt, t, now ?? lastUpdatedAt ?? 0);
-  const absolute = lastUpdatedAt == null ? '' : fmtDate(new Date(lastUpdatedAt), locale, { timeZone });
+  const absolute = lastUpdatedAt == null
+    ? ''
+    : formatHydrationSafeDate(new Date(lastUpdatedAt), locale, {}, timeZone, 'date-time');
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-wider ${

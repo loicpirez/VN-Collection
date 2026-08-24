@@ -37,6 +37,7 @@ import type {
 } from '@/lib/erogeprice-meta';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/locale-number';
+import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 import { safeHref } from '@/lib/safe-href';
 import { decodeStockSnapshot } from '@/lib/stock-api-shape';
 import { decodeStockTitleResolutionMap } from '@/lib/stock-title-resolution-client-shape';
@@ -61,17 +62,16 @@ function fmtYen(yen: number | null | undefined, locale: 'fr' | 'en' | 'ja'): str
   return formatCurrency(yen, locale);
 }
 
-function fmtIsoDate(iso: string, locale: 'fr' | 'en' | 'ja'): string {
-  try {
-    return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : locale === 'ja' ? 'ja-JP' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+function fmtIsoDate(iso: string, locale: 'fr' | 'en' | 'ja', timeZone: string | null): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return formatHydrationSafeDate(
+    date,
+    locale,
+    { year: 'numeric', month: 'short', day: 'numeric' },
+    timeZone == null ? null : 'UTC',
+    'date',
+  );
 }
 
 /**
@@ -270,6 +270,7 @@ type RangeKey = (typeof RANGE_OPTIONS)[number]['key'];
 function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatches: Map<string, string> }) {
   const t = useT();
   const locale = useLocale();
+  const timeZone = useHydrationSafeTimeZone();
   const d = bundle.detail;
   const gameHref = safeHref(bundle.gameUrl);
   const officialSiteHref = safeHref(d.officialSiteUrl);
@@ -355,7 +356,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
           <h3 className="break-words text-base font-bold text-white">{d.title}</h3>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
             {d.maker && <span className="font-semibold text-white">{d.maker}</span>}
-            {d.releaseDate && <span>{fmtIsoDate(d.releaseDate, locale)}</span>}
+            {d.releaseDate && <span>{fmtIsoDate(d.releaseDate, locale, timeZone)}</span>}
             {d.platform && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-1.5 py-0.5">{d.platform}</span>
             )}

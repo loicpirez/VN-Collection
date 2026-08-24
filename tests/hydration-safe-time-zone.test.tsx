@@ -4,7 +4,7 @@ import { renderToString } from 'react-dom/server';
 import { hydrateRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fmtDate } from '@/lib/locale-number';
-import { useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
+import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -18,11 +18,13 @@ function TimestampProbe() {
   const timeZone = useHydrationSafeTimeZone();
   return (
     <time dateTime={new Date(TIMESTAMP).toISOString()}>
-      {fmtDate(new Date(TIMESTAMP), 'en', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+      {formatHydrationSafeDate(
+        new Date(TIMESTAMP),
+        'en',
+        { dateStyle: 'medium', timeStyle: 'short' },
         timeZone,
-      })}
+        'date-time',
+      )}
     </time>
   );
 }
@@ -43,11 +45,7 @@ describe('hydration-safe browser timezone', () => {
     host.innerHTML = renderToString(<TimestampProbe />);
     document.body.append(host);
 
-    const utcText = fmtDate(new Date(TIMESTAMP), 'en', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: 'UTC',
-    });
+    const utcText = '2026-06-02 00:20 UTC';
     const tokyoText = fmtDate(new Date(TIMESTAMP), 'en', {
       dateStyle: 'medium',
       timeStyle: 'short',
@@ -63,5 +61,11 @@ describe('hydration-safe browser timezone', () => {
     expect(host.textContent).toBe(tokyoText);
     expect(consoleError).not.toHaveBeenCalled();
     await act(async () => root?.unmount());
+  });
+
+  it('uses stable UTC date and time labels before hydration', () => {
+    const date = new Date(TIMESTAMP);
+    expect(formatHydrationSafeDate(date, 'en', { dateStyle: 'medium' }, null, 'date')).toBe('2026-06-02');
+    expect(formatHydrationSafeDate(date, 'en', { timeStyle: 'short' }, null, 'time')).toBe('00:20 UTC');
   });
 });

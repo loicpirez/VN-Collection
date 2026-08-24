@@ -73,7 +73,8 @@ describe('same-route client-island hydration', () => {
     expect(gameLog).toContain('groupByDay(entries, locale, timeZone)');
     expect(refresh).toContain('useState<number | null>(null)');
     expect(refresh).not.toContain('suppressHydrationWarning');
-    expect(erogePrice).toContain("timeZone: 'UTC'");
+    expect(erogePrice).toContain("timeZone == null ? null : 'UTC'");
+    expect(erogePrice).toContain("'date',");
     expect(erogePrice).toContain('opt.ms == null || now == null');
   });
 });
