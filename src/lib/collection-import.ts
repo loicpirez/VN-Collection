@@ -1,4 +1,4 @@
-import type { CollectionExportPayload } from './db';
+import type { CollectionExportPayload, RawVnPayload } from './db';
 import { asJsonRecord } from './json-shape';
 import { parsePhysicalLocations } from './physical-location-input';
 import { normalizeVnId, isValidVnId } from './vn-id-shape';
@@ -156,7 +156,13 @@ function isOptionalBoundedArray(value: unknown, validate: (item: unknown) => boo
     || (Array.isArray(value) && value.length <= MAX_NESTED_ROWS && value.every(validate));
 }
 
-function validateRawVnPayload(value: unknown): boolean {
+/**
+ * Validate the bounded VN metadata shape accepted inside collection backups.
+ *
+ * @param value Untrusted nested JSON value.
+ * @returns Whether the value is null or a supported partial VN payload.
+ */
+export function isRawVnImportPayload(value: unknown): value is Partial<RawVnPayload> | null {
   if (value === null) return true;
   const row = asJsonRecord(value);
   return row !== null
@@ -211,7 +217,7 @@ function decodeVn(value: unknown, index: number): ValidationResult<CollectionExp
     return fail(`vns[${index}].title must be a non-empty string at most 1000 characters`);
   }
   const raw = row.raw ?? null;
-  if (!validateRawVnPayload(raw)) return fail(`vns[${index}].raw has an invalid shape`);
+  if (!isRawVnImportPayload(raw)) return fail(`vns[${index}].raw has an invalid shape`);
   if (!isSafeTimestamp(row.fetched_at)) return fail(`vns[${index}].fetched_at must be a non-negative safe integer`);
   return {
     ok: true,

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { importData } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 import { PayloadTooLargeError, readBodyWithLimit, reparseWithLimit } from '@/lib/read-limited-body';
 import { decodeCollectionImportPayload } from '@/lib/collection-import';
+import { getCollectionTransferRepository } from '@/lib/db/repositories/collection-transfer';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const decoded = decodeCollectionImportPayload(rawBody);
   if (!decoded.ok) return NextResponse.json({ error: decoded.error }, { status: 400 });
   try {
-    const summary = importData(decoded.value);
-    recordActivity({
+    const summary = await getCollectionTransferRepository().importData(decoded.value);
+    await recordActivity({
       kind: 'collection.import',
       entity: 'collection',
       entityId: 'all',

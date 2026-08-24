@@ -122,7 +122,14 @@ function collectionFieldUpdates(fields: CollectionCorePatch): CollectionFieldUpd
   return updates;
 }
 
-async function rebuildPlaceIndex(client: PoolClient, vnId: string): Promise<void> {
+/**
+ * Rebuild one collection entry's normalized place index inside an existing transaction.
+ *
+ * @param client Transaction-bound PostgreSQL client.
+ * @param vnId VN whose collection and owned-release locations must be re-indexed.
+ * @returns Nothing after the index rows match the source location fields.
+ */
+export async function rebuildPostgresCollectionPlaceIndex(client: PoolClient, vnId: string): Promise<void> {
   const result = await client.query<PhysicalLocationRow>(`
     SELECT physical_location FROM collection WHERE vn_id = $1
     UNION ALL
@@ -170,7 +177,7 @@ async function updateWithinTransaction(
     `UPDATE collection SET ${updates.map((update, index) => `${update.column} = $${index + 1}`).join(', ')}, updated_at = $${updates.length + 1} WHERE vn_id = $${updates.length + 2}`,
     values,
   );
-  if ('physical_location' in fields) await rebuildPlaceIndex(client, vnId);
+  if ('physical_location' in fields) await rebuildPostgresCollectionPlaceIndex(client, vnId);
   if (!before) return;
 
   if (fields.status !== undefined && fields.status !== before.status) {
@@ -237,7 +244,7 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
           now,
           now,
         ]);
-        await rebuildPlaceIndex(client, vnId);
+        await rebuildPostgresCollectionPlaceIndex(client, vnId);
       });
     },
     async update(vnId, fields) {

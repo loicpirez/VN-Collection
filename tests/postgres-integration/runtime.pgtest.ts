@@ -63,6 +63,7 @@ import { createPostgresEntityNameRepository } from '@/lib/db/repositories/entity
 import { createPostgresMaintenanceRepository } from '@/lib/db/repositories/maintenance';
 import { createPostgresEgsRepository } from '@/lib/db/repositories/egs';
 import { createPostgresVnAssetRepository } from '@/lib/db/repositories/vn-assets';
+import { createPostgresCollectionTransferRepository } from '@/lib/db/repositories/collection-transfer';
 import {
   registerShelfRepositoryContract,
   SHELF_CONTRACT_IDS,
@@ -83,6 +84,9 @@ import {
   registerSeriesRepositoryContract,
   SERIES_CONTRACT_IDS,
 } from '../database-contract/series.contract';
+import {
+  registerCollectionTransferRepositoryContract,
+} from '../database-contract/collection-transfer.contract';
 import {
   READING_QUEUE_CONTRACT_IDS,
   registerReadingQueueRepositoryContract,
@@ -1000,6 +1004,39 @@ registerSeriesRepositoryContract('PostgreSQL', {
       process.env.DATABASE_APPLICATION_NAME = 'vndb-series-contract';
       try {
         await run(createPostgresSeriesRepository());
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
+    });
+  },
+});
+
+registerCollectionTransferRepositoryContract('PostgreSQL', {
+  async withRepository(run) {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-collection-transfer-contract';
+      try {
+        await run(createPostgresCollectionTransferRepository(), async (vnId) => {
+          const places = await pool.query<{ place: string } & QueryResultRow>(
+            'SELECT place FROM collection_place_index WHERE vn_id = $1 ORDER BY place',
+            [vnId],
+          );
+          return places.rows.map((row) => row.place);
+        });
       } finally {
         await closePostgresPool();
         if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;

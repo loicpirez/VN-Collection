@@ -9352,7 +9352,7 @@ export interface CollectionExportPayload {
   vns: Array<{
     id: string;
     title?: string | null;
-    raw?: unknown;
+    raw?: Partial<RawVnPayload> | null;
     fetched_at?: number;
   }>;
   collection: Array<{
@@ -9435,6 +9435,9 @@ export function importData(payload: CollectionExportPayload | Partial<Collection
       const raw = (vn.raw ?? {}) as RawVnPayload;
       try {
         upsertVn({ ...raw, id: vn.id, title: vn.title || raw.title || vn.id });
+        if (vn.fetched_at !== undefined) {
+          db.prepare('UPDATE vn SET fetched_at = ? WHERE id = ?').run(vn.fetched_at, vn.id);
+        }
         summary.vns_upserted++;
       } catch (e) {
         console.error(`[importData] vn ${vn.id} failed:`, (e as Error).message);
@@ -9487,6 +9490,16 @@ export function importData(payload: CollectionExportPayload | Partial<Collection
           idMap.set(s.id, existing.id);
         } else {
           const created = createSeries(s.name, s.description ?? null);
+          db.prepare(`
+            UPDATE series SET cover_path = ?, banner_path = ?, created_at = ?, updated_at = ?
+            WHERE id = ?
+          `).run(
+            s.cover_path ?? null,
+            s.banner_path ?? null,
+            s.created_at,
+            s.updated_at,
+            created.id,
+          );
           idMap.set(s.id, created.id);
           summary.series_created++;
         }

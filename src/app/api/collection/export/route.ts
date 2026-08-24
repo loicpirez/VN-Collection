@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { exportData } from '@/lib/db';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { getCollectionTransferRepository } from '@/lib/db/repositories/collection-transfer';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -10,7 +10,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   // timestamps). Gate behind localhost / admin token.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  const payload = exportData();
+  const payload = await getCollectionTransferRepository().exportData();
   const date = new Date().toISOString().slice(0, 10);
   return new NextResponse(JSON.stringify(payload, null, 2), {
     status: 200,

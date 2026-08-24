@@ -213,60 +213,73 @@ async function rebuildIndexes(client: PoolClient, vn: RawVnPayload): Promise<voi
   await insertRows(client, 'vn_platform_index', ['vn_id', 'platform'], platformRows);
 }
 
+/**
+ * Upsert one canonical VN through an existing PostgreSQL transaction.
+ *
+ * @param client Transaction-bound PostgreSQL client.
+ * @param vn Validated VN payload to materialize.
+ * @param fetchedAt Source freshness timestamp retained by import flows.
+ * @returns Nothing after the VN and its materialized indexes are synchronized.
+ */
+export async function upsertPostgresVn(
+  client: PoolClient,
+  vn: RawVnPayload,
+  fetchedAt = Date.now(),
+): Promise<void> {
+  const columns = [
+    'id', 'title', 'alttitle', 'image_url', 'image_thumb', 'image_sexual', 'image_violence',
+    'released', 'olang', 'devstatus', 'titles', 'languages', 'platforms', 'length_minutes', 'length',
+    'length_votes', 'rating', 'votecount', 'average', 'description', 'developers', 'tags', 'screenshots',
+    'relations', 'aliases', 'extlinks', 'has_anime', 'editions', 'staff', 'va', 'raw', 'fetched_at',
+  ];
+  const values = serializedVnValues(vn, fetchedAt);
+  const placeholders = values.map((_value, index) => `$${index + 1}`);
+  const upsertResult = await client.query(`
+    INSERT INTO vn (${columns.join(', ')}) VALUES (${placeholders.join(', ')})
+    ON CONFLICT(id) DO UPDATE SET
+      title = EXCLUDED.title,
+      alttitle = EXCLUDED.alttitle,
+      image_url = EXCLUDED.image_url,
+      image_thumb = EXCLUDED.image_thumb,
+      image_sexual = EXCLUDED.image_sexual,
+      image_violence = EXCLUDED.image_violence,
+      released = EXCLUDED.released,
+      olang = EXCLUDED.olang,
+      devstatus = EXCLUDED.devstatus,
+      titles = EXCLUDED.titles,
+      languages = EXCLUDED.languages,
+      platforms = EXCLUDED.platforms,
+      length_minutes = EXCLUDED.length_minutes,
+      length = EXCLUDED.length,
+      length_votes = EXCLUDED.length_votes,
+      rating = EXCLUDED.rating,
+      votecount = EXCLUDED.votecount,
+      average = EXCLUDED.average,
+      description = EXCLUDED.description,
+      developers = CASE WHEN EXCLUDED.developers IS NULL OR EXCLUDED.developers IN ('[]', '') THEN vn.developers ELSE EXCLUDED.developers END,
+      tags = EXCLUDED.tags,
+      screenshots = EXCLUDED.screenshots,
+      relations = EXCLUDED.relations,
+      aliases = EXCLUDED.aliases,
+      extlinks = EXCLUDED.extlinks,
+      has_anime = EXCLUDED.has_anime,
+      editions = EXCLUDED.editions,
+      staff = EXCLUDED.staff,
+      va = EXCLUDED.va,
+      raw = EXCLUDED.raw,
+      fetched_at = EXCLUDED.fetched_at
+    WHERE EXCLUDED.fetched_at >= vn.fetched_at
+  `, values);
+  if ((upsertResult.rowCount ?? 0) === 0) return;
+  await rebuildCredits(client, vn);
+  await rebuildIndexes(client, vn);
+}
+
 /** Create the PostgreSQL-backed canonical VN writer. */
 export function createPostgresVnWriteRepository(): VnWriteRepository {
   return {
     async upsert(vn) {
-      const fetchedAt = Date.now();
-      await withPostgresTransaction(async (client) => {
-        const columns = [
-          'id', 'title', 'alttitle', 'image_url', 'image_thumb', 'image_sexual', 'image_violence',
-          'released', 'olang', 'devstatus', 'titles', 'languages', 'platforms', 'length_minutes', 'length',
-          'length_votes', 'rating', 'votecount', 'average', 'description', 'developers', 'tags', 'screenshots',
-          'relations', 'aliases', 'extlinks', 'has_anime', 'editions', 'staff', 'va', 'raw', 'fetched_at',
-        ];
-        const values = serializedVnValues(vn, fetchedAt);
-        const placeholders = values.map((_value, index) => `$${index + 1}`);
-        const upsertResult = await client.query(`
-          INSERT INTO vn (${columns.join(', ')}) VALUES (${placeholders.join(', ')})
-          ON CONFLICT(id) DO UPDATE SET
-            title = EXCLUDED.title,
-            alttitle = EXCLUDED.alttitle,
-            image_url = EXCLUDED.image_url,
-            image_thumb = EXCLUDED.image_thumb,
-            image_sexual = EXCLUDED.image_sexual,
-            image_violence = EXCLUDED.image_violence,
-            released = EXCLUDED.released,
-            olang = EXCLUDED.olang,
-            devstatus = EXCLUDED.devstatus,
-            titles = EXCLUDED.titles,
-            languages = EXCLUDED.languages,
-            platforms = EXCLUDED.platforms,
-            length_minutes = EXCLUDED.length_minutes,
-            length = EXCLUDED.length,
-            length_votes = EXCLUDED.length_votes,
-            rating = EXCLUDED.rating,
-            votecount = EXCLUDED.votecount,
-            average = EXCLUDED.average,
-            description = EXCLUDED.description,
-            developers = CASE WHEN EXCLUDED.developers IS NULL OR EXCLUDED.developers IN ('[]', '') THEN vn.developers ELSE EXCLUDED.developers END,
-            tags = EXCLUDED.tags,
-            screenshots = EXCLUDED.screenshots,
-            relations = EXCLUDED.relations,
-            aliases = EXCLUDED.aliases,
-            extlinks = EXCLUDED.extlinks,
-            has_anime = EXCLUDED.has_anime,
-            editions = EXCLUDED.editions,
-            staff = EXCLUDED.staff,
-            va = EXCLUDED.va,
-            raw = EXCLUDED.raw,
-            fetched_at = EXCLUDED.fetched_at
-          WHERE EXCLUDED.fetched_at >= vn.fetched_at
-        `, values);
-        if ((upsertResult.rowCount ?? 0) === 0) return;
-        await rebuildCredits(client, vn);
-        await rebuildIndexes(client, vn);
-      });
+      await withPostgresTransaction((client) => upsertPostgresVn(client, vn));
     },
     async upsertEgsOnly(vn) {
       await postgresQuery(`
