@@ -37,6 +37,21 @@ vi.mock('@/lib/db', () => ({
   listUnplacedOwnedReleases: vi.fn(),
 }));
 
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => ({
+    get: (key: string) => getAppSetting(key),
+  }),
+}));
+
+vi.mock('@/lib/db/repositories/shelf', () => ({
+  getShelfRepository: () => ({
+    list: () => listShelves(),
+    listAllOwned: () => listAllOwnedReleases(),
+    listUnplaced: () => listUnplacedOwnedReleases(),
+    listDisplaySlots: (id: number) => listShelfDisplaySlots(id),
+  }),
+}));
+
 vi.mock('@/lib/i18n/server', () => ({
   getDict: vi.fn(async () => dictionaries.en),
   getLocale: vi.fn(async () => 'en'),
@@ -151,6 +166,9 @@ function display(afterRow: number): ShelfDisplaySlotEntry {
     rel_released: null,
     rel_resolution: null,
     dumped: false,
+    bundle_id: null,
+    bundle_name: null,
+    bundle_member_count: 0,
   };
 }
 
@@ -192,6 +210,9 @@ function entry(vnId: string, releaseId: string, overrides: Partial<ShelfEntry> =
     rel_freeware: false,
     rel_official: false,
     rel_has_ero: false,
+    bundle_id: null,
+    bundle_name: null,
+    bundle_member_count: 0,
     ...overrides,
   };
 }

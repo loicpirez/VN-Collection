@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getShelf,
-  listShelfSlots,
-  placeShelfItem,
-  removeShelfPlacement,
-} from '@/lib/db';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -35,7 +30,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const shelf = getShelf(sid);
+  const repository = getShelfRepository();
+  const shelf = await repository.get(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const body = (await readJsonObject(req)) as {
@@ -60,14 +56,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
 
   try {
-    const result = placeShelfItem({
+    const result = await repository.placeItem({
       shelfId: sid,
       row: body.row,
       col: body.col,
       vnId: identity.value.vnId,
       releaseId: identity.value.releaseId,
     });
-    recordActivity({
+    await recordActivity({
       kind: 'shelf.place',
       entity: 'shelf_slot',
       entityId: `${sid}:${body.row}:${body.col}`,
@@ -75,7 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       payload: { shelf_id: sid, row: body.row, col: body.col, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
     });
     return NextResponse.json({
-      slots: listShelfSlots(sid),
+      slots: await repository.listSlots(sid),
       swapped: result.swapped,
     });
   } catch (e) {
@@ -95,7 +91,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  if (!getShelf(sid)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  const repository = getShelfRepository();
+  if (!await repository.get(sid)) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     vn_id?: unknown;
     release_id?: unknown;
@@ -103,15 +100,15 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const identity = parseOwnedReleaseIdentity(body.vn_id, body.release_id);
   if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
   try {
-    removeShelfPlacement(identity.value.vnId, identity.value.releaseId);
-    recordActivity({
+    await repository.removePlacement(identity.value.vnId, identity.value.releaseId);
+    await recordActivity({
       kind: 'shelf.unplace',
       entity: 'shelf_slot',
       entityId: `${identity.value.vnId}:${identity.value.releaseId}`,
       label: 'Removed shelf placement',
       payload: { shelf_id: sid, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
     });
-    return NextResponse.json({ slots: listShelfSlots(sid) });
+    return NextResponse.json({ slots: await repository.listSlots(sid) });
   } catch (err) {
     console.error('[shelves/[id]/slots DELETE] DB error:', (err as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });

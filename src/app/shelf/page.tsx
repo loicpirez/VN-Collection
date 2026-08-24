@@ -3,13 +3,9 @@ import type { Metadata } from 'next';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ArrowLeft, ArrowDown, Box, Coins, Eye, Layers, LayoutGrid, Library, Package } from 'lucide-react';
-import {
-  listAllOwnedReleases,
-  listShelfDisplaySlots,
-  listShelves,
-  listUnplacedOwnedReleases,
-  type ShelfEntry,
-} from '@/lib/db';
+import type { ShelfDisplaySlotEntry, ShelfEntry, ShelfUnitWithCount } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { SkeletonBlock } from '@/components/Skeleton';
@@ -24,7 +20,6 @@ import {
   parseShelfViewPrefsV1,
   resolveShelfPrefs,
 } from '@/lib/shelf-view-prefs';
-import { getAppSetting } from '@/lib/db';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { formatIsoDateString } from '@/lib/locale-number';
 
@@ -131,16 +126,30 @@ export default async function ShelfPage({
     legacyGlobal: ReturnType<typeof parseShelfViewPrefsV1>;
     effective: ReturnType<typeof resolveShelfPrefs>;
     prefs: ReturnType<typeof parseShelfViewPrefsV1>;
-    activeShelfEntry: ReturnType<typeof listShelves>[number] | null;
+    activeShelfEntry: ShelfUnitWithCount | null;
     activeShelfKey: string;
+    activeShelfDisplaySlots: ShelfDisplaySlotEntry[];
+    shelves: ShelfUnitWithCount[];
   };
-  let items: ReturnType<typeof listAllOwnedReleases> = [];
+  let items: ShelfEntry[] = [];
+  let unplaced: ShelfEntry[] = [];
   try {
+    const shelfRepository = getShelfRepository();
+    const settingRepository = getAppSettingRepository();
+    const [overridesRaw, legacyRaw, shelves, allOwned, unplacedOwned] = await Promise.all([
+      settingRepository.get('shelf_display_overrides_v1'),
+      settingRepository.get('shelf_view_prefs_v1'),
+      shelfRepository.list(),
+      shelfRepository.listAllOwned(),
+      view === 'layout' ? shelfRepository.listUnplaced() : Promise.resolve([]),
+    ]);
+    const activeShelfEntry = shelves[activeShelfNum - 1] ?? null;
+    const activeShelfDisplaySlots = activeShelfEntry
+      ? await shelfRepository.listDisplaySlots(activeShelfEntry.id)
+      : [];
     spatialPrefs = (() => {
-      const overrides = parseShelfDisplayOverridesV1(getAppSetting('shelf_display_overrides_v1'));
-      const legacyGlobal = parseShelfViewPrefsV1(getAppSetting('shelf_view_prefs_v1'));
-      const shelvesList = listShelves();
-      const activeShelfEntry = shelvesList[activeShelfNum - 1] ?? null;
+      const overrides = parseShelfDisplayOverridesV1(overridesRaw);
+      const legacyGlobal = parseShelfViewPrefsV1(legacyRaw);
       const activeShelfKey = activeShelfEntry ? String(activeShelfEntry.id) : '';
       const effective = activeShelfKey
         ? resolveShelfPrefs(overrides, activeShelfKey)
@@ -148,9 +157,10 @@ export default async function ShelfPage({
       const prefs = activeShelfKey && overrides.shelves[activeShelfKey]
         ? effective
         : legacyGlobal;
-      return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey };
+      return { overrides, legacyGlobal, effective, prefs, activeShelfEntry, activeShelfKey, activeShelfDisplaySlots, shelves };
     })();
-    items = listAllOwnedReleases();
+    items = allOwned;
+    unplaced = unplacedOwned;
   } catch (err) {
     console.error('[shelf page] DB error:', (err as Error).message);
     const overrides = parseShelfDisplayOverridesV1(null);
@@ -162,6 +172,8 @@ export default async function ShelfPage({
       prefs: legacyGlobal,
       activeShelfEntry: null,
       activeShelfKey: '',
+      activeShelfDisplaySlots: [],
+      shelves: [],
     };
   }
 
@@ -276,10 +288,7 @@ export default async function ShelfPage({
                 ignores the css variables, so the controls render
                 consistently across all four tabs. */}
             {(() => {
-              const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey } = spatialPrefs;
-              const activeShelfDisplaySlots = activeShelfEntry
-                ? listShelfDisplaySlots(activeShelfEntry.id)
-                : [];
+              const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey, activeShelfDisplaySlots } = spatialPrefs;
               const uniqueAfterRows = [
                 ...new Set(activeShelfDisplaySlots.map((d) => d.after_row)),
               ].sort((a, b) => a - b);
@@ -370,10 +379,7 @@ export default async function ShelfPage({
           {view === 'spatial' && (
             <div className="shelf-view-root">
               {(() => {
-                const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey } = spatialPrefs;
-                const activeShelfDisplaySlots = activeShelfEntry
-                  ? listShelfDisplaySlots(activeShelfEntry.id)
-                  : [];
+                const { overrides, legacyGlobal, effective, activeShelfEntry, activeShelfKey, activeShelfDisplaySlots } = spatialPrefs;
                 const uniqueAfterRows = [
                   ...new Set(activeShelfDisplaySlots.map((d) => d.after_row)),
                 ].sort((a, b) => a - b);
@@ -547,7 +553,7 @@ export default async function ShelfPage({
                                             : undefined
                                         }
                                       >
-                                        {platformLabel(p)}
+                                        {platformLabel(p, locale)}
                                       </span>
                                     ))}
                                     {languages.slice(0, 3).map((l) => (
@@ -566,7 +572,7 @@ export default async function ShelfPage({
                                       </span>
                                       {secondaryPlatforms.slice(0, 4).map((p) => (
                                         <span key={`sp-${p}`} className="rounded bg-bg/40 px-1">
-                                          {platformLabel(p)}
+                                          {platformLabel(p, locale)}
                                         </span>
                                       ))}
                                     </div>
@@ -629,8 +635,8 @@ export default async function ShelfPage({
                 <p className="mt-1 text-xs text-muted">{t.shelfLayout.subtitle}</p>
               </header>
               <ShelfLayoutEditor
-                initialShelves={listShelves()}
-                initialUnplaced={listUnplacedOwnedReleases()}
+                initialShelves={spatialPrefs.shelves}
+                initialUnplaced={unplaced}
               />
             </div>
           )}

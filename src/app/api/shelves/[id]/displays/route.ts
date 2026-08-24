@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getShelf,
-  listShelfDisplaySlots,
-  placeShelfDisplayItem,
-  removeShelfDisplayPlacement,
-} from '@/lib/db';
+import { getShelfRepository } from '@/lib/db/repositories/shelf';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -38,7 +33,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const shelf = getShelf(sid);
+  const repository = getShelfRepository();
+  const shelf = await repository.get(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const body = (await readJsonObject(req)) as {
@@ -65,21 +61,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const identity = parseOwnedReleaseIdentity(body.vn_id, body.release_id);
   if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
   try {
-    placeShelfDisplayItem({
+    await repository.placeDisplayItem({
       shelfId: sid,
       afterRow: body.after_row,
       position: body.position,
       vnId: identity.value.vnId,
       releaseId: identity.value.releaseId,
     });
-    recordActivity({
+    await recordActivity({
       kind: 'shelf.display.place',
       entity: 'shelf_display_slot',
       entityId: `${sid}:${body.after_row}:${body.position}`,
       label: 'Placed front display edition',
       payload: { shelf_id: sid, after_row: body.after_row, position: body.position, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
     });
-    return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
+    return NextResponse.json({ displays: await repository.listDisplaySlots(sid) });
   } catch (e) {
     console.error('shelf display place failed:', (e as Error).message);
     return NextResponse.json({ error: 'shelf display place failed' }, { status: 400 });
@@ -94,7 +90,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const sid = parseId(id);
   if (sid === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
-  const shelf = getShelf(sid);
+  const repository = getShelfRepository();
+  const shelf = await repository.get(sid);
   if (!shelf) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const body = (await readJsonObject(req)) as {
     vn_id?: unknown;
@@ -102,13 +99,13 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   };
   const identity = parseOwnedReleaseIdentity(body.vn_id, body.release_id);
   if (!identity.ok) return NextResponse.json({ error: identity.error }, { status: 400 });
-  removeShelfDisplayPlacement(identity.value.vnId, identity.value.releaseId);
-  recordActivity({
+  await repository.removeDisplayPlacement(identity.value.vnId, identity.value.releaseId);
+  await recordActivity({
     kind: 'shelf.display.unplace',
     entity: 'shelf_display_slot',
     entityId: `${identity.value.vnId}:${identity.value.releaseId}`,
     label: 'Removed front display placement',
     payload: { shelf_id: sid, vn_id: identity.value.vnId, release_id: identity.value.releaseId },
   });
-  return NextResponse.json({ displays: listShelfDisplaySlots(sid) });
+  return NextResponse.json({ displays: await repository.listDisplaySlots(sid) });
 }
