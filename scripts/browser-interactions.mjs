@@ -166,9 +166,12 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
       assert(panelText.length > 80, `settings tab ${label} in ${url} is empty/orphan`);
     }
     await dialog.getByRole('tab', { name: labels[0] }).click();
-    const text = await dialog.innerText();
-    assert(/Défauts globaux|Global defaults|デフォルト/i.test(text), 'global defaults heading missing');
-    assert(/Surcharges? par page|Per-page overrides|ページ別/i.test(text), 'per-page density heading missing');
+    const displayText = await dialog.innerText();
+    assert(/Défauts globaux|Global defaults|デフォルト/i.test(displayText), 'global defaults heading missing');
+    const layoutTab = dialog.getByRole('tab', { name: /Mise en page|Layout|レイアウト/i });
+    await layoutTab.click();
+    const perPageHeading = dialog.getByText(/Mise en page par page|Per-page layout|ページ別レイアウト/i).first();
+    await perPageHeading.waitFor({ state: 'visible', timeout: 10000 });
     await page.keyboard.press('Escape');
   }
 });
@@ -179,8 +182,8 @@ check('map place dialog stays above live Leaflet panes', async (page) => {
     name: /Autoriser la carte externe|Allow external map|外部マップを許可/i,
   });
   if ((await allowExternalMap.count()) > 0) await allowExternalMap.first().click();
-  const leafletPane = page.locator('.leaflet-pane').first();
-  await leafletPane.waitFor({ state: 'visible', timeout: 15000 });
+  const leafletContainer = page.locator('.leaflet-container').first();
+  await leafletContainer.waitFor({ state: 'visible', timeout: 15000 });
 
   await page.getByRole('button', { name: /Ajouter un lieu|Add place|場所を追加/i }).first().click();
   const dialog = page.getByRole('dialog', { name: /Ajouter un lieu|Add place|場所を追加/i });
@@ -324,8 +327,11 @@ check('cover rotation clicks change visible transform and persist/reset', async 
 
 check('media action menu opens in a portal and is not clipped', async (page) => {
   await gotoClean(page, '/vn/v26180');
-  const action = await firstVisible(page.getByRole('button', { name: /^Actions$|操作/i }));
-  await action.scrollIntoViewIfNeeded();
+  const gallery = page.locator('[aria-label="Médias"], [aria-label="Media"], [aria-label="メディア"]').first();
+  await gallery.waitFor({ state: 'visible', timeout: 10000 });
+  const action = gallery.getByRole('button', { name: /^Actions$|操作/i }).first();
+  await action.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await action.locator('xpath=..').hover();
   await action.click();
   const menu = page.getByRole('menu', { name: /^Actions$|操作/i }).first();
   await menu.waitFor({ state: 'visible', timeout: 10000 });
@@ -452,9 +458,9 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await root.waitFor({ state: 'visible', timeout: 10000 });
   const before = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   await page.getByRole('button', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first().click();
-  const dialog = page.getByRole('dialog', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first();
-  await dialog.waitFor({ state: 'visible', timeout: 10000 });
-  const slider = dialog.locator('input[type="range"]').first();
+  const panel = page.getByRole('region', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first();
+  await panel.waitFor({ state: 'visible', timeout: 10000 });
+  const slider = panel.locator('input[type="range"]').first();
   const current = Number(await slider.inputValue());
   const max = Number(await slider.getAttribute('max'));
   const step = Number(await slider.getAttribute('step')) || 4;
