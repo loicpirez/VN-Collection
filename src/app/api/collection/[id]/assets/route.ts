@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, getCollectionItem, materializeReleaseMetaForVn, upsertVn } from '@/lib/db';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { ensureLocalImagesForVn } from '@/lib/assets';
 import { EgsUnreachable, resolveEgsForVn } from '@/lib/erogamescape';
 import { getVn, refreshVn } from '@/lib/vndb';
@@ -51,10 +53,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // exist locally, hydrate it from VNDB so the rest of the pipeline
   // has something to mirror. EGS-only synthetic ids skip the
   // upstream fetch (the `egs_*` prefix never resolves on VNDB).
-  const vnExistsRow = db
-    .prepare('SELECT id FROM vn WHERE id = ?')
-    .get(id) as { id: string } | undefined;
-  if (!vnExistsRow) {
+  const vnReader = getVnReadRepository();
+  if (!await vnReader.getCollectionItem(id)) {
     const isEgsOnlyId = id.startsWith('egs_');
     if (isEgsOnlyId) {
       // Synthetic id with no local row — there's no upstream to
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (!fresh) {
         return NextResponse.json({ error: 'VN not found on VNDB' }, { status: 404 });
       }
-      upsertVn(fresh);
+      await getVnWriteRepository().upsert(fresh);
     } catch (e) {
       return upstreamError(`collection/${id}/assets:hydrate`, e);
     }
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     if (refresh && !isEgsOnly) {
       const fresh = await refreshVn(id);
-      if (fresh) upsertVn(fresh);
+      if (fresh) await getVnWriteRepository().upsert(fresh);
     }
     // Bulk "Download all" path — also re-pull staff/VA profiles so the
     // staff and character pages are fully populated. When the caller
@@ -151,13 +151,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // materializer is idempotent + no-ops for synthetic / egs-only ids
     // (the regex check happens inside the helper).
     try {
-      materializeReleaseMetaForVn(id);
+      await getReleaseMetadataRepository().materializeForVns([id]);
     } catch (e) {
       console.error(`[assets:${id}] release-meta materialize failed:`, (e as Error).message);
     }
     if (refresh) {
       try {
-        recordActivity({
+        await recordActivity({
           kind: 'download.refresh',
           entity: 'vn',
           entityId: id,
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // route runs the metadata/asset refresh either way, and the
       // collection row stays untouched. Callers that care about
       // tracking state read `getCollectionItem(id)` themselves.
-      item: getCollectionItem(id),
+      item: await vnReader.getCollectionItem(id),
       egs_warning: egsWarning,
     });
   } catch (err) {

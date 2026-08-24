@@ -3458,9 +3458,10 @@ function buildUpdateCollectionTx(): (vnId: string, fields: CollectionPatch) => v
 export async function maybePushStatusToVndb(vnId: string, status: Status | null | undefined): Promise<void> {
   if (status === undefined) return;
   if (!isVndbVnId(vnId)) return;
-  const enabled = getAppSetting('vndb_writeback') === '1';
+  const settings = (await import('./db/repositories/app-setting')).getAppSettingRepository();
+  const enabled = await settings.get('vndb_writeback') === '1';
   if (!enabled) return;
-  const token = getAppSetting('vndb_token');
+  const token = await settings.get('vndb_token');
   if (!token || !token.trim()) return;
   try {
     await pushStatusToVndb(vnId, status, token.trim());

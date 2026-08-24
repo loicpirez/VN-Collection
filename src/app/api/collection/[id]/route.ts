@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import {
-  addToCollection,
-  db,
-  getCollectionItem,
-  isInCollection,
   isValidBoxType,
   isValidEditionType,
   isValidLocation,
   isValidStatus,
   maybePushStatusToVndb,
-  removeFromCollection,
-  updateCollection,
-  upsertVn,
   type CollectionPatch,
 } from '@/lib/db';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVn } from '@/lib/vndb';
 import { ensureLocalImagesForVn } from '@/lib/assets';
 import { downloadFullStaffForVn } from '@/lib/staff-full';
@@ -26,6 +22,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
 import { readJsonObject } from '@/lib/api-body';
 import { parsePhysicalLocations } from '@/lib/physical-location-input';
+import { invalidateCollectionVnIdsCache } from '@/lib/collection-vn-ids-cache';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 600;
@@ -137,7 +134,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (bad) return bad;
   const id = normalizeVnId(rawId);
   try {
-    const item = getCollectionItem(id);
+    const item = await getVnReadRepository().getCollectionItem(id);
     if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
     return NextResponse.json({ item, in_collection: !!item.status });
   } catch (err) {
@@ -153,11 +150,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const bad = validateVnIdOr400(rawId);
   if (bad) return bad;
   const id = normalizeVnId(rawId);
-  if (!getCollectionItem(id)) {
+  const vnReader = getVnReadRepository();
+  if (!await vnReader.getCollectionItem(id)) {
     try {
       const vn = await getVn(id);
       if (!vn) return NextResponse.json({ error: 'VN not found' }, { status: 404 });
-      upsertVn(vn);
+      await getVnWriteRepository().upsert(vn);
       // Pull every staff + VA's full profile so the credit pages aren't
       // half-empty after adding this VN. Fire-and-forget; cached 30 days.
       void downloadFullStaffForVn(vn.id).catch((e) => {
@@ -176,19 +174,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const { fields, error } = pickFields(body);
   if (error) return NextResponse.json({ error }, { status: 400 });
-  const { wasNew } = db.transaction(() => {
-    const alreadyIn = isInCollection(id);
-    addToCollection(id, fields);
-    recordActivity({
-      kind: alreadyIn ? 'collection.update' : 'collection.add',
-      entity: 'vn',
-      entityId: id,
-      label: alreadyIn ? 'Updated collection item' : 'Added to collection',
-      payload: fields as Record<string, unknown>,
-    });
-    return { wasNew: !alreadyIn };
-  })();
+  const collection = getCollectionCoreRepository();
+  const alreadyIn = await collection.contains(id);
+  await collection.add(id, fields);
+  const wasNew = !alreadyIn;
+  const activityKind = alreadyIn ? 'collection.update' : 'collection.add';
+  const activityLabel = alreadyIn ? 'Updated collection item' : 'Added to collection';
+  await recordActivity({
+    kind: activityKind,
+    entity: 'vn',
+    entityId: id,
+    label: activityLabel,
+    payload: fields as Record<string, unknown>,
+  });
   await maybePushStatusToVndb(id, fields.status);
+  if (wasNew) invalidateCollectionVnIdsCache();
   // First-time add: download cover + screenshots + release/package images locally.
   // Failures are silently swallowed — the user can retry via the "Download all" button.
   if (wasNew) {
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       console.error(`auto-download failed for ${id}:`, (err as Error).message);
     }
   }
-  return NextResponse.json({ item: getCollectionItem(id) });
+  return NextResponse.json({ item: await vnReader.getCollectionItem(id) });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -212,19 +212,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const body = (await readJsonObject(req)) as Record<string, unknown>;
     const { fields, error } = pickFields(body);
     if (error) return NextResponse.json({ error }, { status: 400 });
-    const checkAndUpdate = db.transaction(() => {
-      if (!isInCollection(id)) throw Object.assign(new Error('not in collection'), { code: 'NOT_FOUND' });
-      updateCollection(id, fields);
-    });
-    try {
-      checkAndUpdate();
-    } catch (e) {
-      if ((e as { code?: string }).code === 'NOT_FOUND') {
-        return NextResponse.json({ error: 'not in collection' }, { status: 404 });
-      }
-      throw e;
+    const collection = getCollectionCoreRepository();
+    if (!await collection.contains(id)) {
+      return NextResponse.json({ error: 'not in collection' }, { status: 404 });
     }
-    recordActivity({
+    await collection.update(id, fields);
+    await recordActivity({
       kind: 'collection.update',
       entity: 'vn',
       entityId: id,
@@ -235,7 +228,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // latency to api.vndb.org; we fire and forget but await so any auth
     // error surfaces in the dev log (the helper itself never throws).
     await maybePushStatusToVndb(id, fields.status);
-    return NextResponse.json({ item: getCollectionItem(id) });
+    return NextResponse.json({ item: await getVnReadRepository().getCollectionItem(id) });
   } catch (err) {
     console.error('[collection/[id] PATCH] DB error:', (err as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
@@ -253,11 +246,13 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     // Fail loudly when the row isn't there: silent success was masking
     // stale optimistic-UI deletes and typo'd ids that would never tell
     // the caller anything was wrong.
-    if (!isInCollection(id)) {
+    const collection = getCollectionCoreRepository();
+    if (!await collection.contains(id)) {
       return NextResponse.json({ error: 'not in collection' }, { status: 404 });
     }
-    removeFromCollection(id);
-    recordActivity({
+    await collection.remove(id);
+    invalidateCollectionVnIdsCache();
+    await recordActivity({
       kind: 'collection.remove',
       entity: 'vn',
       entityId: id,

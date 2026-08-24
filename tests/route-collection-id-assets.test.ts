@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { db, upsertVn } from '@/lib/db';
-import * as dbModule from '@/lib/db';
 import * as activityModule from '@/lib/activity';
+import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
 
 const {
   getVnMock,
@@ -136,7 +136,7 @@ describe('POST /api/collection/[id]/assets', () => {
     getVnMock.mockRejectedValue(new Error('VNDB unavailable'));
     const res = await assetsPOST(localReq('/api/collection/v90601/assets'), ctx(REAL_VN));
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: 'upstream service unavailable' });
+    expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'collection/v90601/assets:hydrate' });
     consoleSpy.mockRestore();
   });
 
@@ -280,9 +280,9 @@ describe('POST /api/collection/[id]/assets', () => {
 
   it('logs release-meta and activity failures while returning the asset payload', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const materializeSpy = vi.spyOn(dbModule, 'materializeReleaseMetaForVn').mockImplementation(() => {
-      throw new Error('meta cache');
-    });
+    const materializeSpy = vi
+      .spyOn(getReleaseMetadataRepository(), 'materializeForVns')
+      .mockRejectedValue(new Error('meta cache'));
     const activitySpy = vi.spyOn(activityModule, 'recordActivity').mockImplementation(() => {
       throw new Error('activity');
     });
