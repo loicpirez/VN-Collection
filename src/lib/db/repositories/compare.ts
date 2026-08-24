@@ -87,7 +87,7 @@ function groupSharedVas(ids: readonly string[], rows: readonly VoiceCreditRow[])
     .map(([sid, bucket]) => {
       const creditsByVn = ids.map((vn_id) => ({
         vn_id,
-        characters: Array.from(bucket.byVn.get(vn_id)?.values() ?? []),
+        characters: Array.from(bucket.byVn.get(vn_id)!.values()),
       }));
       return {
         sid,
@@ -120,7 +120,7 @@ function groupSharedCharacters(ids: readonly string[], rows: readonly VoiceCredi
     .map(([c_id, bucket]) => ({
       c_id,
       c_name: bucket.name,
-      per_vn: ids.map((vn_id) => ({ vn_id, va_name: bucket.perVn.get(vn_id) ?? '' })),
+      per_vn: ids.map((vn_id) => ({ vn_id, va_name: bucket.perVn.get(vn_id)! })),
     }));
 }
 

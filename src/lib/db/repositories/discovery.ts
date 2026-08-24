@@ -110,8 +110,8 @@ const sqliteRepository: DiscoveryRepository = {
     const { db } = await import('@/lib/db');
     const row = db
       .prepare(`SELECT COUNT(*) AS count FROM vndb_cache WHERE cache_key LIKE 'staff_full:%'`)
-      .get() as CountRow | undefined;
-    return row?.count ?? 0;
+      .get() as CountRow;
+    return row.count;
   },
   async listCacheBodies(cacheKeys) {
     if (cacheKeys.length === 0) return [];
