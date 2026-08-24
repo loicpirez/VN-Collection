@@ -15,10 +15,13 @@ interface Props {
  * (the parent already shows "-" in that case).
  */
 export async function ReadingSpeedBadge({ vndbLength, egsLength }: Props) {
-  const [t, locale] = await Promise.all([getDict(), getLocale()]);
+  const [t, locale, profile] = await Promise.all([
+    getDict(),
+    getLocale(),
+    getReadingSpeedProfile(),
+  ]);
   const fmt = (m: number | null | undefined): string =>
     formatMinutes(m, locale, t.year, { fallback: '-' });
-  const profile = getReadingSpeedProfile();
   const predicted = predictReadingMinutes(vndbLength, egsLength, profile);
   if (vndbLength == null && egsLength == null) return null;
 

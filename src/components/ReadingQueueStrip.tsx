@@ -1,21 +1,8 @@
-import { db, listReadingQueue } from '@/lib/db';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
+import { getHomeFeedRepository } from '@/lib/db/repositories/home-feed';
 import type { HomeSectionState } from '@/lib/home-section-layout';
 import { ReadingQueueStripView, type ReadingQueueEntry } from './ReadingQueueStripView';
-
-interface QueueVn {
-  id: string;
-  title: string;
-  image_thumb: string | null;
-  image_url: string | null;
-  local_image_thumb: string | null;
-  image_sexual: number | null;
-  length_minutes: number | null;
-  egs_minutes: number | null;
-}
-
-const VN_QUERY_CHUNK = 500;
 
 /**
  * Home-page strip listing the VNs the user has explicitly queued (distinct
@@ -29,43 +16,19 @@ const VN_QUERY_CHUNK = 500;
  */
 export async function ReadingQueueStrip({ initialState }: { initialState?: HomeSectionState }) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
-  const queue = listReadingQueue();
-  if (queue.length === 0) return null;
-  const ids = queue.map((q) => q.vn_id);
-  const rows: QueueVn[] = [];
-  for (let index = 0; index < ids.length; index += VN_QUERY_CHUNK) {
-    const chunk = ids.slice(index, index + VN_QUERY_CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    rows.push(
-      ...(db
-        .prepare(
-          `SELECT v.id, v.title, v.image_thumb, v.image_url, v.image_sexual, v.local_image_thumb,
-                  v.length_minutes, e.playtime_median_minutes AS egs_minutes
-             FROM vn v
-        LEFT JOIN egs_game e ON e.vn_id = v.id
-            WHERE v.id IN (${placeholders})`,
-        )
-        .all(...chunk) as QueueVn[]),
-    );
-  }
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const profile = getReadingSpeedProfile();
-  const entries: ReadingQueueEntry[] = queue
-    .map((q, index) => {
-      const v = byId.get(q.vn_id);
-      if (!v) return null;
-      return {
-        position: index + 1,
-        vn_id: v.id,
-        title: v.title,
-        image_url: v.image_url,
-        image_thumb: v.image_thumb,
-        local_image_thumb: v.local_image_thumb,
-        image_sexual: v.image_sexual,
-        predictedMinutes: predictReadingMinutes(v.length_minutes, v.egs_minutes, profile),
-      };
-    })
-    .filter((e): e is ReadingQueueEntry => e !== null);
+  const rows = await getHomeFeedRepository().listReadingQueueVns();
+  if (rows.length === 0) return null;
+  const profile = await getReadingSpeedProfile();
+  const entries: ReadingQueueEntry[] = rows.map((row, index) => ({
+    position: index + 1,
+    vn_id: row.vn_id,
+    title: row.title,
+    image_url: row.image_url,
+    image_thumb: row.image_thumb,
+    local_image_thumb: row.local_image_thumb,
+    image_sexual: row.image_sexual,
+    predictedMinutes: predictReadingMinutes(row.length_minutes, row.egs_minutes, profile),
+  }));
 
   return (
     <ReadingQueueStripView

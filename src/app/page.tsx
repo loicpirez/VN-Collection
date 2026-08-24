@@ -5,7 +5,7 @@ import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
 import { HomeLibraryControlsSection, HomeLibraryGridSection } from '@/components/HomeLibrarySection';
 import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
-import { getAppSetting } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import type { Metadata } from 'next';
@@ -26,7 +26,7 @@ export default async function HomePage() {
   // a router.refresh() so the next paint reflects the change.
   let layout: ReturnType<typeof parseHomeSectionLayoutV1>;
   try {
-    layout = parseHomeSectionLayoutV1(getAppSetting('home_section_layout_v1'));
+    layout = parseHomeSectionLayoutV1(await getAppSettingRepository().get('home_section_layout_v1'));
   } catch {
     layout = parseHomeSectionLayoutV1(null);
   }

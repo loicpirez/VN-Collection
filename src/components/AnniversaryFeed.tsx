@@ -1,4 +1,4 @@
-import { todaysAnniversaries } from '@/lib/db';
+import { getHomeFeedRepository } from '@/lib/db/repositories/home-feed';
 import { getDict } from '@/lib/i18n/server';
 import type { HomeSectionState } from '@/lib/home-section-layout';
 import { AnniversaryFeedView, type AnniversaryEntry } from './AnniversaryFeedView';
@@ -16,7 +16,7 @@ import { AnniversaryFeedView, type AnniversaryEntry } from './AnniversaryFeedVie
  */
 export async function AnniversaryFeed({ initialState }: { initialState?: HomeSectionState }) {
   const t = await getDict();
-  const rows = todaysAnniversaries();
+  const rows = await getHomeFeedRepository().listAnniversaries();
   const entries: AnniversaryEntry[] = rows.slice(0, 8).map((r) => ({
     id: r.id,
     title: r.title,

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
-import { listReadingQueue } from '@/lib/db';
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
 import { useRecentlyViewed } from '@/lib/recentlyViewed';
 import { useHomeSection } from '@/components/HomeSectionMenu';
@@ -13,14 +12,11 @@ import type { RecentEntry } from '@/lib/recentlyViewed';
 import { renderWithProviders } from './helpers/render-component';
 
 const mocks = vi.hoisted(() => ({
-  all: vi.fn(),
+  listReadingQueueVns: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    prepare: vi.fn(() => ({ all: mocks.all })),
-  },
-  listReadingQueue: vi.fn(),
+vi.mock('@/lib/db/repositories/home-feed', () => ({
+  getHomeFeedRepository: () => ({ listReadingQueueVns: mocks.listReadingQueueVns }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -74,24 +70,14 @@ const recent: RecentEntry = {
 };
 
 beforeEach(() => {
-  vi.mocked(listReadingQueue).mockReset().mockReturnValue([]);
-  vi.mocked(getReadingSpeedProfile).mockReset().mockReturnValue({
+  mocks.listReadingQueueVns.mockReset().mockResolvedValue([]);
+  vi.mocked(getReadingSpeedProfile).mockReset().mockResolvedValue({
     sampleSize: 0,
     multiplierVsVndb: null,
     multiplierVsEgs: null,
     medianMyMinutes: null,
   });
   vi.mocked(predictReadingMinutes).mockReset().mockReturnValue(321);
-  mocks.all.mockReset().mockImplementation((...ids: string[]) => ids.map((id) => ({
-    id,
-    title: `Title ${id}`,
-    image_thumb: null,
-    image_url: null,
-    local_image_thumb: null,
-    image_sexual: null,
-    length_minutes: 600,
-    egs_minutes: null,
-  })));
   vi.mocked(useRecentlyViewed).mockReset().mockReturnValue({ items: [], clear: vi.fn() });
   vi.mocked(useHomeSection).mockReset().mockReturnValue({
     state: { visible: true, collapsed: false },
@@ -113,27 +99,20 @@ describe('ReadingQueueStrip server wrapper', () => {
     expect(await ReadingQueueStrip({})).toBeNull();
   });
 
-  it('chunks DB lookups, skips missing rows, and maps reading predictions', async () => {
-    const queue = Array.from({ length: 501 }, (_unused, index) => ({
+  it('maps repository rows and reading predictions', async () => {
+    const queue = Array.from({ length: 500 }, (_unused, index) => ({
       vn_id: `v${90000 + index}`,
       position: index + 1,
-      added_at: index,
+      title: `Title v${90000 + index}`,
+      image_thumb: null,
+      image_url: null,
+      local_image_thumb: null,
+      image_sexual: null,
+      length_minutes: 600,
+      egs_minutes: null,
     }));
-    vi.mocked(listReadingQueue).mockReturnValue(queue);
-    mocks.all.mockImplementation((...ids: string[]) => ids
-      .filter((id) => id !== 'v90001')
-      .map((id) => ({
-        id,
-        title: `Title ${id}`,
-        image_thumb: null,
-        image_url: null,
-        local_image_thumb: null,
-        image_sexual: null,
-        length_minutes: 600,
-        egs_minutes: null,
-      })));
+    mocks.listReadingQueueVns.mockResolvedValue(queue);
     const html = renderToStaticMarkup(await ReadingQueueStrip({}));
-    expect(mocks.all).toHaveBeenCalledTimes(2);
     expect(html).toContain('data-count="500"');
     expect(html).toContain('data-first="v90000"');
     expect(html).toContain('data-minutes="321"');

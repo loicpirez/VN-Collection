@@ -1,5 +1,5 @@
 import 'server-only';
-import { db } from './db';
+import { getHomeFeedRepository } from './db/repositories/home-feed';
 
 export interface ReadingSpeedProfile {
   /** How many `completed` entries were used to compute the multiplier. */
@@ -37,20 +37,7 @@ function median(values: number[]): number | null {
  * dominate. Returned null below a 3-sample threshold so we don't surface a
  * confident number from a single data point.
  */
-export function getReadingSpeedProfile(): ReadingSpeedProfile {
-  const rows = db
-    .prepare(`
-      SELECT c.playtime_minutes AS playtime, v.length_minutes AS vndb,
-             e.playtime_median_minutes AS egs
-      FROM collection c
-      JOIN vn v ON v.id = c.vn_id
-      LEFT JOIN egs_game e ON e.vn_id = c.vn_id
-      WHERE c.status = 'completed'
-        AND c.playtime_minutes > 0
-        AND (v.length_minutes IS NOT NULL OR e.playtime_median_minutes IS NOT NULL)
-    `)
-    .all() as SampleRow[];
-
+export function buildReadingSpeedProfile(rows: SampleRow[]): ReadingSpeedProfile {
   const vndbRatios: number[] = [];
   const egsRatios: number[] = [];
   const myMinutes: number[] = [];
@@ -66,6 +53,11 @@ export function getReadingSpeedProfile(): ReadingSpeedProfile {
     multiplierVsEgs: egsRatios.length >= 3 ? median(egsRatios) : null,
     medianMyMinutes: median(myMinutes),
   };
+}
+
+/** Load completed-title samples and build the operator's speed profile. */
+export async function getReadingSpeedProfile(): Promise<ReadingSpeedProfile> {
+  return buildReadingSpeedProfile(await getHomeFeedRepository().listReadingSpeedSamples());
 }
 
 /**

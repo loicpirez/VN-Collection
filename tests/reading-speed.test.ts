@@ -1,48 +1,46 @@
 /**
  * TCO-012 — unit tests for getReadingSpeedProfile() and predictReadingMinutes().
  *
- * The module is pure computation on top of a single SQL query; we mock
- * `@/lib/db` so tests run without a real SQLite file and are fully
+ * The module is pure computation on top of one repository read; we mock
+ * the repository so tests run without a database and are fully
  * deterministic regardless of the test-worker temp DB state.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockAll, mockPrepare } = vi.hoisted(() => {
-  const mockAll = vi.fn(() => [] as { playtime: number; vndb: number | null; egs: number | null }[]);
-  const mockPrepare = vi.fn(() => ({ all: mockAll }));
-  return { mockAll, mockPrepare };
+const { listReadingSpeedSamples } = vi.hoisted(() => {
+  const listReadingSpeedSamples = vi.fn(async () => [] as { playtime: number; vndb: number | null; egs: number | null }[]);
+  return { listReadingSpeedSamples };
 });
 
-vi.mock('@/lib/db', () => ({
-  db: { prepare: mockPrepare },
+vi.mock('@/lib/db/repositories/home-feed', () => ({
+  getHomeFeedRepository: () => ({ listReadingSpeedSamples }),
 }));
 
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
 
 beforeEach(() => {
-  mockAll.mockReset();
-  mockAll.mockReturnValue([]);
-  mockPrepare.mockClear();
+  listReadingSpeedSamples.mockReset();
+  listReadingSpeedSamples.mockResolvedValue([]);
 });
 
 describe('getReadingSpeedProfile()', () => {
-  it('returns null multipliers when there are fewer than 3 samples', () => {
-    mockAll.mockReturnValue([
+  it('returns null multipliers when there are fewer than 3 samples', async () => {
+    listReadingSpeedSamples.mockResolvedValue([
       { playtime: 600, vndb: 1200, egs: null },
       { playtime: 900, vndb: 1500, egs: null },
     ]);
 
-    const profile = getReadingSpeedProfile();
+    const profile = await getReadingSpeedProfile();
 
     expect(profile.sampleSize).toBe(2);
     expect(profile.multiplierVsVndb).toBeNull();
     expect(profile.multiplierVsEgs).toBeNull();
   });
 
-  it('returns null multipliers when there are 0 samples', () => {
-    mockAll.mockReturnValue([]);
+  it('returns null multipliers when there are 0 samples', async () => {
+    listReadingSpeedSamples.mockResolvedValue([]);
 
-    const profile = getReadingSpeedProfile();
+    const profile = await getReadingSpeedProfile();
 
     expect(profile.sampleSize).toBe(0);
     expect(profile.multiplierVsVndb).toBeNull();
@@ -50,41 +48,41 @@ describe('getReadingSpeedProfile()', () => {
     expect(profile.medianMyMinutes).toBeNull();
   });
 
-  it('returns non-null VNDB multiplier when there are 3 or more samples with VNDB references', () => {
-    mockAll.mockReturnValue([
+  it('returns non-null VNDB multiplier when there are 3 or more samples with VNDB references', async () => {
+    listReadingSpeedSamples.mockResolvedValue([
       { playtime: 600, vndb: 1200, egs: null },
       { playtime: 900, vndb: 1500, egs: null },
       { playtime: 300, vndb: 600, egs: null },
     ]);
 
-    const profile = getReadingSpeedProfile();
+    const profile = await getReadingSpeedProfile();
 
     expect(profile.sampleSize).toBe(3);
     expect(profile.multiplierVsVndb).not.toBeNull();
     expect(typeof profile.multiplierVsVndb).toBe('number');
   });
 
-  it('returns non-null EGS multiplier when there are 3 or more samples with EGS references', () => {
-    mockAll.mockReturnValue([
+  it('returns non-null EGS multiplier when there are 3 or more samples with EGS references', async () => {
+    listReadingSpeedSamples.mockResolvedValue([
       { playtime: 600, vndb: null, egs: 1200 },
       { playtime: 900, vndb: null, egs: 1800 },
       { playtime: 450, vndb: null, egs: 900 },
     ]);
 
-    const profile = getReadingSpeedProfile();
+    const profile = await getReadingSpeedProfile();
 
     expect(profile.multiplierVsEgs).not.toBeNull();
     expect(typeof profile.multiplierVsEgs).toBe('number');
   });
 
-  it('computes the median VNDB ratio correctly for a known 3-sample set', () => {
-    mockAll.mockReturnValue([
+  it('computes the median VNDB ratio correctly for a known 3-sample set', async () => {
+    listReadingSpeedSamples.mockResolvedValue([
       { playtime: 600, vndb: 1200, egs: null },
       { playtime: 900, vndb: 1500, egs: null },
       { playtime: 300, vndb: 600, egs: null },
     ]);
 
-    const profile = getReadingSpeedProfile();
+    const profile = await getReadingSpeedProfile();
 
     expect(profile.multiplierVsVndb).toBeCloseTo(0.5, 5);
   });
