@@ -180,4 +180,71 @@ describe('PostgreSQL stock VN reader', () => {
     expect(postgresQueryMock.mock.calls[0]?.[0]).toContain('app_search_normalize(title)');
     await expect(repository.findTitleMatch('Absent')).resolves.toBeNull();
   });
+
+  it('returns collection items without EGS data and preserves nullable EGS flags', async () => {
+    postgresQueryMock
+      .mockResolvedValueOnce({ rows: [itemRow({ id: 'v90020' })] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [itemRow({ id: 'v90021' })] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{
+        egs_id: 11,
+        median: null,
+        average: null,
+        count: null,
+        playtime_median_minutes: null,
+        source: 'search',
+        okazu: 1,
+        erogame: null,
+      }] });
+    const repository = createPostgresVnReadRepository();
+
+    await expect(repository.getCollectionItem('v90020')).resolves.toMatchObject({ egs: null });
+    await expect(repository.getCollectionItem('v90021')).resolves.toMatchObject({
+      egs: { okazu: true, erogame: null },
+    });
+  });
+
+  it('reads covers, tags, raw payloads, and fetched timestamps including empty inputs', async () => {
+    const repository = createPostgresVnReadRepository();
+    await expect(repository.getCovers([])).resolves.toEqual([]);
+    postgresQueryMock.mockResolvedValueOnce({ rows: [{
+      id: 'v90030',
+      image_url: 'https://example.test/cover.jpg',
+      image_thumb: null,
+      image_sexual: 0,
+      local_image: null,
+      local_image_thumb: null,
+    }] });
+    await expect(repository.getCovers(['v90030'])).resolves.toHaveLength(1);
+
+    postgresQueryMock
+      .mockResolvedValueOnce({ rows: [{
+        tags: JSON.stringify([
+          { id: 'G10' },
+          { id: 'g10' },
+          { id: 'bad' },
+          null,
+        ]),
+      }] })
+      .mockResolvedValueOnce({ rows: [] });
+    await expect(repository.getTagIds('v90030')).resolves.toEqual(['g10']);
+    await expect(repository.getTagIds('v90031')).resolves.toEqual([]);
+
+    postgresQueryMock
+      .mockResolvedValueOnce({ rows: [{ raw: '{"id":"v90030"}' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    await expect(repository.getRawPayload('v90030')).resolves.toBe('{"id":"v90030"}');
+    await expect(repository.getRawPayload('v90031')).resolves.toBeNull();
+
+    await expect(repository.getFetchedAtMany([])).resolves.toEqual(new Map());
+    postgresQueryMock.mockResolvedValueOnce({ rows: [
+      { id: 'v90030', fetched_at: 10 },
+      { id: 'v90031', fetched_at: 20 },
+    ] });
+    await expect(repository.getFetchedAtMany(['v90030', 'v90031'])).resolves.toEqual(
+      new Map([['v90030', 10], ['v90031', 20]]),
+    );
+  });
 });
