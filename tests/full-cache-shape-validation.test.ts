@@ -46,12 +46,12 @@ describe('full-cache structure validation', () => {
     expect(readStaffFullCache('s990032')).toBeNull();
   });
 
-  it('rejects incomplete character payloads', () => {
+  it('rejects incomplete character payloads', async () => {
     writeCacheRow('char_full:c990030', JSON.stringify({ profile: { id: 'c990030' } }));
-    expect(readCharacterFullCache('c990030')).toBeNull();
+    await expect(readCharacterFullCache('c990030')).resolves.toBeNull();
   });
 
-  it('rejects characters with malformed nested appearances', () => {
+  it('rejects characters with malformed nested appearances', async () => {
     writeCacheRow('char_full:c990031', JSON.stringify({
       profile: {
         id: 'c990031',
@@ -75,7 +75,7 @@ describe('full-cache structure validation', () => {
         traits: [],
       },
     }));
-    expect(readCharacterFullCache('c990031')).toBeNull();
+    await expect(readCharacterFullCache('c990031')).resolves.toBeNull();
   });
 
   it('rejects incomplete tag and trait payloads', async () => {

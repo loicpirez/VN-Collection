@@ -1,12 +1,14 @@
 import 'server-only';
-import { db, getAppSetting } from './db';
 import { getCharacter, type VndbCharacter } from './vndb';
 import { finishJob, jobLabel, recordError, setJobCurrent, startJob, tickJob } from './download-status';
 import { parseJsonRecord } from './json-shape';
 import { decodeVndbCharacter } from './vndb-character-row-shape';
+import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getPeopleRepository } from './db/repositories/people';
 
-function fanoutEnabled(): boolean {
-  return getAppSetting('vndb_fanout') !== '0';
+async function fanoutEnabled(): Promise<boolean> {
+  return await getAppSettingRepository().get('vndb_fanout') !== '0';
 }
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
@@ -50,34 +52,24 @@ export function decodeCharacterFullPayload(raw: string | null | undefined, fetch
  * `null` on missing / unparseable rows so callers can decide between a cache
  * miss and an upstream re-fetch.
  */
-export function readCharacterFullCache(cid: string): CharacterFullPayload | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(key(cid)) as { body: string; fetched_at: number } | undefined;
+function decodeCharacterCacheRow(row: Pick<CacheRow, 'body' | 'fetched_at'> | null): CharacterFullPayload | null {
   if (!row) return null;
   return decodeCharacterFullPayload(row.body, row.fetched_at);
 }
 
-function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): void {
+export async function readCharacterFullCache(cid: string): Promise<CharacterFullPayload | null> {
+  return decodeCharacterCacheRow(await getCacheRepository().get(key(cid)));
+}
+
+async function writeCharacterFullCache(cid: string, payload: CharacterFullPayload): Promise<void> {
   const now = Date.now();
-  const txn = db.transaction(() => {
-    db.prepare(`
-      INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-      VALUES (?, ?, NULL, NULL, ?, ?)
-      ON CONFLICT(cache_key) DO UPDATE SET
-        body = excluded.body,
-        fetched_at = excluded.fetched_at,
-        expires_at = excluded.expires_at
-    `).run(key(cid), JSON.stringify(payload), now, now + TTL_MS);
-    db.prepare('DELETE FROM character_vn_index WHERE character_id = ?').run(cid);
-    const vnIds = new Set<string>();
-    for (const v of payload.profile?.vns ?? []) {
-      vnIds.add(v.id);
-    }
-    const ins = db.prepare('INSERT OR IGNORE INTO character_vn_index (character_id, vn_id) VALUES (?, ?)');
-    for (const vn of vnIds) ins.run(cid, vn);
+  await getPeopleRepository().persistCharacterFullCache({
+    characterId: cid,
+    body: JSON.stringify(payload),
+    fetchedAt: now,
+    expiresAt: now + TTL_MS,
+    vnIds: (payload.profile?.vns ?? []).map((vn) => vn.id),
   });
-  txn();
 }
 
 /**
@@ -91,7 +83,7 @@ export async function downloadFullCharacterInfo(cid: string): Promise<CharacterF
     profile,
     fetched_at: Date.now(),
   };
-  writeCharacterFullCache(cid, payload);
+  await writeCharacterFullCache(cid, payload);
   return payload;
 }
 
@@ -104,15 +96,14 @@ export async function downloadFullCharacterInfo(cid: string): Promise<CharacterF
  * when the user actually opens their page).
  */
 export async function downloadFullCharForVn(vnId: string, opts: { force?: boolean } = {}): Promise<{ scanned: number; downloaded: number }> {
-  if (!opts.force && !fanoutEnabled()) return { scanned: 0, downloaded: 0 };
-  const rows = db
-    .prepare(`SELECT DISTINCT c_id FROM vn_va_credit WHERE vn_id = ?`)
-    .all(vnId) as { c_id: string }[];
-  const cids = Array.from(new Set(rows.map((r) => r.c_id).filter((c) => /^c\d+$/i.test(c))));
+  if (!opts.force && !await fanoutEnabled()) return { scanned: 0, downloaded: 0 };
+  const cids = (await getPeopleRepository().voiceCharacterIdsForVn(vnId))
+    .filter((characterId) => /^c\d+$/i.test(characterId));
 
   const now = Date.now();
+  const cacheRows = await getCacheRepository().getMany(cids.map(key));
   const stale = cids.filter((cid) => {
-    const cached = readCharacterFullCache(cid);
+    const cached = decodeCharacterCacheRow(cacheRows.get(key(cid)) ?? null);
     return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
   });
 

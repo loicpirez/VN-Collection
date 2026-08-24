@@ -3,7 +3,7 @@ import { decodeVndbCharacter } from '@/lib/vndb-character-row-shape';
 import type { VndbCharacter } from '@/lib/vndb';
 import { postgresContainsPattern } from '../postgres-search';
 import { readDatabaseConfig } from '../postgres-config';
-import { postgresQuery } from '../postgres';
+import { postgresQuery, withPostgresTransaction } from '../postgres';
 
 /** Compact VN metadata shared by staff-credit views. */
 export interface PeopleVnSummary {
@@ -89,6 +89,15 @@ export interface CharacterImageRecord {
   fetched_at: number;
 }
 
+/** Transactional character profile-cache write and reverse-index payload. */
+export interface CharacterFullCacheWrite {
+  characterId: string;
+  body: string;
+  fetchedAt: number;
+  expiresAt: number;
+  vnIds: readonly string[];
+}
+
 /** Filters accepted by local character search. */
 export interface LocalCharacterSearchOptions {
   q?: string;
@@ -134,6 +143,8 @@ export interface PeopleRepository {
   characterImages(characterIds: readonly string[]): Promise<Map<string, CharacterImageRecord>>;
   upsertCharacterImage(characterId: string, url: string | null, localPath: string | null): Promise<void>;
   characterIdsForVn(vnId: string): Promise<string[]>;
+  voiceCharacterIdsForVn(vnId: string): Promise<string[]>;
+  persistCharacterFullCache(input: CharacterFullCacheWrite): Promise<void>;
 }
 
 interface ProductionRow extends QueryResultRow {
@@ -633,6 +644,38 @@ export function createPostgresPeopleRepository(): PeopleRepository {
       `, [vnId]);
       return result.rows.map((row) => row.character_id);
     },
+    async voiceCharacterIdsForVn(vnId) {
+      const result = await postgresQuery<{ c_id: string } & QueryResultRow>(`
+        SELECT DISTINCT c_id COLLATE "C" AS c_id FROM vn_va_credit
+        WHERE vn_id = $1
+        ORDER BY c_id
+      `, [vnId]);
+      return result.rows.map((row) => row.c_id);
+    },
+    async persistCharacterFullCache(input) {
+      await withPostgresTransaction(async (client) => {
+        const cacheKey = `char_full:${input.characterId.toLowerCase()}`;
+        await client.query(`
+          INSERT INTO vndb_cache (
+            cache_key, body, etag, last_modified, fetched_at, expires_at
+          ) VALUES ($1, $2, NULL, NULL, $3, $4)
+          ON CONFLICT(cache_key) DO UPDATE SET
+            body = EXCLUDED.body,
+            fetched_at = EXCLUDED.fetched_at,
+            expires_at = EXCLUDED.expires_at
+        `, [cacheKey, input.body, input.fetchedAt, input.expiresAt]);
+        await client.query(
+          'DELETE FROM character_vn_index WHERE character_id = $1',
+          [input.characterId],
+        );
+        for (const vnId of new Set(input.vnIds)) {
+          await client.query(`
+            INSERT INTO character_vn_index (character_id, vn_id) VALUES ($1, $2)
+            ON CONFLICT(character_id, vn_id) DO NOTHING
+          `, [input.characterId, vnId]);
+        }
+      });
+    },
   };
 }
 
@@ -681,6 +724,39 @@ const sqliteRepository: PeopleRepository = {
       ORDER BY character_id COLLATE NOCASE
     `).all(vnId) as Array<{ character_id: string }>;
     return rows.map((row) => row.character_id);
+  },
+  async voiceCharacterIdsForVn(vnId) {
+    const { db } = await import('@/lib/db');
+    const rows = db.prepare(`
+      SELECT DISTINCT c_id FROM vn_va_credit
+      WHERE vn_id = ?
+      ORDER BY c_id COLLATE NOCASE
+    `).all(vnId) as Array<{ c_id: string }>;
+    return rows.map((row) => row.c_id);
+  },
+  async persistCharacterFullCache(input) {
+    const { db } = await import('@/lib/db');
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO vndb_cache (
+          cache_key, body, etag, last_modified, fetched_at, expires_at
+        ) VALUES (?, ?, NULL, NULL, ?, ?)
+        ON CONFLICT(cache_key) DO UPDATE SET
+          body = excluded.body,
+          fetched_at = excluded.fetched_at,
+          expires_at = excluded.expires_at
+      `).run(
+        `char_full:${input.characterId.toLowerCase()}`,
+        input.body,
+        input.fetchedAt,
+        input.expiresAt,
+      );
+      db.prepare('DELETE FROM character_vn_index WHERE character_id = ?').run(input.characterId);
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO character_vn_index (character_id, vn_id) VALUES (?, ?)
+      `);
+      for (const vnId of new Set(input.vnIds)) insert.run(input.characterId, vnId);
+    })();
   },
 };
 

@@ -383,7 +383,7 @@ describe('downloadFullCharacterInfo / downloadFullCharForVn', () => {
   it('persists a character payload and rebuilds the character-vn index', async () => {
     getCharacterMock.mockResolvedValue(characterProfile('c90500', VN));
     await downloadFullCharacterInfo('c90500');
-    expect(readCharacterFullCache('c90500')?.profile?.id).toBe('c90500');
+    expect((await readCharacterFullCache('c90500'))?.profile?.id).toBe('c90500');
     const idx = db.prepare('SELECT vn_id FROM character_vn_index WHERE character_id = ?').all('c90500') as { vn_id: string }[];
     expect(idx.map((r) => r.vn_id)).toContain(VN);
   });
@@ -391,7 +391,7 @@ describe('downloadFullCharacterInfo / downloadFullCharForVn', () => {
   it('persists a stored-null profile without indexing any VN', async () => {
     getCharacterMock.mockResolvedValue(null);
     await downloadFullCharacterInfo('c90590');
-    expect(readCharacterFullCache('c90590')).toEqual({ profile: null, fetched_at: expect.any(Number) });
+    await expect(readCharacterFullCache('c90590')).resolves.toEqual({ profile: null, fetched_at: expect.any(Number) });
     const idx = db.prepare('SELECT vn_id FROM character_vn_index WHERE character_id = ?').all('c90590');
     expect(idx).toEqual([]);
   });
@@ -408,7 +408,7 @@ describe('downloadFullCharacterInfo / downloadFullCharForVn', () => {
     getCharacterMock.mockImplementation((cid: string) => Promise.resolve(characterProfile(cid, VN)));
     const r = await downloadFullCharForVn(VN, { force: true });
     expect(r).toEqual({ scanned: 1, downloaded: 1 });
-    expect(readCharacterFullCache('c90510')).not.toBeNull();
+    await expect(readCharacterFullCache('c90510')).resolves.not.toBeNull();
   });
 
   it('skips characters already fresh in the cache', async () => {

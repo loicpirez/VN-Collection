@@ -307,22 +307,22 @@ describe('readStaffFullCache / decodeStaffFullPayload', () => {
 });
 
 describe('readCharacterFullCache / decodeCharacterFullPayload', () => {
-  it('returns null on a cache miss', () => {
-    expect(readCharacterFullCache('c90099')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readCharacterFullCache('c90099')).resolves.toBeNull();
   });
 
-  it('returns null on a corrupt JSON body', () => {
+  it('returns null on a corrupt JSON body', async () => {
     writeCacheRow('char_full:c90098', '{ broken');
-    expect(readCharacterFullCache('c90098')).toBeNull();
+    await expect(readCharacterFullCache('c90098')).resolves.toBeNull();
   });
 
-  it('decodes a well-formed character profile and uses the row fetched_at', () => {
+  it('decodes a well-formed character profile and uses the row fetched_at', async () => {
     writeCacheRow(
       'char_full:c90001',
       JSON.stringify({ profile: validCharacterProfile(), fetched_at: NOW - 100 }),
       NOW,
     );
-    const got = readCharacterFullCache('c90001');
+    const got = await readCharacterFullCache('c90001');
     expect(got).not.toBeNull();
     expect(got!.profile?.id).toBe('c90001');
     expect(got!.profile?.vns[0].id).toBe('v90001');

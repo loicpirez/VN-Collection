@@ -161,6 +161,10 @@ export function registerPeopleRepositoryContract(
           PEOPLE_CONTRACT_IDS.primaryCharacter,
         ]);
         await expect(repository.characterIdsForVn('v999999')).resolves.toEqual([]);
+        await expect(repository.voiceCharacterIdsForVn(PEOPLE_CONTRACT_IDS.ownedVn)).resolves.toEqual([
+          PEOPLE_CONTRACT_IDS.primaryCharacter,
+          PEOPLE_CONTRACT_IDS.siblingCharacter,
+        ]);
         await expect(repository.characterImage('c999999')).resolves.toBeNull();
         await expect(repository.characterImages([])).resolves.toEqual(new Map());
         await expect(repository.characterImage(
@@ -186,6 +190,21 @@ export function registerPeopleRepositoryContract(
           url: 'https://example.test/beta.jpg',
           local_path: 'character/beta.jpg',
         });
+      });
+    });
+
+    it('atomically replaces a character full-cache reverse index', async () => {
+      await harness.withRepository(async (repository) => {
+        await repository.persistCharacterFullCache({
+          characterId: PEOPLE_CONTRACT_IDS.siblingCharacter,
+          body: JSON.stringify({ profile: null }),
+          fetchedAt: 10,
+          expiresAt: 20,
+          vnIds: [PEOPLE_CONTRACT_IDS.otherVn, PEOPLE_CONTRACT_IDS.otherVn],
+        });
+        await expect(repository.characterIdsForVn(PEOPLE_CONTRACT_IDS.otherVn)).resolves.toEqual([
+          PEOPLE_CONTRACT_IDS.siblingCharacter,
+        ]);
       });
     });
   });
