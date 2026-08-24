@@ -212,16 +212,22 @@ describe('WishlistClient branches', () => {
     renderWishlist();
     await screen.findByText('Alpha');
 
-    nav.replace.mockClear();
-    fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false }));
+    vi.useFakeTimers();
+    try {
+      nav.replace.mockClear();
+      fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false });
 
-    nav.replace.mockClear();
-    fireEvent.keyDown(screen.getByLabelText('Min rating'), { key: 'Escape' });
-    fireEvent.keyDown(screen.getByLabelText('Max rating'), { key: 'Escape' });
-    fireEvent.keyDown(screen.getByLabelText('Min year'), { key: 'Escape' });
-    fireEvent.keyDown(screen.getByLabelText('Max year'), { key: 'Escape' });
-    expect(nav.replace).not.toHaveBeenCalled();
+      nav.replace.mockClear();
+      fireEvent.keyDown(screen.getByLabelText('Min rating'), { key: 'Escape' });
+      fireEvent.keyDown(screen.getByLabelText('Max rating'), { key: 'Escape' });
+      fireEvent.keyDown(screen.getByLabelText('Min year'), { key: 'Escape' });
+      fireEvent.keyDown(screen.getByLabelText('Max year'), { key: 'Escape' });
+      expect(nav.replace).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders a wishlist API error response', async () => {
