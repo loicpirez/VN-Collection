@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { addToCollection, db, setVnEgsLink, upsertVn } from '@/lib/db';
+import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 
 const { getVnMock, labelsMock, entryMock, patchMock, deleteMock } = vi.hoisted(() => ({
   getVnMock: vi.fn(),
@@ -157,6 +158,33 @@ describe('POST /api/vn/[id]/link-vndb', () => {
     expect(await res.json()).toEqual({ ok: false, error: 'upstream service unavailable', code: 'upstream_unavailable', context: 'vn/[id]/link-vndb' });
     expect(consoleSpy).toHaveBeenCalledWith('[upstream:vn/[id]/link-vndb] vndb target failed');
     consoleSpy.mockRestore();
+  });
+
+  it('500 when persisting the resolved VNDB target fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const upsertSpy = vi.spyOn(getVnWriteRepository(), 'upsert').mockRejectedValueOnce(
+      new Error('private persistence failure'),
+    );
+    upsertVn({ id: EGS_VN, title: 'Synthetic EGS' });
+    addToCollection(EGS_VN, { status: 'planning' });
+    getVnMock.mockResolvedValue({ id: REAL_VN, title: 'Real Target' });
+    try {
+      const response = await linkVndbPOST(
+        localReq('/api/vn/egs_90401/link-vndb', 'POST', { vndb_id: REAL_VN }),
+        ctx(EGS_VN),
+      );
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({
+        ok: false,
+        error: 'internal error',
+        code: 'internal_error',
+        context: 'vn/[id]/link-vndb',
+      });
+      expect(consoleSpy).toHaveBeenCalledWith('[internal:vn/[id]/link-vndb] private persistence failure');
+    } finally {
+      upsertSpy.mockRestore();
+      consoleSpy.mockRestore();
+    }
   });
 });
 
