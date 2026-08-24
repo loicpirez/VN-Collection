@@ -76,6 +76,17 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toMatch(/VNCOLL_QA=1 is required/);
     expect(INTERACTIONS).toMatch(/refusing DB_PATH/);
   });
+
+  it('waits for the streamed route skeleton to leave before asserting page content', () => {
+    expect(INTERACTIONS).toContain(':scope > .page-space-frame > [role="status"][aria-busy="true"]');
+    expect(INTERACTIONS).toContain("routeLoadingBoundary.waitFor({ state: 'detached', timeout: 30000 })");
+  });
+
+  it('moves bounded shelf sliders in either direction and restores the initial value', () => {
+    expect(INTERACTIONS).toContain('current + step * 4 <= max');
+    expect(INTERACTIONS).toContain('Math.max(min, current - step * 4)');
+    expect(INTERACTIONS).toContain('await slider.fill(String(current))');
+  });
 });
 
 describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface', () => {

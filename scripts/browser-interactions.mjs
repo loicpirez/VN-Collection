@@ -46,8 +46,13 @@ async function pageHasFatalError(page) {
 async function waitForPagePaint(page) {
   const main = page.locator('#main-content');
   await main.waitFor({ state: 'attached', timeout: 10000 });
-  await page.waitForTimeout(50);
-  await main.waitFor({ state: 'attached', timeout: 10000 });
+  const routeLoadingBoundary = main.locator(
+    ':scope > .page-space-frame > [role="status"][aria-busy="true"]',
+  );
+  if ((await routeLoadingBoundary.count()) > 0) {
+    await routeLoadingBoundary.waitFor({ state: 'detached', timeout: 30000 });
+  }
+  await main.waitFor({ state: 'visible', timeout: 10000 });
 }
 
 async function gotoClean(page, url) {
@@ -470,12 +475,33 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await panel.waitFor({ state: 'visible', timeout: 10000 });
   const slider = panel.locator('input[type="range"]').first();
   const current = Number(await slider.inputValue());
+  const min = Number(await slider.getAttribute('min'));
   const max = Number(await slider.getAttribute('max'));
   const step = Number(await slider.getAttribute('step')) || 4;
-  await slider.fill(String(Math.min(max, current + step * 4)));
-  await page.waitForTimeout(800);
+  const target = current + step * 4 <= max
+    ? current + step * 4
+    : Math.max(min, current - step * 4);
+  assert(target !== current, `shelf width slider has no movable range (${min}..${max})`);
+  await slider.fill(String(target));
+  await page.waitForFunction(
+    (previous) => {
+      const element = document.querySelector('.shelf-view-root');
+      return element instanceof HTMLElement &&
+        getComputedStyle(element).getPropertyValue('--shelf-cell-w-px') !== previous;
+    },
+    before,
+  );
   const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   assert(before !== after, `shelf cell width CSS variable did not change (${before} -> ${after})`);
+  await slider.fill(String(current));
+  await page.waitForFunction(
+    (expected) => {
+      const element = document.querySelector('.shelf-view-root');
+      return element instanceof HTMLElement &&
+        getComputedStyle(element).getPropertyValue('--shelf-cell-w-px') === expected;
+    },
+    before,
+  );
 });
 
 check('shelf scroll frame clips wide rows and paints fades only at hidden edges', async (page) => {
