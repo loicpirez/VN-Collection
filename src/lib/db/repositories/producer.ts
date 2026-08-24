@@ -83,7 +83,7 @@ interface DeveloperPayloadRow extends QueryResultRow {
 function decodeDeveloperIds(raw: string | null): string[] {
   return [...new Set(parseJsonArray(raw).flatMap((value) => {
     const id = asJsonRecord(value)?.id;
-    return typeof id === 'string' && /^p\d+$/i.test(id) ? [id] : [];
+    return typeof id === 'string' && /^p\d+$/i.test(id) ? [id.toLowerCase()] : [];
   }))];
 }
 

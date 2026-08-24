@@ -88,7 +88,7 @@ describe('scrapeProducerRelations', () => {
     expect(info?.relations[0]).toMatchObject({ relation: 'Parent brand', id: 'p10', name: 'Studio Parent' });
     expect(info?.relations[1]).toMatchObject({ relation: 'Subsidiary', id: 'p11', name: 'Studio Child' });
 
-    const readBack = readScrapedProducerInfo('p100');
+    const readBack = await readScrapedProducerInfo('p100');
     expect(readBack?.relations).toHaveLength(2);
   });
 
@@ -101,22 +101,22 @@ describe('scrapeProducerRelations', () => {
 });
 
 describe('readScrapedProducerInfo', () => {
-  it('returns null on a cache miss', () => {
-    expect(readScrapedProducerInfo('p9999')).toBeNull();
+  it('returns null on a cache miss', async () => {
+    await expect(readScrapedProducerInfo('p9999')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body fails schema validation', () => {
+  it('returns null when the cached body fails schema validation', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_producer:p300', ?, NULL, NULL, ?, ?)`)
       .run(JSON.stringify({ pid: 'p300', relations: [{ relation: 'x', id: 'not-a-pid', name: 'y' }] }), now, now + 86_400_000);
-    expect(readScrapedProducerInfo('p300')).toBeNull();
+    await expect(readScrapedProducerInfo('p300')).resolves.toBeNull();
   });
 
-  it('returns null when the cached body is unparseable JSON', () => {
+  it('returns null when the cached body is unparseable JSON', async () => {
     const now = Date.now();
     db.prepare(`INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at) VALUES ('scrape_producer:p301', '{broken', NULL, NULL, ?, ?)`)
       .run(now, now + 86_400_000);
-    expect(readScrapedProducerInfo('p301')).toBeNull();
+    await expect(readScrapedProducerInfo('p301')).resolves.toBeNull();
   });
 });
 

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ProducerPage, { generateMetadata as generateProducerMetadata } from '@/app/producer/[id]/page';
-import { getAppSetting, getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer, type VndbProducer } from '@/lib/vndb';
 import { readScrapedProducerInfo, type ScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
@@ -13,15 +12,24 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const producerRepositoryMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  upsert: vi.fn(),
+  ownershipSummary: vi.fn(),
+}));
+
+const appSettingMocks = vi.hoisted(() => ({ get: vi.fn() }));
+
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
-vi.mock('@/lib/db', () => ({
-  getAppSetting: vi.fn(),
-  getProducer: vi.fn(),
-  producerOwnershipSummary: vi.fn(),
-  upsertProducer: vi.fn(),
+vi.mock('@/lib/db/repositories/producer', () => ({
+  getProducerRepository: () => producerRepositoryMocks,
+}));
+
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => appSettingMocks,
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -110,19 +118,19 @@ const scraped: ScrapedProducerInfo = {
 
 beforeEach(() => {
   navigationMocks.notFound.mockClear();
-  vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
-  vi.mocked(getProducerLocal).mockReset().mockReturnValue(null);
-  vi.mocked(producerOwnershipSummary).mockReset().mockReturnValue({ ownedIds: new Set(), sample: null });
-  vi.mocked(upsertProducer).mockReset();
+  appSettingMocks.get.mockReset().mockResolvedValue(null);
+  producerRepositoryMocks.get.mockReset().mockResolvedValue(null);
+  producerRepositoryMocks.ownershipSummary.mockReset().mockResolvedValue({ ownedIds: new Set(), sample: null });
+  producerRepositoryMocks.upsert.mockReset().mockResolvedValue(undefined);
   vi.mocked(fetchProducer).mockReset().mockResolvedValue(null);
-  vi.mocked(readScrapedProducerInfo).mockReset().mockReturnValue(null);
+  vi.mocked(readScrapedProducerInfo).mockReset().mockResolvedValue(null);
 });
 
 describe('producer detail page runtime', () => {
   it('renders local metadata or an empty metadata object', async () => {
     expect(await generateProducerMetadata({ params: Promise.resolve({ id: 'p1' }) })).toEqual({});
 
-    vi.mocked(getProducerLocal).mockReturnValueOnce(producer());
+    producerRepositoryMocks.get.mockResolvedValueOnce(producer());
     expect(await generateProducerMetadata({ params: Promise.resolve({ id: 'p1' }) })).toEqual({ title: 'Producer' });
   });
 
@@ -132,7 +140,7 @@ describe('producer detail page runtime', () => {
   });
 
   it('uses fresh local cache without requesting VNDB', async () => {
-    vi.mocked(getProducerLocal).mockReturnValue(producer());
+    producerRepositoryMocks.get.mockResolvedValue(producer());
 
     const html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),
@@ -146,7 +154,7 @@ describe('producer detail page runtime', () => {
 
   it('serves stale cache when VNDB returns no row or rejects', async () => {
     const stale = producer({ fetched_at: 1 });
-    vi.mocked(getProducerLocal).mockReturnValue(stale);
+    producerRepositoryMocks.get.mockResolvedValue(stale);
 
     let html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),
@@ -164,19 +172,19 @@ describe('producer detail page runtime', () => {
 
   it('upserts a fetched producer and reads back its mirrored row', async () => {
     vi.mocked(fetchProducer).mockResolvedValueOnce(upstreamProducer());
-    vi.mocked(getProducerLocal).mockReturnValueOnce(null).mockReturnValueOnce(producer({ name: 'Mirrored producer' }));
+    producerRepositoryMocks.get.mockResolvedValueOnce(null).mockResolvedValueOnce(producer({ name: 'Mirrored producer' }));
 
     const html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),
       searchParams: Promise.resolve({}),
     }));
 
-    expect(upsertProducer).toHaveBeenCalledWith(expect.objectContaining({ name: 'Upstream producer' }));
+    expect(producerRepositoryMocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ name: 'Upstream producer' }));
     expect(html).toContain('Mirrored producer');
   });
 
   it('builds collection-sample fallbacks from developer, publisher, or id data', async () => {
-    vi.mocked(producerOwnershipSummary).mockReturnValueOnce({
+    producerRepositoryMocks.ownershipSummary.mockResolvedValueOnce({
       ownedIds: new Set(['v1']),
       sample: { developers: [{ id: 'p1', name: 'Developer sample' }], publishers: [] },
     });
@@ -186,7 +194,7 @@ describe('producer detail page runtime', () => {
     }));
     expect(html).toContain('Developer sample');
 
-    vi.mocked(producerOwnershipSummary).mockReturnValueOnce({
+    producerRepositoryMocks.ownershipSummary.mockResolvedValueOnce({
       ownedIds: new Set(['v1']),
       sample: { developers: [], publishers: [{ id: 'p1', name: 'Publisher sample' }] },
     });
@@ -196,7 +204,7 @@ describe('producer detail page runtime', () => {
     }));
     expect(html).toContain('Publisher sample');
 
-    vi.mocked(producerOwnershipSummary).mockReturnValueOnce({ ownedIds: new Set(['v1']), sample: null });
+    producerRepositoryMocks.ownershipSummary.mockResolvedValueOnce({ ownedIds: new Set(['v1']), sample: null });
     html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),
       searchParams: Promise.resolve({}),
@@ -205,7 +213,7 @@ describe('producer detail page runtime', () => {
   });
 
   it('renders rich metadata, safe links, collection scope, logo state, and scraped relations', async () => {
-    vi.mocked(getProducerLocal).mockReturnValue(producer({
+    producerRepositoryMocks.get.mockResolvedValue(producer({
       original: 'Original',
       lang: 'ja',
       type: 'co',
@@ -217,8 +225,8 @@ describe('producer detail page runtime', () => {
       ],
       logo_path: '/producer/logo.jpg',
     }));
-    vi.mocked(producerOwnershipSummary).mockReturnValue({ ownedIds: new Set(['v1']), sample: null });
-    vi.mocked(readScrapedProducerInfo).mockReturnValue(scraped);
+    producerRepositoryMocks.ownershipSummary.mockResolvedValue({ ownedIds: new Set(['v1']), sample: null });
+    vi.mocked(readScrapedProducerInfo).mockResolvedValue(scraped);
 
     const html = renderToStaticMarkup(await ProducerPage({
       params: Promise.resolve({ id: 'p1' }),

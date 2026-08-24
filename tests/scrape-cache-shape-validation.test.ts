@@ -32,12 +32,12 @@ describe('scraped cache structure validation', () => {
     await expect(readScrapedCharacterInfo('c990041')).resolves.toBeNull();
   });
 
-  it('rejects malformed producer payloads', () => {
+  it('rejects malformed producer payloads', async () => {
     writeCacheRow('scrape_producer:p990041', JSON.stringify({
       pid: 'p990041',
       relations: [{ relation: 'parent', id: 'not-a-producer', name: 'Fixture' }],
     }));
-    expect(readScrapedProducerInfo('p990041')).toBeNull();
+    await expect(readScrapedProducerInfo('p990041')).resolves.toBeNull();
   });
 
   it('rejects malformed tag payloads', async () => {

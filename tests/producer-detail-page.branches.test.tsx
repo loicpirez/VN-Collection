@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToReadableStream } from 'react-dom/server';
 import { use } from 'react';
 import ProducerPage from '@/app/producer/[id]/page';
-import { getAppSetting, getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { readScrapedProducerInfo, type ScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
@@ -13,11 +12,20 @@ const suspendState = vi.hoisted(() => ({
   resolve: null as (() => void) | null,
 }));
 
-vi.mock('@/lib/db', () => ({
-  getAppSetting: vi.fn(),
-  getProducer: vi.fn(),
-  producerOwnershipSummary: vi.fn(),
-  upsertProducer: vi.fn(),
+const producerRepositoryMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  upsert: vi.fn(),
+  ownershipSummary: vi.fn(),
+}));
+
+const appSettingMocks = vi.hoisted(() => ({ get: vi.fn() }));
+
+vi.mock('@/lib/db/repositories/producer', () => ({
+  getProducerRepository: () => producerRepositoryMocks,
+}));
+
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => appSettingMocks,
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -97,12 +105,12 @@ const scraped: ScrapedProducerInfo = {
 beforeEach(() => {
   suspendState.promise = null;
   suspendState.resolve = null;
-  vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
-  vi.mocked(getProducerLocal).mockReset().mockReturnValue(producer());
-  vi.mocked(producerOwnershipSummary).mockReset().mockReturnValue({ ownedIds: new Set(['v1']), sample: null });
-  vi.mocked(upsertProducer).mockReset();
+  appSettingMocks.get.mockReset().mockResolvedValue(null);
+  producerRepositoryMocks.get.mockReset().mockResolvedValue(producer());
+  producerRepositoryMocks.ownershipSummary.mockReset().mockResolvedValue({ ownedIds: new Set(['v1']), sample: null });
+  producerRepositoryMocks.upsert.mockReset().mockResolvedValue(undefined);
   vi.mocked(fetchProducer).mockReset().mockResolvedValue(null);
-  vi.mocked(readScrapedProducerInfo).mockReset().mockReturnValue(null);
+  vi.mocked(readScrapedProducerInfo).mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -137,8 +145,8 @@ describe('producer detail page branches', () => {
     await stream.allReady;
   });
 
-  it('renders nothing for scraped relations when the inner read returns an empty payload', async () => {
-    vi.mocked(readScrapedProducerInfo).mockReturnValueOnce(scraped).mockReturnValue(null);
+  it('reuses the loaded scraped relations payload without a second cache read', async () => {
+    vi.mocked(readScrapedProducerInfo).mockResolvedValue(scraped);
 
     const stream = await renderToReadableStream(
       await ProducerPage({
@@ -151,6 +159,7 @@ describe('producer detail page branches', () => {
     const html = await new Response(stream).text();
 
     expect(html).toContain('data-section="stats"');
-    expect(html).not.toContain('Parent producer');
+    expect(html).toContain('Parent producer');
+    expect(readScrapedProducerInfo).toHaveBeenCalledTimes(1);
   });
 });

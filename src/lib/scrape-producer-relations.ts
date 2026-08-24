@@ -1,8 +1,9 @@
 import 'server-only';
-import { db } from './db';
 import { fetchVndbWebHtml, htmlToText } from './vndb-scrape';
 import { finishJob, jobLabel, recordError, startJob, tickJob } from './download-status';
-import { asJsonRecord, parseJsonArray, parseJsonRecord } from './json-shape';
+import { asJsonRecord, parseJsonRecord } from './json-shape';
+import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { getProducerRepository } from './db/repositories/producer';
 
 const CACHE_FRESH_MS = 30 * 24 * 3600 * 1000;
 
@@ -63,24 +64,27 @@ function decodeScrapedProducerInfo(raw: string, fetchedAt: number): ScrapedProdu
  * absent / unparseable. Cache is keyed by lowercased pid and stored in
  * `vndb_cache` so it shares the same invalidation surface as the API cache.
  */
-export function readScrapedProducerInfo(pid: string): ScrapedProducerInfo | null {
-  const row = db
-    .prepare('SELECT body, fetched_at FROM vndb_cache WHERE cache_key = ?')
-    .get(CACHE_KEY(pid)) as { body: string; fetched_at: number } | undefined;
+function decodeScrapedProducerCacheRow(
+  row: Pick<CacheRow, 'body' | 'fetched_at'> | null,
+): ScrapedProducerInfo | null {
   if (!row) return null;
   return decodeScrapedProducerInfo(row.body, row.fetched_at);
 }
 
-function writeScrapedProducerInfo(pid: string, info: ScrapedProducerInfo): void {
+export async function readScrapedProducerInfo(pid: string): Promise<ScrapedProducerInfo | null> {
+  return decodeScrapedProducerCacheRow(await getCacheRepository().get(CACHE_KEY(pid)));
+}
+
+async function writeScrapedProducerInfo(pid: string, info: ScrapedProducerInfo): Promise<void> {
   const now = Date.now();
-  db.prepare(`
-    INSERT INTO vndb_cache (cache_key, body, etag, last_modified, fetched_at, expires_at)
-    VALUES (?, ?, NULL, NULL, ?, ?)
-    ON CONFLICT(cache_key) DO UPDATE SET
-      body = excluded.body,
-      fetched_at = excluded.fetched_at,
-      expires_at = excluded.expires_at
-  `).run(CACHE_KEY(pid), JSON.stringify(info), now, now + 30 * 24 * 3600 * 1000);
+  await getCacheRepository().put({
+    cache_key: CACHE_KEY(pid),
+    body: JSON.stringify(info),
+    etag: null,
+    last_modified: null,
+    fetched_at: now,
+    expires_at: now + 30 * 24 * 3600 * 1000,
+  });
 }
 
 const RELATIONS_BLOCK_RE = /<h1[^>]*>Relations<\/h1>\s*<table[^>]*>([\s\S]*?)<\/table>/i;
@@ -121,7 +125,7 @@ export async function scrapeProducerRelations(
     relations,
     fetched_at: Date.now(),
   };
-  writeScrapedProducerInfo(pid, info);
+  await writeScrapedProducerInfo(pid, info);
   return info;
 }
 
@@ -134,23 +138,17 @@ export async function scrapeProducersForVn(
   vnId: string,
   opts: { force?: boolean } = {},
 ): Promise<{ scanned: number; downloaded: number }> {
-  const row = db
-    .prepare('SELECT developers FROM vn WHERE id = ?')
-    .get(vnId) as { developers: string | null } | undefined;
-  if (!row?.developers) return { scanned: 0, downloaded: 0 };
-  const ids = Array.from(new Set(
-    parseJsonArray(row.developers)
-      .map((developer) => asJsonRecord(developer)?.id)
-      .filter((id): id is string => typeof id === 'string' && /^p\d+$/i.test(id))
-      .map((id) => id.toLowerCase()),
-  ));
+  const ids = await getProducerRepository().developerIdsForVn(vnId);
   if (ids.length === 0) return { scanned: 0, downloaded: 0 };
 
   const now = Date.now();
+  const cacheRows = opts.force
+    ? new Map<string, CacheRow>()
+    : await getCacheRepository().getMany(ids.map(CACHE_KEY));
   const stale = opts.force
     ? ids
     : ids.filter((pid) => {
-        const cached = readScrapedProducerInfo(pid);
+        const cached = decodeScrapedProducerCacheRow(cacheRows.get(CACHE_KEY(pid)) ?? null);
         return !cached || now - cached.fetched_at > CACHE_FRESH_MS;
       });
   if (stale.length === 0) return { scanned: ids.length, downloaded: 0 };

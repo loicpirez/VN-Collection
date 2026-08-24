@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { getAppSetting, getProducer as getProducerLocal, producerOwnershipSummary, upsertProducer } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getProducer as fetchProducer } from '@/lib/vndb';
 import { getDict } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
@@ -12,7 +13,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
-import { readScrapedProducerInfo } from '@/lib/scrape-producer-relations';
+import { readScrapedProducerInfo, type ScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { safeHref } from '@/lib/safe-href';
@@ -27,13 +28,14 @@ import {
 export const dynamic = 'force-dynamic';
 
 async function loadProducer(id: string): Promise<ProducerRow | null> {
-  const cached = getProducerLocal(id);
+  const repository = getProducerRepository();
+  const cached = await repository.get(id);
   if (cached && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) return cached;
   try {
     const fresh = await fetchProducer(id);
     if (!fresh) return cached;
-    upsertProducer(fresh);
-    return getProducerLocal(id);
+    await repository.upsert(fresh);
+    return repository.get(id);
   } catch {
     // VNDB unreachable - serve the stale cached row so the page still
     // renders. The freshness check above ensures we'd have refetched
@@ -51,7 +53,7 @@ const TYPE_KEY: Record<string, 'type_co' | 'type_in' | 'type_ng'> = {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const local = getProducerLocal(id);
+  const local = await getProducerRepository().get(id);
   return local?.name ? { title: local.name } : {};
 }
 
@@ -68,12 +70,18 @@ export default async function ProducerPage({
   const scope = rawScope === 'collection' ? 'collection' : 'all';
   if (!/^p\d+$/i.test(id)) notFound();
   const t = await getDict();
-  let producer = await loadProducer(id);
+  const repository = getProducerRepository();
+  const [loadedProducer, ownership, rawLayout] = await Promise.all([
+    loadProducer(id),
+    repository.ownershipSummary(id),
+    getAppSettingRepository().get(PRODUCER_DETAIL_SETTINGS_KEY),
+  ]);
+  let producer = loadedProducer;
   // One focused query instead of two full `listCollection` scans:
   // returns the in-collection vn ids credited to this producer in
   // either role + the first row's developer/publisher arrays for the
   // fallback name path.
-  const { ownedIds, sample: ownedSample } = producerOwnershipSummary(id);
+  const { ownedIds, sample: ownedSample } = ownership;
   if (!producer) {
     const sample =
       ownedSample?.developers?.find((d) => d.id === id) ??
@@ -93,7 +101,8 @@ export default async function ProducerPage({
     };
   }
   const typeKey = producer.type ? TYPE_KEY[producer.type] : null;
-  const initialLayout = parseProducerDetailLayoutV1(getAppSetting(PRODUCER_DETAIL_SETTINGS_KEY));
+  const initialLayout = parseProducerDetailLayoutV1(rawLayout);
+  const scrapedInfo = await readScrapedProducerInfo(producer.id);
 
   return (
     <DensityScopeProvider scope="producerWorks">
@@ -216,13 +225,12 @@ export default async function ProducerPage({
           ),
         });
 
-        const scrapedInfo = readScrapedProducerInfo(producer.id);
         producerSections.push({
           id: 'stats',
           label: sectionLabels.stats,
           node:
             scrapedInfo && scrapedInfo.relations.length > 0 ? (
-              <ProducerScrapedRelations pid={producer.id} t={t} />
+              <ProducerScrapedRelations info={scrapedInfo} t={t} />
             ) : (
               <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
                 <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
@@ -291,8 +299,13 @@ function ProducerVnsSkeleton() {
  * is hidden when nothing has been scraped yet so we don't show a stale
  * empty state.
  */
-function ProducerScrapedRelations({ pid, t }: { pid: string; t: Awaited<ReturnType<typeof getDict>> }) {
-  const info = readScrapedProducerInfo(pid);
+function ProducerScrapedRelations({
+  info,
+  t,
+}: {
+  info: ScrapedProducerInfo | null;
+  t: Awaited<ReturnType<typeof getDict>>;
+}) {
   if (!info || info.relations.length === 0) return null;
   return (
     <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
