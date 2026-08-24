@@ -44,10 +44,10 @@ async function pageHasFatalError(page) {
 }
 
 async function waitForPagePaint(page) {
-  await page.locator('#main-content').waitFor({ state: 'attached', timeout: 10000 });
-  await page.evaluate(() => new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  }));
+  const main = page.locator('#main-content');
+  await main.waitFor({ state: 'attached', timeout: 10000 });
+  await page.waitForTimeout(50);
+  await main.waitFor({ state: 'attached', timeout: 10000 });
 }
 
 async function gotoClean(page, url) {
@@ -99,6 +99,7 @@ async function assertResponsiveNavigation(page) {
   assert(desktopGeometry.documentOverflow <= 1, `desktop navigation creates ${desktopGeometry.documentOverflow}px page overflow`);
   await menu.locator('a[href="/upcoming"]').click();
   await page.waitForURL((url) => url.pathname === '/upcoming', { timeout: 10000 });
+  await page.getByRole('heading', { name: /Sorties à venir|Upcoming releases|発売予定/i }).waitFor({ state: 'visible', timeout: 20000 });
   await waitForPagePaint(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -307,8 +308,11 @@ check('cover rotation clicks change visible transform and persist/reset', async 
   const coverImage = coverGroup.locator('img').first();
   await coverImage.waitFor({ state: 'visible', timeout: 10000 });
   const right = controls.getByRole('button', { name: /Pivoter à droite|Rotate right|右に回転/i }).first();
+  const rotateResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/collection/v26180/cover') && response.request().method() === 'PATCH',
+  );
   await right.click({ force: true });
-  await page.waitForTimeout(800);
+  await rotateResponse;
   const rotatedTransform = await coverImage.evaluate((img) => img.getAttribute('style') || '');
   assert(/rotate\((90|180|270)deg\)/.test(rotatedTransform), 'cover rotation did not change the active cover image transform');
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -323,8 +327,11 @@ check('cover rotation clicks change visible transform and persist/reset', async 
   assert(/rotate\((90|180|270)deg\)/.test(persistedTransform), 'cover rotation did not persist after reload');
   const reset = page.locator('[data-testid="cover-rotation-controls"]').first().getByRole('button', { name: /Réinitialiser la rotation|Reset rotation|回転をリセット/i }).first();
   await waitForEnabled(reset);
+  const resetResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/collection/v26180/cover') && response.request().method() === 'PATCH',
+  );
   await reset.click({ force: true });
-  await page.waitForTimeout(800);
+  await resetResponse;
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForPagePaint(page);
   const resetTransform = await page
