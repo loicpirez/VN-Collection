@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSavedFilter, deleteSavedFilter, listSavedFilters, reorderSavedFilters } from '@/lib/db';
+import { getGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
+import { getSavedFilterRepository } from '@/lib/db/repositories/saved-filter';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
@@ -13,7 +14,7 @@ void PUBLIC_READ_ROUTE;
 
 export async function GET(): Promise<NextResponse> {
   try {
-    return NextResponse.json({ filters: listSavedFilters() });
+    return NextResponse.json({ filters: await getSavedFilterRepository().list() });
   } catch (err) {
     return internalError('saved-filters.GET', err);
   }
@@ -28,8 +29,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!nameResult.ok) return NextResponse.json({ error: nameResult.error }, { status: 400 });
     const paramsResult = validateText(body.params, { field: 'params', max: 2000, allowEmpty: true });
     if (!paramsResult.ok) return NextResponse.json({ error: paramsResult.error }, { status: 400 });
-    const created = createSavedFilter(nameResult.value, paramsResult.value);
-    recordActivity({
+    const created = await getGeneratedIdRepository().createSavedFilter(nameResult.value, paramsResult.value);
+    await recordActivity({
       kind: 'saved_filter.create',
       entity: 'saved_filter',
       entityId: String(created.id),
@@ -50,9 +51,9 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     if (!Number.isSafeInteger(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }
-    const ok = deleteSavedFilter(id);
+    const ok = await getSavedFilterRepository().delete(id);
     if (!ok) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    recordActivity({
+    await recordActivity({
       kind: 'saved_filter.delete',
       entity: 'saved_filter',
       entityId: String(id),
@@ -80,8 +81,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (new Set(ids).size !== ids.length) {
       return NextResponse.json({ error: 'ids must not contain duplicates' }, { status: 400 });
     }
-    reorderSavedFilters(ids);
-    recordActivity({
+    await getSavedFilterRepository().reorder(ids);
+    await recordActivity({
       kind: 'saved_filter.reorder',
       entity: 'saved_filter',
       entityId: 'all',
