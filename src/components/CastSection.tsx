@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getDict } from '@/lib/i18n/server';
-import { getCharacterImages } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { SafeImage } from './SafeImage';
 import { SectionCountReport } from './vn-detail/DetailSectionFrame';
 
@@ -25,7 +25,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
   const t = await getDict();
   if (!va?.length) return null;
   const charIds = va.map((v) => v.character?.id).filter((id): id is string => !!id);
-  const localImages = getCharacterImages(charIds);
+  const localImages = await getPeopleRepository().characterImages(charIds);
 
   return (
     <section className="p-4 sm:p-6">
