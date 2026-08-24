@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { Library } from 'lucide-react';
 import './globals.css';
@@ -25,6 +25,8 @@ import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { HeaderSpaceFrame, PageSpaceFrame } from '@/components/PageSpaceFrame';
+import { shouldShowPublicReadWarning } from '@/lib/public-read-warning';
+import { publicReadsAreProtected } from '@/lib/api-route-meta';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -84,6 +86,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale();
   const dict = await getDict();
   const initialSettings = await readInitialDisplaySettings();
+  const requestHeaders = await headers();
+  const showPublicReadWarning = shouldShowPublicReadWarning({
+    host: requestHeaders.get('host'),
+    forwardedHost: requestHeaders.get('x-forwarded-host'),
+    readsProtected: publicReadsAreProtected(),
+  });
   // Seed the CSS custom property server-side so the first paint already
   // honours the user's saved card density. Clamped to the same bounds as
   // the slider so a tampered cookie can't blow up the grid.
@@ -142,6 +150,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </div>
                   </HeaderSpaceFrame>
                 </header>
+                {showPublicReadWarning && (
+                  <div role="status" className="border-b border-status-dropped/30 bg-status-dropped/10 text-status-dropped">
+                    <HeaderSpaceFrame className="py-2 text-xs">
+                      <p className="font-semibold">{dict.app.publicReadWarningTitle}</p>
+                      <p className="mt-0.5 text-status-dropped/90">{dict.app.publicReadWarningBody}</p>
+                    </HeaderSpaceFrame>
+                  </div>
+                )}
                 <main
                   id="main-content"
                   // Tightened top padding (was `pt-6 sm:pt-8`) so the

@@ -7,12 +7,16 @@ import { dictionaries } from '@/lib/i18n/dictionaries';
 
 const mocks = vi.hoisted(() => ({
   cookieValue: undefined as string | undefined,
+  headers: new Map<string, string>(),
   sanitize: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({
     get: vi.fn(() => mocks.cookieValue === undefined ? undefined : { value: mocks.cookieValue }),
+  })),
+  headers: vi.fn(async () => ({
+    get: vi.fn((key: string) => mocks.headers.get(key.toLowerCase()) ?? null),
   })),
 }));
 
@@ -62,6 +66,7 @@ vi.mock('@/components/HomeLayoutEditorTrigger', () => ({ HomeLayoutEditorTrigger
 
 beforeEach(() => {
   mocks.cookieValue = undefined;
+  mocks.headers = new Map([['host', 'localhost:3000']]);
   mocks.sanitize.mockReset().mockReturnValue({});
   vi.mocked(getAppSetting).mockReset().mockReturnValue(null);
 });
@@ -100,6 +105,23 @@ describe('root layout composition', () => {
     mocks.sanitize.mockReturnValue({ cardDensityPx: Number.NaN });
     html = renderToStaticMarkup(await RootLayout({ children: null }));
     expect(html).toContain('--card-density-px:220px');
+  });
+
+  it('shows the public read warning on non-loopback hosts without read protection', async () => {
+    const previous = process.env.VN_PUBLIC_READ_AUTH;
+    delete process.env.VN_PUBLIC_READ_AUTH;
+    try {
+      mocks.headers = new Map([['host', 'collection.example.test']]);
+      const publicHtml = renderToStaticMarkup(await RootLayout({ children: null }));
+      expect(publicHtml).toContain(dictionaries.en.app.publicReadWarningTitle);
+
+      mocks.headers = new Map([['host', 'localhost:3000']]);
+      const localHtml = renderToStaticMarkup(await RootLayout({ children: null }));
+      expect(localHtml).not.toContain(dictionaries.en.app.publicReadWarningTitle);
+    } finally {
+      if (previous === undefined) delete process.env.VN_PUBLIC_READ_AUTH;
+      else process.env.VN_PUBLIC_READ_AUTH = previous;
+    }
   });
 });
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { csrfGuard } from '@/lib/csrf';
+import { requireOptionalPublicReadAuth } from '@/lib/api-route-meta';
 
 /**
  * CSRF gate for every state-mutating `/api/*` request.
@@ -15,6 +16,8 @@ import { csrfGuard } from '@/lib/csrf';
  * `proxy.ts` and the export must be named `proxy` (SECA-023).
  */
 export function proxy(req: NextRequest): NextResponse {
+  const readDenied = requireOptionalPublicReadAuth(req);
+  if (readDenied) return readDenied;
   const denied = csrfGuard(req);
   if (denied) return denied;
   return NextResponse.next();

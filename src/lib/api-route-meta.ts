@@ -1,3 +1,5 @@
+import { requireLocalhostOrToken } from './auth-gate';
+
 /**
  * Shared markers documenting cross-cutting contracts that individual
  * `/api/*` route files opt into. These replace the free-form
@@ -18,18 +20,12 @@
  * DATA EXPOSURE (read before adding or relying on this marker). These
  * GET routes return the single operator's personal collection data
  * (titles read, ratings, notes, shelves, saved filters, reading goals,
- * ownership records, etc.) WITHOUT authentication. That trade-off is
- * acceptable ONLY because the documented deployment model is a
- * single-user, self-hosted instance bound to localhost or a trusted
- * LAN. Exposing the app to an untrusted network (the public internet,
- * a shared/hostile Wi-Fi, a reverse proxy without its own auth) would
- * disclose all of this personal collection data to anyone who can
- * reach the port. Do NOT host this app on an untrusted network while
- * these reads remain ungated; if such a deployment is ever required,
- * gate these handlers behind `requireLocalhostOrToken` (or an
- * equivalent upstream auth layer) first. This ESDoc documents the
- * exposure as a deliberate, scoped decision; it does not make the
- * data non-sensitive.
+ * ownership records, etc.) WITHOUT authentication by default. That
+ * trade-off is acceptable ONLY because the documented deployment model
+ * is a single-user, self-hosted instance bound to localhost or a trusted
+ * LAN. Public deployments must configure `VN_PUBLIC_READ_AUTH=token`
+ * with `VN_ADMIN_TOKEN`, or declare an authenticated reverse proxy through
+ * `VN_PUBLIC_READ_AUTH=upstream`.
  *
  * Importing this constant into a route module and reading it at the
  * top level is the canonical signal that the GET handler's lack of a
@@ -39,6 +35,28 @@
  * to reads only.
  */
 export const PUBLIC_READ_ROUTE = true;
+
+export type PublicReadAuthMode = 'open' | 'token' | 'upstream';
+
+/** Resolve the optional global read-authentication policy. */
+export function publicReadAuthMode(raw = process.env.VN_PUBLIC_READ_AUTH): PublicReadAuthMode {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === 'token' || normalized === 'upstream') return normalized;
+  return 'open';
+}
+
+/** Return whether public reads are protected by the app or an upstream proxy. */
+export function publicReadsAreProtected(raw = process.env.VN_PUBLIC_READ_AUTH): boolean {
+  return publicReadAuthMode(raw) !== 'open';
+}
+
+/** Enforce token authentication for safe API reads when that mode is enabled. */
+export function requireOptionalPublicReadAuth(req: Request): ReturnType<typeof requireLocalhostOrToken> {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
+  if (new URL(req.url).pathname === '/api/health') return null;
+  if (publicReadAuthMode() !== 'token') return null;
+  return requireLocalhostOrToken(req);
+}
 
 /**
  * Convention reminder for `export const runtime = 'nodejs'`.
