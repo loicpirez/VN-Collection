@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getAppSetting: vi.fn(),
   getCollectionItem: vi.fn(),
   getDisabledStockProviders: vi.fn(),
+  getSteamLinkByAppid: vi.fn(),
   getErogePriceStockExtras: vi.fn(),
   getStockRetryWithoutProxy: vi.fn(),
   listRecentVnStockOffers: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock('@/lib/db', () => ({
   getAppSetting: mocks.getAppSetting,
   getCollectionItem: mocks.getCollectionItem,
   getDisabledStockProviders: mocks.getDisabledStockProviders,
+  getSteamLinkByAppid: mocks.getSteamLinkByAppid,
   getErogePriceStockExtras: mocks.getErogePriceStockExtras,
   getStockRetryWithoutProxy: mocks.getStockRetryWithoutProxy,
   isInCollection: mocks.isInCollection,
@@ -142,6 +144,16 @@ describe('database repository backend selection', () => {
     mocks.isInCollection.mockReturnValue(true);
     await expect(getCollectionCoreRepository().contains('v90001')).resolves.toBe(true);
     expect(mocks.isInCollection).toHaveBeenCalledWith('v90001');
+  });
+
+  it('preserves empty and direct SQLite read paths for Steam and VN assets', async () => {
+    const steamLink = { vn_id: 'v90001', appid: 10 };
+    mocks.getSteamLinkByAppid.mockReturnValue(steamLink);
+    await expect(getSteamRepository().getLinkByAppid(10)).resolves.toBe(steamLink);
+    await expect(getSteamRepository().listSuggestionRows([])).resolves.toEqual([]);
+    await expect(getVnReadRepository().getCovers([])).resolves.toEqual([]);
+    expect(mocks.getSteamLinkByAppid).toHaveBeenCalledWith(10);
+    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 
   it('delegates the complete stock contract to the SQLite implementation', async () => {
