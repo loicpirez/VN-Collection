@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listCollectionForCards } from '@/lib/db';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 
@@ -83,7 +83,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const items = listCollectionForCards({ sort: 'title' });
+    const items = await getCollectionListRepository().listCards({ sort: 'title' });
     const stamp = dtstamp();
     const lines: string[] = [
       'BEGIN:VCALENDAR',

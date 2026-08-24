@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listCollection } from '@/lib/db';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
 import { buildArchiveName, compareArchiveSource, type ArchiveNameSource } from '@/lib/archive-name';
@@ -18,7 +18,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const items = listCollection({ sort: 'title', _projection: 'full-no-raw' });
+    const items = await getCollectionListRepository().list({ sort: 'title', _projection: 'full-no-raw' });
     const lines = items
       .map(
         (it): ArchiveNameSource => ({

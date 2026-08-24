@@ -245,7 +245,12 @@ describe('GET /api/export/game-list', () => {
     });
     const res = await gameListGET(loopbackReq('/api/export/game-list'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'export.game-list.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:export.game-list.GET] private game-list failure');
     listSpy.mockRestore();
     consoleSpy.mockRestore();

@@ -158,7 +158,12 @@ describe('GET /api/export/csv — auth gate (TESTA-012)', () => {
     });
     const res = await GET(new NextRequest('http://127.0.0.1/api/export/csv'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'export.csv.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:export.csv.GET] private csv failure');
     listSpy.mockRestore();
     consoleSpy.mockRestore();

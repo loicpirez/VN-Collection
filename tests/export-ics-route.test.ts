@@ -156,7 +156,12 @@ describe('GET /api/export/ics — auth gate (TESTA-013)', () => {
     });
     const res = await GET(new NextRequest('http://127.0.0.1/api/export/ics'));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'internal error' });
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'internal error',
+      code: 'internal_error',
+      context: 'export.ics.GET',
+    });
     expect(consoleSpy).toHaveBeenCalledWith('[internal:export.ics.GET] private ics failure');
     listSpy.mockRestore();
     consoleSpy.mockRestore();
