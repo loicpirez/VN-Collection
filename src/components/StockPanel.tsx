@@ -946,12 +946,18 @@ export function StockPanel({
         <div className="mt-3 space-y-1" role="status" aria-live="polite">
           {titleResolutionUnavailable && (
             <p className="rounded-md border border-status-on_hold/35 bg-status-on_hold/10 px-3 py-2 text-xs text-status-on_hold">
-              {t.stock.titleResolutionUnavailable as string}
+              <span className="inline-flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.stock.titleResolutionUnavailable as string}</span>
+              </span>
             </p>
           )}
           {placeLinksUnavailable && (
             <p className="rounded-md border border-status-on_hold/35 bg-status-on_hold/10 px-3 py-2 text-xs text-status-on_hold">
-              {t.stock.placeLinksUnavailable as string}
+              <span className="inline-flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t.stock.placeLinksUnavailable as string}</span>
+              </span>
             </p>
           )}
         </div>
