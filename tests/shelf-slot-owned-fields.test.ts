@@ -255,4 +255,47 @@ describe('shelf slot release artwork priority', () => {
       rel_image_sexual: 0,
     });
   });
+
+  it('falls back from a missing front cover to side and content artwork', () => {
+    const fields = {
+      physical_location: [],
+      price_paid: null,
+      currency: null,
+      acquired_date: null,
+    };
+    seed('v90321', 'r903211', fields);
+    seed('v90322', 'r903221', fields);
+    db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(
+      JSON.stringify([{
+        release_id: 'r903211',
+        release_title: 'Side edition',
+        type: 'pkgside',
+        url: 'https://example.invalid/side.jpg',
+        thumbnail: 'https://example.invalid/side-thumb.jpg',
+      }]),
+      'v90321',
+    );
+    db.prepare('UPDATE vn SET release_images = ? WHERE id = ?').run(
+      JSON.stringify([{
+        release_id: 'r903221',
+        release_title: 'Content edition',
+        type: 'pkgcontent',
+        url: 'https://example.invalid/content.jpg',
+        thumbnail: 'https://example.invalid/content-thumb.jpg',
+      }]),
+      'v90322',
+    );
+    const shelf = createShelf({ name: 'Fallback artwork', cols: 2, rows: 2 });
+    placeShelfItem({ shelfId: shelf.id, row: 0, col: 0, vnId: 'v90321', releaseId: 'r903211' });
+    placeShelfDisplayItem({ shelfId: shelf.id, afterRow: 0, position: 1, vnId: 'v90322', releaseId: 'r903221' });
+
+    expect(listShelfSlots(shelf.id)[0]).toMatchObject({
+      rel_image_url: 'https://example.invalid/side.jpg',
+      rel_image_thumb: 'https://example.invalid/side-thumb.jpg',
+    });
+    expect(listShelfDisplaySlots(shelf.id)[0]).toMatchObject({
+      rel_image_url: 'https://example.invalid/content.jpg',
+      rel_image_thumb: 'https://example.invalid/content-thumb.jpg',
+    });
+  });
 });
