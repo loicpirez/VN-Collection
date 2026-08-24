@@ -43,9 +43,16 @@ async function pageHasFatalError(page) {
   return /Functions cannot be passed directly|Application error|Unhandled Runtime Error|SqliteError|no such column/i.test(text);
 }
 
+async function waitForPagePaint(page) {
+  await page.locator('#main-content').waitFor({ state: 'attached', timeout: 10000 });
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+}
+
 async function gotoClean(page, url) {
   await page.goto(`${base}${url}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  await waitForPagePaint(page);
   assert(!(await pageHasFatalError(page)), `${url} rendered a fatal/runtime error`);
 }
 
@@ -287,7 +294,7 @@ check('cover rotation clicks change visible transform and persist/reset', async 
     });
   });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  await waitForPagePaint(page);
   const controls = page.locator('[data-testid="cover-rotation-controls"]').first();
   await controls.waitFor({ state: 'visible', timeout: 10000 });
   await controls.scrollIntoViewIfNeeded();
@@ -300,7 +307,7 @@ check('cover rotation clicks change visible transform and persist/reset', async 
   const rotatedTransform = await coverImage.evaluate((img) => img.getAttribute('style') || '');
   assert(/rotate\((90|180|270)deg\)/.test(rotatedTransform), 'cover rotation did not change the active cover image transform');
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  await waitForPagePaint(page);
   const persistedTransform = await page
     .locator('[data-testid="cover-rotation-controls"]')
     .first()
@@ -314,7 +321,7 @@ check('cover rotation clicks change visible transform and persist/reset', async 
   await reset.click({ force: true });
   await page.waitForTimeout(800);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  await waitForPagePaint(page);
   const resetTransform = await page
     .locator('[data-testid="cover-rotation-controls"]')
     .first()
@@ -542,7 +549,7 @@ check('section layout controls hide/collapse and save without moving identity', 
   await page.getByRole('button', { name: /^Enregistrer$|^Save$|保存/i }).click();
   await page.waitForTimeout(800);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+  await waitForPagePaint(page);
   const afterH1 = await page.locator('main h1').first().innerText();
   assert(beforeH1 === afterH1, 'main identity/header changed after section layout edit');
 });
