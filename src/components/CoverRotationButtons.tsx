@@ -5,11 +5,14 @@ import { Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import {
+  VN_COVER_ACTION_EVENT,
   VN_COVER_CHANGED_EVENT,
+  type VnCoverActionDetail,
   type VnCoverChangedDetail,
   dispatchCoverChanged,
 } from '@/lib/cover-banner-events';
 import { readApiError } from '@/lib/api-error-read';
+import { useVnCollectionState } from '@/lib/use-vn-collection-state';
 
 interface Props {
   vnId: string;
@@ -23,12 +26,15 @@ interface Props {
    * identical.
    */
   anchor?: 'top-right' | 'bottom-right' | 'bottom-left';
+  /** Server-rendered collection membership; local events keep it current. */
+  inCollection?: boolean;
 }
 
 export function CoverRotationButtons({
   vnId,
   initialRotation = 0,
   anchor = 'top-right',
+  inCollection = true,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -39,6 +45,7 @@ export function CoverRotationButtons({
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const currentInCollection = useVnCollectionState(vnId, inCollection);
 
   // Re-sync on server-rendered prop change (router.refresh path).
   useEffect(() => {
@@ -114,10 +121,26 @@ export function CoverRotationButtons({
     void apply(next);
   }
 
-  // Anchor classes. The "hover/focus reveal on desktop, always on
-  // touch" gate matches `<CoverEditOverlay>` so the cover surface
-  // stays visually quiet at rest. `pointer-events-auto` is needed
-  // because the container may sit inside a hover-visibility gate.
+  useEffect(() => {
+    function onAction(e: Event) {
+      const detail = (e as CustomEvent<VnCoverActionDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      if (detail.action === 'rotate-left') {
+        rotateBy(-90);
+      } else if (detail.action === 'rotate-right') {
+        rotateBy(90);
+      } else if (detail.action === 'reset-rotation') {
+        void apply(0);
+      }
+    }
+    window.addEventListener(VN_COVER_ACTION_EVENT, onAction as EventListener);
+    return () => window.removeEventListener(VN_COVER_ACTION_EVENT, onAction as EventListener);
+  });
+
+  // Anchor classes. The cover-local controls are desktop-only;
+  // compact viewports dispatch the same actions from the artwork menu.
+  // `pointer-events-auto` keeps the desktop controls interactive inside
+  // the cover's hover-visibility gate.
   const positionClass =
     anchor === 'top-right'
       ? 'right-1 top-12'
@@ -126,6 +149,7 @@ export function CoverRotationButtons({
         : 'left-1 bottom-1';
 
   const hasRotation = rotation !== 0;
+  if (!currentInCollection) return null;
   return (
     <div
       data-testid="cover-rotation-controls"

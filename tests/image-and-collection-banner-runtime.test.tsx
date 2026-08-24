@@ -79,7 +79,10 @@ describe('NotInCollectionBanner request lifecycle', () => {
     }));
     expect(screen.queryByRole('status')).toBeNull();
     expect(listener).toHaveBeenCalledTimes(1);
-    expect((listener.mock.calls[0][0] as CustomEvent<{ vnId: string }>).detail).toEqual({ vnId: 'v90001' });
+    expect((listener.mock.calls[0][0] as CustomEvent<{ vnId: string; inCollection: boolean }>).detail).toEqual({
+      vnId: 'v90001',
+      inCollection: true,
+    });
     expect(navigationMocks.refresh).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -105,6 +108,23 @@ describe('NotInCollectionBanner request lifecycle', () => {
       resolveFetch(jsonResponse({ ok: true }));
       await Promise.resolve();
     });
+  });
+
+  it('stays resident and follows collection events in both directions', () => {
+    renderWithProviders(<NotInCollectionBanner vnId="v90001" initialInCollection />, { locale: 'en' });
+    expect(screen.queryByRole('status')).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent('vn:collection-changed', {
+        detail: { vnId: 'v90001', inCollection: false },
+      }));
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new CustomEvent('vn:collection-changed', {
+        detail: { vnId: 'v90001', inCollection: true },
+      }));
+    });
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('shows the server error and re-enables the button after a rejected add', async () => {

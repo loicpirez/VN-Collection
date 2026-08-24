@@ -6,13 +6,17 @@ import { useT } from '@/lib/i18n/client';
 import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
 import { useToast } from './ToastProvider';
 import {
+  VN_BANNER_EDIT_EVENT,
   VN_BANNER_CHANGED_EVENT,
+  type VnBannerEditDetail,
   type VnBannerChangedDetail,
   dispatchBannerChanged,
 } from '@/lib/cover-banner-events';
 import { buildRotationStyle } from './SafeImage';
 import { ErrorAlert } from './ErrorAlert';
 import { readApiError } from '@/lib/api-error-read';
+import { useVnCollectionState } from '@/lib/use-vn-collection-state';
+import { BannerPickerTrigger } from './BannerPickerTrigger';
 
 interface Props {
   vnId: string;
@@ -64,6 +68,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const currentInCollection = useVnCollectionState(vnId, inCollection);
 
   useEffect(() => {
     mutationAbortRef.current?.abort();
@@ -333,28 +338,37 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     setEditing(true);
   };
 
+  useEffect(() => {
+    function onEdit(e: Event) {
+      const detail = (e as CustomEvent<VnBannerEditDetail>).detail;
+      if (!detail || detail.vnId !== vnId) return;
+      setDraftPosition(position);
+      setEditing(true);
+    }
+    window.addEventListener(VN_BANNER_EDIT_EVENT, onEdit as EventListener);
+    return () => window.removeEventListener(VN_BANNER_EDIT_EVENT, onEdit as EventListener);
+  }, [vnId, position]);
+
   if (settings.hideImages && !editing) {
     return (
       <div className="group relative h-64 w-full overflow-hidden bg-bg-elev/40">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/60 to-transparent" />
+        {!liveSrc && currentInCollection && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center px-4">
+            <BannerPickerTrigger
+              vnId={vnId}
+              label={t.banner.uploadCta}
+              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-card/95 px-3 py-2 text-xs font-semibold text-white shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent"
+            />
+          </div>
+        )}
         {liveSrc && (
           <div
             className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1.5"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {inCollection && (
-              <button
-                type="button"
-                onClick={startEditing}
-                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg md:hidden"
-                title={t.banner.adjust}
-                aria-label={t.banner.adjust}
-              >
-                <Crosshair className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            )}
-            {inCollection && (
+            {currentInCollection && (
               <div className="hidden flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:flex md:group-focus-within:opacity-100">
                 <button
                   type="button"
@@ -461,8 +475,15 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           )}
         </>
       ) : (
-        <div className="pointer-events-none flex h-full w-full items-center justify-center bg-gradient-to-b from-bg-elev to-bg-card text-muted/60">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-b from-bg-elev to-bg-card text-muted/60">
           <ImageOff className="h-8 w-8" aria-hidden />
+          {!liveSrc && currentInCollection && (
+            <BannerPickerTrigger
+              vnId={vnId}
+              label={t.banner.uploadCta}
+              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-card/95 px-3 py-2 text-xs font-semibold text-white shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent"
+            />
+          )}
         </div>
       )}
 
@@ -525,18 +546,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
         >
           {!editing ? (
             <>
-              {inCollection && (
-                <button
-                  type="button"
-                  onClick={startEditing}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md bg-bg-card/90 text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg md:hidden"
-                  title={t.banner.adjust}
-                  aria-label={t.banner.adjust}
-                >
-                  <Crosshair className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              )}
-              {inCollection && (
+              {currentInCollection && (
                 <div className="hidden flex-wrap items-center justify-end gap-1.5 can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:flex md:group-focus-within:opacity-100 can-hover:md:hover:opacity-100">
                   <button
                     type="button"
@@ -575,7 +585,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
               <span className="rounded-md bg-bg-card/90 px-2 py-1 font-mono text-[10px] text-muted shadow-card backdrop-blur">
                 {draftPosition}
               </span>
-              {inCollection ? (
+              {currentInCollection ? (
                 <>
                   <button
                     type="button"

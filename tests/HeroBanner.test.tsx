@@ -4,7 +4,8 @@ import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { HeroBanner } from '@/components/HeroBanner';
-import { dispatchBannerChanged } from '@/lib/cover-banner-events';
+import { dispatchBannerChanged, dispatchBannerEdit } from '@/lib/cover-banner-events';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 vi.mock('next/navigation', () => ({
@@ -43,6 +44,14 @@ describe('HeroBanner', () => {
       <HeroBanner vnId="v90001" src={null} customBanner={false} initialPosition={null} inCollection />,
     );
     expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByRole('button', { name: t.banner.uploadCta })).toBeTruthy();
+  });
+
+  it('does not offer banner upload for an empty VN outside the collection', () => {
+    renderHero(
+      <HeroBanner vnId="v90002" src={null} customBanner={false} initialPosition={null} inCollection={false} />,
+    );
+    expect(screen.queryByRole('button', { name: t.banner.uploadCta })).toBeNull();
   });
 
   it('PATCHes the new rotation when rotating right', async () => {
@@ -71,6 +80,27 @@ describe('HeroBanner', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/collection/v90001/banner' && c[1]?.method === 'PATCH')).toBe(true));
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/collection/v90001/banner' && c[1]?.method === 'PATCH');
     expect(JSON.parse(call![1].body)).toHaveProperty('position');
+  });
+
+  it('enters editing from the scoped toolbar event and ignores other VNs', async () => {
+    renderHero(
+      <HeroBanner vnId="v90001" src="https://example.com/banner.jpg" customBanner initialPosition="35% 65%" inCollection />,
+    );
+    act(() => dispatchBannerEdit({ vnId: 'v99999' }));
+    expect(screen.queryByRole('application', { name: t.banner.focalPointLabel })).toBeNull();
+    act(() => dispatchBannerEdit({ vnId: 'v90001' }));
+    expect(await screen.findByRole('application', { name: t.banner.focalPointLabel })).toBeTruthy();
+  });
+
+  it('updates collection-only banner controls immediately from membership events', async () => {
+    renderHero(
+      <HeroBanner vnId="v90001" src="https://example.com/banner.jpg" customBanner initialPosition="50% 50%" inCollection />,
+    );
+    expect(screen.getAllByRole('button', { name: t.banner.adjust }).length).toBeGreaterThan(0);
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90001', inCollection: false }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: t.banner.adjust })).toBeNull());
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90001', inCollection: true }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: t.banner.adjust }).length).toBeGreaterThan(0));
   });
 
   it('adjusts the focal point with the keyboard then resets it via PATCH null', async () => {

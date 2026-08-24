@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CoverRotationButtons } from '@/components/CoverRotationButtons';
-import { dispatchCoverChanged } from '@/lib/cover-banner-events';
+import { dispatchCoverAction, dispatchCoverChanged, VN_COVER_ACTION_EVENT } from '@/lib/cover-banner-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -31,6 +32,15 @@ describe('CoverRotationButtons', () => {
     const reset = screen.getByRole('button', { name: t.coverActions.resetRotation });
     expect((reset as HTMLButtonElement).disabled).toBe(true);
     expect(reset.getAttribute('data-rotation-active')).toBe('false');
+  });
+
+  it('stays resident while hidden and appears immediately after collection add', async () => {
+    renderWithProviders(<CoverRotationButtons vnId="v90001" inCollection={false} />);
+    expect(screen.queryByTestId('cover-rotation-controls')).toBeNull();
+    act(() => dispatchVnCollectionChanged({ vnId: 'v99999', inCollection: true }));
+    expect(screen.queryByTestId('cover-rotation-controls')).toBeNull();
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90001', inCollection: true }));
+    await waitFor(() => expect(screen.getByTestId('cover-rotation-controls')).toBeTruthy());
   });
 
   it('PATCHes the new rotation when rotating right', async () => {
@@ -89,6 +99,33 @@ describe('CoverRotationButtons', () => {
       dispatchCoverChanged({ vnId: 'v90005', newSrc: null, newLocal: null, rotation: 180 });
     });
     await waitFor(() => expect(screen.getByText(label180)).toBeTruthy());
+  });
+
+  it('executes scoped toolbar transforms and ignores malformed or foreign events', async () => {
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(<CoverRotationButtons vnId="v90005" initialRotation={90} />);
+    act(() => {
+      window.dispatchEvent(new Event(VN_COVER_ACTION_EVENT));
+      dispatchCoverAction({ vnId: 'v99999', action: 'rotate-right' });
+      window.dispatchEvent(new CustomEvent(VN_COVER_ACTION_EVENT, {
+        detail: { vnId: 'v90005', action: 'future-action' },
+      }));
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    act(() => dispatchCoverAction({ vnId: 'v90005', action: 'rotate-left' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ rotation: 0 });
+
+    await waitFor(() => expect(screen.getByText(t.coverActions.rotationDegrees.replace('{rotation}', '0'))).toBeTruthy());
+    act(() => dispatchCoverAction({ vnId: 'v90005', action: 'rotate-right' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ rotation: 90 });
+
+    await waitFor(() => expect(screen.getByText(t.coverActions.rotationDegrees.replace('{rotation}', '90'))).toBeTruthy());
+    act(() => dispatchCoverAction({ vnId: 'v90005', action: 'reset-rotation' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ rotation: 0 });
   });
 
   it('ignores cover-changed events for other VNs or without rotation', async () => {

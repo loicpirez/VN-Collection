@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { Loader2, PackagePlus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { useVnCollectionState } from '@/lib/use-vn-collection-state';
 
 /**
  * Inline banner shown at the top of `/vn/[id]` whenever the VN is
@@ -21,17 +23,17 @@ import { readApiError } from '@/lib/api-error-read';
  * it isn't possible: the banner reflects DB state, so the only way
  * to make it disappear is to add the VN.
  */
-export function NotInCollectionBanner({ vnId }: { vnId: string }) {
+export function NotInCollectionBanner({ vnId, initialInCollection = false }: { vnId: string; initialInCollection?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const inCollection = useVnCollectionState(vnId, initialInCollection);
   useEffect(() => {
     identityRef.current = vnId;
     mutationAbortRef.current?.abort();
@@ -39,7 +41,6 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
     mutationInFlightRef.current = false;
     setBusy(false);
     setError(null);
-    setAdded(false);
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     return () => {
       identityRef.current = null;
@@ -66,8 +67,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
-      setAdded(true);
-      window.dispatchEvent(new CustomEvent('vn:collection-changed', { detail: { vnId: ownerVnId } }));
+      dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: true });
       startTransition(() => router.refresh());
       refreshTimerRef.current = setTimeout(() => {
         if (identityRef.current === ownerVnId) router.refresh();
@@ -85,7 +85,7 @@ export function NotInCollectionBanner({ vnId }: { vnId: string }) {
   }
 
   const working = busy || pending;
-  if (added) return null;
+  if (inCollection) return null;
   return (
     <div
       role="status"

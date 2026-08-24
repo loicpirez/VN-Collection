@@ -64,6 +64,8 @@ describe('CoverQuickActions', () => {
       .mockResolvedValueOnce(jsonResponse({ needsAuth: true, labels: [], entry: null }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     global.fetch = fetchMock;
+    const listener = vi.fn();
+    window.addEventListener('vn:collection-changed', listener as EventListener);
     renderWithProviders(<CoverQuickActions vnId="v90001" inCollection={false} />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: t.coverActions.addToCollection }));
@@ -72,6 +74,9 @@ describe('CoverQuickActions', () => {
     expect(url).toBe('/api/collection/v90001');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({ status: 'planning' });
+    await waitFor(() => expect(screen.getByRole('button', { name: t.coverActions.removeFromCollection })).toBeTruthy());
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({ vnId: 'v90001', inCollection: true });
+    window.removeEventListener('vn:collection-changed', listener as EventListener);
   });
 
   it('shows the wishlist heart pressed when label 5 is set and toggles it off via DELETE', async () => {
@@ -110,6 +115,8 @@ describe('CoverQuickActions', () => {
       .mockResolvedValueOnce(jsonResponse(statusPayload(false)))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     global.fetch = fetchMock;
+    const listener = vi.fn();
+    window.addEventListener('vn:collection-changed', listener as EventListener);
     const { user } = renderWithProviders(<CoverQuickActions vnId="v90001" inCollection mode="danger" />);
     // danger mode hides the wishlist heart.
     expect(screen.queryByRole('button', { name: t.coverActions.wishlist })).toBeNull();
@@ -119,6 +126,9 @@ describe('CoverQuickActions', () => {
     const confirmBtn = await screen.findByRole('button', { name: t.common.confirm });
     await user.click(confirmBtn);
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/collection/v90001' && c[1]?.method === 'DELETE')).toBe(true));
+    await waitFor(() => expect(screen.queryByRole('button', { name: t.coverActions.removeFromCollection })).toBeNull());
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({ vnId: 'v90001', inCollection: false });
+    window.removeEventListener('vn:collection-changed', listener as EventListener);
   });
 
   it('cancelling the remove confirm performs no DELETE', async () => {

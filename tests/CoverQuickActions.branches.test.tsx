@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { act, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
 import { dictionaries } from '@/lib/i18n/dictionaries';
@@ -58,6 +58,32 @@ describe('CoverQuickActions branches', () => {
     renderWithProviders(<CoverQuickActions vnId="v90001" inCollection mode="all" />, { locale: 'en' });
     expect(screen.getByRole('button', { name: t.coverActions.removeFromCollection })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: t.coverActions.wishlist })).toBeInTheDocument());
+  });
+
+  it('uses a mobile collection menu while retaining full inline actions for wider layouts', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(statusPayload(false)));
+    renderWithProviders(
+      <CoverQuickActions vnId="v90001" inCollection={false} mode="tracking" variant="responsive-menu" />,
+      { locale: 'en' },
+    );
+    const trigger = screen.getByRole('button', { name: t.detail.actions.groupCollection });
+    expect(trigger).toHaveClass('min-h-[44px]', 'min-w-[44px]');
+    fireEvent.click(trigger);
+    const menu = await screen.findByRole('menu', { name: t.detail.actions.groupCollection });
+    expect(within(menu).getByRole('menuitem', { name: t.coverActions.addToCollection })).toHaveClass('w-full');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: t.coverActions.wishlist })).toBeInTheDocument());
+    expect(document.querySelector('.hidden.sm\\:contents')).toBeTruthy();
+  });
+
+  it('keeps the destructive collection action keyboard-addressable in the responsive all menu', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(statusPayload(false)));
+    renderWithProviders(
+      <CoverQuickActions vnId="v90001" inCollection mode="all" variant="responsive-menu" />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.detail.actions.groupCollection }));
+    const menu = await screen.findByRole('menu', { name: t.detail.actions.groupCollection });
+    expect(within(menu).getByRole('menuitem', { name: t.coverActions.removeFromCollection })).toHaveClass('w-full');
   });
 
   it('in mode=tracking hides the collection toggle once the VN is already in the collection', async () => {

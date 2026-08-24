@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Ellipsis, Heart, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
@@ -9,6 +9,9 @@ import { useConfirm } from './ConfirmDialog';
 import { readApiError } from '@/lib/api-error-read';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { decodeVndbStatusClientState } from '@/lib/vndb-ui-client-shape';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { useVnCollectionState } from '@/lib/use-vn-collection-state';
+import { ActionMenu } from './ActionMenu';
 interface Props {
   vnId: string;
   /** When true, the VN is in the local collection; we surface a Remove button instead of Add. */
@@ -25,6 +28,8 @@ interface Props {
    *     page so the destructive action sits visually apart from tracking.
    */
   mode?: 'all' | 'tracking' | 'danger';
+  /** Inline buttons, or a mobile menu that becomes inline from `sm`. */
+  variant?: 'inline' | 'responsive-menu';
 }
 
 interface WishlistState {
@@ -54,7 +59,7 @@ interface WishlistState {
  * independently: the wishlist state is fetched from VNDB on mount and
  * never derived from the local status.
  */
-export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
+export function CoverQuickActions({ vnId, inCollection, mode = 'all', variant = 'inline' }: Props) {
   const t = useT();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -69,6 +74,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const currentInCollection = useVnCollectionState(vnId, inCollection);
 
   // VNDB wishlist isn't meaningful for synthetic egs_* VNs (no VNDB id).
   const wishlistSupported = isVndbVnId(vnId);
@@ -158,6 +164,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
+      dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: true });
       toast.success(t.toast.added);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -182,6 +189,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
       const r = await fetch(`/api/collection/${vnId}`, { method: 'DELETE', signal: controller.signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (!ownsMutation(ownerVnId, controller)) return;
+      dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: false });
       toast.success(t.coverActions.removed);
       startTransition(() => router.refresh());
     } catch (e) {
@@ -219,16 +227,21 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
   // owned by the Dangerous cluster); `danger` renders ONLY the Remove
   // button. `all` keeps the original combined output for any caller that
   // hasn't migrated to the regrouped actions bar.
-  const showCollectionToggle = mode === 'all' || (mode === 'tracking' && !inCollection) || (mode === 'danger' && inCollection);
+  const showCollectionToggle = mode === 'all' || (mode === 'tracking' && !currentInCollection) || (mode === 'danger' && currentInCollection);
   const showWishlist = mode !== 'danger';
 
-  return (
+  function renderActions(asMenuItems: boolean) {
+    const responsiveWidth = variant === 'responsive-menu'
+      ? asMenuItems ? 'w-full justify-start' : 'w-auto'
+      : '';
+    return (
     <>
       {showCollectionToggle && (
-        !inCollection ? (
+        !currentInCollection ? (
           <button
             type="button"
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+            role={asMenuItems ? 'menuitem' : undefined}
+            className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-bg transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50 ${responsiveWidth}`}
             onClick={addToCollection}
             disabled={busy !== null}
           >
@@ -238,7 +251,8 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
         ) : (
           <button
             type="button"
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-status-dropped transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:cursor-not-allowed disabled:opacity-50"
+            role={asMenuItems ? 'menuitem' : undefined}
+            className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-status-dropped transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:cursor-not-allowed disabled:opacity-50 ${responsiveWidth}`}
             onClick={removeFromCollection}
             disabled={busy !== null}
             title={t.coverActions.removeFromCollection}
@@ -251,11 +265,12 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
       {showWishlist && wishlistSupported && (wishlist.loading || wishlist.available) && (
         <button
           type="button"
+          role={asMenuItems ? 'menuitem' : undefined}
           className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             wishlist.onWishlist
               ? 'border-accent bg-accent text-bg hover:bg-accent/90'
               : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
-          }`}
+          } ${responsiveWidth}`}
           onClick={toggleVndbWishlist}
           disabled={busy !== null || wishlist.loading || !wishlist.available}
           title={wishlist.onWishlist ? t.coverActions.unwish : t.coverActions.wishlist}
@@ -269,6 +284,31 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all' }: Props) {
           {wishlist.onWishlist ? t.coverActions.wishlisted : t.coverActions.wishlist}
         </button>
       )}
+    </>
+  );
+  }
+
+  if (variant === 'inline') return renderActions(false);
+
+  return (
+    <>
+      <span className="sm:hidden">
+        <ActionMenu
+          label={t.detail.actions.groupCollection}
+          trigger={<Ellipsis className="h-4 w-4" aria-hidden />}
+          triggerClassName="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white"
+          menuClassName="w-64 rounded-lg border border-border bg-bg-card p-2 shadow-card"
+          defaultPlacement="bottom-right"
+          hideChevron
+        >
+          <div className="flex flex-col gap-2" role="group" aria-label={t.detail.actions.groupCollection}>
+            {renderActions(true)}
+          </div>
+        </ActionMenu>
+      </span>
+      <span className="hidden sm:contents">
+        {renderActions(false)}
+      </span>
     </>
   );
 }

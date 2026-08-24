@@ -6,6 +6,7 @@ import {
   VN_COVER_CHANGED_EVENT,
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
+import { useVnCollectionState } from '@/lib/use-vn-collection-state';
 
 interface Props {
   vnId: string;
@@ -65,6 +66,7 @@ export function CoverHero({
   const [local, setLocal] = useState<string | null>(initialLocal);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [remoteFailed, setRemoteFailed] = useState(false);
+  const currentInCollection = useVnCollectionState(vnId, inCollection);
   // Keep client state synced with server-rendered props on refresh.
   useEffect(() => {
     setRemote(initialRemote);
@@ -112,7 +114,7 @@ export function CoverHero({
           if (!remoteFailed && local) setRemoteFailed(true);
         }}
       />
-      {inCollection && <CoverEditOverlay vnId={vnId} />}
+      {currentInCollection && <CoverEditOverlay vnId={vnId} />}
       {/*
         The standalone `<CoverRotationButtons>` is mounted by the VN
         detail page next to this hero so both display branches

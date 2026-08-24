@@ -6,6 +6,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { HeroBanner } from '@/components/HeroBanner';
 import { dispatchBannerChanged, VN_BANNER_CHANGED_EVENT } from '@/lib/cover-banner-events';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
@@ -54,6 +55,16 @@ describe('HeroBanner branches', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
   });
 
+  it('keeps the empty-banner picker available in hide-images mode only while in the collection', async () => {
+    renderHero(
+      <HeroBanner vnId="v90055" src={null} customBanner={false} initialPosition={null} inCollection />,
+      { hideImages: true },
+    );
+    expect(screen.getByRole('button', { name: t.banner.uploadCta })).toBeInTheDocument();
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90055', inCollection: false }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: t.banner.uploadCta })).toBeNull());
+  });
+
   it('reveals an R18-blurred banner when the reveal overlay is clicked', async () => {
     const { container } = renderHero(
       <HeroBanner vnId="v90021" src="https://example.com/r18.jpg" customBanner initialPosition={null} inCollection={false} sexual={2} />,
@@ -73,6 +84,20 @@ describe('HeroBanner branches', () => {
     const img = container.querySelector('img') as HTMLImageElement;
     fireEvent.load(img);
     await waitFor(() => expect(img.className).toContain('blur-2xl'));
+  });
+
+  it('keeps the banner transparent behind a skeleton until the image loads', async () => {
+    const { container } = renderHero(
+      <HeroBanner vnId="v90050" src="https://example.com/loading.jpg" customBanner initialPosition={null} inCollection />,
+    );
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(container.querySelector('[data-hero-banner-skeleton]')).toBeInTheDocument();
+    expect(img.className).toContain('opacity-0');
+
+    fireEvent.load(img);
+
+    await waitFor(() => expect(container.querySelector('[data-hero-banner-skeleton]')).toBeNull());
+    expect(img.className).not.toContain('opacity-0');
   });
 
   it('renders the ImageOff fallback when the banner image errors', async () => {

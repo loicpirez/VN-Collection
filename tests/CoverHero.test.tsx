@@ -5,6 +5,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { CoverHero } from '@/components/CoverHero';
 import { dispatchCoverChanged } from '@/lib/cover-banner-events';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -57,6 +58,24 @@ describe('CoverHero', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('updates the edit overlay immediately when collection membership changes', () => {
+    renderHero(
+      <CoverHero
+        vnId="v90001"
+        initialRemote="https://example.com/cover.jpg"
+        initialLocal={null}
+        sexual={0}
+        alt="Reactive cover"
+        inCollection={false}
+      />,
+    );
+    expect(screen.queryByRole('button')).toBeNull();
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90001', inCollection: true }));
+    expect(screen.getByRole('button')).toBeTruthy();
+    act(() => dispatchVnCollectionChanged({ vnId: 'v90001', inCollection: false }));
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('repaints to the local source when a cover-changed event for this VN arrives', () => {
     renderHero(
       <CoverHero
@@ -68,8 +87,7 @@ describe('CoverHero', () => {
         inCollection={false}
       />,
     );
-    // No usable source -> placeholder (role=img with the alt as aria-label).
-    expect(screen.getByRole('img', { name: 'Updated cover' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Updated cover/ })).toBeTruthy();
     act(() => {
       dispatchCoverChanged({ vnId: 'v90003', newSrc: null, newLocal: 'cover/v90003.jpg' });
     });
@@ -91,7 +109,6 @@ describe('CoverHero', () => {
     act(() => {
       dispatchCoverChanged({ vnId: 'v99999', newSrc: 'https://elsewhere/x.jpg', newLocal: null });
     });
-    // Still the placeholder because the event targeted another VN.
-    expect(screen.getByRole('img', { name: 'Other cover' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Other cover/ })).toBeTruthy();
   });
 });
