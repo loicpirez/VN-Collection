@@ -478,7 +478,7 @@ describe('fetchEgsAnticipated', () => {
       ['101', 'Upcoming B', '2099-02-02', '', 'not-an-id', '1', '0', '0'],
       ['NULL', 'Skip', '2099-03-03', 'x', '', '0', '0', '0'],
     ])));
-    const rows = await fetchEgsAnticipated(50);
+    const rows = await fetchEgsAnticipated();
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ egs_id: 100, vndb_id: 'v555', will_buy: 42, probably_buy: 10, watching: 5 });
     expect(rows[1]).toMatchObject({ egs_id: 101, brand_name: null, vndb_id: null });
@@ -540,9 +540,10 @@ describe('fetchEgsAnticipatedPage', () => {
 
   it('returns an empty page on zero rows', async () => {
     queueFetches(ok(tableHtml([['id', 'gamename']])));
-    const page = await fetchEgsAnticipatedPage(2, 25);
+    const page = await fetchEgsAnticipatedPage();
     expect(page.rows).toEqual([]);
     expect(page.hasMore).toBe(false);
+    expect(page).toMatchObject({ page: 1, pageSize: 50 });
   });
 
   it('defaults missing anticipated page cells without dropping a valid id', async () => {
@@ -615,7 +616,7 @@ describe('fetchEgsTopRanked', () => {
       ['400', 'Top A', 'NULL', '900', 'Brand A', '88', 'NULL', '85', '120', '2018-01-01', 'https://example/b.jpg', 't', 'f', 'v123'],
       ['401', 'Top B (legacy median)', 'NULL', 'NULL', 'NULL', 'NULL', '72', '70', '50', 'NULL', 'NULL', 'f', 't', 'garbage'],
     ])));
-    const rows = await fetchEgsTopRanked(100, 10);
+    const rows = await fetchEgsTopRanked();
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ egs_id: 400, median: 88, okazu: true, erogame: false, vndb_id: 'v123', banner_url: 'https://example/b.jpg' });
     // median NULL → median2 fallback used.
@@ -679,9 +680,10 @@ describe('fetchEgsTopRankedPage', () => {
 
   it('returns an empty page on zero rows', async () => {
     queueFetches(ok(tableHtml([['id', 'gamename']])));
-    const page = await fetchEgsTopRankedPage(1, 10, 10);
+    const page = await fetchEgsTopRankedPage();
     expect(page.rows).toEqual([]);
     expect(page.hasMore).toBe(false);
+    expect(page).toMatchObject({ page: 1, pageSize: 50 });
   });
 
   it('defaults missing top-ranked page cells without dropping a valid id', async () => {
