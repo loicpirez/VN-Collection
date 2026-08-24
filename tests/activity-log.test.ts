@@ -26,8 +26,8 @@ describe('recordActivity — happy path', () => {
     db.prepare('DELETE FROM user_activity WHERE actor = ?').run('test-actor');
   });
 
-  it('stores a valid ActivityEvent without throwing', () => {
-    expect(() =>
+  it('stores a valid ActivityEvent without throwing', async () => {
+    await expect(
       recordActivity({
         kind: 'collection.add',
         entity: 'vn',
@@ -36,11 +36,11 @@ describe('recordActivity — happy path', () => {
         payload: { status: 'playing' },
         actor: 'test-actor',
       }),
-    ).not.toThrow();
+    ).resolves.toBeUndefined();
   });
 
-  it('written record is retrievable via listUserActivity', () => {
-    recordActivity({
+  it('written record is retrievable via listUserActivity', async () => {
+    await recordActivity({
       kind: 'collection.add',
       entity: 'vn',
       entityId: 'v80099',
@@ -48,7 +48,7 @@ describe('recordActivity — happy path', () => {
       payload: { status: 'playing' },
       actor: 'test-actor',
     });
-    const rows = listUserActivity({ kind: 'collection.add', entity: 'vn' });
+    const rows = await listUserActivity({ kind: 'collection.add', entity: 'vn' });
     const match = rows.find((r) => r.actor === 'test-actor' && r.entity_id === 'v80099');
     expect(match).toBeDefined();
     expect(match?.kind).toBe('collection.add');
@@ -62,7 +62,7 @@ describe('listUserActivity — reverse-chronological ordering', () => {
     db.prepare("DELETE FROM user_activity WHERE kind = 'chrono-order-test'").run();
   });
 
-  it('returns N items in reverse-chronological order (newest first)', () => {
+  it('returns N items in reverse-chronological order (newest first)', async () => {
     const base = Date.now();
     db.prepare(
       `INSERT INTO user_activity (occurred_at, kind, entity, entity_id, label, payload, actor)
@@ -77,7 +77,7 @@ describe('listUserActivity — reverse-chronological ordering', () => {
        VALUES (?, 'chrono-order-test', 'vn', 'v3', 'third', NULL, 'user')`,
     ).run(base + 2000);
 
-    const rows = listUserActivity({ kind: 'chrono-order-test' });
+    const rows = await listUserActivity({ kind: 'chrono-order-test' });
     expect(rows.length).toBeGreaterThanOrEqual(3);
     const labels = rows.slice(0, 3).map((r) => r.label);
     expect(labels).toEqual(['third', 'second', 'first']);
@@ -136,8 +136,8 @@ describe('recordActivity — unknown kind edge case', () => {
     db.prepare("DELETE FROM user_activity WHERE kind = 'unknown.kind.xyz'").run();
   });
 
-  it('stores and retrieves an unknown kind without throwing', () => {
-    expect(() =>
+  it('stores and retrieves an unknown kind without throwing', async () => {
+    await expect(
       recordActivity({
         kind: 'unknown.kind.xyz',
         entity: 'vn',
@@ -145,9 +145,9 @@ describe('recordActivity — unknown kind edge case', () => {
         label: 'Edge case unknown kind',
         payload: { arbitrary: true },
       }),
-    ).not.toThrow();
+    ).resolves.toBeUndefined();
 
-    const rows = listUserActivity({ kind: 'unknown.kind.xyz' });
+    const rows = await listUserActivity({ kind: 'unknown.kind.xyz' });
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe('unknown.kind.xyz');
   });

@@ -6,8 +6,10 @@ const { listUserActivityMock } = vi.hoisted(() => ({
   listUserActivityMock: vi.fn(),
 }));
 
-vi.mock('@/lib/activity', () => ({
-  listUserActivity: listUserActivityMock,
+vi.mock('@/lib/db/repositories/activity', () => ({
+  getActivityRepository: () => ({
+    listUser: listUserActivityMock,
+  }),
 }));
 
 import { GET } from '@/app/api/activity/route';
@@ -30,11 +32,12 @@ const row: UserActivity = {
 describe('GET /api/activity branches', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    listUserActivityMock.mockReset();
   });
 
   it('passes bounded numeric and capped text filters to the activity reader', async () => {
     const longKind = 'k'.repeat(240);
-    listUserActivityMock.mockReturnValue([row]);
+    listUserActivityMock.mockResolvedValue([row]);
 
     const res = await GET(req(`/api/activity?limit=999&kind=${longKind}&entity=vn&q=needle&from=nope&to=42`));
     const body = await res.json() as { activity: UserActivity[] };
@@ -53,9 +56,7 @@ describe('GET /api/activity branches', () => {
 
   it('returns a sanitized internal error when the activity reader throws', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    listUserActivityMock.mockImplementation(() => {
-      throw new Error('sqlite down');
-    });
+    listUserActivityMock.mockRejectedValue(new Error('sqlite down'));
 
     const res = await GET(req('/api/activity'));
     const body = await res.json() as { error: string };

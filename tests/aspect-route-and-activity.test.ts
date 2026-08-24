@@ -69,7 +69,7 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     expect(json.derived).toBe('16:9');
     expect(getVnAspectOverride(SYNTHETIC_ID)?.aspect_key).toBe('16:9');
 
-    const events = listUserActivity({ kind: 'aspect.set', limit: 5 });
+    const events = await listUserActivity({ kind: 'aspect.set', limit: 5 });
     expect(events.length).toBe(1);
     expect(events[0].entity).toBe('vn');
     expect(events[0].entity_id).toBe(SYNTHETIC_ID);
@@ -83,7 +83,7 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     });
     expect(res.status).toBe(200);
     expect(getVnAspectOverride(SYNTHETIC_ID)).toBeNull();
-    const events = listUserActivity({ kind: 'aspect.clear', limit: 5 });
+    const events = await listUserActivity({ kind: 'aspect.clear', limit: 5 });
     expect(events.length).toBe(1);
   });
 
@@ -96,8 +96,8 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error?: string };
     expect(body.error).toMatch(/aspect_key/);
-    expect(listUserActivity({ kind: 'aspect.set', limit: 5 })).toHaveLength(0);
-    expect(listUserActivity({ kind: 'aspect.clear', limit: 5 })).toHaveLength(0);
+    await expect(listUserActivity({ kind: 'aspect.set', limit: 5 })).resolves.toHaveLength(0);
+    await expect(listUserActivity({ kind: 'aspect.clear', limit: 5 })).resolves.toHaveLength(0);
   });
 
   it('PATCH rejects an invalid VN id before reading the body', async () => {
@@ -145,7 +145,7 @@ describe('R5-201 PATCH — sets override + records aspect.set activity', () => {
     });
     expect(res.status).toBe(200);
     expect(getVnAspectOverride(SYNTHETIC_ID)).toBeNull();
-    const events = listUserActivity({ kind: 'aspect.clear', limit: 5 });
+    const events = await listUserActivity({ kind: 'aspect.clear', limit: 5 });
     expect(events.length).toBe(1);
   });
 
@@ -210,7 +210,7 @@ describe('R5-201 — activity is recorded with the audit-readable aspect_key fie
     await PATCH(buildPatch(SYNTHETIC_ID, { aspect_key: '16:9' }) as never, {
       params: Promise.resolve({ id: SYNTHETIC_ID }),
     });
-    const events = listUserActivity({ kind: 'aspect.set', limit: 5 });
+    const events = await listUserActivity({ kind: 'aspect.set', limit: 5 });
     const payload = JSON.parse(events[0].payload ?? '{}');
     // The sensitive-key masker (`maskActivityPayload`) used to greedily
     // mask any `*_key` field — the regression that prompted the

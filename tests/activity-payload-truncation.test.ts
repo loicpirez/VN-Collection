@@ -20,14 +20,14 @@ function clearActivity(): void {
 describe('recordActivity — payload truncation', () => {
   beforeEach(() => clearActivity());
 
-  it('writes a small payload as-is (under 8 KB)', () => {
-    recordActivity({
+  it('writes a small payload as-is (under 8 KB)', async () => {
+    await recordActivity({
       kind: 'test.small',
       entity: 'vn',
       entityId: 'v90001',
       payload: { key: 'value', n: 42 },
     });
-    const rows = listUserActivity({ kind: 'test.small' });
+    const rows = await listUserActivity({ kind: 'test.small' });
     expect(rows.length).toBe(1);
     const parsed = JSON.parse(rows[0].payload as string);
     expect(parsed.key).toBe('value');
@@ -35,16 +35,16 @@ describe('recordActivity — payload truncation', () => {
     expect(parsed.truncated).toBeUndefined();
   });
 
-  it('replaces a payload over the cap with a truncated stub', () => {
+  it('replaces a payload over the cap with a truncated stub', async () => {
     // 9 KB of content — well above the 8 KB cap.
     const oversized = { junk: 'x'.repeat(9 * 1024) };
-    recordActivity({
+    await recordActivity({
       kind: 'test.large',
       entity: 'vn',
       entityId: 'v90002',
       payload: oversized,
     });
-    const rows = listUserActivity({ kind: 'test.large' });
+    const rows = await listUserActivity({ kind: 'test.large' });
     expect(rows.length).toBe(1);
     const parsed = JSON.parse(rows[0].payload as string);
     expect(parsed.truncated).toBe(true);
@@ -56,28 +56,28 @@ describe('recordActivity — payload truncation', () => {
     expect(parsed.size).toBeGreaterThan(8 * 1024);
   });
 
-  it('persists null payloads as null (no JSON wrapping)', () => {
-    recordActivity({
+  it('persists null payloads as null (no JSON wrapping)', async () => {
+    await recordActivity({
       kind: 'test.null',
       entity: 'vn',
       entityId: 'v90003',
     });
-    const rows = listUserActivity({ kind: 'test.null' });
+    const rows = await listUserActivity({ kind: 'test.null' });
     expect(rows.length).toBe(1);
     expect(rows[0].payload).toBeNull();
   });
 
-  it('honours the VNCOLL_DISABLE_ACTIVITY kill switch', () => {
+  it('honours the VNCOLL_DISABLE_ACTIVITY kill switch', async () => {
     const previous = process.env.VNCOLL_DISABLE_ACTIVITY;
     process.env.VNCOLL_DISABLE_ACTIVITY = '1';
     try {
-      recordActivity({
+      await recordActivity({
         kind: 'test.disabled',
         entity: 'vn',
         entityId: 'v90004',
         payload: { ignored: true },
       });
-      const rows = listUserActivity({ kind: 'test.disabled' });
+      const rows = await listUserActivity({ kind: 'test.disabled' });
       expect(rows.length).toBe(0);
     } finally {
       if (previous !== undefined) process.env.VNCOLL_DISABLE_ACTIVITY = previous;
@@ -85,8 +85,8 @@ describe('recordActivity — payload truncation', () => {
     }
   });
 
-  it('drops rows with an empty kind string', () => {
-    recordActivity({
+  it('drops rows with an empty kind string', async () => {
+    await recordActivity({
       kind: '   ',
       entity: 'vn',
       entityId: 'v90005',

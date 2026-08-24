@@ -1,15 +1,10 @@
-import { db } from './db';
+import {
+  getActivityRepository,
+  type UserActivity,
+  type UserActivityListOptions,
+} from './db/repositories/activity';
 
-export interface UserActivity {
-  id: number;
-  occurred_at: number;
-  kind: string;
-  entity: string | null;
-  entity_id: string | null;
-  label: string | null;
-  payload: string | null;
-  actor: string;
-}
+export type { UserActivity, UserActivityListOptions } from './db/repositories/activity';
 
 export interface RecordActivityInput {
   kind: string;
@@ -68,93 +63,40 @@ function safePayloadJson(payload: unknown): string | null {
 }
 
 /**
- * Insert one row into `user_activity`. Fire-and-forget: swallows DB errors so
- * audit failures never bubble into surrounding write transactions. Honours the
+ * Insert one row into `user_activity`. Audit failures remain isolated from the
+ * surrounding mutation after the persistence attempt. Honours the
  * `VNCOLL_DISABLE_ACTIVITY=1` kill switch and caps every field at the table's
  * column length.
  */
-export function recordActivity(input: RecordActivityInput): void {
+export function recordActivity(input: RecordActivityInput): Promise<void> | void {
   if (process.env.VNCOLL_DISABLE_ACTIVITY === '1') return;
   const kind = input.kind.trim();
   if (!kind) return;
   const payload = safePayloadJson(input.payload);
+  const prepared = {
+    occurredAt: Date.now(),
+    kind: kind.slice(0, 80),
+    entity: input.entity?.slice(0, 80) ?? null,
+    entityId: input.entityId?.slice(0, 120) ?? null,
+    label: input.label?.slice(0, 240) ?? null,
+    payload,
+    actor: (input.actor ?? 'user').slice(0, 80),
+  };
   try {
-    db.prepare(
-      `INSERT INTO user_activity (occurred_at, kind, entity, entity_id, label, payload, actor)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      Date.now(),
-      kind.slice(0, 80),
-      input.entity?.slice(0, 80) ?? null,
-      input.entityId?.slice(0, 120) ?? null,
-      input.label?.slice(0, 240) ?? null,
-      payload,
-      (input.actor ?? 'user').slice(0, 80),
-    );
+    return getActivityRepository().record(prepared).catch(() => {
+      // Audit persistence must not disrupt the completed user mutation.
+    });
   } catch {
-    // Activity recording is fire-and-forget; a DB error must not
-    // surface to the caller or disrupt the surrounding transaction.
+    // Audit persistence must not disrupt the completed user mutation.
   }
 }
 
-/**
- * Query the global activity feed with optional filters. `q` runs a LIKE
- * across label / entity_id / payload (so JSON substrings are searchable).
- * `limit` is clamped to `[1, 500]` server-side to bound result size.
- */
-export function listUserActivity({
-  limit = 100,
-  kind,
-  entity,
-  q,
-  from,
-  to,
-}: {
-  limit?: number;
-  kind?: string | null;
-  entity?: string | null;
-  q?: string | null;
-  from?: number | null;
-  to?: number | null;
-} = {}): UserActivity[] {
-  const where: string[] = [];
-  const args: unknown[] = [];
-  if (kind) {
-    where.push('kind = ?');
-    args.push(kind);
-  }
-  if (entity) {
-    where.push('entity = ?');
-    args.push(entity);
-  }
-  if (q) {
-    const escaped = q.replace(/[\\%_]/g, '\\$&');
-    where.push("(label LIKE ? ESCAPE '\\' OR entity_id LIKE ? ESCAPE '\\' OR payload LIKE ? ESCAPE '\\')");
-    const like = `%${escaped}%`;
-    args.push(like, like, like);
-  }
-  if (from != null) {
-    where.push('occurred_at >= ?');
-    args.push(from);
-  }
-  if (to != null) {
-    where.push('occurred_at <= ?');
-    args.push(to);
-  }
-  const sql = `SELECT * FROM user_activity ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY occurred_at DESC, id DESC LIMIT ?`;
-  args.push(Math.max(1, Math.min(500, Math.floor(limit))));
-  return db.prepare(sql).all(...args) as UserActivity[];
+/** Query the backend-selected global activity feed. */
+export function listUserActivity(options: UserActivityListOptions = {}): Promise<UserActivity[]> {
+  return getActivityRepository().listUser(options);
 }
 
-/**
- * Distinct `kind` values present in `user_activity`, used to populate the
- * filter dropdown on the global activity feed.
- */
-export function listActivityKinds(): string[] {
-  const rows = db
-    .prepare('SELECT DISTINCT kind FROM user_activity ORDER BY kind COLLATE NOCASE')
-    .all() as Array<{ kind: string }>;
-  return rows.map((r) => r.kind);
+/** Query the backend-selected distinct activity kinds. */
+export function listActivityKinds(): Promise<string[]> {
+  return getActivityRepository().listKinds();
 }
-

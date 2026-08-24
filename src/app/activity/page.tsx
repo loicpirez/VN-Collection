@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Filter, Heart, Search } from 'lucide-react';
-import { listActivityKinds, listUserActivity } from '@/lib/activity';
-import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
+import type { UserActivity } from '@/lib/activity';
+import type { RecentActivityEntry } from '@/lib/db';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { formatMinutes } from '@/lib/format';
 import { fmtDate } from '@/lib/locale-number';
@@ -180,17 +181,18 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const sysOffset = sysPage * PAGE_SIZE;
 
   let kinds: string[] = [];
-  let sysRows: ReturnType<typeof listUserActivity> = [];
+  let sysRows: UserActivity[] = [];
   let sysHasMore = false;
-  let vnRows: ReturnType<typeof listRecentActivity> = [];
+  let vnRows: RecentActivityEntry[] = [];
   let vnHasMore = false;
   try {
-    kinds = listActivityKinds();
-    const sysRowsAll = listUserActivity({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
+    const activity = getActivityRepository();
+    kinds = await activity.listKinds();
+    const sysRowsAll = await activity.listUser({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
     sysRows = sysRowsAll.slice(sysOffset, sysOffset + PAGE_SIZE);
     sysHasMore = sysRowsAll.length > sysOffset + PAGE_SIZE;
 
-    const vnRowsAll = listRecentActivity(vnOffset + PAGE_SIZE + 1);
+    const vnRowsAll = await activity.listRecent(vnOffset + PAGE_SIZE + 1);
     vnRows = vnRowsAll.slice(vnOffset, vnOffset + PAGE_SIZE);
     vnHasMore = vnRowsAll.length > vnOffset + PAGE_SIZE;
   } catch (err) {

@@ -18,42 +18,42 @@ describe('user activity', () => {
     });
   });
 
-  it('records and filters mutation activity', () => {
-    recordActivity({
+  it('records and filters mutation activity', async () => {
+    await recordActivity({
       kind: 'settings.update',
       entity: 'settings',
       entityId: 'display',
       label: 'Updated settings',
       payload: { vndb_token: 'secret', theme: 'dark' },
     });
-    const rows = listUserActivity({ kind: 'settings.update' });
+    const rows = await listUserActivity({ kind: 'settings.update' });
     expect(rows).toHaveLength(1);
     expect(rows[0].payload).toContain('[masked]');
     expect(rows[0].payload).not.toContain('secret');
-    expect(listActivityKinds()).toEqual(['settings.update']);
+    await expect(listActivityKinds()).resolves.toEqual(['settings.update']);
   });
 
-  it('queries the unfiltered feed and applies text and time filters', () => {
+  it('queries the unfiltered feed and applies text and time filters', async () => {
     const occurredAt = Date.now();
-    recordActivity({
+    await recordActivity({
       kind: 'filter.fixture',
       entityId: 'v-filter-fixture',
       label: 'needle%_\\',
       payload: { visible: 'needle%_\\' },
     });
-    const rows = listUserActivity({
+    const rows = await listUserActivity({
       q: 'needle%_\\',
       from: occurredAt - 1000,
       to: occurredAt + 1000,
     });
     expect(rows).toHaveLength(1);
     expect(rows[0].entity).toBeNull();
-    expect(listUserActivity()).toHaveLength(1);
+    await expect(listUserActivity()).resolves.toHaveLength(1);
   });
 
-  it('records the round-4-followup mutation kinds end-to-end', () => {
+  it('records the round-4-followup mutation kinds end-to-end', async () => {
     // VNDB writeback
-    recordActivity({
+    await recordActivity({
       kind: 'vndb.writeback',
       entity: 'vn',
       entityId: 'v9001',
@@ -61,14 +61,14 @@ describe('user activity', () => {
       payload: { changed: ['vote'], labels_set: null, labels_unset: null },
     });
     // VN→EGS mapping (pin + clear)
-    recordActivity({
+    await recordActivity({
       kind: 'mapping.vn-egs',
       entity: 'vn',
       entityId: 'v9001',
       label: 'placeholder title',
       payload: { egs_id: 12345, action: 'pin' },
     });
-    recordActivity({
+    await recordActivity({
       kind: 'mapping.vn-egs',
       entity: 'vn',
       entityId: 'v9001',
@@ -76,7 +76,7 @@ describe('user activity', () => {
       payload: { action: 'clear', mode: 'auto' },
     });
     // EGS→VN mapping
-    recordActivity({
+    await recordActivity({
       kind: 'mapping.egs-vn',
       entity: 'egs',
       entityId: '12345',
@@ -84,7 +84,7 @@ describe('user activity', () => {
       payload: { action: 'pin', vndb_id: 'v9001' },
     });
     // EGS-only collection add
-    recordActivity({
+    await recordActivity({
       kind: 'collection.add',
       entity: 'vn',
       entityId: 'egs_12345',
@@ -92,17 +92,17 @@ describe('user activity', () => {
       payload: { source: 'egs', egs_id: 12345, status: 'planning' },
     });
 
-    const kinds = listActivityKinds().sort();
+    const kinds = (await listActivityKinds()).sort();
     expect(kinds).toEqual([
       'collection.add',
       'mapping.egs-vn',
       'mapping.vn-egs',
       'vndb.writeback',
     ]);
-    expect(listUserActivity({ entity: 'vn' })).toHaveLength(4); // writeback + pin + clear + add
-    expect(listUserActivity({ entity: 'egs' })).toHaveLength(1);
+    await expect(listUserActivity({ entity: 'vn' })).resolves.toHaveLength(4); // writeback + pin + clear + add
+    await expect(listUserActivity({ entity: 'egs' })).resolves.toHaveLength(1);
 
-    const writebackRow = listUserActivity({ kind: 'vndb.writeback' })[0];
+    const writebackRow = (await listUserActivity({ kind: 'vndb.writeback' }))[0];
     const writebackPayload = JSON.parse(writebackRow.payload ?? '{}');
     expect(writebackPayload).toHaveProperty('changed');
     // Confirm the route never carried raw `notes` text into the
@@ -164,37 +164,37 @@ describe('round-four activity kinds', () => {
     delete process.env.VNCOLL_DISABLE_ACTIVITY;
   });
 
-  it.each(NEW_KINDS)('records kind %s and surfaces it in listActivityKinds', (kind) => {
-    recordActivity({
+  it.each(NEW_KINDS)('records kind %s and surfaces it in listActivityKinds', async (kind) => {
+    await recordActivity({
       kind,
       entity: 'vn',
       entityId: 'v99999',
       label: `Test ${kind}`,
       payload: { note: 'placeholder' },
     });
-    const rows = listUserActivity({ kind });
+    const rows = await listUserActivity({ kind });
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe(kind);
-    expect(listActivityKinds()).toContain(kind);
+    await expect(listActivityKinds()).resolves.toContain(kind);
   });
 
-  it.each(NEW_KINDS)('masks sensitive-shaped payload values for %s', (kind) => {
-    recordActivity({
+  it.each(NEW_KINDS)('masks sensitive-shaped payload values for %s', async (kind) => {
+    await recordActivity({
       kind,
       entity: 'vn',
       entityId: 'v99999',
       payload: { vndb_token: 'placeholder-token-not-real', visible: 'plain' },
     });
-    const [row] = listUserActivity({ kind });
+    const [row] = await listUserActivity({ kind });
     expect(row.payload).toContain('[masked]');
     expect(row.payload).not.toContain('placeholder-token-not-real');
     expect(row.payload).toContain('"visible":"plain"');
   });
 
-  it.each(NEW_KINDS)('respects VNCOLL_DISABLE_ACTIVITY for %s', (kind) => {
+  it.each(NEW_KINDS)('respects VNCOLL_DISABLE_ACTIVITY for %s', async (kind) => {
     process.env.VNCOLL_DISABLE_ACTIVITY = '1';
-    recordActivity({ kind, entity: 'vn', entityId: 'v99999', payload: { x: 1 } });
-    expect(listUserActivity({ kind })).toHaveLength(0);
+    await recordActivity({ kind, entity: 'vn', entityId: 'v99999', payload: { x: 1 } });
+    await expect(listUserActivity({ kind })).resolves.toHaveLength(0);
   });
 });
 
@@ -329,7 +329,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.source-pref' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.source-pref' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/collection/[id]/custom-description logs collection.custom-description', async () => {
@@ -341,7 +341,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.custom-description' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.custom-description' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/collection/[id]/game-log logs collection.game-log-add', async () => {
@@ -353,7 +353,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.game-log-add' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.game-log-add' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/collection/[id]/game-log logs collection.game-log-update', async () => {
@@ -367,7 +367,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.game-log-update' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.game-log-update' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/collection/[id]/game-log logs collection.game-log-delete', async () => {
@@ -380,7 +380,7 @@ describe('round-four route integration — activity row created', () => {
     );
     const res = await DELETE(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.game-log-delete' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.game-log-delete' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/collection/[id]/routes logs collection.route-add', async () => {
@@ -392,7 +392,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.route-add' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.route-add' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/collection/[id]/routes logs collection.route-update (reorder)', async () => {
@@ -407,7 +407,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.route-update' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.route-update' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/route/[routeId] logs collection.route-update', async () => {
@@ -421,7 +421,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ routeId: String(route.id) }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.route-update' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.route-update' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/route/[routeId] logs collection.route-delete', async () => {
@@ -433,7 +433,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ routeId: String(route.id) }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'collection.route-delete' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'collection.route-delete' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/collection/[id]/assets?refresh=true logs download.refresh', async () => {
@@ -444,7 +444,7 @@ describe('round-four route integration — activity row created', () => {
     );
     const res = await POST(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'download.refresh' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'download.refresh' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/series logs series.create', async () => {
@@ -456,7 +456,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.create' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.create' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/series/[id] logs series.update', async () => {
@@ -470,7 +470,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: String(series.id) }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.update' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.update' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/series/[id] logs series.delete', async () => {
@@ -482,7 +482,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: String(series.id) }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.delete' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.delete' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/series/[id]/vn/[vnId] logs series.link', async () => {
@@ -496,7 +496,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: String(series.id), vnId: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.link' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.link' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/series/[id]/vn/[vnId] logs series.unlink', async () => {
@@ -509,7 +509,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: String(series.id), vnId: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.unlink' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.unlink' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/series/[id]/image logs series.image-upload', async () => {
@@ -526,7 +526,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: String(series.id) }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'series.image-upload' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'series.image-upload' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/reading-goal logs reading-goal.set', async () => {
@@ -538,7 +538,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'reading-goal.set' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'reading-goal.set' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/steam/link logs steam.link', async () => {
@@ -550,7 +550,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'steam.link' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'steam.link' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/steam/link logs steam.unlink', async () => {
@@ -563,7 +563,7 @@ describe('round-four route integration — activity row created', () => {
     );
     const res = await DELETE(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'steam.unlink' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'steam.unlink' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/steam/sync logs steam.sync-apply', async () => {
@@ -575,7 +575,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'steam.sync-apply' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'steam.sync-apply' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/vndb/cache logs cache.invalidate', async () => {
@@ -583,7 +583,7 @@ describe('round-four route integration — activity row created', () => {
     const req = new NextRequest('http://localhost/api/vndb/cache', { method: 'DELETE' });
     const res = await DELETE(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'cache.invalidate' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'cache.invalidate' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/producer/[id]/refresh logs producer.refresh', async () => {
@@ -591,7 +591,7 @@ describe('round-four route integration — activity row created', () => {
     const req = new NextRequest('http://localhost/api/producer/p1/refresh', { method: 'POST' });
     const res = await POST(req, { params: Promise.resolve({ id: 'p1' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'producer.refresh' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'producer.refresh' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/producer/[id]/logo logs producer.logo-clear', async () => {
@@ -602,7 +602,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: 'p2' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'producer.logo-clear' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'producer.logo-clear' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/producer/[id]/logo logs producer.logo-set', async () => {
@@ -617,7 +617,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: 'p3' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'producer.logo-set' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'producer.logo-set' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/staff/[id]/download logs staff.full-download', async () => {
@@ -625,7 +625,7 @@ describe('round-four route integration — activity row created', () => {
     const req = new NextRequest('http://localhost/api/staff/s1/download', { method: 'POST' });
     const res = await POST(req, { params: Promise.resolve({ id: 's1' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'staff.full-download' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'staff.full-download' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/vn/[id]/erogamescape logs vn.egs-link', async () => {
@@ -637,7 +637,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'vn.egs-link' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'vn.egs-link' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/vn/[id]/erogamescape logs vn.egs-unlink', async () => {
@@ -648,7 +648,7 @@ describe('round-four route integration — activity row created', () => {
     );
     const res = await DELETE(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'vn.egs-unlink' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'vn.egs-unlink' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/egs/[id]/vndb logs egs.vndb-link', async () => {
@@ -660,7 +660,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req, { params: Promise.resolve({ id: '12345' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'egs.vndb-link' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'egs.vndb-link' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/egs/[id]/vndb logs egs.vndb-unlink', async () => {
@@ -670,7 +670,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: '12345' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'egs.vndb-unlink' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'egs.vndb-unlink' })).resolves.toHaveLength(1);
   });
 
   it('POST /api/egs/sync logs egs.sync-apply', async () => {
@@ -682,7 +682,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'egs.sync-apply' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'egs.sync-apply' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/vn/[id]/vndb-status logs vndb-status.update', async () => {
@@ -694,7 +694,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'vndb-status.update' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'vndb-status.update' })).resolves.toHaveLength(1);
   });
 
   it('DELETE /api/vn/[id]/vndb-status logs vndb-status.remove', async () => {
@@ -704,7 +704,7 @@ describe('round-four route integration — activity row created', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: VN_ID }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'vndb-status.remove' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'vndb-status.remove' })).resolves.toHaveLength(1);
   });
 });
 
@@ -730,7 +730,7 @@ describe('route-level activity integration', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req, { params: Promise.resolve({ id: 'v99999' }) });
     expect(res.status).toBe(200);
-    const rows = listUserActivity({ kind: 'aspect.set' });
+    const rows = await listUserActivity({ kind: 'aspect.set' });
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(rows[0].entity_id).toBe('v99999');
     expect(rows[0].payload).toContain('16:9');
@@ -743,7 +743,7 @@ describe('route-level activity integration', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await DELETE(req, { params: Promise.resolve({ id: 'v99999' }) });
     expect(res.status).toBe(200);
-    expect(listUserActivity({ kind: 'aspect.clear' })).toHaveLength(1);
+    await expect(listUserActivity({ kind: 'aspect.clear' })).resolves.toHaveLength(1);
   });
 
   it('PATCH /api/collection/order logs collection.custom-order', async () => {
@@ -755,7 +755,7 @@ describe('route-level activity integration', () => {
     }) as unknown as import('next/server').NextRequest;
     const res = await PATCH(req);
     expect(res.status).toBe(200);
-    const rows = listUserActivity({ kind: 'collection.custom-order' });
+    const rows = await listUserActivity({ kind: 'collection.custom-order' });
     expect(rows).toHaveLength(1);
     expect(rows[0].payload).toContain('"count":2');
   });

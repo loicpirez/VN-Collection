@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listUserActivity } from '@/lib/activity';
+import { getActivityRepository } from '@/lib/db/repositories/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { parseBoundedQueryInteger, parseOptionalQueryInteger } from '@/lib/api-query';
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // the helper and rely on the inner Math.min — the explicit local cap
     // documents the contract at the entry point too.
     return NextResponse.json({
-      activity: listUserActivity({
+      activity: await getActivityRepository().listUser({
         limit: parseBoundedQueryInteger(sp.get('limit'), { fallback: 100, min: 1, max: 500 }),
         kind: clampText(sp.get('kind')),
         entity: clampText(sp.get('entity')),

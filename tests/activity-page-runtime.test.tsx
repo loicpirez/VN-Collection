@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToReadableStream } from 'react-dom/server';
 import ActivityPage, { generateMetadata } from '@/app/activity/page';
-import { listActivityKinds, listUserActivity, type UserActivity } from '@/lib/activity';
-import { listRecentActivity, type RecentActivityEntry } from '@/lib/db';
+import type { UserActivity } from '@/lib/activity';
+import type { RecentActivityEntry } from '@/lib/db';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
-vi.mock('@/lib/activity', () => ({
+const { listActivityKinds, listUserActivity, listRecentActivity } = vi.hoisted(() => ({
   listActivityKinds: vi.fn(),
   listUserActivity: vi.fn(),
+  listRecentActivity: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({
-  listRecentActivity: vi.fn(),
+vi.mock('@/lib/db/repositories/activity', () => ({
+  getActivityRepository: () => ({
+    listKinds: listActivityKinds,
+    listUser: listUserActivity,
+    listRecent: listRecentActivity,
+  }),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({

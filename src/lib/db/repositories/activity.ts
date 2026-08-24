@@ -224,13 +224,47 @@ const sqliteRepository: ActivityRepository = {
       input.actor,
     );
   },
-  async listUser(options) {
-    const { listUserActivitySqlite } = await import('@/lib/activity');
-    return listUserActivitySqlite(options);
+  async listUser({ limit = 100, kind, entity, q, from, to } = {}) {
+    const where: string[] = [];
+    const args: Array<string | number> = [];
+    if (kind) {
+      where.push('kind = ?');
+      args.push(kind);
+    }
+    if (entity) {
+      where.push('entity = ?');
+      args.push(entity);
+    }
+    if (q) {
+      const escaped = q.replace(/[\\%_]/g, '\\$&');
+      where.push("(label LIKE ? ESCAPE '\\' OR entity_id LIKE ? ESCAPE '\\' OR payload LIKE ? ESCAPE '\\')");
+      const pattern = `%${escaped}%`;
+      args.push(pattern, pattern, pattern);
+    }
+    if (from != null) {
+      where.push('occurred_at >= ?');
+      args.push(from);
+    }
+    if (to != null) {
+      where.push('occurred_at <= ?');
+      args.push(to);
+    }
+    args.push(boundedLimit(limit, 100));
+    const { db } = await import('@/lib/db');
+    return db.prepare(`
+      SELECT id, occurred_at, kind, entity, entity_id, label, payload, actor
+      FROM user_activity
+      ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY occurred_at DESC, id DESC
+      LIMIT ?
+    `).all(...args) as UserActivity[];
   },
   async listKinds() {
-    const { listActivityKindsSqlite } = await import('@/lib/activity');
-    return listActivityKindsSqlite();
+    const { db } = await import('@/lib/db');
+    const rows = db
+      .prepare('SELECT DISTINCT kind FROM user_activity ORDER BY kind COLLATE NOCASE')
+      .all() as Array<{ kind: string }>;
+    return rows.map((row) => row.kind);
   },
   async listForVn(vnId, limit) {
     return (await import('@/lib/db')).listActivityForVn(vnId, limit);
