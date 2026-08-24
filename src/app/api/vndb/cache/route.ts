@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cacheStats, clearCache, deleteCacheByPathPrefix, pruneExpiredCache } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 
-function logCacheInvalidate(payload: Record<string, unknown>) {
+async function logCacheInvalidate(payload: Record<string, unknown>): Promise<void> {
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'cache.invalidate',
       entity: 'cache',
       entityId: null,
@@ -25,7 +25,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   // disclosure (reveals which endpoints the user hits). Gate too.
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
-  return NextResponse.json({ stats: cacheStats() });
+  return NextResponse.json({ stats: await getCacheRepository().stats() });
 }
 
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
@@ -38,8 +38,8 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const prefix = sp.get('prefix');
 
   if (mode === 'expired') {
-    const removed = pruneExpiredCache();
-    logCacheInvalidate({ mode, removed });
+    const removed = await getCacheRepository().pruneExpired();
+    await logCacheInvalidate({ mode, removed });
     return NextResponse.json({ ok: true, removed, mode });
   }
   if (mode === 'prefix' && prefix) {
@@ -55,11 +55,11 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    const removed = deleteCacheByPathPrefix(prefix);
-    logCacheInvalidate({ mode, prefix, removed });
+    const removed = await getCacheRepository().deleteByPathPrefix(prefix);
+    await logCacheInvalidate({ mode, prefix, removed });
     return NextResponse.json({ ok: true, removed, mode, prefix });
   }
-  const removed = clearCache();
-  logCacheInvalidate({ mode: 'all', removed });
+  const removed = await getCacheRepository().clear();
+  await logCacheInvalidate({ mode: 'all', removed });
   return NextResponse.json({ ok: true, removed, mode: 'all' });
 }

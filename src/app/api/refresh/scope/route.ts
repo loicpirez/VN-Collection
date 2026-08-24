@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
@@ -73,16 +73,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Bust each pattern inside a transaction so partial failures
   // don't leave the cache in a half-busted state.
-  const stmt = db.prepare('DELETE FROM vndb_cache WHERE cache_key LIKE ?');
-  let deleted = 0;
-  db.transaction(() => {
-    for (const p of patterns) {
-      deleted += stmt.run(p).changes;
-    }
-  })();
+  const deleted = await getCacheRepository().deleteByPatterns(patterns);
 
   try {
-    recordActivity({
+    await recordActivity({
       kind: 'refresh.scope',
       entity: 'cache',
       entityId: scopeId,
