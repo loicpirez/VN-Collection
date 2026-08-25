@@ -296,6 +296,17 @@ describe('route loading skeletons', () => {
     expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
   });
 
+  it('matches the trait detail header, scope controls, and horizontal character cards', async () => {
+    const html = renderToStaticMarkup(await TraitLoading());
+    expect(html).toContain('data-trait-detail-skeleton');
+    expect(html).toContain('data-trait-character-grid-skeleton');
+    expect(html).toContain('var(--card-density-px, 220px)');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.32)');
+    expect(html.match(/aspect-ratio:2 \/ 3/g)).toHaveLength(10);
+    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(10);
+    expect(html).not.toContain('h-20 w-14 shrink-0');
+  });
+
   it('matches the ranked header and density-aware horizontal result cards', async () => {
     const html = renderToStaticMarkup(await TopRankedLoading());
     expect(html).toContain('data-top-ranked-results-skeleton');
