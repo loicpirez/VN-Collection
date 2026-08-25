@@ -205,7 +205,7 @@ export default async function ComparePage({
               <ul className="space-y-0.5 text-[11px]">
                 {sharedVas.slice(0, 10).map((va) => (
                   <li key={va.sid}>
-                    <Link href={`/staff/${va.sid}`} className="font-bold hover:text-accent">{va.va_name}</Link>
+                    <Link href={`/staff/${va.sid}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-bold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{va.va_name}</Link>
                     <span className="ml-2 text-muted">
                       {va.creditsByVn
                         .map((credit) => {
@@ -230,7 +230,7 @@ export default async function ComparePage({
               <ul className="space-y-0.5 text-[11px]">
                 {sharedCharacters.slice(0, 10).map((c) => (
                   <li key={c.c_id}>
-                    <Link href={`/character/${c.c_id}`} className="font-bold hover:text-accent">{c.c_name}</Link>
+                    <Link href={`/character/${c.c_id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-bold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{c.c_name}</Link>
                   </li>
                 ))}
               </ul>
@@ -263,7 +263,7 @@ export default async function ComparePage({
                     />
                   </Link>
                   <div className="min-w-0 self-center">
-                    <Link href={`/vn/${it.id}`} className="line-clamp-3 text-base font-bold hover:text-accent">
+                    <Link href={`/vn/${it.id}`} className="min-h-[44px] line-clamp-3 text-base font-bold hover:text-accent can-hover:sm:min-h-0">
                       {it.title}
                     </Link>
                     {it.alttitle && it.alttitle !== it.title && (
@@ -476,7 +476,7 @@ function DeveloperValues({ item, shared }: { item: CollectionItem; shared: Set<s
       shared.has(developer.name) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
     }`;
     return developer.id && /^p\d+$/i.test(developer.id) ? (
-      <Link key={`${developer.id}-${index}`} href={`/producer/${developer.id}`} className={`${cls} hover:underline`}>
+      <Link key={`${developer.id}-${index}`} href={`/producer/${developer.id}`} className={`${cls} inline-flex min-h-[44px] min-w-[44px] items-center hover:underline can-hover:sm:min-h-0 can-hover:sm:min-w-0`}>
         {developer.name}
       </Link>
     ) : (
@@ -494,7 +494,7 @@ function TagValues({ item, shared }: { item: CollectionItem; shared: Set<string>
         <Link
           key={tag.id}
           href={`/?tag=${encodeURIComponent(tag.id)}`}
-          className={`rounded px-1.5 py-0.5 text-[10px] hover:underline ${
+          className={`inline-flex min-h-[44px] min-w-[44px] items-center rounded px-1.5 py-0.5 text-[10px] hover:underline can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
             shared.has(tag.id) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
           }`}
         >
@@ -512,7 +512,7 @@ function StaffValues({ item, shared }: { item: CollectionItem; shared: Set<strin
     <Link
       key={`${member.id}-${index}`}
       href={`/staff/${member.id}`}
-      className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 ${
+      className={`mr-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded px-1 py-0.5 hover:bg-accent/15 can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
         shared.has(member.id) ? 'text-accent' : 'text-muted'
       }`}
     >
@@ -558,7 +558,7 @@ function VoiceValues({
             <Link
               key={`${credit.staff.id}-${credit.character.id}-${credit.note ?? 'credit'}`}
               href={`/staff/${credit.staff.id}`}
-              className={`mr-1 inline-block rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent ${
+              className={`mr-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded px-1 py-0.5 hover:bg-accent/15 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                 isShared ? 'bg-accent/15 font-bold text-accent' : 'text-muted'
               }`}
               title={`${credit.character.name}${credit.note ? ` / ${credit.note}` : ''}`}

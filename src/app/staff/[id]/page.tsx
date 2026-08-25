@@ -533,7 +533,7 @@ function VnCard({
           {year && (
             <Link
               href={`/?yearMin=${year}&yearMax=${year}`}
-              className="hover:border-accent hover:text-accent"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               title={year}
             >
               {year}

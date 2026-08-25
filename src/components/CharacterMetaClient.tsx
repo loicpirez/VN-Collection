@@ -112,7 +112,7 @@ function InlineSpoilerReveal({
           onPointerLeave={() => setHovered(false)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          className={`inline-flex items-center gap-1 rounded border bg-bg-elev/40 px-1.5 py-0.5 transition-colors hover:border-status-on_hold ${
+          className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded border bg-bg-elev/40 px-1.5 py-0.5 transition-colors hover:border-status-on_hold can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
             effectiveRevealed
               ? 'border-status-on_hold/40 text-status-on_hold'
               : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
@@ -132,7 +132,7 @@ function InlineSpoilerReveal({
         <button
           type="button"
           onClick={() => setLocalRevealed(false)}
-          className="ml-1 text-muted/70 hover:text-muted"
+          className="ml-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted/70 hover:text-muted can-hover:sm:min-h-0 can-hover:sm:min-w-0"
           aria-label={t.spoiler.hideOne}
         >
           <Eye className="h-3 w-3" aria-hidden />

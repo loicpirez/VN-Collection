@@ -113,7 +113,7 @@ export function SpoilerReveal({
   // transition the pointer would move off the now-smaller element and
   // pointerLeave would fire, snapping back to hidden.
   const wrapperClass = [
-    'group/spoiler inline-block outline-none focus-visible:ring-2 focus-visible:ring-accent',
+    'group/spoiler inline-block min-h-[44px] min-w-[44px] outline-none focus-visible:ring-2 focus-visible:ring-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0',
     isHidden ? 'cursor-pointer select-none' : '',
     isTransient ? 'cursor-pointer' : '',
   ]

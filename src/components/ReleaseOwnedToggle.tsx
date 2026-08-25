@@ -146,7 +146,7 @@ export function ReleaseOwnedToggle({
         owned ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
       }`}
     >
-      <Link href={`/vn/${vnId}#my-editions`} className="min-w-0 flex-1 text-xs text-muted hover:text-accent">
+      <Link href={`/vn/${vnId}#my-editions`} className="min-h-[44px] min-w-[44px] flex-1 text-xs text-muted hover:text-accent sm:min-w-0">
         <span className="inline-flex max-w-full items-center gap-1">
           <ArrowRight className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate font-semibold text-white/90">{vnTitle}</span>

@@ -554,7 +554,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         return (
                           <Link
                             href={`/?yearMin=${year}&yearMax=${year}`}
-                            className="transition-colors hover:text-accent"
+                            className="inline-flex min-h-[44px] items-center transition-colors hover:text-accent can-hover:sm:min-h-0"
                           >
                             {formatVndbDateString(vn.released, locale)}
                           </Link>
@@ -633,7 +633,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         href={`/search?platforms=${encodeURIComponent(p)}`}
                         title={p}
                         aria-label={p}
-                        className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                       >
                         {platformLabel(p, locale)}
                       </Link>
@@ -672,7 +672,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                     <dd className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <a
                         href="#section-aspect-override"
-                        className={`inline-flex items-center gap-1 rounded font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${isUnknown ? 'text-muted' : 'text-white'}`}
+                        className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${isUnknown ? 'text-muted' : 'text-white'}`}
                         title={t.detail.aspectScrollHint}
                         aria-label={t.detail.aspectScrollHint}
                       >
@@ -696,7 +696,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       {!isUnknown && (
                         <Link
                           href={`/?aspect=${encodeURIComponent(aspectDisplay.aspect)}`}
-                          className="rounded-md border border-border bg-bg-elev/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg-elev/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                           title={t.detail.aspectFilterLibrary}
                         >
                           {t.detail.aspectFilterLibraryShort}
@@ -731,7 +731,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                         <Link
                           key={p.id}
                           href={`/producer/${p.id}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs font-semibold text-white/85 hover:border-accent hover:text-accent"
+                          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-xs font-semibold text-white/85 hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                         >
                           <Package className="h-3 w-3 text-accent-blue" aria-hidden />
                           {p.name}

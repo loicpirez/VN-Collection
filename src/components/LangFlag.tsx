@@ -76,7 +76,7 @@ export function LangList({
             href={`/search?langs=${encodeURIComponent(l)}`}
             title={displayName}
             aria-label={displayName}
-            className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
           >
             <Globe className="h-3 w-3" aria-hidden />
             <span>{l.toUpperCase()}</span>

@@ -131,7 +131,7 @@ export function SpoilerChip({
           aria-expanded={effectiveState === 'transient'}
           aria-controls={revealedId}
           aria-label={t.spoiler.revealOne}
-          className={`group inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold ${
+          className={`group inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-status-on_hold can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
             effectiveState === 'transient'
               ? 'border-status-on_hold/40 text-status-on_hold'
               : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
@@ -154,7 +154,7 @@ export function SpoilerChip({
           <>
           <Link
             href={href}
-            className={`inline-flex items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent ${
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border bg-bg-elev/40 px-2 py-0.5 text-[11px] transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
               lie
                 ? 'border-status-on_hold/40 text-status-on_hold'
                 : level > 0
@@ -180,7 +180,7 @@ export function SpoilerChip({
               aria-label={t.spoiler.hideOne}
               aria-pressed={true}
               title={t.spoiler.hideOne}
-              className="-ml-px inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-muted hover:border-accent hover:text-accent"
+              className="-ml-px inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-1 text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               <EyeOff className="h-2.5 w-2.5" aria-hidden />
             </button>

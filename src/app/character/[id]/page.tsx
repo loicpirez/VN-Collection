@@ -187,7 +187,7 @@ export default async function CharacterPage({
                   <dt className="text-[11px] uppercase tracking-wider text-muted">{m.label}</dt>
                   <dd className="font-semibold">
                     {m.href ? (
-                      <Link href={m.href} className="hover:text-accent">
+                      <Link href={m.href} className="inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">
                         {m.value}
                       </Link>
                     ) : (
@@ -299,9 +299,9 @@ export default async function CharacterPage({
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.instances.map((inst) => (
                   <li key={`${inst.cid}-${inst.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
-                    <Link href={`/character/${inst.cid}`} className="font-semibold hover:text-accent">{inst.name}</Link>
+                    <Link href={`/character/${inst.cid}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-semibold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{inst.name}</Link>
                     <span className="text-muted">/</span>
-                    <Link href={`/vn/${inst.vn_id}`} className="text-muted hover:text-accent">{inst.vn_title}</Link>
+                    <Link href={`/vn/${inst.vn_id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center text-muted hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{inst.vn_title}</Link>
                   </li>
                 ))}
               </ul>
@@ -321,9 +321,9 @@ export default async function CharacterPage({
               <ul className="grid gap-2 text-xs sm:grid-cols-2">
                 {scraped.voiced_by.map((v) => (
                   <li key={`${v.sid}-${v.vn_id}`} className="flex flex-wrap items-baseline gap-1.5">
-                    <Link href={`/staff/${v.sid}`} className="font-semibold hover:text-accent">{v.staff_name}</Link>
+                    <Link href={`/staff/${v.sid}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-semibold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{v.staff_name}</Link>
                     <span className="text-muted">/</span>
-                    <Link href={`/vn/${v.vn_id}`} className="text-muted hover:text-accent">{v.vn_title}</Link>
+                    <Link href={`/vn/${v.vn_id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center text-muted hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{v.vn_title}</Link>
                   </li>
                 ))}
               </ul>

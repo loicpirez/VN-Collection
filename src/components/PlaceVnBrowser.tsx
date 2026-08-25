@@ -321,7 +321,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
             <Link
               href={`/vn/${vn.vn_id}`}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
             >
               <Link2 className="h-3 w-3" aria-hidden />
               {vn.vn_id}
@@ -382,7 +382,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 )}
                 <Link
                   href={`/vn/${vn.vn_id}`}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded border border-accent/30 bg-accent/10 px-2 py-1 text-[11px] font-mono text-accent hover:bg-accent/20"
                 >
                   <Link2 className="h-3 w-3" aria-hidden />
                   {vn.vn_id}

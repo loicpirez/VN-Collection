@@ -369,6 +369,27 @@ describe('responsive tap targets', () => {
     expect(stats).toContain('inline-flex min-h-[44px] items-center font-semibold');
   });
 
+  it('keeps entity metadata links and spoiler controls touch-safe', () => {
+    const languages = source('src/components/LangFlag.tsx');
+    const spoilerChip = source('src/components/SpoilerChip.tsx');
+    const spoilerReveal = source('src/components/SpoilerReveal.tsx');
+    const character = source('src/app/character/[id]/page.tsx');
+    const staff = source('src/app/staff/[id]/page.tsx');
+    const detail = source('src/app/vn/[id]/page.tsx');
+    const compare = source('src/app/compare/page.tsx');
+    const placeStock = source('src/components/PlaceVnBrowser.tsx');
+    const releaseOwned = source('src/components/ReleaseOwnedToggle.tsx');
+    expect(languages).toContain('inline-flex min-h-[44px] min-w-[44px]');
+    expect(spoilerChip.match(/min-h-\[44px\] min-w-\[44px\]/g)).toHaveLength(3);
+    expect(spoilerReveal).toContain('inline-block min-h-[44px] min-w-[44px]');
+    expect(character).toContain('inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent');
+    expect(staff).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center');
+    expect(detail).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border');
+    expect((compare.match(/inline-flex min-h-\[44px\] min-w-\[44px\]/g) ?? []).length).toBeGreaterThanOrEqual(6);
+    expect((placeStock.match(/inline-flex min-h-\[44px\] min-w-\[44px\]/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(releaseOwned).toContain('min-h-[44px] min-w-[44px] flex-1');
+  });
+
   it('keeps saved-filter popover actions touch-safe without inflating desktop rows', () => {
     const filters = source('src/components/SavedFilters.tsx');
     expect(filters).toContain('flex min-h-[44px] w-full items-center');
