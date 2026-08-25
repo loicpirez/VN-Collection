@@ -107,6 +107,8 @@ describe('map loading skeleton', () => {
     expect(body).toContain('<SkeletonBoundary');
     expect(body).toContain('label={t.map.loadingMap as string}');
     expect(body).toContain('<SkeletonBlock className="h-full w-full rounded-lg" />');
+    expect(body).toContain('data-map-sized-frame={mapSize}');
+    expect(body).toContain('sizeClass="h-full min-h-0"');
   });
 
   it('keeps Leaflet behind the client-only dynamic boundary', () => {

@@ -21,6 +21,7 @@ describe('custom dialog root portal contract', () => {
       'src/components/MapVnToEgsButton.tsx',
       'src/components/HomeLayoutEditorTrigger.tsx',
       'src/components/alicenet/AliceNetLinkDialog.tsx',
+      'src/components/alicenet/AliceNetLinkDialogSkeleton.tsx',
       'src/components/stock/ClearCacheModal.tsx',
     ]) {
       const body = source(path);

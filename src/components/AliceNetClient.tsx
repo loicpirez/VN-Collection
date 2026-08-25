@@ -28,6 +28,7 @@ import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
+import { AliceNetLinkDialogSkeleton } from './alicenet/AliceNetLinkDialogSkeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -241,20 +242,7 @@ const AliceNetLinkDialog = dynamic(
   () => import('./alicenet/AliceNetLinkDialog').then((m) => m.AliceNetLinkDialog),
   {
     ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 z-layer-modal flex items-center justify-center" aria-hidden>
-        <div className="absolute inset-0 bg-bg/80 backdrop-blur" />
-        <div className="relative w-[min(92vw,640px)] max-h-[85vh] rounded-2xl border border-border bg-bg-card p-4 sm:p-5 shadow-card">
-          <SkeletonBlock className="mb-3 h-5 w-40" />
-          <SkeletonBlock className="mb-3 h-9 w-full" />
-          <div className="space-y-2">
-            <SkeletonBlock className="h-12 w-full" />
-            <SkeletonBlock className="h-12 w-full" />
-            <SkeletonBlock className="h-12 w-full" />
-          </div>
-        </div>
-      </div>
-    ),
+    loading: AliceNetLinkDialogSkeleton,
   },
 );
 

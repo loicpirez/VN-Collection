@@ -161,12 +161,13 @@ describe('MapPageClient branches', () => {
       { locale: 'en' },
     );
     const canvas = await screen.findByTestId('map-canvas');
-    expect(canvas.getAttribute('data-size-class')).toContain('55vh');
+    expect(canvas).toHaveAttribute('data-size-class', 'h-full min-h-0');
+    expect(document.querySelector('[data-map-sized-frame="normal"]')).toHaveClass('h-[55vh]', 'min-h-[400px]');
     expect(screen.getByRole('group', { name: t.map.mapSizeLabel as string })).toHaveClass('grid-cols-2', 'sm:flex');
 
     await user.click(screen.getByRole('button', { name: t.map.mapSizeLarge as string, pressed: false }));
     await waitFor(() =>
-      expect(screen.getByTestId('map-canvas').getAttribute('data-size-class')).toContain('72vh'),
+      expect(document.querySelector('[data-map-sized-frame="large"]')).toHaveClass('h-[72vh]', 'min-h-[500px]'),
     );
     expect(localStorage.getItem('vncoll.map.size.v1')).toBe('large');
   });
@@ -178,8 +179,8 @@ describe('MapPageClient branches', () => {
       <MapPageClient places={[place({ id: 1, lat: 35, lng: 139 })]} />,
       { locale: 'en' },
     );
-    const canvas = await screen.findByTestId('map-canvas');
-    expect(canvas.getAttribute('data-size-class')).toContain('88vh');
+    await screen.findByTestId('map-canvas');
+    expect(document.querySelector('[data-map-sized-frame="tall"]')).toHaveClass('h-[88vh]', 'min-h-[600px]');
   });
 
   it('runs a Nominatim search and feeds the picked result to the map', async () => {

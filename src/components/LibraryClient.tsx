@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, Chev
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonBlock, SkeletonCardGrid } from './Skeleton';
+import { MoreFiltersSkeleton } from './library/MoreFiltersSkeleton';
 import { StatusIcon } from './StatusIcon';
 import { BulkDownloadButton } from './BulkDownloadButton';
 import { BulkActionBar } from './BulkActionBar';
@@ -59,7 +60,7 @@ import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
  */
 const MoreFilters = dynamic(() => import('./library/MoreFilters').then((m) => m.MoreFilters), {
   ssr: false,
-  loading: () => <SkeletonBlock className="mt-3 h-28 w-full rounded-lg" />,
+  loading: () => <MoreFiltersSkeleton />,
 });
 
 type SortKey =

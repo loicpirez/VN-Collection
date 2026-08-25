@@ -44,7 +44,7 @@ function MapLoadingPlaceholder() {
   return (
     <SkeletonBoundary
       label={t.map.loadingMap as string}
-      className="h-[55vh] min-h-[400px] w-full rounded-xl border border-border bg-bg-card p-3"
+      className="h-full min-h-0 w-full rounded-xl border border-border bg-bg-card p-3"
     >
       <SkeletonBlock className="h-full w-full rounded-lg" />
     </SkeletonBoundary>
@@ -345,20 +345,22 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
           <p className="max-w-md text-center text-sm text-muted">{t.map.externalMapDisabled as string}</p>
         </div>
       ) : (
-        <MapCanvas
-          key={resetKey}
-          places={withCoords}
-          focusLat={focusLat}
-          focusLng={focusLng}
-          focusId={activePlaceId}
-          searchTarget={searchTarget}
-          onMarkerFocus={(id) => setActivePlaceId(id)}
-          popupOpenLabel={t.map.popupOpen as string}
-          popupStockLabel={(n) => (t.map.popupStock as string).replace('{n}', String(n))}
-          popupBranchesLabel={(n) => (n === 1 ? t.map.popupBranch : t.map.popupBranches).replace('{n}', String(n))}
-          sizeClass={SIZE_CLASSES[mapSize]}
-          externalNetworkAllowed={externalNetworkAllowed}
-        />
+        <div className={SIZE_CLASSES[mapSize]} data-map-sized-frame={mapSize}>
+          <MapCanvas
+            key={resetKey}
+            places={withCoords}
+            focusLat={focusLat}
+            focusLng={focusLng}
+            focusId={activePlaceId}
+            searchTarget={searchTarget}
+            onMarkerFocus={(id) => setActivePlaceId(id)}
+            popupOpenLabel={t.map.popupOpen as string}
+            popupStockLabel={(n) => (t.map.popupStock as string).replace('{n}', String(n))}
+            popupBranchesLabel={(n) => (n === 1 ? t.map.popupBranch : t.map.popupBranches).replace('{n}', String(n))}
+            sizeClass="h-full min-h-0"
+            externalNetworkAllowed={externalNetworkAllowed}
+          />
+        </div>
       )}
 
       <div className="mt-6 space-y-4">

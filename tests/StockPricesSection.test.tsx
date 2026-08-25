@@ -95,7 +95,7 @@ describe('StockPricesSection', () => {
     );
     const { container } = renderWithProviders(<StockPricesSection vnId="v90007" />);
     // Skeleton placeholder is on screen while the request is pending.
-    expect(container.querySelector('.animate-pulse, [aria-hidden]')).toBeTruthy();
+    expect(container.querySelector('[data-eroge-price-panel-skeleton]')).toBeTruthy();
     expect(global.fetch).toHaveBeenCalledWith('/api/vn/v90007/stock', expect.objectContaining({ cache: 'no-store' }));
     resolveFetch(
       new Response(JSON.stringify(snapshotWithExtras()), { status: 200, headers: { 'content-type': 'application/json' } }),

@@ -40,11 +40,7 @@ import type {
 } from '@/lib/stock-api-types';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
 import { ClearCacheModalSkeleton } from './stock/ClearCacheModalSkeleton';
-const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
-const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m) => m.ClearCacheModal), {
-  ssr: false,
-  loading: ClearCacheModalSkeleton,
-});
+import { ErogePricePanelSkeleton } from './ErogePricePanelSkeleton';
 import { StockOfferRowsSkeleton } from './StockPanelSkeleton';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
@@ -59,6 +55,15 @@ import {
   decodeStockAliasesResult,
   decodeStockSnapshot,
 } from '@/lib/stock-api-shape';
+
+const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), {
+  ssr: false,
+  loading: () => <ErogePricePanelSkeleton />,
+});
+const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m) => m.ClearCacheModal), {
+  ssr: false,
+  loading: ClearCacheModalSkeleton,
+});
 
 const STOCK_UI_KEY = 'stock:ui:v1';
 
