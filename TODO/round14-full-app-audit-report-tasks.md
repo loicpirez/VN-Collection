@@ -164,11 +164,12 @@ operations, providers, deployment, backup, and restore.
   that mode while retaining exact partition counts for every grouped view. A
   second plan pass showed that full collection and VN enrichment still preceded
   the page window, so ungrouped queries now materialize only the bounded stock
-  rows and enrich that page afterward. The price-ordered production plan fell
-  from 24.453 ms before either correction to 8.138 ms with the pagination index;
-  title ordering remains a bounded sequential sort at the current 1,412-row
-  cardinality. One hundred sixty-nine repository, client, and decoder tests,
-  strict typecheck, and build pass.
+  rows and enrich that page afterward. On the deployed query, the price-ordered
+  plan fell from 24.453 ms before either correction to 9.818 ms with the
+  pagination index. Title ordering remains a bounded sequential sort at the
+  current 1,412-row cardinality and completes in 15.003 ms. One hundred
+  sixty-nine repository, client, and decoder tests, strict typecheck, and build
+  pass.
 
 - At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
   with PostgreSQL ready, pool maximum 10, and zero service restarts.

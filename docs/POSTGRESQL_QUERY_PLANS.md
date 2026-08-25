@@ -5,7 +5,7 @@ measured baseline, not a promise that PostgreSQL must always choose the same
 node. Re-capture the plans after material data growth, a PostgreSQL upgrade, or
 a material query change.
 
-## Dataset and verification
+## Migration rehearsal
 
 The capture was made on 2026-08-24 with PostgreSQL 16.15 after applying ordered
 migrations `0001` through `0007` to a new database. The source was the installed
@@ -21,24 +21,24 @@ representative aggregate checks. The source predates the optional
 `stock_batch_job.providers_json` column. The verifier proved their destination
 rows or values were empty instead of treating absence as migrated data.
 
-Representative source sizes were:
+Representative rehearsal source sizes were:
 
 | Surface | Rows or selected cardinality |
 | --- | ---: |
 | `vn` | 3,317 |
 | `collection` | 167 |
-| `vn_tag_index` | 101,050; tag `g32` matched about 2,300 rows |
-| `vn_staff_credit` | 41,588; staff `s592` matched 140 rows |
-| `vn_va_credit` | 21,341; seiyuu `s28` matched 223 rows |
+| `vn_tag_index` | 101,050; the sampled tag matched about 2,300 rows |
+| `vn_staff_credit` | 41,588; the sampled staff record matched 140 rows |
+| `vn_va_credit` | 21,341; the sampled voice record matched 223 rows |
 | `shelf_slot` | 88 across 3 shelves |
-| `vn_stock_offer` | 8,145; VN `v93` matched 125 offers |
+| `vn_stock_offer` | 8,145; the sampled VN matched 125 offers |
 | `vn_stock_provider_status` | 9,152 |
 | `collection_place_index` | 87 |
 | `alicenet_stock` | 1,412 |
 
 `ANALYZE` ran after the copy and before every plan below.
 
-## Measured plans
+## Rehearsal plans
 
 | Query surface | Selected plan | Actual result | Buffers | Execution |
 | --- | --- | ---: | --- | ---: |
@@ -79,6 +79,46 @@ The AliceNet price index must match both the cast and null-group expression in
 `orderSql`. An earlier semantically equivalent expression produced a
 sequential scan; the clean migration replay above proved the corrected
 expression selects `idx_alicenet_page_price`.
+
+## Current production recapture
+
+The plans were recaptured on 2026-08-26 from the bounded, read-only statements
+used by the deployed application. Production had ordered migrations `0001`
+through `0011`, PostgreSQL reported ready, the connection pool maximum was 10,
+and the service had zero restarts. Each statement had a five-second timeout.
+
+Current table cardinalities were:
+
+| Surface | Rows |
+| --- | ---: |
+| `vn` | 3,332 |
+| `collection` | 167 |
+| `vn_tag_index` | 101,263 |
+| `vn_staff_credit` | 41,769 |
+| `vn_va_credit` | 21,428 |
+| `shelf_slot` | 88 |
+| `vn_stock_offer` | 8,052 |
+| `vn_stock_provider_status` | 9,152 |
+| `collection_place_index` | 87 |
+| `alicenet_stock` | 1,412 |
+
+The ungrouped AliceNet query now obtains the independent total, materializes
+the bounded stock page, and only then joins that page to collection and VN
+metadata. Grouped modes retain their full partition count because the UI uses
+that count for group navigation.
+
+| Query surface | Selected plan | Actual result | Buffers | Execution |
+| --- | --- | ---: | --- | ---: |
+| AliceNet title page at offset 500 | Sequential scan plus top-N heapsort for 1,412 stock rows; primary-key VN enrichment for the page | 596 visited, 96 returned | 371 hits | 15.003 ms |
+| AliceNet numeric-price page at offset 500 | Index scan on `idx_alicenet_page_price`; primary-key VN enrichment for the page | 596 visited, 96 returned | 778 hits | 9.818 ms |
+
+Before pagination preceded enrichment, the complete application-shaped title
+and price statements took 18.593 ms and 24.453 ms respectively. Removing the
+unused ungrouped window count alone did not improve those plans because the
+joins still ran before the page window. The materialized page shape reduced
+the price path by about 60 percent. PostgreSQL still prefers a sequential scan
+for title ordering at 1,412 rows; forcing the title index would be unjustified
+without evidence from larger cardinality or higher measured latency.
 
 ## Production staff-page verification
 
