@@ -41,7 +41,7 @@ describe('QuoteFooter hover loader', () => {
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
     expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
-    expect(footer.querySelector('.max-h-11')).toBeInTheDocument();
+    expect(footer.querySelector('.max-h-12')).toBeInTheDocument();
     expect(footer.querySelector('.py-0.can-hover\\:sm\\:py-0\\.5')).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
     fireEvent.mouseEnter(footer);

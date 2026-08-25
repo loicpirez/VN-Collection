@@ -207,7 +207,7 @@ describe('responsive tap targets', () => {
     expect(source('src/components/CardDensitySlider.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/MoreNavMenu.tsx')).toContain('min-h-[44px]');
     const quoteFooter = source('src/components/QuoteFooter.tsx');
-    expect(quoteFooter).toContain('max-h-11');
+    expect(quoteFooter).toContain('max-h-12');
     expect(quoteFooter).toContain('can-hover:sm:max-h-5');
     expect(quoteFooter).toContain("'min-h-[44px] min-w-[44px] opacity-100'");
     expect(quoteFooter).toContain('can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0');
