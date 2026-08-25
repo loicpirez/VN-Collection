@@ -285,13 +285,13 @@ describe('fetchEgsGame', () => {
     queueFetches(
       ok(tableHtml([
         ['gamename', 'median', 'count2', 'brand_name'],
-        // &#x... hex ref, &rarr; / &hellip; named entities, decimal ref, &nbsp;.
-        ['A &amp; B &#65; &times; &#x42; &rarr;&hellip;&nbsp;end', '50', '5', 'Br&lt;X&gt;'],
+        // Named and numeric references from both the fixed EGS template and stored titles.
+        ['A &amp; B &#65; &times; &#x42; &rarr;&hellip;&nbsp;end &eacute; &rsquo; &omega; &hearts;', '50', '5', 'Br&lt;X&gt;'],
       ])),
       ok(tableHtml([['total_play_time']])),
     );
     const game = await fetchEgsGame(11);
-    expect(game?.gamename).toBe('A & B A × B →… end');
+    expect(game?.gamename).toBe(`A & B A × B →… end é ’ ω ${String.fromCharCode(9829)}`);
     expect(game?.brand_name).toBe('Br<X>');
   });
 

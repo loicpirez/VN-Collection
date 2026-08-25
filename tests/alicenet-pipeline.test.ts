@@ -162,7 +162,7 @@ describe('parseAliceNetHtml', () => {
     const html = `
       <table>
         <tr><td>商品コード</td><td>タイトル</td><td>JAN</td><td>発売日</td><td>定価</td><td>販売価格</td></tr>
-        <tr><td>111-222222-333</td><td>Synthetic Title A</td><td>4900000000001</td><td>2020/01/02</td><td>8800</td><td>5500</td></tr>
+        <tr><td>111-222222-333</td><td><span>Synthetic &eacute; &amp; &#x3A9;</span></td><td>4900000000001</td><td>2020/01/02</td><td>8800</td><td>5500</td></tr>
         <tr><td>short</td><td>too few cells</td></tr>
         <tr><td>nope</td><td>Bad Code Row</td><td>x</td><td>y</td><td>z</td><td>w</td></tr>
       </table>`;
@@ -170,7 +170,7 @@ describe('parseAliceNetHtml', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({
       code: '111-222222-333',
-      title: 'Synthetic Title A',
+      title: 'Synthetic é & Ω',
       jan: '4900000000001',
       release_date: '2020/01/02',
       list_price: '8800',

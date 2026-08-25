@@ -235,4 +235,36 @@ describe('AliceNet persisted identifier migration', () => {
       entity: 'alicenet_stock',
     });
   });
+
+  it('decodes historical EGS and AliceNet entities once', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'alicenet-entity-migration-'));
+    createdDirs.push(dir);
+    process.env.DB_PATH = join(dir, 'collection.db');
+
+    vi.resetModules();
+    const first = await import('@/lib/db');
+    first.db.prepare(`INSERT INTO vn (id, title, fetched_at) VALUES (?, ?, ?)`).run('v99001', 'Synthetic VN', 1);
+    first.db.prepare(`
+      INSERT INTO egs_game (vn_id, gamename, brand_name, fetched_at)
+      VALUES (?, ?, ?, ?)
+    `).run('v99001', 'Title &eacute; &amp;eacute;', 'Brand &rsquo; &omega;', 1);
+    first.db.prepare(`
+      INSERT INTO alicenet_stock (
+        code, title, egs_title, egs_brand, fetched_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run('999-000001-999', 'Stock title', 'Mirror &times; &hearts;', 'Mirror &ldquo;brand&rdquo;', 1, 1);
+    first.db.prepare(`DELETE FROM app_setting WHERE key = 'migration_html_entities_v1'`).run();
+
+    vi.resetModules();
+    const second = await import('@/lib/db');
+    expect(second.db.prepare(`SELECT gamename, brand_name FROM egs_game WHERE vn_id = ?`).get('v99001')).toEqual({
+      gamename: 'Title é &eacute;',
+      brand_name: 'Brand ’ ω',
+    });
+    expect(second.db.prepare(`SELECT egs_title, egs_brand FROM alicenet_stock WHERE code = ?`).get('999-000001-999')).toEqual({
+      egs_title: `Mirror × ${String.fromCharCode(9829)}`,
+      egs_brand: 'Mirror “brand”',
+    });
+    expect(second.getAppSetting('migration_html_entities_v1')).toBe('1');
+  });
 });

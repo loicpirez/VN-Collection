@@ -1,4 +1,5 @@
 import 'server-only';
+import { decodeHtmlEntities } from './html-entities';
 import { isAllowedHttpTarget } from './url-allowlist';
 import { providerFetch } from './proxy-fetch';
 import type { EgsRow } from './db';
@@ -209,24 +210,8 @@ const TABLE_FALLBACK_RE = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
 const CELL_RE = /<(th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
 
-/**
- * Decode the small set of HTML entities EGS actually emits — full DOM parsing
- * would pull in cheerio (~200KB). The page is generated server-side from a
- * fixed template, so this short list covers every case we've seen.
- */
 function decodeEntities(s: string): string {
-  return s
-    .replace(/&times;/g, '×')
-    .replace(/&rarr;/g, '→')
-    .replace(/&hellip;/g, '…')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-    .replace(/&amp;/g, '&'); // last so we don't double-decode entities containing &amp;
+  return decodeHtmlEntities(s);
 }
 
 /**

@@ -6,6 +6,7 @@ import { isVndbVnId } from './vn-id-shape';
 import type { AliceNetStockRow } from './db';
 import { getAliceNetRepository, type AliceNetEgsMeta } from './db/repositories/alicenet';
 import { ALICENET_PROVIDER_ID } from './stock-provider-constants';
+import { decodeHtmlEntities } from './html-entities';
 
 const ALICENET_URL = 'https://www.alice-kobe.com/html/page4.html';
 const ROW_RE = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -24,7 +25,7 @@ export interface AliceNetCandidate {
 }
 
 function stripTags(html: string): string {
-  return html.replace(TAG_RE, '').trim();
+  return decodeHtmlEntities(html.replace(TAG_RE, '').trim());
 }
 
 function uniq(values: string[]): string[] {

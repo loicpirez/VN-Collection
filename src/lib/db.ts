@@ -1399,6 +1399,68 @@ function open(): Database.Database {
   ensureColumn(db, 'alicenet_stock', 'egs_release_date', 'TEXT');
   ensureColumn(db, 'alicenet_stock', 'egs_image_url', 'TEXT');
   ensureColumn(db, 'alicenet_stock', 'egs_vndb_raw', 'TEXT');
+
+  const htmlEntitiesDecoded = (db
+    .prepare(`SELECT value FROM app_setting WHERE key = 'migration_html_entities_v1'`)
+    .get() as { value: string | null } | undefined)?.value;
+  if (htmlEntitiesDecoded !== '1') {
+    const decodeLegacyEntities = (table: 'egs_game' | 'alicenet_stock', column: string): void => {
+      db.prepare(`
+        UPDATE ${table}
+        SET ${column} = replace(
+          replace(
+            replace(
+              replace(
+                replace(
+                  replace(
+                    replace(
+                      replace(
+                        replace(
+                          replace(
+                            replace(
+                              replace(
+                                replace(
+                                  replace(
+                                    replace(${column}, '&equiv;', '≡'),
+                                    '&hearts;', char(9829)
+                                  ),
+                                  '&rsquo;', '’'
+                                ),
+                                '&rdquo;', '”'
+                              ),
+                              '&ldquo;', '“'
+                            ),
+                            '&acirc;', 'â'
+                          ),
+                          '&times;', '×'
+                        ),
+                        '&omega;', 'ω'
+                      ),
+                      '&eacute;', 'é'
+                    ),
+                    '&dagger;', '†'
+                  ),
+                  '&rarr;', '→'
+                ),
+                '&hellip;', '…'
+              ),
+              '&nbsp;', ' '
+            ),
+            '&quot;', '"'
+          ),
+          '&amp;', '&'
+        )
+        WHERE ${column} LIKE '%&%;%'
+      `).run();
+    };
+    db.transaction(() => {
+      decodeLegacyEntities('egs_game', 'gamename');
+      decodeLegacyEntities('egs_game', 'brand_name');
+      decodeLegacyEntities('alicenet_stock', 'egs_title');
+      decodeLegacyEntities('alicenet_stock', 'egs_brand');
+      setMigrationMarker(db, 'migration_html_entities_v1');
+    })();
+  }
   ensureColumn(db, 'vn_stock_offer', 'location_branch', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'content_kind', 'TEXT');
   ensureColumn(db, 'vn_stock_offer', 'platform', 'TEXT');

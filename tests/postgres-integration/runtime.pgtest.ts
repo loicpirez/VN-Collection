@@ -490,6 +490,44 @@ describe('real PostgreSQL migration runtime', () => {
     });
   });
 
+  it('decodes historical EGS and AliceNet entities in migration 0010', async () => {
+    await withIsolatedSchema(async (pool) => {
+      const migrations = await listPostgresMigrations();
+      const priorMigrations = migrations.slice(0, -1);
+      expect(migrations.at(-1)?.version).toBe('0010_decode_legacy_html_entities');
+      await applyPostgresMigrations(pool, priorMigrations);
+      await pool.query(`INSERT INTO vn (id, title, fetched_at) VALUES ('v99001', 'Synthetic VN', 1)`);
+      await pool.query(`
+        INSERT INTO egs_game (vn_id, gamename, brand_name, fetched_at)
+        VALUES ('v99001', 'Title &eacute; &amp;eacute;', 'Brand &rsquo; &omega;', 1)
+      `);
+      await pool.query(`
+        INSERT INTO alicenet_stock (
+          code, title, egs_title, egs_brand, fetched_at, updated_at
+        ) VALUES (
+          '999-000001-999', 'Stock title', 'Mirror &times; &hearts;',
+          'Mirror &ldquo;brand&rdquo;', 1, 1
+        )
+      `);
+
+      await expect(applyPostgresMigrations(pool, migrations)).resolves.toEqual({
+        applied: ['0010_decode_legacy_html_entities'],
+        skipped: priorMigrations.map((migration) => migration.version),
+      });
+      const egs = await pool.query<{ gamename: string; brand_name: string } & QueryResultRow>(
+        `SELECT gamename, brand_name FROM egs_game WHERE vn_id = 'v99001'`,
+      );
+      expect(egs.rows[0]).toEqual({ gamename: 'Title é &eacute;', brand_name: 'Brand ’ ω' });
+      const stock = await pool.query<{ egs_title: string; egs_brand: string } & QueryResultRow>(
+        `SELECT egs_title, egs_brand FROM alicenet_stock WHERE code = '999-000001-999'`,
+      );
+      expect(stock.rows[0]).toEqual({
+        egs_title: `Mirror × ${String.fromCharCode(9829)}`,
+        egs_brand: 'Mirror “brand”',
+      });
+    });
+  });
+
   it('persists every generated-identifier domain through RETURNING', async () => {
     await withIsolatedSchema(async (pool, schema) => {
       const migrations = await listPostgresMigrations();
