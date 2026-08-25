@@ -178,6 +178,28 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('aspect-[2/3]');
   });
 
+  it('matches the statistics summary, goal, histogram, and responsive chart groups', async () => {
+    const html = renderToStaticMarkup(await StatsLoading());
+    expect(html).toContain('data-stats-panel-skeleton="summary"');
+    expect(html).toContain('data-stats-panel-skeleton="goal"');
+    expect(html).toContain('data-stats-panel-skeleton="histogram"');
+    expect(html).toContain('data-stats-bars-skeleton');
+    expect(html).toContain('data-stats-chart-grid-skeleton');
+    expect(html.match(/rounded-lg border border-border bg-bg-elev\/50 p-4 text-center/g)).toHaveLength(4);
+  });
+
+  it('matches the data status, actions, maintenance columns, and tool groups', async () => {
+    const html = renderToStaticMarkup(await DataLoading());
+    expect(html).toContain('data-data-panel-skeleton="status"');
+    expect(html).toContain('data-data-panel-skeleton="export"');
+    expect(html).toContain('data-data-panel-skeleton="import"');
+    expect(html).toContain('data-data-panel-skeleton="maintenance"');
+    expect(html).toContain('data-data-status-grid-skeleton');
+    expect(html).toContain('data-data-maintenance-grid-skeleton');
+    expect(html).toContain('data-data-tools-grid-skeleton');
+    expect(html).toContain('md:grid-cols-2 lg:grid-cols-3');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>
