@@ -224,8 +224,9 @@ export function createPostgresAliceNetRepository(): AliceNetRepository {
       const safeOffset = Number.isFinite(query.offset) && query.offset > 0 ? Math.min(10_000_000, Math.floor(query.offset)) : 0;
       const bindings = new Bindings();
       const where = whereSql(query, bindings);
-      const commonFrom = 'FROM alicenet_stock k LEFT JOIN collection c ON c.vn_id = k.vn_id LEFT JOIN vn v ON v.id = k.vn_id';
-      const totalResult = await postgresQuery<CountRow>(`SELECT COUNT(*) AS n ${commonFrom} ${where}`, bindings.values);
+      const filterFrom = 'FROM alicenet_stock k LEFT JOIN collection c ON c.vn_id = k.vn_id';
+      const commonFrom = `${filterFrom} LEFT JOIN vn v ON v.id = k.vn_id`;
+      const totalResult = await postgresQuery<CountRow>(`SELECT COUNT(*) AS n ${filterFrom} ${where}`, bindings.values);
       const wishlistParameter = bindings.add(query.wishlistIds ?? []);
       const limitParameter = bindings.add(safeLimit);
       const offsetParameter = bindings.add(safeOffset);
@@ -233,21 +234,41 @@ export function createPostgresAliceNetRepository(): AliceNetRepository {
       const selectedGroupCount = query.group === 'none'
         ? '0::BIGINT'
         : `COUNT(*) OVER (PARTITION BY ${selectedGroup})`;
-      const itemResult = await postgresQuery<PgAliceNetListRow>(`
+      const projection = `
         SELECT k.*,
           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
           CASE WHEN k.vn_id = ANY(${wishlistParameter}::text[]) THEN 1 ELSE 0 END AS in_wishlist,
           v.image_url AS vn_image_url,
           v.local_image AS vn_local_image,
           v.image_sexual AS vn_image_sexual,
-          v.developers AS vn_developers,
-          ${selectedGroup} AS server_group_key,
-          ${selectedGroupCount} AS server_group_count
-        ${commonFrom}
-        ${where}
-        ORDER BY ${orderSql(query)}, k.code ASC
-        LIMIT ${limitParameter} OFFSET ${offsetParameter}
-      `, bindings.values);
+          v.developers AS vn_developers`;
+      const itemSql = query.group === 'none'
+        ? `
+          WITH page_rows AS MATERIALIZED (
+            SELECT k.*
+            ${filterFrom}
+            ${where}
+            ORDER BY ${orderSql(query)}, k.code ASC
+            LIMIT ${limitParameter} OFFSET ${offsetParameter}
+          )
+          ${projection},
+            '' AS server_group_key,
+            ${selectedGroupCount} AS server_group_count
+          FROM page_rows k
+          LEFT JOIN collection c ON c.vn_id = k.vn_id
+          LEFT JOIN vn v ON v.id = k.vn_id
+          ORDER BY ${orderSql(query)}, k.code ASC
+        `
+        : `
+          ${projection},
+            ${selectedGroup} AS server_group_key,
+            ${selectedGroupCount} AS server_group_count
+          ${commonFrom}
+          ${where}
+          ORDER BY ${orderSql(query)}, k.code ASC
+          LIMIT ${limitParameter} OFFSET ${offsetParameter}
+        `;
+      const itemResult = await postgresQuery<PgAliceNetListRow>(itemSql, bindings.values);
       const producerResult = await postgresQuery<AliceNetProducerFacet & QueryResultRow>(`
         SELECT id, name, COUNT(*) AS count
         FROM (

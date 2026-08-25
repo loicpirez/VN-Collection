@@ -10472,27 +10472,57 @@ export function queryAliceNetStockPage(query: AliceNetStockListQuery): AliceNetS
     ? '0'
     : `COUNT(*) OVER (PARTITION BY ${groupSql})`;
   const wishlistJson = JSON.stringify(query.wishlistIds ?? []);
+  const filterVnJoin = query.producer ? 'LEFT JOIN vn v ON v.id = k.vn_id' : '';
+  const filterFrom = `
+    FROM alicenet_stock k
+    LEFT JOIN collection c ON c.vn_id = k.vn_id
+    ${filterVnJoin}
+  `;
   const commonFrom = `
     FROM alicenet_stock k
     LEFT JOIN collection c ON c.vn_id = k.vn_id
     LEFT JOIN vn v ON v.id = k.vn_id
   `;
-  const total = (db.prepare(`SELECT COUNT(*) AS n ${commonFrom} ${where.sql}`).get(...where.params) as { n: number }).n;
-  const items = db.prepare(`
+  const total = (db.prepare(`SELECT COUNT(*) AS n ${filterFrom} ${where.sql}`).get(...where.params) as { n: number }).n;
+  const projection = `
     SELECT k.*,
            CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
            CASE WHEN k.vn_id IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END AS in_wishlist,
            v.image_url AS vn_image_url,
            v.local_image AS vn_local_image,
            v.image_sexual AS vn_image_sexual,
-           v.developers AS vn_developers,
-           ${groupSql} AS server_group_key,
-           ${groupCountSql} AS server_group_count
-    ${commonFrom}
-    ${where.sql}
-    ORDER BY ${aliceNetOrderSql(query)}, k.code ASC
-    LIMIT ? OFFSET ?
-  `).all(wishlistJson, ...where.params, safeLimit, safeOffset) as AliceNetStockListRow[];
+           v.developers AS vn_developers`;
+  const ungrouped = query.group === 'none';
+  const itemSql = ungrouped
+    ? `
+      WITH page_rows AS MATERIALIZED (
+        SELECT k.*
+        ${filterFrom}
+        ${where.sql}
+        ORDER BY ${aliceNetOrderSql(query)}, k.code ASC
+        LIMIT ? OFFSET ?
+      )
+      ${projection},
+             '' AS server_group_key,
+             ${groupCountSql} AS server_group_count
+      FROM page_rows k
+      LEFT JOIN collection c ON c.vn_id = k.vn_id
+      LEFT JOIN vn v ON v.id = k.vn_id
+      ORDER BY ${aliceNetOrderSql(query)}, k.code ASC
+    `
+    : `
+      ${projection},
+             ${groupSql} AS server_group_key,
+             ${groupCountSql} AS server_group_count
+      ${commonFrom}
+      ${where.sql}
+      ORDER BY ${aliceNetOrderSql(query)}, k.code ASC
+      LIMIT ? OFFSET ?
+    `;
+  const itemParameters = ungrouped
+    ? [...where.params, safeLimit, safeOffset, wishlistJson]
+    : [wishlistJson, ...where.params, safeLimit, safeOffset];
+  const items = db.prepare(itemSql).all(...itemParameters) as AliceNetStockListRow[];
 
   const producers = db.prepare(`
     SELECT id, name, COUNT(*) AS count

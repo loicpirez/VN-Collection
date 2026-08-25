@@ -125,6 +125,8 @@ describe('PostgreSQL AliceNet repository', () => {
     const ungroupedPageSql = String(mocks.postgresQuery.mock.calls[1]?.[0]);
     expect(ungroupedPageSql).toContain('0::BIGINT AS server_group_count');
     expect(ungroupedPageSql).not.toContain('COUNT(*) OVER');
+    expect(ungroupedPageSql).toContain('WITH page_rows AS MATERIALIZED');
+    expect(ungroupedPageSql.indexOf('LEFT JOIN vn v')).toBeGreaterThan(ungroupedPageSql.indexOf('FROM page_rows k'));
 
     mocks.postgresQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
     const filters: AliceNetStockListQuery['filter'][] = ['matched', 'vndb', 'egs_only', 'unmatched', 'none_found', 'collection'];
