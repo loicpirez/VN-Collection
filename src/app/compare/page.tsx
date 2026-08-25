@@ -253,7 +253,11 @@ export default async function ComparePage({
                 className="overflow-hidden rounded-lg border border-border bg-bg-card [content-visibility:auto] [contain-intrinsic-size:auto_760px]"
               >
                 <header className="flex gap-4 border-b border-border p-4">
-                  <Link href={`/vn/${it.id}`} className="block aspect-[2/3] w-20 shrink-0 overflow-hidden rounded">
+                  <Link
+                    href={`/vn/${it.id}`}
+                    aria-label={it.title}
+                    className="block aspect-[2/3] w-20 shrink-0 overflow-hidden rounded"
+                  >
                     <SafeImage
                       src={it.image_url || it.image_thumb}
                       localSrc={it.local_image || it.local_image_thumb}

@@ -272,6 +272,7 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('data-section="production-credits"');
     expect(html).toContain('data-section="extra-credits"');
     expect(html).toContain('Alternative title');
+    expect(html).toContain('aria-label="Visual novel v1"');
     expect(html).toContain('/local/thumb.jpg');
     expect(html).toContain('/local/character.jpg');
     expect(html).toContain('Original character');

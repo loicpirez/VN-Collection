@@ -154,6 +154,7 @@ describe('compare page runtime', () => {
     expect(html).toContain('data-testid="langs"></span>');
     expect(html).toContain('text-muted/60">-</span>');
     expect(html).toContain('data-testid="compare-mobile-cards"');
+    expect(html).toContain('aria-label="VN v1"');
     expect(html).toContain('data-testid="compare-desktop-matrix"');
     expect(html).toContain('hidden overflow-x-auto');
     expect(html).toContain(dictionaries.en.compareView.row.ratingVndb);
