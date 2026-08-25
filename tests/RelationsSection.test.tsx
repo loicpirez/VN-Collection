@@ -98,7 +98,7 @@ describe('RelationsSection', () => {
       id: `v${90001 + index}`,
       title: `Related VN ${index + 1}`,
     }));
-    const { user } = renderWithProviders(<RelationsSection relations={relations} />, { locale: 'en' });
+    const { rerender, user } = renderWithProviders(<RelationsSection relations={relations} />, { locale: 'en' });
 
     expect(screen.getByText('v90012:none:0:Sequel:accent')).toBeInTheDocument();
     expect(screen.queryByText('v90013:none:0:Sequel:accent')).toBeNull();
@@ -108,5 +108,12 @@ describe('RelationsSection', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('v90025:none:0:Sequel:accent')).toBeInTheDocument();
     expect(navigation).toHaveTextContent('25-25 / 25');
+
+    rerender(<RelationsSection relations={[
+      ...relations.slice(0, -1),
+      relation({ id: 'v90030', title: 'Replacement relation' }),
+    ]} />);
+    expect(screen.getByText('v90001:none:0:Sequel:accent')).toBeInTheDocument();
+    expect(screen.queryByText('v90030:none:0:Sequel:accent')).toBeNull();
   });
 });
