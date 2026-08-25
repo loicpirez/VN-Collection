@@ -22,6 +22,7 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
 | R13-RESP-001 | HIGH | Production mobile measurement finds release-producer metadata links at about 13 px high and anniversary cards at 40 px. Keep the compact desktop presentation but provide the repository-required 44 px touch target on coarse/narrow layouts. | `src/app/upcoming/page.tsx`, `src/components/AnniversaryFeedView.tsx` | DONE_WITH_DIFF |
 | R13-RESP-002 | HIGH | A long romanized title in the all-releases feed expands its compact card past the 390 px viewport in both WebKit and Chromium. Allow the title flex item to shrink and wrap long tokens while retaining the two-line card hierarchy. | `src/components/UpcomingCard.tsx`, production `/upcoming?tab=all` | DONE_WITH_DIFF |
 | R13-A11Y-001 | HIGH | The 390 px production matrix still measures interactive controls below the repository's 44 px touch-surface minimum across upcoming titles, recommendations, compare metadata, quotes, statistics, Steam, stock, places, schema/data tools, and entity detail pages. Separate inline-reading links from controls, then enlarge every true control without turning dense metadata into oversized cards. | shared chips and action controls across audited mobile routes | TODO |
+| R13-A11Y-002 | HIGH | WebKit ignores `min-height` and padding on native select controls while preserving the same declarations in CSSOM, leaving production place filters at 20 px even though Chromium renders 44 px. Give the shared select primitive an explicit 44 px used height, verify both engines, and retain intrinsic sizing for other input types. | `src/app/globals.css`, all `.input` select controls | DONE_WITH_DIFF |
 | R13-SEC-001 | HIGH | Every production document has HSTS, MIME sniffing, referrer, frame, and permissions protections but no Content Security Policy. Build an application-compatible enforced policy for Next.js scripts, local APIs, VNDB/local images, map tiles, geocoding, and user-configured artwork; prove that it blocks unrelated origins without breaking all 40 routes. | `next.config.mjs`, browser security headers, security tests | DONE_WITH_DIFF |
 
 ## Evidence collected
@@ -54,3 +55,8 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
   rows remain reachable through localized, keyboard-operable navigation;
   WebKit and Chromium now measure about 4,938 nodes on the same VN and 2,018
   on `/tags`.
+- Commit `e57db0dc` gives shared select controls an explicit 44 px used height,
+  enlarges producer-scope tabs on touch layouts, and completes both dimensions
+  of short upcoming producer links. Production WebKit and Chromium both now
+  measure those three surfaces at 44 px; desktop fine-pointer compaction remains
+  available for the link and tab controls.
