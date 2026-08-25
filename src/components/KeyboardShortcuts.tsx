@@ -252,7 +252,7 @@ export function KeyboardShortcuts() {
       <button
         type="button"
         onClick={() => setHelp(false)}
-        className="absolute right-3 top-3 tap-target rounded p-1 text-muted hover:text-white"
+        className="absolute right-3 top-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white"
         aria-label={t.common.close}
       >
         <X className="h-4 w-4" aria-hidden />

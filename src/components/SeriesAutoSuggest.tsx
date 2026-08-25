@@ -138,7 +138,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
           onClick={() => setDismissed(true)}
           disabled={!!busy}
           aria-label={t.common.close}
-          className="tap-target-tight rounded p-1 text-muted hover:text-white"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white"
         >
           <X className="h-3 w-3" aria-hidden />
         </button>

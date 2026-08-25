@@ -119,7 +119,7 @@ export function CompareWithButton({ currentVnId, triggerClassName, keepMenuOpen 
             type="button"
             onClick={() => setOpen(false)}
             aria-label={t.common.close}
-            className="tap-target shrink-0 rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md p-1 text-muted hover:bg-bg-elev hover:text-white"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>

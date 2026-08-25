@@ -269,7 +269,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
               <button
                 type="button"
                 onClick={clearSearch}
-                className="tap-target absolute inset-y-0 right-2 my-auto flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+                className="absolute inset-y-0 right-2 my-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
                 aria-label={t.common.close as string}
               >
                 <X className="h-3.5 w-3.5" aria-hidden />

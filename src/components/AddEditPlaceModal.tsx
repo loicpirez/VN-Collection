@@ -260,7 +260,7 @@ export function AddEditPlaceModal({ place, initialBranch, createLabel, onClose, 
           <button
             type="button"
             onClick={requestClose}
-            className="icon-btn tap-target text-muted hover:text-white"
+            className="icon-btn inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted hover:text-white"
             aria-label={t.common.close as string}
           >
             <X className="h-4 w-4" aria-hidden />

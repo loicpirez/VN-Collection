@@ -161,7 +161,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           type="button"
           onClick={onClose}
           aria-label={t.common.close}
-          className="tap-target rounded text-muted hover:text-white"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
         >
           <X className="h-3 w-3" aria-hidden />
         </button>

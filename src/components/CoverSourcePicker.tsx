@@ -410,7 +410,7 @@ export function CoverSourcePicker({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="tap-target rounded-md text-muted hover:bg-bg-elev hover:text-white"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white"
                 aria-label={t.common.close}
               >
                 <X className="h-4 w-4" aria-hidden />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
@@ -14,11 +15,38 @@ function tsxFiles(path: string): string[] {
   });
 }
 
+function closeButtons(path: string): string[] {
+  const body = source(path);
+  const file = ts.createSourceFile(path, body, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const matches: string[] = [];
+  function visit(node: ts.Node): void {
+    if (
+      (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+      && node.tagName.getText(file) === 'button'
+      && /aria-label=\{[^}]*close|aria-label=\{closeLabel/.test(node.getText(file))
+    ) {
+      matches.push(node.getText(file));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  return matches;
+}
+
 describe('responsive tap targets', () => {
   it('compacts touch targets only when a fine pointer can hover', () => {
     const widthOnlyCompaction = /(?<!can-hover:)sm:min-(?:h|w)-0/;
     for (const path of tsxFiles('src')) {
       expect(source(path), path).not.toMatch(widthOnlyCompaction);
+    }
+  });
+
+  it('gives every close button a real touch-sized layout box', () => {
+    const buttons = tsxFiles('src').flatMap(closeButtons);
+    expect(buttons).toHaveLength(30);
+    for (const button of buttons) {
+      expect(button).toMatch(/min-h-\[44px\]|\bh-11\b|absolute inset-0/);
+      expect(button).toMatch(/min-w-\[44px\]|\bw-11\b|absolute inset-0|btn btn-xs/);
     }
   });
 
@@ -243,7 +271,7 @@ describe('responsive tap targets', () => {
     const modal = source('src/components/AddEditPlaceModal.tsx');
     const places = source('src/components/PlaceBrowser.tsx');
     const stock = source('src/components/PlaceVnBrowser.tsx');
-    expect(map).toContain('tap-target absolute inset-y-0 right-2');
+    expect(map).toContain('absolute inset-y-0 right-2 my-auto flex min-h-[44px] min-w-[44px]');
     expect(map).toContain('className={`min-h-[44px] rounded border px-2 py-0.5');
     expect(map).toContain('min-h-[44px] w-full px-3 py-2 text-left text-[12px]');
     expect(modal).toContain('className="min-h-[44px] w-full rounded border');

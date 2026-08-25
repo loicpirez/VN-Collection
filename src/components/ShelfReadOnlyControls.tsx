@@ -380,7 +380,7 @@ export function ShelfReadOnlyControls({
               type="button"
               onClick={() => setOpen(false)}
               aria-label={t.common.close}
-              className="tap-target-tight inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:text-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
             >
               <X className="h-3.5 w-3.5" aria-hidden />
             </button>

@@ -654,7 +654,7 @@ function EgsPicker({
           <button
             type="button"
             onClick={onClose}
-            className="tap-target inline-flex items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted hover:bg-bg-elev hover:text-white"
             aria-label={t.common.close}
           >
             <X className="h-4 w-4" aria-hidden />

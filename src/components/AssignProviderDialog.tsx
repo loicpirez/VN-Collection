@@ -230,7 +230,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="icon-btn tap-target text-muted hover:text-white"
+            className="icon-btn inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted hover:text-white"
             aria-label={t.common.close as string}
           >
             <X className="h-4 w-4" aria-hidden />

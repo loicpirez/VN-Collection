@@ -424,7 +424,7 @@ export function DownloadStatusBar() {
 	            <button
 	              type="button"
 	              onClick={() => setOpen(false)}
-	              className="tap-target rounded text-muted hover:text-white"
+	              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-white"
 	              aria-label={t.common.close}
 	            >
 	              <X className="h-3 w-3" aria-hidden />
