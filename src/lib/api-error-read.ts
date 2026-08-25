@@ -95,6 +95,7 @@ export type KnownApiErrorCode =
   | 'egs_game_not_found'
   | 'needs_mapping'
   | 'already_exists'
+  | 'invalid_providers'
   | 'queue_full'
   | 'invalid_operation'
   | 'run_unavailable'

@@ -468,6 +468,52 @@ describe('StockBatchClient branches', () => {
     }
   });
 
+  it('localizes a saturated stock batch queue', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (url.startsWith('/api/settings')) return Promise.resolve(json({}));
+      if (url.startsWith('/api/stock/queue')) {
+        return Promise.resolve(json({ entries: [{ vn_id: 'v90001', title: 'Title One' }], next_page: null }));
+      }
+      if (url.startsWith('/api/stock/batch') && method === 'POST') {
+        return Promise.resolve(json({ error: 'raw queue detail', code: 'queue_full' }, 429));
+      }
+      return Promise.resolve(json({ throttle: { active: 0, queued: 0 }, jobs: [] }));
+    });
+    renderWithProviders(<StockBatchClient />, { locale: 'fr' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Toute la collection' }));
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Lancer' }));
+    await flush();
+    expect(screen.getByText('Deux actualisations de stock sont déjà actives. Attends la fin d’un lot puis réessaie.')).not.toBeNull();
+    expect(screen.queryByText('raw queue detail')).toBeNull();
+  });
+
+  it('uses a localized fallback for an unknown stock batch failure outside English', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (url.startsWith('/api/settings')) return Promise.resolve(json({}));
+      if (url.startsWith('/api/stock/queue')) {
+        return Promise.resolve(json({ entries: [{ vn_id: 'v90001', title: 'Title One' }], next_page: null }));
+      }
+      if (url.startsWith('/api/stock/batch') && method === 'POST') {
+        return Promise.resolve(json({ error: 'raw unknown detail', code: 'future_batch_failure' }, 503));
+      }
+      return Promise.resolve(json({ throttle: { active: 0, queued: 0 }, jobs: [] }));
+    });
+    renderWithProviders(<StockBatchClient />, { locale: 'fr' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Toute la collection' }));
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Lancer' }));
+    await flush();
+    expect(screen.getByText("L’actualisation groupée du stock est temporairement indisponible. Réessaie dans un instant.")).not.toBeNull();
+    expect(screen.queryByText('raw unknown detail')).toBeNull();
+  });
+
   it('ignores a late batch start response after unmount', async () => {
     const start = deferred<Response>();
     global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

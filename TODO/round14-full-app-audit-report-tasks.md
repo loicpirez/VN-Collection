@@ -14,6 +14,7 @@ operations, providers, deployment, backup, and restore.
 
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
+| R14-I18N-002 | HIGH | Stock batch start failures exposed stable invalid-provider, queue-full, and unavailable codes, but the client discarded them and showed only a generic HTTP status outside English. Add the missing typed code, precise copy in all locales, and a localized client mapping. | stock batch API and client | DONE_WITH_DIFF |
 | R14-VNDB-004 | HIGH | Wishlist mutations emitted an actionable `listwrite` permission failure, but the typed client contract omitted it and French/Japanese UI reduced it to a generic error. Add stable auth and permission codes, localize all three dictionaries, preserve useful unknown diagnostics in English, and cover both paths. | wishlist mutation API and client | DONE_WITH_DIFF |
 | R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
 | R14-UX-001 | HIGH | The VN loading cover pulsed as a translucent block over an overlapping translucent banner skeleton. Firefox can composite both animated opacities and make the banner appear as a brighter foreground rectangle. Keep the cover pulse but place it inside an opaque, correctly layered shell matching the final cover geometry. | `src/app/vn/[id]/loading.tsx`, route-loading tests | DONE_WITH_DIFF |
@@ -600,3 +601,10 @@ operations, providers, deployment, backup, and restore.
   the PostgreSQL-backed suite passes 9,830 tests with exactly 100% statements
   (44,850/44,850), branches (38,116/38,116), functions (9,188/9,188), and
   lines (38,305/38,305).
+- Stock batch startup now translates invalid-provider, saturated-queue, and
+  unavailable-run codes in all three locales. Unknown safe diagnostics remain
+  visible in English and become a localized fallback elsewhere. Seventy-three
+  focused stock and i18n scenarios pass, the production build passes, and the
+  PostgreSQL-backed suite passes 9,832 tests with exactly 100% statements
+  (44,858/44,858), branches (38,122/38,122), functions (9,189/9,189), and
+  lines (38,312/38,312).

@@ -1,11 +1,11 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Square, X } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
 import { ErrorAlert } from './ErrorAlert';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
-import { readApiError } from '@/lib/api-error-read';
+import { readApiError, readApiErrorDetails, type KnownApiErrorCode } from '@/lib/api-error-read';
 import {
   decodeDisabledStockProviders,
   decodeStockBatchQueuePage,
@@ -35,6 +35,23 @@ const STOCK_BATCH_QUEUE_PAGE_SIZE = 50;
 const STOCK_BATCH_SCOPE_PAGE_SIZE = 500;
 const STOCK_BATCH_SCOPES = ['collection', 'reading_queue', 'recent_stock', 'wishlist'] as const;
 type StockBatchScope = (typeof STOCK_BATCH_SCOPES)[number];
+
+async function readStockBatchStartError(
+  response: Response,
+  t: ReturnType<typeof useT>,
+  locale: ReturnType<typeof useLocale>,
+): Promise<string> {
+  const fallback = t.stock.batchUnavailable;
+  const result = await readApiErrorDetails(response, fallback);
+  const messages: Partial<Record<KnownApiErrorCode, string>> = {
+    invalid_providers: t.stock.batchInvalidProviders,
+    queue_full: t.stock.batchQueueFull,
+    run_unavailable: t.stock.batchUnavailable,
+  };
+  const localized = result.code ? messages[result.code as KnownApiErrorCode] : null;
+  if (localized) return localized;
+  return locale === 'en' ? result.message : fallback;
+}
 
 /**
  * Merges newly loaded stock-batch candidates into the current queue while
@@ -98,6 +115,7 @@ const QueueRow = memo(function QueueRow({
 
 export function StockBatchClient() {
   const t = useT();
+  const locale = useLocale();
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -302,7 +320,7 @@ export function StockBatchClient() {
         signal: controller.signal,
       });
       if (!r.ok) {
-        throw new Error(await readApiError(r, t.common.httpStatus.replace('{status}', String(r.status))));
+        throw new Error(await readStockBatchStartError(r, t, locale));
       }
       const data = decodeStockBatchStart(await r.json());
       if (!data) throw new Error(t.common.error);
