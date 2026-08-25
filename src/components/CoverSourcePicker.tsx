@@ -769,7 +769,25 @@ function EgsCandidateGrid({
     return <ErrorAlert title={t.common.error}>{error}</ErrorAlert>;
   }
   if (!candidates) {
-    return <SkeletonBlock className="h-48 w-full" />;
+    return (
+      <div className="space-y-3" aria-busy="true" data-egs-cover-candidates-skeleton>
+        <ul
+          className="grid gap-3"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+        >
+          {Array.from({ length: 3 }).map((_, index) => (
+            <li key={index} className="rounded-lg border border-border bg-bg-elev/30 p-1.5">
+              <SkeletonBlock className="aspect-[2/3] w-full rounded-md" />
+              <SkeletonBlock className="mx-auto mt-1 h-3 w-2/3" />
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <SkeletonBlock className="h-11 w-36 rounded-md" />
+          <SkeletonBlock className="h-3 w-52 max-w-full" />
+        </div>
+      </div>
+    );
   }
 
   return (

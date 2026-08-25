@@ -159,6 +159,21 @@ describe('CoverSourcePicker', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/collection/v90001/cover' && c[1]?.method === 'POST')).toBe(true));
   });
 
+  it('preserves EGS candidate cards and the automatic action while candidates load', async () => {
+    const pendingCandidates = new Promise<Response>(() => {});
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      if (String(url).includes('/candidates')) return pendingCandidates;
+      return Promise.resolve(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    }) as typeof fetch;
+    renderPicker({ showTrigger: false, egsId: 777, egsHasImage: true });
+    openViaEvent();
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('tab', { name: 'EGS' }));
+    await waitFor(() => expect(dialog.querySelector('[data-egs-cover-candidates-skeleton]')).toBeTruthy());
+    expect(dialog.querySelectorAll('[data-egs-cover-candidates-skeleton] li')).toHaveLength(3);
+    expect(dialog.querySelectorAll('[data-egs-cover-candidates-skeleton] .aspect-\\[2\\/3\\]')).toHaveLength(3);
+  });
+
   it('uses the EGS auto cover by PATCHing source-pref to egs', async () => {
     const candidates = { candidates: [{ source: 'banner', url: 'https://example.com/egs-banner.jpg', label: 'Banner' }] };
     const fetchMock = vi.fn().mockImplementation((url: string) => {

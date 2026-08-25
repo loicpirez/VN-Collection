@@ -58,6 +58,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-041 | HIGH | Similar loading always invented a selected seed and twelve results although the default route resolves to only a seed picker, and the loading boundary cannot know query state. Preserve the common mobile return, identity, subtitle, and seed input without fabricating result content. | similar route loading | DONE_WITH_DIFF |
 | R14-UX-042 | MEDIUM | Recommendation seed derivation used one anonymous 40-pixel bar before resolving into a labelled TagPicker with chips, search, and help. Preserve the guaranteed control frame while server-derived seed names load. | recommendation seed-tag Suspense fallback | DONE_WITH_DIFF |
 | R14-UX-043 | MEDIUM | Optional external seiyuu credits reserved eight ungrouped cards even though the response may be absent and resolved content always groups voice or production work. Use one compact neutral group and the card anatomy shared by both result types. | streamed staff external-credit fallback | DONE_WITH_DIFF |
+| R14-UX-044 | HIGH | Opening the EGS cover source showed one opaque 192-pixel rectangle before replacing it with 2:3 candidate tiles and an automatic-cover action. Preserve a bounded candidate grid, labels, and footer action while image sources load. | VN cover source picker | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -512,3 +513,10 @@ operations, providers, deployment, backup, and restore.
   build passes, and the full suite remains at 9,824 tests with exactly 100%
   statements (44,821/44,821), branches (38,100/38,100), functions
   (9,172/9,172), and lines (38,275/38,275).
+- The EGS cover-source picker now reserves three 2:3 candidate cards plus the
+  real automatic-cover action instead of one opaque rectangle, preventing the
+  picker from changing both structure and height when candidates arrive.
+  Seventy focused picker, image-loading, and lazy-artwork scenarios pass, the
+  production build passes, and the full suite passes 9,825 tests with exactly
+  100% statements (44,822/44,822), branches (38,100/38,100), functions
+  (9,173/9,173), and lines (38,276/38,276).
