@@ -289,6 +289,16 @@ describe('route loading skeletons', () => {
     expect(staffDetail).toContain('data-staff-detail-skeleton');
   });
 
+  it('matches list detail identity, tools, add form, and removable item grid', async () => {
+    const html = renderToStaticMarkup(await ListDetailLoading());
+    expect(html).toContain('data-list-detail-skeleton');
+    expect(html).toContain('data-list-add-skeleton');
+    expect(html).toContain('data-list-items-skeleton');
+    expect(html).toContain('h-12 w-12 shrink-0');
+    expect(html.match(/absolute right-2 top-2 h-11 w-11/g)).toHaveLength(12);
+    expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(12);
+  });
+
   it('matches the character detail portrait ratio, metadata, and horizontal appearance cards', async () => {
     const html = renderToStaticMarkup(await CharacterLoading());
     expect(html).toContain('md:grid-cols-[200px_1fr]');

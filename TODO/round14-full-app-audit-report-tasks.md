@@ -50,6 +50,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-033 | MEDIUM | Printable-label loading invented a large panel and vertical cards although the destination is a return/print toolbar followed by compact horizontal QR labels. Preserve the 80 px QR frame, title/id/location text, and print-grid breakpoints. | printable labels route loading | DONE_WITH_DIFF |
 | R14-UX-034 | MEDIUM | Series-index loading hid the three-field creation form behind an opaque panel and rendered result cards with nonexistent chips while omitting their delete action. Preserve creation columns, title/description identity, density grid, and action geometry. | series index route loading | DONE_WITH_DIFF |
 | R14-UX-035 | MEDIUM | List-index loading hid the name, description, colour palette, and create action behind an opaque panel, then rendered generic taxonomy cards without list identity, count, or menu geometry. Preserve the wrapping form and the final responsive actionable-card grid. | list index route loading | DONE_WITH_DIFF |
+| R14-UX-036 | HIGH | List-detail loading omitted the mobile return action, coloured identity card, density and metadata tools, add-item form, and per-card remove actions. Preserve the complete detail workflow and density-aware removable cover grid throughout navigation. | list detail route loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -452,3 +453,9 @@ operations, providers, deployment, backup, and restore.
   pass, the production build passes, and the full suite passes 9,817 tests with
   exactly 100% statements (44,800/44,800), branches (38,090/38,090),
   functions (9,162/9,162), and lines (38,256/38,256).
+- List-detail loading now retains mobile return, list identity, density and
+  metadata tools, the add-item form, and remove actions on every density-aware
+  cover placeholder. Sixty-nine focused route, reorder, metadata, removal, and
+  runtime scenarios pass, the production build passes, and the full suite
+  passes 9,818 tests with exactly 100% statements (44,802/44,802), branches
+  (38,090/38,090), functions (9,164/9,164), and lines (38,258/38,258).
