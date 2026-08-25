@@ -6,7 +6,7 @@ import { Library, Search, SearchX, Sparkles } from 'lucide-react'
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
-import { SkeletonCompactGrid } from './Skeleton';
+import { TraitResultsSkeleton } from './TraitsBrowserSkeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum } from '@/lib/locale-number';
 import { stripVndbMarkup } from './VndbMarkup';
@@ -153,7 +153,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       {error && <div role="alert" className="mb-4 rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">{error}</div>}
 
       {loading ? (
-        <SkeletonCompactGrid count={8} label={t.common.loading} />
+        <TraitResultsSkeleton label={t.common.loading} />
       ) : results.length === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card px-4 py-12 text-center text-muted">
           <SearchX className="mx-auto mb-3 h-8 w-8 text-muted/70" aria-hidden />

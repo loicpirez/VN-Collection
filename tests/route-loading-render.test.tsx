@@ -61,6 +61,7 @@ import {
 } from '@/components/Skeleton';
 import { HomeSectionSkeleton } from '@/components/HomePageSkeleton';
 import { SeedTagControlsSkeleton } from '@/components/SeedTagControlsSkeleton';
+import { TraitResultsSkeleton } from '@/components/TraitsBrowserSkeleton';
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
@@ -411,6 +412,10 @@ describe('route loading skeletons', () => {
     expect(html).toContain('h-[54px] w-full max-w-[320px]');
     expect(html.match(/rounded-xl border border-border bg-bg-card p-4/g)).toHaveLength(12);
     expect(html.match(/h-5 w-10 shrink-0/g)).toHaveLength(3);
+
+    const announced = renderToStaticMarkup(<TraitResultsSkeleton label="Loading traits" />);
+    expect(announced).toContain('Loading traits');
+    expect(announced).toContain('role="status"');
   });
 
   it('matches tag detail metadata, mode controls, actions, and VN result section', async () => {
