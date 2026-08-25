@@ -149,7 +149,7 @@ describe('place stock VN pagination', () => {
 
   it('windows sorted place-stock rows before grouping and rendering', () => {
     expect(browser).toContain('const PLACE_VN_PAGE_SIZE = 60');
-    expect(browser).toContain('() => sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE)');
+    expect(browser).toContain('() => serverPaginated ? sorted : sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE)');
     expect(browser).toContain("if (group === 'none') return [{ key: '', items: pageItems }]");
     expect(browser).toContain('for (const vn of pageItems)');
     expect(browser).toContain('t.places.vnPaginationLabel');

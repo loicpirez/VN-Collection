@@ -3,7 +3,7 @@ import { hasFiniteCoordinates } from './place-coordinates';
 import { isValidVnId, normalizeVnId } from './vn-id-shape';
 import type { PlaceOfferRow, PlaceVnRow, PlaceWithLinks } from './db';
 import type { PlaceRegistryStats, RegistryPageMeta } from './place-registry-page';
-import { decodeOffsetPageWindow } from './server-pagination';
+import { decodeOffsetPageMeta, decodeOffsetPageWindow, type OffsetPageMeta } from './server-pagination';
 
 /** Place-stock statistics returned by the place browser endpoint. */
 export interface PlaceStockStats {
@@ -18,6 +18,13 @@ export interface PlaceStockStats {
 
 /** Place-stock VN row with its matching offer rows and wishlist indicator. */
 export type PlaceStockVn = PlaceVnRow & { offers: PlaceOfferRow[]; in_wishlist: number };
+
+/** Producer facet returned alongside a bounded place-stock page. */
+export interface PlaceStockProducerFacet {
+  id: string;
+  name: string;
+  count: number;
+}
 
 /** Provider branch currently linked to another place. */
 export interface OtherPlaceBranch {
@@ -351,9 +358,26 @@ export function decodeCreatePlaceResponse(value: unknown): number | null {
 export function decodePlaceStockResponse(value: unknown): {
   vns: PlaceStockVn[];
   stats: PlaceStockStats;
+  page?: OffsetPageMeta;
+  producers?: PlaceStockProducerFacet[];
 } | null {
   const record = asJsonRecord(value);
   const vns = decodeArray(record?.vns, decodePlaceStockVn);
   const stats = decodePlaceStockStats(record?.stats);
-  return vns && stats ? { vns, stats } : null;
+  if (!vns || !stats) return null;
+  if (record?.page === undefined && record?.producers === undefined) return { vns, stats };
+  const page = decodeOffsetPageMeta(record?.page, 100);
+  const producers = decodeArray(record?.producers, (value) => {
+    const producer = asJsonRecord(value);
+    if (
+      !producer
+      || !isString(producer.id)
+      || !producer.id
+      || !isString(producer.name)
+      || !producer.name
+      || !isIntegerAtLeast(producer.count, 1)
+    ) return null;
+    return { id: producer.id, name: producer.name, count: producer.count };
+  });
+  return page && producers ? { vns, stats, page, producers } : null;
 }

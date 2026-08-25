@@ -78,6 +78,10 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function isStockRequest(url: RequestInfo | URL): boolean {
+  return String(url).startsWith('/api/places/12/stock?');
+}
+
 function deferredResponse() {
   let resolve!: (value: Response) => void;
   let reject!: (reason?: Error | string) => void;
@@ -90,7 +94,7 @@ function deferredResponse() {
 
 function serve(vns: PlaceStockVn[]) {
   global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-    if (String(url) === '/api/places/12/stock') return json(payload(vns));
+    if (isStockRequest(url)) return json(payload(vns));
     return json({});
   });
 }

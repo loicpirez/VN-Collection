@@ -51,8 +51,12 @@ export interface PlaceRepository {
   listKnownPlaces(): Promise<string[]>;
   /** List rich per-VN stock aggregates at one place. */
   listVns(placeId: number): Promise<PlaceVnRow[]>;
-  /** List individual stock offers at one place. */
-  listOffers(placeId: number, availability?: PlaceAvailabilityFilter): Promise<PlaceOfferRow[]>;
+  /** List individual stock offers at one place, optionally restricted to selected VNs. */
+  listOffers(
+    placeId: number,
+    availability?: PlaceAvailabilityFilter,
+    vnIds?: readonly string[],
+  ): Promise<PlaceOfferRow[]>;
 }
 
 type PlaceAggregateRow = Omit<PlaceWithLinks, 'provider_labels'> & QueryResultRow & {
@@ -251,7 +255,10 @@ export function createPostgresPlaceRepository(): PlaceRepository {
         ORDER BY app_search_normalize(vn.title) COLLATE "C", vn.id
       `, [placeId])).rows;
     },
-    async listOffers(placeId, availability = 'in_stock') {
+    async listOffers(placeId, availability = 'in_stock', vnIds) {
+      if (vnIds?.length === 0) return [];
+      const vnPredicate = vnIds ? 'AND stock.vn_id = ANY($2::text[])' : '';
+      const parameters: PostgresParameter[] = vnIds ? [placeId, [...vnIds]] : [placeId];
       return (await postgresQuery<PlaceOfferRow & QueryResultRow>(`
         SELECT stock.vn_id, stock.provider, stock.availability, stock.price,
           stock.currency, stock.url, stock.location_branch, stock.location_label,
@@ -260,9 +267,9 @@ export function createPostgresPlaceRepository(): PlaceRepository {
         JOIN place_provider_link link ON (
           link.provider_label = stock.location_branch OR link.provider_label = stock.location_label
         )
-        WHERE link.place_id = $1 ${availabilitySql(availability)}
+        WHERE link.place_id = $1 ${availabilitySql(availability)} ${vnPredicate}
         ORDER BY stock.vn_id, stock.updated_at DESC, stock.provider
-      `, [placeId])).rows;
+      `, parameters)).rows;
     },
   };
 }
@@ -280,7 +287,12 @@ const sqliteRepository: PlaceRepository = {
   async listOtherBranches(excludePlaceId) { return (await import('@/lib/db')).listBranchesAtOtherPlaces(excludePlaceId); },
   async listKnownPlaces() { return (await import('@/lib/db')).listKnownPlaces(); },
   async listVns(placeId) { return (await import('@/lib/db')).listPlaceVnsEnhanced(placeId); },
-  async listOffers(placeId, availability) { return (await import('@/lib/db')).listOffersAtPlace(placeId, availability); },
+  async listOffers(placeId, availability, vnIds) {
+    const offers = (await import('@/lib/db')).listOffersAtPlace(placeId, availability);
+    if (!vnIds) return offers;
+    const selected = new Set(vnIds);
+    return offers.filter((offer) => selected.has(offer.vn_id));
+  },
 };
 
 let postgresRepository: PlaceRepository | null = null;

@@ -25,7 +25,13 @@ import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import type { PlaceOfferRow, PlaceVnRow } from '@/lib/db';
 import { parseClientPreferenceRecord, parseNamedIdRows } from '@/lib/client-persisted-shape';
-import { decodePlaceStockResponse, type PlaceStockStats, type PlaceStockVn } from '@/lib/place-client-shape';
+import {
+  decodePlaceStockResponse,
+  type PlaceStockProducerFacet,
+  type PlaceStockStats,
+  type PlaceStockVn,
+} from '@/lib/place-client-shape';
+import type { OffsetPageMeta } from '@/lib/server-pagination';
 import { readApiError } from '@/lib/api-error-read';
 import { ErrorAlert } from './ErrorAlert';
 
@@ -40,6 +46,7 @@ const GROUPS = ['none', 'provider', 'year'] as const satisfies readonly GroupKey
 const PREFS_KEY = 'vncoll.place-vn-browser.prefs.v1';
 const PLACE_VN_PAGE_SIZE = 60;
 const EMPTY_STATS: PlaceStockStats = { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 };
+const EMPTY_PAGE: OffsetPageMeta = { total: 0, limit: PLACE_VN_PAGE_SIZE, offset: 0, has_more: false };
 
 function isSort(v: unknown): v is SortKey { return (SORTS as readonly unknown[]).includes(v); }
 function isGroup(v: unknown): v is GroupKey { return (GROUPS as readonly unknown[]).includes(v); }
@@ -129,6 +136,8 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   const locale = useLocale();
   const [items, setItems] = useState<PlaceVn[]>([]);
   const [apiStats, setApiStats] = useState<PlaceStockStats>(EMPTY_STATS);
+  const [serverPage, setServerPage] = useState<OffsetPageMeta | null>(null);
+  const [serverProducers, setServerProducers] = useState<PlaceStockProducerFacet[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterTab>('all');
@@ -152,20 +161,34 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     setLoading(true);
     setLoadError(null);
     try {
-      const r = await fetch(`/api/places/${placeId}/stock`, { cache: 'no-store', signal });
+      const params = new URLSearchParams({
+        limit: String(PLACE_VN_PAGE_SIZE),
+        offset: String((page - 1) * PLACE_VN_PAGE_SIZE),
+        filter,
+        sort,
+      });
+      if (providerFilter) params.set('provider', providerFilter);
+      if (priceMin) params.set('price_min', priceMin);
+      if (priceMax) params.set('price_max', priceMax);
+      if (search) params.set('q', search);
+      const r = await fetch(`/api/places/${placeId}/stock?${params}`, { cache: 'no-store', signal });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error as string));
       const d = decodePlaceStockResponse(await r.json());
       if (!d) throw new Error(t.common.error as string);
       if (signal?.aborted) return;
       setItems(d.vns);
       setApiStats(d.stats);
+      setServerPage(d.page ?? null);
+      setServerProducers(d.producers ?? null);
     } catch (error) {
       if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+      setItems([]);
+      setServerPage(EMPTY_PAGE);
       setLoadError(error instanceof Error ? error.message : t.common.error as string);
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [placeId, t.common.error]);
+  }, [filter, page, placeId, priceMax, priceMin, providerFilter, search, sort, t.common.error]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -178,11 +201,15 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   }, [sort, group, view]);
 
   useEffect(() => {
-    const handle = setTimeout(() => setSearch(searchInput), 250);
+    const handle = setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput);
+    }, 250);
     return () => clearTimeout(handle);
   }, [searchInput]);
 
   const producers = useMemo(() => {
+    if (serverProducers) return serverProducers;
     const map = new Map<string, { id: string; name: string; count: number }>();
     for (const vn of items) {
       for (const d of parseDevs(vn.developers)) {
@@ -192,7 +219,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
       }
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [items]);
+  }, [items, serverProducers]);
 
   const filtered = useMemo(() => {
     let list = items;
@@ -236,17 +263,16 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     });
   }, [filtered, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PLACE_VN_PAGE_SIZE));
+  const effectivePage = serverPage ?? EMPTY_PAGE;
+  const serverPaginated = serverPage !== null;
+  const pageTotal = serverPaginated ? effectivePage.total : sorted.length;
+  const totalPages = Math.max(1, Math.ceil(pageTotal / PLACE_VN_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * PLACE_VN_PAGE_SIZE;
+  const pageStart = serverPaginated ? effectivePage.offset : (currentPage - 1) * PLACE_VN_PAGE_SIZE;
   const pageItems = useMemo(
-    () => sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE),
-    [sorted, pageStart],
+    () => serverPaginated ? sorted : sorted.slice(pageStart, pageStart + PLACE_VN_PAGE_SIZE),
+    [pageStart, serverPaginated, sorted],
   );
-
-  useEffect(() => {
-    setPage(1);
-  }, [filter, sort, group, providerFilter, priceMin, priceMax, search]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -302,6 +328,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     (searchInput ? 1 : 0);
 
   function resetFilters() {
+    setPage(1);
     setFilter('all');
     setProviderFilter('');
     setPriceMin('');
@@ -371,7 +398,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
           {producer && (
             <button
               type="button"
-              onClick={() => setProviderFilter(producer.id)}
+              onClick={() => {
+                setPage(1);
+                setProviderFilter(producer.id);
+              }}
               className="inline-flex min-h-[44px] w-fit items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent"
             >
               <Building2 className="h-3 w-3" aria-hidden />
@@ -530,7 +560,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setFilter(tab.id)}
+                onClick={() => {
+                  setPage(1);
+                  setFilter(tab.id);
+                }}
                 aria-pressed={filter === tab.id}
                 className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
                   filter === tab.id
@@ -565,7 +598,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               {t.places.sortLabel as string}
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
+                onChange={(e) => {
+                  setPage(1);
+                  setSort(e.target.value as SortKey);
+                }}
                 className="input min-h-[44px] text-xs normal-case tracking-normal"
               >
                 {SORTS.map((id) => <option key={id} value={id}>{sortLabels[id]}</option>)}
@@ -630,7 +666,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               {t.places.filterProducer as string}
               <select
                 value={providerFilter}
-                onChange={(e) => setProviderFilter(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setProviderFilter(e.target.value);
+                }}
                 className="input min-h-[44px] text-xs normal-case tracking-normal"
               >
                 <option value="">{t.places.filterProducerAll as string}</option>
@@ -643,7 +682,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               {t.places.priceMin as string}
               <input
                 value={priceMin}
-                onChange={(e) => setPriceMin(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setPriceMin(e.target.value);
+                }}
                 inputMode="numeric"
                 className="input min-h-[44px] text-xs normal-case tracking-normal"
                 placeholder="0"
@@ -653,7 +695,10 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               {t.places.priceMax as string}
               <input
                 value={priceMax}
-                onChange={(e) => setPriceMax(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setPriceMax(e.target.value);
+                }}
                 inputMode="numeric"
                 className="input min-h-[44px] text-xs normal-case tracking-normal"
                 placeholder="5000"
@@ -675,11 +720,11 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
       </div>
 
       {/* Items */}
-      {loading ? (
+      {loading && items.length === 0 ? (
         <PlaceVnResultsSkeleton view={view} label={t.common.loading as string} />
-      ) : loadError && items.length === 0 ? null : sorted.length === 0 ? (
+      ) : loadError && items.length === 0 ? null : pageTotal === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
-          {items.length === 0 ? (
+          {apiStats.total === 0 ? (
             <p>{t.places.vnBrowserEmpty as string}</p>
           ) : (
             <p>{t.places.vnBrowserAllFiltered as string}</p>
@@ -722,9 +767,9 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 {t.common.prev as string}
               </button>
               <span className="text-xs text-muted">
-                {fmtNum(pageStart + 1, locale)}-{fmtNum(Math.min(sorted.length, pageStart + PLACE_VN_PAGE_SIZE), locale)}
+                {fmtNum(pageStart + 1, locale)}-{fmtNum(pageStart + pageItems.length, locale)}
                 {' / '}
-                {fmtNum(sorted.length, locale)}
+                {fmtNum(pageTotal, locale)}
               </span>
               <button
                 type="button"

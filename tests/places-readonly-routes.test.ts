@@ -58,6 +58,82 @@ function seedOffer(label: string): void {
   `).run(VN_ID, label, now, now);
 }
 
+function stockVn(overrides: Partial<dbModule.PlaceVnRow>): dbModule.PlaceVnRow {
+  return {
+    vn_id: 'v90721',
+    title: 'Alpha Entry',
+    alttitle: 'Alternative Needle',
+    image_url: null,
+    local_image: null,
+    image_sexual: null,
+    released: null,
+    developers: JSON.stringify([{ id: 'p90002', name: 'Studio B' }]),
+    in_collection: 1,
+    min_price: 1000,
+    offer_count: 1,
+    in_stock_count: 1,
+    out_of_stock_count: 0,
+    max_updated_at: 10,
+    ...overrides,
+  };
+}
+
+function stockRows(): dbModule.PlaceVnRow[] {
+  return [
+    stockVn({}),
+    stockVn({
+      vn_id: 'v90722',
+      title: 'Beta Entry',
+      alttitle: null,
+      developers: JSON.stringify([{ id: 'p90001', name: 'Studio A' }]),
+      in_collection: 0,
+      min_price: 2000,
+      offer_count: 2,
+      in_stock_count: 0,
+      out_of_stock_count: 2,
+      max_updated_at: 30,
+    }),
+    stockVn({
+      vn_id: 'v90723',
+      title: 'Gamma Entry',
+      alttitle: null,
+      developers: JSON.stringify([
+        { id: 'p90003', name: '' },
+        { id: 'p90004', name: 'Studio A' },
+        { id: '', name: 'Ignored' },
+      ]),
+      in_collection: 0,
+      min_price: null,
+      offer_count: 0,
+      in_stock_count: 0,
+      out_of_stock_count: 0,
+      max_updated_at: 20,
+    }),
+    stockVn({
+      vn_id: 'v90724',
+      title: 'Alpha Entry',
+      alttitle: null,
+      developers: JSON.stringify([{ id: 'p90001', name: 'Studio A' }]),
+      min_price: 1000,
+      max_updated_at: 40,
+    }),
+  ];
+}
+
+function stockOffers(): dbModule.PlaceOfferRow[] {
+  return ['v90721', 'v90722', 'v90724'].map((vnId, index) => ({
+    vn_id: vnId,
+    provider: 'synthetic-shop',
+    availability: vnId === 'v90722' ? 'out_of_stock' : 'in_stock',
+    price: index === 1 ? 2000 : 1000,
+    currency: 'JPY',
+    url: `https://example.test/${index}`,
+    location_branch: PROVIDER_LABEL,
+    location_label: null,
+    updated_at: 10 + index,
+  }));
+}
+
 beforeEach(() => {
   resetFixtures();
   fetchWishlistMock.mockReset();
@@ -139,6 +215,29 @@ describe('GET /api/places/[id]/stock', () => {
     expect((await res.json()).error).toBe('not found');
   });
 
+  it.each([
+    'limit=0',
+    'limit=101',
+    'limit=1.5',
+    'offset=-1',
+    'offset=1.5',
+    'filter=invalid',
+    'sort=invalid',
+    'price_min=-1',
+    'price_min=1.5',
+    'price_max=-1',
+    'price_min=2&price_max=1',
+    `provider=${'p'.repeat(81)}`,
+    `q=${'q'.repeat(201)}`,
+  ])('400 for an invalid stock query: %s', async (query) => {
+    const placeId = createPlace({ name: `${PLACE_NAME_PREFIX}invalid-query` });
+    const res = await placeStockGET(req(`/api/places/${placeId}/stock?${query}`), {
+      params: Promise.resolve({ id: String(placeId) }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid query' });
+  });
+
   it('200 with place, vns, and aggregate stats on success', async () => {
     fetchWishlistMock.mockResolvedValue({ needsAuth: true });
     const placeId = createPlace({ name: `${PLACE_NAME_PREFIX}stock` });
@@ -153,6 +252,8 @@ describe('GET /api/places/[id]/stock', () => {
     expect(body.place.id).toBe(placeId);
     expect(body.stats.total).toBe(1);
     expect(body.stats.in_stock).toBe(1);
+    expect(body.page).toEqual({ total: 1, limit: 60, offset: 0, has_more: false });
+    expect(body.producers).toEqual([]);
     expect(body.vns[0].vn_id).toBe(VN_ID);
     expect(body.vns[0].in_wishlist).toBe(0);
   });
@@ -170,6 +271,72 @@ describe('GET /api/places/[id]/stock', () => {
     const body = await res.json();
     expect(body.vns[0].in_wishlist).toBe(1);
     expect(body.stats.in_wishlist).toBe(1);
+  });
+
+  it('200 with combined server filters, global facets, and page-scoped offers', async () => {
+    fetchWishlistMock.mockResolvedValue([{ id: 'v90722' }, { id: 'v90724' }]);
+    const placeId = createPlace({ name: `${PLACE_NAME_PREFIX}filtered` });
+    const listVnsSpy = vi.spyOn(dbModule, 'listPlaceVnsEnhanced').mockReturnValue(stockRows());
+    const listOffersSpy = vi.spyOn(dbModule, 'listOffersAtPlace').mockReturnValue(stockOffers());
+
+    const res = await placeStockGET(req(
+      `/api/places/${placeId}/stock?filter=in_wishlist&provider=p90001&price_min=1500&price_max=2500&q=v90722&sort=price_desc&limit=1&offset=0`,
+    ), { params: Promise.resolve({ id: String(placeId) }) });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.page).toEqual({ total: 1, limit: 1, offset: 0, has_more: false });
+    expect(body.vns).toEqual([
+      expect.objectContaining({ vn_id: 'v90722', in_wishlist: 1, offers: [expect.objectContaining({ vn_id: 'v90722' })] }),
+    ]);
+    expect(body.producers).toEqual([
+      { id: 'p90003', name: 'p90003', count: 1 },
+      { id: 'p90001', name: 'Studio A', count: 2 },
+      { id: 'p90004', name: 'Studio A', count: 1 },
+      { id: 'p90002', name: 'Studio B', count: 1 },
+    ]);
+    expect(body.stats).toEqual({
+      total: 4,
+      in_stock: 2,
+      out_of_stock: 1,
+      offer_count: 4,
+      in_collection: 2,
+      branch_count: 0,
+      in_wishlist: 2,
+    });
+    listVnsSpy.mockRestore();
+    listOffersSpy.mockRestore();
+  });
+
+  it.each([
+    ['filter=in_stock&sort=fresh', ['v90724', 'v90721']],
+    ['filter=out_of_stock', ['v90722']],
+    ['filter=in_collection', ['v90721', 'v90724']],
+    ['provider=p99999', []],
+    ['q=alternative', ['v90721']],
+    ['q=V90723', ['v90723']],
+    ['price_min=1001&sort=price_asc', ['v90722']],
+    ['price_max=1000&sort=price_desc', ['v90721', 'v90724']],
+    ['sort=price_asc', ['v90721', 'v90724', 'v90722', 'v90723']],
+    ['sort=price_desc', ['v90722', 'v90721', 'v90724', 'v90723']],
+    ['sort=fresh', ['v90724', 'v90722', 'v90723', 'v90721']],
+    ['q=absent', []],
+  ] satisfies Array<[string, string[]]>)('200 applying stock query %s', async (query, expectedIds) => {
+    fetchWishlistMock.mockResolvedValue({ needsAuth: true });
+    const placeId = createPlace({ name: `${PLACE_NAME_PREFIX}query-scenario` });
+    const listVnsSpy = vi.spyOn(dbModule, 'listPlaceVnsEnhanced').mockReturnValue(stockRows());
+    const listOffersSpy = vi.spyOn(dbModule, 'listOffersAtPlace').mockReturnValue(stockOffers());
+
+    const res = await placeStockGET(req(`/api/places/${placeId}/stock?${query}`), {
+      params: Promise.resolve({ id: String(placeId) }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.vns.map((vn: { vn_id: string }) => vn.vn_id)).toEqual(expectedIds);
+    expect(body.page.total).toBe(expectedIds.length);
+    listVnsSpy.mockRestore();
+    listOffersSpy.mockRestore();
   });
 
   it('200 preserving grouped offers, empty offer arrays, and out-of-stock stats', async () => {
@@ -244,8 +411,8 @@ describe('GET /api/places/[id]/stock', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.stats).toMatchObject({ total: 2, in_stock: 0, out_of_stock: 1, offer_count: 2, in_collection: 1, in_wishlist: 0 });
-    expect(body.vns[0].offers).toHaveLength(2);
-    expect(body.vns[1].offers).toEqual([]);
+    expect(body.vns.find((vn: { vn_id: string }) => vn.vn_id === 'v90711').offers).toHaveLength(2);
+    expect(body.vns.find((vn: { vn_id: string }) => vn.vn_id === 'v90712').offers).toEqual([]);
     listVnsSpy.mockRestore();
     listOffersSpy.mockRestore();
   });

@@ -81,9 +81,13 @@ describe('PostgreSQL place and producer edge branches', () => {
     await repository.listOffers(1);
     await repository.listOffers(1, 'all');
     await repository.listOffers(1, 'out_of_stock');
+    await expect(repository.listOffers(1, 'all', [])).resolves.toEqual([]);
+    await repository.listOffers(1, 'all', ['v90001']);
     expect(String(postgresQueryMock.mock.calls[0]?.[0])).toContain("availability IN ('in_stock', 'limited')");
     expect(String(postgresQueryMock.mock.calls[1]?.[0])).not.toContain('AND stock.availability');
     expect(String(postgresQueryMock.mock.calls[2]?.[0])).toContain("availability = 'out_of_stock'");
+    expect(String(postgresQueryMock.mock.calls[3]?.[0])).toContain('stock.vn_id = ANY($2::text[])');
+    expect(postgresQueryMock.mock.calls[3]?.[1]).toEqual([1, ['v90001']]);
   });
 
   it('falls back to producer ids and applies every deterministic stats tie breaker', async () => {

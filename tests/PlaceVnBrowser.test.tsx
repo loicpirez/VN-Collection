@@ -96,6 +96,10 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+function isStockRequest(url: RequestInfo | URL): boolean {
+  return String(url).startsWith('/api/places/12/stock?');
+}
+
 function renderBrowser() {
   return renderWithProviders(
     <DisplaySettingsProvider>
@@ -110,7 +114,7 @@ describe('PlaceVnBrowser', () => {
       localStorage.clear();
     } catch {}
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === '/api/places/12/stock') return json(stockPayload());
+      if (isStockRequest(url)) return json(stockPayload());
       return json({});
     });
   });
@@ -187,7 +191,7 @@ describe('PlaceVnBrowser', () => {
       in_wishlist: 0,
     }));
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === '/api/places/12/stock') return json(stockPayload(rows));
+      if (isStockRequest(url)) return json(stockPayload(rows));
       return json({});
     });
     renderBrowser();
@@ -200,16 +204,80 @@ describe('PlaceVnBrowser', () => {
     expect(screen.getByText('1-60 / 61')).toBeTruthy();
   }, 10_000);
 
+  it('uses server pagination metadata and requests only the active stock window', async () => {
+    localStorage.setItem('vncoll.place-vn-browser.prefs.v1', JSON.stringify({ view: 'list' }));
+    const rows = Array.from({ length: 61 }, (_, index) => vn({
+      vn_id: `v${21000 + index}`,
+      title: `Server VN ${String(index + 1).padStart(2, '0')}`,
+      min_price: index + 1,
+      in_collection: 0,
+      in_wishlist: 0,
+    }));
+    const stats = stockPayload(rows).stats;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const parsed = new URL(String(url), 'http://127.0.0.1');
+      const offset = Number(parsed.searchParams.get('offset'));
+      const vns = rows.slice(offset, offset + 60);
+      return json({
+        vns,
+        stats,
+        page: { total: rows.length, limit: 60, offset, has_more: offset + vns.length < rows.length },
+        producers: [{ id: 'p1', name: 'Giga', count: rows.length }],
+      });
+    });
+
+    renderBrowser();
+    expect(await screen.findByText('Server VN 01')).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Giga (61)' })).toBeTruthy();
+    expect(screen.getByText('1-60 / 61')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: t.common.next as string }));
+    expect(await screen.findByText('Server VN 61')).toBeTruthy();
+    expect(screen.getByText('61-61 / 61')).toBeTruthy();
+    expect(String(vi.mocked(global.fetch).mock.calls.at(-1)?.[0])).toContain('offset=60');
+  });
+
+  it('returns to the final valid page when stock shrinks between requests', async () => {
+    localStorage.setItem('vncoll.place-vn-browser.prefs.v1', JSON.stringify({ view: 'list' }));
+    const rows = Array.from({ length: 61 }, (_, index) => vn({
+      vn_id: `v${22000 + index}`,
+      title: `Changing VN ${String(index + 1).padStart(2, '0')}`,
+      in_collection: 0,
+      in_wishlist: 0,
+    }));
+    let initialWindowServed = false;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      const parsed = new URL(String(url), 'http://127.0.0.1');
+      const offset = Number(parsed.searchParams.get('offset'));
+      const initialWindow = offset === 0 && !initialWindowServed;
+      initialWindowServed = initialWindowServed || initialWindow;
+      const total = initialWindow ? rows.length : 1;
+      const vns = initialWindow ? rows.slice(0, 60) : offset === 0 ? rows.slice(0, 1) : [];
+      return json({
+        vns,
+        stats: stockPayload(rows).stats,
+        page: { total, limit: 60, offset, has_more: initialWindow },
+        producers: [],
+      });
+    });
+
+    renderBrowser();
+    expect(await screen.findByText('1-60 / 61')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: t.common.next as string }));
+    await waitFor(() => expect(vi.mocked(global.fetch).mock.calls.length).toBeGreaterThanOrEqual(3));
+    expect(String(vi.mocked(global.fetch).mock.calls.at(-1)?.[0])).toContain('offset=0');
+    expect(screen.queryByRole('button', { name: t.common.next as string })).toBeNull();
+  });
+
   it('shows empty, filtered-empty, and load-error states', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === '/api/places/12/stock') return json(stockPayload([]));
+      if (isStockRequest(url)) return json(stockPayload([]));
       return json({});
     });
     renderBrowser();
     await waitFor(() => expect(screen.getByText(t.places.vnBrowserEmpty as string)).toBeTruthy());
 
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === '/api/places/12/stock') return json(stockPayload());
+      if (isStockRequest(url)) return json(stockPayload());
       return json({});
     });
     const { unmount } = renderBrowser();
@@ -219,7 +287,7 @@ describe('PlaceVnBrowser', () => {
     unmount();
 
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === '/api/places/12/stock') return json({ error: 'stock failed' }, 500);
+      if (isStockRequest(url)) return json({ error: 'stock failed' }, 500);
       return json({});
     });
     renderBrowser();

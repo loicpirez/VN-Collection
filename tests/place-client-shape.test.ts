@@ -86,6 +86,15 @@ describe('place client response adapters', () => {
     expect(decodePlaceStockResponse({ vns: [stockVn], stats })?.vns[0]?.vn_id).toBe('v90001');
   });
 
+  it('decodes bounded stock pages and producer facets', () => {
+    const page = { total: 3, limit: 1, offset: 1, has_more: true };
+    const producers = [{ id: 'p90001', name: 'Studio A', count: 2 }];
+    expect(decodePlaceStockResponse({ vns: [stockVn], stats, page, producers })).toMatchObject({
+      page,
+      producers,
+    });
+  });
+
   it('decodes current paginated registry envelopes and legacy branch envelopes', () => {
     const page = { total: 10, limit: 2, offset: 4 };
     const registryStats = {
@@ -122,6 +131,27 @@ describe('place client response adapters', () => {
     expect(decodeCreatePlaceResponse({ id: 0 })).toBeNull();
     expect(decodePlaceStockResponse({ vns: [{ ...stockVn, offers: [{ ...offer, vn_id: 'bad' }] }], stats })).toBeNull();
     expect(decodePlaceStockResponse({ vns: [stockVn], stats: { ...stats, total: -1 } })).toBeNull();
+    expect(decodePlaceStockResponse({ vns: [stockVn], stats, page: { total: 1, limit: 1, offset: 0, has_more: false } })).toBeNull();
+    expect(decodePlaceStockResponse({ vns: [stockVn], stats, producers: [] })).toBeNull();
+    expect(decodePlaceStockResponse({
+      vns: [stockVn],
+      stats,
+      page: { total: 1, limit: 101, offset: 0, has_more: false },
+      producers: [],
+    })).toBeNull();
+    for (const producer of [
+      null,
+      { id: '', name: 'Studio A', count: 1 },
+      { id: 'p90001', name: '', count: 1 },
+      { id: 'p90001', name: 'Studio A', count: 0 },
+    ]) {
+      expect(decodePlaceStockResponse({
+        vns: [stockVn],
+        stats,
+        page: { total: 1, limit: 1, offset: 0, has_more: false },
+        producers: [producer],
+      })).toBeNull();
+    }
     expect(decodePlacesResponse({ places: [place], known_places: [], page: {}, stats: {} })).toBeNull();
     expect(decodePlacesResponse({ places: [place], known_places: [], page: { total: 1, limit: 1, offset: 0 }, stats: {} })).toBeNull();
     expect(decodeUnassignedBranchesPageResponse({ branches: null })).toBeNull();
