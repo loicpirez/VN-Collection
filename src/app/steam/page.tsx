@@ -390,7 +390,7 @@ export default function SteamSyncPage() {
                 className="flex items-center justify-between gap-2 rounded-md border border-border bg-bg-elev/30 p-2 text-[11px]"
               >
                 <span className="min-w-0 flex-1">
-                  <Link href={`/vn/${l.vn_id}`} className="inline-flex min-h-[44px] max-w-full items-center line-clamp-1 font-bold hover:text-accent sm:min-h-0" title={l.vn_id}>
+                  <Link href={`/vn/${l.vn_id}`} className="inline-flex min-h-[44px] min-w-[44px] max-w-full items-center line-clamp-1 font-bold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0" title={l.vn_id}>
                     {l.vn_id}
                   </Link>
                   <span className="line-clamp-1 inline-flex items-center gap-1 text-muted" title={l.steam_name}>
