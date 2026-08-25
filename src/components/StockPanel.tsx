@@ -39,12 +39,12 @@ import type {
   StockStatusDto as StockStatus,
 } from '@/lib/stock-api-types';
 import { StockPhysicalLocations, type PhysicalOffer } from './StockPhysicalLocations';
+import { ClearCacheModalSkeleton } from './stock/ClearCacheModalSkeleton';
 const ErogePricePanel = dynamic(() => import('./ErogePricePanel').then((m) => m.ErogePricePanel), { ssr: false });
 const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m) => m.ClearCacheModal), {
   ssr: false,
-  loading: () => <SkeletonRows count={2} withThumb={false} />,
+  loading: ClearCacheModalSkeleton,
 });
-import { SkeletonRows } from './Skeleton';
 import { StockOfferRowsSkeleton } from './StockPanelSkeleton';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
