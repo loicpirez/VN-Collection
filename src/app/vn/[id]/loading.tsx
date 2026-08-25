@@ -11,15 +11,17 @@ export default async function Loading() {
     <SkeletonBoundary label={t.app.loading} className="w-full space-y-4">
       <SkeletonBlock className="vn-mobile-library-return h-11 w-24 md:hidden" />
       <div
-        className="relative animate-pulse rounded-2xl border border-border bg-bg-card shadow-card"
+        className="relative isolate animate-pulse rounded-2xl border border-border bg-bg-card shadow-card"
         data-vn-hero-skeleton
       >
-        <HeroSkeletonBlock className="h-64 w-full rounded-b-none rounded-t-2xl" />
+        <div className="relative z-0 h-64 overflow-hidden rounded-t-2xl" data-vn-banner-skeleton-shell>
+          <HeroSkeletonBlock className="h-full w-full rounded-none" />
+        </div>
 
         <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div
             data-vn-cover-skeleton-shell
-            className="relative z-10 mx-auto aspect-[2/3] w-full max-w-[260px] overflow-hidden rounded-xl bg-bg-card md:mx-0"
+            className="relative z-10 mx-auto aspect-[2/3] w-full max-w-[260px] overflow-hidden rounded-xl border border-border bg-bg-card shadow-card md:mx-0"
           >
             <HeroSkeletonBlock className="h-full w-full rounded-xl" />
           </div>

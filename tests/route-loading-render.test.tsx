@@ -130,15 +130,17 @@ describe('route loading skeletons', () => {
   it('matches the VN detail hero, cover overlap, metadata, media, and section geometry', async () => {
     const html = renderToStaticMarkup(await VnLoading());
     expect(html).toContain('vn-mobile-library-return h-11 w-24 md:hidden');
-    expect(html).toContain('h-64 w-full');
+    expect(html).toContain('h-64 overflow-hidden rounded-t-2xl');
+    expect(html).toContain('h-full w-full rounded-none');
     expect(html).toContain('-mt-44');
     expect(html).toContain('md:grid-cols-[260px_1fr]');
     expect(html).toContain('max-w-[260px]');
     expect(html).toContain('data-vn-cover-skeleton-shell');
+    expect(html).toContain('data-vn-banner-skeleton-shell');
     expect(html).toContain('data-vn-hero-skeleton');
     expect(html.match(/animate-pulse/g)).toHaveLength(2);
     expect(html).toContain('relative z-10 mx-auto aspect-[2/3]');
-    expect(html).toContain('overflow-hidden rounded-xl bg-bg-card');
+    expect(html).toContain('overflow-hidden rounded-xl border border-border bg-bg-card shadow-card');
     expect(html).toContain('grid-cols-3');
     expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
