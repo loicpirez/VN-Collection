@@ -634,9 +634,12 @@ describe('route loading skeletons', () => {
     expect(html.match(/flex items-start gap-3 rounded-xl border border-border bg-bg-card p-3 sm:p-4/g)).toHaveLength(8);
   });
 
-  it('matches the wishlist title and subtitle before its real cover grid', async () => {
+  it('matches the complete wishlist workspace before its real cover grid', async () => {
     const html = renderToStaticMarkup(await WishlistLoading());
     expect(html).toContain('data-wishlist-header-skeleton');
+    expect(html).toContain('data-wishlist-workspace-skeleton');
+    expect(html).toContain('data-wishlist-controls-skeleton');
+    expect(html).toContain('data-wishlist-filters-skeleton');
     expect(html.match(/flex flex-col overflow-hidden/g)).toHaveLength(18);
     expect(html).toContain('h-7 w-7 shrink-0');
   });

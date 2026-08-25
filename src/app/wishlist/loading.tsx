@@ -1,4 +1,5 @@
-import { SkeletonBlock, SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { WishlistWorkspaceSkeleton } from '@/components/WishlistWorkspaceSkeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function Loading() {
@@ -12,7 +13,7 @@ export default async function Loading() {
           <SkeletonBlock className="h-3 w-80 max-w-full" />
         </div>
       </header>
-      <SkeletonCardGrid count={18} />
+      <WishlistWorkspaceSkeleton />
     </SkeletonBoundary>
   );
 }

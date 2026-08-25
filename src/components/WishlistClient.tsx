@@ -3,7 +3,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckSquare, ChevronLeft, ChevronRight, Filter, Heart, KeyRound, Loader2, RefreshCw, Search, Square, Trash2, X } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
-import { SkeletonCardGrid } from './Skeleton';
+import { SkeletonBoundary } from './Skeleton';
+import { WishlistWorkspaceSkeleton } from './WishlistWorkspaceSkeleton';
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { useToast } from './ToastProvider';
@@ -726,7 +727,9 @@ export function WishlistClient() {
           </p>
         </div>
       ) : loading || !loaded ? (
-        <SkeletonCardGrid count={18} />
+        <SkeletonBoundary label={t.common.loading}>
+          <WishlistWorkspaceSkeleton />
+        </SkeletonBoundary>
       ) : error ? (
         <div role="alert" className="rounded-lg border border-status-dropped bg-status-dropped/10 p-4 text-sm text-status-dropped">
           {error}

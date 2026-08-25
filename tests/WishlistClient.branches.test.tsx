@@ -232,7 +232,10 @@ describe('WishlistClient branches', () => {
     vi.useFakeTimers();
     try {
       nav.replace.mockClear();
-      fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });
+        await Promise.resolve();
+      });
       await act(async () => { await vi.advanceTimersByTimeAsync(300); });
       expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false });
 
