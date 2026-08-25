@@ -37,6 +37,7 @@ operations, providers, deployment, backup, and restore.
 | R14-I18N-002 | HIGH | Character birthdays forced day/month order, VN activity start/finish dates exposed ISO storage values, status changes exposed internal status keys, and playtime used a hardcoded `min` suffix. Route all four through locale-aware formatters and test French, English, and Japanese ordering and units. | `src/lib/locale-number.ts`, character detail, VN activity timeline | DONE_WITH_DIFF |
 | R14-I18N-003 | HIGH | EGS only decoded a hand-maintained entity subset and AliceNet did not decode HTML entities at ingestion, leaving encoded producer and title text in the shop UI, EGS metadata, search, and filters. Use a standards-based single-pass decoder for future ingestion and migrate historical SQLite and PostgreSQL values. | EGS and AliceNet parsers, SQLite bootstrap, PostgreSQL migration 0010 | DONE_WITH_DIFF |
 | R14-I18N-004 | MEDIUM | The character browser's voice-language filter exposed raw VNDB language codes while equivalent filters elsewhere used localized language names. Route every option through the shared `Intl.DisplayNames` helper while preserving the submitted code. | character browser filter and runtime test | DONE_WITH_DIFF |
+| R14-I18N-005 | HIGH | The structured API error path localized stable codes, but 193 legacy client calls still surfaced each route's safe English fallback verbatim in French and Japanese documents. Preserve diagnostic detail for English UI, use the caller's translated fallback for every legacy error outside English, and retain precise code-based translations where available. | shared API error reader and all legacy client fetch failures | DONE_WITH_DIFF |
 | R14-SEC-001 | CRITICAL | Re-audit authentication gates, mutation authorization, CSRF/origin handling, SSRF and URL allowlists, uploads and path traversal, request size limits, secret/error exposure, CSP and headers, proxy behavior, dependencies, and production TLS/reverse-proxy configuration. | all APIs, middleware, Next and production configuration | TODO |
 | R14-SEC-002 | CRITICAL | Production Nginx capped every request at 50 MiB while the authenticated PostgreSQL logical restore endpoint supports archives up to 4 GiB and current database backups already exceed 200 MiB. Add an exact authenticated restore location with the matching cap, streaming request forwarding, trusted-proxy proof, and bounded timeouts while retaining the lower global limit. | `ops/nginx/vndb-backup-restore.conf`, production Nginx, PostgreSQL operations docs | DONE_WITH_DIFF |
 | R14-SEC-003 | MEDIUM | Production correctly enforced Basic Auth at Nginx and exposed Next only on loopback, but omitted `VN_PUBLIC_READ_AUTH=upstream`, so the application classified its personal-data reads as open despite the deployed proxy contract. Declare the upstream authentication mode in the root-managed runtime environment and verify page, API, SSE, and direct-port behavior. | production runtime environment and security verification | DONE_WITH_DIFF |
@@ -231,3 +232,11 @@ operations, providers, deployment, backup, and restore.
   The full suite passes 9,777 tests and reports exactly 100% statements
   (44,710/44,710), branches (37,979/37,979), functions (9,097/9,097), and lines
   (38,173/38,173).
+- Legacy client failures now retain safe route diagnostics only in English UI.
+  French and Japanese documents consistently display the translated fallback
+  already supplied by each of the 193 call sites, while modern stable error
+  codes continue to resolve to their precise localized reason. English,
+  French, Japanese, canonical, legacy, malformed, and protected database
+  payloads are covered. The full suite passes 9,780 tests and reports exactly
+  100% statements (44,717/44,717), branches (37,988/37,988), functions
+  (9,098/9,098), and lines (38,178/38,178).

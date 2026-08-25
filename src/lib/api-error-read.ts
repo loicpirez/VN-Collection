@@ -25,10 +25,10 @@ export interface ApiErrorReadResult {
  *
  *   if (!r.ok) throw new Error(await readApiError(r, t.common.error));
  *
- * Returns the server-supplied `error` string when present and
- * non-empty, otherwise the caller-supplied `fallback` (typically
- * an i18n-localized "Something went wrong" string). Errors thrown
- * during JSON parsing are swallowed silently — `fallback` wins.
+ * The structured reader retains safe server text for diagnostics. The legacy
+ * string helper below only exposes that English text when the active document
+ * language is English; other locales receive the caller's translated fallback.
+ * Errors thrown during JSON parsing are swallowed silently and `fallback` wins.
  */
 export async function readApiErrorDetails(r: Response, fallback: string): Promise<ApiErrorReadResult> {
   try {
@@ -52,14 +52,26 @@ export async function readApiErrorDetails(r: Response, fallback: string): Promis
 }
 
 /**
- * Read a failed API response while preserving the historical string contract.
+ * Read a failed API response while preserving useful English diagnostics and
+ * preventing legacy English route messages from leaking into French/Japanese
+ * UI. Routes with stable codes should use {@link readApiErrorLocalized} for a
+ * precise translated reason; legacy callers receive their localized fallback
+ * outside an English document.
  *
  * @param r Failed fetch response whose JSON body may be canonical or legacy.
  * @param fallback Localized message used for malformed or protected payloads.
- * @returns Sanitized server text when safe, otherwise `fallback`.
+ * @returns Safe server text for English UI, otherwise `fallback`.
  */
 export async function readApiError(r: Response, fallback: string): Promise<string> {
-  return (await readApiErrorDetails(r, fallback)).message;
+  const result = await readApiErrorDetails(r, fallback);
+  if (result.usedFallback || !activeDocumentUsesEnglish()) return fallback;
+  return result.message;
+}
+
+function activeDocumentUsesEnglish(): boolean {
+  if (typeof document === 'undefined') return true;
+  const language = document.documentElement.lang.trim().toLowerCase();
+  return language === '' || language === 'en' || language.startsWith('en-');
 }
 
 /**
