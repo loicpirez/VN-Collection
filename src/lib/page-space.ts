@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CssCustomProperties } from '@/lib/css-custom-properties';
 
 /**
  * Fixed page-spacing presets exposed in Settings. Each preset controls
@@ -167,13 +167,13 @@ export function resolvePageSpacePreset(
  * @param preset Fixed spacing preset to emit.
  * @returns React style object containing page-spacing CSS variables.
  */
-export function pageSpaceStyle(preset: PageSpacePreset): CSSProperties {
+export function pageSpaceStyle(preset: PageSpacePreset): CssCustomProperties {
   const config = PAGE_SPACE_PRESETS[preset];
   return {
-    ['--page-space-max-width' as never]: config.maxWidth,
-    ['--page-space-gutter-base' as never]: config.gutterBase,
-    ['--page-space-gutter-sm' as never]: config.gutterSm,
-    ['--page-space-gutter-lg' as never]: config.gutterLg,
+    '--page-space-max-width': config.maxWidth,
+    '--page-space-gutter-base': config.gutterBase,
+    '--page-space-gutter-sm': config.gutterSm,
+    '--page-space-gutter-lg': config.gutterLg,
   };
 }
 

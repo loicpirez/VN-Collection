@@ -6,6 +6,7 @@ import {
   resolveScopedDensity,
   useDisplaySettings,
 } from '@/lib/settings/client';
+import type { CssCustomProperties } from '@/lib/css-custom-properties';
 
 /**
  * Client island that sets `--card-density-px` on its wrapping `<div>`
@@ -45,8 +46,8 @@ export function DensityScopeProvider({
   const search = useSearchParams();
   const urlDensity = search?.get('density') ?? null;
   const densityValue = resolveScopedDensity(settings, scope, urlDensity);
-  const style: React.CSSProperties = {
-    ['--card-density-px' as never]: `${densityValue}px`,
+  const style: CssCustomProperties = {
+    '--card-density-px': `${densityValue}px`,
   };
   const Tag = As as 'div';
   return (

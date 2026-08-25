@@ -89,6 +89,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-069 | MEDIUM | VN, release, shelf, and character-browser loading boundaries represented their guaranteed 44-pixel mobile return action as a 20-pixel line. The placeholder therefore looked like unrelated content and disappeared into a materially different control. Reserve the exact touch-control height, retain the same desktop breakpoint as the resolved link, and pin all four routes with a geometry contract. | mobile return placeholders on VN, release, shelf, and character browser routes | DONE_WITH_DIFF |
 | R14-UX-070 | MEDIUM | The mobile VN return action was mandatory and its route skeleton always reserved space, even for operators who rely on the navbar. Add an immediate local VN-page preference and drive both the resolved action and its loading placeholder from the same server-seeded visibility state. | VN mobile return action, route loader, display settings | DONE_WITH_DIFF |
 | R14-FEAT-002 | HIGH | Shelf `contain/cover` preference wrote `object-fit` to the outer `SafeImage` wrapper even though that property is not inherited by the nested image. The exposed setting therefore had no effect while unsafe `as never` casts hid the target mismatch. Add an explicit inner-image class contract, consume the CSS variable on the native image, retain scaling on the wrapper, and test both consumers. | spatial shelf cards, face-out displays, shared safe image contract | DONE_WITH_DIFF |
+| R14-TYPE-002 | MEDIUM | Root density, scoped density, and page-spacing styles used six `as never` casts to bypass React's CSS property contract. Define one typed CSS-custom-property surface, remove every production `never` cast, and enforce the rule with a recursive source contract. | root layout, density provider, page-space helper | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -153,6 +154,10 @@ operations, providers, deployment, backup, and restore.
   seeded from the validated display cookie, updates immediately in the current
   document, and hides both resolved links and the route placeholder through one
   visibility contract. Focused settings, route, i18n, and VN runtime suites pass.
+- Production CSS variables now use a documented `CssCustomProperties` contract
+  across the root, scoped density, and page-spacing surfaces. A recursive test
+  confirms `src` contains no `as never` cast or TypeScript suppression directive;
+  59 focused tests, strict typecheck, and the production build pass.
 
 - At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
   with PostgreSQL ready, pool maximum 10, and zero service restarts.

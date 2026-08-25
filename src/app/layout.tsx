@@ -25,6 +25,7 @@ import { QuoteFooter } from '@/components/QuoteFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { HeaderSpaceFrame, PageSpaceFrame } from '@/components/PageSpaceFrame';
+import type { CssCustomProperties } from '@/lib/css-custom-properties';
 
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDict();
@@ -92,11 +93,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     if (typeof raw !== 'number' || !Number.isFinite(raw)) return 220;
     return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(raw)));
   })();
+  const rootStyle: CssCustomProperties = {
+    '--card-density-px': `${seedDensity}px`,
+  };
   return (
     <html
       lang={locale}
       data-vn-mobile-library-return={initialSettings?.showVnMobileLibraryLink === false ? 'hidden' : 'visible'}
-      style={{ ['--card-density-px' as never]: `${seedDensity}px` }}
+      style={rootStyle}
     >
       <body className="min-h-screen bg-bg text-white">
         <script dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }} />
