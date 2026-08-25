@@ -239,13 +239,16 @@ describe('route loading skeletons', () => {
     expect(html).toContain('--card-density-px:300px');
     expect(html).toContain('data-staff-detail-skeleton');
     expect(html).toContain('data-staff-timeline-skeleton');
+    expect(html).toContain('data-staff-siblings-skeleton');
     expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(2);
     expect(html).toContain('data-staff-extra-group-skeleton');
     expect(html.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(4);
     expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
     expect(html).toContain('var(--card-density-px, 280px)');
-    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(12);
-    expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
+    expect(html.match(/gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(28);
+    expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(12);
+    expect(html.match(/hidden sm:flex gap-3/g)).toHaveLength(8);
+    expect(html.match(/hidden xl:flex gap-3/g)).toHaveLength(8);
     expect(html.match(/h-24 w-7 rounded-sm/g)).toHaveLength(12);
     expect(html).toContain('data-staff-profile-common-skeleton');
     expect(html).toContain('h-[54px] w-[400px] max-w-full');
