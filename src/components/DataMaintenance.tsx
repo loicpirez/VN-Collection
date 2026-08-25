@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, AlertTriangle, CheckCircle2, CircleHelp, Copy, Loader2, RefreshCw, Store } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
-import { SkeletonRows } from './Skeleton';
+import { SkeletonBlock } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -21,6 +21,49 @@ import { fmtDate } from '@/lib/locale-number';
 import { STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
 
 const STALE_PREVIEW_LIMIT = 50;
+
+type MaintenanceSkeletonKind = 'duplicates' | 'stale' | 'providers';
+
+function MaintenanceColumnSkeleton({ kind }: { kind: MaintenanceSkeletonKind }) {
+  return (
+    <div className="min-w-0" data-maintenance-skeleton-column={kind}>
+      <SkeletonBlock className="mb-2 h-3 w-28" />
+      {kind === 'providers' && <SkeletonBlock className="mb-2 h-3 w-full max-w-56" />}
+      <ul className="space-y-1">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <li key={index} className="rounded-md border border-border bg-bg-elev/40 p-2">
+            {kind === 'duplicates' ? (
+              <>
+                <SkeletonBlock className="h-2.5 w-24" />
+                <div className="mt-2 flex gap-1">
+                  <SkeletonBlock className="h-11 w-12 rounded-md can-hover:sm:h-5" />
+                  <SkeletonBlock className="h-11 w-14 rounded-md can-hover:sm:h-5" />
+                </div>
+              </>
+            ) : kind === 'stale' ? (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <SkeletonBlock className="h-11 w-3/4 can-hover:sm:h-3" />
+                  <SkeletonBlock className="h-2.5 w-1/2" />
+                </div>
+                <SkeletonBlock className="h-11 w-16 shrink-0 rounded-md can-hover:sm:h-6" />
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between gap-2">
+                  <SkeletonBlock className="h-3 w-24" />
+                  <SkeletonBlock className="h-2.5 w-12" />
+                </div>
+                <SkeletonBlock className="mt-2 h-2.5 w-32" />
+                <SkeletonBlock className="mt-2 h-3 w-36" />
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 /**
  * "Maintenance" card on /data - surfaces duplicate candidates and rows whose
@@ -124,10 +167,17 @@ export function DataMaintenance() {
       <p className="mb-4 text-xs text-muted">{t.maintenance.hint}</p>
 
       {loading ? (
-        <div className="grid min-w-0 gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
-          <SkeletonRows count={3} withThumb={false} />
-          <SkeletonRows count={3} withThumb={false} />
-          <SkeletonRows count={3} withThumb={false} />
+        <div
+          className="grid min-w-0 gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          data-maintenance-skeleton
+        >
+          <span className="sr-only">{t.app.loading}</span>
+          <MaintenanceColumnSkeleton kind="duplicates" />
+          <MaintenanceColumnSkeleton kind="stale" />
+          <MaintenanceColumnSkeleton kind="providers" />
         </div>
       ) : error ? (
         <ErrorAlert title={t.common.error}>

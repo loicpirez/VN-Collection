@@ -41,6 +41,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-024 | HIGH | Lazy-loaded Layout and Integrations settings tabs used the same six generic text rows despite resolving into 26 per-page spacing/density controls or credential, proxy, provider, and quote sections. Preserve each destination hierarchy and the full scroll extent while its chunk loads. | Settings lazy-tab loading | DONE_WITH_DIFF |
 | R14-UX-025 | MEDIUM | Seiyuu detail loading always reserved three aliases and a three-line biography although both profile fields are optional. Retain stable identity, credit counters, tools, scope, and credit sections without introducing a large conditional block that contracts after resolution. | staff detail profile loading | DONE_WITH_DIFF |
 | R14-UX-026 | HIGH | Lazy-loading the destructive stock-cache confirmation injected two generic rows into the VN stock panel before replacing them with a modal. Keep loading in the modal layer and reserve the final title, message, and two-action geometry without shifting the underlying page. | VN stock clear-cache dialog loading | DONE_WITH_DIFF |
+| R14-UX-027 | MEDIUM | Data maintenance loaded duplicate groups, stale VNs, and provider freshness as three identical generic lists despite their different identifiers, actions, and status metadata. Preserve the three-column responsive layout and each column's final row anatomy. | data maintenance loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -385,3 +386,9 @@ operations, providers, deployment, backup, and restore.
   pass, the production build passes, and the full suite passes 9,810 tests with
   exactly 100% statements (44,785/44,785), branches (38,082/38,082),
   functions (9,147/9,147), and lines (38,241/38,241).
+- Data maintenance loading now retains three distinct responsive columns:
+  duplicate identifier chips, stale-title refresh actions, and provider
+  freshness metadata. Sixty-six focused maintenance and support-page scenarios
+  pass, the production build passes, and the full suite passes 9,810 tests with
+  exactly 100% statements (44,787/44,787), branches (38,088/38,088),
+  functions (9,149/9,149), and lines (38,243/38,243).

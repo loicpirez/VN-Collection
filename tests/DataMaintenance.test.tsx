@@ -14,10 +14,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => navigationMocks,
 }));
 
-vi.mock('@/components/Skeleton', () => ({
-  SkeletonRows: ({ count, withThumb }: { count: number; withThumb: boolean }) => <span>{`skeleton:${count}:${withThumb}`}</span>,
-}));
-
 const t = dictionaries.en;
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -108,8 +104,13 @@ describe('DataMaintenance', () => {
       .mockReturnValueOnce(duplicateLoad.promise)
       .mockReturnValueOnce(staleLoad.promise)
       .mockReturnValueOnce(providerLoad.promise);
-    renderWithProviders(<DataMaintenance />, { locale: 'en' });
-    expect(screen.getAllByText('skeleton:3:false')).toHaveLength(3);
+    const { container } = renderWithProviders(<DataMaintenance />, { locale: 'en' });
+    const skeleton = screen.getByRole('status');
+    expect(skeleton).toHaveAttribute('data-maintenance-skeleton');
+    expect(container.querySelectorAll('[data-maintenance-skeleton-column]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-maintenance-skeleton-column="duplicates"] li')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-maintenance-skeleton-column="stale"] .h-11')).toHaveLength(6);
+    expect(container.querySelectorAll('[data-maintenance-skeleton-column="providers"] li')).toHaveLength(3);
 
     await act(async () => {
       duplicateLoad.resolve(jsonResponse(duplicates()));
