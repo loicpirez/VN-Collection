@@ -1006,6 +1006,12 @@ function open(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_stock_batch_job_started
       ON stock_batch_job(started_at DESC);
+
+    CREATE TABLE IF NOT EXISTS stock_provider_batch_run (
+      provider    TEXT PRIMARY KEY,
+      started_at  INTEGER NOT NULL,
+      finished_at INTEGER NOT NULL
+    );
   `);
 
   {

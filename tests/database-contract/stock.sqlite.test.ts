@@ -20,6 +20,7 @@ function reset(): void {
   database.prepare('DELETE FROM vn_stock_provider_status WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn_title_resolve_cache WHERE query = ?').run('contract query');
   database.prepare('DELETE FROM stock_batch_job WHERE id = ?').run(STOCK_CONTRACT_IDS.batch);
+  database.prepare(`DELETE FROM stock_provider_batch_run WHERE provider IN ('sofmap', 'surugaya')`).run();
   database.prepare('DELETE FROM reading_queue WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM collection WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn WHERE id IN (?, ?)').run(...contractVnIds);
@@ -57,12 +58,13 @@ registerStockRepositoryContract('SQLite', {
         getStockProviderMaintenanceRepository(),
         {
           async insertCompletedBatch(providers, startedAt) {
-            database.prepare(`
-              INSERT INTO stock_batch_job (
-                id, label, total, done, providers_json, errors_json,
-                started_at, finished_at, cancelled, interrupted
-              ) VALUES (?, 'Contract batch', 2, 2, ?, '[]', ?, ?, 0, 0)
-            `).run(STOCK_CONTRACT_IDS.batch, JSON.stringify(providers), startedAt, startedAt + 10);
+            const insert = database.prepare(`
+              INSERT INTO stock_provider_batch_run (provider, started_at, finished_at)
+              VALUES (?, ?, ?)
+            `);
+            database.transaction(() => {
+              for (const provider of providers) insert.run(provider, startedAt, startedAt + 10);
+            })();
           },
         },
       );

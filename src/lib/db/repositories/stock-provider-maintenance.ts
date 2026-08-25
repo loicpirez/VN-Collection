@@ -25,21 +25,8 @@ interface StatusAggregateRow extends QueryResultRow {
 }
 
 interface BatchProviderRow extends QueryResultRow {
-  providers_json: string;
+  provider: string;
   started_at: number;
-}
-
-function parseProviders(raw: string): StockProviderId[] {
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const allowed = new Set<string>(STOCK_PROVIDER_IDS);
-    return parsed.filter((provider): provider is StockProviderId => (
-      typeof provider === 'string' && allowed.has(provider)
-    ));
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -56,10 +43,13 @@ export function summarizeStockProviderFreshness(
 ): StockProviderFreshness[] {
   const statusByProvider = new Map(statusRows.map((row) => [row.provider, row]));
   const lastBatchByProvider = new Map<StockProviderId, number>();
+  const allowed = new Set<string>(STOCK_PROVIDER_IDS);
   for (const row of batchRows) {
-    for (const provider of parseProviders(row.providers_json)) {
-      if (!lastBatchByProvider.has(provider)) lastBatchByProvider.set(provider, Number(row.started_at));
-    }
+    if (!allowed.has(row.provider)) continue;
+    const provider = row.provider as StockProviderId;
+    const startedAt = Number(row.started_at);
+    const current = lastBatchByProvider.get(provider);
+    if (current === undefined || startedAt > current) lastBatchByProvider.set(provider, startedAt);
   }
   return STOCK_PROVIDER_IDS.map((provider) => {
     const status = statusByProvider.get(provider);
@@ -84,9 +74,7 @@ async function listPostgresFreshness(): Promise<StockProviderFreshness[]> {
       FROM vn_stock_provider_status GROUP BY provider
     `),
     postgresQuery<BatchProviderRow>(`
-      SELECT providers_json, started_at FROM stock_batch_job
-      WHERE finished_at IS NOT NULL AND cancelled = 0 AND interrupted = 0 AND providers_json IS NOT NULL
-      ORDER BY started_at DESC LIMIT 200
+      SELECT provider, started_at FROM stock_provider_batch_run
     `),
   ]);
   return summarizeStockProviderFreshness(statuses.rows, batches.rows);
@@ -99,9 +87,7 @@ async function listSqliteFreshness(): Promise<StockProviderFreshness[]> {
     FROM vn_stock_provider_status GROUP BY provider
   `).all() as StatusAggregateRow[];
   const batches = db.prepare(`
-    SELECT providers_json, started_at FROM stock_batch_job
-    WHERE finished_at IS NOT NULL AND cancelled = 0 AND interrupted = 0 AND providers_json IS NOT NULL
-    ORDER BY started_at DESC LIMIT 200
+    SELECT provider, started_at FROM stock_provider_batch_run
   `).all() as BatchProviderRow[];
   return summarizeStockProviderFreshness(statuses, batches);
 }

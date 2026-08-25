@@ -132,7 +132,7 @@ changing the opt-in state.
 
 - Collection stats, ratings, playtime, platforms, languages, tags, producers, years, dumped progress, and EGS coverage.
 - Clickable charts and rows for navigation.
-- Database status, cache status, source settings, backup, import/export, and maintenance tools.
+- Database status, cache status, source settings, backup, import/export, and durable per-provider stock freshness diagnostics.
 - Schema browser for local, VNDB, and EGS-related data structures.
 
 ### Content controls

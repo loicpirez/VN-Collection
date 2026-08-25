@@ -27,6 +27,7 @@ operations, providers, deployment, backup, and restore.
 | R14-SEC-002 | CRITICAL | Production Nginx capped every request at 50 MiB while the authenticated PostgreSQL logical restore endpoint supports archives up to 4 GiB and current database backups already exceed 200 MiB. Add an exact authenticated restore location with the matching cap, streaming request forwarding, trusted-proxy proof, and bounded timeouts while retaining the lower global limit. | `ops/nginx/vndb-backup-restore.conf`, production Nginx, PostgreSQL operations docs | DONE_WITH_DIFF |
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
 | R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
+| R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
 | R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
 | R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | TODO |
 | R14-PERF-001 | HIGH | Recheck bounded queries, pagination/virtualization, tag indexes, repeated repository calls, client polling, background jobs, multi-tab behavior, images, DOM size, bundle boundaries, memory, database pool pressure, and slow provider isolation. | application and production runtime | TODO |
@@ -67,3 +68,12 @@ operations, providers, deployment, backup, and restore.
   producer fields without recursively decoding escaped text. The focused suite
   passes 188 scenarios, PostgreSQL passes all 94 integration scenarios, and
   the complete typecheck and production build pass.
+- Provider maintenance no longer depends on one-hour progress retention. One
+  durable latest-completed row per provider survives progress cleanup, rejects
+  older jobs finishing late, and feeds the existing updated/missed/no-batch UI.
+  Fifty-one focused behavior tests, 94 real PostgreSQL integration scenarios,
+  the complete typecheck, and targeted 100/100/100/100 coverage pass.
+- The production VN loading skeleton was rendered with production CSS in
+  Firefox, WebKit, and Chromium at 1440 and 390 pixels. In all six cases the
+  opaque 260 by 390 cover shell exactly contains its pulse, remains above the
+  banner across the full 176-pixel overlap, and creates no horizontal overflow.

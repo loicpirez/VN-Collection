@@ -12,7 +12,7 @@ The 2026-08-24/25 cutover established this verified baseline:
   uses data-page checksums, and limits the server to 50 connections;
 - separate migrator, application, and backup roles implement least privilege,
   while the web pool is capped at 10 connections;
-- all nine ordered migrations are recorded and 57 application tables are
+- all eleven ordered migrations are recorded and 58 application tables are
   present;
 - the non-root systemd service reads a root-owned mode-0640 environment file,
   writes only to its data directory, and has no Linux capabilities;
@@ -99,6 +99,16 @@ During shutdown, monitor for the generic
 `[postgres:shutdown] failed to close the connection pool` event. The log never
 contains credentials or raw driver detail. Investigate it before forced restarts
 become routine.
+
+## Stock provider freshness
+
+Completed stock progress rows are intentionally retained for only one hour so
+the download-status surface stays bounded. Provider maintenance does not infer
+long-term freshness from those transient rows. `stock_provider_batch_run`
+stores only the latest successful batch start and finish per provider, while
+`vn_stock_provider_status` stores the latest provider write. `/data` compares
+those two durable timestamps and can therefore distinguish an updated provider,
+a missed write, and a provider that has never completed a batch.
 
 ## Backup policy
 

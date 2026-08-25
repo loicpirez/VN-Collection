@@ -52,6 +52,7 @@ export const POSTGRES_TABLE_ORDER = [
   'place_registry',
   'place_provider_link',
   'stock_batch_job',
+  'stock_provider_batch_run',
   'app_job_lock',
 ] as const;
 

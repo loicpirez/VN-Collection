@@ -27,10 +27,12 @@ const statuses = [
 ];
 
 const batches = [
-  { providers_json: '["sofmap","surugaya","unknown",4]', started_at: 200 },
-  { providers_json: '["sofmap","melonbooks"]', started_at: 150 },
-  { providers_json: '{"not":"an array"}', started_at: 140 },
-  { providers_json: '{bad', started_at: 130 },
+  { provider: 'sofmap', started_at: 150 },
+  { provider: 'sofmap', started_at: 200 },
+  { provider: 'sofmap', started_at: 175 },
+  { provider: 'surugaya', started_at: 200 },
+  { provider: 'melonbooks', started_at: 150 },
+  { provider: 'unknown', started_at: 400 },
 ];
 
 function assertSummary(rows: Awaited<ReturnType<ReturnType<typeof getStockProviderMaintenanceRepository>['listFreshness']>>) {
@@ -75,7 +77,7 @@ describe('stock provider maintenance repository', () => {
     const rows = await getStockProviderMaintenanceRepository().listFreshness();
     assertSummary(rows);
     expect(mocks.postgresQuery.mock.calls[0]?.[0]).toContain('MAX(fetched_at)');
-    expect(mocks.postgresQuery.mock.calls[1]?.[0]).toContain('providers_json IS NOT NULL');
+    expect(mocks.postgresQuery.mock.calls[1]?.[0]).toContain('stock_provider_batch_run');
   });
 
   it('returns the same summary from SQLite query results', async () => {

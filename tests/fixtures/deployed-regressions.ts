@@ -51,10 +51,10 @@ export const deployedRegressionFixture = {
     { provider: 'sofmap', latest_status_at: 1_700_000_000_500, status_rows: 3 },
     { provider: 'surugaya', latest_status_at: 1_699_999_999_000, status_rows: 2 },
   ],
-  stockBatches: [{
-    providers_json: '["sofmap","surugaya"]',
-    started_at: 1_700_000_000_000,
-  }],
+  stockBatches: [
+    { provider: 'sofmap', started_at: 1_700_000_000_000 },
+    { provider: 'surugaya', started_at: 1_700_000_000_000 },
+  ],
   wishlistFailure: {
     error: 'upstream service unavailable',
     code: 'upstream_unavailable',

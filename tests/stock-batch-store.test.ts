@@ -35,6 +35,7 @@ function job(overrides: Partial<DownloadJob> = {}): DownloadJob {
 describe('durable stock batch store', () => {
   beforeEach(() => {
     db.prepare(`DELETE FROM stock_batch_job WHERE id LIKE ?`).run(`${PREFIX}%`);
+    db.prepare(`DELETE FROM stock_provider_batch_run WHERE provider IN ('sofmap', 'surugaya')`).run();
   });
 
   it('stores and restores a top-level progress snapshot', async () => {
@@ -77,6 +78,53 @@ describe('durable stock batch store', () => {
       label_code: null,
       cancelled: true,
       interrupted: true,
+    });
+  });
+
+  it('keeps one durable latest completed batch per selected provider', async () => {
+    const recent = job({
+      id: `${PREFIX}provider-recent`,
+      started_at: 200,
+      finished_at: 260,
+      done: 4,
+    });
+    await upsertDurableStockBatchJob(recent, ['sofmap']);
+    expect(db.prepare(`SELECT started_at, finished_at FROM stock_provider_batch_run WHERE provider = 'sofmap'`).get()).toEqual({
+      started_at: 200,
+      finished_at: 260,
+    });
+
+    const older = job({
+      id: `${PREFIX}provider-older`,
+      started_at: 100,
+      finished_at: 300,
+      done: 4,
+    });
+    await upsertDurableStockBatchJob(older, ['sofmap']);
+    expect(db.prepare(`SELECT started_at, finished_at FROM stock_provider_batch_run WHERE provider = 'sofmap'`).get()).toEqual({
+      started_at: 200,
+      finished_at: 260,
+    });
+
+    const pending = job({ id: `${PREFIX}provider-preserved`, started_at: 400 });
+    await upsertDurableStockBatchJob(pending, ['surugaya']);
+    await upsertDurableStockBatchJob({ ...pending, done: 4, finished_at: 480 });
+    expect(db.prepare(`SELECT started_at, finished_at FROM stock_provider_batch_run WHERE provider = 'surugaya'`).get()).toEqual({
+      started_at: 400,
+      finished_at: 480,
+    });
+  });
+
+  it('rejects malformed persisted provider selections without fabricating a run', async () => {
+    const startedAt = Date.now();
+    const malformed = job({ id: `${PREFIX}provider-malformed`, started_at: startedAt });
+    await upsertDurableStockBatchJob(malformed);
+    for (const raw of ['{bad', '{"provider":"sofmap"}', '["sofmap","sofmap","invalid",4]']) {
+      db.prepare(`UPDATE stock_batch_job SET providers_json = ? WHERE id = ?`).run(raw, malformed.id);
+      await upsertDurableStockBatchJob({ ...malformed, finished_at: startedAt + 50, done: 4 });
+    }
+    expect(db.prepare(`SELECT started_at FROM stock_provider_batch_run WHERE provider = 'sofmap'`).get()).toEqual({
+      started_at: startedAt,
     });
   });
 

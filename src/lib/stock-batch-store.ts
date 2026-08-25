@@ -3,7 +3,7 @@ import type { QueryResultRow } from 'pg';
 import { readDatabaseConfig } from './db/postgres-config';
 import { postgresQuery, withPostgresTransaction } from './db/postgres';
 import { isJobCurrentItemCode, isJobLabelCode, type DownloadJob, type JobTextParams } from './download-status';
-import type { StockProviderId } from './stock-provider-constants';
+import { STOCK_PROVIDER_IDS, type StockProviderId } from './stock-provider-constants';
 
 interface StockBatchJobRow extends QueryResultRow {
   id: string;
@@ -20,6 +20,54 @@ interface StockBatchJobRow extends QueryResultRow {
   finished_at: number | null;
   cancelled: number;
   interrupted: number;
+}
+
+interface StoredProviderSelectionRow extends QueryResultRow {
+  providers_json: string | null;
+}
+
+function parseProviderSelection(raw: string | null): StockProviderId[] {
+  if (!raw) return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    const allowed = new Set<string>(STOCK_PROVIDER_IDS);
+    return Array.from(new Set(value.filter((provider): provider is StockProviderId => (
+      typeof provider === 'string' && allowed.has(provider)
+    ))));
+  } catch {
+    return [];
+  }
+}
+
+async function recordCompletedProviderBatch(
+  job: DownloadJob,
+  providers: readonly StockProviderId[],
+): Promise<void> {
+  if (job.finished_at === null || job.cancelled || job.interrupted || providers.length === 0) return;
+  if (readDatabaseConfig().backend === 'postgres') {
+    await postgresQuery(`
+      INSERT INTO stock_provider_batch_run (provider, started_at, finished_at)
+      SELECT provider, $2, $3 FROM UNNEST($1::TEXT[]) AS provider
+      ON CONFLICT(provider) DO UPDATE SET
+        started_at = excluded.started_at,
+        finished_at = excluded.finished_at
+      WHERE excluded.started_at >= stock_provider_batch_run.started_at
+    `, [providers, job.started_at, job.finished_at]);
+    return;
+  }
+  const { db } = await import('./db');
+  const upsert = db.prepare(`
+    INSERT INTO stock_provider_batch_run (provider, started_at, finished_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(provider) DO UPDATE SET
+      started_at = excluded.started_at,
+      finished_at = excluded.finished_at
+    WHERE excluded.started_at >= stock_provider_batch_run.started_at
+  `);
+  db.transaction(() => {
+    for (const provider of providers) upsert.run(provider, job.started_at, job.finished_at);
+  })();
 }
 
 function parseTextParams(raw: string | null): JobTextParams | null {
@@ -210,19 +258,24 @@ export async function upsertDurableStockBatchJob(
     providers_json = COALESCE(excluded.providers_json, stock_batch_job.providers_json),
     errors_json = excluded.errors_json,
     finished_at = excluded.finished_at, cancelled = excluded.cancelled, interrupted = excluded.interrupted`;
+  let storedProvidersJson: string | null = providers ? JSON.stringify(providers) : null;
   if (readDatabaseConfig().backend === 'postgres') {
     const placeholders = values.map((_value, index) => `$${index + 1}`);
-    await postgresQuery(`INSERT INTO stock_batch_job (
+    const result = await postgresQuery<StoredProviderSelectionRow>(`INSERT INTO stock_batch_job (
       id, label, label_code, label_params_json, total, done, current_item, current_item_code,
       current_item_params_json, providers_json, errors_json, started_at, finished_at, cancelled, interrupted
-    ) VALUES (${placeholders.join(', ')}) ON CONFLICT(id) DO UPDATE SET ${updateSql}`, [...values]);
+    ) VALUES (${placeholders.join(', ')}) ON CONFLICT(id) DO UPDATE SET ${updateSql}
+    RETURNING providers_json`, [...values]);
+    storedProvidersJson = result.rows[0]?.providers_json ?? storedProvidersJson;
   } else {
     const { db } = await import('./db');
     db.prepare(`INSERT INTO stock_batch_job (
       id, label, label_code, label_params_json, total, done, current_item, current_item_code,
       current_item_params_json, providers_json, errors_json, started_at, finished_at, cancelled, interrupted
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET ${updateSql}`).run(...values);
+    storedProvidersJson = (db.prepare(`SELECT providers_json FROM stock_batch_job WHERE id = ?`).get(job.id) as StoredProviderSelectionRow | undefined)?.providers_json ?? storedProvidersJson;
   }
+  await recordCompletedProviderBatch(job, parseProviderSelection(storedProvidersJson));
   await gc();
 }
 

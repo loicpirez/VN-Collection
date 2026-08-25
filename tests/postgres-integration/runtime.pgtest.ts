@@ -242,7 +242,7 @@ describe('real PostgreSQL migration runtime', () => {
         ORDER BY table_name
       `);
       expect(activeSchema.rows[0]?.schema).toBe(schema);
-      expect(tables.rows[0]?.count).toBe(57);
+      expect(tables.rows[0]?.count).toBe(58);
       expect(normalizedIndexTables.rows).toEqual([
         { table_name: 'release_platform_index' },
         { table_name: 'vn_relation_index' },
@@ -493,8 +493,10 @@ describe('real PostgreSQL migration runtime', () => {
   it('decodes historical EGS and AliceNet entities in migration 0010', async () => {
     await withIsolatedSchema(async (pool) => {
       const migrations = await listPostgresMigrations();
-      const priorMigrations = migrations.slice(0, -1);
-      expect(migrations.at(-1)?.version).toBe('0010_decode_legacy_html_entities');
+      const entityMigrationIndex = migrations.findIndex((migration) => migration.version === '0010_decode_legacy_html_entities');
+      expect(entityMigrationIndex).toBeGreaterThan(0);
+      const priorMigrations = migrations.slice(0, entityMigrationIndex);
+      const throughEntityMigration = migrations.slice(0, entityMigrationIndex + 1);
       await applyPostgresMigrations(pool, priorMigrations);
       await pool.query(`INSERT INTO vn (id, title, fetched_at) VALUES ('v99001', 'Synthetic VN', 1)`);
       await pool.query(`
@@ -510,7 +512,7 @@ describe('real PostgreSQL migration runtime', () => {
         )
       `);
 
-      await expect(applyPostgresMigrations(pool, migrations)).resolves.toEqual({
+      await expect(applyPostgresMigrations(pool, throughEntityMigration)).resolves.toEqual({
         applied: ['0010_decode_legacy_html_entities'],
         skipped: priorMigrations.map((migration) => migration.version),
       });
@@ -1016,11 +1018,9 @@ registerStockRepositoryContract('PostgreSQL', {
           {
             async insertCompletedBatch(providers, startedAt) {
               await pool.query(`
-                INSERT INTO stock_batch_job (
-                  id, label, total, done, providers_json, errors_json,
-                  started_at, finished_at, cancelled, interrupted
-                ) VALUES ($1, 'Contract batch', 2, 2, $2, '[]', $3, $4, 0, 0)
-              `, [STOCK_CONTRACT_IDS.batch, JSON.stringify(providers), startedAt, startedAt + 10]);
+                INSERT INTO stock_provider_batch_run (provider, started_at, finished_at)
+                SELECT provider, $2, $3 FROM UNNEST($1::TEXT[]) AS provider
+              `, [providers, startedAt, startedAt + 10]);
             },
           },
         );

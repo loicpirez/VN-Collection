@@ -137,6 +137,25 @@ describe('PostgreSQL durable stock batch store', () => {
     expect(sql.filter((text) => text.includes('DELETE FROM stock_batch_job'))).toHaveLength(4);
   });
 
+  it('records completed provider evidence independently from progress retention', async () => {
+    await upsertDurableStockBatchJob(job({ done: 3, finished_at: 180 }), ['sofmap', 'surugaya']);
+    const summaryCall = mocks.postgresQuery.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO stock_provider_batch_run'));
+    expect(summaryCall?.[1]).toEqual([['sofmap', 'surugaya'], 100, 180]);
+  });
+
+  it('reuses a persisted provider selection when the completion update omits it', async () => {
+    mocks.postgresQuery.mockImplementation(async (sql: string) => (
+      sql.includes('INSERT INTO stock_batch_job')
+        ? { rows: [{ providers_json: '["sofmap"]' }], rowCount: 1 }
+        : { rows: [], rowCount: 0 }
+    ));
+    await upsertDurableStockBatchJob(job({ done: 3, finished_at: 180 }));
+    expect(mocks.postgresQuery.mock.calls.some(([sql, values]) => (
+      String(sql).includes('INSERT INTO stock_provider_batch_run')
+      && values?.[0]?.[0] === 'sofmap'
+    ))).toBe(true);
+  });
+
   it('reads PostgreSQL rows and reuses initialization for the same database URL', async () => {
     mocks.postgresQuery.mockImplementation(async (sql: string) => sql.includes('SELECT id, label')
       ? { rows: [storedRow()], rowCount: 1 }
