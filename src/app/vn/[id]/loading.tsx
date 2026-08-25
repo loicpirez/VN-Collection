@@ -9,7 +9,7 @@ export default async function Loading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.app.loading} className="w-full space-y-4">
-      <SkeletonBlock className="h-5 w-24 md:hidden" />
+      <SkeletonBlock className="h-11 w-24 md:hidden" />
       <div
         className="relative animate-pulse rounded-2xl border border-border bg-bg-card shadow-card"
         data-vn-hero-skeleton

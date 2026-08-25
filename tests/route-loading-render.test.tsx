@@ -129,6 +129,7 @@ describe('route loading skeletons', () => {
 
   it('matches the VN detail hero, cover overlap, metadata, media, and section geometry', async () => {
     const html = renderToStaticMarkup(await VnLoading());
+    expect(html).toContain('h-11 w-24 md:hidden');
     expect(html).toContain('h-64 w-full');
     expect(html).toContain('-mt-44');
     expect(html).toContain('md:grid-cols-[260px_1fr]');
@@ -142,6 +143,21 @@ describe('route loading skeletons', () => {
     expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
     expect(html).not.toContain('bg-bg-elev/30 p-3');
+  });
+
+  it('reserves the full mobile return-control height on affected routes', async () => {
+    const markup = await Promise.all([
+      VnLoading(),
+      ReleaseLoading(),
+      ShelfLoading(),
+      CharactersLoading(),
+    ]);
+
+    for (const route of markup) {
+      const html = renderToStaticMarkup(route);
+      expect(html).toMatch(/h-11 w-(?:24|28) md:hidden/);
+      expect(html).not.toMatch(/h-5 w-(?:24|28) md:hidden/);
+    }
   });
 
   it('matches the configurable home strips, controls, and library grid geometry', async () => {

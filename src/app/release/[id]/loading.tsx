@@ -5,7 +5,7 @@ export default async function ReleaseLoading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.app.loading} className="space-y-4">
-      <SkeletonBlock className="h-5 w-28 md:hidden" />
+      <SkeletonBlock className="h-11 w-28 md:hidden" />
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 space-y-2">
