@@ -471,6 +471,18 @@ describe('OwnedEditionsSection', () => {
     vi.restoreAllMocks();
   });
 
+  it('preserves edition-card geometry while ownership metadata is pending', () => {
+    const rendered = renderWithServer(
+      { owned: [], releases: [], knownPlaces: [], holdReload: true },
+      {},
+    );
+
+    expect(rendered.container.querySelector('[data-owned-editions-skeleton]')).not.toBeNull();
+    expect(rendered.container.querySelectorAll('[data-owned-edition-row-skeleton]')).toHaveLength(2);
+    expect(rendered.container.querySelectorAll('[data-owned-editions-skeleton] .w-full.rounded-md')).toHaveLength(2);
+    rendered.unmount();
+  });
+
   it('renders release-backed edition summaries with fallback cover, shelf placement, and metadata fields', async () => {
     await renderLoaded({
       owned: [

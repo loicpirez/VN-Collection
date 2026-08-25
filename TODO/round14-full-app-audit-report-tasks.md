@@ -31,6 +31,8 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-014 | HIGH | VN character, quote, release, route, and stock sections used different generic placeholders while loading their code and data, then replaced those placeholders with artwork, metadata, action, and price-card geometries. Share destination-shaped fallbacks across both loading phases so the section does not flash, stack, or change dimensions as each chunk resolves. | VN lazy sections, stock panel, shared section skeletons | DONE_WITH_DIFF |
 | R14-UX-015 | HIGH | Search used four incompatible loading bodies: the route omitted source tabs and filters, the page Suspense boundary painted unrelated thumbnail rows, VNDB omitted the density toolbar, and EGS/local module loads used generic cover rows. Share source-specific geometry across route, shell, and request phases so tabs, input, filters, density, and each result type stay stable. | Search route, client shell, VNDB/EGS/local result loading | DONE_WITH_DIFF |
 | R14-UX-016 | MEDIUM | Steam's route fallback mirrored its three workflows, but each hydrated section replaced that structure with generic text rows while suggestions, stored links, and unlinked games loaded. Reuse one skeleton per workflow so selection controls, link actions, and manual mapping inputs retain their final geometry. | Steam route and client data transitions | DONE_WITH_DIFF |
+| R14-UX-017 | HIGH | The Similar seed picker reset its highlighted result in an effect after rendering each new result set. A pointer entering another row before that effect ran could be overwritten back to the first result, making hover and subsequent Enter selection nondeterministic. Reset the index atomically with the result update instead. | Similar VN seed picker | DONE_WITH_DIFF |
+| R14-UX-018 | MEDIUM | Owned editions loaded as two generic 56 by 80 thumbnail rows, then expanded into an add toolbar and rich 96 by 144 release cards with metadata and three actions. Preserve the final toolbar, package-cover, metadata-grid, and action geometry while both ownership and release metadata resolve. | VN owned-editions section | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -313,3 +315,14 @@ operations, providers, deployment, backup, and restore.
   the full suite passes 9,802 tests with exactly 100% statements
   (44,765/44,765), branches (38,076/38,076), functions (9,131/9,131), and lines
   (38,221/38,221).
+- Similar seed results now reset their keyboard highlight in the same update as
+  the new result list, so a pointer hover can no longer be overwritten by a
+  later effect. The previously failing hover scenario passes ten consecutive
+  complete runs, and the full suite subsequently passes without the race.
+- Owned-edition loading now retains the add action, 96 by 144 package covers,
+  release metadata, summary fields, and three row actions instead of expanding
+  from two unrelated compact rows. The suspended-fetch integration test pins
+  this state. Sixty-two focused scenarios pass, the production build passes,
+  and the full suite passes 9,804 tests with exactly 100% statements
+  (44,768/44,768), branches (38,080/38,080), functions (9,134/9,134), and lines
+  (38,224/38,224).

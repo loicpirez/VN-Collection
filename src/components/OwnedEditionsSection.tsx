@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { LangFlag } from './LangFlag';
-import { SkeletonRows } from './Skeleton';
+import { OwnedEditionsSkeleton } from './OwnedEditionsSkeleton';
 import { DateInput } from './DateInput';
 import { TagInput } from './TagInput';
 import { useToast } from './ToastProvider';
@@ -358,11 +358,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
   }
 
   if (loading) {
-    return (
-      <div className="p-4 sm:p-6">
-        <SkeletonRows count={2} />
-      </div>
-    );
+    return <OwnedEditionsSkeleton label={t.common.loading} />;
   }
 
   return (
