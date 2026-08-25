@@ -15,6 +15,13 @@ export const STOCK_CONTRACT_IDS = {
 export interface StockContractInspector {
   /** Persist one completed stock batch used by freshness diagnostics. */
   insertCompletedBatch(providers: readonly string[], startedAt: number): Promise<void>;
+  /** Persist one matched AliceNet package outside the generic offer table. */
+  insertAliceNetStock(
+    vnId: string,
+    code: string,
+    salePrice: string | null,
+    listPrice: string | null,
+  ): Promise<void>;
 }
 
 /** Harness that supplies freshly seeded stock repositories. */
@@ -174,6 +181,27 @@ export function registerStockRepositoryContract(label: string, harness: StockCon
           status: 'ok', message: null, fetched_at: 500, offer_count: 1,
         });
         expect((await stock.listOffers(STOCK_CONTRACT_IDS.firstVn)).filter((row) => row.provider === 'sofmap').map((row) => row.provider_offer_id)).toEqual(['sofmap-replacement']);
+      });
+    });
+
+    it('includes AliceNet-only packages in bulk summaries', async () => {
+      await harness.withRepositories(async (stock, _queue, _maintenance, inspect) => {
+        await inspect.insertAliceNetStock(
+          STOCK_CONTRACT_IDS.firstVn,
+          '991-991401-991',
+          '2,034円',
+          '9,999円',
+        );
+        await inspect.insertAliceNetStock(
+          STOCK_CONTRACT_IDS.firstVn,
+          '991-991402-991',
+          null,
+          '3,000円',
+        );
+
+        expect(Object.fromEntries(await stock.batchSummaries([STOCK_CONTRACT_IDS.firstVn]))).toEqual({
+          [STOCK_CONTRACT_IDS.firstVn]: { available: 2, best_price: 2034 },
+        });
       });
     });
 

@@ -7,7 +7,7 @@ import type {
   VnStockSourceRow,
 } from '@/lib/db';
 import { decodeStoredExtras, type ErogePriceExtrasV1 } from '@/lib/erogeprice-meta';
-import { STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
+import { ALICENET_PROVIDER_ID, STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
 import { readDatabaseConfig } from '../postgres-config';
 import { postgresQuery, withPostgresTransaction, type PostgresParameter } from '../postgres';
 import { getAppSettingRepository } from './app-setting';
@@ -54,6 +54,16 @@ type PgStatus = VnStockProviderStatusRow & QueryResultRow;
 type PgSource = VnStockSourceRow & QueryResultRow;
 interface SummaryRow extends QueryResultRow { vn_id: string; available: number; best_price: number | null }
 interface ExtrasRow extends QueryResultRow { vn_id: string; extras_json: string }
+
+const ALICENET_PRICE_SOURCE = "COALESCE(NULLIF(k.sale_price, ''), NULLIF(k.list_price, ''))";
+const ALICENET_PRICE_DIGITS = `regexp_replace(COALESCE(${ALICENET_PRICE_SOURCE}, ''), '[^0-9]', '', 'g')`;
+const ALICENET_PRICE = `CASE
+  WHEN ${ALICENET_PRICE_SOURCE} ~ '[円¥￥]'
+    AND ${ALICENET_PRICE_DIGITS} ~ '^[0-9]+$'
+    AND (${ALICENET_PRICE_DIGITS})::BIGINT > 0
+  THEN (${ALICENET_PRICE_DIGITS})::BIGINT
+  ELSE NULL
+END`;
 
 const OFFER_COLUMNS = [
   'vn_id', 'provider', 'provider_offer_id', 'source', 'title', 'url', 'price', 'currency',
@@ -215,25 +225,31 @@ export function createPostgresStockRepository(): StockRepository {
       if (vnIds.length === 0) return output;
       const result = await postgresQuery<SummaryRow>(`
         WITH eligible AS (
-          SELECT vn_id, price,
+          SELECT offer.vn_id, offer.price,
             CASE WHEN source IN ('direct','manual','alicenet') THEN 0
               WHEN jan IS NOT NULL AND jan <> '' THEN 1
               WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
               WHEN match_confidence IN ('exact','high') THEN 3
               WHEN match_confidence = 'medium' THEN 4 ELSE 5 END AS priority
-          FROM vn_stock_offer
-          WHERE vn_id = ANY($1::text[])
+          FROM vn_stock_offer offer
+          WHERE offer.vn_id = ANY($1::text[])
+            AND offer.provider <> $2
+            AND offer.source <> $2
             AND availability IN ('in_stock','limited')
             AND (content_kind IS NULL OR content_kind IN ('game_package','digital_download'))
             AND (match_confidence IS NULL OR match_confidence IN ('exact','high'))
             AND (series_relation IS NULL OR series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
+          UNION ALL
+          SELECT k.vn_id, ${ALICENET_PRICE}, 0
+          FROM alicenet_stock k
+          WHERE k.vn_id = ANY($1::text[])
         ), ranked AS (
           SELECT vn_id, MIN(priority) AS best_priority FROM eligible GROUP BY vn_id
         )
         SELECT eligible.vn_id, COUNT(*) AS available,
           MIN(CASE WHEN eligible.priority = ranked.best_priority AND eligible.price IS NOT NULL THEN eligible.price END) AS best_price
         FROM eligible JOIN ranked ON ranked.vn_id = eligible.vn_id GROUP BY eligible.vn_id
-      `, [vnIds]);
+      `, [vnIds, ALICENET_PROVIDER_ID]);
       for (const row of result.rows) output.set(row.vn_id, { available: row.available, best_price: row.best_price });
       const fallbackIds = vnIds.filter((vnId) => !output.has(vnId));
       if (fallbackIds.length > 0) {

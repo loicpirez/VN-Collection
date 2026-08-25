@@ -17,6 +17,7 @@ function reset(): void {
   database.prepare('DELETE FROM vn_stock_source WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn_stock_alias WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn_stock_offer WHERE vn_id IN (?, ?)').run(...contractVnIds);
+  database.prepare('DELETE FROM alicenet_stock WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn_stock_provider_status WHERE vn_id IN (?, ?)').run(...contractVnIds);
   database.prepare('DELETE FROM vn_title_resolve_cache WHERE query = ?').run('contract query');
   database.prepare('DELETE FROM stock_batch_job WHERE id = ?').run(STOCK_CONTRACT_IDS.batch);
@@ -65,6 +66,13 @@ registerStockRepositoryContract('SQLite', {
             database.transaction(() => {
               for (const provider of providers) insert.run(provider, startedAt, startedAt + 10);
             })();
+          },
+          async insertAliceNetStock(vnId, code, salePrice, listPrice) {
+            database.prepare(`
+              INSERT INTO alicenet_stock (
+                code, title, sale_price, list_price, vn_id, vn_match_source, fetched_at, updated_at
+              ) VALUES (?, 'Contract AliceNet package', ?, ?, ?, 'manual', 1, 1)
+            `).run(code, salePrice, listPrice, vnId);
           },
         },
       );

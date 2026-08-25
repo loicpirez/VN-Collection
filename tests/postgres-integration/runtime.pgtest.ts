@@ -1022,6 +1022,13 @@ registerStockRepositoryContract('PostgreSQL', {
                 SELECT provider, $2, $3 FROM UNNEST($1::TEXT[]) AS provider
               `, [providers, startedAt, startedAt + 10]);
             },
+            async insertAliceNetStock(vnId, code, salePrice, listPrice) {
+              await pool.query(`
+                INSERT INTO alicenet_stock (
+                  code, title, sale_price, list_price, vn_id, vn_match_source, fetched_at, updated_at
+                ) VALUES ($1, 'Contract AliceNet package', $2, $3, $4, 'manual', 1, 1)
+              `, [code, salePrice, listPrice, vnId]);
+            },
           },
         );
       } finally {

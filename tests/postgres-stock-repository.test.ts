@@ -165,6 +165,11 @@ describe('PostgreSQL stock repository', () => {
       ] });
     const summaries = await repository.batchSummaries(['v90001', 'v90002', 'v90003', 'v90004', 'v90005']);
 
+    expect(String(postgresQueryMock.mock.calls[0]?.[0])).toContain('FROM alicenet_stock');
+    expect(postgresQueryMock.mock.calls[0]?.[1]).toEqual([
+      ['v90001', 'v90002', 'v90003', 'v90004', 'v90005'],
+      'alicenet',
+    ]);
     expect(summaries.get('v90001')).toEqual({ available: 2, best_price: 2500 });
     expect(summaries.has('v90002')).toBe(false);
     expect(summaries.has('v90003')).toBe(false);

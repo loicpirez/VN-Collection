@@ -91,6 +91,7 @@ operations, providers, deployment, backup, and restore.
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
 | R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
 | R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
+| R14-STOCK-003 | HIGH | Bulk stock summaries used by VN cards read only the generic offer table, while AliceNet packages are stored separately and synthesized only for detail and place views. AliceNet-only availability and prices therefore disappeared from library cards. Union matched AliceNet packages into both database summary implementations with the same guarded yen parsing used by place views. | `src/lib/db.ts`, `src/lib/db/repositories/stock.ts`, stock database contracts | DONE_WITH_DIFF |
 | R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
 | R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | TODO |
 | R14-VNDB-002 | CRITICAL | Conflict resolution previously submitted only field names, so an old browser preview could apply values that had changed locally or on VNDB since it was rendered. Submit the exact local/remote snapshot for every selected field, revalidate it against fresh data, use an atomic compare-and-set for local pulls, and reload the panel on conflict. | VN status panel, VNDB status API, SQLite and PostgreSQL collection repositories | DONE_WITH_DIFF |
@@ -616,3 +617,11 @@ operations, providers, deployment, backup, and restore.
   passes, and the PostgreSQL-backed suite passes 9,836 tests with exactly 100%
   statements (44,857/44,857), branches (38,122/38,122), functions
   (9,189/9,189), and lines (38,311/38,311).
+- Library and grid stock summaries now include matched AliceNet packages stored
+  outside the generic offer table. SQLite and PostgreSQL share the guarded yen
+  parsing and price fallback used by shop views, while excluding any legacy
+  materialized AliceNet offer to prevent double counting. The engine contract
+  verifies multiple packages, sale-price preference, and list-price fallback;
+  the production build passes, and the PostgreSQL-backed suite passes 9,838
+  tests with exactly 100% statements (44,860/44,860), branches
+  (38,122/38,122), functions (9,189/9,189), and lines (38,314/38,314).

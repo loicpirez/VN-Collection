@@ -11184,26 +11184,33 @@ export function batchVnStockSummaries(
   const out = new Map<string, { available: number; best_price: number | null }>();
   for (let i = 0; i < vnIds.length; i += CHUNK) {
     const chunk = vnIds.slice(i, i + CHUNK);
-    const ph = chunk.map(() => '?').join(',');
+    const requestedRows = chunk.map(() => '(?)').join(',');
     const rows = db
       .prepare(
-        `WITH eligible AS (
-           SELECT vn_id,
-                  price,
+        `WITH requested(vn_id) AS (VALUES ${requestedRows}),
+         eligible AS (
+           SELECT offer.vn_id,
+                  offer.price,
                   CASE
-                    WHEN source IN ('direct','manual','alicenet') THEN 0
-                    WHEN jan IS NOT NULL AND jan <> '' THEN 1
-                    WHEN product_id IS NOT NULL AND product_id <> '' THEN 2
-                    WHEN match_confidence IN ('exact','high') THEN 3
-                    WHEN match_confidence = 'medium' THEN 4
+                    WHEN offer.source IN ('direct','manual') THEN 0
+                    WHEN offer.jan IS NOT NULL AND offer.jan <> '' THEN 1
+                    WHEN offer.product_id IS NOT NULL AND offer.product_id <> '' THEN 2
+                    WHEN offer.match_confidence IN ('exact','high') THEN 3
+                    WHEN offer.match_confidence = 'medium' THEN 4
                     ELSE 5
                   END AS priority
-           FROM vn_stock_offer
-           WHERE vn_id IN (${ph})
-             AND availability IN ('in_stock','limited')
-             AND (content_kind IS NULL OR content_kind IN ('game_package','digital_download'))
-             AND (match_confidence IS NULL OR match_confidence IN ('exact','high'))
-             AND (series_relation IS NULL OR series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
+           FROM vn_stock_offer offer
+           JOIN requested ON requested.vn_id = offer.vn_id
+           WHERE offer.provider <> '${ALICENET_PROVIDER_ID}'
+             AND offer.source <> '${ALICENET_PROVIDER_ID}'
+             AND offer.availability IN ('in_stock','limited')
+             AND (offer.content_kind IS NULL OR offer.content_kind IN ('game_package','digital_download'))
+             AND (offer.match_confidence IS NULL OR offer.match_confidence IN ('exact','high'))
+             AND (offer.series_relation IS NULL OR offer.series_relation IN ('exact_game','same_game_different_edition','same_game_different_platform'))
+           UNION ALL
+           SELECT k.vn_id, ${ALICENET_PRICE_SQL}, 0
+           FROM alicenet_stock k
+           JOIN requested ON requested.vn_id = k.vn_id
          ),
          ranked AS (
            SELECT vn_id, MIN(priority) AS best_priority
