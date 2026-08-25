@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const PAGE_SRC = readFileSync('src/app/egs/page.tsx', 'utf8');
+const SKELETON_SRC = readFileSync('src/components/EgsPageSkeleton.tsx', 'utf8');
 
 describe('/egs page UX deepening', () => {
   it('wraps the DB load in try/catch + surfaces a clear error band', () => {
@@ -25,7 +26,9 @@ describe('/egs page UX deepening', () => {
 
   it('uses a Suspense skeleton fallback during load', () => {
     expect(PAGE_SRC).toMatch(/<Suspense\b/);
-    expect(PAGE_SRC).toMatch(/SkeletonCardGrid|SkeletonRows/);
+    expect(PAGE_SRC).toMatch(/fallback=\{<EgsPageSkeleton\b/);
+    expect(SKELETON_SRC).toMatch(/data-egs-results-skeleton/);
+    expect(SKELETON_SRC).toMatch(/<SkeletonBlock\b/);
   });
 
   it('renders a per-card status chip with the canonical source vocabulary', () => {

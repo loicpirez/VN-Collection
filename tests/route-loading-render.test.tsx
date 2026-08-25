@@ -200,6 +200,32 @@ describe('route loading skeletons', () => {
     expect(html).toContain('md:grid-cols-2 lg:grid-cols-3');
   });
 
+  it('uses one EGS skeleton for sync tools and density-aware horizontal result rows', async () => {
+    const html = renderToStaticMarkup(await EgsLoading());
+    expect(html).toContain('data-egs-results-skeleton');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
+    expect(html.match(/relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 pr-10/g)).toHaveLength(9);
+    expect(html).not.toContain('flex flex-col overflow-hidden');
+  });
+
+  it('matches the place detail actions, seven counters, controls, and stock-card grid', async () => {
+    const html = renderToStaticMarkup(await PlaceDetailLoading());
+    expect(html).toContain('max-w-7xl');
+    expect(html).toContain('data-place-detail-stats-skeleton');
+    expect(html).toContain('data-place-detail-controls-skeleton');
+    expect(html).toContain('data-place-detail-items-skeleton');
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-4 text-center/g)).toHaveLength(7);
+    expect(html.match(/h-96 w-full rounded-xl/g)).toHaveLength(8);
+  });
+
+  it('matches the stock picker, recent activity, and batch workspace', async () => {
+    const html = renderToStaticMarkup(await StockLoading());
+    expect(html).toContain('data-stock-picker-skeleton');
+    expect(html).toContain('data-stock-recent-skeleton');
+    expect(html).toContain('data-stock-batch-skeleton');
+    expect(html).toContain('sm:grid-cols-2 lg:grid-cols-3');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>

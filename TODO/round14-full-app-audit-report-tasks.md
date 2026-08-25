@@ -19,6 +19,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-002 | HIGH | Staff and seiyuu loading routes used a generic tall block or vertical cover grid that did not resemble the final search controls, profile, timeline, or horizontal VN/character credits. Mirror the actual responsive geometry so loading does not replace one page shape with another. | staff list/detail loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-003 | HIGH | Character, top-ranked, producer, and place loading routes used incorrect artwork ratios or unrelated generic card grids. Mirror each destination's real header, controls, card direction, density behavior, statistics, and actions so streamed transitions preserve the final responsive geometry. | character, top-ranked, producer, and place loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-004 | MEDIUM | Statistics flattened distinct summaries, goals, charts, and rankings into eight identical tiles, while Data replaced variable status, action, import, and maintenance surfaces with six identical rectangles. Preserve each page's actual information hierarchy and responsive column changes during loading. | statistics and data loading boundaries and geometry tests | DONE_WITH_DIFF |
+| R14-UX-005 | HIGH | EGS had two divergent fallbacks built from vertical cover cards, place detail omitted its seven counters and filtering workspace, and Stock omitted recent activity and batch tools. Share the EGS fallback and preserve the real horizontal cards, shop controls, stock history, and batch workspace while these routes stream. | EGS, place detail, and stock loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -141,3 +142,11 @@ operations, providers, deployment, backup, and restore.
   suites pass 18 scenarios, and the complete 9,760-test suite reports exactly
   100% statements, branches, functions, and lines together with the complete
   typecheck.
+- EGS route and Suspense loading now use one context-independent fallback with
+  sync tools and density-aware horizontal cards. Place detail loading mirrors
+  the shop header, source tabs, seven counters, filters, and stock grid used by
+  both AliceNet and ordinary branches. Stock loading retains its picker,
+  recent activity, and batch workspace. Eighty-one focused EGS, place, stock,
+  sentinel, and geometry scenarios pass, and the complete 9,763-test suite
+  reports exactly 100% statements, branches, functions, and lines together
+  with the complete typecheck.

@@ -14,7 +14,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { ResetViewDefaultsButton } from '@/components/ResetViewDefaultsButton';
 import { SafeImage } from '@/components/SafeImage';
-import { SkeletonCardGrid, SkeletonRows } from '@/components/Skeleton';
+import { EgsPageSkeleton } from '@/components/EgsPageSkeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,28 +85,9 @@ async function loadEgsPageData(): Promise<EgsPageData> {
 export default async function EgsPage() {
   const t = await getDict();
   return (
-    <Suspense fallback={<EgsPageSkeleton t={t} />}>
+    <Suspense fallback={<EgsPageSkeleton label={t.common.loading} />}>
       <EgsPageContent />
     </Suspense>
-  );
-}
-
-function EgsPageSkeleton({ t }: { t: Awaited<ReturnType<typeof getDict>> }) {
-  return (
-    <DensityScopeProvider scope="egs" className="w-full">
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
-          <Sparkles className="h-6 w-6 text-accent" aria-hidden /> {t.egs.pageTitle}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t.egs.pageSubtitle}</p>
-      </header>
-      <div className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <SkeletonCardGrid count={6} />
-      </div>
-      <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <SkeletonRows count={4} />
-      </div>
-    </DensityScopeProvider>
   );
 }
 

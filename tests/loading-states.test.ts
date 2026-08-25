@@ -40,6 +40,8 @@ const SKELETON_IMPORT = /from\s+['"]@\/components\/Skeleton['"]/;
 const ANIMATE_PULSE = /\banimate-pulse\b/;
 const SKELETON_USE =
   /<\s*Skeleton(?:Block|Rows|CardGrid|Card|Text|Avatar)\b|className="[^"]*animate-pulse/;
+const DEDICATED_SKELETON_USE =
+  /import\s*\{[^}]*\b[A-Z]\w*Skeleton\b[^}]*\}\s*from\s*['"]@\/components\/[^'"]*Skeleton['"][\s\S]*?<\s*[A-Z]\w*Skeleton\b/;
 
 describe('R5-178 — every cited route has a non-blank loading.tsx', () => {
   for (const { row, file } of ROUTES) {
@@ -52,8 +54,9 @@ describe('R5-178 — every cited route has a non-blank loading.tsx', () => {
       const usesShared = SKELETON_IMPORT.test(src);
       const usesPulse = ANIMATE_PULSE.test(src);
       const rendersSkeleton = SKELETON_USE.test(src);
+      const rendersDedicatedSkeleton = DEDICATED_SKELETON_USE.test(src);
       expect(
-        usesShared || usesPulse || rendersSkeleton,
+        usesShared || usesPulse || rendersSkeleton || rendersDedicatedSkeleton,
         `${file} must render a real skeleton (Skeleton* primitive or animate-pulse)`,
       ).toBe(true);
     });

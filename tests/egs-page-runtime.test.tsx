@@ -80,11 +80,6 @@ vi.mock('@/components/SafeImage', () => ({
   }) => <img alt={alt} src={localSrc ?? src ?? undefined} />,
 }));
 
-vi.mock('@/components/Skeleton', () => ({
-  SkeletonCardGrid: ({ count }: { count: number }) => <div data-testid="skeleton-cards">{count}</div>,
-  SkeletonRows: ({ count }: { count: number }) => <div data-testid="skeleton-rows">{count}</div>,
-}));
-
 async function renderPage(): Promise<string> {
   const stream = await renderToReadableStream(await EgsPage());
   await stream.allReady;
