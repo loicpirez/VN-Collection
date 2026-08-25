@@ -36,7 +36,7 @@ operations, providers, deployment, backup, and restore.
 | R14-TEST-002 | HIGH | Run focused tests while fixing findings, then the complete unit, PostgreSQL, exact coverage, QA, interaction, sentinel, provider, browser, and production health gates. No ignored files, skipped new scenarios, or threshold workarounds. | all test and QA suites | TODO |
 | R14-DOC-001 | MEDIUM | Reconcile README, FEATURES, CLAUDE, deployment and PostgreSQL docs, active TODO reports, route/provider claims, AliceNet naming, and final verification evidence with the shipped application. | project Markdown and operational docs | TODO |
 | R14-OPS-001 | CRITICAL | Verify pushed and deployed SHA equality, release activation, health, PostgreSQL availability, service restarts, memory, journal errors, backups, restore readiness, and rollback artifacts after every feature deployment and at final closure. | production host and deployment tooling | TODO |
-| R14-OPS-002 | CRITICAL | The release script sourced only the application environment for migrations, contradicting the documented least-privilege role split. DML-only migrations happened to work, but migration 0011 correctly failed on `CREATE TABLE`. Load the root-managed migrator environment only inside the migration subprocess and retain the application role for build, candidate health, and runtime. | release deployment script, production migration environment, PostgreSQL operations guide | IN_PROGRESS |
+| R14-OPS-002 | CRITICAL | The release script sourced only the application environment for migrations, contradicting the documented least-privilege role split. DML-only migrations happened to work, but migration 0011 correctly failed on `CREATE TABLE`. Load the root-managed migrator environment only inside the migration subprocess and retain the application role for build, candidate health, and runtime. | release deployment script, production migration environment, PostgreSQL operations guide | DONE_WITH_DIFF |
 
 ## Evidence collected
 
@@ -74,7 +74,22 @@ operations, providers, deployment, backup, and restore.
   older jobs finishing late, and feeds the existing updated/missed/no-batch UI.
   Fifty-one focused behavior tests, 94 real PostgreSQL integration scenarios,
   the complete typecheck, and targeted 100/100/100/100 coverage pass.
+- A production batch exercised one dynamically selected collection item against
+  Sofmap and finished 1/1 without cancellation, interruption, or provider
+  errors. The durable provider row remains available after the transient job,
+  the maintenance API reports 416 status rows and a completed batch, and the
+  UI reports that Sofmap was updated after that batch. Chromium, Firefox, and
+  WebKit confirm the same state at 1440 and 390 pixels with HTTP 200, no browser
+  errors, no fatal content, and no horizontal overflow.
 - The production VN loading skeleton was rendered with production CSS in
   Firefox, WebKit, and Chromium at 1440 and 390 pixels. In all six cases the
   opaque 260 by 390 cover shell exactly contains its pulse, remains above the
   banner across the full 176-pixel overlap, and creates no horizontal overflow.
+- Deployment migrations now run with the root-managed migrator environment in
+  an isolated subprocess, while build, candidate validation, and the activated
+  service retain the restricted application environment. The first deployment
+  correctly exposed that the active, older release was still orchestrating its
+  own replacement; bootstrapping the updated release script applied the new
+  contract. Production now serves commit `cccc3ceb`, migrations 0001 through
+  0011 are recorded, PostgreSQL is ready, and the service restart count remains
+  zero.
