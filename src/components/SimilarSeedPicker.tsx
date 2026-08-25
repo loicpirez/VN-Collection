@@ -128,6 +128,7 @@ export function SimilarSeedPicker({
         inCollection: r.in_collection,
       }));
 
+    setHighlight(0);
     setHits([...localHits, ...vndbHits]);
   }, []);
 
@@ -139,10 +140,6 @@ export function SimilarSeedPicker({
       searchAbortRef.current?.abort();
     };
   }, [query, debouncedSearch]);
-
-  useEffect(() => {
-    setHighlight(0);
-  }, [hits]);
 
   useEffect(() => {
     if ((autoFocus || !currentSeed) && editing) inputRef.current?.focus();
