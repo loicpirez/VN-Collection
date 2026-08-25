@@ -617,11 +617,11 @@ describe('StockPanel', () => {
   });
 
   it('opens the clear-cache modal and performs the DELETE on confirm', async () => {
+    await import('@/components/stock/ClearCacheModal');
     const onDelete = vi.fn(() => json({ snapshot: snapshot({ offers: [], statuses: [] }) }));
     global.fetch = routeFetch({ onDelete });
     renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snapshot()} />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.stock.clearCache as string) }));
-    // The lazy modal (next/dynamic) resolves asynchronously; wait for its dialog.
     const dialog = await screen.findByRole('dialog');
     // Confirm via the destructive button inside the dialog.
     const confirmBtn = within(dialog).getByRole('button', { name: t.stock.clearCache as string });

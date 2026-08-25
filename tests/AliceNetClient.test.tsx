@@ -958,6 +958,7 @@ describe('AliceNetClient', () => {
   });
 
   it('opens the lazy match dialog from a card', async () => {
+    await import('@/components/alicenet/AliceNetLinkDialog');
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
       if (String(url).startsWith('/api/search')) return json({ results: [] });
       return json(snapshot({ items: [EGS_ITEM], stats: { egs_only: 1, matched: 1 } }));
