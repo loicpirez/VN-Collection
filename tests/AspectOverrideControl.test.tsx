@@ -46,9 +46,12 @@ describe('AspectOverrideControl', () => {
   });
 
   it('shows a loading skeleton then the keys when no SSR-derived value is given', async () => {
-    renderWithProviders(<AspectOverrideControl vnId="v90001" />);
+    const { container } = renderWithProviders(<AspectOverrideControl vnId="v90001" />);
     // Loading status visible first (initialDerived === undefined => loading true).
     expect(screen.getByRole('status')).toBeTruthy();
+    const skeleton = container.querySelector('[data-aspect-override-skeleton]');
+    expect(skeleton).toBeTruthy();
+    expect(skeleton?.querySelectorAll('.h-11')).toHaveLength(5);
     await waitFor(() => expect(screen.getByRole('button', { name: '16:9' })).toBeTruthy());
     // Every non-unknown key has a button.
     for (const key of ['4:3', '16:9', '16:10', '21:9', 'other']) {

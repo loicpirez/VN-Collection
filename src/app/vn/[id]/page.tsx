@@ -66,6 +66,8 @@ import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
 import { EgsPanel } from '@/components/EgsPanel';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
+import { decodeEgsRawColumnMap } from '@/lib/egs-cache-shape';
+import { parseJsonRecord } from '@/lib/json-shape';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { StockPanelBoundary } from '@/components/StockPanelBoundary';
@@ -973,7 +975,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         // gate on the linked EGS row so a non-linked VN doesn't get an
         // empty section frame.
         if (egsRow) {
-          sectionNodes['egs-details'] = <EgsRichDetails vnId={vn.id} />;
+          sectionNodes['egs-details'] = (
+            <EgsRichDetails
+              vnId={vn.id}
+              initialRaw={decodeEgsRawColumnMap(parseJsonRecord(egsRow.raw_json)) ?? null}
+            />
+          );
         }
         sectionNodes['characters'] = <CharactersSection vnId={vn.id} spoilOverride={spoilOverride} />;
         if (vn.va.length > 0) {

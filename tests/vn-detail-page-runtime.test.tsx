@@ -248,7 +248,13 @@ vi.mock('@/components/EgsPanel', () => ({
 }));
 
 vi.mock('@/components/EgsRichDetails', () => ({
-  EgsRichDetails: ({ vnId }: { vnId: string }) => <div>{`egs-details:${vnId}`}</div>,
+  EgsRichDetails: ({
+    vnId,
+    initialRaw,
+  }: {
+    vnId: string;
+    initialRaw?: Record<string, string | null> | null;
+  }) => <div>{`egs-details:${vnId}:${initialRaw?.genre ?? 'none'}`}</div>,
 }));
 
 vi.mock('@/components/MatchBadges', () => ({
@@ -655,7 +661,7 @@ describe('VN detail page runtime', () => {
       suggestedName: 'Owned',
       relatedInCollection: [{ id: 'v2', title: 'Related', relation: 'seq' }],
     };
-    const linked = egsRow('v90009');
+    const linked = egsRow('v90009', { raw_json: JSON.stringify({ genre: 'Drama' }) });
     vi.mocked(getCollectionItem).mockReturnValue(item);
     vi.mocked(isInCollection).mockReturnValue(true);
     vi.mocked(getSourcePref).mockReturnValue({ image: 'custom', playtime: 'egs', description: 'vndb', brand: 'egs' });
@@ -693,7 +699,7 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('session:v90009:0');
     expect(html).toContain('activity:v90009:0');
     expect(html).toContain('egs-panel:v90009:42:Owned alternate');
-    expect(html).toContain('egs-details:v90009');
+    expect(html).toContain('egs-details:v90009:Drama');
     expect(html).toContain('cast:1');
     expect(html).toContain('staff:1');
     expect(html).toContain('tag-overlap:2');

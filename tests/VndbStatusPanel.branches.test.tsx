@@ -107,7 +107,9 @@ describe('VndbStatusPanel branches', () => {
     let resolve!: (r: Response) => void;
     global.fetch = vi.fn(() => new Promise<Response>((r) => { resolve = r; }));
     const { container } = render();
-    expect(container.querySelector('.animate-pulse')).toBeTruthy();
+    const skeleton = container.querySelector('[data-vndb-status-skeleton]');
+    expect(skeleton).toBeTruthy();
+    expect(skeleton?.querySelectorAll('.h-11')).toHaveLength(7);
     resolve(json(statePayload()));
   });
 

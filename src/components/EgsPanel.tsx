@@ -6,7 +6,7 @@ import { Clock, ExternalLink, Link2, Loader2, RefreshCw, Search, Sparkles, Star,
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useDialogA11y } from './Dialog';
-import { SkeletonBlock } from './Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
 import { ScoreSourceLegend } from './ScoreSourceLegend';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -260,11 +260,14 @@ export function EgsPanel({
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-5">
-        <SkeletonBlock className="mb-3 h-4 w-32" />
-        <SkeletonBlock className="mb-2 h-3 w-1/2" />
-        <SkeletonBlock className="mb-2 h-3 w-2/3" />
-        <SkeletonBlock className="h-3 w-1/3" />
+      <div className="p-4 sm:p-5" data-egs-empty-state-skeleton>
+        <SkeletonBoundary label={t.common.loading}>
+          <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+            <SkeletonBlock className="h-11 w-20 rounded-md can-hover:sm:h-7" />
+            <SkeletonBlock className="h-11 w-24 rounded-md can-hover:sm:h-7" />
+          </div>
+          <SkeletonBlock className="h-3 w-56 max-w-full" />
+        </SkeletonBoundary>
       </div>
     );
   }

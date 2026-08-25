@@ -22,7 +22,7 @@ describe('successful client response hardening', () => {
 
   it('decodes full EGS snapshots before reading raw columns', () => {
     const source = readFileSync('src/components/EgsRichDetails.tsx', 'utf8');
-    expect(source).toContain('decodeVnEgsGameSnapshot(await r.json())');
+    expect(source).toContain('decodeVnEgsGameSnapshot(await response.json())');
     expect(source).not.toContain('EgsExtra');
   });
 });

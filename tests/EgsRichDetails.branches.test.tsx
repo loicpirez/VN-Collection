@@ -4,6 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { EgsRichDetails } from '@/components/EgsRichDetails';
+import { EGS_CHANGED_EVENT } from '@/components/EgsPanel';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import { formatIsoDateString } from '@/lib/locale-number';
 
@@ -68,6 +69,33 @@ describe('EgsRichDetails branches', () => {
     const { container } = renderWithProviders(<EgsRichDetails vnId="v90001" />, { locale: 'en' });
     expect(container.querySelector('.animate-pulse')).toBeTruthy();
     resolve(json(snapshot(null)));
+  });
+
+  it('renders the server snapshot without a duplicate request and refreshes after a link change', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ genre: 'Refreshed genre' })));
+    renderWithProviders(
+      <EgsRichDetails vnId="v90001" initialRaw={{ genre: 'Initial genre' }} />,
+      { locale: 'en' },
+    );
+    expect(screen.getByText('Initial genre')).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent(EGS_CHANGED_EVENT, { detail: { vnId: 'v90001' } }));
+    await waitFor(() => expect(screen.getByText('Refreshed genre')).toBeInTheDocument());
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores link-change events for a different VN', async () => {
+    global.fetch = vi.fn(async () => json(snapshot({ genre: 'Other genre' })));
+    renderWithProviders(
+      <EgsRichDetails vnId="v90001" initialRaw={{ genre: 'Initial genre' }} />,
+      { locale: 'en' },
+    );
+
+    window.dispatchEvent(new CustomEvent(EGS_CHANGED_EVENT, { detail: { vnId: 'v90002' } }));
+    await act(async () => Promise.resolve());
+    expect(screen.getByText('Initial genre')).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('renders nothing when the snapshot has no raw payload', async () => {

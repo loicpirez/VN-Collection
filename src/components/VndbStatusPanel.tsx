@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowUpToLine, CheckCircle2, ExternalLink, KeyRound, L
 import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { DateInput } from './DateInput';
-import { SkeletonBlock } from './Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { CollapsibleSummary } from './CollapsibleSummary';
 import { ErrorAlert } from './ErrorAlert';
@@ -160,10 +160,23 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-5">
-        <SkeletonBlock className="mb-3 h-4 w-32" />
-        <SkeletonBlock className="mb-2 h-3 w-full" />
-        <SkeletonBlock className="h-3 w-3/4" />
+      <div className="p-4 sm:p-5" data-vndb-status-skeleton>
+        <SkeletonBoundary label={t.common.loading}>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-1">
+            <SkeletonBlock className="h-11 w-16 rounded-md can-hover:sm:h-7" />
+            <SkeletonBlock className="h-11 w-24 rounded-md can-hover:sm:h-7" />
+          </div>
+          <SkeletonBlock className="h-11 w-full rounded-lg can-hover:sm:h-8" />
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {[20, 18, 20, 16].map((width, index) => (
+              <SkeletonBlock
+                key={index}
+                className="h-11 rounded-md can-hover:sm:h-7"
+                style={{ width: `${width * 4}px` }}
+              />
+            ))}
+          </div>
+        </SkeletonBoundary>
       </div>
     );
   }

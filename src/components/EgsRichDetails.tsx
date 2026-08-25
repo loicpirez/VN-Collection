@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Film, Gamepad2, ShoppingBag, Twitter, Users } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
@@ -7,6 +7,7 @@ import { formatMinutes } from '@/lib/format';
 import { safeHref } from '@/lib/safe-href';
 import { SkeletonBlock } from './Skeleton';
 import { decodeVnEgsGameSnapshot } from '@/lib/search-client-shape';
+import { EGS_CHANGED_EVENT, type EgsChangedDetail } from './EgsPanel';
 
 interface RawRow {
   [key: string]: string | null;
@@ -27,30 +28,64 @@ function n(v: string | null | undefined): number | null {
  * Reads the raw row from /api/vn/[id]/erogamescape and renders only the
  * fields that are non-empty. Stays hidden entirely when there's no EGS match.
  */
-export function EgsRichDetails({ vnId }: { vnId: string }) {
+export function EgsRichDetails({
+  vnId,
+  initialRaw,
+}: {
+  vnId: string;
+  initialRaw?: RawRow | null;
+}) {
   const t = useT();
   const locale = useLocale();
   const fmtMin = (m: number): string => formatMinutes(m, locale, t.year, { emptyValue: 'strict_positive' });
-  const [raw, setRaw] = useState<RawRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [raw, setRaw] = useState<RawRow | null>(initialRaw ?? null);
+  const [loading, setLoading] = useState(initialRaw === undefined);
+  const requestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    setRaw(null);
-    setLoading(true);
-    fetch(`/api/vn/${vnId}/erogamescape`, { cache: 'no-store', signal: ctrl.signal })
-      .then(async (r) => (r.ok ? decodeVnEgsGameSnapshot(await r.json()) : null))
-      .then((d) => {
-        if (!ctrl.signal.aborted) setRaw(d?.game?.raw ?? null);
-      })
-      .catch(() => {
-        // panel just hides on error
-      })
-      .finally(() => {
-        if (!ctrl.signal.aborted) setLoading(false);
-      });
-    return () => ctrl.abort();
-  }, [vnId]);
+    let active = true;
+
+    async function load(showLoading: boolean) {
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      if (showLoading) setLoading(true);
+      try {
+        const response = await fetch(`/api/vn/${vnId}/erogamescape`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const snapshot = response.ok ? decodeVnEgsGameSnapshot(await response.json()) : null;
+        if (active && !controller.signal.aborted && requestRef.current === controller) {
+          setRaw(snapshot?.game?.raw ?? null);
+        }
+      } catch {
+        // This optional panel stays hidden when EGS cannot provide details.
+      } finally {
+        if (active && !controller.signal.aborted && requestRef.current === controller) {
+          requestRef.current = null;
+          if (showLoading) setLoading(false);
+        }
+      }
+    }
+
+    setRaw(initialRaw ?? null);
+    setLoading(initialRaw === undefined);
+    if (initialRaw === undefined) void load(true);
+
+    function onEgsChanged(event: Event) {
+      const detail = (event as CustomEvent<EgsChangedDetail>).detail;
+      if (detail && detail.vnId !== vnId) return;
+      void load(false);
+    }
+    window.addEventListener(EGS_CHANGED_EVENT, onEgsChanged);
+    return () => {
+      active = false;
+      requestRef.current?.abort();
+      requestRef.current = null;
+      window.removeEventListener(EGS_CHANGED_EVENT, onEgsChanged);
+    };
+  }, [vnId, initialRaw]);
 
   if (loading) {
     return (

@@ -16,8 +16,10 @@ describe('reusable read-island lifecycle', () => {
   });
 
   it('reseeds EGS rich details while a replacement VN loads', () => {
-    expect(EGS).toContain('setRaw(null)');
-    expect(EGS).toContain('setLoading(true)');
+    expect(EGS).toContain('setRaw(initialRaw ?? null)');
+    expect(EGS).toContain('setLoading(initialRaw === undefined)');
+    expect(EGS).toContain('requestRef.current === controller');
+    expect(EGS).toContain('requestRef.current?.abort()');
     expect(EGS).toContain('<Users className="h-3 w-3" aria-hidden />');
     expect(EGS).not.toContain(' · ');
     expect(EGS).not.toContain(' – ');

@@ -71,6 +71,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-051 | MEDIUM | Recent stock activity represented recent VN checks and completed background batches as four identical bars in both route and hydrated loading states. Share a skeleton that preserves both headings, compact VN identity rows, batch timestamps, and summary lines. | stock recent activity route and client loading | DONE_WITH_DIFF |
 | R14-UX-052 | MEDIUM | Cache loading reserved only four featureless blocks although its resolved body guarantees four labelled statistics, two freshness dates, and two maintenance actions. Preserve all guaranteed zones so expanding the panel during its request does not rebuild the layout. | cache statistics panel | DONE_WITH_DIFF |
 | R14-UX-053 | HIGH | The prior seiyuu correction over-reduced the profile header even though the real cache shows that language is universal and original names, descriptions, gender, and external links occur on most profiles. Rich seiyuu pages therefore expanded by several rows after loading; the density toolbar and download action were also materially narrower than their resolved controls, and the external-credit fallback received the section gap twice. Restore one compact common-profile cluster, match real control widths, and let only one layout layer own vertical spacing. | staff detail and external-credit loading boundaries | DONE_WITH_DIFF |
+| R14-UX-054 | HIGH | VN detail client islands still used unrelated generic lines for VNDB state, an EGS no-match lookup, and aspect controls. Rich EGS details also repeated a client request even though every linked production row already carries the complete raw snapshot, causing an avoidable skeleton and stale detail content after relinking. Mirror each guaranteed destination shape, hydrate rich details from the server snapshot, and revalidate them without replacing visible content after EGS link changes. | VNDB status, EGS, rich EGS, and aspect-ratio panels | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -635,3 +636,11 @@ operations, providers, deployment, backup, and restore.
   PostgreSQL-backed suite passes 9,839 tests with exactly 100% statements
   (44,860/44,860), branches (38,125/38,125), functions (9,189/9,189), and
   lines (38,314/38,314).
+- VN detail client loaders now preserve the final VNDB actions, collapsed
+  editor, label controls, EGS no-match actions, and aspect button geometry.
+  Rich EGS details hydrate from the stored server snapshot instead of issuing
+  a duplicate request; all 476 linked production rows have that payload, and
+  relinking revalidates it in place with stale-request protection. The
+  production build passes, and the PostgreSQL-backed suite passes 9,841 tests
+  with exactly 100% statements (44,880/44,880), branches (38,147/38,147),
+  functions (9,188/9,188), and lines (38,333/38,333).

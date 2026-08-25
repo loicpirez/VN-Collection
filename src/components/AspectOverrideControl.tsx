@@ -129,14 +129,19 @@ export function AspectOverrideControl({
 
   if (loading) {
     return (
-      <SkeletonBoundary label={t.common.loading} className="space-y-2 p-3 sm:p-4">
-        <SkeletonBlock className="h-3 w-4/5" />
-        <div className="flex flex-wrap gap-1.5">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <SkeletonBlock key={index} className="h-8 w-14" />
-          ))}
-        </div>
-      </SkeletonBoundary>
+      <div className="p-3 sm:p-4" data-aspect-override-skeleton>
+        <SkeletonBoundary label={t.common.loading}>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <SkeletonBlock className="h-3 w-4/5 max-w-md" />
+            <SkeletonBlock className="h-2.5 w-28" />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <SkeletonBlock key={index} className="h-11 w-14 rounded-md can-hover:sm:h-8" />
+            ))}
+          </div>
+        </SkeletonBoundary>
+      </div>
     );
   }
 
