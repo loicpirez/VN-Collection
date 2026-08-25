@@ -67,6 +67,18 @@ function CreditSectionSkeleton({
   );
 }
 
+function CollapsedSectionSkeleton({ sectionId }: { sectionId: StaffSectionId }) {
+  return (
+    <div
+      className="mb-2 flex min-h-[44px] w-full items-center gap-2"
+      data-staff-collapsed-section-skeleton={sectionId}
+    >
+      <SkeletonBlock className="h-3.5 w-3.5 shrink-0" />
+      <SkeletonBlock className="h-3 w-36 max-w-[70%]" />
+    </div>
+  );
+}
+
 export default async function StaffDetailLoading() {
   const [t, rawLayout] = await Promise.all([
     getDict(),
@@ -107,12 +119,9 @@ export default async function StaffDetailLoading() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1">
             <SkeletonBlock className="h-8 w-72 max-w-full" />
-            <SkeletonBlock className="mt-2 h-4 w-48 max-w-full" />
             <div className="mt-3 flex flex-wrap gap-2">
               <SkeletonBlock className="h-11 w-24 can-hover:sm:h-7" />
               <SkeletonBlock className="h-11 w-28 can-hover:sm:h-7" />
-              <SkeletonBlock className="h-11 w-36 can-hover:sm:h-7" />
-              <SkeletonBlock className="h-11 w-32 can-hover:sm:h-7" />
             </div>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto">
@@ -130,6 +139,9 @@ export default async function StaffDetailLoading() {
       <div className="space-y-6">
         {layout.order.map((sectionId) => {
           if (!layout.sections[sectionId].visible) return null;
+          if (layout.sections[sectionId].collapsedByDefault) {
+            return <CollapsedSectionSkeleton key={sectionId} sectionId={sectionId} />;
+          }
           const skeleton = sectionSkeletons[sectionId];
           return skeleton ? <div key={sectionId}>{skeleton}</div> : null;
         })}

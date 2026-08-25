@@ -258,13 +258,16 @@ describe('route loading skeletons', () => {
     const layout = defaultStaffDetailLayoutV1();
     layout.order = ['voice-credits', 'timeline', 'production-credits', 'siblings', 'extra-credits'];
     layout.sections['production-credits'].visible = false;
+    layout.sections.timeline.collapsedByDefault = true;
     await repository.set(STAFF_DETAIL_SETTINGS_KEY, JSON.stringify(layout));
     try {
       const html = renderToStaticMarkup(await StaffDetailLoading());
       const voiceIndex = html.indexOf('data-staff-section-skeleton="voice-credits"');
       const timelineIndex = html.indexOf('data-staff-section-skeleton="timeline"');
       expect(voiceIndex).toBeGreaterThan(0);
-      expect(timelineIndex).toBeGreaterThan(voiceIndex);
+      const collapsedTimelineIndex = html.indexOf('data-staff-collapsed-section-skeleton="timeline"');
+      expect(timelineIndex).toBe(-1);
+      expect(collapsedTimelineIndex).toBeGreaterThan(voiceIndex);
       expect(html).not.toContain('data-staff-section-skeleton="production-credits"');
     } finally {
       await repository.set(STAFF_DETAIL_SETTINGS_KEY, previous);
