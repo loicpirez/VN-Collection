@@ -85,6 +85,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
       const trimmed = q.trim();
       if (!trimmed) {
         searchAbortRef.current?.abort();
+        setHighlight(0);
         setHits([]);
         setSearching(false);
         return;
@@ -139,6 +140,7 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
         }));
 
       const currentSelectedIds = new Set(selected.map((s) => s.id));
+      setHighlight(0);
       setHits([...localHits, ...vndbHits].filter((h) => !currentSelectedIds.has(h.id)));
     },
     [selected],
@@ -149,10 +151,6 @@ export function CompareVnPicker({ initialVns }: { initialVns: CompareVn[] }) {
   useEffect(() => {
     debouncedSearch(query);
   }, [query, debouncedSearch]);
-
-  useEffect(() => {
-    setHighlight(0);
-  }, [hits]);
 
   useEffect(() => {
     if (showAdd) inputRef.current?.focus();
