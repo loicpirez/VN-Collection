@@ -95,6 +95,11 @@ describe('LoadingImage — skeleton present in initial render', () => {
     expect(loadingImageSource).not.toContain("loaded ? 'opacity-0' : 'opacity-100'");
   });
 
+  it('uses the shared restrained skeleton surface without a composited gradient', () => {
+    expect(loadingImageSource).toContain('animate-pulse bg-bg-elev/60');
+    expect(loadingImageSource).not.toContain('bg-gradient-to-br');
+  });
+
   it('renders provided alt text on the img element', () => {
     const html = renderToStaticMarkup(
       loadingImageElement({ src: '/cover.jpg', alt: 'Game cover' }),
@@ -121,6 +126,11 @@ describe('HeroBanner — loading skeleton lifecycle', () => {
     expect(heroBannerSource).toContain('onError={() => setBannerErrored(true)}');
     expect(heroBannerSource).toContain('{liveSrc && !bannerErrored ? (');
     expect(heroBannerSource).toContain('<ImageOff');
+  });
+
+  it('uses the same restrained surface as other image skeletons', () => {
+    expect(heroBannerSource).toContain('animate-pulse bg-bg-elev/60');
+    expect(heroBannerSource).not.toContain('bg-gradient-to-br');
   });
 });
 

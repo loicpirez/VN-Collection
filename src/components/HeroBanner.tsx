@@ -429,7 +429,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           {!bannerLoaded && (
             <div
               data-hero-banner-skeleton
-              className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-card/55 to-bg-elev/70"
+              className="pointer-events-none absolute inset-0 animate-pulse bg-bg-elev/60"
               aria-hidden
             />
           )}
