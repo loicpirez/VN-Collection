@@ -93,8 +93,10 @@ export function QuoteFooter() {
                 load();
               }}
               disabled={loading}
-              className={`tap-target-tight shrink-0 rounded text-muted transition-opacity duration-200 hover:text-white disabled:opacity-50 ${
-                hovered ? 'opacity-100' : 'pointer-events-none opacity-0'
+              className={`inline-flex shrink-0 items-center justify-center rounded text-muted transition-opacity duration-200 hover:text-white disabled:opacity-50 ${
+                hovered
+                  ? 'min-h-[44px] min-w-[44px] opacity-100'
+                  : 'pointer-events-none h-3 w-3 opacity-0'
               }`}
               aria-label={t.quotes.shuffle}
               title={t.quotes.shuffle}

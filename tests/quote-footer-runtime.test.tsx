@@ -38,8 +38,13 @@ describe('QuoteFooter hover loader', () => {
   it('loads only after interaction and renders linked character and VN attribution', async () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
+    const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
+    expect(refresh).toHaveClass('h-3', 'w-3');
+    expect(refresh).not.toHaveClass('min-h-[44px]', 'min-w-[44px]');
     expect(global.fetch).not.toHaveBeenCalled();
     fireEvent.mouseEnter(footer);
+    expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]');
+    expect(refresh).not.toHaveClass('h-3', 'w-3');
     expect(await screen.findByText(/Quoted line/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Heroine/ })).toHaveAttribute('href', '/character/c90001');
     expect(screen.getByRole('link', { name: 'Visual novel' })).toHaveAttribute('href', '/vn/v90001');

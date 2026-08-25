@@ -311,6 +311,8 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     renderWithProviders(<GroupedNav />, { locale: 'en' });
     const hamburger = screen.getByRole('button', { name: t.nav.openMenu });
     expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+    expect(hamburger).toHaveClass('min-h-[44px]', 'min-w-[44px]');
+    expect(hamburger).not.toHaveClass('tap-target');
     await u.click(hamburger);
     const dialog = await screen.findByRole('dialog');
     // Group headings and at least one link per group render in the sheet.

@@ -28,6 +28,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
+| R14-A11Y-002 | HIGH | The mobile navigation trigger rendered at 44 by 32 pixels and the expanded quote refresh action rendered at 12 by 12 pixels, despite pseudo-element helpers that did not change their layout boxes. Give the menu a permanent 44-pixel box and the quote action a 44-pixel box whenever it is interactive while preserving its compact, inert collapsed state. | `src/components/MoreNavMenu.tsx`, `src/components/QuoteFooter.tsx` | DONE_WITH_DIFF |
 | R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
 | R14-I18N-002 | HIGH | Character birthdays forced day/month order, VN activity start/finish dates exposed ISO storage values, status changes exposed internal status keys, and playtime used a hardcoded `min` suffix. Route all four through locale-aware formatters and test French, English, and Japanese ordering and units. | `src/lib/locale-number.ts`, character detail, VN activity timeline | DONE_WITH_DIFF |
 | R14-I18N-003 | HIGH | EGS only decoded a hand-maintained entity subset and AliceNet did not decode HTML entities at ingestion, leaving encoded producer and title text in the shop UI, EGS metadata, search, and filters. Use a standards-based single-pass decoder for future ingestion and migrate historical SQLite and PostgreSQL values. | EGS and AliceNet parsers, SQLite bootstrap, PostgreSQL migration 0010 | DONE_WITH_DIFF |
@@ -183,3 +184,11 @@ operations, providers, deployment, backup, and restore.
   suite passes 9,774 tests and reports exactly 100% statements (44,699/44,699),
   branches (37,973/37,973), functions (9,095/9,095), and lines
   (38,163/38,163).
+- At a 390 by 844 viewport, the mobile menu trigger now measures exactly 44 by
+  44 pixels. The quote refresh action remains a compact inert 12-pixel icon
+  while collapsed and measures 44 by 44 pixels as soon as the footer opens.
+  The interaction leaves document width at 390 of 390 pixels. Seventy-eight
+  focused navigation, quote, responsive-target, and portal scenarios pass.
+  The full suite passes 9,774 tests with exactly 100% statements, branches,
+  functions, and lines, together with the complete typecheck and production
+  build.

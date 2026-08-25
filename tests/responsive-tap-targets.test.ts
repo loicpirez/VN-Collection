@@ -163,6 +163,7 @@ describe('responsive tap targets', () => {
     expect(source('src/components/DetailReorderLayout.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/CardDensitySlider.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/MoreNavMenu.tsx')).toContain('min-h-[44px]');
+    expect(source('src/components/QuoteFooter.tsx')).toContain("'min-h-[44px] min-w-[44px] opacity-100'");
     expect(source('src/components/GameLog.tsx')).toContain('min-h-[44px]');
   });
 
