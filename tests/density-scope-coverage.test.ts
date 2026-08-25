@@ -40,7 +40,7 @@ const EXPECTED_LOADING_SCOPES = [
   'app/characters/loading.tsx:characterWorks',
   'app/dumped/loading.tsx:dumped',
   'app/lists/[id]/loading.tsx:lists',
-  'app/loading.tsx:library',
+  'components/HomePageSkeleton.tsx:library',
   'app/places/[id]/loading.tsx:places',
   'app/places/(index)/loading.tsx:places',
   'app/producer/[id]/loading.tsx:producerWorks',

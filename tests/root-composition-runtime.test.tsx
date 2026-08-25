@@ -135,4 +135,23 @@ describe('home page composition', () => {
     expect(html.indexOf('recent')).toBeLessThan(html.indexOf('queue'));
     expect(html.indexOf('queue')).toBeLessThan(html.indexOf('anniversary'));
   });
+
+  it('does not mount data-backed home sections hidden by the saved layout', async () => {
+    vi.mocked(getAppSetting).mockReturnValue(JSON.stringify({
+      sections: {
+        'recently-viewed': { visible: false, collapsed: false },
+        'reading-queue': { visible: false, collapsed: false },
+        anniversary: { visible: false, collapsed: false },
+        'library-controls': { visible: false, collapsed: false },
+        'library-grid': { visible: false, collapsed: false },
+      },
+    }));
+    const html = renderToStaticMarkup(await HomePage());
+    expect(html).not.toContain('recent');
+    expect(html).not.toContain('queue');
+    expect(html).not.toContain('anniversary');
+    expect(html).not.toContain('controls');
+    expect(html).not.toContain('grid');
+    expect(html).toContain('editor');
+  });
 });

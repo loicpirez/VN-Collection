@@ -42,6 +42,7 @@ import WishlistLoading from '@/app/wishlist/loading';
 import YearLoading from '@/app/year/loading';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
+import { DEFAULT_HOME_LAYOUT } from '@/lib/home-section-layout';
 import {
   STAFF_DETAIL_SETTINGS_KEY,
   defaultStaffDetailLayoutV1,
@@ -57,6 +58,7 @@ import {
   SkeletonTabRow,
   SkeletonText,
 } from '@/components/Skeleton';
+import { HomeSectionSkeleton } from '@/components/HomePageSkeleton';
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
@@ -138,6 +140,86 @@ describe('route loading skeletons', () => {
     expect(html).toContain('grid-cols-3');
     expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
+  });
+
+  it('matches the configurable home strips, controls, and library grid geometry', async () => {
+    const html = renderToStaticMarkup(await HomeLoading());
+    expect(html).toContain('data-home-section-skeleton="recently-viewed"');
+    expect(html).toContain('data-home-section-skeleton="reading-queue"');
+    expect(html).toContain('data-home-section-skeleton="anniversary"');
+    expect(html).toContain('data-home-section-skeleton="library-controls"');
+    expect(html).toContain('data-home-section-skeleton="library-grid"');
+    expect(html).toContain('data-home-library-grid-skeleton');
+    expect(html).toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
+    expect(html.match(/flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card/g)).toHaveLength(18);
+  });
+
+  it('announces an isolated home section while only that server feed is pending', () => {
+    const html = renderToStaticMarkup(
+      <HomeSectionSkeleton
+        id="reading-queue"
+        state={{ visible: true, collapsed: false }}
+        label="Loading queue"
+      />,
+    );
+    expect(html).toContain('role="status"');
+    expect(html).toContain('Loading queue');
+    expect(html).toContain('data-home-section-skeleton="reading-queue"');
+    expect(html).not.toContain('data-home-section-skeleton="library-grid"');
+  });
+
+  it('keeps the home skeleton in saved order and honours hidden and collapsed sections', async () => {
+    const repository = getAppSettingRepository();
+    const previous = await repository.get('home_section_layout_v1');
+    const layout = structuredClone(DEFAULT_HOME_LAYOUT);
+    layout.order = ['library-grid', 'anniversary', 'recently-viewed', 'reading-queue', 'library-controls'];
+    layout.sections.anniversary.visible = false;
+    layout.sections['recently-viewed'].collapsed = true;
+    layout.sections['library-controls'].collapsed = true;
+    layout.sections['library-grid'].collapsed = true;
+    await repository.set('home_section_layout_v1', JSON.stringify(layout));
+    try {
+      const html = renderToStaticMarkup(await HomeLoading());
+      const gridIndex = html.indexOf('data-home-section-skeleton="library-grid"');
+      const recentIndex = html.indexOf('data-home-section-skeleton="recently-viewed"');
+      const queueIndex = html.indexOf('data-home-section-skeleton="reading-queue"');
+      expect(gridIndex).toBeGreaterThan(0);
+      expect(recentIndex).toBeGreaterThan(gridIndex);
+      expect(queueIndex).toBeGreaterThan(recentIndex);
+      expect(html).not.toContain('data-home-section-skeleton="anniversary"');
+      expect(html).not.toContain('data-home-library-grid-skeleton');
+      expect(html).not.toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
+      expect(html).not.toContain('min-w-[180px] flex-1');
+    } finally {
+      await repository.set('home_section_layout_v1', previous);
+    }
+  });
+
+  it('falls back to the default home skeleton when its saved layout cannot be read', async () => {
+    const repository = getAppSettingRepository();
+    const get = vi.spyOn(repository, 'get').mockRejectedValueOnce(new Error('storage unavailable'));
+    try {
+      const html = renderToStaticMarkup(await HomeLoading());
+      expect(html).toContain('data-home-section-skeleton="recently-viewed"');
+      expect(html).toContain('data-home-library-grid-skeleton');
+    } finally {
+      get.mockRestore();
+    }
+  });
+
+  it('does not flash skeleton bodies for home sections hidden in settings', async () => {
+    const repository = getAppSettingRepository();
+    const previous = await repository.get('home_section_layout_v1');
+    const layout = structuredClone(DEFAULT_HOME_LAYOUT);
+    for (const id of layout.order) layout.sections[id].visible = false;
+    await repository.set('home_section_layout_v1', JSON.stringify(layout));
+    try {
+      const html = renderToStaticMarkup(await HomeLoading());
+      expect(html).toContain('role="status"');
+      expect(html).not.toContain('data-home-section-skeleton');
+    } finally {
+      await repository.set('home_section_layout_v1', previous);
+    }
   });
 
   it('matches the staff search controls and compact result geometry', async () => {
