@@ -430,6 +430,15 @@ describe('route loading skeletons', () => {
     expect(html.match(/relative min-h-\[112px\]/g)).toHaveLength(12);
   });
 
+  it('keeps similar loading on the seed-picker geometry shared by every route state', async () => {
+    const html = renderToStaticMarkup(await SimilarLoading());
+    expect(html).toContain('data-similar-seed-skeleton');
+    expect(html).toContain('rounded-2xl border border-border bg-bg-card p-4 sm:p-6');
+    expect(html).toContain('h-11 w-full rounded-md');
+    expect(html).not.toContain('aspect-[2/3]');
+    expect(html).not.toContain('grid gap-5');
+  });
+
   it('matches release inventory identity and owned-action rows', async () => {
     const html = renderToStaticMarkup(await ReleaseLoading());
     expect(html).toContain('data-release-inventory-skeleton');
