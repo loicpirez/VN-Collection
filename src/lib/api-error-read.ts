@@ -88,6 +88,7 @@ export type KnownApiErrorCode =
   | 'vndb_token_required'
   | 'vndb_unavailable'
   | 'vndb_sync_changed'
+  | 'vndb_sync_direction_unavailable'
   | 'steam_sync_failed'
   | 'steam_not_configured'
   | 'egs_game_not_found'

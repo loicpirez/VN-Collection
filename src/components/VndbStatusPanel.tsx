@@ -30,6 +30,7 @@ function apiErrorMessages(t: Dictionary): Partial<Record<KnownApiErrorCode, stri
     vndb_token_required: t.apiErrors.vndbTokenRequired,
     vndb_unavailable: t.apiErrors.vndbUnavailable,
     vndb_sync_changed: t.apiErrors.vndbSyncChanged,
+    vndb_sync_direction_unavailable: t.apiErrors.vndbSyncDirectionUnavailable,
     steam_sync_failed: t.apiErrors.steamSyncFailed,
     steam_not_configured: t.apiErrors.steamNotConfigured,
     egs_game_not_found: t.apiErrors.egsGameNotFound,

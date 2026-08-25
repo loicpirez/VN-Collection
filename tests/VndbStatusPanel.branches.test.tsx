@@ -465,6 +465,31 @@ describe('VndbStatusPanel branches', () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  it('localizes an unavailable synchronization direction', async () => {
+    let reads = 0;
+    global.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return json({ error: 'direction unavailable', code: 'vndb_sync_direction_unavailable' }, 409);
+      }
+      reads += 1;
+      return json(statePayload({
+        entry: true,
+        local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+        differences: [{
+          field: 'status',
+          local: 'completed',
+          remote: 'playing',
+          canPullRemote: true,
+          canPushLocal: true,
+        }],
+      }));
+    });
+    render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    expect(await screen.findByText(t.apiErrors.vndbSyncDirectionUnavailable)).toBeInTheDocument();
+    await waitFor(() => expect(reads).toBe(2));
+  });
+
   it('does not reload conflict values for a non-conflict synchronization failure', async () => {
     let reads = 0;
     global.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
