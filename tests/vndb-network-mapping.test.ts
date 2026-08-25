@@ -846,6 +846,15 @@ describe('ulist read + write', () => {
     expect(await fetchUlistEntry('v90900')).toBeNull();
   });
 
+  it('fetchUlistEntry can force a fresh upstream read', async () => {
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse({ id: 'u9001', username: 'tester', permissions: ['listread'] }))
+      .mockResolvedValueOnce(jsonResponse(envelope([{ ...ulistRow('v90901', [5]), lastmod: 2 }])));
+
+    await expect(fetchUlistEntry('v90901', { fresh: true })).resolves.toMatchObject({ id: 'v90901' });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('fetchUlistLabels maps the labels list', async () => {
     providerFetchMock.mockResolvedValueOnce(
       jsonResponse({ labels: [{ id: 5, label: 'Wishlist', private: false, count: 3 }] }),

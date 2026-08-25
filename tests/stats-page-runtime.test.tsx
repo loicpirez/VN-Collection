@@ -7,12 +7,17 @@ import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { ProducerStat } from '@/lib/types';
 
 const mocks = vi.hoisted(() => ({
+  databaseBackend: 'sqlite' as 'sqlite' | 'postgres',
   averageRating: null as number | null,
   favorites: 0,
   personal: vi.fn(),
   aggregate: vi.fn(),
   developerStats: vi.fn(),
   publisherStats: vi.fn(),
+}));
+
+vi.mock('@/lib/db/postgres-config', () => ({
+  readDatabaseConfig: () => ({ backend: mocks.databaseBackend }),
 }));
 
 vi.mock('@/lib/db/repositories/producer', () => ({
@@ -44,7 +49,9 @@ vi.mock('@/components/CachePanel', () => ({
 }));
 
 vi.mock('@/components/ImportPanel', () => ({
-  ImportPanel: () => <div data-testid="import-panel" />,
+  ImportPanel: ({ backend }: { backend: 'sqlite' | 'postgres' }) => (
+    <div data-testid="import-panel" data-backend={backend} />
+  ),
 }));
 
 vi.mock('@/components/ReadingGoalCard', () => ({
@@ -100,6 +107,7 @@ function producer(id: string, name: string, vnCount: number): ProducerStat {
 }
 
 beforeEach(() => {
+  mocks.databaseBackend = 'sqlite';
   mocks.averageRating = null;
   mocks.favorites = 0;
   mocks.personal.mockReset().mockResolvedValue({
@@ -137,7 +145,16 @@ describe('stats page runtime', () => {
     expect(html).toContain(dictionaries.en.stats.anonymous);
     expect(html).toContain('data-testid="cache-panel"');
     expect(html).toContain('data-testid="import-panel"');
+    expect(html).toContain('data-backend="sqlite"');
     expect(html).not.toContain('data-chart=');
+  });
+
+  it('passes the PostgreSQL backend to the import surface', async () => {
+    mocks.databaseBackend = 'postgres';
+
+    const html = renderToStaticMarkup(await StatsPage());
+
+    expect(html).toContain('data-backend="postgres"');
   });
 
   it('renders every populated dashboard section and projects chart links', async () => {

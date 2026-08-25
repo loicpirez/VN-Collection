@@ -67,6 +67,13 @@ describe('VNDB UI client response adapters', () => {
       local: { status: 'completed', vote: 90 },
       differences: [{ field: 'status', local: 'completed', remote: 'playing' }],
     });
+    expect(decodeVndbStatusClientState({
+      entry: DETAIL,
+      labels: [],
+      differences: [{ field: 'vote', local: 90, remote: 80, canPullRemote: true, canPushLocal: true }],
+    })?.differences).toEqual([
+      { field: 'vote', local: 90, remote: 80, canPullRemote: true, canPushLocal: true },
+    ]);
   });
 
   it('decodes locally enriched wishlist rows', () => {
@@ -97,11 +104,40 @@ describe('VNDB UI client response adapters', () => {
     expect(decodeVndbStatusClientState({ entry: null, labels: null })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: { id: 'bad' }, labels: [] })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: null, labels: [], local: { status: 'invalid' } })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
+      local: { status: null, vote: null, started: 1, finished: null, notes: null },
+    })).toBeNull();
+    expect(decodeVndbStatusClientState({ entry: null, labels: [], differences: {} })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
+      differences: new Array(6).fill({ field: 'notes', local: null, remote: null, canPullRemote: true, canPushLocal: true }),
+    })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: null, labels: [], differences: [{ field: 'other' }] })).toBeNull();
     expect(decodeVndbStatusClientState({
       entry: null,
       labels: [],
+      differences: [{ field: 'status', local: 'invalid', remote: null, canPullRemote: true, canPushLocal: true }],
+    })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
       differences: [{ field: 'vote', local: 9, remote: null, canPullRemote: true, canPushLocal: true }],
+    })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
+      differences: [{ field: 'notes', local: 1, remote: null, canPullRemote: true, canPushLocal: true }],
+    })).toBeNull();
+    expect(decodeVndbStatusClientState({
+      entry: null,
+      labels: [],
+      differences: [
+        { field: 'notes', local: 'first', remote: null, canPullRemote: true, canPushLocal: true },
+        { field: 'notes', local: 'second', remote: null, canPullRemote: true, canPushLocal: false },
+      ],
     })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, in_collection: 'false' }] })).toBeNull();
     expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, egs: { median: '75' } }] })).toBeNull();

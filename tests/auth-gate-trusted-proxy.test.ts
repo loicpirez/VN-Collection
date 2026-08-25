@@ -194,4 +194,11 @@ describe('AUD-SEC-015 — trusted proxy secret gate', () => {
     process.env.TRUSTED_PROXY_SECRET = TEST_SECRET;
     expect(requireLocalhostOrToken(makeExternalReq({ 'x-proxy-secret': TEST_SECRET }))?.status).toBe(403);
   });
+
+  it('rejects admin credentials whose length differs from the configured token', () => {
+    process.env.VN_ADMIN_TOKEN = 'configured-admin-token';
+
+    expect(requireLocalhostOrToken(makeExternalReq({ authorization: 'Bearer short' }))?.status).toBe(403);
+    expect(requireLocalhostOrToken(makeExternalReq({ 'x-admin-token': 'too-long-to-match-the-configured-admin-token' }))?.status).toBe(403);
+  });
 });
