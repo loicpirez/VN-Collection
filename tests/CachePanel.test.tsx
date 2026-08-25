@@ -88,14 +88,16 @@ describe('CachePanel', () => {
   it('shows loading skeletons and toggles its expandable panel', async () => {
     const pending = deferred<Response>();
     vi.mocked(fetch).mockReturnValue(pending.promise);
-    renderWithProviders(<CachePanel />, { locale: 'en' });
+    const { container } = renderWithProviders(<CachePanel />, { locale: 'en' });
     const toggle = screen.getByRole('button', { name: t.cache.title });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getAllByTestId('skeleton')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-cache-stat-skeleton]')).toHaveLength(4);
+    expect(container.querySelector('[data-cache-date-skeletons]')?.children).toHaveLength(2);
+    expect(container.querySelector('[data-cache-action-skeletons]')?.children).toHaveLength(2);
     fireEvent.click(toggle);
-    expect(screen.queryAllByTestId('skeleton')).toHaveLength(0);
+    expect(container.querySelector('[data-cache-stats-skeleton]')).toBeNull();
 
     await act(async () => pending.resolve(jsonResponse({ stats: stats() })));
     expect(screen.getByText(`3 ${t.cache.entries}`)).toBeInTheDocument();

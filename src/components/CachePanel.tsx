@@ -21,6 +21,37 @@ function fmtTime(ts: number | null, locale: Locale): string {
   return fmtDate(new Date(ts), locale);
 }
 
+function CacheStatsSkeleton() {
+  return (
+    <div className="mt-4" data-cache-stats-skeleton>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="rounded-lg border border-border bg-bg-elev/50 p-4 text-center"
+            data-cache-stat-skeleton
+          >
+            <SkeletonBlock className="mx-auto h-2.5 w-16" />
+            <SkeletonBlock className="mx-auto mt-2 h-7 w-12" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-cache-date-skeletons>
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <SkeletonBlock className="h-3 w-16" />
+            <SkeletonBlock className="h-3 w-28" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-2" data-cache-action-skeletons>
+        <SkeletonBlock className="h-11 w-32 rounded-md" />
+        <SkeletonBlock className="h-11 w-28 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
 export function CachePanel() {
   const t = useT();
   const locale = useLocale();
@@ -123,11 +154,7 @@ export function CachePanel() {
       )}
 
       {open && !stats ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonBlock key={i} className="h-16 rounded-lg" />
-          ))}
-        </div>
+        <CacheStatsSkeleton />
       ) : open && stats ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
