@@ -1,4 +1,4 @@
-import { SkeletonBlock, SkeletonBoundary, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function ReleaseLoading() {
@@ -30,7 +30,31 @@ export default async function ReleaseLoading() {
       </div>
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <SkeletonBlock className="mb-3 h-3 w-40" />
-        <SkeletonRows count={2} withThumb={false} />
+        <div className="space-y-2" data-release-inventory-skeleton>
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div
+              key={index}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-elev/30 px-3 py-2"
+            >
+              <div className="min-w-0 flex-1 py-1">
+                <SkeletonBlock className="h-4 w-3/4" />
+                <div className="mt-2 flex items-center gap-1.5">
+                  <SkeletonBlock className="h-3 w-14" />
+                  <SkeletonBlock className="h-5 w-20" />
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <SkeletonBlock className="h-11 w-24 can-hover:sm:h-8" />
+                {index === 1 && (
+                  <>
+                    <SkeletonBlock className="h-11 w-20 can-hover:sm:h-8" />
+                    <SkeletonBlock className="h-11 w-11 can-hover:sm:h-8 can-hover:sm:w-8" />
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <SkeletonBlock className="mb-3 h-3 w-24" />

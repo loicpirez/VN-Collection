@@ -35,6 +35,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-018 | MEDIUM | Owned editions loaded as two generic 56 by 80 thumbnail rows, then expanded into an add toolbar and rich 96 by 144 release cards with metadata and three actions. Preserve the final toolbar, package-cover, metadata-grid, and action geometry while both ownership and release metadata resolve. | VN owned-editions section | DONE_WITH_DIFF |
 | R14-UX-019 | HIGH | Shared image placeholders used a high-contrast diagonal gradient while structural skeletons used one restrained surface. Firefox composited the animated image layer more strongly over streamed profile, cover, and banner placeholders, making it appear like a second foreground skeleton. Use the same surface token for all image states, keep deferred off-screen frames static, and pulse only an in-flight visible image. | shared image loading, banners, covers, seiyuu credit artwork | DONE_WITH_DIFF |
 | R14-UX-020 | MEDIUM | Trait detail loading painted an unrelated title, paragraph block, and generic thumbnail rows before replacing them with a bordered metadata header, density controls, scope selector, and density-aware horizontal character cards. Mirror the final route geometry and touch behavior. | trait detail loading | DONE_WITH_DIFF |
+| R14-UX-021 | MEDIUM | Release detail loading represented direct inventory management as passive generic text rows. Preserve the linked VN identity, relation metadata, owned toggle, edit action, and destructive icon geometry so multi-VN releases do not reflow when they resolve. | release detail inventory loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -341,3 +342,9 @@ operations, providers, deployment, backup, and restore.
   scenarios pass, the production build passes, and the full suite passes 9,805
   tests with exactly 100% statements (44,769/44,769), branches
   (38,080/38,080), functions (9,135/9,135), and lines (38,225/38,225).
+- Release inventory loading now uses the same linked-VN identity, relation
+  metadata, ownership toggle, edit action, and touch-sized remove action as
+  the resolved direct-management rows. Forty-one focused loading and release
+  scenarios pass, the production build passes, and the full suite passes 9,806
+  tests with exactly 100% statements (44,770/44,770), branches
+  (38,082/38,082), functions (9,136/9,136), and lines (38,226/38,226).

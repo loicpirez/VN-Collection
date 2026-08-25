@@ -307,6 +307,16 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 
+  it('matches release inventory identity and owned-action rows', async () => {
+    const html = renderToStaticMarkup(await ReleaseLoading());
+    expect(html).toContain('data-release-inventory-skeleton');
+    expect(html.match(/flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-elev\/30 px-3 py-2/g)).toHaveLength(2);
+    expect(html.match(/h-11 w-24 can-hover:sm:h-8/g)).toHaveLength(2);
+    expect(html).toContain('h-11 w-20 can-hover:sm:h-8');
+    expect(html).toContain('h-11 w-11 can-hover:sm:h-8 can-hover:sm:w-8');
+    expect(html).not.toContain('h-20 w-14 shrink-0');
+  });
+
   it('matches the ranked header and density-aware horizontal result cards', async () => {
     const html = renderToStaticMarkup(await TopRankedLoading());
     expect(html).toContain('data-top-ranked-results-skeleton');
