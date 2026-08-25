@@ -46,6 +46,7 @@ import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { AcronymLabel } from './AcronymLabel';
 import { FacetCombobox } from './library/FacetCombobox';
+import { ErrorAlert } from './ErrorAlert';
 
 import type {
   AliceNetCandidate,
@@ -408,6 +409,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
   const [producerOptions, setProducerOptions] = useState<AliceNetProducerOption[]>([]);
   const [wishlistAvailable, setWishlistAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [starting, setStarting] = useState<AliceNetRunOp | null>(null);
   const startingRef = useRef(false);
   const [activeJob, setActiveJob] = useState<DownloadStatusJob | null>(null);
@@ -490,6 +492,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
     loadAbortRef.current = controller;
     const { signal } = controller;
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (page > 1) params.set('offset', String((page - 1) * 96));
@@ -517,7 +520,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
       setWishlistAvailable(first.wishlist_available);
     } catch (error) {
       if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
-      toast.error(error instanceof Error ? error.message : t.common.error);
+      setLoadError(error instanceof Error ? error.message : t.common.error);
     } finally {
       if (mountedRef.current && loadAbortRef.current === controller) {
         loadAbortRef.current = null;
@@ -1613,6 +1616,15 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         )}
       </div>
 
+      {loadError && items.length > 0 && (
+        <ErrorAlert title={loadError} className="mb-4">
+          <button type="button" onClick={() => { void load(); }} className="btn btn-sm mt-2">
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            {t.common.retry}
+          </button>
+        </ErrorAlert>
+      )}
+
       {selectMode && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
           <span className="text-sm font-semibold text-white">
@@ -1636,6 +1648,13 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
       {/* Items */}
       {loading ? (
         <AliceNetResultsSkeleton view={view} label={t.common.loading} />
+      ) : loadError && items.length === 0 ? (
+        <ErrorAlert title={loadError}>
+          <button type="button" onClick={() => { void load(); }} className="btn btn-sm mt-2">
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            {t.common.retry}
+          </button>
+        </ErrorAlert>
       ) : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {stats.total === 0 ? (

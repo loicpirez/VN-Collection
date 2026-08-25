@@ -1180,11 +1180,44 @@ describe('AliceNetClient', () => {
     await waitFor(() => expect(screen.getAllByText('The AliceNet link for this item could not be changed.').length).toBeGreaterThan(0));
   });
 
-  it('shows an error toast when the initial load fails', async () => {
-    global.fetch = vi.fn(async () => json({ error: 'load failed' }, 500));
-    renderClient();
+  it('keeps an initial load failure visible and retries without showing a false empty state', async () => {
+    let stockCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        return json({ throttle: { active: 0, queued: 0 }, jobs: [] });
+      }
+      stockCalls += 1;
+      if (stockCalls === 1) return json({ error: 'load failed' }, 500);
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('AliceNet stock could not be loaded. Retry or check the server.');
+    expect(alert).toHaveTextContent('AliceNet stock could not be loaded. Retry or check the server.');
+    expect(screen.queryByText('No stock downloaded yet. Click "Download" to fetch the latest AliceNet inventory.')).toBeNull();
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    expect(screen.queryByText('AliceNet stock could not be loaded. Retry or check the server.')).toBeNull();
+  });
+
+  it('keeps the previous stock visible when a filtered refresh fails', async () => {
+    let stockCalls = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        return json({ throttle: { active: 0, queued: 0 }, jobs: [] });
+      }
+      stockCalls += 1;
+      if (stockCalls === 2) return json({ error: 'refresh failed' }, 500);
+      return json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } }));
+    });
+    const { user } = renderClient();
+    expect(await screen.findByText('Matched Title Two')).toBeInTheDocument();
+    await user.click(within(tabsGroup()).getByRole('button', { name: /^VNDB/ }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('AliceNet stock could not be loaded. Retry or check the server.');
+    expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(screen.getByText('Matched Title Two')).toBeInTheDocument();
   });
 
   it('renders the empty-for-filter state when the filter excludes everything', async () => {
