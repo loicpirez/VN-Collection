@@ -1,25 +1,13 @@
 import { NextRequest } from 'next/server';
-import { listJobs, subscribeStatus } from '@/lib/download-status';
-import { enrichJobs } from '@/lib/download-status-names';
-import { getVndbThrottleStats } from '@/lib/vndb-throttle';
+import { subscribeStatus } from '@/lib/download-status';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
-import { mergeDurableStockBatchJobs } from '@/lib/stock-batch-store';
+import { buildDownloadStatusSnapshot } from '@/lib/download-status-payload';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 async function buildSnapshot(): Promise<string> {
-  const liveJobs = listJobs();
-  let jobs = liveJobs;
-  try {
-    jobs = await mergeDurableStockBatchJobs(liveJobs);
-  } catch (error) {
-    console.error('[download-status] durable stock jobs unavailable', error);
-  }
-  const data = {
-    throttle: getVndbThrottleStats(),
-    jobs: await enrichJobs(jobs),
-  };
+  const data = await buildDownloadStatusSnapshot();
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 

@@ -318,21 +318,50 @@ describe('DownloadStatusBar (polling fallback path)', () => {
     expect(within(region).getByText(/free text item/)).not.toBeNull();
   });
 
-  it('recreates the poll on visibilitychange while hidden then visible', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [LIVE_JOB] })));
+  it('pauses only batch progress transport while hidden and resumes from server state when visible', async () => {
+    let done = 1;
+    const batchJob = {
+      ...LIVE_JOB,
+      id: 'stock-batch-live',
+      kind: 'stock-batch',
+      label: 'Stock refresh',
+      total: 10,
+      current_item: 'v90012',
+      current_item_name: 'Title B',
+    };
+    const fetchMock = vi.fn().mockImplementation(
+      () => Promise.resolve(okJson(snapshot({ jobs: [{ ...batchJob, done }] }))),
+    );
     global.fetch = fetchMock;
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
+    expect(within(screen.getByRole('button', { name: 'Active downloads' })).getByText('1/10')).not.toBeNull();
     const callsBefore = fetchMock.mock.calls.length;
-    // Hidden -> the handler early-returns without re-polling.
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    done = 7;
+    await flush(8_000);
     expect(fetchMock.mock.calls.length).toBe(callsBefore);
-    // Visible -> the handler kicks a fresh poll.
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
     await flush();
     expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+    expect(within(screen.getByRole('button', { name: 'Active downloads' })).getByText('7/10')).not.toBeNull();
+    expect(fetchMock.mock.calls.every((call) => call[0] === '/api/download-status')).toBe(true);
+  });
+
+  it('does not start a scheduled poll after the tab becomes hidden before the visibility event', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [LIVE_JOB] })));
+    global.fetch = fetchMock;
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    await flush(4_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   });
 
   it('closes the popover via the header close button', async () => {
@@ -461,6 +490,19 @@ describe('DownloadStatusBar (SSE path)', () => {
     expect(es.closed).toBe(false);
   });
 
+  it('does not start fallback polling when a closed stream belongs to a newly hidden tab', async () => {
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    const es = FakeEventSource.instances[0];
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+    act(() => es.fail());
+
+    expect(es.closed).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  });
+
   it('ignores SSE messages after unmount', async () => {
     const { unmount } = renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
@@ -470,14 +512,16 @@ describe('DownloadStatusBar (SSE path)', () => {
     expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
   });
 
-  it('recreates the EventSource when the tab becomes visible again', async () => {
+  it('closes the EventSource while hidden and recreates it when visible again', async () => {
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
     expect(FakeEventSource.instances).toHaveLength(1);
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeEventSource.instances[0].closed).toBe(true);
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
-    // A fresh stream is opened (the old one is closed first).
     expect(FakeEventSource.instances).toHaveLength(2);
-    expect(FakeEventSource.instances[0].closed).toBe(true);
   });
 });

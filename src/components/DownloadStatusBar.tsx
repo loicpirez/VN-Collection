@@ -169,7 +169,26 @@ export function DownloadStatusBar() {
       'EventSource' in window,
     );
 
+    function stopPolling() {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = null;
+      pollAbort?.abort();
+      pollAbort = null;
+    }
+
+    function stopSse() {
+      const source = es;
+      es = null;
+      source?.close();
+    }
+
+    function stopTransport() {
+      stopPolling();
+      stopSse();
+    }
+
     async function pollOnce() {
+      if (!alive || document.visibilityState !== 'visible') return;
       const controller = new AbortController();
       pollAbort?.abort();
       pollAbort = controller;
@@ -183,7 +202,12 @@ export function DownloadStatusBar() {
       } catch {
         // Network blips are fine, retry on the next tick.
       }
-      if (!alive || pollAbort !== controller || controller.signal.aborted) return;
+      if (
+        !alive
+        || document.visibilityState !== 'visible'
+        || pollAbort !== controller
+        || controller.signal.aborted
+      ) return;
       const active =
         (next?.jobs.some((j) => j.finished_at == null) ?? false) ||
         (next?.throttle.active ?? 0) > 0 ||
@@ -196,20 +220,17 @@ export function DownloadStatusBar() {
     }
 
     function startPolling() {
-      if (pollTimer) clearTimeout(pollTimer);
-      pollTimer = null;
+      stopPolling();
       void pollOnce();
     }
 
     function startSse() {
       try {
-        clearTimeout(pollTimer ?? undefined);
-        pollTimer = null;
-        pollAbort?.abort();
-        pollAbort = null;
-        es = new EventSource('/api/download-status/stream');
-        es.onmessage = (e) => {
-          if (!alive) return;
+        stopTransport();
+        const source = new EventSource('/api/download-status/stream');
+        es = source;
+        source.onmessage = (e) => {
+          if (!alive || es !== source) return;
           try {
             const next = decodeDownloadStatusSnapshot(JSON.parse(e.data));
             if (next) setData(next);
@@ -217,16 +238,15 @@ export function DownloadStatusBar() {
             // Bad frame - ignore, the next one will be valid.
           }
         };
-        es.onerror = () => {
+        source.onerror = () => {
           // Most reverse proxies hiccup at least once during cold
           // boot. The browser auto-reconnects, but if EventSource
           // gives up entirely (readyState=2 / CLOSED), we fall back
           // to interval polling so the user never loses progress.
-          if (es && es.readyState === 2 && alive && useSse) {
+          if (es === source && source.readyState === 2 && alive && useSse) {
             useSse = false;
-            es.close();
-            es = null;
-            startPolling();
+            stopSse();
+            if (document.visibilityState === 'visible') startPolling();
           }
         };
       } catch {
@@ -235,28 +255,23 @@ export function DownloadStatusBar() {
       }
     }
 
-    if (useSse) startSse();
-    else startPolling();
+    function startTransport() {
+      if (!alive || document.visibilityState !== 'visible') return;
+      if (useSse) startSse();
+      else startPolling();
+    }
 
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (useSse) {
-        // EventSource normally reconnects on its own when the tab
-        // wakes up, but recreating ensures we get a fresh snapshot
-        // immediately rather than waiting for the next event.
-        es!.close();
-        startSse();
-      } else {
-        startPolling();
-      }
+    startTransport();
+
+    const onVisibilityChange = () => {
+      stopTransport();
+      startTransport();
     };
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       alive = false;
-      if (pollTimer) clearTimeout(pollTimer);
-      pollAbort?.abort();
-      if (es) es.close();
-      document.removeEventListener('visibilitychange', onVisible);
+      stopTransport();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 

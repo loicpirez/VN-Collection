@@ -27,7 +27,9 @@ describe('infrastructure request lifecycle', () => {
     expect(STATUS).toContain('pollAbort?.abort()');
     expect(STATUS).toContain("fetch('/api/download-status', { cache: 'no-store', signal: controller.signal })");
     expect(STATUS).toContain('pollAbort === controller && !controller.signal.aborted && next');
-    expect(STATUS).toContain('pollAbort !== controller || controller.signal.aborted');
+    expect(STATUS).toContain("document.visibilityState !== 'visible'");
+    expect(STATUS).toContain('pollAbort !== controller');
+    expect(STATUS).toContain('stopTransport();');
   });
 
   it('uses ASCII status separators and hides decorative status glyphs', () => {

@@ -49,6 +49,7 @@ production/provider checks are never inferred from focused tests.
 | R12-I18N-002 | MEDIUM | VNDB token storage and statistics copy now describe the application database in French, English, and Japanese instead of claiming SQLite storage on PostgreSQL. Secret values remain masked by the existing API contract. | integration settings dictionaries | DONE_WITH_DIFF |
 | R12-PERF-001 | HIGH | Large lists remain bounded by server pagination or virtualization, including library, wishlist, AliceNet, places, tags, staff, overlap, and stock queues. Permanent virtualization and normalized tag-index contracts pass focused tests. | server pagination, virtual grid, normalized indexes | VERIFIED_EXISTING |
 | R12-PERF-002 | MEDIUM | Production full-document responses are gzip-compressed and measured at about 62 KiB for library, 86 KiB for upcoming/schema, and 133 KiB for a data-rich VN page from Japan. Record these as a baseline; avoid moving the 524 KiB three-locale dictionary wholesale into one client bundle, and investigate namespace splitting only with before/after hydration measurements. | root i18n provider, production responses | VERIFIED_EXISTING |
+| R12-PERF-003 | HIGH | Opening many VN tabs kept one download-status transport alive per hidden tab, while each polling or SSE consumer independently loaded durable jobs and enriched entity names. Hidden tabs now close polling, pending requests, and SSE without touching the server-owned job; visibility restores an immediate current snapshot. Concurrent polling and stream consumers coalesce one database/enrichment build. A stock batch regression advances from 1/10 to 7/10 while hidden and resumes at 7/10 without a cancellation request. Build and the complete 9,689-test suite pass at exact 100/100/100/100. | `src/components/DownloadStatusBar.tsx`, `src/lib/download-status-payload.ts`, download-status routes and tests | DONE_WITH_DIFF |
 | R12-TYPE-001 | HIGH | Strict TypeScript passes with no production `any`, ignore directive, coverage suppression, or unsafe double cast found in source. Preserve explicit decoders at JSON, database, and browser-storage boundaries. | `tsconfig.json`, source and decoder tests | DONE |
 | R12-SEC-003 | CRITICAL | The production dependency audit currently reports zero vulnerabilities across 296 packages. Repeat after the final lockfile revision; the Yarn deprecation warning originates in the Yarn 1 audit client and is not an application dependency advisory. | `package.json`, `yarn.lock` | DONE |
 | R12-SEC-004 | HIGH | API policy, auth, CSRF, SSRF, bounded-body, URL allowlist, safe-link, and error-sanitization tests pass. The reverse-proxy runtime gap is closed with fail-closed forwarding detection and proof-gated public Origin resolution; the final whole-suite security rerun remains under `R12-TEST-002`. | API and security modules/tests | DONE_WITH_DIFF |
@@ -87,6 +88,12 @@ production/provider checks are never inferred from focused tests.
 - The first full coverage attempt passed 9,583 tests and exposed 83 stale
   request-fixture failures; the corrected six-suite set now passes all 97
   scenarios against the hardened proxy contract.
+- Multi-tab production analysis reproduced 30 concurrent WebKit VN pages with
+  no process restart, but confirmed that every tab retained its own progress
+  transport and snapshot reconstruction. The focused lifecycle, coalescing,
+  route, and authorization set passes 158 tests after the bounded fix. The
+  final feature run passes 9,689 tests with 44,502 statements, 37,818 branches,
+  9,015 functions, and 37,995 lines all covered exactly.
 
 ## Next execution order
 
