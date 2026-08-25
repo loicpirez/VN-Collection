@@ -58,7 +58,7 @@ describe('SafeImage loading skeleton', () => {
     expect(source).toContain('cacheLoadedImage(url)');
     expect(source).toContain('setLoaded(true)');
     expect(source).toContain("loaded ? 'opacity-100' : 'opacity-0'");
-    expect(source).toContain('animate-pulse bg-bg-elev/60');
+    expect(source).toContain('skeleton-surface pointer-events-none absolute inset-0 animate-pulse');
     expect(source).not.toContain('bg-gradient-to-br from-bg-elev/80');
   });
 

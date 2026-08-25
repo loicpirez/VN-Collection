@@ -78,7 +78,7 @@ export function LoadingImage({
       {!loaded && !errored && (
         <span
           data-loading-image-skeleton
-          className="pointer-events-none absolute inset-0 animate-pulse bg-bg-elev/60"
+          className="skeleton-surface pointer-events-none absolute inset-0 animate-pulse"
           aria-hidden
         />
       )}

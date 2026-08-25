@@ -96,7 +96,7 @@ describe('LoadingImage — skeleton present in initial render', () => {
   });
 
   it('uses the shared restrained skeleton surface without a composited gradient', () => {
-    expect(loadingImageSource).toContain('animate-pulse bg-bg-elev/60');
+    expect(loadingImageSource).toContain('skeleton-surface pointer-events-none absolute inset-0 animate-pulse');
     expect(loadingImageSource).not.toContain('bg-gradient-to-br');
   });
 
@@ -129,7 +129,7 @@ describe('HeroBanner — loading skeleton lifecycle', () => {
   });
 
   it('uses the same restrained pulsing surface as every other image placeholder', () => {
-    expect(heroBannerSource).toContain('absolute inset-0 animate-pulse bg-bg-elev/60');
+    expect(heroBannerSource).toContain('skeleton-surface pointer-events-none absolute inset-0 animate-pulse');
     expect(heroBannerSource).not.toContain('bg-gradient-to-br');
   });
 });

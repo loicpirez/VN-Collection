@@ -85,6 +85,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-065 | HIGH | VN navigation pulsed the banner, cover, identity, metadata, synopsis, and media as independent blocks, then used a visually unrelated banner placeholder after the server content arrived while the image decoded. This made the banner look detached and produced layered brightness changes. Let one composite hero container own the route animation, render its internal shapes statically, and keep the post-server banner image placeholder on the shared flat loading token. | VN route hero and hydrated banner image | DONE_WITH_DIFF |
 | R14-UX-066 | HIGH | The default Search route resolves to source tabs, an empty query field, and filter controls, but both its route and Suspense fallback rendered a density toolbar plus eighteen fake VNDB result cards. Keep result placeholders inside active VNDB, EGS, and local request states only; the route-safe workspace skeleton must stop after the guaranteed controls. | Search route, Suspense shell, and source-specific result loading | DONE_WITH_DIFF |
 | R14-UX-067 | HIGH | The hydrated VN banner was the only audited image placeholder using the shared loading colour without the shared pulse, so it appeared brighter and separate while covers and media continued animating. Reuse the exact restrained image-skeleton pulse and remove it immediately on the native load event. | hydrated VN banner image | DONE_WITH_DIFF |
+| R14-UX-068 | HIGH | The nominally shared image placeholder was semi-transparent, so banners, covers, cards, and seiyuu credits produced different composite colours over their different parent surfaces. Deferred `SafeImage` frames were also static until intersection, making visible cards appear stalled during observer startup. Use one opaque two-colour pulse for every structural and image skeleton, retain one parent animation for the composite VN route hero, and keep long rendered lists bounded through their existing pagination or virtualization. | shared skeleton primitive, native image wrappers, VN banner, seiyuu external credits | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -127,6 +128,15 @@ operations, providers, deployment, backup, and restore.
 | R14-OPS-003 | HIGH | EGS loaded from a workstation but timed out from the production data-center address and from the configured commercial proxy exit, while the UI incorrectly suggested checking the user's browser. Route only EGS through a loopback-bound reverse dynamic SSH relay on a supervised trusted egress host, preserve stale-cache fallback, link failures to the integration test, and document setup, security, verification, recovery, and rollback. | EGS provider proxy, top-ranked recovery UI, production network operations | DONE_WITH_DIFF |
 
 ## Evidence collected
+
+- Structural blocks, lazy and priority images, hydrated VN banners, generic
+  image wrappers, and streamed seiyuu credit cards now share one opaque
+  two-colour pulse that is independent of the parent background. The VN route
+  hero still owns one composite animation, so its internal banner and cover
+  shapes do not stack animations. Deferred image frames pulse immediately and
+  unmount on native load. The focused image, banner, staff, route-loading, and
+  loading-contract suite passes all 166 scenarios together with the complete
+  typecheck.
 
 - At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
   with PostgreSQL ready, pool maximum 10, and zero service restarts.

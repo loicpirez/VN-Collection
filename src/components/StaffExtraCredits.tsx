@@ -8,6 +8,7 @@ import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 /**
  * "More credits (outside the collection)" - the VNDB-sourced list of VNs
@@ -137,9 +138,9 @@ export function StaffExtraCreditsSkeleton({
       role="status"
       className={`${withTopSpacing ? 'mt-6 ' : ''}rounded-xl border border-border bg-bg-card p-4 sm:p-6`}
     >
-      <div className="mb-3 h-3 w-48 animate-pulse rounded bg-bg-elev/60" />
-      <div className="mb-4 h-2.5 w-72 animate-pulse rounded bg-bg-elev/60" />
-      <div className="mb-2 h-2.5 w-32 animate-pulse rounded bg-bg-elev/60" data-staff-extra-group-skeleton />
+      <SkeletonBlock className="mb-3 h-3 w-48" />
+      <SkeletonBlock className="mb-4 h-2.5 w-72" />
+      <SkeletonBlock className="mb-2 h-2.5 w-32" data-staff-extra-group-skeleton />
       <ul
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
@@ -150,21 +151,21 @@ export function StaffExtraCreditsSkeleton({
             className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2"
             data-staff-extra-credit-skeleton
           >
-            <div
-              className="shrink-0 animate-pulse rounded bg-bg-elev/60"
+            <SkeletonBlock
+              className="shrink-0 rounded"
               style={{
                 width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
                 aspectRatio: '2 / 3',
               }}
             />
             <div className="min-w-0 flex-1 py-1">
-              <div className="h-3 w-4/5 animate-pulse rounded bg-bg-elev/60" />
-              <div className="mt-2 h-2.5 w-3/5 animate-pulse rounded bg-bg-elev/60" />
+              <SkeletonBlock className="h-3 w-4/5" />
+              <SkeletonBlock className="mt-2 h-2.5 w-3/5" />
               <div className="mt-3 flex gap-2">
-                <div className="h-5 w-12 animate-pulse rounded bg-bg-elev/60" />
-                <div className="h-5 w-14 animate-pulse rounded bg-bg-elev/60" />
+                <SkeletonBlock className="h-5 w-12" />
+                <SkeletonBlock className="h-5 w-14" />
               </div>
-              <div className="mt-3 h-2.5 w-3/4 animate-pulse rounded bg-bg-elev/60" />
+              <SkeletonBlock className="mt-3 h-2.5 w-3/4" />
             </div>
           </li>
         ))}

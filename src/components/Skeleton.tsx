@@ -75,7 +75,11 @@ export function SkeletonBlock({ className, animated = true, ...rest }: BlockProp
   return (
     <div
       aria-hidden
-      className={cx(animated && 'animate-pulse', 'rounded-md bg-bg-elev/60', className)}
+      className={cx(
+        animated ? 'skeleton-surface animate-pulse' : 'skeleton-surface-static',
+        'rounded-md',
+        className,
+      )}
       {...rest}
     />
   );

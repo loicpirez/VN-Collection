@@ -271,6 +271,26 @@
 }
 
 /*
+ * Skeletons use fixed opaque colours so the same placeholder does not look
+ * different over page, card, image, and banner backgrounds. The stronger
+ * selector intentionally replaces Tailwind's opacity pulse with a restrained
+ * colour pulse while preserving the familiar `animate-pulse` motion marker.
+ */
+@keyframes skeleton-surface-pulse {
+  0%, 100% { background-color: #19202e; }
+  50% { background-color: #222b3e; }
+}
+
+.skeleton-surface,
+.skeleton-surface-static {
+  background-color: #19202e;
+}
+
+.skeleton-surface.animate-pulse {
+  animation: skeleton-surface-pulse 1.8s ease-in-out infinite;
+}
+
+/*
  * Right-edge fade hint for horizontally-scrollable rows. Indicates
  * there's more content off-screen — without it phones leave the
  * user guessing whether the row is the whole story or just a slice.

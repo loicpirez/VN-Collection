@@ -657,7 +657,7 @@ describe('route loading skeletons', () => {
     expect(html).toContain('tabs');
     expect(html).toContain('text');
     expect(html).toContain('Table');
-    expect(html).toMatch(/class="rounded-md bg-bg-elev\/60 h-2" data-testid="static-block"/);
+    expect(html).toMatch(/class="skeleton-surface-static rounded-md h-2" data-testid="static-block"/);
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 

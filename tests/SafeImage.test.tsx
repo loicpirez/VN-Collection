@@ -148,7 +148,7 @@ describe('SafeImage runtime', () => {
     expect(image).toHaveAttribute('src', '/api/files/vn/local-a.jpg');
     expect(image).toHaveAttribute('loading', 'eager');
     expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
-    expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('bg-bg-elev/60');
+    expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('skeleton-surface');
     expect(container.querySelector('[data-safe-image-skeleton]')).not.toHaveClass('bg-gradient-to-br');
     fireEvent.load(image);
     expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
@@ -234,8 +234,7 @@ describe('SafeImage runtime', () => {
     const { container } = render(withLocale(<SafeImage src="/lazy.jpg" alt="Lazy cover" onLoadError={onLoadError} />));
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('[data-safe-image-deferred]')).toBeInTheDocument();
-    expect(container.querySelector('[data-safe-image-skeleton]')).not.toHaveClass('animate-pulse');
-    expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('bg-bg-elev/60');
+    expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('animate-pulse', 'skeleton-surface');
     expect(intersectionObserver?.observe).toHaveBeenCalled();
 
     triggerIntersection(false);
