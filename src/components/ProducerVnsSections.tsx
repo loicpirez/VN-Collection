@@ -89,7 +89,7 @@ export async function ProducerVnsSections({
         <Link
           href={`/producer/${producerId}`}
           aria-current={scope === 'all' ? 'page' : undefined}
-          className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+          className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9 ${
             scope === 'all'
               ? 'border-accent bg-accent/15 text-accent'
               : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
@@ -101,7 +101,7 @@ export async function ProducerVnsSections({
         <Link
           href={`/producer/${producerId}?scope=collection`}
           aria-current={scope === 'collection' ? 'page' : undefined}
-          className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+          className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9 ${
             scope === 'collection'
               ? 'border-accent bg-accent/15 text-accent'
               : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'

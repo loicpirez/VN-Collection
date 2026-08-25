@@ -62,6 +62,9 @@
   .input {
     @apply min-h-[44px] w-full px-3 py-2 rounded-lg bg-bg-card border border-border text-white outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg transition-colors;
   }
+  select.input {
+    height: 44px;
+  }
   /*
    * `.no-spinner` on a `<input type="number">` removes the native
    * browser stepper arrows. User feedback on /settings → integrations

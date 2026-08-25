@@ -117,8 +117,16 @@ describe('responsive tap targets', () => {
 
   it('keeps upcoming producer metadata links touch-safe on mobile', () => {
     expect(source('src/app/upcoming/page.tsx')).toContain(
-      'className="inline-flex min-h-[44px] items-center hover:text-accent sm:min-h-0"',
+      'className="inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"',
     );
+  });
+
+  it('uses actual touch-safe select and producer-scope heights in WebKit', () => {
+    const css = source('src/app/globals.css');
+    const producer = source('src/components/ProducerVnsSections.tsx');
+    expect(css).toMatch(/select\.input\s*\{\s*height:\s*44px;/);
+    expect(producer.match(/inline-flex min-h-\[44px\]/g)).toHaveLength(2);
+    expect(producer.match(/can-hover:sm:min-h-9/g)).toHaveLength(2);
   });
 
   it('keeps anniversary cards touch-safe without inflating desktop rows', () => {

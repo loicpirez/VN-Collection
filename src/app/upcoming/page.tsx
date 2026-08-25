@@ -519,7 +519,7 @@ async function ReleasesSection({
                       <Link
                         key={p.id}
                         href={`/producer/${p.id}`}
-                        className="inline-flex min-h-[44px] items-center hover:text-accent sm:min-h-0"
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                       >
                         {p.name}{i < arr.length - 1 ? ' / ' : ''}
                       </Link>
