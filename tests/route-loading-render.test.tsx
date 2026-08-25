@@ -420,6 +420,16 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-36 w-full');
   });
 
+  it('matches tag browser identity, source tabs, filters, and external-link cards', async () => {
+    const html = renderToStaticMarkup(await TagsLoading());
+    expect(html).toContain('data-tags-header-skeleton');
+    expect(html).toContain('data-tags-tabs-skeleton');
+    expect(html).toContain('data-tags-controls-skeleton');
+    expect(html).toContain('data-tag-flat-results-skeleton');
+    expect(html.match(/absolute right-3 top-3 h-11 w-11/g)).toHaveLength(12);
+    expect(html.match(/relative min-h-\[112px\]/g)).toHaveLength(12);
+  });
+
   it('matches release inventory identity and owned-action rows', async () => {
     const html = renderToStaticMarkup(await ReleaseLoading());
     expect(html).toContain('data-release-inventory-skeleton');
