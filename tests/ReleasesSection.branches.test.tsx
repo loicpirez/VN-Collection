@@ -121,6 +121,9 @@ describe('ReleasesSection branches', () => {
     global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
     const { container } = renderWithProviders(<ReleasesSection vnId="v90001" />, { locale: 'en' });
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-release-rows-skeleton]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-release-rows-skeleton] > li.rounded-lg')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-release-rows-skeleton] .p-4')).toHaveLength(4);
   });
 
   it('renders the empty copy when the release list is empty', async () => {

@@ -16,7 +16,14 @@ import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { parseVnDetailLayoutV1, type VnSectionId } from '@/lib/vn-detail-layout';
 import { platformLabel } from '@/lib/platform-label';
 import { VnDetailLayout } from '@/components/VnDetailLayout';
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonBlock } from '@/components/Skeleton';
+import { StockPanelSkeleton } from '@/components/StockPanelSkeleton';
+import {
+  CharacterCardsSkeleton,
+  QuoteRowsSkeleton,
+  ReleaseRowsSkeleton,
+  RouteRowsSkeleton,
+} from '@/components/VnSectionSkeletons';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
@@ -83,23 +90,23 @@ const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then(
 });
 
 const CharactersSection = nextDynamic(() => import('@/components/CharactersSection').then((m) => m.CharactersSection), {
-  loading: () => <SkeletonRows count={4} />,
+  loading: () => <div className="px-6 py-5"><CharacterCardsSkeleton /></div>,
 });
 
 const RoutesSection = nextDynamic(() => import('@/components/RoutesSection').then((m) => m.RoutesSection), {
-  loading: () => <SkeletonRows count={3} withThumb={false} />,
+  loading: () => <section className="p-4 sm:p-6"><RouteRowsSkeleton /></section>,
 });
 
 const QuotesSection = nextDynamic(() => import('@/components/QuotesSection').then((m) => m.QuotesSection), {
-  loading: () => <SkeletonRows count={3} withThumb={false} />,
+  loading: () => <div className="px-6 py-5"><QuoteRowsSkeleton /></div>,
 });
 
 const ReleasesSection = nextDynamic(() => import('@/components/ReleasesSection').then((m) => m.ReleasesSection), {
-  loading: () => <SkeletonRows count={4} />,
+  loading: () => <div className="px-6 py-5"><ReleaseRowsSkeleton /></div>,
 });
 
 const StockPanel = nextDynamic(() => import('@/components/StockPanel').then((m) => m.StockPanel), {
-  loading: () => <SkeletonRows count={3} withThumb={false} />,
+  loading: () => <StockPanelSkeleton bare />,
 });
 
 export const dynamic = 'force-dynamic';

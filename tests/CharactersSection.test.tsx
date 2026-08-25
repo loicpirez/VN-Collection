@@ -150,6 +150,8 @@ describe('CharactersSection', () => {
     renderWithProviders(<CharactersSection vnId="v1" />, { locale: 'en' });
 
     expect(screen.getAllByTestId('skeleton')).toHaveLength(24);
+    expect(document.querySelectorAll('.h-28.w-20.rounded-md')).toHaveLength(6);
+    expect(document.querySelector('.h-20.w-14')).not.toBeInTheDocument();
     expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
     expect(sectionMocks.count).toHaveBeenCalledWith(null);
     expect(characterMocks.fetch).toHaveBeenCalledWith('v1', expect.any(AbortSignal));

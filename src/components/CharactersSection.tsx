@@ -2,7 +2,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { SafeImage } from './SafeImage';
-import { SkeletonBlock } from './Skeleton';
+import { CharacterCardsSkeleton } from './VnSectionSkeletons';
 import { SpoilerChip } from './SpoilerChip';
 import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
@@ -167,7 +167,7 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
 
   return (
     <div className="px-6 py-5" aria-busy={loading || undefined}>
-      {loading && <CharactersSkeleton />}
+      {loading && <CharacterCardsSkeleton />}
       {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
       {sorted.length > 0 && (
@@ -183,23 +183,6 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function CharactersSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={`char-skel-${i}`} className="flex gap-3 rounded-lg border border-border bg-bg-elev/50 p-3">
-          <SkeletonBlock className="h-20 w-14 shrink-0" />
-          <div className="flex-1 space-y-2 pt-1">
-            <SkeletonBlock className="h-3 w-2/3" />
-            <SkeletonBlock className="h-2.5 w-1/3" />
-            <SkeletonBlock className="h-2.5 w-1/2" />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

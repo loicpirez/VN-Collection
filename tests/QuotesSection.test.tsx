@@ -75,7 +75,8 @@ describe('QuotesSection', () => {
     vi.mocked(fetch).mockReturnValue(pending.promise);
     renderWithProviders(<QuotesSection vnId="v90001" />, { locale: 'en' });
 
-    expect(screen.getAllByTestId('skeleton')).toHaveLength(9);
+    expect(screen.getAllByTestId('skeleton')).toHaveLength(10);
+    expect(document.querySelectorAll('.h-7.w-7.rounded-full')).toHaveLength(2);
     await act(async () => pending.resolve(jsonResponse({ quotes: [] })));
     expect(await screen.findByText(t.quotes.empty)).toBeInTheDocument();
     expect(sectionMocks.count).toHaveBeenCalledWith(0);

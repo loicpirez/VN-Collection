@@ -17,7 +17,7 @@ import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
 import { formatVndbDateString } from '@/lib/locale-number';
-import { SkeletonRows } from './Skeleton';
+import { ReleaseRowsSkeleton } from './VnSectionSkeletons';
 import { ErrorAlert } from './ErrorAlert';
 import {
   OWNED_EDITIONS_EVENT,
@@ -395,7 +395,7 @@ export function ReleasesSection({
 
   return (
     <div className="px-6 py-5" aria-busy={loading || undefined}>
-      {loading && <SkeletonRows count={4} withThumb={false} />}
+      {loading && <ReleaseRowsSkeleton label={t.common.loading} />}
       {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
       {releases && releases.length > 0 && (

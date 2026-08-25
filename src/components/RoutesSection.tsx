@@ -7,7 +7,7 @@ import { formatIsoDateString, isoCalendarDay } from '@/lib/locale-number';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
-import { SkeletonRows } from './Skeleton';
+import { RouteRowsSkeleton } from './VnSectionSkeletons';
 import type { RouteRow } from '@/lib/types';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters } from '@/lib/vn-characters-cache';
@@ -719,7 +719,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
 
       {loading && routes.length === 0 ? (
         <div className="mb-4">
-          <SkeletonRows count={3} withThumb={false} label={t.common.loading} />
+          <RouteRowsSkeleton label={t.common.loading} />
         </div>
       ) : loadError ? (
         <div className="mb-3">

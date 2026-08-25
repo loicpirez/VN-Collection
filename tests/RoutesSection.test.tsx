@@ -208,6 +208,22 @@ describe('RoutesSection', () => {
     expect(characterCacheMock.fetchVnCharacters).not.toHaveBeenCalled();
   });
 
+  it('reserves the final route-row controls while the route list is loading', async () => {
+    const pending = deferredResponse();
+    global.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => (
+      String(input) === '/api/collection/v90001/routes'
+        ? pending.promise
+        : Promise.resolve(json({ ok: true }))
+    ));
+    const { container } = renderWithProviders(<RoutesSection vnId="v90001" inCollection />);
+    expect(container.querySelector('[data-route-rows-skeleton]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-route-row-skeleton]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-route-row-skeleton-shell]')).toHaveLength(3);
+
+    await act(async () => pending.resolve(json({ routes: [] })));
+    expect(await screen.findByText(/Pas encore de route/)).toBeTruthy();
+  });
+
   it('shows a load error for failed or malformed route payloads', async () => {
     installRoutesServer([], { loadStatus: 500 });
     const { unmount } = renderWithProviders(<RoutesSection vnId="v90001" inCollection />);

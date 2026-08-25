@@ -221,6 +221,20 @@ describe('StockPanel', () => {
     await waitFor(() => expect(screen.getAllByText('Title Y').length).toBeGreaterThan(0));
   });
 
+  it('keeps the offer-card geometry while the initial snapshot is pending', () => {
+    const pendingStock = new Promise<Response>(() => undefined);
+    global.fetch = vi.fn((url: RequestInfo | URL): Promise<Response> => {
+      if (String(url).endsWith('/stock/aliases')) return Promise.resolve(json({ aliases: [] }));
+      return pendingStock;
+    });
+
+    const view = renderWithProviders(<StockPanel vnId="v90001" />);
+
+    expect(view.container.querySelector('[data-stock-offer-rows-skeleton]')).not.toBeNull();
+    expect(view.container.querySelectorAll('[data-stock-offer-card-skeleton]')).toHaveLength(4);
+    view.unmount();
+  });
+
   it('shows an error alert when the initial load fails', async () => {
     global.fetch = routeFetch({ getFails: true });
     renderWithProviders(<StockPanel vnId="v90001" />);

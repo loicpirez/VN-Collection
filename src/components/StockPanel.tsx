@@ -45,6 +45,7 @@ const ClearCacheModal = dynamic(() => import('./stock/ClearCacheModal').then((m)
   loading: () => <SkeletonRows count={2} withThumb={false} />,
 });
 import { SkeletonRows } from './Skeleton';
+import { StockOfferRowsSkeleton } from './StockPanelSkeleton';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { ErrorAlert } from './ErrorAlert';
@@ -1186,11 +1187,7 @@ export function StockPanel({
         </div>
       )}
 
-      {loading && (
-        <div className="mt-4">
-          <SkeletonRows count={3} withThumb={false} />
-        </div>
-      )}
+      {loading && <StockOfferRowsSkeleton label={t.common.loading} />}
 
       {!loading && showLiveStaleBanner && liveLastRefresh != null && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-status-on_hold/40 bg-status-on_hold/10 p-3 text-xs text-status-on_hold" role="status">

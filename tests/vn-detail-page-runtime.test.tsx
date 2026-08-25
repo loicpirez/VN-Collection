@@ -604,8 +604,10 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('tags:1:2');
     expect(html).toContain('field-compare:v90008:false');
     expect(html).toContain('relations:v2-true');
-    expect(html).toContain('skeleton-rows:4:true');
-    expect(html).toContain('skeleton-rows:3:false');
+    expect(html).toContain('data-character-cards-skeleton');
+    expect(html).toContain('data-release-rows-skeleton');
+    expect(html).toContain('data-quote-rows-skeleton');
+    expect(html).toContain('data-stock-panel-skeleton');
     expect(html).toContain(dictionaries.en.library.fanDisc);
     expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '1'));
     expect(html).toContain('href="/producer/p2"');
