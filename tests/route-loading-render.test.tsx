@@ -243,6 +243,25 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-20 w-14');
   });
 
+  it('matches dumped summary, status navigation, density control, and compact progress rows', async () => {
+    const html = renderToStaticMarkup(await DumpedLoading());
+    expect(html).toContain('data-dumped-header-skeleton');
+    expect(html).toContain('data-dumped-tabs-skeleton');
+    expect(html).toContain('data-dumped-items-skeleton');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.32)');
+    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(9);
+    expect(html).not.toContain('flex flex-col overflow-hidden');
+  });
+
+  it('matches the quote search and citation cards with square avatars and pagination', async () => {
+    const html = renderToStaticMarkup(await QuotesLoading());
+    expect(html).toContain('data-quotes-header-skeleton');
+    expect(html).toContain('data-quotes-results-skeleton');
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-4/g)).toHaveLength(8);
+    expect(html.match(/h-7 w-7 shrink-0 rounded-full/g)).toHaveLength(8);
+    expect(html).not.toContain('h-20 w-14');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>
