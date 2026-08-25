@@ -129,6 +129,21 @@ describe('shared detail-card pagination', () => {
   });
 });
 
+describe('VN detail and tag index pagination', () => {
+  const relations = source('src/components/RelationsSection.tsx');
+  const releases = source('src/components/ReleasesSection.tsx');
+  const tags = source('src/components/TagsBrowser.tsx');
+
+  it('bounds the three production DOM hotspots with the shared paginator', () => {
+    expect(relations).toContain("import { PaginatedGrid } from './PaginatedGrid'");
+    expect(relations).toContain('pageSize={24}');
+    expect(releases).toContain("import { PaginatedGrid } from './PaginatedGrid'");
+    expect(releases).toContain('pageSize={20}');
+    expect(tags).toContain("import { PaginatedGrid } from './PaginatedGrid'");
+    expect(tags).toContain('pageSize={40}');
+  });
+});
+
 describe('place stock VN pagination', () => {
   const browser = source('src/components/PlaceVnBrowser.tsx');
 
@@ -199,5 +214,14 @@ describe('long list pagination translations', () => {
     expect(dictionaries.match(/creditsPaginationLabel:/g)).toHaveLength(3);
     expect(dictionaries.match(/vnPaginationLabel:/g)).toHaveLength(3);
     expect(dictionaries.match(/registryPaginationLabel:/g)).toHaveLength(3);
+    expect(dictionaries).toContain("paginationLabel: 'Pagination des relations : {group}'");
+    expect(dictionaries).toContain("paginationLabel: 'Relation pagination: {group}'");
+    expect(dictionaries).toContain("paginationLabel: '関連作品のページ送り: {group}'");
+    expect(dictionaries).toContain("paginationLabel: 'Pagination des sorties'");
+    expect(dictionaries).toContain("paginationLabel: 'Release pagination'");
+    expect(dictionaries).toContain("paginationLabel: 'リリースのページ送り'");
+    expect(dictionaries).toContain("paginationLabel: 'Pagination des tags : {group}'");
+    expect(dictionaries).toContain("paginationLabel: 'Tag pagination: {group}'");
+    expect(dictionaries).toContain("paginationLabel: 'タグのページ送り: {group}'");
   });
 });

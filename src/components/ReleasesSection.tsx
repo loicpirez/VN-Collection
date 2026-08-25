@@ -27,6 +27,7 @@ import { safeHref } from '@/lib/safe-href';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeOwnedEditionsResponse, decodeVnDetailReleasesResponse } from '@/lib/vn-detail-client-shape';
+import { PaginatedGrid } from './PaginatedGrid';
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
   2: 'voiced2',
@@ -395,7 +396,12 @@ export function ReleasesSection({
       {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
       {releases && releases.length > 0 && (
-        <ul className="space-y-3">
+        <PaginatedGrid
+          ariaLabel={t.releases.paginationLabel}
+          resetKey={`releases:${vnId}:${releases.map((release) => release.id).join(':')}`}
+          className="space-y-3"
+          pageSize={20}
+        >
           {releases.map((r) => (
             <ReleaseRow
               key={r.id}
@@ -409,7 +415,7 @@ export function ReleasesSection({
               onToggle={toggleOwned}
             />
           ))}
-        </ul>
+        </PaginatedGrid>
       )}
     </div>
   );

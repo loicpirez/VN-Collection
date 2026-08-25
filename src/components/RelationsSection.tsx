@@ -4,6 +4,7 @@ import { GitMerge } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
 import { useT } from '@/lib/i18n/client';
 import { useSectionCount } from './vn-detail/DetailSectionFrame';
+import { PaginatedGrid } from './PaginatedGrid';
 import type { VnRelation } from '@/lib/types';
 
 const RELATION_ORDER: Record<string, number> = {
@@ -105,19 +106,23 @@ export function RelationsSection({ relations }: Props) {
               {label}
               <span className="opacity-70">/ {rels.length}</span>
             </h3>
-            <div
+            <PaginatedGrid
+              ariaLabel={t.relations.paginationLabel.replace('{group}', label)}
+              resetKey={`relations:${relation}:${rels.length}:${rels[0]?.id ?? ''}:${rels.at(-1)?.id ?? ''}`}
               className="grid gap-4"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+              pageSize={24}
             >
               {rels.map((r) => (
-                <RelationCard
-                  key={`${r.id}-${r.relation}`}
-                  r={r}
-                  label={label}
-                  unofficial={t.relations.unofficial}
-                />
+                <li key={`${r.id}-${r.relation}`}>
+                  <RelationCard
+                    r={r}
+                    label={label}
+                    unofficial={t.relations.unofficial}
+                  />
+                </li>
               ))}
-            </div>
+            </PaginatedGrid>
           </section>
         );
       })}

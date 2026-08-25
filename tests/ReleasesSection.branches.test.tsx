@@ -165,6 +165,23 @@ describe('ReleasesSection branches', () => {
     expect(within(item).getByText('1920x1080', { exact: false })).toBeInTheDocument();
   });
 
+  it('paginates long release lists and reaches the final release', async () => {
+    const releases = Array.from({ length: 21 }, (_, index) => fullRelease({
+      id: `r${90001 + index}`,
+      title: `Release ${index + 1}`,
+      alttitle: null,
+    }));
+    global.fetch = routedFetch(releases) as unknown as typeof fetch;
+    const { user } = renderWithProviders(<ReleasesSection vnId="v90001" />, { locale: 'en' });
+
+    const navigation = await screen.findByRole('navigation', { name: t.releases.paginationLabel });
+    expect(screen.getByRole('link', { name: 'Release 20' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Release 21' })).toBeNull();
+    await user.click(within(navigation).getByRole('button', { name: t.common.next }));
+    expect(screen.getByRole('link', { name: 'Release 21' })).toBeInTheDocument();
+    expect(navigation).toHaveTextContent('21-21 / 21');
+  });
+
   it('does not render an owned-toggle button when not in collection', async () => {
     global.fetch = routedFetch([fullRelease()]) as unknown as typeof fetch;
     renderWithProviders(<ReleasesSection vnId="v90001" inCollection={false} />, { locale: 'en' });

@@ -21,6 +21,7 @@ import {
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeTagHomeTreeResponse, decodeTagsResponse } from '@/lib/browse-client-shape';
+import { PaginatedGrid } from './PaginatedGrid';
 const CATEGORIES: { key: 'cont' | 'ero' | 'tech'; tkey: 'cat_cont' | 'cat_ero' | 'cat_tech' }[] = [
   { key: 'cont', tkey: 'cat_cont' },
   { key: 'ero', tkey: 'cat_ero' },
@@ -527,53 +528,57 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
               <span className="rounded bg-accent/10 px-2 py-0.5 text-accent">{label}</span>
               <span className="text-muted/70">({bucket.tags.length})</span>
             </h2>
-            <div
+            <PaginatedGrid
+              ariaLabel={t.tags.paginationLabel.replace('{group}', label)}
+              resetKey={`tags:${mode}:${q}:${bucket.category}:${bucket.tags.length}`}
               className="grid gap-3"
               style={{
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
               }}
+              pageSize={40}
             >
               {bucket.tags.map((tag) => (
-                <article
-                  key={tag.id}
-                  className="group relative rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
-                >
-                  <Link
-                    href={tagChipHref(mode, tag.id)}
-                    className="block focus-visible:outline-none"
+                <li key={tag.id}>
+                  <article
+                    className="group relative h-full rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
                   >
-                    <h3 className="text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={tag.name}>{tag.name}</h3>
-                    {tag.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-muted">
-                        {stripVndbMarkup(tag.description)}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-                      <span className="tabular-nums">{fmtNum(tag.vn_count, locale)} {t.tags.vnCount}</span>
-                      {mode === 'vndb' && localCounts.get(tag.id) ? (
-                        <span className="rounded bg-accent/15 px-1 py-0.5 text-accent tabular-nums">
-                          {localCounts.get(tag.id)} {t.tags.inCollection}
+                    <Link
+                      href={tagChipHref(mode, tag.id)}
+                      className="block focus-visible:outline-none"
+                    >
+                      <h3 className="text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={tag.name}>{tag.name}</h3>
+                      {tag.description && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted">
+                          {stripVndbMarkup(tag.description)}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+                        <span className="tabular-nums">{fmtNum(tag.vn_count, locale)} {t.tags.vnCount}</span>
+                        {mode === 'vndb' && localCounts.get(tag.id) ? (
+                          <span className="rounded bg-accent/15 px-1 py-0.5 text-accent tabular-nums">
+                            {localCounts.get(tag.id)} {t.tags.inCollection}
+                          </span>
+                        ) : null}
+                        <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100">
+                          <ArrowRight className="h-3 w-3" aria-hidden />
                         </span>
-                      ) : null}
-                      <span className="ml-auto inline-flex items-center gap-1 text-accent transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100">
-                        <ArrowRight className="h-3 w-3" aria-hidden />
-                      </span>
-                    </div>
-                  </Link>
-                  <a
-                    href={vndbTagExternalHref(tag.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute right-3 top-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
-                    aria-label={t.detail.viewOnVndb}
-                  >
-                    <ExternalLink className="h-3 w-3" aria-hidden /> VNDB
-                  </a>
-                </article>
+                      </div>
+                    </Link>
+                    <a
+                      href={vndbTagExternalHref(tag.id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-3 top-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
+                      aria-label={t.detail.viewOnVndb}
+                    >
+                      <ExternalLink className="h-3 w-3" aria-hidden /> VNDB
+                    </a>
+                  </article>
+                </li>
               ))}
-            </div>
+            </PaginatedGrid>
           </section>
         );
       })}

@@ -2045,6 +2045,7 @@ export const dictionaries = {
     relations: {
       section: 'Relations',
       unofficial: 'non officiel',
+      paginationLabel: 'Pagination des relations : {group}',
       types: {
         seq: 'Suite',
         preq: 'Préquelle',
@@ -2177,6 +2178,7 @@ export const dictionaries = {
     releases: {
       section: 'Sorties',
       empty: 'Aucune édition.',
+      paginationLabel: 'Pagination des sorties',
       official: 'Officielle',
       patch: 'Patch',
       freeware: 'Gratuit',
@@ -3616,6 +3618,7 @@ export const dictionaries = {
       popularTags: 'Tags populaires',
       recentlyAdded: 'Récemment ajoutés',
       moreTags: '{n} tags de plus',
+      paginationLabel: 'Pagination des tags : {group}',
       emptyTitle: 'Aucun tag trouvé',
       emptyBody: 'Modifie la recherche, change de catégorie ou passe sur l’autre source de tags.',
       cooccurrence: {
@@ -5793,6 +5796,7 @@ export const dictionaries = {
     relations: {
       section: 'Relations',
       unofficial: 'unofficial',
+      paginationLabel: 'Relation pagination: {group}',
       types: {
         seq: 'Sequel',
         preq: 'Prequel',
@@ -5925,6 +5929,7 @@ export const dictionaries = {
     releases: {
       section: 'Releases',
       empty: 'No release.',
+      paginationLabel: 'Release pagination',
       official: 'Official',
       patch: 'Patch',
       freeware: 'Free',
@@ -7361,6 +7366,7 @@ export const dictionaries = {
       popularTags: 'Popular tags',
       recentlyAdded: 'Recently added',
       moreTags: '{n} more tags',
+      paginationLabel: 'Tag pagination: {group}',
       emptyTitle: 'No tag found',
       emptyBody: 'Adjust the search, change category, or switch to the other tag source.',
       cooccurrence: {
@@ -9538,6 +9544,7 @@ export const dictionaries = {
     relations: {
       section: '関連作品',
       unofficial: '非公式',
+      paginationLabel: '関連作品のページ送り: {group}',
       types: {
         seq: '続編',
         preq: '前作',
@@ -9670,6 +9677,7 @@ export const dictionaries = {
     releases: {
       section: 'リリース',
       empty: 'リリース情報なし。',
+      paginationLabel: 'リリースのページ送り',
       official: '公式',
       patch: 'パッチ',
       freeware: 'フリー',
@@ -11105,6 +11113,7 @@ export const dictionaries = {
       popularTags: '人気タグ',
       recentlyAdded: '最近追加',
       moreTags: 'あと {n} 件',
+      paginationLabel: 'タグのページ送り: {group}',
       emptyTitle: 'タグが見つかりません',
       emptyBody: '検索語やカテゴリを変更するか、別のタグソースに切り替えてください。',
       cooccurrence: {

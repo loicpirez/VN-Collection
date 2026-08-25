@@ -515,6 +515,23 @@ describe('TagsBrowser branches', () => {
     await u.click(ext);
   });
 
+  it('paginates large local tag categories and reaches the remaining cards', async () => {
+    const tags = Array.from({ length: 41 }, (_, index) => tag({
+      id: `g${1000 + index}`,
+      name: `Local Tag ${index + 1}`,
+      category: 'cont',
+    }));
+    global.fetch = routedFetch({ local: localTagsApi(tags) }) as unknown as typeof fetch;
+    const { user } = renderWithProviders(<TagsBrowser />, { locale: 'en' });
+
+    const navigation = await screen.findByRole('navigation', { name: 'Tag pagination: Content' });
+    expect(screen.getByText('Local Tag 40')).toBeInTheDocument();
+    expect(screen.queryByText('Local Tag 41')).toBeNull();
+    await user.click(screen.getByRole('button', { name: t.common.next }));
+    expect(screen.getByText('Local Tag 41')).toBeInTheDocument();
+    expect(navigation).toHaveTextContent('41-41 / 41');
+  });
+
   it('switches mode with the tab list and arrow keys', async () => {
     const u = userEvent.setup();
     global.fetch = routedFetch({ local: localTagsApi([]) }) as unknown as typeof fetch;

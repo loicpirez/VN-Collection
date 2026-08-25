@@ -92,4 +92,19 @@ describe('RelationsSection', () => {
     renderWithProviders(<RelationsSection relations={[first, unknown]} />, { locale: 'en' });
     expect(screen.getByText('v90001:full.jpg:0:Sequel:accent')).toBeInTheDocument();
   });
+
+  it('paginates large relation groups while keeping every card reachable', async () => {
+    const relations = Array.from({ length: 25 }, (_, index) => relation({
+      id: `v${90001 + index}`,
+      title: `Related VN ${index + 1}`,
+    }));
+    const { user } = renderWithProviders(<RelationsSection relations={relations} />, { locale: 'en' });
+
+    expect(screen.getByText('v90024:none:0:Sequel:accent')).toBeInTheDocument();
+    expect(screen.queryByText('v90025:none:0:Sequel:accent')).toBeNull();
+    const navigation = screen.getByRole('navigation', { name: 'Relation pagination: Sequel' });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('v90025:none:0:Sequel:accent')).toBeInTheDocument();
+    expect(navigation).toHaveTextContent('25-25 / 25');
+  });
 });
