@@ -172,6 +172,61 @@ describe('PlaceBrowser', () => {
     vi.restoreAllMocks();
   });
 
+  it('preserves card, list, and unassigned-row anatomy while places load', async () => {
+    const cardPlaces = deferredResponse();
+    const cardBranches = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL) =>
+      String(url) === '/api/places' ? cardPlaces.promise : cardBranches.promise,
+    );
+    const cards = renderBrowser();
+    await waitFor(() => expect(cards.container.querySelector('[data-place-card-skeleton]')).toBeTruthy());
+    expect(cards.container.querySelectorAll('[data-place-card-skeleton] article')).toHaveLength(8);
+    expect(cards.container.querySelectorAll('[data-place-card-skeleton] article > div')).toHaveLength(8);
+    cards.unmount();
+
+    localStorage.setItem('vncoll.places.prefs.v1', JSON.stringify({ view: 'list' }));
+    const listPlaces = deferredResponse();
+    const listBranches = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL) =>
+      String(url) === '/api/places' ? listPlaces.promise : listBranches.promise,
+    );
+    const list = renderBrowser();
+    await waitFor(() => expect(list.container.querySelector('[data-place-list-skeleton]')).toBeTruthy());
+    expect(list.container.querySelectorAll('[data-place-list-skeleton] > li:not(.sr-only)')).toHaveLength(6);
+    list.unmount();
+
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/places') return json({
+        ...placesPayload(),
+        page: { offset: 0, limit: 60, total: 2 },
+        stats: {
+          total: 2,
+          linked: 1,
+          unlinked: 1,
+          with_gps: 1,
+          no_gps: 1,
+          stock_count: 3,
+          stale: 1,
+        },
+      });
+      return json({
+        branches: ['Branch A'],
+        page: { offset: 0, limit: 60, total: 1 },
+      });
+    });
+    const unassigned = renderBrowser();
+    await waitFor(() => expect(screen.getByText('Akiba Shop')).toBeTruthy());
+    const nextPlaces = deferredResponse();
+    const nextBranches = deferredResponse();
+    global.fetch = vi.fn((url: RequestInfo | URL) =>
+      String(url).startsWith('/api/places?') ? nextPlaces.promise : nextBranches.promise,
+    );
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.places.tabUnassigned as string) }));
+    await waitFor(() => expect(unassigned.container.querySelector('[data-place-unassigned-skeleton]')).toBeTruthy());
+    expect(unassigned.container.querySelectorAll('[data-place-unassigned-skeleton] > li:not(.sr-only)')).toHaveLength(6);
+    unassigned.unmount();
+  });
+
   it('loads places, switches views, filters, and resets filters', async () => {
     renderBrowser();
     await waitFor(() => expect(screen.getByText('Akiba Shop')).toBeTruthy());

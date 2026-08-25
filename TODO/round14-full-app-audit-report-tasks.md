@@ -62,6 +62,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-045 | HIGH | Trait route loading mirrored real cards, but every search or collection-scope request replaced them with eight generic compact blocks. Share the density-aware trait-card skeleton between the route boundary and internal query transitions. | trait browser route and client loading | DONE_WITH_DIFF |
 | R14-UX-046 | HIGH | Place stock loading used featureless 384-pixel card blocks and 96-pixel row blocks, hiding the 2:3 artwork, status, metadata, producer, and action geometry that follows. Mirror both saved card and list views during every place-stock request. | place detail stock browser | DONE_WITH_DIFF |
 | R14-UX-047 | HIGH | AliceNet's dedicated shop surface used the same featureless card and row rectangles despite its richer match status, artwork, price, title-normalization, provider, quick-link, and remap controls. Preserve its special card/list anatomy without moving its operations outside the AliceNet shop page. | AliceNet shop inventory | DONE_WITH_DIFF |
+| R14-UX-048 | HIGH | The shop registry replaced full place cards, detailed list rows, and unassigned-branch actions with uniform height blocks. Preserve each active view's identity, metadata, badges, and 44-pixel actions while registry requests run. | place registry card/list/unassigned views | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -543,3 +544,10 @@ operations, providers, deployment, backup, and restore.
   scenarios pass, the production build passes, and the full suite passes 9,827
   tests with exactly 100% statements (44,831/44,831), branches
   (38,090/38,090), functions (9,178/9,178), and lines (38,285/38,285).
+- The shop registry now keeps the exact active result family while requests
+  run: actionable place cards, metadata-rich list rows, or assignable branch
+  rows. Ninety-one focused registry, place-card, route-loading, and
+  image-loading scenarios pass, the production build passes, and the full
+  suite passes 9,828 tests with exactly 100% statements (44,839/44,839),
+  branches (38,086/38,086), functions (9,182/9,182), and lines
+  (38,293/38,293).

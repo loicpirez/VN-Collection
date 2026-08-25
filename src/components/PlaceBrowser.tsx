@@ -78,6 +78,103 @@ function hasGps(place: PlaceWithLinks): boolean {
   return place.lat != null && place.lng != null;
 }
 
+function PlaceResultsSkeleton({
+  view,
+  tab,
+  label,
+}: {
+  view: ViewMode;
+  tab: Tab;
+  label: string;
+}) {
+  if (tab === 'unassigned') {
+    return (
+      <ul aria-busy aria-live="polite" role="status" className="space-y-2" data-place-unassigned-skeleton>
+        <li className="sr-only">{label}</li>
+        {Array.from({ length: 6 }).map((_, index) => (
+          <li key={index} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-card px-4 py-3">
+            <SkeletonBlock className="h-4 w-2/3" />
+            <SkeletonBlock className="h-11 w-24 shrink-0 rounded-md" />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (view === 'list') {
+    return (
+      <ul aria-busy aria-live="polite" role="status" className="space-y-2" data-place-list-skeleton>
+        <li className="sr-only">{label}</li>
+        {Array.from({ length: 6 }).map((_, index) => (
+          <li key={index} className="rounded-xl border border-border bg-bg-card p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <SkeletonBlock className="h-4 w-3/5" />
+                <SkeletonBlock className="h-3 w-2/5" />
+                <SkeletonBlock className="h-3 w-4/5" />
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                <div className="flex gap-2">
+                  <SkeletonBlock className="h-6 w-16 rounded-full" />
+                  <SkeletonBlock className="h-6 w-24 rounded-full" />
+                  <SkeletonBlock className="h-6 w-20 rounded-md" />
+                </div>
+                <div className="flex gap-2">
+                  <SkeletonBlock className="h-11 w-24 rounded-md" />
+                  <SkeletonBlock className="h-11 w-11 rounded-md" />
+                  <SkeletonBlock className="h-11 w-11 rounded-md" />
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className="grid gap-3"
+      data-place-card-skeleton
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }}
+    >
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <article key={index} className="flex flex-col rounded-xl border border-border bg-bg-card">
+          <div className="flex flex-1 flex-col gap-2 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <SkeletonBlock className="h-4 w-3/5" />
+                <SkeletonBlock className="h-3 w-2/5" />
+              </div>
+              <div className="flex shrink-0 gap-1">
+                {Array.from({ length: 3 }).map((_, actionIndex) => (
+                  <SkeletonBlock key={actionIndex} className="h-11 w-11 rounded-md" />
+                ))}
+              </div>
+            </div>
+            <SkeletonBlock className="h-3 w-4/5" />
+            <SkeletonBlock className="h-3 w-2/3" />
+            <div className="flex flex-wrap gap-1.5">
+              <SkeletonBlock className="h-6 w-16 rounded-full" />
+              <SkeletonBlock className="h-6 w-24 rounded-full" />
+              <SkeletonBlock className="h-6 w-20 rounded-md" />
+            </div>
+            <div className="mt-auto flex gap-2 pt-2">
+              <SkeletonBlock className="h-11 w-24 rounded-md" />
+              <SkeletonBlock className="h-11 w-11 rounded-md" />
+              <SkeletonBlock className="h-11 w-11 rounded-md" />
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function PlaceBrowser() {
   const t = useT();
   const locale = useLocale();
@@ -634,22 +731,7 @@ export function PlaceBrowser() {
       </div>
 
       {loading ? (
-        <div
-          aria-busy
-          aria-live="polite"
-          role="status"
-          className={view === 'cards' ? 'grid gap-3' : 'space-y-2'}
-          style={
-            view === 'cards'
-              ? { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))' }
-              : undefined
-          }
-        >
-          <span className="sr-only">{t.common.loading as string}</span>
-          {Array.from({ length: view === 'cards' ? 8 : 6 }).map((_, i) => (
-            <SkeletonBlock key={i} className={`${view === 'cards' ? 'h-52' : 'h-20'} rounded-xl`} />
-          ))}
-        </div>
+        <PlaceResultsSkeleton view={view} tab={tab} label={t.common.loading as string} />
       ) : loadError ? (
         <ErrorAlert title={loadError}>
           <button
