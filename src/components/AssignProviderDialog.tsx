@@ -5,7 +5,7 @@ import { X, Link2, Unlink, Search, ArrowRightLeft } from 'lucide-react';
 import { useDialogA11y } from './Dialog';
 import { useT } from '@/lib/i18n/client';
 import { useConfirm } from './ConfirmDialog';
-import { SkeletonRows } from './Skeleton';
+import { SkeletonBlock } from './Skeleton';
 import type { PlaceWithLinks } from '@/lib/db';
 import {
   decodeOtherPlaceBranchesResponse,
@@ -285,7 +285,21 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
             {(t.places.tabUnassigned as string)} ({filteredUnassigned.length})
           </p>
           {loading ? (
-            <SkeletonRows count={4} withThumb={false} label={t.app.loading as string} />
+            <ul
+              className="max-h-48 space-y-1 overflow-y-auto"
+              aria-busy="true"
+              aria-live="polite"
+              role="status"
+              data-assign-provider-skeleton
+            >
+              <li className="sr-only">{t.app.loading as string}</li>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <li key={index} className="flex min-h-[52px] items-center justify-between gap-2 rounded border border-border bg-bg-elev/40 px-3 py-2">
+                  <SkeletonBlock className="h-3 w-2/3" />
+                  <SkeletonBlock className="h-11 w-20 shrink-0 can-hover:sm:h-8" />
+                </li>
+              ))}
+            </ul>
           ) : filteredUnassigned.length === 0 ? (
             <p className="text-[11px] text-muted">{q ? (t.places.searchNoMatch as string) : (t.places.unassignedEmpty as string)}</p>
           ) : (

@@ -37,6 +37,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-020 | MEDIUM | Trait detail loading painted an unrelated title, paragraph block, and generic thumbnail rows before replacing them with a bordered metadata header, density controls, scope selector, and density-aware horizontal character cards. Mirror the final route geometry and touch behavior. | trait detail loading | DONE_WITH_DIFF |
 | R14-UX-021 | MEDIUM | Release detail loading represented direct inventory management as passive generic text rows. Preserve the linked VN identity, relation metadata, owned toggle, edit action, and destructive icon geometry so multi-VN releases do not reflow when they resolve. | release detail inventory loading | DONE_WITH_DIFF |
 | R14-UX-022 | MEDIUM | VNDB tag hierarchy loading used three generic row lists before resolving into a two-column accordion tree plus Popular and Recently Added panels. Preserve group headers, tag-chip wraps, ranking cards, and responsive column changes during the request. | tag browser hierarchy loading | DONE_WITH_DIFF |
+| R14-UX-023 | MEDIUM | The branch-assignment dialog loaded unassigned providers as three-line content cards, then collapsed each into one label and one assignment action. Preserve the bounded list, one-line identity, and touch-sized row action throughout the fetch. | place provider assignment dialog | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -355,3 +356,9 @@ operations, providers, deployment, backup, and restore.
   the production build passes, and the full suite passes 9,807 tests with
   exactly 100% statements (44,773/44,773), branches (38,082/38,082),
   functions (9,139/9,139), and lines (38,229/38,229).
+- Provider assignment loading now retains the final bounded list, one-line
+  provider identity, and one touch-sized assignment action per row instead of
+  painting four multi-line content cards. Twenty-seven focused place-dialog
+  scenarios pass, the production build passes, and the full suite passes 9,807
+  tests with exactly 100% statements (44,774/44,774), branches
+  (38,082/38,082), functions (9,140/9,140), and lines (38,230/38,230).

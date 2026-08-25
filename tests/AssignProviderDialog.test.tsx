@@ -66,7 +66,10 @@ describe('AssignProviderDialog', () => {
     renderWithProviders(<AssignProviderDialog place={makePlace()} onClose={vi.fn()} onSaved={vi.fn()} />, { locale: 'en' });
     const dialog = screen.getByRole('dialog');
     // Linked section renders synchronously from props; the unassigned list shows a skeleton.
-    expect(within(dialog).getByRole('status')).toBeInTheDocument();
+    const skeleton = within(dialog).getByRole('status');
+    expect(skeleton).toHaveAttribute('data-assign-provider-skeleton');
+    expect(skeleton.querySelectorAll('li')).toHaveLength(5);
+    expect(skeleton.querySelectorAll('.h-11.w-20')).toHaveLength(4);
   });
 
   it('renders linked, unassigned, and other-place branches after the fetches resolve', async () => {
