@@ -476,4 +476,14 @@ describe('responsive tap targets', () => {
     expect(favorite).toContain('inline-flex min-h-[44px] items-center justify-center');
     expect(favorite).toContain('can-hover:sm:min-h-9');
   });
+
+  it('keeps activity, data, and Steam linking controls touch-safe', () => {
+    const activity = source('src/app/activity/page.tsx');
+    const data = source('src/app/data/page.tsx');
+    const steam = source('src/app/steam/page.tsx');
+    expect(activity).toContain('inline-flex min-h-[44px] items-center rounded');
+    expect(data).toContain('inline-flex min-h-[44px] items-center rounded text-accent');
+    expect(steam).toContain('className="min-h-[44px] w-full bg-transparent text-xs focus:outline-none can-hover:sm:min-h-0"');
+    expect(steam).toContain('can-hover:sm:min-h-0 can-hover:sm:py-1');
+  });
 });

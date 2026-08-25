@@ -204,7 +204,12 @@ export default async function DataPage() {
         <p className="mb-3 text-xs text-muted">{t.dataMgmt.assetsSectionHint}</p>
         <p className="inline-flex items-center gap-1 text-xs text-muted">
           <CornerDownRight className="h-3 w-3" aria-hidden />
-          <Link href="/" className="text-accent hover:underline">{t.dataMgmt.bulkLinkHint}</Link>
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center rounded text-accent hover:underline can-hover:sm:min-h-0"
+          >
+            {t.dataMgmt.bulkLinkHint}
+          </Link>
         </p>
       </section>
     </div>

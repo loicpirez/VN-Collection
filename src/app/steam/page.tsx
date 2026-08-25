@@ -444,7 +444,7 @@ export default function SteamSyncPage() {
                   </span>
                 </div>
                 <div className="mt-2 flex items-start gap-2">
-                  <div className="flex min-h-[44px] flex-1 items-center gap-1 rounded-md border border-border bg-bg-card px-2 py-1 sm:min-h-0">
+                  <div className="flex min-h-[44px] flex-1 items-center gap-1 rounded-md border border-border bg-bg-card px-2 can-hover:sm:min-h-0 can-hover:sm:py-1">
                     <Search className="h-3 w-3 text-muted" aria-hidden />
                     <input
                       type="search"
@@ -453,7 +453,7 @@ export default function SteamSyncPage() {
                       onChange={(e) => searchAssign(g.appid, e.target.value)}
                       placeholder={t.steam.assignPlaceholder}
                       aria-label={t.steam.assignPlaceholder}
-                      className="w-full bg-transparent text-xs focus:outline-none"
+                      className="min-h-[44px] w-full bg-transparent text-xs focus:outline-none can-hover:sm:min-h-0"
                     />
                   </div>
                   <Link2 className="mt-1 h-4 w-4 text-muted" aria-hidden />

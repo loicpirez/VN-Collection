@@ -323,7 +323,10 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                           {(row.entity || row.entity_id) && (
                             <p className="mt-0.5 text-[11px] text-muted">
                               {href ? (
-                                <Link href={href} className="hover:text-accent transition-colors">
+                                <Link
+                                  href={href}
+                                  className="inline-flex min-h-[44px] items-center rounded transition-colors hover:text-accent can-hover:sm:min-h-0"
+                                >
                                   {row.entity} / {row.entity_id}
                                 </Link>
                               ) : (
