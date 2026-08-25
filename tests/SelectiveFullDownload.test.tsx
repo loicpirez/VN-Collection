@@ -63,7 +63,11 @@ describe('SelectiveFullDownload', () => {
     global.fetch = vi.fn().mockImplementation(
       () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
     );
-    renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    const { container } = renderWithProviders(<SelectiveFullDownload />, { locale: 'en' });
+    const skeleton = screen.getByRole('status');
+    expect(skeleton.hasAttribute('data-selective-download-skeleton')).toBe(true);
+    expect(skeleton.querySelectorAll('li')).toHaveLength(6);
+    expect(container.querySelectorAll('[data-selective-download-skeleton] .h-4.w-4')).toHaveLength(5);
     expect(screen.getByText('Loading...')).not.toBeNull();
     resolveFetch(collectionPage(THREE));
     await waitFor(() => expect(screen.queryByText('Loading...')).toBeNull());

@@ -10,7 +10,7 @@ import { fetchAllCollectionItems } from '@/lib/collection-api-client';
 import { decodeCollectionSelectiveRow, type CollectionSelectiveRow } from '@/lib/collection-client-shape';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeSelectiveDownloadQueuedCount } from '@/lib/operation-client-shape';
-import { SkeletonRows } from './Skeleton';
+import { SkeletonBlock } from './Skeleton';
 type SortKey = 'title' | 'added_at' | 'updated_at' | 'released' | 'rating' | 'user_rating' | 'playtime' | 'status';
 type SortOrder = 'asc' | 'desc';
 type NumericSortKey = 'added_at' | 'updated_at' | 'rating' | 'user_rating' | 'playtime';
@@ -358,7 +358,23 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
 
       {loading ? (
         <div className="max-h-[min(28rem,55vh)] min-h-32 overflow-hidden">
-          <SkeletonRows count={5} withThumb={false} label={t.common.loading} />
+          <ul
+            className="overflow-hidden rounded-md border border-border bg-bg-elev/30"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            data-selective-download-skeleton
+          >
+            <li className="sr-only">{t.common.loading}</li>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <li key={index} className="flex min-h-[44px] items-center gap-2 border-b border-border px-3 py-1.5 last:border-b-0">
+                <SkeletonBlock className="h-4 w-4 shrink-0 rounded" />
+                <SkeletonBlock className="h-3 min-w-0 flex-1" />
+                <SkeletonBlock className="h-2.5 w-14 shrink-0" />
+                <SkeletonBlock className="h-2.5 w-8 shrink-0" />
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         // Min height keeps the toolbar from "popping" when the user

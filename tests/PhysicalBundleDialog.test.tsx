@@ -94,6 +94,16 @@ beforeEach(() => {
 });
 
 describe('PhysicalBundleDialog', () => {
+  it('preserves existing-bundle row actions while the list loads', () => {
+    global.fetch = vi.fn(() => new Promise<Response>(() => undefined));
+    renderWithProviders(<PhysicalBundleDialog open onClose={vi.fn()} candidates={[]} onChanged={vi.fn()} />, { locale: 'en' });
+
+    const skeleton = screen.getByRole('status');
+    expect(skeleton).toHaveAttribute('data-physical-bundle-skeleton');
+    expect(skeleton.querySelectorAll('li')).toHaveLength(4);
+    expect(skeleton.querySelectorAll('.h-11.w-24')).toHaveLength(3);
+  });
+
   it('searches and paginates eligible unbundled candidates', async () => {
     global.fetch = vi.fn(async () => json({ bundles: [] }));
     const candidates = Array.from({ length: 27 }, (_, index) => candidate(index + 1));

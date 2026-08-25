@@ -13,7 +13,7 @@ import { Dialog } from './Dialog';
 import { SafeImage } from './SafeImage';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
-import { SkeletonRows } from './Skeleton';
+import { SkeletonBlock } from './Skeleton';
 
 const PAGE_SIZE = 24;
 
@@ -231,7 +231,25 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
       <section className="mt-6 border-t border-border pt-4">
         <h3 className="mb-2 text-sm font-bold">{t.shelfLayout.bundleExisting}</h3>
         {loading ? (
-          <SkeletonRows count={3} withThumb={false} label={t.common.loading} />
+          <ul
+            className="divide-y divide-border overflow-hidden rounded-md border border-border"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            data-physical-bundle-skeleton
+          >
+            <li className="sr-only">{t.common.loading}</li>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <li key={index} className="flex items-start justify-between gap-3 p-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <SkeletonBlock className="h-4 w-2/3" />
+                  <SkeletonBlock className="h-3 w-24" />
+                  <SkeletonBlock className="h-2.5 w-4/5" />
+                </div>
+                <SkeletonBlock className="h-11 w-24 shrink-0 rounded-md can-hover:sm:h-9" />
+              </li>
+            ))}
+          </ul>
         ) : bundles.length === 0 ? (
           <p className="text-sm text-muted">{t.shelfLayout.bundleEmpty}</p>
         ) : (
@@ -243,7 +261,7 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
                   <p className="mt-0.5 text-xs text-muted">{t.shelfLayout.bundleBadge.replace('{n}', String(bundle.members.length))}</p>
                   <p className="mt-1 line-clamp-2 text-[11px] text-muted/80">{bundle.members.map((member) => member.vn_title).join(' / ')}</p>
                 </div>
-                <button type="button" onClick={() => void dissolve(bundle)} disabled={busy} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-status-dropped/40 px-2 text-xs text-status-dropped hover:bg-status-dropped/10 disabled:opacity-40">
+                <button type="button" onClick={() => void dissolve(bundle)} disabled={busy} className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-md border border-status-dropped/40 px-2 text-xs text-status-dropped hover:bg-status-dropped/10 disabled:opacity-40 can-hover:sm:min-h-9">
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />{t.shelfLayout.bundleDissolve}
                 </button>
               </li>
