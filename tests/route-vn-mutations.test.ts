@@ -373,6 +373,23 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     expect(getCollectionItem(REAL_VN)).toMatchObject({ status: 'completed', user_rating: 90 });
   });
 
+  it('pushes a selected vote without including unrelated local fields', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({ vote: 70 }));
+    patchMock.mockResolvedValue({ ok: true });
+
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        fields: ['vote'],
+      }),
+      ctx(REAL_VN),
+    );
+
+    expect(response.status).toBe(200);
+    expect(patchMock).toHaveBeenCalledWith(REAL_VN, { vote: 90 });
+  });
+
   it('copies selected VNDB fields to the local collection', async () => {
     seedLocal();
     entryMock.mockResolvedValue(remotePlaying({
@@ -397,6 +414,49 @@ describe('POST /api/vn/[id]/vndb-status', () => {
       notes: 'remote note',
     });
     expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('pulls a selected status without replacing unrelated local fields', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({
+      vote: 70,
+      started: '2024-02-01',
+      finished: null,
+      notes: 'remote note',
+    }));
+
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'vndb_to_local',
+        fields: ['status'],
+      }),
+      ctx(REAL_VN),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getCollectionItem(REAL_VN)).toMatchObject({
+      status: 'playing',
+      user_rating: 90,
+      started_date: '2025-01-01',
+      finished_date: '2025-01-02',
+      notes: 'local note',
+    });
+  });
+
+  it('pulls a selected vote without replacing the local status', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({ vote: 70 }));
+
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'vndb_to_local',
+        fields: ['vote'],
+      }),
+      ctx(REAL_VN),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getCollectionItem(REAL_VN)).toMatchObject({ status: 'completed', user_rating: 70 });
   });
 
   it('rejects a decision when the selected field no longer differs', async () => {
