@@ -247,9 +247,11 @@ describe('route loading skeletons', () => {
     expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(12);
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
     expect(html.match(/h-24 w-7 rounded-sm/g)).toHaveLength(12);
-    expect(html).toContain('h-[54px] w-full max-w-[320px]');
-    expect(html).not.toContain('mt-2 flex flex-wrap gap-1.5');
-    expect(html).not.toContain('mt-2 space-y-2');
+    expect(html).toContain('data-staff-profile-common-skeleton');
+    expect(html).toContain('h-[54px] w-[400px] max-w-full');
+    expect(html).toContain('h-11 w-[104px]');
+    expect(html).not.toContain('class="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6"');
+    expect(html).toContain('mt-2 space-y-2');
   });
 
   it('keeps the staff loading sections in the saved order and omits hidden sections', async () => {

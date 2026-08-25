@@ -165,6 +165,7 @@ describe('StaffExtraCredits', () => {
 
   it('renders the streaming skeleton shape', () => {
     const markup = renderToStaticMarkup(<StaffExtraCreditsSkeleton />);
+    expect(markup).toContain('class="mt-6 rounded-xl');
     expect(markup).toContain('data-staff-extra-group-skeleton');
     expect(markup.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(4);
     expect(markup.match(/calc\(var\(--card-density-px, 220px\) \* 0\.42\)/g)).toHaveLength(4);
@@ -172,5 +173,11 @@ describe('StaffExtraCredits', () => {
     expect(markup).toContain('var(--card-density-px, 220px)');
     expect(markup).toContain('role="status"');
     expect(markup).toContain('aria-busy="true"');
+  });
+
+  it('lets route fallbacks provide the section spacing once', () => {
+    const markup = renderToStaticMarkup(<StaffExtraCreditsSkeleton withTopSpacing={false} />);
+    expect(markup).toContain('class="rounded-xl');
+    expect(markup).not.toContain('class="mt-6 rounded-xl');
   });
 });

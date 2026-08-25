@@ -125,13 +125,17 @@ export async function StaffExtraCredits({
  * title, one guaranteed credit group, and the card anatomy shared by voice and
  * production results without reserving a large section that may resolve empty.
  */
-export function StaffExtraCreditsSkeleton() {
+export function StaffExtraCreditsSkeleton({
+  withTopSpacing = true,
+}: {
+  withTopSpacing?: boolean;
+}) {
   return (
     <section
       aria-busy="true"
       aria-live="polite"
       role="status"
-      className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6"
+      className={`${withTopSpacing ? 'mt-6 ' : ''}rounded-xl border border-border bg-bg-card p-4 sm:p-6`}
     >
       <div className="mb-3 h-3 w-48 animate-pulse rounded bg-bg-elev/60" />
       <div className="mb-4 h-2.5 w-72 animate-pulse rounded bg-bg-elev/60" />
