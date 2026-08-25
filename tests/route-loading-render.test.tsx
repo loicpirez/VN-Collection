@@ -343,6 +343,20 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('data-compare-desktop-skeleton');
   });
 
+  it('matches the map container and every guaranteed control above the canvas', async () => {
+    const html = renderToStaticMarkup(await MapLoading());
+    expect(html).toContain('data-map-route-skeleton');
+    expect(html).toContain('mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8');
+    expect(html).toContain('data-map-header-actions-skeleton');
+    expect(html.match(/h-11 w-(?:36|32)/g)).toHaveLength(2);
+    expect(html).toContain('data-map-privacy-skeleton');
+    expect(html).toContain('data-map-search-skeleton');
+    expect(html).toContain('data-map-size-skeleton');
+    expect(html.match(/h-11 min-w-24 flex-1 rounded sm:flex-none/g)).toHaveLength(4);
+    expect(html).toContain('data-map-frame-skeleton');
+    expect(html).toContain('h-[55vh] min-h-[400px]');
+  });
+
   it('matches printable label toolbar and horizontal QR label geometry', async () => {
     const html = renderToStaticMarkup(await LabelsLoading());
     expect(html).toContain('data-labels-toolbar-skeleton');
