@@ -299,6 +299,16 @@ describe('route loading skeletons', () => {
     expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
   });
 
+  it('matches the character browser search, modes, filters, ranges, and portrait grid', async () => {
+    const html = renderToStaticMarkup(await CharactersLoading());
+    expect(html).toContain('data-characters-browser-skeleton');
+    expect(html).toContain('sm:grid-cols-2');
+    expect(html).toContain('sm:grid-cols-3');
+    expect(html.match(/aspect-\[3\/4\]/g)).toHaveLength(12);
+    expect(html.match(/rounded-md border border-border bg-bg-elev\/30 p-2/g)).toHaveLength(6);
+    expect(html).not.toContain('h-72 w-full');
+  });
+
   it('matches the trait detail header, scope controls, and horizontal character cards', async () => {
     const html = renderToStaticMarkup(await TraitLoading());
     expect(html).toContain('data-trait-detail-skeleton');
