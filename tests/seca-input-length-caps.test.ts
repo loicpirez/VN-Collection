@@ -105,7 +105,7 @@ describe('seca-input-length-caps — lists field length caps', () => {
 });
 
 describe('seca-input-length-caps — security headers in next.config.mjs', () => {
-  it('next.config.mjs exports headers() with X-Content-Type-Options, X-Frame-Options, Referrer-Policy', async () => {
+  it('next.config.mjs exports the baseline and enforced CSP headers', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(__dirname, '..', 'next.config.mjs'), 'utf8');
@@ -116,5 +116,19 @@ describe('seca-input-length-caps — security headers in next.config.mjs', () =>
     expect(src).toContain('Referrer-Policy');
     expect(src).toContain('Permissions-Policy');
     expect(src).toContain('poweredByHeader: false');
+    expect(src).toContain("Content-Security-Policy");
+    expect(src).toContain("default-src 'self'");
+    expect(src).toContain("script-src 'self' 'unsafe-inline'");
+    expect(src).toContain("style-src 'self' 'unsafe-inline'");
+    expect(src).toContain("img-src 'self' data: blob: https:");
+    expect(src).toContain("connect-src 'self'");
+    expect(src).toContain('https://nominatim.openstreetmap.org');
+    expect(src).toContain("object-src 'none'");
+    expect(src).toContain("frame-src 'none'");
+    expect(src).toContain("frame-ancestors 'self'");
+    expect(src).toContain("base-uri 'self'");
+    expect(src).toContain("form-action 'self'");
+    expect(src).toContain('upgrade-insecure-requests');
+    expect(src).toContain("isDevelopment ? \" 'unsafe-eval'\" : ''");
   });
 });
