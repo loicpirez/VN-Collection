@@ -25,6 +25,7 @@ vi.mock('@/lib/vndb', () => ({
 
 vi.mock('@/lib/i18n/server', () => ({
   getDict: vi.fn(async () => dictionaries.en),
+  getLocale: vi.fn(async () => 'en'),
 }));
 
 vi.mock('@/components/CardDensitySlider', () => ({
@@ -96,6 +97,9 @@ describe('characters page runtime', () => {
 
     const html = renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain(dictionaries.en.charactersSearch.empty);
+    expect(html).toContain('<option value="ja">Japanese</option>');
+    expect(html).toContain('<option value="zh-Hans">Simplified Chinese</option>');
+    expect(html).not.toContain('<option value="ja">ja</option>');
     expect(searchLocalCharacters).toHaveBeenCalledWith({ q: undefined, limit: 200 });
     expect(searchCharacters).not.toHaveBeenCalled();
 

@@ -23,6 +23,7 @@ operations, providers, deployment, backup, and restore.
 | R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
 | R14-I18N-002 | HIGH | Character birthdays forced day/month order, VN activity start/finish dates exposed ISO storage values, status changes exposed internal status keys, and playtime used a hardcoded `min` suffix. Route all four through locale-aware formatters and test French, English, and Japanese ordering and units. | `src/lib/locale-number.ts`, character detail, VN activity timeline | DONE_WITH_DIFF |
 | R14-I18N-003 | HIGH | EGS only decoded a hand-maintained entity subset and AliceNet did not decode HTML entities at ingestion, leaving encoded producer and title text in the shop UI, EGS metadata, search, and filters. Use a standards-based single-pass decoder for future ingestion and migrate historical SQLite and PostgreSQL values. | EGS and AliceNet parsers, SQLite bootstrap, PostgreSQL migration 0010 | DONE_WITH_DIFF |
+| R14-I18N-004 | MEDIUM | The character browser's voice-language filter exposed raw VNDB language codes while equivalent filters elsewhere used localized language names. Route every option through the shared `Intl.DisplayNames` helper while preserving the submitted code. | character browser filter and runtime test | DONE_WITH_DIFF |
 | R14-SEC-001 | CRITICAL | Re-audit authentication gates, mutation authorization, CSRF/origin handling, SSRF and URL allowlists, uploads and path traversal, request size limits, secret/error exposure, CSP and headers, proxy behavior, dependencies, and production TLS/reverse-proxy configuration. | all APIs, middleware, Next and production configuration | TODO |
 | R14-SEC-002 | CRITICAL | Production Nginx capped every request at 50 MiB while the authenticated PostgreSQL logical restore endpoint supports archives up to 4 GiB and current database backups already exceed 200 MiB. Add an exact authenticated restore location with the matching cap, streaming request forwarding, trusted-proxy proof, and bounded timeouts while retaining the lower global limit. | `ops/nginx/vndb-backup-restore.conf`, production Nginx, PostgreSQL operations docs | DONE_WITH_DIFF |
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
@@ -69,6 +70,12 @@ operations, providers, deployment, backup, and restore.
   producer fields without recursively decoding escaped text. The focused suite
   passes 188 scenarios, PostgreSQL passes all 94 integration scenarios, and
   the complete typecheck and production build pass.
+- The voice-language filter now presents localized names while retaining VNDB
+  codes as form values. The complete i18n-focused suite passes 84 scenarios,
+  and a production matrix covers 144 FR/EN/JA renders across Chromium,
+  Firefox, and WebKit at 1440 and 390 pixels. Every render has the requested
+  document language, localized metadata, no unresolved translation token or
+  raw status key, no fatal browser error, and no horizontal overflow.
 - Provider maintenance no longer depends on one-hour progress retention. One
   durable latest-completed row per provider survives progress cleanup, rejects
   older jobs finishing late, and feeds the existing updated/missed/no-batch UI.

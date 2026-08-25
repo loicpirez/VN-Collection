@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import { ArrowLeft, UserSquare, X } from 'lucide-react';
 import { searchCharacters, type VndbCharacter } from '@/lib/vndb';
 import { getPeopleRepository } from '@/lib/db/repositories/people';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
+import { languageDisplayName } from '@/lib/language-names';
 import { SafeImage } from '@/components/SafeImage';
 import { NavTabStrip } from '@/components/NavTabStrip';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -26,6 +27,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 60;
+const VOICE_LANGUAGE_CODES = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko'] as const;
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -61,7 +63,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
  *     zero without losing the search context.
  */
 export default async function CharactersPage({ searchParams }: PageProps) {
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const sp = await searchParams;
   const params = parseCharacterBrowseParams(sp);
   const includeEro = sp.ero === '1';
@@ -382,11 +384,9 @@ export default async function CharactersPage({ searchParams }: PageProps) {
                 className="input w-full"
               >
                 <option value="">{t.charactersSearch.filters.vaLangAny}</option>
-                <option value="ja">ja</option>
-                <option value="en">en</option>
-                <option value="zh-Hans">zh-Hans</option>
-                <option value="zh-Hant">zh-Hant</option>
-                <option value="ko">ko</option>
+                {VOICE_LANGUAGE_CODES.map((code) => (
+                  <option key={code} value={code}>{languageDisplayName(code, locale)}</option>
+                ))}
               </select>
             </div>
           </fieldset>
