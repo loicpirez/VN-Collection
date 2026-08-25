@@ -46,6 +46,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-029 | MEDIUM | The VN route skeleton appended a generic passive-row card that did not map to any configurable detail section and changed unpredictably with collection and metadata state. Keep only guaranteed hero, synopsis, and media geometry at the route boundary; section components own their specific loading states after mount. | VN route loading | DONE_WITH_DIFF |
 | R14-UX-030 | MEDIUM | Tag detail loading used an unstructured hero rectangle and detached bar before resolving into metadata, Local/VNDB modes, actions, density controls, and an encased VN result section. Preserve that hierarchy and touch geometry. | tag detail route loading | DONE_WITH_DIFF |
 | R14-UX-031 | HIGH | Character browser loading represented its search, three source modes, four segmented filter groups, and six numeric/misc groups as one opaque rectangle. Preserve the complete responsive filter hierarchy before the 3:4 result grid resolves. | character browser route loading | DONE_WITH_DIFF |
+| R14-UX-032 | HIGH | Compare loading assumed four covers and replaced the comparison body with one opaque rectangle. Preserve the picker, common-facet summary, two-item mobile card anatomy, and desktop comparison matrix without inventing four selected VNs. | compare route loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -424,3 +425,9 @@ operations, providers, deployment, backup, and restore.
   the full suite passes 9,813 tests with exactly 100% statements
   (44,793/44,793), branches (38,090/38,090), functions (9,155/9,155), and
   lines (38,249/38,249).
+- Compare loading now retains the picker, common-facet summary, two-item mobile
+  card rows, and desktop comparison matrix instead of assuming four selected
+  covers plus an opaque body. Seventy-three focused route, comparison, and
+  loading scenarios pass, the production build passes, and the full suite
+  passes 9,814 tests with exactly 100% statements (44,797/44,797), branches
+  (38,090/38,090), functions (9,159/9,159), and lines (38,253/38,253).
