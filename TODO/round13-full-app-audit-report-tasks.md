@@ -60,3 +60,15 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
   of short upcoming producer links. Production WebKit and Chromium both now
   measure those three surfaces at 44 px; desktop fine-pointer compaction remains
   available for the link and tab controls.
+- Commit `88f3c1b1` enlarges the remaining shared touch surfaces found in the
+  first matrix pass: tag clearing, stock filters, place actions, schema tools,
+  maintenance identifiers, quotes, upcoming titles, and statistics rows. Direct
+  production measurements in mobile WebKit and Chromium confirm 44 px effective
+  targets without horizontal overflow.
+- Commits `dc9a6735` and `620e04ef` complete the entity-detail pass across VN,
+  compare, character, staff, release, and AliceNet shop views. A 12-render
+  production check over both engines returns HTTP 200 throughout, no browser
+  errors, no responsive overflow, and no sub-44 px control except a sentence-
+  embedded synopsis link covered by the inline-text target-size exception.
+- Production currently serves commit `620e04ef67dbc4e04c5559a52f156a4fa513ca07`
+  with PostgreSQL ready, pool maximum 10, and zero unexpected service restarts.
