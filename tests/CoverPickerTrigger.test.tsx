@@ -22,6 +22,7 @@ describe('CoverPickerTrigger', () => {
   });
 
   it('renders the supplied className and dispatches the open-cover-picker event on click', async () => {
+    await import('@/components/CoverSourcePicker');
     const onOpen = vi.fn();
     window.addEventListener('vn:open-cover-picker', onOpen as EventListener);
     const { user, container } = renderWithProviders(
