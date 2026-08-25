@@ -15,7 +15,7 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
 | R13-TEST-001 | HIGH | The Round 12 production matrix covered 39 of the 40 App Router pages and omitted the dynamic list-detail page. Discover a real list id, include `/lists/[id]`, and rerun mobile and desktop WebKit plus Chromium for 160 isolated renders with strengthened accessibility, loading, security-header, image, error, and responsive checks. | production browser matrix, `src/app/lists/[id]/page.tsx` | DONE_WITH_DIFF |
-| R13-OPS-001 | MEDIUM | Production logged Next.js `destination stream closed early` errors during deliberate RSC navigation cancellation. Establish whether normal Safari workflows reproduce them, distinguish harmless client disconnects from application faults, and avoid suppressing unrelated server errors. | production journal, RSC navigation lifecycle | TODO |
+| R13-OPS-001 | MEDIUM | Production logged Next.js `destination stream closed early` errors during deliberate RSC navigation cancellation. Establish whether normal Safari workflows reproduce them, distinguish harmless client disconnects from application faults, and avoid suppressing unrelated server errors. | production journal, RSC navigation lifecycle | VERIFIED_EXISTING |
 | R13-PERF-001 | HIGH | The VNDB collection and all-release tabs render up to 200 upcoming cards in one document; production reaches roughly 9,000 DOM nodes and repeats cover/membership work for rows outside the initial viewport. Paginate these two tabs with stable URL state, localized range feedback, and bounded per-page repository lookups while preserving month grouping. | `src/app/upcoming/page.tsx`, upcoming runtime tests | DONE_WITH_DIFF |
 | R13-PERF-002 | HIGH | A production VN detail with extensive release and translation metadata renders about 9,100 DOM nodes on both engines and viewport classes. Attribute the node cost by section, then paginate or progressively disclose the dominant repeated surface without hiding data or breaking deep links. | `src/app/vn/[id]/page.tsx`, VN detail sections, production VN detail | DONE_WITH_DIFF |
 | R13-PERF-003 | MEDIUM | The tags browser renders about 7,200 DOM nodes before interaction in all four production configurations. Preserve indexed search and hierarchy navigation while bounding the initially mounted tree through progressive expansion or virtualization. | `src/components/TagsBrowser.tsx`, production `/tags` | DONE_WITH_DIFF |
@@ -73,7 +73,7 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
   production check over both engines returns HTTP 200 throughout, no browser
   errors, no responsive overflow, and no sub-44 px control except a sentence-
   embedded synopsis link covered by the inline-text target-size exception.
-- Production currently serves commit `539f13fd13433c2947bd802b3fdcc8cee8745f8c`
+- Production currently serves commit `1b08a7df18945ee5b4c1713f7f989b71d351f852`
   with PostgreSQL ready, pool maximum 10, and zero unexpected service restarts.
 - Commits `79d0bfca`, `bcaf2ac4`, and `539f13fd` name loading cover links,
   enlarge utility controls, and make the statistics chart locally scrollable
@@ -86,3 +86,10 @@ direct source and runtime evidence. `DONE_WITH_DIFF` records a Round 13 change;
   scroller, browser error, failed non-cancelled request, broken visible image,
   missing image alternative, invalid document landmark, or fatal runtime text.
   All five enforced security headers are present on every response.
+- The RSC journal warning is attributable to cancelled link prefetches: each
+  warning window contains Nginx `499` responses for `?_rsc` requests from the
+  short-lived audit pages. A stable eight-tab WebKit run covering VN, compare,
+  release, staff, place, and library pages, plus rapid client navigation, yields
+  HTTP 200 throughout and no matching server warning. The process remains active
+  with zero restarts, roughly 164 MiB peak memory, no memory cap, and a ready
+  PostgreSQL pool; no error suppression or memory increase is warranted.
