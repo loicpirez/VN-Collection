@@ -2654,7 +2654,7 @@ export async function getStockForVn(vnId: string): Promise<StockSnapshot> {
     source_release_id: null,
     jan: row.jan,
     fetched_at: row.fetched_at,
-    updated_at: row.updated_at,
+    updated_at: row.fetched_at,
     error: null,
     provider_label: providerLabel(ALICENET_PROVIDER_ID),
     content_kind: 'game_package',

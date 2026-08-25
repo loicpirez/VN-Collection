@@ -175,6 +175,10 @@ describe('AliceNetClient', () => {
     }) as unknown as typeof fetch;
     const { container } = renderClient();
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-alicenet-last-fetch-skeleton]')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-alicenet-tab-count-skeleton]')).toHaveLength(8);
+    expect(container.querySelector('[data-alicenet-select-skeleton]')).toBeInTheDocument();
+    expect(screen.queryByText('No stock snapshot downloaded')).not.toBeInTheDocument();
     expect(container.querySelectorAll('[data-alicenet-card-skeleton] article')).toHaveLength(12);
     expect(container.querySelectorAll('[data-alicenet-card-skeleton] .aspect-\\[2\\/3\\]')).toHaveLength(12);
     expect(screen.getByRole('status')).toBeInTheDocument();

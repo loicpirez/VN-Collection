@@ -812,7 +812,7 @@ registerPlaceRepositoryContract('PostgreSQL', {
           ('v991102', 'sofmap', 'offer-2', 'direct', 'Second offer', 'https://example.test/two', 7000, 'JPY', 'out_of_stock', 'Branch A', 'Branch A', 200, 200),
           ('v991102', 'surugaya', 'offer-3', 'direct', 'Unassigned offer', 'https://example.test/three', 6000, 'JPY', 'in_stock', 'Branch C', 'Branch C', 250, 250);
         INSERT INTO alicenet_stock (code, title, sale_price, vn_id, fetched_at, updated_at)
-          VALUES ('991-991101-991', 'AliceNet contract', '3,000円', 'v991102', 300, 300)
+          VALUES ('991-991101-991', 'AliceNet contract', '3,000円', 'v991102', 300, 900)
       `);
 
       const priorBackend = process.env.DATABASE_BACKEND;

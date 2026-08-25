@@ -7986,7 +7986,7 @@ const PLACE_STOCK_OFFER_SOURCE = `
     '${ALICENET_STOCK_URL}' AS url,
     '${ALICENET_BRANCH_LABEL}' AS location_branch,
     '${ALICENET_BRANCH_LABEL}' AS location_label,
-    k.updated_at AS updated_at
+    k.fetched_at AS updated_at
   FROM alicenet_stock k
   WHERE k.vn_id IS NOT NULL
 `;

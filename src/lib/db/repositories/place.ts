@@ -80,7 +80,7 @@ const PLACE_STOCK_SOURCE = `
   UNION ALL
   SELECT k.vn_id, '${ALICENET_PROVIDER_ID}', 'in_stock', ${ALICENET_PRICE},
     'JPY', '${ALICENET_STOCK_URL}', '${ALICENET_BRANCH_LABEL}',
-    '${ALICENET_BRANCH_LABEL}', k.updated_at
+    '${ALICENET_BRANCH_LABEL}', k.fetched_at
   FROM alicenet_stock k
   WHERE k.vn_id IS NOT NULL
 `;

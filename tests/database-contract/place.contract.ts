@@ -68,6 +68,7 @@ export function registerPlaceRepositoryContract(label: string, harness: PlaceCon
           price: 3000,
           currency: 'JPY',
           location_branch: ALICENET_BRANCH_LABEL,
+          updated_at: 300,
         });
         await expect(repository.listOffers(PLACE_CONTRACT_IDS.firstPlace, 'out_of_stock')).resolves.toHaveLength(1);
       });

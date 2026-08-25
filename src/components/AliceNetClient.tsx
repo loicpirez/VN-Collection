@@ -1260,11 +1260,15 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
           {t.alicenet.alicenetSourceDescription}
         </p>
-        <p className="mt-1 text-[11px] text-muted/80">
-          {lastFetch
-            ? t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))
-            : t.alicenet.alicenetNoSnapshot}
-        </p>
+        {showStatsSkeleton ? (
+          <SkeletonBlock data-alicenet-last-fetch-skeleton className="mt-2 h-3 w-40" />
+        ) : (
+          <p className="mt-1 text-[11px] text-muted/80">
+            {lastFetch
+              ? t.alicenet.alicenetLastFetch.replace('{date}', timeAgo(lastFetch, t))
+              : t.alicenet.alicenetNoSnapshot}
+          </p>
+        )}
       </div>
 
       {(displayedJob || jobStatusError) && (
@@ -1484,9 +1488,13 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               >
                 {tab.icon ?? null}
                 <span>{tab.label}</span>
-                <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg text-muted'}`}>
-                  {tab.count}
-                </span>
+                {showStatsSkeleton ? (
+                  <SkeletonBlock data-alicenet-tab-count-skeleton className="h-4 w-5 rounded" />
+                ) : (
+                  <span className={`rounded px-1 text-[10px] ${filter === tab.id ? 'bg-accent/20 text-accent' : 'bg-bg text-muted'}`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1543,7 +1551,9 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
                 {t.alicenet.alicenetFilters}
                 {activeFilterCount > 0 && <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>}
               </button>
-              {stats.total > 0 && (
+              {showStatsSkeleton ? (
+                <SkeletonBlock data-alicenet-select-skeleton className="h-11 w-24" />
+              ) : stats.total > 0 && (
                 <button
                   type="button"
                   onClick={() => { if (selectMode) clearSelection(); else setSelectMode(true); }}

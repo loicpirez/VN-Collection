@@ -244,6 +244,7 @@ describe('getStockForVn — summary counters', () => {
 describe('getStockForVn — AliceNet synthesis', () => {
   it('synthesises a used in-stock AliceNet offer from a matched row', async () => {
     seedAlicenet('123-456789-001', '3,200円');
+    db.prepare('UPDATE alicenet_stock SET updated_at = ? WHERE code = ?').run(NOW + 50_000, '123-456789-001');
     const snapshot = await getStockForVn(VN_ID);
     const alice = snapshot.offers.find((o) => o.provider === 'alicenet');
     expect(alice).toBeDefined();
@@ -255,6 +256,8 @@ describe('getStockForVn — AliceNet synthesis', () => {
       jan: '4900000000001',
       content_kind: 'game_package',
       match_confidence: 'high',
+      fetched_at: NOW,
+      updated_at: NOW,
     });
     expect(snapshot.summary.total).toBe(1);
   });

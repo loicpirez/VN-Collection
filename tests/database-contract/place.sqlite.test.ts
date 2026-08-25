@@ -56,7 +56,7 @@ function seed(): void {
   offer.run('v991102', 'surugaya', 'offer-3', 'Unassigned offer', 'https://example.test/three', 6000, 'in_stock', 'Branch C', 'Branch C', 250, 250);
   database.prepare(`
     INSERT INTO alicenet_stock (code, title, sale_price, vn_id, fetched_at, updated_at)
-    VALUES ('991-991101-991', 'AliceNet contract', '3,000円', 'v991102', 300, 300)
+    VALUES ('991-991101-991', 'AliceNet contract', '3,000円', 'v991102', 300, 900)
   `).run();
 }
 
