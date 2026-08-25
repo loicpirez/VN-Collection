@@ -218,11 +218,17 @@ describe('VndbStatusPanel branches', () => {
     expect(screen.getByText(t.status.completed)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useLocal }));
-    await waitFor(() => expect(bodies[0]).toEqual({ direction: 'local_to_vndb', fields: ['status'] }));
+    await waitFor(() => expect(bodies[0]).toEqual({
+      direction: 'local_to_vndb',
+      selections: [{ field: 'status', local: 'completed', remote: 'playing' }],
+    }));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useRemote }));
-    await waitFor(() => expect(bodies[1]).toEqual({ direction: 'vndb_to_local', fields: ['status'] }));
+    await waitFor(() => expect(bodies[1]).toEqual({
+      direction: 'vndb_to_local',
+      selections: [{ field: 'status', local: 'completed', remote: 'playing' }],
+    }));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(2));
   });
 
@@ -254,7 +260,13 @@ describe('VndbStatusPanel branches', () => {
     expect(await screen.findByTitle(t.vndbStatus.syncBlockedNoStatus)).toBeDisabled();
     expect(screen.getByTitle(t.vndbStatus.syncBlockedNoteLength)).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useAllLocal }));
-    await waitFor(() => expect(body).toEqual({ direction: 'local_to_vndb', fields: ['status', 'vote'] }));
+    await waitFor(() => expect(body).toEqual({
+      direction: 'local_to_vndb',
+      selections: [
+        { field: 'status', local: 'completed', remote: null },
+        { field: 'vote', local: 90, remote: null },
+      ],
+    }));
   });
 
   it('labels date conflicts and supports bulk remote resolution', async () => {
@@ -285,7 +297,13 @@ describe('VndbStatusPanel branches', () => {
     expect(screen.getAllByText(t.vndbStatus.fieldFinished)).not.toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useAllRemote }));
 
-    await waitFor(() => expect(body).toEqual({ direction: 'vndb_to_local', fields: ['started', 'finished'] }));
+    await waitFor(() => expect(body).toEqual({
+      direction: 'vndb_to_local',
+      selections: [
+        { field: 'started', local: '2025-01-01', remote: '2024-01-01' },
+        { field: 'finished', local: '2025-01-02', remote: null },
+      ],
+    }));
   });
 
   it('ignores a second conflict resolution while the first request is pending', async () => {
@@ -421,11 +439,37 @@ describe('VndbStatusPanel branches', () => {
     expect(screen.queryByText('stale conflict failure')).toBeNull();
   });
 
-  it('surfaces a conflict-resolution API failure without refreshing the route', async () => {
+  it('surfaces a localized stale-preview failure and reloads the conflict values', async () => {
+    let reads = 0;
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') {
         return json({ error: 'changed', code: 'vndb_sync_changed' }, 409);
       }
+      reads += 1;
+      return json(statePayload({
+        entry: true,
+        local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+        differences: [{
+          field: 'status',
+          local: 'completed',
+          remote: 'playing',
+          canPullRemote: true,
+          canPushLocal: true,
+        }],
+      }));
+    });
+    render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    expect(await screen.findByText(t.apiErrors.vndbSyncChanged)).toBeInTheDocument();
+    await waitFor(() => expect(reads).toBe(2));
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not reload conflict values for a non-conflict synchronization failure', async () => {
+    let reads = 0;
+    global.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return json({ error: 'unavailable', code: 'upstream_unavailable' }, 503);
+      reads += 1;
       return json(statePayload({
         entry: true,
         local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
@@ -441,6 +485,7 @@ describe('VndbStatusPanel branches', () => {
     render();
     fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
     expect(await screen.findByText(t.common.error)).toBeInTheDocument();
+    expect(reads).toBe(1);
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 

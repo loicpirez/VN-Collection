@@ -10,17 +10,19 @@ import {
 } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 import type { CollectionPatch } from '@/lib/db';
+import type { CollectionUserDataSnapshot } from '@/lib/types';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import {
   compareVndbUserData,
-  decodeVndbSyncFields,
+  decodeVndbSyncSelections,
   normalizeVndbSyncText,
   statusFromVndbLabels,
   VNDB_STATUS_LABELS,
   type LocalVndbUserData,
   type RemoteVndbUserData,
   type VndbSyncField,
+  type VndbUserDataDifference,
 } from '@/lib/vndb-user-data-sync';
 
 import { readJsonObject } from '@/lib/api-body';
@@ -75,6 +77,19 @@ function buildLocalPatch(remote: RemoteVndbUserData, fields: VndbSyncField[]): C
   if (fields.includes('finished')) patch.finished_date = remote.finished;
   if (fields.includes('notes')) patch.notes = remote.notes;
   return patch;
+}
+
+function buildLocalExpectation(
+  local: LocalVndbUserData,
+  fields: VndbSyncField[],
+): Partial<CollectionUserDataSnapshot> {
+  const expected: Partial<CollectionUserDataSnapshot> = {};
+  if (fields.includes('status') && local.status) expected.status = local.status;
+  if (fields.includes('vote')) expected.user_rating = local.vote;
+  if (fields.includes('started')) expected.started_date = local.started;
+  if (fields.includes('finished')) expected.finished_date = local.finished;
+  if (fields.includes('notes')) expected.notes = local.notes;
+  return expected;
 }
 
 function parseLabelIds(value: unknown): number[] | null {
@@ -134,24 +149,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const vnId = id.toLowerCase();
   const body = (await readJsonObject(req)) as Record<string, unknown>;
   const direction = body.direction;
-  const fields = decodeVndbSyncFields(body.fields);
-  if ((direction !== 'local_to_vndb' && direction !== 'vndb_to_local') || !fields) {
+  const selections = decodeVndbSyncSelections(body.selections);
+  if ((direction !== 'local_to_vndb' && direction !== 'vndb_to_local') || !selections) {
     return NextResponse.json({ error: 'invalid sync request' }, { status: 400 });
   }
+  const fields = selections.map((selection) => selection.field);
 
   try {
-    const item = await getVnReadRepository().getCollectionItem(vnId);
-    const local = localUserData(item);
-    if (!local) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
+    const initialLocal = localUserData(await getVnReadRepository().getCollectionItem(vnId));
+    if (!initialLocal) return NextResponse.json({ error: 'not in collection' }, { status: 404 });
     const entry = await fetchUlistEntry(vnId, { fresh: true });
     if (entry && typeof entry === 'object' && 'needsAuth' in entry) {
       return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     }
+    const local = localUserData(await getVnReadRepository().getCollectionItem(vnId));
+    if (!local) {
+      return NextResponse.json({ error: 'selected fields changed since preview', code: 'vndb_sync_changed' }, { status: 409 });
+    }
     const remote = remoteUserData(entry);
     const differences = compareVndbUserData(local, remote);
-    const selected = differences.filter((difference) => fields.includes(difference.field));
-    if (selected.length !== fields.length) {
-      return NextResponse.json({ error: 'selected fields are no longer different', code: 'vndb_sync_changed' }, { status: 409 });
+    const differencesByField = new Map(differences.map((difference) => [difference.field, difference]));
+    const selected: VndbUserDataDifference[] = [];
+    for (const selection of selections) {
+      const current = differencesByField.get(selection.field);
+      if (!current || current.local !== selection.local || current.remote !== selection.remote) {
+        return NextResponse.json({ error: 'selected fields changed since preview', code: 'vndb_sync_changed' }, { status: 409 });
+      }
+      selected.push(current);
     }
     const allowed = direction === 'local_to_vndb'
       ? selected.every((difference) => difference.canPushLocal)
@@ -166,7 +190,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
       }
     } else {
-      await getCollectionCoreRepository().update(vnId, buildLocalPatch(remote, fields));
+      const applied = await getCollectionCoreRepository().updateUserDataIfCurrent(
+        vnId,
+        buildLocalExpectation(local, fields),
+        buildLocalPatch(remote, fields),
+      );
+      if (!applied) {
+        return NextResponse.json({ error: 'selected fields changed since preview', code: 'vndb_sync_changed' }, { status: 409 });
+      }
     }
     try {
       await recordActivity({

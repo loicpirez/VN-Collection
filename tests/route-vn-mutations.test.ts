@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { addToCollection, db, getCollectionItem, setVnEgsLink, upsertVn } from '@/lib/db';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import type { VndbSyncField, VndbSyncSelection, VndbSyncValue } from '@/lib/vndb-user-data-sync';
 
 const { getVnMock, labelsMock, entryMock, patchMock, deleteMock } = vi.hoisted(() => ({
   getVnMock: vi.fn(),
@@ -318,9 +320,20 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     };
   }
 
+  function selection(
+    field: VndbSyncField,
+    local: VndbSyncValue,
+    remote: VndbSyncValue,
+  ): VndbSyncSelection {
+    return { field, local, remote };
+  }
+
   it('rejects malformed requests and non-VNDB ids', async () => {
     const invalidId = await statusPOST(
-      localReq('/api/vn/egs_90401/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/egs_90401/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(EGS_VN),
     );
     expect(invalidId.status).toBe(400);
@@ -336,7 +349,10 @@ describe('POST /api/vn/[id]/vndb-status', () => {
 
   it('returns 404 when the VN is not in the local collection', async () => {
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(REAL_VN),
     );
     expect(response.status).toBe(404);
@@ -351,7 +367,13 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     const response = await statusPOST(
       localReq('/api/vn/v90402/vndb-status', 'POST', {
         direction: 'local_to_vndb',
-        fields: ['status', 'vote', 'started', 'finished', 'notes'],
+        selections: [
+          selection('status', 'completed', 'playing'),
+          selection('vote', 90, null),
+          selection('started', '2025-01-01', null),
+          selection('finished', '2025-01-02', null),
+          selection('notes', 'local note', null),
+        ],
       }),
       ctx(REAL_VN),
     );
@@ -381,7 +403,7 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     const response = await statusPOST(
       localReq('/api/vn/v90402/vndb-status', 'POST', {
         direction: 'local_to_vndb',
-        fields: ['vote'],
+        selections: [selection('vote', 90, 70)],
       }),
       ctx(REAL_VN),
     );
@@ -401,7 +423,13 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     const response = await statusPOST(
       localReq('/api/vn/v90402/vndb-status', 'POST', {
         direction: 'vndb_to_local',
-        fields: ['status', 'vote', 'started', 'finished', 'notes'],
+        selections: [
+          selection('status', 'completed', 'playing'),
+          selection('vote', 90, 70),
+          selection('started', '2025-01-01', '2024-02-01'),
+          selection('finished', '2025-01-02', null),
+          selection('notes', 'local note', 'remote note'),
+        ],
       }),
       ctx(REAL_VN),
     );
@@ -428,7 +456,7 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     const response = await statusPOST(
       localReq('/api/vn/v90402/vndb-status', 'POST', {
         direction: 'vndb_to_local',
-        fields: ['status'],
+        selections: [selection('status', 'completed', 'playing')],
       }),
       ctx(REAL_VN),
     );
@@ -450,7 +478,7 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     const response = await statusPOST(
       localReq('/api/vn/v90402/vndb-status', 'POST', {
         direction: 'vndb_to_local',
-        fields: ['vote'],
+        selections: [selection('vote', 90, 70)],
       }),
       ctx(REAL_VN),
     );
@@ -463,28 +491,107 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     seedLocal();
     entryMock.mockResolvedValue(remotePlaying({ vote: 90 }));
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['vote'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('vote', 90, 70)],
+      }),
       ctx(REAL_VN),
     );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      error: 'selected fields are no longer different',
+      error: 'selected fields changed since preview',
       code: 'vndb_sync_changed',
     });
+  });
+
+  it('rejects a still-different field when the local value changed after preview', async () => {
+    seedLocal({ status: 'on_hold' });
+    entryMock.mockResolvedValue(remotePlaying());
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('vndb_sync_changed');
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a still-different field when the remote value changed after preview', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying({ labels: [{ id: 4, label: 'Dropped' }] }));
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('vndb_sync_changed');
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects synchronization when the local row disappears during the fresh VNDB read', async () => {
+    seedLocal();
+    entryMock.mockImplementation(async () => {
+      db.prepare('DELETE FROM collection WHERE vn_id = ?').run(REAL_VN);
+      return remotePlaying();
+    });
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('vndb_sync_changed');
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a remote pull when the atomic local comparison loses a race', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying());
+    const repository = getCollectionCoreRepository();
+    const updateSpy = vi.spyOn(repository, 'updateUserDataIfCurrent').mockResolvedValueOnce(false);
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'vndb_to_local',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
+      ctx(REAL_VN),
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('vndb_sync_changed');
+    expect(updateSpy).toHaveBeenCalledWith(
+      REAL_VN,
+      { status: 'completed' },
+      { status: 'playing' },
+    );
+    updateSpy.mockRestore();
   });
 
   it('blocks pulling an absent remote status and pushing an overlong local note', async () => {
     seedLocal({ notes: 'x'.repeat(10_001) });
     entryMock.mockResolvedValue(remotePlaying({ labels: [] }));
     const pullResponse = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'vndb_to_local', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'vndb_to_local',
+        selections: [selection('status', 'completed', null)],
+      }),
       ctx(REAL_VN),
     );
     expect(pullResponse.status).toBe(409);
     expect((await pullResponse.json()).code).toBe('vndb_sync_direction_unavailable');
 
     const pushResponse = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['notes'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('notes', 'x'.repeat(10_001), null)],
+      }),
       ctx(REAL_VN),
     );
     expect(pushResponse.status).toBe(409);
@@ -495,7 +602,10 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     seedLocal();
     entryMock.mockResolvedValue({ needsAuth: true });
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(REAL_VN),
     );
     expect(response.status).toBe(401);
@@ -508,7 +618,10 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     patchMock.mockResolvedValue({ needsAuth: true });
 
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(REAL_VN),
     );
 
@@ -523,7 +636,10 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     patchMock.mockResolvedValue({ ok: true });
     recordActivityMock.mockRejectedValueOnce(new Error('activity failed'));
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(REAL_VN),
     );
     expect(response.status).toBe(200);
@@ -537,7 +653,10 @@ describe('POST /api/vn/[id]/vndb-status', () => {
     seedLocal();
     entryMock.mockRejectedValue(new Error('private upstream detail'));
     const response = await statusPOST(
-      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      localReq('/api/vn/v90402/vndb-status', 'POST', {
+        direction: 'local_to_vndb',
+        selections: [selection('status', 'completed', 'playing')],
+      }),
       ctx(REAL_VN),
     );
     expect(response.status).toBe(502);

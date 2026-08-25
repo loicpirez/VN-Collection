@@ -175,6 +175,43 @@ describe('PostgreSQL collection core repository', () => {
     expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE collection SET'))).toBe(false);
   });
 
+  it('atomically protects all VNDB-synchronized user fields', async () => {
+    const repository = createPostgresCollectionCoreRepository();
+    const current = {
+      status: 'completed', user_rating: 90, playtime_minutes: 0, favorite: 0,
+      started_date: '2025-01-01', finished_date: '2025-01-02', notes: 'local note',
+    };
+    clientQueryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, user_rating')) return { rows: [current] };
+      return { rows: [], rowCount: 1 };
+    });
+    await expect(repository.updateUserDataIfCurrent('v90004', {
+      status: 'completed',
+      user_rating: 90,
+      started_date: '2025-01-01',
+      finished_date: '2025-01-02',
+      notes: 'local note',
+    }, { notes: 'remote note' })).resolves.toBe(true);
+    expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE collection SET'))).toBe(true);
+
+    const mismatches = [
+      { expected: { status: 'playing' as const }, row: current },
+      { expected: { user_rating: 80 }, row: current },
+      { expected: { started_date: null }, row: current },
+      { expected: { finished_date: null }, row: current },
+      { expected: { notes: 'changed' }, row: current },
+      { expected: { status: 'completed' as const }, row: undefined },
+    ];
+    for (const mismatch of mismatches) {
+      clientQueryMock.mockReset().mockImplementation(async (sql: string) => {
+        if (sql.includes('SELECT status, user_rating')) return { rows: mismatch.row ? [mismatch.row] : [] };
+        return { rows: [], rowCount: 1 };
+      });
+      await expect(repository.updateUserDataIfCurrent('v90004', mismatch.expected, { notes: 'remote' })).resolves.toBe(false);
+      expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE collection SET'))).toBe(false);
+    }
+  });
+
   it('does not log unchanged values and records a cleared note length', async () => {
     clientQueryMock.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT status, user_rating')) {

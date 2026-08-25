@@ -8,6 +8,7 @@ import {
   type CollectionCardItem,
   type CollectionFields,
   type CollectionItem,
+  type CollectionUserDataSnapshot,
   type EditionType,
   type Location,
   type ProducerRow,
@@ -3546,6 +3547,35 @@ export function updateCollectionStatusIfCurrent(vnId: string, expected: Status, 
     const current = db.prepare('SELECT status FROM collection WHERE vn_id = ?').get(vnId) as { status: Status } | undefined;
     if (current?.status !== expected) return false;
     updateCollection(vnId, { status: next });
+    return true;
+  })();
+}
+
+/**
+ * Patch selected user fields only when their persisted values still match a conflict preview.
+ *
+ * @param vnId Collection VN identifier.
+ * @param expected Selected local values observed by the conflict resolver.
+ * @param next Patch to persist when every selected value still matches.
+ * @returns Whether the patch was applied atomically.
+ */
+export function updateCollectionUserDataIfCurrent(
+  vnId: string,
+  expected: Partial<CollectionUserDataSnapshot>,
+  next: CollectionPatch,
+): boolean {
+  return db.transaction(() => {
+    const current = db.prepare(`
+      SELECT status, user_rating, started_date, finished_date, notes
+      FROM collection WHERE vn_id = ?
+    `).get(vnId) as CollectionUserDataSnapshot | undefined;
+    if (!current) return false;
+    if (expected.status !== undefined && current.status !== expected.status) return false;
+    if ('user_rating' in expected && current.user_rating !== expected.user_rating) return false;
+    if ('started_date' in expected && current.started_date !== expected.started_date) return false;
+    if ('finished_date' in expected && current.finished_date !== expected.finished_date) return false;
+    if ('notes' in expected && current.notes !== expected.notes) return false;
+    updateCollection(vnId, next);
     return true;
   })();
 }

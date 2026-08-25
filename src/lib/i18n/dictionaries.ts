@@ -452,6 +452,7 @@ export const dictionaries = {
     apiErrors: {
       vndbTokenRequired: 'Jeton VNDB requis pour cette action.',
       vndbUnavailable: 'VNDB est indisponible. Réessaie plus tard.',
+      vndbSyncChanged: 'Les données ont changé depuis cet aperçu. Actualise et vérifie-les avant de synchroniser.',
       steamSyncFailed: 'La synchronisation Steam a échoué.',
       steamNotConfigured: 'Steam n\'est pas configuré.',
       egsGameNotFound: 'Jeu ErogameScape introuvable.',
@@ -4203,6 +4204,7 @@ export const dictionaries = {
     apiErrors: {
       vndbTokenRequired: 'A VNDB token is required for this action.',
       vndbUnavailable: 'VNDB is unavailable. Try again later.',
+      vndbSyncChanged: 'The data changed since this preview. Refresh and review it before syncing.',
       steamSyncFailed: 'Steam sync failed.',
       steamNotConfigured: 'Steam is not configured.',
       egsGameNotFound: 'ErogameScape game not found.',
@@ -7951,6 +7953,7 @@ export const dictionaries = {
     apiErrors: {
       vndbTokenRequired: 'この操作には VNDB トークンが必要です。',
       vndbUnavailable: 'VNDB に接続できません。しばらくして再試行してください。',
+      vndbSyncChanged: 'プレビュー後にデータが変更されました。更新して内容を確認してから同期してください。',
       steamSyncFailed: 'Steam の同期に失敗しました。',
       steamNotConfigured: 'Steam が設定されていません。',
       egsGameNotFound: 'ErogameScape のゲームが見つかりません。',

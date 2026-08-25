@@ -1,5 +1,5 @@
 import type { PoolClient, QueryResultRow } from 'pg';
-import type { CollectionFields } from '@/lib/types';
+import type { CollectionFields, CollectionUserDataSnapshot } from '@/lib/types';
 import { parsePhysicalLocations, serializePhysicalLocations } from '@/lib/physical-locations';
 import { readDatabaseConfig } from '../postgres-config';
 import { postgresQuery, withPostgresTransaction, type PostgresParameter } from '../postgres';
@@ -21,6 +21,7 @@ interface CollectionSnapshotRow extends QueryResultRow {
   favorite: number;
   started_date: string | null;
   finished_date: string | null;
+  notes: string | null;
 }
 
 interface PhysicalLocationRow extends QueryResultRow {
@@ -48,6 +49,12 @@ export interface CollectionCoreRepository {
   update(vnId: string, fields: CollectionCorePatch): Promise<void>;
   /** Update one status only when its persisted value still matches the preview. */
   updateStatusIfCurrent(vnId: string, expected: CollectionFields['status'], next: CollectionFields['status']): Promise<boolean>;
+  /** Patch VNDB-synchronized fields only while selected local values still match the preview. */
+  updateUserDataIfCurrent(
+    vnId: string,
+    expected: Partial<CollectionUserDataSnapshot>,
+    next: CollectionCorePatch,
+  ): Promise<boolean>;
   /** Remove one collection row and its personal-list memberships. */
   remove(vnId: string): Promise<void>;
   /** Report whether one VN belongs to the collection. */
@@ -124,6 +131,19 @@ function collectionFieldUpdates(fields: CollectionCorePatch): CollectionFieldUpd
   return updates;
 }
 
+function matchesUserDataSnapshot(
+  current: CollectionSnapshotRow | undefined,
+  expected: Partial<CollectionUserDataSnapshot>,
+): boolean {
+  if (!current) return false;
+  if (expected.status !== undefined && current.status !== expected.status) return false;
+  if ('user_rating' in expected && current.user_rating !== expected.user_rating) return false;
+  if ('started_date' in expected && current.started_date !== expected.started_date) return false;
+  if ('finished_date' in expected && current.finished_date !== expected.finished_date) return false;
+  if ('notes' in expected && current.notes !== expected.notes) return false;
+  return true;
+}
+
 /**
  * Rebuild one collection entry's normalized place index inside an existing transaction.
  *
@@ -168,7 +188,7 @@ async function updateWithinTransaction(
   const updates = collectionFieldUpdates(fields);
   if (updates.length === 0) return;
   const beforeResult = await client.query<CollectionSnapshotRow>(`
-    SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date
+    SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date, notes
     FROM collection WHERE vn_id = $1 FOR UPDATE
   `, [vnId]);
   const before = beforeResult.rows[0];
@@ -255,11 +275,22 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
     async updateStatusIfCurrent(vnId, expected, next) {
       return withPostgresTransaction(async (client) => {
         const current = await client.query<CollectionSnapshotRow>(`
-          SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date
+          SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date, notes
           FROM collection WHERE vn_id = $1 FOR UPDATE
         `, [vnId]);
         if (current.rows[0]?.status !== expected) return false;
         await updateWithinTransaction(client, vnId, { status: next });
+        return true;
+      });
+    },
+    async updateUserDataIfCurrent(vnId, expected, next) {
+      return withPostgresTransaction(async (client) => {
+        const current = await client.query<CollectionSnapshotRow>(`
+          SELECT status, user_rating, playtime_minutes, favorite, started_date, finished_date, notes
+          FROM collection WHERE vn_id = $1 FOR UPDATE
+        `, [vnId]);
+        if (!matchesUserDataSnapshot(current.rows[0], expected)) return false;
+        await updateWithinTransaction(client, vnId, next);
         return true;
       });
     },
@@ -326,6 +357,9 @@ const sqliteRepository: CollectionCoreRepository = {
   },
   async updateStatusIfCurrent(vnId, expected, next) {
     return (await import('@/lib/db')).updateCollectionStatusIfCurrent(vnId, expected, next);
+  },
+  async updateUserDataIfCurrent(vnId, expected, next) {
+    return (await import('@/lib/db')).updateCollectionUserDataIfCurrent(vnId, expected, next);
   },
   async remove(vnId) {
     (await import('@/lib/db')).removeFromCollection(vnId);

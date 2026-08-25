@@ -1,4 +1,5 @@
-import type { Status } from './types';
+import { asJsonRecord } from './json-shape';
+import { isValidStatus, type Status } from './types';
 
 /** Local collection status to predefined VNDB ulist-label mapping. */
 export const VNDB_STATUS_LABELS: Readonly<Record<Status, number>> = {
@@ -12,6 +13,14 @@ export const VNDB_STATUS_LABELS: Readonly<Record<Status, number>> = {
 /** User fields that can be compared and synchronized with a VNDB ulist entry. */
 export const VNDB_SYNC_FIELDS = ['status', 'vote', 'started', 'finished', 'notes'] as const;
 export type VndbSyncField = (typeof VNDB_SYNC_FIELDS)[number];
+export type VndbSyncValue = Status | number | string | null;
+
+/** One conflict snapshot selected for an explicit synchronization direction. */
+export interface VndbSyncSelection {
+  field: VndbSyncField;
+  local: VndbSyncValue;
+  remote: VndbSyncValue;
+}
 
 /** Normalized local values used by the conflict resolver. */
 export interface LocalVndbUserData {
@@ -28,13 +37,14 @@ export interface RemoteVndbUserData extends LocalVndbUserData {}
 /** One field whose local and VNDB values differ. */
 export interface VndbUserDataDifference {
   field: VndbSyncField;
-  local: Status | number | string | null;
-  remote: Status | number | string | null;
+  local: VndbSyncValue;
+  remote: VndbSyncValue;
   canPullRemote: boolean;
   canPushLocal: boolean;
 }
 
 const STATUS_PRECEDENCE: readonly Status[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Resolve predefined VNDB labels to one local collection status.
@@ -50,18 +60,45 @@ export function statusFromVndbLabels(labels: ReadonlyArray<number | { id: number
   return null;
 }
 
+/** Return whether an untrusted value names one synchronizable VNDB field. */
+function isVndbSyncField(value: unknown): value is VndbSyncField {
+  return typeof value === 'string' && VNDB_SYNC_FIELDS.some((field) => field === value);
+}
+
+function decodeSnapshotValue(field: VndbSyncField, value: unknown): VndbSyncValue | undefined {
+  if (value === null) return null;
+  if (field === 'status') return isValidStatus(value) ? value : undefined;
+  if (field === 'vote') {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 10 && value <= 100
+      ? value
+      : undefined;
+  }
+  if (field === 'started' || field === 'finished') {
+    return typeof value === 'string' && ISO_DATE_RE.test(value) ? value : undefined;
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
 /**
- * Validate a bounded, duplicate-free list of synchronization fields.
+ * Validate conflict values captured by the client before a synchronization.
  *
  * @param value Untrusted API value.
- * @returns A normalized field list, or `null` when the value is malformed.
+ * @returns A bounded, duplicate-free snapshot list, or `null` when malformed.
  */
-export function decodeVndbSyncFields(value: unknown): VndbSyncField[] | null {
+export function decodeVndbSyncSelections(value: unknown): VndbSyncSelection[] | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > VNDB_SYNC_FIELDS.length) return null;
-  const allowed = new Set<string>(VNDB_SYNC_FIELDS);
-  if (!value.every((field) => typeof field === 'string' && allowed.has(field))) return null;
-  const fields = value as VndbSyncField[];
-  return new Set(fields).size === fields.length ? fields : null;
+  const selections: VndbSyncSelection[] = [];
+  for (const valueEntry of value) {
+    const entry = asJsonRecord(valueEntry);
+    if (!entry || !isVndbSyncField(entry.field)) return null;
+    const local = decodeSnapshotValue(entry.field, entry.local);
+    const remote = decodeSnapshotValue(entry.field, entry.remote);
+    if (local === undefined || remote === undefined) return null;
+    selections.push({ field: entry.field, local, remote });
+  }
+  return new Set(selections.map((selection) => selection.field)).size === selections.length
+    ? selections
+    : null;
 }
 
 /**

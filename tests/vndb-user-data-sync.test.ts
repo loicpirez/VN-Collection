@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareVndbUserData,
-  decodeVndbSyncFields,
+  decodeVndbSyncSelections,
   normalizeVndbSyncText,
   statusFromVndbLabels,
   VNDB_STATUS_LABELS,
@@ -20,13 +20,41 @@ describe('VNDB user-data conflict model', () => {
     ])).toBe('completed');
   });
 
-  it('validates a bounded unique field selection', () => {
-    expect(decodeVndbSyncFields(['status', 'notes'])).toEqual(['status', 'notes']);
-    expect(decodeVndbSyncFields([])).toBeNull();
-    expect(decodeVndbSyncFields(['status', 'status'])).toBeNull();
-    expect(decodeVndbSyncFields(['other'])).toBeNull();
-    expect(decodeVndbSyncFields('status')).toBeNull();
-    expect(decodeVndbSyncFields(['status', 'vote', 'started', 'finished', 'notes', 'status'])).toBeNull();
+  it('validates bounded unique conflict snapshots for every field type', () => {
+    expect(decodeVndbSyncSelections([
+      { field: 'status', local: 'completed', remote: 'playing' },
+      { field: 'vote', local: 90, remote: null },
+      { field: 'started', local: '2025-01-01', remote: null },
+      { field: 'finished', local: null, remote: '2025-02-02' },
+      { field: 'notes', local: 'local', remote: 'remote' },
+    ])).toEqual([
+      { field: 'status', local: 'completed', remote: 'playing' },
+      { field: 'vote', local: 90, remote: null },
+      { field: 'started', local: '2025-01-01', remote: null },
+      { field: 'finished', local: null, remote: '2025-02-02' },
+      { field: 'notes', local: 'local', remote: 'remote' },
+    ]);
+    expect(decodeVndbSyncSelections([])).toBeNull();
+    expect(decodeVndbSyncSelections('status')).toBeNull();
+    expect(decodeVndbSyncSelections(Array.from({ length: 6 }, () => ({ field: 'notes', local: null, remote: 'x' })))).toBeNull();
+    expect(decodeVndbSyncSelections([null])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'other', local: null, remote: null }])).toBeNull();
+    expect(decodeVndbSyncSelections([
+      { field: 'status', local: 'completed', remote: 'playing' },
+      { field: 'status', local: 'playing', remote: 'completed' },
+    ])).toBeNull();
+  });
+
+  it('rejects malformed local and remote snapshot values', () => {
+    expect(decodeVndbSyncSelections([{ field: 'status', local: 'invalid', remote: 'playing' }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'status', local: 'playing', remote: 1 }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'vote', local: 9, remote: null }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'vote', local: 90, remote: 101 }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'vote', local: 90.5, remote: null }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'started', local: '01/01/2025', remote: null }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'finished', local: null, remote: 20250101 }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'notes', local: false, remote: null }])).toBeNull();
+    expect(decodeVndbSyncSelections([{ field: 'notes', local: 'local', remote: false }])).toBeNull();
   });
 
   it('returns stable field differences and direction capabilities', () => {

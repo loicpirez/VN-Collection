@@ -18,7 +18,7 @@ import { clearVndbStatusRequest, requestVndbStatus } from '@/lib/vndb-status-cli
 import type { VndbUlistEntryDetail } from '@/lib/vndb';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
 import type { Status } from '@/lib/types';
-import type { VndbSyncField } from '@/lib/vndb-user-data-sync';
+import type { VndbSyncField, VndbUserDataDifference } from '@/lib/vndb-user-data-sync';
 
 /**
  * Maps the API routes' stable error codes to the active locale's
@@ -29,6 +29,7 @@ function apiErrorMessages(t: Dictionary): Partial<Record<KnownApiErrorCode, stri
   return {
     vndb_token_required: t.apiErrors.vndbTokenRequired,
     vndb_unavailable: t.apiErrors.vndbUnavailable,
+    vndb_sync_changed: t.apiErrors.vndbSyncChanged,
     steam_sync_failed: t.apiErrors.steamSyncFailed,
     steam_not_configured: t.apiErrors.steamNotConfigured,
     egs_game_not_found: t.apiErrors.egsGameNotFound,
@@ -253,7 +254,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
 
   async function resolveDifferences(
     direction: 'local_to_vndb' | 'vndb_to_local',
-    fields: VndbSyncField[],
+    differences: VndbUserDataDifference[],
   ) {
     const controller = beginMutation();
     if (!controller) return;
@@ -263,11 +264,17 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
       const response = await fetch(`/api/vn/${vnId}/vndb-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, fields }),
+        body: JSON.stringify({
+          direction,
+          selections: differences.map(({ field, local, remote }) => ({ field, local, remote })),
+        }),
         signal: controller.signal,
       });
       if (!response.ok) {
-        throw new Error(await readApiErrorLocalized(response, apiErrorMessages(t), t.common.error));
+        const shouldReload = response.status === 409;
+        const message = await readApiErrorLocalized(response, apiErrorMessages(t), t.common.error);
+        if (shouldReload && ownsMutation(ownerVnId, controller)) await load(false, true);
+        throw new Error(message);
       }
       if (!ownsMutation(ownerVnId, controller)) return;
       toast.success(t.toast.saved);
@@ -297,8 +304,8 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     return String(value);
   }
 
-  const pushableFields = state.differences.filter((difference) => difference.canPushLocal).map((difference) => difference.field);
-  const pullableFields = state.differences.filter((difference) => difference.canPullRemote).map((difference) => difference.field);
+  const pushableDifferences = state.differences.filter((difference) => difference.canPushLocal);
+  const pullableDifferences = state.differences.filter((difference) => difference.canPullRemote);
 
   return (
     <div className="p-4 sm:p-5">
@@ -354,23 +361,23 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               <p className="mt-0.5 text-[10px] text-muted">{t.vndbStatus.conflictDesc}</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {pushableFields.length > 1 && (
+              {pushableDifferences.length > 1 && (
                 <button
                   type="button"
                   className="btn btn-sm min-h-[44px] sm:min-h-0"
                   disabled={mutationBusy}
-                  onClick={() => void resolveDifferences('local_to_vndb', pushableFields)}
+                  onClick={() => void resolveDifferences('local_to_vndb', pushableDifferences)}
                 >
                   {pendingSync === 'local_to_vndb' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <ArrowUpToLine className="h-3.5 w-3.5" aria-hidden />}
                   {t.vndbStatus.useAllLocal}
                 </button>
               )}
-              {pullableFields.length > 1 && (
+              {pullableDifferences.length > 1 && (
                 <button
                   type="button"
                   className="btn btn-sm min-h-[44px] sm:min-h-0"
                   disabled={mutationBusy}
-                  onClick={() => void resolveDifferences('vndb_to_local', pullableFields)}
+                  onClick={() => void resolveDifferences('vndb_to_local', pullableDifferences)}
                 >
                   {pendingSync === 'vndb_to_local' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />}
                   {t.vndbStatus.useAllRemote}
@@ -396,7 +403,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
                     className="tap-target inline-flex items-center justify-center rounded-md border border-border px-2 py-1 text-[10px] hover:border-accent hover:text-accent"
                     disabled={mutationBusy || !difference.canPushLocal}
                     title={!difference.canPushLocal ? t.vndbStatus.syncBlockedNoteLength : t.vndbStatus.useLocal}
-                    onClick={() => void resolveDifferences('local_to_vndb', [difference.field])}
+                    onClick={() => void resolveDifferences('local_to_vndb', [difference])}
                   >
                     <ArrowUpToLine className="h-3.5 w-3.5" aria-hidden />
                     {t.vndbStatus.useLocal}
@@ -406,7 +413,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
                     className="tap-target inline-flex items-center justify-center rounded-md border border-border px-2 py-1 text-[10px] hover:border-accent hover:text-accent"
                     disabled={mutationBusy || !difference.canPullRemote}
                     title={!difference.canPullRemote ? t.vndbStatus.syncBlockedNoStatus : t.vndbStatus.useRemote}
-                    onClick={() => void resolveDifferences('vndb_to_local', [difference.field])}
+                    onClick={() => void resolveDifferences('vndb_to_local', [difference])}
                   >
                     <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />
                     {t.vndbStatus.useRemote}

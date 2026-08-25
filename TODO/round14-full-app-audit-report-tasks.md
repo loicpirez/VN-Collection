@@ -32,6 +32,7 @@ operations, providers, deployment, backup, and restore.
 | R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
 | R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
 | R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | TODO |
+| R14-VNDB-002 | CRITICAL | Conflict resolution previously submitted only field names, so an old browser preview could apply values that had changed locally or on VNDB since it was rendered. Submit the exact local/remote snapshot for every selected field, revalidate it against fresh data, use an atomic compare-and-set for local pulls, and reload the panel on conflict. | VN status panel, VNDB status API, SQLite and PostgreSQL collection repositories | DONE_WITH_DIFF |
 | R14-PERF-001 | HIGH | Recheck bounded queries, pagination/virtualization, tag indexes, repeated repository calls, client polling, background jobs, multi-tab behavior, images, DOM size, bundle boundaries, memory, database pool pressure, and slow provider isolation. | application and production runtime | TODO |
 | R14-DATA-001 | CRITICAL | Validate PostgreSQL migrations, indexes, constraints, JSON quarantine, SQLite migration parity, current production data, transaction behavior, connection pooling, backup creation, restore verification, and operational documentation. | PostgreSQL repositories, migrations, production database | TODO |
 | R14-TYPE-001 | HIGH | Re-scan production and test code for weakened types, unsafe casts, suppression directives, unvalidated external payloads, and exported contracts lacking useful documentation. | `src`, `tests`, `scripts` | TODO |
@@ -108,3 +109,9 @@ operations, providers, deployment, backup, and restore.
   contract. Production now serves commit `cccc3ceb`, migrations 0001 through
   0011 are recorded, PostgreSQL is ready, and the service restart count remains
   zero.
+- VNDB conflict actions now bind each selected field to the exact local and
+  remote values shown in the preview. Malformed, duplicate, stale-local,
+  stale-remote, removed-row, and compare-and-set race cases are rejected; the
+  panel refreshes conflict data after a 409 response. Focused decoder, route,
+  UI, SQLite, and PostgreSQL tests pass with exact branch coverage, together
+  with typecheck and the production build.

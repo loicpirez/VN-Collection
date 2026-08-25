@@ -180,6 +180,12 @@ export interface CollectionFields {
   updated_at: number;
 }
 
+/** Local user fields protected by optimistic conflict checks during VNDB synchronization. */
+export type CollectionUserDataSnapshot = Pick<
+  CollectionFields,
+  'status' | 'user_rating' | 'started_date' | 'finished_date' | 'notes'
+>;
+
 export interface EgsLite {
   egs_id: number | null;
   median: number | null;
