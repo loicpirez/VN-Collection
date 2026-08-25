@@ -101,43 +101,48 @@ function InlineSpoilerReveal({
   // Transient reveal - hover/focus shows the actual readable value.
   // Persistent reveal sticks until the user explicitly hides.
   const effectiveRevealed = persistRevealed || hovered || focused;
+  const spoilerState = persistRevealed ? 'revealed' : effectiveRevealed ? 'transient' : 'hidden';
   return (
     <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-status-on_hold">
       <span className="font-bold uppercase tracking-wider">{label}:</span>
-      {!persistRevealed && (
-        <button
-          type="button"
-          onClick={() => setLocalRevealed(true)}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded border bg-bg-elev/40 px-1.5 py-0.5 transition-colors hover:border-status-on_hold can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
-            effectiveRevealed
-              ? 'border-status-on_hold/40 text-status-on_hold'
-              : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
-          }`}
-          aria-label={t.spoiler.revealOne}
-          aria-expanded={effectiveRevealed}
-          aria-controls={revealedId}
-          data-spoiler-state={effectiveRevealed ? 'transient' : 'hidden'}
-          title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
-        >
-          <EyeOff className="h-3 w-3" aria-hidden />
-          <span>{effectiveRevealed ? value : t.spoiler.markupSummary}</span>
-        </button>
-      )}
-      <span id={revealedId}>{persistRevealed ? value : null}</span>
-      {persistRevealed && (
-        <button
-          type="button"
-          onClick={() => setLocalRevealed(false)}
-          className="ml-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted/70 hover:text-muted can-hover:sm:min-h-0 can-hover:sm:min-w-0"
-          aria-label={t.spoiler.hideOne}
-        >
-          <Eye className="h-3 w-3" aria-hidden />
-        </button>
-      )}
+      <span
+        className="inline-flex items-stretch"
+        data-spoiler-state={spoilerState}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      >
+        {!persistRevealed && (
+          <button
+            type="button"
+            onClick={() => setLocalRevealed(true)}
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded border bg-bg-elev/40 px-1.5 py-0.5 transition-colors hover:border-status-on_hold can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
+              effectiveRevealed
+                ? 'border-status-on_hold/40 text-status-on_hold'
+                : 'border-dashed border-status-on_hold/60 text-status-on_hold/80'
+            }`}
+            aria-label={t.spoiler.revealOne}
+            aria-expanded={effectiveRevealed}
+            aria-controls={revealedId}
+            title={effectiveRevealed ? t.spoiler.hideHint : t.spoiler.markupSummary}
+          >
+            <EyeOff className="h-3 w-3" aria-hidden />
+            <span>{effectiveRevealed ? value : t.spoiler.markupSummary}</span>
+          </button>
+        )}
+        <span id={revealedId}>{persistRevealed ? value : null}</span>
+        {persistRevealed && (
+          <button
+            type="button"
+            onClick={() => setLocalRevealed(false)}
+            className="ml-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted/70 hover:text-muted can-hover:sm:min-h-0 can-hover:sm:min-w-0"
+            aria-label={t.spoiler.hideOne}
+          >
+            <Eye className="h-3 w-3" aria-hidden />
+          </button>
+        )}
+      </span>
     </p>
   );
 }

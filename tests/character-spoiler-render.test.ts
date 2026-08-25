@@ -106,6 +106,11 @@ describe('InlineSpoilerReveal — global setting resync + hover preview', () => 
     expect(meta).toMatch(/onFocus=\{\(\) => setFocused\(true\)\}/);
     expect(meta).toMatch(/onBlur=\{\(\) => setFocused\(false\)\}/);
   });
+
+  it('keeps the spoiler state on a stable wrapper while its controls change', () => {
+    expect(meta).toMatch(/<span[\s\S]*?data-spoiler-state=\{spoilerState\}[\s\S]*?\{!persistRevealed && \([\s\S]*?<button/);
+    expect(meta).not.toMatch(/<button[\s\S]*?data-spoiler-state=\{spoilerState\}/);
+  });
 });
 
 describe('SpoilerChip — hover/focus preview parity with SpoilerReveal', () => {

@@ -87,17 +87,20 @@ describe('CharacterMetaClient', () => {
     const { rerender } = renderWithProviders(<CharacterMetaClient char={char} />, { locale: 'en' });
     let revealButtons = screen.getAllByRole('button', { name: t.spoiler.revealOne });
     const sexReveal = revealButtons[0] as HTMLButtonElement;
-    expect(sexReveal).toHaveAttribute('data-spoiler-state', 'hidden');
+    const stableWrapper = sexReveal.closest('[data-spoiler-state]') as HTMLElement;
+    expect(stableWrapper).toHaveAttribute('data-spoiler-state', 'hidden');
     expect(sexReveal).toHaveTextContent(t.spoiler.markupSummary);
 
-    fireEvent.pointerEnter(sexReveal);
-    expect(sexReveal).toHaveAttribute('data-spoiler-state', 'transient');
+    fireEvent.pointerEnter(stableWrapper);
+    expect(stableWrapper).toHaveAttribute('data-spoiler-state', 'transient');
     expect(sexReveal).toHaveTextContent(t.characters.genderF);
-    fireEvent.pointerLeave(sexReveal);
+    fireEvent.pointerLeave(stableWrapper);
     fireEvent.focus(sexReveal);
     expect(sexReveal).toHaveTextContent(t.characters.genderF);
     fireEvent.blur(sexReveal);
     fireEvent.click(sexReveal);
+    expect(stableWrapper).toHaveAttribute('data-spoiler-state', 'revealed');
+    expect(stableWrapper).toBeInTheDocument();
     expect(screen.getByText(t.characters.genderF)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: t.spoiler.hideOne })[0] as HTMLButtonElement);
 
