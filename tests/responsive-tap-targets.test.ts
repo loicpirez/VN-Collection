@@ -121,6 +121,12 @@ describe('responsive tap targets', () => {
     );
   });
 
+  it('keeps anniversary cards touch-safe without inflating desktop rows', () => {
+    const anniversary = source('src/components/AnniversaryFeedView.tsx');
+    expect(anniversary).toContain('flex min-h-[44px] items-center');
+    expect(anniversary).toContain('sm:min-h-0');
+  });
+
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
     expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 sm:min-h-0');
     const library = source('src/components/LibraryClient.tsx');

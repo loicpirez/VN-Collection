@@ -95,7 +95,7 @@ const AnniversaryCard = memo(function AnniversaryCard({
     <li>
       <Link
         href={`/vn/${entry.id}`}
-        className="group flex items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card"
+        className="group flex min-h-[44px] items-center gap-2 rounded-md bg-bg-card/80 px-2 py-1 text-xs hover:bg-bg-card sm:min-h-0"
       >
         <div className="h-8 w-6 overflow-hidden rounded">
           <SafeImage
