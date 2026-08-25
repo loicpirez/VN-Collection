@@ -13,6 +13,7 @@ This folder separates active audit work from historical reports.
 | `round11-vndb-integration-report-tasks.md` | Personal-data synchronization contract covering local/VNDB conflict resolution, per-field choices, safe global status preview/apply, concurrency, privacy, and known upstream limits. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 | `round12-full-app-audit-report-tasks.md` | Repeated whole-app source, runtime, database, browser, security, UI/UX, responsive, accessibility, i18n, performance, provider, testing, and operations audit, with every verified gap tracked through implementation and deployment. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 | `round13-full-app-audit-report-tasks.md` | Fresh post-deployment audit of all 40 pages and 123 API routes, strengthened production browser semantics, operations, security, data, and full quality gates. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
+| `round14-full-app-audit-report-tasks.md` | Independent cross-browser and source audit of every product, data, security, accessibility, i18n, performance, provider, PostgreSQL, testing, documentation, and production contract after Round 13. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 
 ## Historical reports
 

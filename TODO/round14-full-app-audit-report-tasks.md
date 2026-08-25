@@ -1,0 +1,48 @@
+# Round 14 full application audit - 2026-08-25
+
+This is an independent audit of the current deployed application after Round
+13. Earlier reports are evidence of prior work, not proof that the same
+contracts still hold. A row remains `TODO` until the relevant source, tests,
+database behavior, browser behavior, and production state have been checked.
+
+Scope: all App Router pages and APIs; library, wishlist, search, VN detail,
+shelves, compare, staff, releases, stock, shops, places, map, AliceNet,
+settings, downloads, VNDB synchronization, PostgreSQL, loading/error states,
+UI/UX, responsive behavior, Firefox/WebKit/Chromium interoperability,
+accessibility, i18n, security, typing, performance, testing, documentation,
+operations, providers, deployment, backup, and restore.
+
+| ID | Severity | Finding and implementation direction | Location | Status |
+| --- | --- | --- | --- | --- |
+| R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
+| R14-UX-001 | HIGH | The VN loading cover pulsed as a translucent block over an overlapping translucent banner skeleton. Firefox can composite both animated opacities and make the banner appear as a brighter foreground rectangle. Keep the cover pulse but place it inside an opaque, correctly layered shell matching the final cover geometry. | `src/app/vn/[id]/loading.tsx`, route-loading tests | DONE_WITH_DIFF |
+| R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
+| R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
+| R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
+| R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
+| R14-SEC-001 | CRITICAL | Re-audit authentication gates, mutation authorization, CSRF/origin handling, SSRF and URL allowlists, uploads and path traversal, request size limits, secret/error exposure, CSP and headers, proxy behavior, dependencies, and production TLS/reverse-proxy configuration. | all APIs, middleware, Next and production configuration | TODO |
+| R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
+| R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
+| R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
+| R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | TODO |
+| R14-PERF-001 | HIGH | Recheck bounded queries, pagination/virtualization, tag indexes, repeated repository calls, client polling, background jobs, multi-tab behavior, images, DOM size, bundle boundaries, memory, database pool pressure, and slow provider isolation. | application and production runtime | TODO |
+| R14-DATA-001 | CRITICAL | Validate PostgreSQL migrations, indexes, constraints, JSON quarantine, SQLite migration parity, current production data, transaction behavior, connection pooling, backup creation, restore verification, and operational documentation. | PostgreSQL repositories, migrations, production database | TODO |
+| R14-TYPE-001 | HIGH | Re-scan production and test code for weakened types, unsafe casts, suppression directives, unvalidated external payloads, and exported contracts lacking useful documentation. | `src`, `tests`, `scripts` | TODO |
+| R14-TEST-002 | HIGH | Run focused tests while fixing findings, then the complete unit, PostgreSQL, exact coverage, QA, interaction, sentinel, provider, browser, and production health gates. No ignored files, skipped new scenarios, or threshold workarounds. | all test and QA suites | TODO |
+| R14-DOC-001 | MEDIUM | Reconcile README, FEATURES, CLAUDE, deployment and PostgreSQL docs, active TODO reports, route/provider claims, AliceNet naming, and final verification evidence with the shipped application. | project Markdown and operational docs | TODO |
+| R14-OPS-001 | CRITICAL | Verify pushed and deployed SHA equality, release activation, health, PostgreSQL availability, service restarts, memory, journal errors, backups, restore readiness, and rollback artifacts after every feature deployment and at final closure. | production host and deployment tooling | TODO |
+
+## Evidence collected
+
+- At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
+  with PostgreSQL ready, pool maximum 10, and zero service restarts.
+- The complete coverage suite passes 9,707 tests (three skipped historical
+  cases) across 931 test files and reports exactly 100% statements, branches,
+  functions, and lines after commit `d4b356fd`.
+- The independent PostgreSQL suite passes all 93 integration scenarios.
+- The production-dependency audit reports zero vulnerabilities across 296
+  audited packages.
+- Commit `57b48f7d` prevents Firefox from compositing the translucent VN cover
+  pulse with the overlapping banner pulse. Forty-seven focused loading/image
+  tests, typecheck, and production build pass; production activates the commit
+  with PostgreSQL ready and zero service restarts.
