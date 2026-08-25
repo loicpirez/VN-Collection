@@ -67,6 +67,14 @@ describe('ProducerRefreshButton', () => {
     expect(await screen.findByText('refresh failed upstream')).not.toBeNull();
   });
 
+  it('localizes a coded VNDB outage outside English', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okJson({ error: 'VNDB unavailable', code: 'vndb_unavailable' }, 502));
+    const { user } = renderWithProviders(<ProducerRefreshButton producerId="p90005" />, { locale: 'fr' });
+    await user.click(screen.getByRole('button', { name: 'Actualiser' }));
+    expect(await screen.findByText('VNDB est indisponible. Réessaie plus tard.')).not.toBeNull();
+    expect(screen.queryByText('VNDB unavailable')).toBeNull();
+  });
+
   it('switches to the Refreshing label + spinner while in flight and ignores re-entrant clicks', async () => {
     let resolveFetch: (r: Response) => void = () => {};
     global.fetch = vi.fn().mockImplementation(

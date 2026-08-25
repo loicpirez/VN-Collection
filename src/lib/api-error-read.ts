@@ -138,3 +138,26 @@ export async function readApiErrorLocalized(
   }
   return fallback;
 }
+
+/**
+ * Translate a stable API error code while retaining a safe unrecognized
+ * server diagnostic for the English UI. Non-English callers receive their
+ * localized fallback when the route has no known code.
+ *
+ * @param r Failed fetch response whose canonical error body should be read.
+ * @param messages Localized messages keyed by stable API error code.
+ * @param fallback Localized fallback for malformed or unrecognized failures.
+ * @param preserveEnglishMessage Whether safe unrecognized server text may be shown.
+ * @returns A code-specific translation, safe English diagnostic, or fallback.
+ */
+export async function readApiErrorLocalizedOrEnglish(
+  r: Response,
+  messages: Partial<Record<KnownApiErrorCode, string>>,
+  fallback: string,
+  preserveEnglishMessage: boolean,
+): Promise<string> {
+  const result = await readApiErrorDetails(r, fallback);
+  const localized = result.code ? messages[result.code as KnownApiErrorCode] : null;
+  if (localized) return localized;
+  return preserveEnglishMessage ? result.message : fallback;
+}

@@ -16,7 +16,7 @@
  *      `(await *.json()).error` shape either.
  */
 import { describe, expect, it } from 'vitest';
-import { readApiError, readApiErrorDetails, readApiErrorLocalized } from '@/lib/api-error-read';
+import { readApiError, readApiErrorDetails, readApiErrorLocalized, readApiErrorLocalizedOrEnglish } from '@/lib/api-error-read';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -137,6 +137,27 @@ describe('readApiErrorLocalized', () => {
       'fallback',
     )).toBe('fallback');
     expect(await readApiErrorLocalized(new Response('not-json'), messages, 'fallback')).toBe('fallback');
+  });
+});
+
+describe('readApiErrorLocalizedOrEnglish', () => {
+  const messages = { vndb_unavailable: 'VNDB localisé' } as const;
+
+  it('prefers a localized stable code', async () => {
+    const response = new Response(JSON.stringify({ error: 'raw', code: 'vndb_unavailable' }));
+    await expect(readApiErrorLocalizedOrEnglish(response, messages, 'repli', true)).resolves.toBe('VNDB localisé');
+  });
+
+  it('retains an unknown safe diagnostic only when English is active', async () => {
+    const english = new Response(JSON.stringify({ error: 'safe detail', code: 'future_code' }));
+    const localized = new Response(JSON.stringify({ error: 'safe detail', code: 'future_code' }));
+    await expect(readApiErrorLocalizedOrEnglish(english, messages, 'fallback', true)).resolves.toBe('safe detail');
+    await expect(readApiErrorLocalizedOrEnglish(localized, messages, 'repli', false)).resolves.toBe('repli');
+  });
+
+  it('falls back when the response has no canonical body', async () => {
+    const response = new Response('not-json');
+    await expect(readApiErrorLocalizedOrEnglish(response, messages, 'fallback', true)).resolves.toBe('fallback');
   });
 });
 

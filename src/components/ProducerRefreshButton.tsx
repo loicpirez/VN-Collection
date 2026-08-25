@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { useT } from '@/lib/i18n/client';
-import { readApiError } from '@/lib/api-error-read';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { readApiErrorLocalizedOrEnglish } from '@/lib/api-error-read';
 import { decodeProducerRefreshSummary } from '@/lib/picker-client-shape';
 
 /**
@@ -20,6 +20,7 @@ import { decodeProducerRefreshSummary } from '@/lib/picker-client-shape';
  */
 export function ProducerRefreshButton({ producerId }: { producerId: string }) {
   const t = useT();
+  const locale = useLocale();
   const toast = useToast();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,12 @@ export function ProducerRefreshButton({ producerId }: { producerId: string }) {
     try {
       const r = await fetch(`/api/producer/${ownerProducerId}/refresh`, { method: 'POST', signal: controller.signal });
       if (!r.ok) {
-        throw new Error(await readApiError(r, t.common.error));
+        throw new Error(await readApiErrorLocalizedOrEnglish(
+          r,
+          { vndb_unavailable: t.apiErrors.vndbUnavailable },
+          t.common.error,
+          locale === 'en',
+        ));
       }
       const body = decodeProducerRefreshSummary(await r.json());
       if (!body) throw new Error(t.common.error);

@@ -14,6 +14,7 @@ operations, providers, deployment, backup, and restore.
 
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
+| R14-I18N-003 | MEDIUM | Producer refresh returned a stable VNDB-outage code, but non-English users saw only a generic error. Centralize code-specific localization with safe English diagnostics and map the producer refresh outage precisely. | producer refresh client and shared API error reader | DONE_WITH_DIFF |
 | R14-I18N-002 | HIGH | Stock batch start failures exposed stable invalid-provider, queue-full, and unavailable codes, but the client discarded them and showed only a generic HTTP status outside English. Add the missing typed code, precise copy in all locales, and a localized client mapping. | stock batch API and client | DONE_WITH_DIFF |
 | R14-VNDB-004 | HIGH | Wishlist mutations emitted an actionable `listwrite` permission failure, but the typed client contract omitted it and French/Japanese UI reduced it to a generic error. Add stable auth and permission codes, localize all three dictionaries, preserve useful unknown diagnostics in English, and cover both paths. | wishlist mutation API and client | DONE_WITH_DIFF |
 | R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
@@ -608,3 +609,10 @@ operations, providers, deployment, backup, and restore.
   PostgreSQL-backed suite passes 9,832 tests with exactly 100% statements
   (44,858/44,858), branches (38,122/38,122), functions (9,189/9,189), and
   lines (38,312/38,312).
+- Producer refresh now translates its coded VNDB outage instead of collapsing
+  it to a generic non-English error. The shared reader preserves safe unknown
+  diagnostics only for English across producer and stock mutations. Sixty-six
+  focused reader, producer, and stock scenarios pass, the production build
+  passes, and the PostgreSQL-backed suite passes 9,836 tests with exactly 100%
+  statements (44,857/44,857), branches (38,122/38,122), functions
+  (9,189/9,189), and lines (38,311/38,311).

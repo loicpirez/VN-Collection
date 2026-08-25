@@ -5,7 +5,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { STOCK_PROVIDER_IDS, STOCK_PROVIDER_LABELS } from '@/lib/stock-provider-constants';
 import { ErrorAlert } from './ErrorAlert';
 import { VnSourcePicker, type VnPickerHit } from './VnSourcePicker';
-import { readApiError, readApiErrorDetails, type KnownApiErrorCode } from '@/lib/api-error-read';
+import { readApiError, readApiErrorLocalizedOrEnglish } from '@/lib/api-error-read';
 import {
   decodeDisabledStockProviders,
   decodeStockBatchQueuePage,
@@ -35,23 +35,6 @@ const STOCK_BATCH_QUEUE_PAGE_SIZE = 50;
 const STOCK_BATCH_SCOPE_PAGE_SIZE = 500;
 const STOCK_BATCH_SCOPES = ['collection', 'reading_queue', 'recent_stock', 'wishlist'] as const;
 type StockBatchScope = (typeof STOCK_BATCH_SCOPES)[number];
-
-async function readStockBatchStartError(
-  response: Response,
-  t: ReturnType<typeof useT>,
-  locale: ReturnType<typeof useLocale>,
-): Promise<string> {
-  const fallback = t.stock.batchUnavailable;
-  const result = await readApiErrorDetails(response, fallback);
-  const messages: Partial<Record<KnownApiErrorCode, string>> = {
-    invalid_providers: t.stock.batchInvalidProviders,
-    queue_full: t.stock.batchQueueFull,
-    run_unavailable: t.stock.batchUnavailable,
-  };
-  const localized = result.code ? messages[result.code as KnownApiErrorCode] : null;
-  if (localized) return localized;
-  return locale === 'en' ? result.message : fallback;
-}
 
 /**
  * Merges newly loaded stock-batch candidates into the current queue while
@@ -320,7 +303,16 @@ export function StockBatchClient() {
         signal: controller.signal,
       });
       if (!r.ok) {
-        throw new Error(await readStockBatchStartError(r, t, locale));
+        throw new Error(await readApiErrorLocalizedOrEnglish(
+          r,
+          {
+            invalid_providers: t.stock.batchInvalidProviders,
+            queue_full: t.stock.batchQueueFull,
+            run_unavailable: t.stock.batchUnavailable,
+          },
+          t.stock.batchUnavailable,
+          locale === 'en',
+        ));
       }
       const data = decodeStockBatchStart(await r.json());
       if (!data) throw new Error(t.common.error);
