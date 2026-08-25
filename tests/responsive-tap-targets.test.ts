@@ -328,8 +328,8 @@ describe('responsive tap targets', () => {
   it('keeps maintenance row actions touch-safe without inflating desktop rows', () => {
     const maintenance = source('src/components/DataMaintenance.tsx');
     expect(maintenance).toContain('inline-flex min-h-[44px] items-center rounded bg-bg-card');
-    expect(maintenance).toContain('inline-flex min-h-[44px] items-center truncate');
-    expect(maintenance).toContain('className="min-h-[44px] rounded-md border');
+    expect(maintenance).toContain('flex min-h-[44px] min-w-0 max-w-full items-center truncate');
+    expect(maintenance).toContain('className="min-h-[44px] shrink-0 rounded-md border');
     expect(maintenance).toContain('sm:min-h-0');
   });
 

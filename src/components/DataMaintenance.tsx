@@ -124,7 +124,7 @@ export function DataMaintenance() {
       <p className="mb-4 text-xs text-muted">{t.maintenance.hint}</p>
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
           <SkeletonRows count={3} withThumb={false} />
           <SkeletonRows count={3} withThumb={false} />
           <SkeletonRows count={3} withThumb={false} />
@@ -138,8 +138,8 @@ export function DataMaintenance() {
           </button>
         </ErrorAlert>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div>
+        <div className="grid min-w-0 gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
+          <div className="min-w-0">
             <h3 className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted">
               <Copy className="h-3 w-3" aria-hidden /> {t.maintenance.dupTitle}
               <span className="ml-1 text-[10px]" aria-live="polite" aria-atomic="true">/ {dups.length}</span>
@@ -147,11 +147,11 @@ export function DataMaintenance() {
             {dups.length === 0 ? (
               <p className="text-xs text-muted">{t.maintenance.dupEmpty}</p>
             ) : (
-              <ul className="max-h-72 space-y-1 overflow-y-auto text-xs">
+              <ul className="max-h-72 min-w-0 max-w-full space-y-1 overflow-y-auto text-xs">
                 {dups.map((g) => (
-                  <li key={g.prefix} className="rounded-md border border-border bg-bg-elev/40 p-2">
+                  <li key={g.prefix} className="min-w-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 p-2">
                     <div className="mb-1 truncate font-mono text-[10px] text-muted" title={g.prefix}>{g.prefix}</div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex min-w-0 flex-wrap gap-1">
                       {g.ids.map((id) => (
                         <a key={id} href={`/vn/${id}`} className="inline-flex min-h-[44px] items-center rounded bg-bg-card px-1.5 py-0.5 text-[10px] hover:text-accent sm:min-h-0">
                           {id}
@@ -164,7 +164,7 @@ export function DataMaintenance() {
             )}
           </div>
 
-          <div>
+          <div className="min-w-0">
             <h3 className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted">
               <RefreshCw className="h-3 w-3" aria-hidden /> {t.maintenance.staleTitle}
               <span className="ml-1 text-[10px]" aria-live="polite" aria-atomic="true">/ {stale.length}</span>
@@ -172,12 +172,12 @@ export function DataMaintenance() {
             {stale.length === 0 ? (
               <p className="text-xs text-muted">{t.maintenance.staleEmpty}</p>
             ) : (
-              <ul className="max-h-72 space-y-1 overflow-y-auto text-xs">
+              <ul className="max-h-72 min-w-0 max-w-full space-y-1 overflow-y-auto text-xs">
                 {(showAllStale ? stale : stale.slice(0, STALE_PREVIEW_LIMIT)).map((s) => (
-                  <li key={s.id} className="flex items-baseline justify-between gap-2 rounded-md border border-border bg-bg-elev/40 p-2">
-                    <span className="min-w-0">
-                      <Link href={`/vn/${s.id}`} className="inline-flex min-h-[44px] items-center truncate font-semibold hover:text-accent sm:min-h-0" title={s.title}>{s.title}</Link>
-                      <span className="ml-1 text-[10px] text-muted">
+                  <li key={s.id} className="flex min-w-0 items-start justify-between gap-2 overflow-hidden rounded-md border border-border bg-bg-elev/40 p-2">
+                    <span className="min-w-0 flex-1">
+                      <Link href={`/vn/${s.id}`} className="flex min-h-[44px] min-w-0 max-w-full items-center truncate font-semibold hover:text-accent sm:min-h-0" title={s.title}>{s.title}</Link>
+                      <span className="block break-words text-[10px] text-muted">
                         {!s.has_cover && `/ ${t.maintenance.noCover}`}
                         {!s.has_egs && `/ ${t.maintenance.noEgs}`}
                       </span>
@@ -186,7 +186,7 @@ export function DataMaintenance() {
                       type="button"
                       onClick={() => refreshOne(s.id)}
                       disabled={refreshing !== null}
-                      className="min-h-[44px] rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent sm:min-h-0"
+                      className="min-h-[44px] shrink-0 rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent sm:min-h-0"
                     >
                       {refreshing === s.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.maintenance.refresh}
                     </button>
@@ -207,7 +207,7 @@ export function DataMaintenance() {
             )}
           </div>
 
-          <div>
+          <div className="min-w-0">
             <h3 className="mb-1 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted">
               <Store className="h-3 w-3" aria-hidden /> {t.maintenance.providerTitle}
               <span className="ml-1 text-[10px]" aria-live="polite" aria-atomic="true">/ {providers.length}</span>
@@ -216,7 +216,7 @@ export function DataMaintenance() {
             {providers.length === 0 ? (
               <p className="text-xs text-muted">{t.maintenance.providerEmpty}</p>
             ) : (
-              <ul className="max-h-72 space-y-1 overflow-y-auto text-xs">
+              <ul className="max-h-72 min-w-0 max-w-full space-y-1 overflow-y-auto text-xs">
                 {providers.map((provider) => {
                   const latest = provider.latest_status_at === null
                     ? t.timeAgo.never
@@ -226,9 +226,9 @@ export function DataMaintenance() {
                     : fmtDate(new Date(provider.last_batch_started_at), locale, { dateStyle: 'short', timeStyle: 'short' });
                   const state = provider.updated_after_last_batch;
                   return (
-                    <li key={provider.provider} className="rounded-md border border-border bg-bg-elev/40 p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold">{STOCK_PROVIDER_LABELS[provider.provider]}</span>
+                    <li key={provider.provider} className="min-w-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 p-2">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="min-w-0 break-words font-semibold">{STOCK_PROVIDER_LABELS[provider.provider]}</span>
                         <span className="shrink-0 text-[10px] text-muted">
                           {t.maintenance.providerRows.replace('{count}', String(provider.status_rows))}
                         </span>

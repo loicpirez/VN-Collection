@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest';
 const EGS = readFileSync('src/components/EgsSyncBlock.tsx', 'utf8');
 const MAINTENANCE = readFileSync('src/components/DataMaintenance.tsx', 'utf8');
 
+describe('data maintenance responsive containment', () => {
+  it('uses zero-minimum tracks and bounded row children for long live records', () => {
+    expect(MAINTENANCE.match(/md:grid-cols-\[repeat\(2,minmax\(0,1fr\)\)\]/g)).toHaveLength(2);
+    expect(MAINTENANCE.match(/lg:grid-cols-\[repeat\(3,minmax\(0,1fr\)\)\]/g)).toHaveLength(2);
+    expect(MAINTENANCE.match(/<div className="min-w-0">/g)).toHaveLength(3);
+    expect(MAINTENANCE).toContain('min-w-0 overflow-hidden rounded-md border');
+    expect(MAINTENANCE).toContain('flex min-w-0 items-start justify-between');
+  });
+});
+
 describe('data operations lifecycle', () => {
   it('guards EGS config and sync operations after teardown', () => {
     expect(EGS).toContain('const mountedRef = useRef(true)');
