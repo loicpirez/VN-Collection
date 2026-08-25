@@ -139,7 +139,7 @@ describe('PlaceCard', () => {
     );
     expect(screen.getByText('東京店')).toBeInTheDocument();
     expect(screen.getByText('1 Chiyoda')).toBeInTheDocument();
-    expect(screen.getByText('GPS')).toBeInTheDocument();
+    expect(screen.getByText('GPS')).toHaveAttribute('title', t.acronyms.gps);
     expect(screen.getByText('3 VN in stock')).toBeInTheDocument();
     expect(screen.getByText('2 branches')).toBeInTheDocument();
     expect(screen.getByText('Stale (8d)')).toBeInTheDocument();

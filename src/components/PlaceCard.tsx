@@ -9,6 +9,7 @@ import { readApiError } from '@/lib/api-error-read';
 import type { PlaceWithLinks } from '@/lib/db';
 import { safeHref } from '@/lib/safe-href';
 import { fmtDate } from '@/lib/locale-number';
+import { AcronymLabel } from './AcronymLabel';
 
 const STALE_DAYS = 7;
 const MS_PER_DAY = 86_400_000;
@@ -157,7 +158,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
           {hasGps ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-status-completed/25 bg-status-completed/10 px-2 py-0.5 text-[11px] font-semibold text-status-completed">
               <MapPin className="h-3 w-3" aria-hidden />
-              GPS
+              <AcronymLabel acronym="gps" />
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-status-on_hold/25 bg-status-on_hold/10 px-2 py-0.5 text-[11px] font-semibold text-status-on_hold">
