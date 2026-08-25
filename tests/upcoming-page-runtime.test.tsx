@@ -212,18 +212,48 @@ describe('upcoming page runtime', () => {
     expect(html).toContain('&quot;inCollection&quot;:true');
   });
 
-  it('passes large deduplicated cover and membership lookups through provider-neutral repositories', async () => {
+  it('paginates release rows before cover and membership lookups', async () => {
     const rows = Array.from({ length: 501 }, (_, i) => release(`r${i}`, {
       vns: [{ id: `v${i + 1}`, title: `VN ${i + 1}`, image: null }],
     }));
     vi.mocked(fetchUpcomingForCollection).mockResolvedValue(rows);
 
-    await renderPage();
+    const first = await renderPage();
 
     expect(repositoryMocks.getCovers).toHaveBeenCalledOnce();
-    expect(repositoryMocks.getCovers.mock.calls[0]?.[0]).toHaveLength(501);
+    expect(repositoryMocks.getCovers.mock.calls[0]?.[0]).toHaveLength(60);
     expect(repositoryMocks.containsMany).toHaveBeenCalledOnce();
-    expect(repositoryMocks.containsMany.mock.calls[0]?.[0]).toHaveLength(501);
+    expect(repositoryMocks.containsMany.mock.calls[0]?.[0]).toHaveLength(60);
+    expect(first).toContain(dictionaries.en.upcoming.releaseRange
+      .replace('{from}', '1')
+      .replace('{to}', '60')
+      .replace('{total}', '501'));
+    expect(first).toContain('href="/upcoming?page=2"');
+
+    repositoryMocks.getCovers.mockClear();
+    repositoryMocks.containsMany.mockClear();
+    const second = await renderPage({ page: '2' });
+    expect(repositoryMocks.getCovers.mock.calls[0]?.[0]).toEqual(
+      Array.from({ length: 60 }, (_, index) => `v${index + 61}`),
+    );
+    expect(repositoryMocks.containsMany.mock.calls[0]?.[0]).toEqual(
+      Array.from({ length: 60 }, (_, index) => `v${index + 61}`),
+    );
+    expect(second).toContain('href="/upcoming"');
+    expect(second).toContain('href="/upcoming?page=3"');
+  });
+
+  it('keeps all-release pagination inside the all tab and clamps deep pages', async () => {
+    vi.mocked(fetchAllUpcomingFromVndb).mockResolvedValue(
+      Array.from({ length: 61 }, (_, index) => release(`r${index + 1}`)),
+    );
+
+    const first = await renderPage({ tab: 'all' });
+    expect(first).toContain('href="/upcoming?tab=all&amp;page=2"');
+
+    const clamped = await renderPage({ tab: 'all', page: '999' });
+    expect(clamped).toContain('href="/upcoming?tab=all"');
+    expect(clamped).not.toContain('href="/upcoming?tab=all&amp;page=20"');
   });
 
   it('renders release rows without VNDB-shaped ids without querying local cover tables', async () => {

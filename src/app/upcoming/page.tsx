@@ -52,6 +52,7 @@ function groupByMonth(rels: UpcomingRelease[]): Map<string, UpcomingRelease[]> {
 }
 
 const ANTICIPATED_PAGE_SIZE = 50;
+const RELEASE_PAGE_SIZE = 60;
 
 function parsePage(value: string | undefined): number {
   if (!value) return 1;
@@ -149,10 +150,10 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
     }
     if (tab === 'all') {
       const rows = await fetchAllUpcomingFromVndb(200);
-      return ReleasesSection({ rows, empty: t.upcoming.emptyAll, t, locale });
+      return ReleasesPage({ rows, empty: t.upcoming.emptyAll, tab, page, t, locale });
     }
     const rows = await fetchUpcomingForCollection();
-    return ReleasesSection({ rows, empty: t.upcoming.empty, t, locale });
+    return ReleasesPage({ rows, empty: t.upcoming.empty, tab, page, t, locale });
   } catch (e) {
     // EGS unreachable AND no cached payload at all: actionable state.
     if (e instanceof EgsUnreachable) {
@@ -169,6 +170,99 @@ async function TabContent({ tab, page, t, locale }: { tab: Tab; page: number; t:
       </div>
     );
   }
+}
+
+async function ReleasesPage({
+  rows,
+  empty,
+  tab,
+  page,
+  t,
+  locale,
+}: {
+  rows: UpcomingRelease[];
+  empty: string;
+  tab: 'collection' | 'all';
+  page: number;
+  t: Dictionary;
+  locale: Locale;
+}) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / RELEASE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * RELEASE_PAGE_SIZE;
+  const visibleRows = rows.slice(pageStart, pageStart + RELEASE_PAGE_SIZE);
+  return (
+    <>
+      {await ReleasesSection({ rows: visibleRows, empty, t, locale })}
+      <ReleasePaginator tab={tab} page={currentPage} total={rows.length} t={t} locale={locale} />
+    </>
+  );
+}
+
+function releasePageHref(tab: 'collection' | 'all', page: number): string {
+  const query = new URLSearchParams();
+  if (tab === 'all') query.set('tab', 'all');
+  if (page > 1) query.set('page', String(page));
+  const suffix = query.toString();
+  return `/upcoming${suffix ? `?${suffix}` : ''}`;
+}
+
+function ReleasePaginator({
+  tab,
+  page,
+  total,
+  t,
+  locale,
+}: {
+  tab: 'collection' | 'all';
+  page: number;
+  total: number;
+  t: Dictionary;
+  locale: Locale;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / RELEASE_PAGE_SIZE));
+  if (totalPages <= 1) return null;
+  const start = (page - 1) * RELEASE_PAGE_SIZE + 1;
+  const end = Math.min(total, page * RELEASE_PAGE_SIZE);
+  return (
+    <nav
+      className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-card/60 px-3 py-2 text-xs"
+      aria-label={t.upcoming.releasePaginationLabel}
+    >
+      <span className="text-muted tabular-nums">
+        {t.upcoming.releaseRange
+          .replace('{from}', fmtNum(start, locale))
+          .replace('{to}', fmtNum(end, locale))
+          .replace('{total}', fmtNum(total, locale))}
+      </span>
+      <div className="inline-flex items-center gap-2">
+        {page > 1 ? (
+          <Link
+            href={releasePageHref(tab, page - 1)}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          >
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.upcoming.prevPage}
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            <ChevronLeft className="h-3 w-3" aria-hidden /> {t.upcoming.prevPage}
+          </span>
+        )}
+        {page < totalPages ? (
+          <Link
+            href={releasePageHref(tab, page + 1)}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 sm:min-h-0"
+          >
+            {t.upcoming.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-muted opacity-40">
+            {t.upcoming.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
+          </span>
+        )}
+      </div>
+    </nav>
+  );
 }
 
 function StaleEgsBanner({ fetchedAt, t, locale }: { fetchedAt: number | null; t: Dictionary; locale: Locale }) {
@@ -422,7 +516,11 @@ async function ReleasesSection({
                 <>
                   <div className="text-[11px] text-muted">
                     {r.producers.filter((p) => p.id).slice(0, 3).map((p, i, arr) => (
-                      <Link key={p.id} href={`/producer/${p.id}`} className="hover:text-accent">
+                      <Link
+                        key={p.id}
+                        href={`/producer/${p.id}`}
+                        className="inline-flex min-h-[44px] items-center hover:text-accent sm:min-h-0"
+                      >
                         {p.name}{i < arr.length - 1 ? ' / ' : ''}
                       </Link>
                     ))}

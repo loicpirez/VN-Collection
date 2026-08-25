@@ -115,6 +115,12 @@ describe('responsive tap targets', () => {
     }
   });
 
+  it('keeps upcoming producer metadata links touch-safe on mobile', () => {
+    expect(source('src/app/upcoming/page.tsx')).toContain(
+      'className="inline-flex min-h-[44px] items-center hover:text-accent sm:min-h-0"',
+    );
+  });
+
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
     expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 sm:min-h-0');
     const library = source('src/components/LibraryClient.tsx');
