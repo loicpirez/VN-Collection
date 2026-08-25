@@ -32,6 +32,7 @@ vi.mock('@/lib/vndb', async (importOriginal) => {
 import { decodePullSelections, pullStatusesFromVndb, pushStatusToVndb, VNDB_LABELS } from '@/lib/vndb-sync';
 import { addToCollection, getCollectionItem, upsertVn } from '@/lib/db';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 
 const FAKE_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 
@@ -135,6 +136,9 @@ describe('pullStatusesFromVndb', () => {
       from: 'planning',
       to: 'playing',
     })))).toBeNull();
+    expect(decodePullSelections([null])).toBeNull();
+    expect(decodePullSelections(['invalid'])).toBeNull();
+    expect(decodePullSelections([[]])).toBeNull();
   });
 
   it('returns a needsAuth result when no token is configured', async () => {
@@ -286,6 +290,30 @@ describe('pullStatusesFromVndb', () => {
     expect(result).toMatchObject({ updated: 0, conflicts: 1, changes: [] });
   });
 
+  it('keeps fresh proposals that were not selected for application', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9009', username: 'tester', permissions: ['listread'] });
+    for (const id of ['v90900', 'v90901']) {
+      upsertVn({ id, title: `vn-${id}`, languages: ['ja'] });
+      addToCollection(id, { status: 'planning' });
+    }
+    respondWithLabels({
+      [VNDB_LABELS.playing]: [
+        ulistEntry('v90900', [VNDB_LABELS.playing]),
+        ulistEntry('v90901', [VNDB_LABELS.playing]),
+      ],
+    });
+
+    const result = await pullStatusesFromVndb({
+      action: 'apply',
+      selections: [{ vn_id: 'v90900', from: 'planning', to: 'playing' }],
+    });
+
+    expect(result).toMatchObject({ updated: 1, conflicts: 0 });
+    expect(result.changes).toEqual([
+      { vn_id: 'v90901', title: 'vn-v90901', from: 'planning', to: 'playing' },
+    ]);
+  });
+
   it('keeps the current local status when the conditional write loses a race', async () => {
     getAuthInfoMock.mockResolvedValue({ id: 'u9008', username: 'tester', permissions: ['listread'] });
     upsertVn({ id: 'v90800', title: 'vn-v90800', languages: ['ja'] });
@@ -304,6 +332,33 @@ describe('pullStatusesFromVndb', () => {
       ]);
       expect(getCollectionItem('v90800')?.status).toBe('planning');
     } finally {
+      updateSpy.mockRestore();
+    }
+  });
+
+  it('does not keep a stale proposal when a concurrent writer already applied the target status', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9010', username: 'tester', permissions: ['listread'] });
+    upsertVn({ id: 'v90801', title: 'vn-v90801', languages: ['ja'] });
+    addToCollection('v90801', { status: 'planning' });
+    respondWithLabels({ [VNDB_LABELS.playing]: [ulistEntry('v90801', [VNDB_LABELS.playing])] });
+    const collection = getCollectionCoreRepository();
+    const reader = getVnReadRepository();
+    const originalRead = reader.getCollectionItem.bind(reader);
+    let readCount = 0;
+    const updateSpy = vi.spyOn(collection, 'updateStatusIfCurrent').mockResolvedValueOnce(false);
+    const readSpy = vi.spyOn(reader, 'getCollectionItem').mockImplementation(async (vnId) => {
+      readCount += 1;
+      const item = await originalRead(vnId);
+      return readCount === 2 && item ? { ...item, status: 'playing' } : item;
+    });
+    try {
+      const result = await pullStatusesFromVndb({
+        action: 'apply',
+        selections: [{ vn_id: 'v90801', from: 'planning', to: 'playing' }],
+      });
+      expect(result).toMatchObject({ updated: 0, conflicts: 1, changes: [] });
+    } finally {
+      readSpy.mockRestore();
       updateSpy.mockRestore();
     }
   });

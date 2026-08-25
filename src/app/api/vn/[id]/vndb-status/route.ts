@@ -6,6 +6,7 @@ import {
   fetchUlistLabels,
   patchUlistEntry,
   type UlistPatch,
+  type VndbUlistEntryDetail,
 } from '@/lib/vndb';
 import { recordActivity } from '@/lib/activity';
 import type { CollectionPatch } from '@/lib/db';
@@ -42,8 +43,7 @@ function localUserData(item: Awaited<ReturnType<ReturnType<typeof getVnReadRepos
   };
 }
 
-function remoteUserData(entry: Awaited<ReturnType<typeof fetchUlistEntry>>): RemoteVndbUserData | null {
-  if (entry && typeof entry === 'object' && 'needsAuth' in entry) return null;
+function remoteUserData(entry: VndbUlistEntryDetail | null): RemoteVndbUserData {
   return {
     status: statusFromVndbLabels(entry?.labels ?? []),
     vote: entry?.vote ?? null,
@@ -148,7 +148,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     }
     const remote = remoteUserData(entry);
-    if (!remote) return NextResponse.json({ error: 'VNDB unavailable', code: 'vndb_unavailable' }, { status: 503 });
     const differences = compareVndbUserData(local, remote);
     const selected = differences.filter((difference) => fields.includes(difference.field));
     if (selected.length !== fields.length) {

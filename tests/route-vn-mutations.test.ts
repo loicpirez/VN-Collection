@@ -254,6 +254,34 @@ describe('GET /api/vn/[id]/vndb-status', () => {
     });
   });
 
+  it('returns an empty local comparison when the VN is not collected and the remote entry is absent', async () => {
+    labelsMock.mockResolvedValue([]);
+    entryMock.mockResolvedValue(null);
+
+    const response = await statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ entry: null, labels: [], local: null, differences: [] });
+  });
+
+  it('preserves nullable local tracking fields in comparison data', async () => {
+    upsertVn({ id: REAL_VN, title: 'Fixture' });
+    addToCollection(REAL_VN, { status: 'planning' });
+    labelsMock.mockResolvedValue([]);
+    entryMock.mockResolvedValue(null);
+
+    const response = await statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).local).toEqual({
+      status: 'planning',
+      vote: null,
+      started: null,
+      finished: null,
+      notes: null,
+    });
+  });
+
   it('502 when status loading throws', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     labelsMock.mockRejectedValue(new Error('ulist labels failed'));
@@ -410,6 +438,20 @@ describe('POST /api/vn/[id]/vndb-status', () => {
       localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
       ctx(REAL_VN),
     );
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'VNDB token required', code: 'vndb_token_required' });
+  });
+
+  it('returns 401 when authentication expires during the VNDB write', async () => {
+    seedLocal();
+    entryMock.mockResolvedValue(remotePlaying());
+    patchMock.mockResolvedValue({ needsAuth: true });
+
+    const response = await statusPOST(
+      localReq('/api/vn/v90402/vndb-status', 'POST', { direction: 'local_to_vndb', fields: ['status'] }),
+      ctx(REAL_VN),
+    );
+
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'VNDB token required', code: 'vndb_token_required' });
   });
