@@ -94,6 +94,7 @@ operations, providers, deployment, backup, and restore.
 | R14-SEC-002 | CRITICAL | Production Nginx capped every request at 50 MiB while the authenticated PostgreSQL logical restore endpoint supports archives up to 4 GiB and current database backups already exceed 200 MiB. Add an exact authenticated restore location with the matching cap, streaming request forwarding, trusted-proxy proof, and bounded timeouts while retaining the lower global limit. | `ops/nginx/vndb-backup-restore.conf`, production Nginx, PostgreSQL operations docs | DONE_WITH_DIFF |
 | R14-SEC-003 | MEDIUM | Production correctly enforced Basic Auth at Nginx and exposed Next only on loopback, but omitted `VN_PUBLIC_READ_AUTH=upstream`, so the application classified its personal-data reads as open despite the deployed proxy contract. Declare the upstream authentication mode in the root-managed runtime environment and verify page, API, SSE, and direct-port behavior. | production runtime environment and security verification | DONE_WITH_DIFF |
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
+| R14-FEAT-002 | HIGH | VN and staff detail preserved translator, editor, and QA credits in storage and URL parsing but collapsed all three into “Other”; the staff browser also hid editor and QA filters. Use the shared role contract on every credit surface, expose all supported filters, and localize the roles in French, English, and Japanese. | VN staff section, staff detail, staff browser, shared role labels | DONE_WITH_DIFF |
 | R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
 | R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
 | R14-STOCK-003 | HIGH | Bulk stock summaries used by VN cards read only the generic offer table, while AliceNet packages are stored separately and synthesized only for detail and place views. AliceNet-only availability and prices therefore disappeared from library cards. Union matched AliceNet packages into both database summary implementations with the same guarded yen parsing used by place views. | `src/lib/db.ts`, `src/lib/db/repositories/stock.ts`, stock database contracts | DONE_WITH_DIFF |
@@ -691,3 +692,12 @@ operations, providers, deployment, backup, and restore.
   production build pass; the complete PostgreSQL-backed suite passes 9,846
   tests with exactly 100% statements (44,890/44,890), branches
   (38,155/38,155), functions (9,193/9,193), and lines (38,343/38,343).
+- Production-credit roles now use one shared contract across VN detail, staff
+  detail, staff search, comparison, overlap, and external-credit surfaces.
+  Translator, editor, and quality-assurance credits retain their own localized
+  groups in French, English, and Japanese; editor and QA are also available as
+  staff-search filters. Browser inspection on a real cached VN confirms all
+  four relevant group labels, the production build passes, and the complete
+  PostgreSQL-backed suite passes 9,846 tests with exactly 100% statements
+  (44,886/44,886), branches (38,155/38,155), functions (9,193/9,193), and
+  lines (38,339/38,339).

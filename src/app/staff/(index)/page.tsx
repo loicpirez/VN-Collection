@@ -144,6 +144,8 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     'producer',
     'staff',
     'translator',
+    'editor',
+    'qa',
   ];
   const langs: readonly string[] = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko'];
 

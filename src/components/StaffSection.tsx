@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getDict } from '@/lib/i18n/server';
+import { ROLE_KEY, ROLE_ORDER } from '@/lib/staff-roles';
 
 interface StaffEntry {
   eid?: number | null;
@@ -11,19 +12,6 @@ interface StaffEntry {
   original?: string | null;
   lang?: string | null;
 }
-
-const ROLE_ORDER = ['scenario', 'chardesign', 'art', 'music', 'songs', 'director', 'producer', 'staff'] as const;
-type RoleI18nKey = 'role_scenario' | 'role_chardesign' | 'role_art' | 'role_music' | 'role_songs' | 'role_director' | 'role_producer' | 'role_staff';
-const ROLE_KEY: Record<string, RoleI18nKey> = {
-  scenario: 'role_scenario',
-  chardesign: 'role_chardesign',
-  art: 'role_art',
-  music: 'role_music',
-  songs: 'role_songs',
-  director: 'role_director',
-  producer: 'role_producer',
-  staff: 'role_staff',
-};
 
 export async function StaffSection({ staff }: { staff: StaffEntry[] }) {
   const t = await getDict();

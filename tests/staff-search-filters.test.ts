@@ -42,7 +42,7 @@ describe('parseStaffSearchParams', () => {
   });
 
   it('accepts only the canonical staff roles', () => {
-    for (const role of ['scenario', 'art', 'music', 'songs', 'director', 'translator']) {
+    for (const role of ['scenario', 'art', 'music', 'songs', 'director', 'translator', 'editor', 'qa']) {
       expect(parseStaffSearchParams({ role }).role).toBe(role);
     }
     expect(parseStaffSearchParams({ role: 'voice' }).role).toBeNull();

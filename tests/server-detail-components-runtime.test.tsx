@@ -80,12 +80,15 @@ beforeEach(() => {
 });
 
 describe('server detail helpers', () => {
-  it('renders staff groups, falls unknown roles back to staff, and skips malformed entries', async () => {
+  it('renders every supported staff group, keeps multi-role credits distinct, falls unknown roles back to staff, and skips malformed entries', async () => {
     expect(await StaffSection({ staff: [] })).toBeNull();
     expect(await StaffSection({ staff: [{ id: 's90001' }] })).toBeNull();
     const html = renderToStaticMarkup(await StaffSection({
       staff: [
         { id: 's90001', name: 'Writer', original: 'Original Writer', role: 'scenario', eid: 2, note: 'Lead' },
+        { id: 's90001', name: 'Writer', original: 'Original Writer', role: 'translator', eid: 3 },
+        { id: 's90005', name: 'Editor', role: 'editor' },
+        { id: 's90006', name: 'Verifier', role: 'qa' },
         { id: 's90002', name: 'Helper', original: 'Helper', role: 'unexpected' },
         { id: 's90004', name: 'Unassigned' },
         { id: 's90003', role: 'music' },
@@ -94,6 +97,10 @@ describe('server detail helpers', () => {
     expect(html).toContain('href="/staff?role=scenario"');
     expect(html).toContain('href="/staff/s90001"');
     expect(html).toContain('Original Writer');
+    expect(html).toContain('href="/staff?role=translator"');
+    expect(html).toContain('href="/staff?role=editor"');
+    expect(html).toContain('href="/staff?role=qa"');
+    expect(html.match(/href="\/staff\/s90001"/g)).toHaveLength(2);
     expect(html).toContain('href="/staff?role=staff"');
   });
 

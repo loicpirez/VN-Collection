@@ -212,6 +212,9 @@ describe('staff detail page runtime', () => {
     peopleMocks.productionCredits.mockResolvedValue([
       work('v1', [
         { role: 'scenario', eid: 1, note: 'Lead', credited_as: 'Staff member' },
+        { role: 'translator', eid: 2, note: null, credited_as: 'Staff member' },
+        { role: 'editor', eid: 3, note: null, credited_as: 'Staff member' },
+        { role: 'qa', eid: 4, note: null, credited_as: 'Staff member' },
         { role: 'unexpected', eid: null, note: null, credited_as: 'Staff member' },
       ], {
         alttitle: 'Alternative title',
@@ -270,6 +273,10 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('data-section="siblings"');
     expect(html).toContain('data-section="voice-credits"');
     expect(html).toContain('data-section="production-credits"');
+    expect(html).toContain('Translation');
+    expect(html).toContain('Editing');
+    expect(html).toContain('Quality assurance');
+    expect(html).toContain('Other');
     expect(html).toContain('data-section="extra-credits"');
     expect(html).toContain('Alternative title');
     expect(html).toContain('aria-label="Visual novel v1"');

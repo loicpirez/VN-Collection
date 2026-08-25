@@ -11,6 +11,9 @@ export const ROLE_ORDER = [
   'songs',
   'director',
   'producer',
+  'translator',
+  'editor',
+  'qa',
   'staff',
 ] as const;
 
@@ -22,6 +25,9 @@ export type RoleI18nKey =
   | 'role_songs'
   | 'role_director'
   | 'role_producer'
+  | 'role_translator'
+  | 'role_editor'
+  | 'role_qa'
   | 'role_staff';
 
 export const ROLE_KEY: Record<string, RoleI18nKey> = {
@@ -32,6 +38,9 @@ export const ROLE_KEY: Record<string, RoleI18nKey> = {
   songs: 'role_songs',
   director: 'role_director',
   producer: 'role_producer',
+  translator: 'role_translator',
+  editor: 'role_editor',
+  qa: 'role_qa',
   staff: 'role_staff',
 };
 

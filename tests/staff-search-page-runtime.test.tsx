@@ -82,6 +82,10 @@ describe('staff search page runtime', () => {
     const html = renderToStaticMarkup(await StaffSearchPage({ searchParams: Promise.resolve({}) }));
 
     expect(html).toContain(dictionaries.en.staffSearch.idleHint);
+    expect(html).toContain(dictionaries.en.staffSearch.roleLabels.editor);
+    expect(html).toContain(dictionaries.en.staffSearch.roleLabels.qa);
+    expect(html).toContain('href="/staff?role=editor"');
+    expect(html).toContain('href="/staff?role=qa"');
     expect(searchLocalStaff).toHaveBeenCalledWith({ q: undefined, role: null, lang: null, limit: 200 });
     expect(searchStaff).not.toHaveBeenCalled();
   });

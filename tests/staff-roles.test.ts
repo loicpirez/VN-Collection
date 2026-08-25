@@ -19,11 +19,14 @@ const DICT: Record<RoleI18nKey, string> = {
   role_songs: 'Songs',
   role_director: 'Director',
   role_producer: 'Producer',
+  role_translator: 'Translation',
+  role_editor: 'Editing',
+  role_qa: 'Quality assurance',
   role_staff: 'Other',
 };
 
 describe('staff-roles — ROLE_ORDER', () => {
-  it('declares the eight canonical roles in render order', () => {
+  it('declares every supported canonical role in render order', () => {
     expect(ROLE_ORDER).toEqual([
       'scenario',
       'chardesign',
@@ -32,6 +35,9 @@ describe('staff-roles — ROLE_ORDER', () => {
       'songs',
       'director',
       'producer',
+      'translator',
+      'editor',
+      'qa',
       'staff',
     ]);
   });
@@ -60,13 +66,15 @@ describe('staff-roles — roleLabel', () => {
     expect(roleLabel('songs', DICT)).toBe('Songs');
     expect(roleLabel('director', DICT)).toBe('Director');
     expect(roleLabel('producer', DICT)).toBe('Producer');
+    expect(roleLabel('translator', DICT)).toBe('Translation');
+    expect(roleLabel('editor', DICT)).toBe('Editing');
+    expect(roleLabel('qa', DICT)).toBe('Quality assurance');
     expect(roleLabel('staff', DICT)).toBe('Other');
   });
 
   it('returns the raw role identifier for unknown VNDB roles', () => {
     // A freshly-added VNDB role should appear unmapped, not blank.
-    expect(roleLabel('translator', DICT)).toBe('translator');
-    expect(roleLabel('qa', DICT)).toBe('qa');
+    expect(roleLabel('new-role', DICT)).toBe('new-role');
   });
 
   it('returns an empty string when role is null / undefined', () => {
