@@ -47,7 +47,8 @@ describe('VN detail editor mutation lifecycle', () => {
   it('uses plain shared metadata separators and missing-value tokens', () => {
     expect(SYNOPSIS).toContain('{label} / {t.customSynopsis.editing}');
     expect(SYNOPSIS).toContain('{text.length} / 8000 / {t.customSynopsis.hint}');
-    expect(ACTIVITY).toContain("String(p.from ?? '-')");
+    expect(ACTIVITY).toContain('formatStatus(p.from, t)');
+    expect(ACTIVITY).toContain("return isValidStatus(value) ? t.status[value] : '-'");
     expect(ACTIVITY).toContain("if (typeof v !== 'number') return '-';");
     expect(GAME_LOG).toContain('<span className="opacity-70">/</span>');
   });

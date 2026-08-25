@@ -580,6 +580,7 @@ the exhaustive check against schema drift.
 | staff_credit_index | Staff cache index for aggregate lookups |
 | steam_link | VN-to-Steam app links |
 | stock_batch_job | Durable bulk-stock refresh snapshots |
+| stock_provider_batch_run | Latest completed refresh evidence per stock provider |
 | user_activity | Global user-action audit trail |
 | user_list | User-managed VN lists |
 | user_list_vn | Ordered VN memberships for user lists |

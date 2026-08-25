@@ -970,44 +970,22 @@ describe('OwnedEditionsSection', () => {
     expect(screen.getByDisplayValue('Shelf X')).toBeTruthy();
   });
 
-  it('exercises each picker filter as an independent rejecting branch', async () => {
+  it.each([
+    [t.inventory.pickerFilterPlatform, 'swi', 'Picker release 41', 'Picker release 1'],
+    [t.inventory.pickerFilterType, 'official', 'Picker release 1', 'Picker release 41'],
+    [t.inventory.pickerFilterType, 'patch', 'Picker release 41', 'Picker release 1'],
+    [t.inventory.pickerFilterEro, 'ero', 'Picker release 1', 'Picker release 41'],
+    [t.inventory.pickerFilterEro, 'noero', 'Picker release 41', 'Picker release 1'],
+    [t.inventory.pickerFilterMtl, 'nomtl', 'Picker release 1', 'Picker release 41'],
+    [t.inventory.pickerFilterMtl, 'mtl', 'Picker release 41', 'Picker release 1'],
+  ])('applies the %s picker rejecting branch for %s', async (label, value, visible, hidden) => {
     await renderLoaded({ owned: [], releases: pickerReleases(), knownPlaces: [] });
 
     fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterPlatform), { target: { value: 'swi' } });
-    expect(screen.getByText('Picker release 41')).toBeTruthy();
-    expect(screen.queryByText('Picker release 1')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterType), { target: { value: 'official' } });
-    expect(screen.getByText('Picker release 1')).toBeTruthy();
-    expect(screen.queryByText('Picker release 41')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterType), { target: { value: 'patch' } });
-    expect(screen.getByText('Picker release 41')).toBeTruthy();
-    expect(screen.queryByText('Picker release 1')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterEro), { target: { value: 'ero' } });
-    expect(screen.getByText('Picker release 1')).toBeTruthy();
-    expect(screen.queryByText('Picker release 41')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterEro), { target: { value: 'noero' } });
-    expect(screen.getByText('Picker release 41')).toBeTruthy();
-    expect(screen.queryByText('Picker release 1')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterMtl), { target: { value: 'nomtl' } });
-    expect(screen.getByText('Picker release 1')).toBeTruthy();
-    expect(screen.queryByText('Picker release 41')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t.inventory.pickerFilterReset }));
-
-    fireEvent.change(screen.getByLabelText(t.inventory.pickerFilterMtl), { target: { value: 'mtl' } });
-    expect(screen.getByText('Picker release 41')).toBeTruthy();
-    expect(screen.queryByText('Picker release 1')).toBeNull();
-  }, 10_000);
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    expect(screen.getByText(visible)).toBeTruthy();
+    expect(screen.queryByText(hidden)).toBeNull();
+  });
 
   it('keeps stale add completions from editing rows after the VN identity changes', async () => {
     const controls: FetchControls = {};

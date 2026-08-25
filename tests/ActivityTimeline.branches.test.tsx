@@ -61,7 +61,7 @@ describe('ActivityTimeline branches', () => {
       entry({ id: 4, kind: 'rating', payload: { from: 'nope', to: null } }),
       entry({ id: 5, kind: 'playtime', payload: { delta: 30, to: 600 } }),
       // playtime with non-number delta exercises the `: 0` branch and empty sign.
-      entry({ id: 6, kind: 'playtime', payload: { delta: 'x', to: 0 } }),
+      entry({ id: 6, kind: 'playtime', payload: { delta: 'x', to: 'x' } }),
       // negative delta keeps the empty sign branch (sign only added when > 0).
       entry({ id: 7, kind: 'playtime', payload: { delta: -15, to: 5 } }),
       entry({ id: 8, kind: 'favorite', payload: { to: true } }),

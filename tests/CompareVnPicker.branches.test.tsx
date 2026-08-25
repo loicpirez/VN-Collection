@@ -428,7 +428,7 @@ describe('CompareVnPicker branches', () => {
     const option = screen.getAllByRole('option').find((row) => within(row).queryByText('Vndb One'))!;
     const vndbRow = within(option).getByRole('button');
     // Local hit is highlighted by default (index 0); hovering the second row moves it.
-    fireEvent.mouseOver(vndbRow);
+    fireEvent.mouseEnter(vndbRow);
     await waitFor(() => expect(option).toHaveAttribute('aria-selected', 'true'));
     fireEvent.click(vndbRow);
     expect(screen.getByText('Vndb One')).toBeInTheDocument();

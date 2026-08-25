@@ -1175,11 +1175,11 @@ describe('AliceNetClient branches', () => {
       if (String(url).startsWith('/api/search')) return json({ results: [] });
       return json(snapshot({ items: [WISHLIST_ITEM], stats: { total: 1, matched: 1, egs_only: 1 } }));
     });
-    const { user } = renderClient();
+    renderClient();
     await screen.findByText('Wishlist Title');
-    await user.click(screen.getByRole('button', { name: 'List' }));
+    fireEvent.click(screen.getByRole('button', { name: 'List' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
-    await user.click(screen.getByRole('button', { name: 'Link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Link' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
