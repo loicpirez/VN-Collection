@@ -175,12 +175,31 @@ describe('AliceNetClient', () => {
     }) as unknown as typeof fetch;
     const { container } = renderClient();
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-alicenet-card-skeleton] article')).toHaveLength(12);
+    expect(container.querySelectorAll('[data-alicenet-card-skeleton] .aspect-\\[2\\/3\\]')).toHaveLength(12);
     expect(screen.getByRole('status')).toBeInTheDocument();
 
     resolve(json(snapshot()));
     await waitFor(() =>
       expect(screen.getByText('No stock downloaded yet. Click "Download" to fetch the latest AliceNet inventory.')).toBeInTheDocument(),
     );
+  });
+
+  it('preserves AliceNet row anatomy while the saved list view loads', async () => {
+    localStorage.setItem('vncoll.alicenet.prefs.v1', JSON.stringify({ view: 'list' }));
+    const pendingSnapshot = new Promise<Response>(() => undefined);
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/download-status') {
+        return json({ throttle: { active: 0, queued: 0 }, jobs: [] });
+      }
+      return pendingSnapshot;
+    });
+
+    const { container, unmount } = renderClient();
+    await waitFor(() => expect(container.querySelector('[data-alicenet-list-skeleton]')).toBeInTheDocument());
+    expect(container.querySelectorAll('[data-alicenet-list-skeleton] > li:not(.sr-only)')).toHaveLength(10);
+    expect(container.querySelectorAll('[data-alicenet-list-skeleton] .h-20.w-14')).toHaveLength(10);
+    unmount();
   });
 
   it('renders populated cards with the matched and egs-only status badges', async () => {
