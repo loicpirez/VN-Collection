@@ -114,18 +114,6 @@ export default async function StaffDetailLoading() {
               <SkeletonBlock className="h-11 w-36 can-hover:sm:h-7" />
               <SkeletonBlock className="h-11 w-32 can-hover:sm:h-7" />
             </div>
-            <SkeletonBlock className="mt-4 h-3 w-20" />
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <SkeletonBlock className="h-7 w-28" />
-              <SkeletonBlock className="h-7 w-24" />
-              <SkeletonBlock className="h-7 w-32" />
-            </div>
-            <SkeletonBlock className="mt-4 h-3 w-24" />
-            <div className="mt-2 space-y-2">
-              <SkeletonBlock className="h-3 w-full" />
-              <SkeletonBlock className="h-3 w-5/6" />
-              <SkeletonBlock className="h-3 w-2/3" />
-            </div>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto">
             <SkeletonBlock className="h-[54px] w-full max-w-[320px]" />

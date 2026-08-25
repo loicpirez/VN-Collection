@@ -243,6 +243,8 @@ describe('route loading skeletons', () => {
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
     expect(html.match(/h-24 w-7 rounded-sm/g)).toHaveLength(12);
     expect(html).toContain('h-[54px] w-full max-w-[320px]');
+    expect(html).not.toContain('mt-2 flex flex-wrap gap-1.5');
+    expect(html).not.toContain('mt-2 space-y-2');
   });
 
   it('keeps the staff loading sections in the saved order and omits hidden sections', async () => {
