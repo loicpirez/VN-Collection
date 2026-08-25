@@ -87,6 +87,11 @@ if [[ -z "$environment_file" || ! -r "$environment_file" ]]; then
   printf 'Refusing deployment: environment file is not readable.\n' >&2
   exit 1
 fi
+migration_environment_file="${VN_DEPLOY_MIGRATION_ENV_FILE:-$(dirname "$environment_file")/migration.env}"
+if [[ -z "$migration_environment_file" || ! -r "$migration_environment_file" ]]; then
+  printf 'Refusing deployment: migration environment file is not readable.\n' >&2
+  exit 1
+fi
 
 wait_for_health() {
   local port="$1"
@@ -136,7 +141,12 @@ set -a
 . "$environment_file"
 set +a
 yarn install --frozen-lockfile
-yarn db:postgres:apply
+(
+  set -a
+  . "$migration_environment_file"
+  set +a
+  yarn db:postgres:apply
+)
 yarn build
 cp -R .next/static .next/standalone/.next/static
 cp -R public .next/standalone/public

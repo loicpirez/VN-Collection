@@ -65,4 +65,13 @@ describe('PostgreSQL production deployment contract', () => {
     expect(service).toContain('ReadWritePaths=/var/www/vndb/data');
     expect(service).not.toContain('DATABASE_URL=');
   });
+
+  it('applies schema changes with the dedicated migration identity', () => {
+    const deploy = read('ops/deploy-release.sh');
+    expect(deploy).toContain('VN_DEPLOY_MIGRATION_ENV_FILE');
+    expect(deploy).toContain('/migration.env');
+    expect(deploy).toMatch(/\(\s*set -a\s*\. "\$migration_environment_file"\s*set \+a\s*yarn db:postgres:apply\s*\)/s);
+    expect(deploy.indexOf('. "$environment_file"')).toBeLessThan(deploy.indexOf('yarn build'));
+    expect(deploy.indexOf('. "$migration_environment_file"')).toBeLessThan(deploy.indexOf('yarn db:postgres:apply'));
+  });
 });

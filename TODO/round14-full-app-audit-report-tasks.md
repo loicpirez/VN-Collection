@@ -36,6 +36,7 @@ operations, providers, deployment, backup, and restore.
 | R14-TEST-002 | HIGH | Run focused tests while fixing findings, then the complete unit, PostgreSQL, exact coverage, QA, interaction, sentinel, provider, browser, and production health gates. No ignored files, skipped new scenarios, or threshold workarounds. | all test and QA suites | TODO |
 | R14-DOC-001 | MEDIUM | Reconcile README, FEATURES, CLAUDE, deployment and PostgreSQL docs, active TODO reports, route/provider claims, AliceNet naming, and final verification evidence with the shipped application. | project Markdown and operational docs | TODO |
 | R14-OPS-001 | CRITICAL | Verify pushed and deployed SHA equality, release activation, health, PostgreSQL availability, service restarts, memory, journal errors, backups, restore readiness, and rollback artifacts after every feature deployment and at final closure. | production host and deployment tooling | TODO |
+| R14-OPS-002 | CRITICAL | The release script sourced only the application environment for migrations, contradicting the documented least-privilege role split. DML-only migrations happened to work, but migration 0011 correctly failed on `CREATE TABLE`. Load the root-managed migrator environment only inside the migration subprocess and retain the application role for build, candidate health, and runtime. | release deployment script, production migration environment, PostgreSQL operations guide | IN_PROGRESS |
 
 ## Evidence collected
 

@@ -40,6 +40,10 @@ and verify both `Result=success` and `NRestarts=0`.
 - Apply reviewed migrations with `yarn db:postgres:apply` as a separate
   pre-deployment job. Application startup validates versions but never changes
   schema.
+- Keep the application environment in `/etc/vndb/vndb.env` and the dedicated
+  migrator connection in `/etc/vndb/migration.env`, both outside every release.
+  `ops/deploy-release.sh` loads the latter only in the migration subprocess and
+  then builds and probes the candidate with the application identity.
 - Supply `DATABASE_URL` through the deployment secret manager. Never bake it
   into an image, Compose file, health URL, log, or generated report.
 - Use `DATABASE_SSL_MODE=verify-full` for remote production databases with a
