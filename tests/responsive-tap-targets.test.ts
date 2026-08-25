@@ -43,7 +43,7 @@ describe('responsive tap targets', () => {
 
   it('gives every close button a real touch-sized layout box', () => {
     const buttons = tsxFiles('src').flatMap(closeButtons);
-    expect(buttons).toHaveLength(30);
+    expect(buttons).toHaveLength(31);
     for (const button of buttons) {
       expect(button).toMatch(/min-h-\[44px\]|\bh-11\b|absolute inset-0/);
       expect(button).toMatch(/min-w-\[44px\]|\bw-11\b|absolute inset-0|btn btn-xs/);

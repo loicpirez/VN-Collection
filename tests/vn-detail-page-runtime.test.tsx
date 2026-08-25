@@ -558,7 +558,7 @@ describe('VN detail page runtime', () => {
       image_thumb: 'https://example.com/vndb-thumb.jpg',
       released: '2021-04-03',
       olang: 'ja',
-      languages: ['ja', 'en'],
+      languages: ['ja', 'en', 'fr', 'de', 'es', 'it', 'ko', 'zh', 'pl', 'ru'],
       platforms: ['win', 'lin', 'mac', 'ps2', 'ps3', 'ps4', 'ps5', 'xb1', 'xbox', 'swi', 'and'],
       length_minutes: 90,
       length_votes: 2,
@@ -566,7 +566,16 @@ describe('VN detail page runtime', () => {
       votecount: 10,
       description: 'VNDB synopsis',
       developers: [{ id: 'p1', name: 'Developer' }],
-      publishers: [{ id: 'p2', name: 'Publisher' }, { id: '', name: 'Anonymous publisher' }],
+      publishers: [
+        { id: 'p2', name: 'Publisher' },
+        { id: '', name: 'Anonymous publisher' },
+        { id: 'p90003', name: 'Publisher 3' },
+        { id: 'p90004', name: 'Publisher 4' },
+        { id: 'p90005', name: 'Publisher 5' },
+        { id: 'p90006', name: 'Publisher 6' },
+        { id: 'p90007', name: 'Publisher 7' },
+        { id: 'p90008', name: 'Publisher 8' },
+      ],
       tags: [{ id: 'g1', name: 'Tag', rating: 3, spoiler: 0 }],
       screenshots: [{ url: 'shot.jpg', thumbnail: 'shot-thumb.jpg' }],
       release_images: [{ release_id: 'r1', release_title: 'Edition', type: 'pkgfront', url: 'release.jpg' }],
@@ -618,6 +627,8 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('data-stock-panel-skeleton');
     expect(html).toContain(dictionaries.en.library.fanDisc);
     expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '1'));
+    expect(html).toContain('data-metadata-overflow-variant="language"');
+    expect(html).toContain('data-metadata-overflow-variant="publisher"');
     expect(html).toContain('href="/producer/p2"');
     expect(html).toContain('href="/?aspect=16%3A9"');
     expect(html).toContain('title="Windows"');

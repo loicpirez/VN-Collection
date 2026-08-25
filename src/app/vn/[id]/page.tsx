@@ -15,6 +15,7 @@ import { getSeriesRepository } from '@/lib/db/repositories/series';
 import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { parseVnDetailLayoutV1, type VnSectionId } from '@/lib/vn-detail-layout';
 import { platformLabel } from '@/lib/platform-label';
+import { languageDisplayName } from '@/lib/language-names';
 import { VnDetailLayout } from '@/components/VnDetailLayout';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { StockPanelSkeleton } from '@/components/StockPanelSkeleton';
@@ -54,6 +55,7 @@ import { CoverRotationButtons } from '@/components/CoverRotationButtons';
 import { VnListMemberships } from '@/components/VnListMemberships';
 import { PlaytimeCompare } from '@/components/PlaytimeCompare';
 import { PlatformOverflowDisclosure } from '@/components/PlatformOverflowDisclosure';
+import { MetadataOverflowDisclosure } from '@/components/MetadataOverflowDisclosure';
 import { SmartStatusHint } from '@/components/SmartStatusHint';
 import { VnDetailActionsBar } from '@/components/VnDetailActionsBar';
 import { NotesSectionToggle } from '@/components/NotesSectionToggle';
@@ -80,6 +82,9 @@ import type { BoxType, CollectionItem, EditionType, Location, Status } from '@/l
 
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+
+const VN_LANGUAGE_INLINE_LIMIT = 8;
+const VN_PUBLISHER_INLINE_LIMIT = 6;
 
 const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then((m) => m.MediaGallery), {
   loading: () => (
@@ -620,8 +625,22 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               {!!vn.languages?.length && (
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.languages}</dt>
-                  <dd className="font-semibold">
-                    <LangList langs={vn.languages.slice(0, 12)} />
+                  <dd className="mt-1 flex flex-wrap items-center gap-1.5 font-semibold">
+                    <LangList langs={vn.languages.slice(0, VN_LANGUAGE_INLINE_LIMIT)} locale={locale} />
+                    {vn.languages.length > VN_LANGUAGE_INLINE_LIMIT && (
+                      <MetadataOverflowDisclosure
+                        items={vn.languages.slice(VN_LANGUAGE_INLINE_LIMIT).map((code) => ({
+                          key: code,
+                          label: languageDisplayName(code, locale),
+                          displayLabel: code.toUpperCase(),
+                          href: `/search?langs=${encodeURIComponent(code)}`,
+                        }))}
+                        moreLabel={t.form.andNMore.replace('{n}', String(vn.languages.length - VN_LANGUAGE_INLINE_LIMIT))}
+                        label={t.detail.languages}
+                        closeLabel={t.common.close}
+                        variant="language"
+                      />
+                    )}
                   </dd>
                 </div>
               )}
@@ -735,7 +754,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 <div className="col-span-2 sm:col-span-3">
                   <dt className="label">{t.detail.publishers}</dt>
                   <dd className="mt-1 flex flex-wrap gap-1.5">
-                    {vn.publishers.map((p) =>
+                    {vn.publishers.slice(0, VN_PUBLISHER_INLINE_LIMIT).map((p) =>
                       p.id ? (
                         <Link
                           key={p.id}
@@ -754,6 +773,19 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                           {p.name}
                         </span>
                       ),
+                    )}
+                    {vn.publishers.length > VN_PUBLISHER_INLINE_LIMIT && (
+                      <MetadataOverflowDisclosure
+                        items={vn.publishers.slice(VN_PUBLISHER_INLINE_LIMIT).map((publisher, index) => ({
+                          key: publisher.id || `${publisher.name}-${index}`,
+                          label: publisher.name,
+                          href: publisher.id ? `/producer/${publisher.id}` : undefined,
+                        }))}
+                        moreLabel={t.form.andNMore.replace('{n}', String(vn.publishers.length - VN_PUBLISHER_INLINE_LIMIT))}
+                        label={t.detail.publishers}
+                        closeLabel={t.common.close}
+                        variant="publisher"
+                      />
                     )}
                   </dd>
                 </div>
