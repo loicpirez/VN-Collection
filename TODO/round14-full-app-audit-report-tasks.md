@@ -76,6 +76,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-056 | HIGH | The shared image wrapper and hydrated VN banner still animated high-contrast diagonal gradients while route and `SafeImage` placeholders used one restrained surface. Firefox composited these gradients as a brighter foreground block, so a VN transition could still look like overlapping skeletons after the route-level fix. Use the same flat loading token across every audited native image path and enforce the inventory structurally. | `LoadingImage`, `HeroBanner`, and shared image-loading contract | DONE_WITH_DIFF |
 | R14-UX-057 | HIGH | AliceNet's initial request rendered “no snapshot”, zero tab counts, and a missing selection action before replacing them with the real stock state. These were false empty values rather than loading UI. Reserve the timestamp, every count, the data-dependent action, and result geometry until the first snapshot resolves. | embedded AliceNet shop client | DONE_WITH_DIFF |
 | R14-UX-058 | HIGH | Long seiyuu profiles paginate up to 60 rich voice or production credits, but each route-loading section reserved only four cards, less than one row on a wide display, and omitted the possible-profile-match section entirely. Reserve four cards on phone, eight on tablet, and twelve on wide layouts, and mirror the missing match-section anatomy without inflating the optional streamed external-credit fallback. | staff detail loading boundary | DONE_WITH_DIFF |
+| R14-UX-059 | CRITICAL | Shared images remained transparent and kept pulsing after the browser had fired `load` because both wrappers awaited an unbounded `HTMLImageElement.decode()` promise before revealing the frame. Treat `load` as the authoritative ready signal, run decode only as a non-blocking best effort, and recover images that completed before hydration attached event handlers. | `SafeImage`, `LoadingImage`, every cover, card, logo, avatar, and media consumer | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -711,3 +712,13 @@ operations, providers, deployment, backup, and restore.
   PostgreSQL-backed suite passes 9,846 tests with exactly 100% statements
   (44,888/44,888), branches (38,157/38,157), functions (9,195/9,195), and
   lines (38,341/38,341).
+- Shared image wrappers now reveal on the browser's authoritative load event
+  and run `decode()` only as a guarded non-blocking optimization. A hydration
+  reconciliation checks `complete` and `naturalWidth`, so locally cached images
+  that finish before React attaches handlers no longer remain transparent under
+  a permanent pulse; early failures resolve to the accessible image fallback.
+  Mobile browser evidence on a real VN changed the same cover from persistent
+  `opacity-0` to visible `opacity-100`. Fifty-four focused scenarios, typecheck,
+  and the production build pass; the complete PostgreSQL-backed suite passes
+  9,852 tests with exactly 100% statements (44,900/44,900), branches
+  (38,165/38,165), functions (9,199/9,199), and lines (38,348/38,348).

@@ -100,7 +100,7 @@ export function SafeImage({
   const [loaded, setLoaded] = useState(false);
   const [wasPreloaded, setWasPreloaded] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const urlRef = useRef('');
+  const imageRef = useRef<HTMLImageElement | null>(null);
   // Track the container's rendered size so 90/270 rotations can scale
   // up to fill the box. The state is only "live" when rotation is
   // 90/270 - keeps the ResizeObserver out of the hot path for the
@@ -138,7 +138,6 @@ export function SafeImage({
     : t.common.imageUnavailable;
 
   useEffect(() => {
-    urlRef.current = url;
     setErrored(false);
     if (url && isImageLoadCached(url)) {
       setWasPreloaded(true);
@@ -151,18 +150,30 @@ export function SafeImage({
     }
   }, [url, priority]);
 
-  async function handleLoad(image: HTMLImageElement): Promise<void> {
-    if (typeof image.decode === 'function') {
-      try {
-        await image.decode();
-      } catch {
-        // The load event still proves that the browser produced a usable frame.
-      }
-    }
-    if (urlRef.current !== url) return;
+  function handleLoad(image: HTMLImageElement): void {
     cacheLoadedImage(url);
     setLoaded(true);
+    if (typeof image.decode === 'function') {
+      try {
+        void image.decode().catch(() => undefined);
+      } catch {
+        // Some browser implementations can throw before returning a promise.
+      }
+    }
   }
+
+  function handleError(): void {
+    setErrored(true);
+    onLoadError?.();
+  }
+
+  useEffect(() => {
+    if (!inView || settings.hideImages) return;
+    const image = imageRef.current;
+    if (!image?.complete) return;
+    if (image.naturalWidth > 0) handleLoad(image);
+    else handleError();
+  }, [inView, settings.hideImages, url]);
 
   useEffect(() => {
     if (priority || inView) return;
@@ -224,17 +235,15 @@ export function SafeImage({
         <>
           {loadingSkeleton}
           <img
+            ref={imageRef}
             src={url}
             alt={alt}
             decoding="async"
             loading={priority ? 'eager' : 'lazy'}
             className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} ${wasPreloaded ? '' : 'transition-[filter,opacity,transform] duration-200'} ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
             style={rotationStyle}
-            onLoad={(event) => { void handleLoad(event.currentTarget); }}
-            onError={() => {
-              setErrored(true);
-              onLoadError?.();
-            }}
+            onLoad={(event) => handleLoad(event.currentTarget)}
+            onError={handleError}
           />
         </>
       ) : (

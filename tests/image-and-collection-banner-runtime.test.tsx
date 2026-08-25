@@ -55,7 +55,22 @@ describe('LoadingImage runtime lifecycle', () => {
     expect(screen.getByRole('img', { name: 'Cover' })).toHaveAttribute('src', '/two.jpg');
   });
 
-  it('waits for image decode before hiding the skeleton', async () => {
+  it('reveals an image that completed before hydration attached its load handler', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(320);
+    const { container } = renderWithProviders(<LoadingImage src="/hydrated.jpg" alt="Hydrated image" />);
+    await waitFor(() => expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull());
+    expect(screen.getByRole('img', { name: 'Hydrated image' })).toHaveClass('opacity-100');
+  });
+
+  it('shows an error placeholder when the image failed before hydration', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(0);
+    renderWithProviders(<LoadingImage src="/hydration-error.jpg" alt="Hydration error" />);
+    expect(await screen.findByRole('img', { name: 'Image indisponible: Hydration error' })).toBeInTheDocument();
+  });
+
+  it('hides the skeleton on load without waiting for image decode', async () => {
     let resolveDecode: () => void = () => {};
     Object.defineProperty(HTMLImageElement.prototype, 'decode', {
       configurable: true,
@@ -65,14 +80,14 @@ describe('LoadingImage runtime lifecycle', () => {
     const img = screen.getByRole('img', { name: 'Decoded cover' });
 
     fireEvent.load(img);
-    expect(container.querySelector('[data-loading-image-skeleton]')).toBeInTheDocument();
+    expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull();
+    expect(img).toHaveClass('opacity-100');
 
     await act(async () => {
       resolveDecode();
       await Promise.resolve();
     });
-    await waitFor(() => expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull());
-    expect(img).toHaveClass('opacity-100');
+    expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull();
   });
 
   it('hides the skeleton when decode rejects after load', async () => {
@@ -88,23 +103,24 @@ describe('LoadingImage runtime lifecycle', () => {
     expect(screen.getByRole('img', { name: 'Rejected decode cover' })).toHaveClass('opacity-100');
   });
 
-  it('ignores a decoded load after the source has changed', async () => {
-    let resolveDecode: () => void = () => {};
-    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
-      configurable: true,
-      value: vi.fn(() => new Promise<void>((resolve) => { resolveDecode = resolve; })),
-    });
+  it('resets the skeleton after a source change and reveals the current image', () => {
     const { container, rerender } = renderWithProviders(<LoadingImage src="/stale-one.jpg" alt="Stale cover" />);
-    fireEvent.load(screen.getByRole('img', { name: 'Stale cover' }));
 
     rerender(<LoadingImage src="/stale-two.jpg" alt="Stale cover" />);
-    await act(async () => {
-      resolveDecode();
-      await Promise.resolve();
-    });
-
     expect(screen.getByRole('img', { name: 'Stale cover' })).toHaveAttribute('src', '/stale-two.jpg');
     expect(container.querySelector('[data-loading-image-skeleton]')).toBeInTheDocument();
+    fireEvent.load(screen.getByRole('img', { name: 'Stale cover' }));
+    expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull();
+  });
+
+  it('reveals a loaded image when decode throws synchronously', () => {
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn(() => { throw new Error('decode threw'); }),
+    });
+    const { container } = renderWithProviders(<LoadingImage src="/decode-throws.jpg" alt="Throwing decode" />);
+    fireEvent.load(screen.getByRole('img', { name: 'Throwing decode' }));
+    expect(container.querySelector('[data-loading-image-skeleton]')).toBeNull();
   });
 
   it('remembers loaded URLs across remounts and evicts the oldest cached URL', async () => {

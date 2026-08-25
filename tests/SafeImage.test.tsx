@@ -164,7 +164,28 @@ describe('SafeImage runtime', () => {
     expect(image).not.toHaveClass('transition-[filter,opacity,transform]');
   });
 
-  it('waits for successful and rejected image decoding before revealing the frame', async () => {
+  it('reveals an image that completed before the load handler attached', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(640);
+    const { container } = render(withLocale(
+      <SafeImage src="/hydrated.jpg" alt="Hydrated cover" priority />,
+    ));
+    await waitFor(() => expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull());
+    expect(screen.getByRole('img', { name: 'Hydrated cover' })).toHaveClass('opacity-100');
+  });
+
+  it('shows the fallback when an image failed before the error handler attached', async () => {
+    const onLoadError = vi.fn<() => void>();
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(0);
+    render(withLocale(
+      <SafeImage src="/hydration-error.jpg" alt="Hydration error" priority onLoadError={onLoadError} />,
+    ));
+    expect(await screen.findByRole('img', { name: 'Image unavailable: Hydration error' })).toBeInTheDocument();
+    expect(onLoadError).toHaveBeenCalledTimes(1);
+  });
+
+  it('reveals loaded frames without waiting for successful or rejected decoding', async () => {
     const { container, rerender } = render(withLocale(
       <SafeImage src="/decoded.jpg" alt="Decoded cover" priority />,
     ));
@@ -172,7 +193,7 @@ describe('SafeImage runtime', () => {
     const decodeSuccess = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(image, 'decode', { configurable: true, value: decodeSuccess });
     fireEvent.load(image);
-    await waitFor(() => expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull());
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
     expect(decodeSuccess).toHaveBeenCalledTimes(1);
 
     rerender(withLocale(<SafeImage src="/decode-rejected.jpg" alt="Rejected decode cover" priority />));
@@ -180,34 +201,32 @@ describe('SafeImage runtime', () => {
     const decodeFailure = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('decode failed'));
     Object.defineProperty(image, 'decode', { configurable: true, value: decodeFailure });
     fireEvent.load(image);
-    await waitFor(() => expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull());
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
     expect(decodeFailure).toHaveBeenCalledTimes(1);
+    await act(async () => Promise.resolve());
   });
 
-  it('ignores a decoded frame when the image URL changed while decoding', async () => {
-    let resolveDecode!: () => void;
-    const pendingDecode = new Promise<void>((resolve) => {
-      resolveDecode = resolve;
-    });
+  it('resets the skeleton for a changed URL and reveals the current frame', () => {
     const { container, rerender } = render(withLocale(
       <SafeImage src="/stale-decode.jpg" alt="Changing cover" priority />,
     ));
-    const staleImage = screen.getByRole('img', { name: 'Changing cover' });
-    Object.defineProperty(staleImage, 'decode', {
-      configurable: true,
-      value: vi.fn<() => Promise<void>>().mockReturnValue(pendingDecode),
-    });
-    fireEvent.load(staleImage);
-
     rerender(withLocale(<SafeImage src="/current-decode.jpg" alt="Changing cover" priority />));
-    await act(async () => {
-      resolveDecode();
-      await pendingDecode;
-    });
     expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
+    fireEvent.load(screen.getByRole('img', { name: 'Changing cover' }));
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
+  });
 
-    rerender(withLocale(<SafeImage src="/stale-decode.jpg" alt="Changing cover" priority />));
-    expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
+  it('still reveals a loaded frame when decode throws synchronously', () => {
+    const { container } = render(withLocale(
+      <SafeImage src="/decode-throws.jpg" alt="Throwing decode cover" priority />,
+    ));
+    const image = screen.getByRole('img', { name: 'Throwing decode cover' });
+    Object.defineProperty(image, 'decode', {
+      configurable: true,
+      value: vi.fn<() => Promise<void>>(() => { throw new Error('decode threw'); }),
+    });
+    fireEvent.load(image);
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
   });
 
   it('waits for intersection, ignores non-intersections, and surfaces load errors', () => {

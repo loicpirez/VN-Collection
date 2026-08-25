@@ -27,7 +27,7 @@ export interface LoadingImageProps {
 
 /**
  * Small image wrapper that keeps a skeleton visible until the browser
- * has decoded the image, preventing alt text and one-by-one image pops
+ * has loaded the image, preventing alt text and one-by-one image pops
  * on surfaces that do not need the full SafeImage feature set.
  */
 export function LoadingImage({
@@ -42,7 +42,7 @@ export function LoadingImage({
   ariaHidden = false,
 }: LoadingImageProps) {
   const t = useT();
-  const srcRef = useRef(src);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const [loaded, setLoaded] = useState(() => isImageLoadCached(src));
   const [errored, setErrored] = useState(false);
   const unavailableLabel = alt
@@ -50,24 +50,28 @@ export function LoadingImage({
     : t.common.imageUnavailable;
 
   useEffect(() => {
-    srcRef.current = src;
     setLoaded(isImageLoadCached(src));
     setErrored(false);
   }, [src]);
 
-  async function handleLoad(img: HTMLImageElement): Promise<void> {
-    if (typeof img.decode === 'function') {
-      try {
-        await img.decode();
-      } catch {
-        // A failed decode should fall through to the browser's loaded image
-        // state instead of leaving the skeleton mounted forever.
-      }
-    }
-    if (srcRef.current !== src) return;
+  function handleLoad(img: HTMLImageElement): void {
     cacheLoadedImage(src);
     setLoaded(true);
+    if (typeof img.decode === 'function') {
+      try {
+        void img.decode().catch(() => undefined);
+      } catch {
+        // Some browser implementations can throw before returning a promise.
+      }
+    }
   }
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image?.complete) return;
+    if (image.naturalWidth > 0) handleLoad(image);
+    else setErrored(true);
+  }, [src]);
 
   return (
     <span className={`relative inline-block overflow-hidden ${className}`} style={style}>
@@ -90,6 +94,7 @@ export function LoadingImage({
         </span>
       ) : (
         <img
+          ref={imageRef}
           src={src}
           alt={alt}
           width={width}
@@ -98,7 +103,7 @@ export function LoadingImage({
           decoding="async"
           loading={loading}
           className={`${imageClassName} transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={(event) => { void handleLoad(event.currentTarget); }}
+          onLoad={(event) => handleLoad(event.currentTarget)}
           onError={() => setErrored(true)}
         />
       )}
