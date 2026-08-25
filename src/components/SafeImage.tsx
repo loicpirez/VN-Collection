@@ -240,7 +240,8 @@ export function SafeImage({
       ) : (
         <div
           data-safe-image-skeleton
-          className={`pointer-events-none h-full w-full animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          data-safe-image-deferred
+          className={`pointer-events-none h-full w-full bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
           aria-hidden
         />
       )}

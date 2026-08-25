@@ -212,6 +212,8 @@ describe('SafeImage runtime', () => {
     const onLoadError = vi.fn<() => void>();
     const { container } = render(withLocale(<SafeImage src="/lazy.jpg" alt="Lazy cover" onLoadError={onLoadError} />));
     expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('[data-safe-image-deferred]')).toBeInTheDocument();
+    expect(container.querySelector('[data-safe-image-skeleton]')).not.toHaveClass('animate-pulse');
     expect(intersectionObserver?.observe).toHaveBeenCalled();
 
     triggerIntersection(false);
@@ -219,6 +221,8 @@ describe('SafeImage runtime', () => {
     triggerIntersection(true);
     const image = screen.getByRole('img', { name: 'Lazy cover' });
     expect(image).toHaveAttribute('loading', 'lazy');
+    expect(container.querySelector('[data-safe-image-deferred]')).toBeNull();
+    expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('animate-pulse');
     expect(intersectionObserver?.disconnect).toHaveBeenCalled();
 
     fireEvent.error(image);
