@@ -128,7 +128,7 @@ export function TagPicker({
           <button
             type="button"
             onClick={clearAll}
-            className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-card px-2 py-0.5 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-full border border-border bg-bg-card px-2 py-0.5 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             title={t.tagPicker.clearAll}
           >
             <X className="h-2.5 w-2.5" aria-hidden />

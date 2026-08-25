@@ -161,8 +161,8 @@ export function UpcomingCard({
               title={title}
               className={
                 variant === 'wide'
-                  ? 'min-w-0 max-w-full break-words line-clamp-2 text-base font-bold hover:text-accent'
-                  : 'min-w-0 max-w-full break-words line-clamp-2 font-bold hover:text-accent'
+                  ? 'min-h-[44px] min-w-0 max-w-full break-words line-clamp-2 text-base font-bold hover:text-accent can-hover:sm:min-h-0'
+                  : 'min-h-[44px] min-w-0 max-w-full break-words line-clamp-2 font-bold hover:text-accent can-hover:sm:min-h-0'
               }
             >
               {title}

@@ -370,7 +370,7 @@ export function StockBatchClient() {
               onClick={() => void loadScope(scope)}
               disabled={running || loadingScopes.has(scope)}
               aria-busy={loadingScopes.has(scope)}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-[36px]"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-[36px] can-hover:sm:min-w-0"
             >
               {scope === 'collection' && (t.stock.batchScopeCollection as string)}
               {scope === 'reading_queue' && (t.stock.batchScopeReadingQueue as string)}
@@ -382,7 +382,7 @@ export function StockBatchClient() {
             type="button"
             onClick={() => void loadAllScopes()}
             disabled={running || loadingScopes.size > 0}
-            className="min-h-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-[36px]"
+            className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-[36px] can-hover:sm:min-w-0"
           >
             {t.stock.batchScopeAll as string}
           </button>
@@ -396,7 +396,7 @@ export function StockBatchClient() {
               type="button"
               disabled={running}
               onClick={() => setSelectedProviders([...STOCK_PROVIDER_IDS])}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupAll as string}
             </button>
@@ -404,7 +404,7 @@ export function StockBatchClient() {
               type="button"
               disabled={running}
               onClick={() => setSelectedProviders([])}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupNone as string}
             </button>
@@ -412,7 +412,7 @@ export function StockBatchClient() {
               type="button"
               disabled={running}
               onClick={() => setSelectedProviders(PROVIDER_GROUPS.aggregator.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupAggregator as string}
             </button>
@@ -420,7 +420,7 @@ export function StockBatchClient() {
               type="button"
               disabled={running}
               onClick={() => setSelectedProviders(PROVIDER_GROUPS.physical.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupPhysical as string}
             </button>
@@ -428,7 +428,7 @@ export function StockBatchClient() {
               type="button"
               disabled={running}
               onClick={() => setSelectedProviders(PROVIDER_GROUPS.online.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
-              className="min-h-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupOnline as string}
             </button>
@@ -442,7 +442,7 @@ export function StockBatchClient() {
                   type="button"
                   disabled={running}
                   onClick={() => toggleProvider(id)}
-                  className={`min-h-[44px] rounded px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-50 sm:min-h-0 ${
+                  className={`min-h-[44px] min-w-[44px] rounded px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                     active
                       ? 'border border-accent/60 bg-accent/20 text-accent'
                       : 'border border-border text-muted hover:border-accent/60 hover:text-accent'

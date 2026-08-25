@@ -244,9 +244,9 @@ describe('responsive tap targets', () => {
     expect(assign).toContain('className="input min-h-[44px] w-full pl-8 text-sm"');
     expect(assign).toContain('inline-flex min-h-[44px] shrink-0 items-center');
     expect(batch).toContain('className="tap-target rounded p-0.5');
-    expect(batch).toContain('sm:min-h-[36px]');
-    expect(batch).toContain('sm:min-h-0');
-    expect(placeCard).toContain('sm:min-h-[32px]');
+    expect(batch).toContain('can-hover:sm:min-h-[36px]');
+    expect(batch).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
+    expect(placeCard).toContain('can-hover:sm:min-h-[32px] can-hover:sm:min-w-[32px]');
     expect(alicenet).toContain('can-hover:sm:min-h-[32px]');
     expect(alicenet).toContain('can-hover:sm:min-h-0');
     expect(alicenet).not.toMatch(/(?<!can-hover:)sm:min-h-(?:0|\[32px\]|\[36px\])/);
@@ -347,10 +347,26 @@ describe('responsive tap targets', () => {
 
   it('keeps maintenance row actions touch-safe without inflating desktop rows', () => {
     const maintenance = source('src/components/DataMaintenance.tsx');
-    expect(maintenance).toContain('inline-flex min-h-[44px] items-center rounded bg-bg-card');
+    expect(maintenance).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded bg-bg-card');
     expect(maintenance).toContain('flex min-h-[44px] min-w-0 max-w-full items-center truncate');
     expect(maintenance).toContain('className="min-h-[44px] shrink-0 rounded-md border');
-    expect(maintenance).toContain('sm:min-h-0');
+    expect(maintenance).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
+  });
+
+  it('keeps audited search, metadata, chart, and clear controls touch-safe', () => {
+    const schema = source('src/components/SchemaBrowser.tsx');
+    const tags = source('src/components/TagPicker.tsx');
+    const quotes = source('src/app/quotes/page.tsx');
+    const upcoming = source('src/components/UpcomingCard.tsx');
+    const charts = source('src/components/charts/BarChart.tsx');
+    const stats = source('src/components/StatsExtras.tsx');
+    expect(schema).toContain('flex min-h-[44px] items-center gap-2');
+    expect(schema).toContain('inline-flex min-h-[44px] min-w-[44px] items-center');
+    expect(tags).toContain('inline-flex min-h-[44px] min-w-[44px] items-center');
+    expect(quotes).toContain('inline-flex min-h-[44px] min-w-[44px] items-center');
+    expect(upcoming.match(/min-h-\[44px\] min-w-0 max-w-full/g)).toHaveLength(2);
+    expect(charts).toContain('flex min-h-[44px] items-center rounded-md');
+    expect(stats).toContain('inline-flex min-h-[44px] items-center font-semibold');
   });
 
   it('keeps saved-filter popover actions touch-safe without inflating desktop rows', () => {

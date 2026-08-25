@@ -212,7 +212,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={t.places.urlPlaceholder as string}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-[32px] can-hover:sm:min-w-[32px]"
               title={placeHref}
             >
               <Globe className="h-3 w-3" aria-hidden />
@@ -222,7 +222,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
             <Link
               href={`/map?place=${place.id}`}
               aria-label={t.places.viewOnMap as string}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-[32px]"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-[32px] can-hover:sm:min-w-[32px]"
             >
               <MapPin className="h-3 w-3" aria-hidden />
             </Link>

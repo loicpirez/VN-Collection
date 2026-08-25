@@ -83,7 +83,7 @@ export async function StatsExtras() {
               <li key={r.id} className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate">
                   <span className="mr-2 text-[10px] text-muted">#{i + 1}</span>
-                  <Link href={`/vn/${r.id}`} className="font-semibold hover:text-accent">{r.title}</Link>
+                  <Link href={`/vn/${r.id}`} className="inline-flex min-h-[44px] items-center font-semibold hover:text-accent can-hover:sm:min-h-0">{r.title}</Link>
                 </span>
                 <span className="text-[11px] text-muted">
                   <span className="text-accent">{fmtNum(r.user_rating / 10, locale, 1)}</span>

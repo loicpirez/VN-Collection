@@ -46,7 +46,7 @@ export function HBarChart({ data, formatValue, locale, maxWidthPct = 100, emptyM
         return (
           <li key={d.label}>
             {d.href ? (
-              <Link href={d.href} className="block rounded-md hover:bg-bg-elev/30 focus-visible:bg-bg-elev/40">
+              <Link href={d.href} className="flex min-h-[44px] items-center rounded-md hover:bg-bg-elev/30 focus-visible:bg-bg-elev/40 can-hover:sm:min-h-0">
                 {row}
               </Link>
             ) : (

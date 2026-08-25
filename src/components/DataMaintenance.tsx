@@ -153,7 +153,7 @@ export function DataMaintenance() {
                     <div className="mb-1 truncate font-mono text-[10px] text-muted" title={g.prefix}>{g.prefix}</div>
                     <div className="flex min-w-0 flex-wrap gap-1">
                       {g.ids.map((id) => (
-                        <a key={id} href={`/vn/${id}`} className="inline-flex min-h-[44px] items-center rounded bg-bg-card px-1.5 py-0.5 text-[10px] hover:text-accent sm:min-h-0">
+                        <a key={id} href={`/vn/${id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded bg-bg-card px-1.5 py-0.5 text-[10px] hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">
                           {id}
                         </a>
                       ))}

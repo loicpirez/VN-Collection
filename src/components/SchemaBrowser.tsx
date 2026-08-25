@@ -51,7 +51,7 @@ export function SchemaBrowser({ schema }: Props) {
 
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-      <label className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
+      <label className="mb-4 flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
         <Search className="h-4 w-4 text-muted" aria-hidden />
         <span className="sr-only">{t.schemaPage.filterPlaceholder}</span>
         <input
@@ -199,7 +199,7 @@ const Node = memo(function NodeInner({
       <button
         type="button"
         onClick={() => setOpenLocal((o) => !o)}
-        className="inline-flex items-center gap-1 text-left text-muted hover:text-white"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 text-left text-muted hover:text-white can-hover:sm:min-h-0 can-hover:sm:min-w-0"
         aria-expanded={open}
         aria-controls={childrenId}
         aria-label={k}
