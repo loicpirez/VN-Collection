@@ -91,7 +91,7 @@ describe('HeroBanner branches', () => {
       <HeroBanner vnId="v90050" src="https://example.com/loading.jpg" customBanner initialPosition={null} inCollection />,
     );
     const img = container.querySelector('img') as HTMLImageElement;
-    expect(container.querySelector('[data-hero-banner-skeleton]')).toBeInTheDocument();
+    expect(container.querySelector('[data-hero-banner-skeleton]')).toHaveClass('animate-pulse', 'bg-bg-elev/60');
     expect(img.className).toContain('opacity-0');
 
     fireEvent.load(img);

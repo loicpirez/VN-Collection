@@ -128,9 +128,8 @@ describe('HeroBanner — loading skeleton lifecycle', () => {
     expect(heroBannerSource).toContain('<ImageOff');
   });
 
-  it('uses the same restrained surface without starting a second hero animation', () => {
-    expect(heroBannerSource).toContain('absolute inset-0 bg-bg-elev/60');
-    expect(heroBannerSource).not.toContain('absolute inset-0 animate-pulse bg-bg-elev/60');
+  it('uses the same restrained pulsing surface as every other image placeholder', () => {
+    expect(heroBannerSource).toContain('absolute inset-0 animate-pulse bg-bg-elev/60');
     expect(heroBannerSource).not.toContain('bg-gradient-to-br');
   });
 });
