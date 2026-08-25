@@ -123,7 +123,7 @@ function RetailerRow({ r, label }: { r: EpApiRetailer; label: string }) {
           href={productHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-auto inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          className="ml-auto inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
           aria-label={`${t.erogePrice.openOnRetailer}: ${r.retailerName}`}
         >
           <ExternalLink className="h-3 w-3" aria-hidden /> {r.retailerName}
@@ -160,7 +160,7 @@ function RetailerList({ retailers, label, edition }: { retailers: EpApiRetailer[
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             aria-label={expanded ? t.common.close : `${t.erogePrice.retailers} +${hidden}`}
-            className="btn btn-xs min-h-[44px] text-muted hover:text-accent sm:min-h-0"
+            className="btn btn-xs min-h-[44px] text-muted hover:text-accent can-hover:sm:min-h-0"
           >
             {expanded ? t.common.close : `+${hidden}`}
           </button>
@@ -243,7 +243,7 @@ function RelatedRail({
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={t.erogePrice.openOnErogePrice}
-                    className="mt-1 flex min-h-[44px] items-center justify-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                    className="mt-1 flex min-h-[44px] items-center justify-center gap-1 rounded-md border border-border/60 px-1 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                   >
                     <ExternalLink className="h-2.5 w-2.5" aria-hidden />
                     EP
@@ -382,7 +382,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 href={gameHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 text-accent hover:underline sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 text-accent hover:underline can-hover:sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.openOnErogePrice}
               </a>
@@ -392,7 +392,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 href={officialSiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent can-hover:sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.officialSite}
               </a>
@@ -402,7 +402,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 href={brandSiteHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent can-hover:sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.erogePrice.brandSite}
               </a>
@@ -417,7 +417,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 href={fanzaDownloadLink.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent can-hover:sm:min-h-0"
                 title={fanzaDownloadLink.cid}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA DL
@@ -428,7 +428,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                 href={fanzaPackageLink.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 text-muted hover:text-accent can-hover:sm:min-h-0"
                 title={fanzaPackageLink.cid}
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> FANZA PKG
@@ -501,7 +501,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={opt.key}
                   type="button"
                   onClick={() => setRange(opt.key)}
-                  className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors sm:min-h-0 ${
+                  className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors can-hover:sm:min-h-0 ${
                     range === opt.key
                       ? 'bg-accent text-white'
                       : 'border border-border text-muted hover:border-accent hover:text-accent'
@@ -524,7 +524,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={edition}
                   type="button"
                   onClick={() => toggleGroup(edition)}
-                  className={`min-h-[44px] rounded border px-2 py-0.5 text-[10px] font-bold transition-colors sm:min-h-0 ${
+                  className={`min-h-[44px] rounded border px-2 py-0.5 text-[10px] font-bold transition-colors can-hover:sm:min-h-0 ${
                     allHidden
                       ? 'border-border text-muted opacity-50'
                       : 'border-accent/60 bg-accent/10 text-accent'
@@ -542,7 +542,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={s.label}
                   type="button"
                   onClick={() => toggleOneSeries(s.label)}
-                  className={`flex min-h-[44px] items-center gap-1 rounded border px-2 py-0.5 text-[10px] transition-colors sm:min-h-0 ${
+                  className={`flex min-h-[44px] items-center gap-1 rounded border px-2 py-0.5 text-[10px] transition-colors can-hover:sm:min-h-0 ${
                     hidden ? 'border-border opacity-40' : 'border-border/60 text-white hover:border-accent/60'
                   }`}
                 >
@@ -874,7 +874,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               setAddError(null);
             }}
             disabled={candidateMutationBusy}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             aria-expanded={addOpen}
           >
             <Plus className="h-3 w-3" aria-hidden /> {t.erogePrice.manualMatch.addCandidate}
@@ -894,14 +894,14 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               onChange={(e) => setAddInput(e.target.value)}
               disabled={candidateMutationBusy}
               placeholder={t.erogePrice.manualMatch.addCandidatePlaceholder}
-              className="min-h-[44px] w-32 rounded-md border border-border bg-bg px-2 py-1 text-white sm:min-h-0"
+              className="min-h-[44px] w-32 rounded-md border border-border bg-bg px-2 py-1 text-white can-hover:sm:min-h-0"
             />
           </label>
           <button
             type="button"
             onClick={handleAdd}
             disabled={candidateMutationBusy || !addInput.trim()}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50 sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 disabled:cursor-progress disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {addState === 'saving' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
             {addState === 'saving'
@@ -928,7 +928,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                   aria-pressed={isActive}
                   onClick={() => setActiveId(c.epId)}
                   disabled={candidateMutationBusy}
-                  className={`min-h-[44px] rounded-lg border px-3 py-1.5 text-xs sm:min-h-0 ${
+                  className={`min-h-[44px] rounded-lg border px-3 py-1.5 text-xs can-hover:sm:min-h-0 ${
                     isActive
                       ? 'border-accent bg-accent/15 font-bold text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -954,7 +954,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                     handleRemove(c.epId);
                   }}
                   disabled={candidateMutationBusy}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped disabled:cursor-progress disabled:opacity-50 sm:min-h-0 sm:min-w-[28px]"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped disabled:cursor-progress disabled:opacity-50 can-hover:sm:min-h-0 sm:min-w-[28px]"
                   title={t.erogePrice.manualMatch.removeCandidate}
                   aria-label={`${t.erogePrice.manualMatch.removeCandidate}: ${c.detail.title}`}
                 >
@@ -977,7 +977,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
               type="button"
               onClick={handleSetPrimary}
               disabled={candidateMutationBusy}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50 sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent disabled:cursor-progress disabled:opacity-50 can-hover:sm:min-h-0"
               title={t.erogePrice.manualMatch.setPrimaryHint}
             >
               <Pin className="h-3 w-3" aria-hidden />

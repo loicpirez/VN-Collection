@@ -408,7 +408,7 @@ export default function SteamSyncPage() {
                   type="button"
                   onClick={() => unlink(l.vn_id)}
                   disabled={unlinkingId === l.vn_id}
-                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
+                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                   aria-label={t.steam.unlink}
                   title={t.steam.unlink}
                 >
@@ -466,7 +466,7 @@ export default function SteamSyncPage() {
                           type="button"
                           onClick={() => link(g.appid, g.name, m.id)}
                           disabled={linkingKey !== null}
-                          className="block min-h-[44px] w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev disabled:opacity-50 sm:min-h-0"
+                          className="block min-h-[44px] w-full rounded px-2 py-1 text-left text-xs hover:bg-bg-elev disabled:opacity-50 can-hover:sm:min-h-0"
                         >
                           {linkingKey === `${g.appid}:${m.id}` && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />}
                           <span className="font-bold">{m.title}</span>

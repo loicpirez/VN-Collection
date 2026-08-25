@@ -88,7 +88,7 @@ export function RecommendationRemoteLoader({
       <span>{state === 'partial' ? t.recommend.refreshPartial : t.recommend.refreshFailed}</span>
       <button
         type="button"
-        className="btn btn-xs min-h-[44px] sm:min-h-0"
+        className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0"
         onClick={() => setAttempt((value) => value + 1)}
       >
         <RefreshCw className="h-3.5 w-3.5" aria-hidden />

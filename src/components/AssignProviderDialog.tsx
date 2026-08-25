@@ -269,7 +269,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                     type="button"
                     onClick={() => unlink(label)}
                     disabled={busy !== null}
-                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-red-400 sm:min-h-0"
+                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-red-400 can-hover:sm:min-h-0"
                   >
                     <Unlink className="h-3 w-3" aria-hidden />
                     {t.places.unassignBranch as string}
@@ -297,7 +297,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                     type="button"
                     onClick={() => link(label)}
                     disabled={busy !== null}
-                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
+                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent can-hover:sm:min-h-0"
                   >
                     <Link2 className="h-3 w-3" aria-hidden />
                     {t.places.assignBranch as string}
@@ -332,7 +332,7 @@ export function AssignProviderDialog({ place, onClose, onSaved }: Props) {
                       type="button"
                       onClick={() => moveFromOther(o)}
                       disabled={busy !== null}
-                      className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
+                      className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-[10px] text-muted hover:text-accent can-hover:sm:min-h-0"
                     >
                       <ArrowRightLeft className="h-3 w-3" aria-hidden />
                       {t.places.moveHere as string}

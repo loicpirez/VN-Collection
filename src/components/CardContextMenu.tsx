@@ -179,7 +179,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
             type="button"
             disabled={!!busy}
             onClick={() => patch({ status: active ? null : s }, `status-${s}`)}
-            className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors sm:min-h-0 sm:py-1 ${
+            className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors can-hover:sm:min-h-0 sm:py-1 ${
               active ? 'bg-accent/15 text-accent' : 'hover:bg-bg-elev'
             }`}
           >
@@ -209,7 +209,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
           setFavLocal(next);
           patch({ favorite: next }, 'favorite', () => setFavLocal(previous));
         }}
-        className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev can-hover:sm:min-h-0 sm:py-1"
       >
         <span className="inline-flex items-center gap-2">
           <Heart className={`h-3.5 w-3.5 ${favLocal ? 'fill-accent text-accent' : ''}`} aria-hidden />
@@ -222,7 +222,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         href={`/vn/${vnId}`}
         role="menuitem"
         onClick={onClose}
-        className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
+        className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev can-hover:sm:min-h-0 sm:py-1"
       >
         <Star className="h-3.5 w-3.5" aria-hidden /> {t.quickActions.open}
       </Link>
@@ -248,7 +248,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               href={`/producer/${developer.id}`}
               role="menuitem"
               onClick={onClose}
-              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
+              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev can-hover:sm:min-h-0 sm:py-1"
             >
               <Building2 className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openDeveloper}</span>
@@ -277,7 +277,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
               href={`/producer/${publisher.id}`}
               role="menuitem"
               onClick={onClose}
-              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev sm:min-h-0 sm:py-1"
+              className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-bg-elev can-hover:sm:min-h-0 sm:py-1"
             >
               <Package className="h-3.5 w-3.5" aria-hidden />
               <span className="truncate">{t.quickActions.openPublisher}</span>

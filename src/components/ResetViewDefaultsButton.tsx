@@ -43,7 +43,7 @@ export function ResetViewDefaultsButton({
       onClick={handleClick}
       title={t.cardDensity.resetViewTitle}
       aria-label={t.cardDensity.resetView}
-      className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0 ${className}`}
+      className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0 ${className}`}
     >
       <RotateCcw className="h-3 w-3" aria-hidden />
       <span>{t.cardDensity.resetView}</span>

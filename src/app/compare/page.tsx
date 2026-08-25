@@ -189,7 +189,7 @@ export default async function ComparePage({
                   <Link
                     key={tg.id}
                     href={`/?tag=${encodeURIComponent(tg.id)}`}
-                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded bg-accent/20 px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/30 hover:opacity-80 sm:min-h-0 sm:min-w-0"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded bg-accent/20 px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/30 hover:opacity-80 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                   >
                     {tg.name}
                   </Link>

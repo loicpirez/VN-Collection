@@ -1102,7 +1102,7 @@ export function StockPanel({
                   type="button"
                   disabled={aliasLoading}
                   onClick={() => { void handleAddAlias(s); }}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-dashed border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0"
                 >
                   {aliasPendingTerm === s ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
                   <span className="inline-block max-w-[12rem] truncate align-bottom">{s}</span>
@@ -1159,7 +1159,7 @@ export function StockPanel({
                   onClick={() => removeSource(source.id)}
                   disabled={sourceLoading}
                   aria-label={`${t.stock.manualSourceDelete}: ${providerDisplayName(providers, source.provider)}`}
-                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50 sm:min-h-0 sm:min-w-0"
+                  className="tap-target inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-0.5 text-muted hover:text-status-dropped focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-dropped disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 >
                   {sourcePendingId === source.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-3 w-3" aria-hidden />}
                 </button>
@@ -1298,7 +1298,7 @@ function AliasAddForm({
         <button
           type="submit"
           disabled={!value.trim() || loading}
-          className="btn btn-primary min-h-[44px] text-xs sm:min-h-0"
+          className="btn btn-primary min-h-[44px] text-xs can-hover:sm:min-h-0"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
           {t.stock.aliasAdd}
@@ -1367,7 +1367,7 @@ function SourceAddForm({
         <button
           type="submit"
           disabled={!value.trim() || loading}
-          className="btn btn-primary min-h-[44px] text-xs sm:min-h-0"
+          className="btn btn-primary min-h-[44px] text-xs can-hover:sm:min-h-0"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
           {t.stock.manualSourceAdd}
@@ -2075,7 +2075,7 @@ function OfferGroup({
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="min-h-[44px] rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-0"
+          className="min-h-[44px] rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-0"
           aria-expanded={!collapsed}
           aria-controls={panelId}
           aria-label={(collapsed ? t.stock.groupExpandLabel : t.stock.groupCollapseLabel)

@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
 }
 
+function tsxFiles(path: string): string[] {
+  return readdirSync(join(process.cwd(), path), { withFileTypes: true }).flatMap((entry) => {
+    const child = join(path, entry.name);
+    if (entry.isDirectory()) return tsxFiles(child);
+    return entry.name.endsWith('.tsx') ? [child] : [];
+  });
+}
+
 describe('responsive tap targets', () => {
+  it('compacts touch targets only when a fine pointer can hover', () => {
+    const widthOnlyCompaction = /(?<!can-hover:)sm:min-(?:h|w)-0/;
+    for (const path of tsxFiles('src')) {
+      expect(source(path), path).not.toMatch(widthOnlyCompaction);
+    }
+  });
+
   it('keeps VN detail action buttons and menus at touch-safe height', () => {
     const src = source('src/components/VnDetailActionsBar.tsx');
     expect(src).toContain('const ACTION_BUTTON_CLASSES');
@@ -136,7 +151,7 @@ describe('responsive tap targets', () => {
   });
 
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
-    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 sm:min-h-0');
+    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0');
     const library = source('src/components/LibraryClient.tsx');
     expect(library).toContain('inline-flex min-h-[44px] items-center gap-1.5');
     expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');
@@ -170,7 +185,7 @@ describe('responsive tap targets', () => {
   it('keeps activity-timeline delete controls touch-safe without inflating desktop rows', () => {
     const activity = source('src/components/ActivityTimeline.tsx');
     expect(activity).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center');
-    expect(activity).toContain('sm:min-h-0 sm:min-w-0');
+    expect(activity).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
   });
 
   it('adds touch-safe horizontal section navigation on VN detail pages', () => {
@@ -338,7 +353,7 @@ describe('responsive tap targets', () => {
 
   it('keeps Settings section-layout controls touch-safe without inflating desktop rows', () => {
     const layout = source('src/components/settings/LayoutSettingsTab.tsx');
-    expect(layout).toContain('min-h-[44px] rounded px-2.5 py-1 sm:min-h-0');
+    expect(layout).toContain('min-h-[44px] rounded px-2.5 py-1 can-hover:sm:min-h-0');
     expect(layout).toContain('tap-target-tight cursor-grab');
     expect(layout).toContain('inline-flex min-h-[44px] items-center gap-1 rounded-md border');
     expect(layout).toContain('flex min-h-[44px] w-full items-center justify-between');
@@ -395,7 +410,7 @@ describe('responsive tap targets', () => {
     const filters = source('src/components/SavedFilters.tsx');
     expect(filters).toContain('flex min-h-[44px] w-full items-center');
     expect(filters).toContain('flex min-h-[44px] flex-1 items-center');
-    expect(filters).toContain('btn btn-primary btn-xs min-h-[44px] sm:min-h-0');
+    expect(filters).toContain('btn btn-primary btn-xs min-h-[44px] can-hover:sm:min-h-0');
     expect(filters).toContain('sm:min-h-0');
   });
 

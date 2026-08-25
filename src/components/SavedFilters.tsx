@@ -327,7 +327,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                   );
                 }}
                 disabled={busy != null}
-                className="flex min-h-[44px] w-full items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-accent hover:bg-accent/20 sm:min-h-0"
+                className="flex min-h-[44px] w-full items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-accent hover:bg-accent/20 can-hover:sm:min-h-0"
               >
                 <FilterIcon className="h-3 w-3" aria-hidden />
                 {t.savedFilters.openDrawerCta}
@@ -361,7 +361,7 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
               type="button"
               onClick={() => { setDraftName(''); setNameOpen(true); }}
               disabled={!currentKey || busy != null}
-              className="flex min-h-[44px] w-full items-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1.5 text-muted hover:border-accent hover:text-accent disabled:opacity-40 sm:min-h-0"
+              className="flex min-h-[44px] w-full items-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1.5 text-muted hover:border-accent hover:text-accent disabled:opacity-40 can-hover:sm:min-h-0"
               title={currentKey ? t.savedFilters.saveCurrent : t.savedFilters.emptyState}
             >
               <BookmarkPlus className="h-3 w-3" aria-hidden />
@@ -380,10 +380,10 @@ export function SavedFilters({ triggerHidden = false }: { triggerHidden?: boolea
                 className="input w-full py-1 text-xs"
                 maxLength={60}
               />
-              <button type="button" onClick={save} disabled={busy != null} className="btn btn-primary btn-xs min-h-[44px] sm:min-h-0">
+              <button type="button" onClick={save} disabled={busy != null} className="btn btn-primary btn-xs min-h-[44px] can-hover:sm:min-h-0">
                 {busy === 'save' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.common.save}
               </button>
-              <button type="button" onClick={() => setNameOpen(false)} disabled={busy != null} className="btn btn-xs min-h-[44px] sm:min-h-0" aria-label={t.common.cancel}>
+              <button type="button" onClick={() => setNameOpen(false)} disabled={busy != null} className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0" aria-label={t.common.cancel}>
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>
             </div>
@@ -440,7 +440,7 @@ function PresetRow({
       <button
         type="button"
         onClick={onNavigate}
-        className={`flex min-h-[44px] flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-bg-elev sm:min-h-0 ${
+        className={`flex min-h-[44px] flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-bg-elev can-hover:sm:min-h-0 ${
           isActive ? 'text-accent' : 'text-white/85'
         }`}
         title={filter.name}

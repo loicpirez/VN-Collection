@@ -100,7 +100,7 @@ export function SourceSwitcher({ vnId, field, current, vndbAvailable, egsAvailab
             onClick={() => set(c)}
             disabled={disabled || saving}
             aria-pressed={active}
-            className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider transition-colors sm:min-h-0 ${
+            className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider transition-colors can-hover:sm:min-h-0 ${
               active
                 ? 'bg-accent text-bg font-bold'
                 : disabled

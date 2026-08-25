@@ -75,7 +75,7 @@ export async function ShelfSpatialView({
         <p className="mt-2 text-[11px] text-muted">{t.shelfSpatial.emptyHint}</p>
         <Link
           href="/shelf?view=layout"
-          className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 sm:min-h-0"
+          className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 can-hover:sm:min-h-0"
         >
           {t.shelfSpatial.openEditor}
         </Link>
@@ -112,7 +112,7 @@ export async function ShelfSpatialView({
           {prevHref ? (
             <Link
               href={prevHref}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
               aria-label={t.shelfSpatial.prevShelf}
             >
               <ChevronLeft className="h-3 w-3" aria-hidden /> {t.shelfSpatial.prevShelf}
@@ -125,7 +125,7 @@ export async function ShelfSpatialView({
           {nextHref ? (
             <Link
               href={nextHref}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 can-hover:sm:min-h-0"
               aria-label={t.shelfSpatial.nextShelf}
             >
               {t.shelfSpatial.nextShelf} <ChevronRight className="h-3 w-3" aria-hidden />

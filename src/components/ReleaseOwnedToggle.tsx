@@ -146,7 +146,7 @@ export function ReleaseOwnedToggle({
         owned ? 'border-status-completed/50 bg-status-completed/5' : 'border-border bg-bg-elev/30'
       }`}
     >
-      <Link href={`/vn/${vnId}#my-editions`} className="min-h-[44px] min-w-[44px] flex-1 text-xs text-muted hover:text-accent sm:min-w-0">
+      <Link href={`/vn/${vnId}#my-editions`} className="min-h-[44px] min-w-[44px] flex-1 text-xs text-muted hover:text-accent can-hover:sm:min-w-0">
         <span className="inline-flex max-w-full items-center gap-1">
           <ArrowRight className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate font-semibold text-white/90">{vnTitle}</span>
@@ -164,7 +164,7 @@ export function ReleaseOwnedToggle({
           onClick={toggle}
           disabled={busy}
           aria-pressed={owned}
-          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 sm:min-h-0 ${
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 can-hover:sm:min-h-0 ${
             owned
               ? 'border-status-completed bg-status-completed/15 text-status-completed'
               : 'border-border bg-bg text-muted hover:border-accent hover:text-white'
@@ -182,7 +182,7 @@ export function ReleaseOwnedToggle({
         {owned && (
           <Link
             href={`/vn/${vnId}?edit_release=${encodeURIComponent(releaseId)}#my-editions`}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
           >
             <Pencil className="h-3 w-3" aria-hidden />
             {t.releases.editInventory}

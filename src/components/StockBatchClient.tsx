@@ -472,7 +472,7 @@ export function StockBatchClient() {
                 type="button"
                 onClick={clearQueue}
                 disabled={running}
-                className="min-h-[44px] rounded px-2 text-[11px] text-muted hover:text-status-dropped disabled:opacity-50 sm:min-h-0"
+                className="min-h-[44px] rounded px-2 text-[11px] text-muted hover:text-status-dropped disabled:opacity-50 can-hover:sm:min-h-0"
               >
                 {t.stock.batchQueueClear as string}
               </button>

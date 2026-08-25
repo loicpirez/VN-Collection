@@ -976,7 +976,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                   tabIndex={s.id === activeId ? 0 : -1}
                   onClick={() => setActiveId(s.id)}
                   disabled={busy}
-                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors sm:min-h-0 ${
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors can-hover:sm:min-h-0 ${
                     s.id === activeId
                       ? 'border-accent bg-accent/15 text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent/60 hover:text-white'
@@ -1008,7 +1008,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               type="button"
               onClick={() => setShowCreate((v) => !v)}
               disabled={busy}
-              className="btn btn-xs min-h-[44px] sm:min-h-0"
+              className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.newShelf}
             </button>
@@ -1022,7 +1022,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 data-shortcut="shelf-fullscreen"
                 onClick={() => setFullscreen((v) => !v)}
-                className="btn btn-xs min-h-[44px] sm:min-h-0"
+                className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0"
               >
                 {fullscreen ? (
                   <Minimize2 className="h-3 w-3" aria-hidden />
@@ -1034,7 +1034,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               <button
                 type="button"
                 onClick={() => setShowFrontDisplay((v) => !v)}
-                className={`btn btn-xs min-h-[44px] sm:min-h-0 ${showFrontDisplay ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
+                className={`btn btn-xs min-h-[44px] can-hover:sm:min-h-0 ${showFrontDisplay ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
               >
                 <Layers className="h-3 w-3" aria-hidden /> {t.shelfLayout.frontDisplay}
               </button>
@@ -1058,7 +1058,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleRename}
                 disabled={busy}
-                className="btn btn-xs min-h-[44px] sm:min-h-0"
+                className="btn btn-xs min-h-[44px] can-hover:sm:min-h-0"
               >
                 <Edit3 className="h-3 w-3" aria-hidden /> {t.shelfLayout.rename}
               </button>
@@ -1066,7 +1066,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="btn btn-danger btn-xs min-h-[44px] sm:min-h-0"
+                className="btn btn-danger btn-xs min-h-[44px] can-hover:sm:min-h-0"
               >
                 <Trash2 className="h-3 w-3" aria-hidden /> {t.shelfLayout.delete}
               </button>
@@ -1109,7 +1109,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
                 setNewName('');
               }}
               disabled={busy}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:text-white sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 text-xs text-muted hover:text-white can-hover:sm:min-h-0"
             >
               <X className="h-3 w-3" aria-hidden /> {t.shelfLayout.cancel}
             </button>
@@ -1752,7 +1752,7 @@ function ResizeButton({
   disabled: boolean;
 }) {
   return (
-    <span className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-muted sm:min-h-0">
+    <span className="inline-flex min-h-[44px] items-center gap-0.5 rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-muted can-hover:sm:min-h-0">
       <span className="px-1 text-[10px] font-bold uppercase tracking-wider">{label}</span>
       <button
         type="button"

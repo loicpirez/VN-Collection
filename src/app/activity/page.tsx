@@ -284,7 +284,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                           <Link
                             href={`/vn/${row.vn_id}`}
                             title={row.title}
-                            className="inline-flex min-h-[44px] items-center truncate text-sm font-semibold transition-colors hover:text-accent sm:min-h-0"
+                            className="inline-flex min-h-[44px] items-center truncate text-sm font-semibold transition-colors hover:text-accent can-hover:sm:min-h-0"
                           >
                             {row.title}
                           </Link>

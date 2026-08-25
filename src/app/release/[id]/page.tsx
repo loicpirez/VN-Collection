@@ -239,7 +239,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                     <Link
                       key={p.id}
                       href={`/producer/${p.id}`}
-                      className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent sm:min-h-0"
+                      className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                     >
                       {p.name}
                     </Link>
@@ -255,7 +255,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                     <Link
                       key={p.id}
                       href={`/producer/${p.id}`}
-                      className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent sm:min-h-0"
+                      className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                     >
                       {p.name}
                     </Link>
@@ -298,7 +298,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-0.5 text-xs text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                 >
                   <ExternalLink className="h-3 w-3" aria-hidden /> {l.label}
                 </a>

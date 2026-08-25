@@ -45,7 +45,7 @@ export default async function DataPage() {
       <div className="mb-4">
         <Link
           href="/activity"
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-0"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0"
         >
           <Activity className="h-4 w-4" aria-hidden /> {t.nav.activity}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />

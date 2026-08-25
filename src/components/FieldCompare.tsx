@@ -178,7 +178,7 @@ export function FieldCompare({
                   aria-controls={vndbPanelId}
                   tabIndex={activeTab === 'vndb' ? 0 : -1}
                   onClick={() => setActiveTab('vndb')}
-                  className={`min-h-[44px] rounded px-2 py-0.5 sm:min-h-0 ${
+                  className={`min-h-[44px] rounded px-2 py-0.5 can-hover:sm:min-h-0 ${
                     activeTab === 'vndb'
                       ? 'bg-accent text-bg font-bold'
                       : 'text-muted hover:text-white'
@@ -195,7 +195,7 @@ export function FieldCompare({
                   aria-controls={egsPanelId}
                   tabIndex={activeTab === 'egs' ? 0 : -1}
                   onClick={() => setActiveTab('egs')}
-                  className={`min-h-[44px] rounded px-2 py-0.5 sm:min-h-0 ${
+                  className={`min-h-[44px] rounded px-2 py-0.5 can-hover:sm:min-h-0 ${
                     activeTab === 'egs'
                       ? 'bg-accent text-bg font-bold'
                       : 'text-muted hover:text-white'
@@ -212,7 +212,7 @@ export function FieldCompare({
                   type="button"
                   onClick={() => persist(activeTab)}
                   disabled={saving || pending}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0"
                   title={t.compare.setDefault}
                 >
                   <PinIcon className="h-3 w-3" aria-hidden />
@@ -224,7 +224,7 @@ export function FieldCompare({
               <button
                 type="button"
                 onClick={() => setCompareOpen(true)}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                 title={t.compare.compareTitle}
               >
                 <GitCompareArrows className="h-3 w-3" aria-hidden />
@@ -255,7 +255,7 @@ export function FieldCompare({
         <button
           type="button"
           onClick={() => setCompareOpen(false)}
-          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
         >
           {t.common.close}
         </button>
@@ -292,7 +292,7 @@ export function FieldCompare({
             type="button"
             onClick={() => persist('auto')}
             disabled={saving || pending}
-            className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:min-h-0 ${
+            className={`inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 py-0.5 text-[10px] can-hover:sm:min-h-0 ${
               optimistic === 'auto' ? 'bg-accent text-bg font-bold' : 'border border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
             }`}
           >
@@ -360,7 +360,7 @@ function ColumnCard({
               type="button"
               onClick={onUse}
               disabled={active || saving}
-              className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] can-hover:sm:min-h-0 ${
                 active
                   ? 'bg-accent/20 text-accent cursor-default'
                   : 'border border-border bg-bg-card text-muted hover:border-accent hover:text-accent'

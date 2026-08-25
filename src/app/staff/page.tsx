@@ -179,7 +179,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           {lang && <input type="hidden" name="lang" value={lang} />}
           {vn && <input type="hidden" name="vn" value={vn} />}
           {scope === 'collection' && <input type="hidden" name="scope" value="collection" />}
-          <label className="inline-flex min-h-[44px] items-center gap-2 text-xs text-muted sm:min-h-0">
+          <label className="inline-flex min-h-[44px] items-center gap-2 text-xs text-muted can-hover:sm:min-h-0">
             <input
               type="checkbox"
               name="aliases"

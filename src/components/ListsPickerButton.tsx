@@ -247,7 +247,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const hasMembership = (memberCount ?? 0) > 0;
   const triggerClass =
     variant === 'inline'
-      ? `inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white sm:h-9 sm:min-h-0`
+      ? `inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white sm:h-9 can-hover:sm:min-h-0`
       : `tap-target absolute right-2 top-11 z-10 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
           hasMembership
             ? 'bg-accent text-bg !opacity-100'
@@ -295,7 +295,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
             <button
               type="button"
               onClick={closePopover}
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-muted hover:text-white sm:min-h-0 sm:min-w-0"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-muted hover:text-white can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               aria-label={t.common.close}
             >
               <X className="h-3.5 w-3.5" aria-hidden />
@@ -337,7 +337,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
                         aria-checked={checked}
                         onClick={() => toggle(l)}
                         disabled={toggleInFlightRef.current.has(l.id) || creating}
-                        className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
+                        className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev can-hover:sm:min-h-0"
                       >
                         <span
                           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${

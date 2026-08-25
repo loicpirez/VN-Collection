@@ -245,7 +245,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={reset}
               disabled={saving}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold can-hover:sm:min-h-0"
             >
               <RotateCcw className="h-3 w-3" aria-hidden /> {t.vnLayout.reset}
             </button>
@@ -253,7 +253,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               type="button"
               onClick={cancel}
               disabled={saving}
-              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white can-hover:sm:min-h-0"
             >
               {t.common.cancel}
             </button>
@@ -273,7 +273,7 @@ export function VnDetailLayout({ vnId, initialLayout, sectionNodes }: Props) {
               setDraft(layout);
               setEditMode(true);
             }}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             title={t.vnLayout.editHint}
           >
             <Layout className="h-3 w-3" aria-hidden /> {t.vnLayout.edit}

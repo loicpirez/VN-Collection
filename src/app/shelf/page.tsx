@@ -325,7 +325,7 @@ export default async function ShelfPage({
         <div className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <p className="text-sm font-semibold">{t.shelf.empty}</p>
           <p className="mt-2 text-[12px] text-muted">{t.shelf.emptyHint}</p>
-          <Link href="/" className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 sm:min-h-0">
+          <Link href="/" className="mt-3 inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 can-hover:sm:min-h-0">
             <ArrowLeft className="h-3 w-3" aria-hidden /> {t.nav.library}
           </Link>
         </div>
@@ -731,7 +731,7 @@ function TabLink({
     <Link
       href={href}
       aria-current={active ? 'page' : undefined}
-      className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors sm:min-h-0 ${
+      className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors can-hover:sm:min-h-0 ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:bg-bg-elev'
       }`}
     >

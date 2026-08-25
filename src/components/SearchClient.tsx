@@ -600,7 +600,7 @@ export function SearchClient() {
                 className="mt-2 rounded-md border border-border/70 bg-bg-elev/20 px-2 py-1.5"
                 open={adv.platforms.some((code) => OTHER_PLATFORM_CODES.includes(code)) || undefined}
               >
-                <summary className="min-h-[44px] cursor-pointer content-center text-xs font-semibold text-muted hover:text-white sm:min-h-0">
+                <summary className="min-h-[44px] cursor-pointer content-center text-xs font-semibold text-muted hover:text-white can-hover:sm:min-h-0">
                   {t.search.morePlatforms.replace('{count}', String(OTHER_PLATFORM_CODES.length))}
                 </summary>
                 <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">

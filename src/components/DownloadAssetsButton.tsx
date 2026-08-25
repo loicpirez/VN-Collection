@@ -37,7 +37,7 @@ interface Props {
   variant?: 'standalone' | 'menu';
 }
 
-const MENU_ITEM = 'inline-flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0';
+const MENU_ITEM = 'inline-flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white disabled:cursor-not-allowed disabled:opacity-50 can-hover:sm:min-h-0';
 
 export function DownloadAssetsButton({ vnId, dataState = 'complete', variant = 'standalone' }: Props) {
   const t = useT();

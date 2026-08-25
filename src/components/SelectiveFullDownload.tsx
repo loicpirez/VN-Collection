@@ -375,7 +375,7 @@ export function SelectiveFullDownload({ defaultFilters, defaultSelected, onSubmi
                   <button
                     type="button"
                     onClick={() => toggle(r.id)}
-                    className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-1.5 text-left text-xs sm:min-h-0 ${
+                    className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-1.5 text-left text-xs can-hover:sm:min-h-0 ${
                       isPicked ? 'bg-accent/10' : 'hover:bg-bg-elev/50'
                     }`}
                   >

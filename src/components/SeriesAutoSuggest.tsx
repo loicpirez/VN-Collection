@@ -158,7 +158,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
             type="button"
             onClick={() => joinExisting(s.id)}
             disabled={!!busy}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-bold text-bg disabled:opacity-50 sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-bold text-bg disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {busy === `join-${s.id}` ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Check className="h-3 w-3" aria-hidden />}
             {t.seriesAutoSuggest.joinExisting}: {s.name}
@@ -169,7 +169,7 @@ export function SeriesAutoSuggest({ vnId, suggestion }: Props) {
             type="button"
             onClick={() => createNew(suggestedName)}
             disabled={!!busy}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/60 bg-bg-card px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/15 disabled:opacity-50 sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/60 bg-bg-card px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent/15 disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {busy === 'create' ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
             {t.seriesAutoSuggest.createNew}: {suggestedName}

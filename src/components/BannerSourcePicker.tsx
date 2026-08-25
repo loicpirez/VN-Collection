@@ -474,7 +474,7 @@ function TabButton({
       aria-controls={controls}
       aria-selected={active}
       tabIndex={active ? 0 : -1}
-      className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors sm:min-h-0 ${
+      className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors can-hover:sm:min-h-0 ${
         active
           ? 'text-white'
           : 'text-muted hover:text-white'

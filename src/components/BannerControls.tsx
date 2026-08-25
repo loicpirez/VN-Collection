@@ -128,7 +128,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy || pending}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-muted shadow-card backdrop-blur transition-colors hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0"
             title={t.banner.hint}
             data-menu-keep-open=""
           >
@@ -140,7 +140,7 @@ export function BannerControls({ vnId, hasCustomBanner, variant = 'card' }: Prop
               type="button"
               onClick={reset}
               disabled={busy || pending}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/50 bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-status-dropped shadow-card backdrop-blur transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50 sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-status-dropped/50 bg-bg-elev/80 px-2.5 py-1 text-[11px] font-semibold text-status-dropped shadow-card backdrop-blur transition-colors hover:border-status-dropped hover:bg-status-dropped/10 disabled:opacity-50 can-hover:sm:min-h-0"
             >
               <ImageMinus className="h-3 w-3" aria-hidden />
               {t.banner.reset}

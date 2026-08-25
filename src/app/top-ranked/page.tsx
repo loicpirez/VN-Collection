@@ -286,7 +286,7 @@ function Paginator({
         {page > 1 ? (
           <Link
             href={prevHref}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
           >
             <ChevronLeft className="h-3 w-3" aria-hidden /> {t.topRanked.prevPage}
           </Link>
@@ -298,7 +298,7 @@ function Paginator({
         {hasMore ? (
           <Link
             href={nextHref}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent hover:bg-accent/20 can-hover:sm:min-h-0"
           >
             {t.topRanked.nextPage} <ChevronRight className="h-3 w-3" aria-hidden />
           </Link>
@@ -347,7 +347,7 @@ function MinVotesChips({
             key={preset}
             href={href}
             aria-pressed={isActive}
-            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border px-1.5 py-0.5 tabular-nums transition-colors sm:min-h-0 sm:min-w-0 ${
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border px-1.5 py-0.5 tabular-nums transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
               isActive
                 ? 'border-accent bg-accent/20 text-accent font-bold'
                 : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -376,7 +376,7 @@ function TabLink({
     <Link
       href={href}
       aria-current={active ? 'page' : undefined}
-      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-2.5 py-1 transition-colors sm:min-h-0 sm:min-w-0 ${
+      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded px-2.5 py-1 transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
         active ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
       }`}
     >
@@ -435,7 +435,7 @@ async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked
               <Link
                 href={`/vn/${v.id}`}
                 title={v.title}
-                className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent sm:min-h-0"
+                className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent can-hover:sm:min-h-0"
               >
                 {v.title}
               </Link>
@@ -540,7 +540,7 @@ function EgsSection({
                   href={href}
                   {...linkProps}
                   title={r.gamename}
-                  className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent sm:min-h-0"
+                  className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent can-hover:sm:min-h-0"
                 >
                   {r.gamename}
                 </Link>
@@ -619,7 +619,7 @@ function EgsSection({
                   return href ? (
                     <Link
                       href={href}
-                      className="mt-0.5 min-h-[44px] line-clamp-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
+                      className="mt-0.5 min-h-[44px] line-clamp-1 text-[10px] text-muted hover:text-accent can-hover:sm:min-h-0"
                       title={r.brand_name}
                     >
                       {r.brand_name}
@@ -633,7 +633,7 @@ function EgsSection({
                     href={`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/game.php?game=${r.egs_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-[44px] items-center gap-1 text-[10px] text-muted hover:text-accent sm:min-h-0"
+                    className="inline-flex min-h-[44px] items-center gap-1 text-[10px] text-muted hover:text-accent can-hover:sm:min-h-0"
                     aria-label={t.egs.openOnEgs}
                   >
                     <ExternalLink className="h-3 w-3" aria-hidden /> EGS

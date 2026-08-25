@@ -92,7 +92,7 @@ describe('client detail helpers', () => {
     rerender(<AnniversaryFeedView title="Anniversaries" yearsAgoTemplate="{n} years" entries={[entry]} />);
     expect(screen.getByText('Anniversary Title')).toBeInTheDocument();
     expect(screen.getByText('3 years')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Anniversary Title/ })).toHaveClass('min-h-[44px]', 'sm:min-h-0');
+    expect(screen.getByRole('link', { name: /Anniversary Title/ })).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
     const image = container.querySelector('[data-alt="Anniversary Title"]');
     expect(image).toHaveAttribute('data-src', 'https://example.test/thumb.jpg');
     expect(image).toHaveAttribute('data-local-src', '/local/thumb.jpg');

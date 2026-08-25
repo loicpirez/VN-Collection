@@ -109,7 +109,7 @@ export function ShelfSpatialFullscreen({
           aria-pressed={fullscreen}
           aria-label={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
           title={fullscreen ? labels.exitFullscreen : labels.enterFullscreen}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
         >
           {fullscreen ? (
             <Minimize2 className="h-3 w-3" aria-hidden />

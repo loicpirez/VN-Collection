@@ -77,7 +77,7 @@ export async function StaffExtraCredits({
                   <ul className="mt-2 space-y-1 text-[11px] text-muted">
                     {c.characters.map((ch) => (
                       <li key={ch.id} className="flex items-baseline justify-between gap-2">
-                        <Link href={`/character/${ch.id}`} title={ch.name} className="inline-flex min-h-[44px] items-center truncate font-semibold text-white/85 hover:text-accent sm:min-h-0">
+                        <Link href={`/character/${ch.id}`} title={ch.name} className="inline-flex min-h-[44px] items-center truncate font-semibold text-white/85 hover:text-accent can-hover:sm:min-h-0">
                           {ch.name}
                         </Link>
                         {ch.note && <span className="shrink-0 text-[10px] opacity-70">{ch.note}</span>}
@@ -209,7 +209,7 @@ function ExternalVnCard({
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <Link href={`/vn/${vn.id}`} title={vn.title} className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors hover:text-accent sm:min-h-0">
+          <Link href={`/vn/${vn.id}`} title={vn.title} className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors hover:text-accent can-hover:sm:min-h-0">
             {vn.title}
           </Link>
           {inCollection && (

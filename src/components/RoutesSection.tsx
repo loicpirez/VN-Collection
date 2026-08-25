@@ -130,7 +130,7 @@ const RouteRowItem = memo(function RouteRowItem({
         <button
           type="button"
           onClick={() => onStartEdit(r)}
-          className={`min-h-[44px] flex-1 truncate text-left text-sm transition-colors sm:min-h-0 ${
+          className={`min-h-[44px] flex-1 truncate text-left text-sm transition-colors can-hover:sm:min-h-0 ${
             r.completed ? 'line-through decoration-status-completed/60 text-muted' : 'text-white hover:text-accent'
           }`}
           title={r.name}
@@ -222,7 +222,7 @@ const RouteRowItem = memo(function RouteRowItem({
               <button
                 type="button"
                 onClick={onCancelNotes}
-                className="min-h-[44px] rounded-md border border-border px-2 py-0.5 text-muted hover:text-white sm:min-h-0"
+                className="min-h-[44px] rounded-md border border-border px-2 py-0.5 text-muted hover:text-white can-hover:sm:min-h-0"
               >
                 {t.common.cancel}
               </button>
@@ -230,7 +230,7 @@ const RouteRowItem = memo(function RouteRowItem({
                 type="button"
                 onClick={() => onSaveNotes(r)}
                 disabled={busy}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50 sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-bold text-bg disabled:opacity-50 can-hover:sm:min-h-0"
               >
                 {notesPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
                 {t.common.save}
@@ -818,7 +818,7 @@ export function RoutesSection({ vnId, inCollection }: Props) {
               key={c.id}
               type="button"
               onClick={() => prefillDraft(c.name)}
-              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-0"
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0"
               title={c.original && c.original !== c.name ? `${c.name} / ${c.original}` : c.name}
             >
               {c.name}

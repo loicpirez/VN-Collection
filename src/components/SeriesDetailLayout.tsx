@@ -223,7 +223,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
               type="button"
               onClick={reset}
               disabled={saving}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold can-hover:sm:min-h-0"
             >
               <RotateCcw className="h-3 w-3" aria-hidden /> {layoutDict.reset}
             </button>
@@ -231,7 +231,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
               type="button"
               onClick={cancel}
               disabled={saving}
-              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
+              className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:text-white can-hover:sm:min-h-0"
             >
               {t.common.cancel}
             </button>
@@ -251,7 +251,7 @@ export function SeriesDetailLayout({ seriesId, initialLayout, sectionNodes }: Pr
               setDraft(layout);
               setEditMode(true);
             }}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             title={layoutDict.editHint}
           >
             <Layout className="h-3 w-3" aria-hidden /> {layoutDict.edit}
@@ -417,7 +417,7 @@ function EditableRow({
         <GripVertical className="h-4 w-4" aria-hidden />
       </button>
       <span className="min-w-0 flex-1 truncate text-xs font-semibold">{label}</span>
-      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted sm:min-h-0">
+      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted can-hover:sm:min-h-0">
         <input
           type="checkbox"
           checked={state.collapsedByDefault}

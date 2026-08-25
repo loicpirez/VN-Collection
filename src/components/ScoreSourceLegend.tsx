@@ -54,7 +54,7 @@ export function ScoreSourceLegend({ sources, className = '' }: ScoreSourceLegend
             <span
               role="listitem"
               tabIndex={0}
-              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-border/70 bg-bg-elev/30 px-2 text-muted outline-none hover:border-accent hover:text-white focus-visible:border-accent focus-visible:text-white sm:min-h-0 sm:py-1"
+              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-border/70 bg-bg-elev/30 px-2 text-muted outline-none hover:border-accent hover:text-white focus-visible:border-accent focus-visible:text-white can-hover:sm:min-h-0 sm:py-1"
             >
               <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${definition.dot}`} />
               {definition.label}

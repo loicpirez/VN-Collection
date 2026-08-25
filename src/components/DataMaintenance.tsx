@@ -176,7 +176,7 @@ export function DataMaintenance() {
                 {(showAllStale ? stale : stale.slice(0, STALE_PREVIEW_LIMIT)).map((s) => (
                   <li key={s.id} className="flex min-w-0 items-start justify-between gap-2 overflow-hidden rounded-md border border-border bg-bg-elev/40 p-2">
                     <span className="min-w-0 flex-1">
-                      <Link href={`/vn/${s.id}`} className="flex min-h-[44px] min-w-0 max-w-full items-center truncate font-semibold hover:text-accent sm:min-h-0" title={s.title}>{s.title}</Link>
+                      <Link href={`/vn/${s.id}`} className="flex min-h-[44px] min-w-0 max-w-full items-center truncate font-semibold hover:text-accent can-hover:sm:min-h-0" title={s.title}>{s.title}</Link>
                       <span className="block break-words text-[10px] text-muted">
                         {!s.has_cover && `/ ${t.maintenance.noCover}`}
                         {!s.has_egs && `/ ${t.maintenance.noEgs}`}
@@ -186,7 +186,7 @@ export function DataMaintenance() {
                       type="button"
                       onClick={() => refreshOne(s.id)}
                       disabled={refreshing !== null}
-                      className="min-h-[44px] shrink-0 rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent sm:min-h-0"
+                      className="min-h-[44px] shrink-0 rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                     >
                       {refreshing === s.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.maintenance.refresh}
                     </button>

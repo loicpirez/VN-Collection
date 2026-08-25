@@ -185,7 +185,7 @@ export function TextualSearchPanel({
               <p>{error}</p>
               <button
                 type="button"
-                className="mt-2 inline-flex min-h-[44px] items-center rounded-md border border-status-dropped/40 px-2 py-1 font-semibold hover:bg-status-dropped/10 sm:min-h-0"
+                className="mt-2 inline-flex min-h-[44px] items-center rounded-md border border-status-dropped/40 px-2 py-1 font-semibold hover:bg-status-dropped/10 can-hover:sm:min-h-0"
                 onClick={() => setRetryNonce((n) => n + 1)}
               >
                 {t.common.retry}

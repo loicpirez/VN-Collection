@@ -132,7 +132,7 @@ export function ListCardActions({ list }: { list: List }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
-        className="card-action-overlay flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+        className="card-action-overlay flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white sm:h-9 sm:w-9 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -191,7 +191,7 @@ function ActionRow({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-muted hover:bg-bg-elev sm:min-h-0 ${
+      className={`flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-muted hover:bg-bg-elev can-hover:sm:min-h-0 ${
         danger ? 'hover:text-status-dropped' : 'hover:text-white'
       }`}
       role="menuitem"

@@ -88,7 +88,7 @@ export function VnListMemberships({ vnId, lists }: { vnId: string; lists: ListCh
             style={{ backgroundColor: l.color ?? '#475569' }}
             aria-hidden
           />
-          <Link href={`/lists/${l.id}`} className="inline-flex min-h-[44px] items-center px-1 text-white/90 hover:text-accent sm:min-h-0">
+          <Link href={`/lists/${l.id}`} className="inline-flex min-h-[44px] items-center px-1 text-white/90 hover:text-accent can-hover:sm:min-h-0">
             {l.name}
           </Link>
           <button

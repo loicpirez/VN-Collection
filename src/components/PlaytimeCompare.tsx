@@ -149,7 +149,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
           <button
             type="button"
             onClick={() => setCompareOpen(true)}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             title={t.compare.compareTitle}
           >
             <GitCompareArrows className="h-3 w-3" aria-hidden />
@@ -208,7 +208,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
                 type="button"
                 onClick={c.onUse}
                 disabled={saving || empty || (active && optimistic !== 'auto')}
-                className={`mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 rounded px-1.5 py-0.5 text-[10px] sm:min-h-0 ${
+                className={`mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 rounded px-1.5 py-0.5 text-[10px] can-hover:sm:min-h-0 ${
                   active
                     ? 'bg-accent/20 text-accent cursor-default'
                     : empty
@@ -229,7 +229,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine }: Props) {
         <button
           type="button"
           onClick={() => setCompareOpen(false)}
-          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          className="min-h-[44px] rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
         >
           {t.common.close}
         </button>

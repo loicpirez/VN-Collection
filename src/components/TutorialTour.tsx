@@ -205,19 +205,19 @@ export function TutorialTour() {
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <span>{step + 1} / {total}</span>
         <div className="flex flex-wrap items-center justify-end gap-1">
-          <button type="button" onClick={close} className="btn min-h-[44px] text-xs sm:min-h-0">
+          <button type="button" onClick={close} className="btn min-h-[44px] text-xs can-hover:sm:min-h-0">
             {t.tour.skip}
           </button>
           <button
             type="button"
             onClick={previous}
             disabled={step === 0}
-            className="btn min-h-[44px] text-xs disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0"
+            className="btn min-h-[44px] text-xs disabled:cursor-not-allowed disabled:opacity-40 can-hover:sm:min-h-0"
           >
             <ArrowLeft className="h-3 w-3" aria-hidden />
             {t.tour.back}
           </button>
-          <button type="button" onClick={next} className="btn btn-primary min-h-[44px] text-xs sm:min-h-0">
+          <button type="button" onClick={next} className="btn btn-primary min-h-[44px] text-xs can-hover:sm:min-h-0">
             {step + 1 === total ? t.tour.finish : t.tour.next}
             <ArrowRight className="h-3 w-3" aria-hidden />
           </button>

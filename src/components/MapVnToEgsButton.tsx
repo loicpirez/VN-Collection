@@ -228,7 +228,7 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="icon-chip inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent sm:min-h-0"
+        className="icon-chip inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[10px] font-medium text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
         title={t.mapVn.title}
       >
         <Link2 className="h-3 w-3" aria-hidden />
@@ -238,7 +238,7 @@ export function MapVnToEgsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={triggerClassName ?? 'inline-flex min-h-[44px] w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white sm:min-h-0'}
+        className={triggerClassName ?? 'inline-flex min-h-[44px] w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-bg-elev hover:text-white can-hover:sm:min-h-0'}
         title={t.mapVn.title}
         {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
       >
@@ -281,7 +281,7 @@ export function MapVnToEgsButton({
                 onClick={() => setOpen(false)}
                 disabled={busy != null}
                 aria-label={t.common.close}
-                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white sm:min-h-0 sm:min-w-0"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1 text-muted hover:text-white can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>

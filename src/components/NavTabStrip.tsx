@@ -56,7 +56,7 @@ export function NavTabStrip({
             onClick={() => go(href)}
             aria-current={isActive ? 'page' : undefined}
             disabled={isPending}
-            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded px-2.5 py-1 transition-colors disabled:cursor-wait sm:min-h-0 sm:min-w-0 ${
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded px-2.5 py-1 transition-colors disabled:cursor-wait can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
               isActive || loading
                 ? 'bg-accent text-bg font-bold'
                 : 'text-muted hover:text-white'

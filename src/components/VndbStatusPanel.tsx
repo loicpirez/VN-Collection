@@ -315,7 +315,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
             href={`https://vndb.org/${vnId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
             VNDB
@@ -324,7 +324,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
             type="button"
             onClick={() => void load(false, true)}
             disabled={mutationBusy}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             title={t.vndbStatus.refresh}
           >
             <RefreshCw className="h-3 w-3" aria-hidden />
@@ -335,7 +335,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               type="button"
               onClick={clearAll}
               disabled={mutationBusy}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped can-hover:sm:min-h-0"
               title={t.vndbStatus.removeFromList}
             >
               {pendingClear ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
@@ -364,7 +364,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               {pushableDifferences.length > 1 && (
                 <button
                   type="button"
-                  className="btn btn-sm min-h-[44px] sm:min-h-0"
+                  className="btn btn-sm min-h-[44px] can-hover:sm:min-h-0"
                   disabled={mutationBusy}
                   onClick={() => void resolveDifferences('local_to_vndb', pushableDifferences)}
                 >
@@ -375,7 +375,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               {pullableDifferences.length > 1 && (
                 <button
                   type="button"
-                  className="btn btn-sm min-h-[44px] sm:min-h-0"
+                  className="btn btn-sm min-h-[44px] can-hover:sm:min-h-0"
                   disabled={mutationBusy}
                   onClick={() => void resolveDifferences('vndb_to_local', pullableDifferences)}
                 >
@@ -440,7 +440,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
               // aria-pressed mirrors the visual on/off state for SR
               // users - the toggle's color/icon difference was the
               aria-pressed={active}
-              className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 sm:min-h-0 ${
+              className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-50 can-hover:sm:min-h-0 ${
                 active
                   ? 'border-accent bg-accent/15 text-accent font-bold'
                   : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
@@ -580,7 +580,7 @@ function UlistDetailsEditor({
 
   return (
     <details className="group mt-3 rounded-lg border border-border bg-bg-elev/20 p-3 text-xs">
-      <summary className="flex min-h-[44px] cursor-pointer list-none items-center text-muted hover:text-white sm:min-h-0 [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center text-muted hover:text-white can-hover:sm:min-h-0 [&::-webkit-details-marker]:hidden">
         <CollapsibleSummary>{t.vndbStatus.detailsToggle}</CollapsibleSummary>
       </summary>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -595,7 +595,7 @@ function UlistDetailsEditor({
             value={vote}
             onChange={(e) => markDirty(setVote)(e.target.value)}
             placeholder="-"
-            className="min-h-[44px] rounded border border-border bg-bg px-2 py-1 sm:min-h-0"
+            className="min-h-[44px] rounded border border-border bg-bg px-2 py-1 can-hover:sm:min-h-0"
           />
         </label>
         <label className="flex flex-col gap-1">

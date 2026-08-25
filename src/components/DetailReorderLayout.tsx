@@ -249,7 +249,7 @@ export function DetailReorderLayout({
           <button
             type="button"
             onClick={() => { setDraft(layout); setEditing(true); }}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-0"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             title={t.layout.editLayout}
           >
             <LayoutList className="h-3.5 w-3.5" aria-hidden /> {t.layout.editLayout}

@@ -27,6 +27,7 @@ operations, providers, deployment, backup, and restore.
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
+| R14-RESP-002 | HIGH | Seventy-nine route and component surfaces reduced 44-pixel controls at the 640-pixel width breakpoint without checking input capabilities, so landscape phones and tablets received desktop-sized links, tabs, filters, artwork tools, and destructive actions. Keep touch dimensions at every width and compact only when a fine pointer can hover; enforce that invariant across all TSX sources. | application-wide responsive controls | DONE_WITH_DIFF |
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
 | R14-A11Y-002 | HIGH | The mobile navigation trigger rendered at 44 by 32 pixels and the expanded quote refresh action rendered at 12 by 12 pixels, despite pseudo-element helpers that did not change their layout boxes. Give the menu a permanent 44-pixel box and the quote action a 44-pixel box whenever it is interactive while preserving its compact, inert collapsed state. | `src/components/MoreNavMenu.tsx`, `src/components/QuoteFooter.tsx` | DONE_WITH_DIFF |
 | R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
@@ -192,3 +193,11 @@ operations, providers, deployment, backup, and restore.
   The full suite passes 9,774 tests with exactly 100% statements, branches,
   functions, and lines, together with the complete typecheck and production
   build.
+- Touch-target compaction across 79 route and component surfaces now depends
+  on both the desktop width and a fine pointer that can hover. Landscape
+  phones, tablets, and coarse-pointer windows therefore retain their 44-pixel
+  links, filters, tabs, artwork tools, and actions. A source-wide invariant
+  rejects future width-only height or width resets, and 95 focused responsive,
+  navigation, density, lightbox, and safe-area scenarios pass. The full suite
+  passes 9,775 tests with exactly 100% statements, branches, functions, and
+  lines, together with the complete typecheck.

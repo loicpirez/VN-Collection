@@ -277,7 +277,7 @@ export function ActivityTimeline({ vnId, initial }: Props) {
                         type="button"
                         onClick={() => remove(e.id)}
                         disabled={busy}
-                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped sm:min-h-0 sm:min-w-0"
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:text-status-dropped can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                         aria-label={t.common.delete}
                       >
                         <Trash2 className="h-3 w-3" aria-hidden />

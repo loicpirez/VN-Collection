@@ -762,7 +762,7 @@ export function WishlistClient() {
               <button
                 type="button"
                 onClick={() => setHideOwned(false)}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs text-accent hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs text-accent hover:border-status-dropped hover:text-status-dropped can-hover:sm:min-h-0"
                 aria-label={`${t.wishlist.hideOwned}: ${t.wishlist.filterReset}`}
               >
                 <Filter className="h-3 w-3" aria-hidden />

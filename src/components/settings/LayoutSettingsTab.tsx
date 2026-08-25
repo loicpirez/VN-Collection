@@ -186,7 +186,7 @@ export function LayoutSettingsTab({
                 aria-controls={`page-layout-panel-${key}`}
                 tabIndex={activePageLayoutTab === key ? 0 : -1}
                 onClick={() => setActivePageLayoutTab(key)}
-                className={`min-h-[44px] rounded px-2.5 py-1 sm:min-h-0 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+                className={`min-h-[44px] rounded px-2.5 py-1 can-hover:sm:min-h-0 ${activePageLayoutTab === key ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
               >
                 {label}
               </button>
@@ -375,7 +375,7 @@ function HomeLayoutPanel({
               { reset: true },
             );
           }}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/30 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
           title={t.homeSections.resetHint}
         >
           <Settings2 className="h-3 w-3" aria-hidden />
@@ -420,7 +420,7 @@ function SortableHomeLayoutRow({
         type="button"
         onClick={onToggleVisible}
         aria-pressed={!visible}
-        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:min-h-0 ${
+        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] can-hover:sm:min-h-0 ${
           visible
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border text-muted hover:border-accent hover:text-accent'
@@ -517,7 +517,7 @@ function VnLayoutPanel({
         <button
           type="button"
           onClick={() => void reset()}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold can-hover:sm:min-h-0"
         >
           {t.vnLayout.reset}
         </button>
@@ -633,7 +633,7 @@ function PageLayoutPanel<Id extends string>({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left sm:min-h-0"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left can-hover:sm:min-h-0"
       >
         <div>
           <h3 className="text-sm font-bold">{title}</h3>
@@ -655,7 +655,7 @@ function PageLayoutPanel<Id extends string>({
             <button
               type="button"
               onClick={() => void reset()}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-on_hold hover:text-status-on_hold can-hover:sm:min-h-0"
             >
               {resetLabel}
             </button>
@@ -731,7 +731,7 @@ function SortableDetailRow({
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
       <span className={`flex-1 ${visible ? 'text-white' : 'text-muted line-through'}`}>{label}</span>
-      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted sm:min-h-0">
+      <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-[10px] text-muted can-hover:sm:min-h-0">
         <input
           type="checkbox"
           checked={collapsedByDefault}
@@ -744,7 +744,7 @@ function SortableDetailRow({
         type="button"
         onClick={onToggleVisible}
         aria-pressed={!visible}
-        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:min-h-0 ${
+        className={`inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2 py-1 text-[11px] can-hover:sm:min-h-0 ${
           visible
             ? 'border-accent bg-accent/10 text-accent'
             : 'border-border text-muted hover:border-accent hover:text-accent'

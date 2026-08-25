@@ -273,7 +273,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           tabIndex={mode === 'local' ? 0 : -1}
           data-shortcut="tags-tab-local"
           onClick={() => switchMode('local')}
-          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
         </Link>
@@ -286,7 +286,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
           tabIndex={mode === 'vndb' ? 0 : -1}
           data-shortcut="tags-tab-vndb"
           onClick={() => switchMode('vndb')}
-          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 sm:min-h-0 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}
         </Link>

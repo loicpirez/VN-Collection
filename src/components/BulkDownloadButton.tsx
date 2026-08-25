@@ -315,7 +315,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
               type="button"
               role="menuitem"
               onClick={() => start(false)}
-              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
+              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev can-hover:sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
                 <CloudDownload className="h-3.5 w-3.5 text-accent" aria-hidden />
@@ -327,7 +327,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
               type="button"
               role="menuitem"
               onClick={() => start(true)}
-              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
+              className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev can-hover:sm:min-h-0"
             >
               <span className="inline-flex items-center gap-1 font-bold">
                 <RefreshCw className="h-3.5 w-3.5 text-accent" aria-hidden />
@@ -343,7 +343,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
                   setPickerOpen(false);
                   setSelectiveOpen(true);
                 }}
-                className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev sm:min-h-0"
+                className="flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-bg-elev can-hover:sm:min-h-0"
               >
                 <span className="inline-flex items-center gap-1 font-bold">
                   <CheckSquare className="h-3.5 w-3.5 text-accent" aria-hidden />
@@ -401,7 +401,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
                 <button
                   type="button"
                   onClick={stop}
-                  className="min-h-[44px] rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped sm:min-h-0"
+                  className="min-h-[44px] rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted hover:border-status-dropped hover:text-status-dropped can-hover:sm:min-h-0"
                 >
                   {t.bulk.stop}
                 </button>
@@ -449,7 +449,7 @@ export function BulkDownloadButton({ onItemDone, itemsOverride, label }: Props) 
               <button
                 type="button"
                 onClick={retryFailed}
-                className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-bold text-accent hover:bg-accent/20 sm:min-h-0"
+                className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-bold text-accent hover:bg-accent/20 can-hover:sm:min-h-0"
               >
                 <RotateCcw className="h-3 w-3" aria-hidden />
                 {t.bulk.retryFailed.replace('{n}', String(failures.length))}

@@ -538,7 +538,7 @@ export function EditionInfoTrigger({
               onPointerDown={stop}
               onMouseDown={stop}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
             >
               <ExternalLink className="h-2.5 w-2.5" aria-hidden />
               {t.shelfLayout.poolOpenVn}
@@ -549,7 +549,7 @@ export function EditionInfoTrigger({
                 onPointerDown={stop}
                 onMouseDown={stop}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded border border-border bg-bg-elev/50 px-1.5 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
               >
                 <ExternalLink className="h-2.5 w-2.5" aria-hidden />
                 {t.shelfLayout.poolOpenRelease}

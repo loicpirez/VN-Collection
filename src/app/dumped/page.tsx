@@ -187,7 +187,7 @@ export default async function DumpedPage({
                   key={key}
                   href={key === 'all' ? '/dumped' : `/dumped?tab=${key}`}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors sm:min-h-0 ${
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-0 ${
                     isActive
                       ? 'border-accent bg-accent/15 text-accent'
                       : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'

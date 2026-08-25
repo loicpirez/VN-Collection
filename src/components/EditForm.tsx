@@ -736,7 +736,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
                 <Link href={`/series/${s.id}`} className="hover:text-accent">{s.name}</Link>
                 <button
                   type="button"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60 sm:min-h-0 sm:min-w-0"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                   onClick={() => removeSeries(s.id)}
                   disabled={addingSeries || removingSeriesId !== null}
                   aria-busy={removingSeriesId === s.id || undefined}

@@ -1149,7 +1149,7 @@ function EditionPicker({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="min-h-[44px] rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:text-white sm:min-h-0"
+                className="min-h-[44px] rounded-md border border-border bg-bg-card px-2 py-1 text-[11px] text-muted hover:text-white can-hover:sm:min-h-0"
               >
                 {t.inventory.pickerFilterReset}
               </button>

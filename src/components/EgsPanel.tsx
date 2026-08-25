@@ -345,7 +345,7 @@ export function EgsPanel({
                 href={gameHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {t.egs.openOnEgs}
               </a>
@@ -363,7 +363,7 @@ export function EgsPanel({
               type="button"
               onClick={onRefresh}
               disabled={operationBusy}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0"
               title={t.egs.refresh}
             >
               <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
@@ -372,7 +372,7 @@ export function EgsPanel({
               type="button"
               onClick={onUnlink}
               disabled={operationBusy}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 sm:min-h-0"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] text-muted hover:border-status-dropped hover:text-status-dropped disabled:opacity-50 can-hover:sm:min-h-0"
               title={t.egs.unlink}
             >
               {unlinking ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Trash2 className="h-3 w-3" aria-hidden />}
@@ -396,7 +396,7 @@ export function EgsPanel({
             {brandName && (
               <Link
                 href={`/search?q=${encodeURIComponent(brandName)}`}
-                className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                 title={brandName}
               >
                 {brandName}
@@ -407,7 +407,7 @@ export function EgsPanel({
               return href ? (
                 <Link
                   href={href}
-                  className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 tabular-nums text-muted hover:border-accent hover:text-accent sm:min-h-0"
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 tabular-nums text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                 >
                   {game.sellday.slice(0, 4)}
                 </Link>
