@@ -163,6 +163,37 @@ describe('StockBatchClient branches', () => {
     // Empty disabled set -> the early return keeps the default full selection.
     expect(screen.getByRole('button', { name: 'Getchu' }).className).toContain('bg-accent/20');
     expect(screen.getByRole('button', { name: 'Eroge Price' }).className).toContain('bg-accent/20');
+    expect(screen.getByText('22/22 selected')).not.toBeNull();
+  });
+
+  it('keeps disabled providers unavailable across every provider group shortcut', async () => {
+    global.fetch = routedFetch({ settings: { stock_disabled_providers: ['getchu', 'sofmap', 'amazon_jp'] } });
+    renderWithProviders(<StockBatchClient />, { locale: 'en' });
+    await flush();
+
+    const getchu = screen.getByRole('button', { name: 'Getchu' });
+    const sofmap = screen.getByRole('button', { name: 'Sofmap / Recole' });
+    const amazon = screen.getByRole('button', { name: 'Amazon JP' });
+    expect((getchu as HTMLButtonElement).disabled).toBe(true);
+    expect((sofmap as HTMLButtonElement).disabled).toBe(true);
+    expect((amazon as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('19/19 selected')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'None' }));
+    expect(screen.getByText('0/19 selected')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByText('19/19 selected')).not.toBeNull();
+    expect(getchu.className).not.toContain('bg-accent/20');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregator' }));
+    expect(screen.getByText('1/19 selected')).not.toBeNull();
+    expect(getchu.className).not.toContain('bg-accent/20');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Physical' }));
+    expect(sofmap.className).not.toContain('bg-accent/20');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Online' }));
+    expect(amazon.className).not.toContain('bg-accent/20');
   });
 
   it('keeps defaults when the settings request rejects', async () => {

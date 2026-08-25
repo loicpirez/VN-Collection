@@ -104,6 +104,7 @@ export function StockBatchClient() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [queued, setQueued] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enabledProviders, setEnabledProviders] = useState<string[]>([...STOCK_PROVIDER_IDS]);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([...STOCK_PROVIDER_IDS]);
   const [queuePage, setQueuePage] = useState(1);
   const [loadingScopes, setLoadingScopes] = useState<Set<StockBatchScope>>(() => new Set());
@@ -124,9 +125,10 @@ export function StockBatchClient() {
         const providers = decodeDisabledStockProviders(data);
         if (!providers) return;
         const disabled = new Set(providers);
-        if (disabled.size === 0) return;
         if (!controller.signal.aborted) {
-          setSelectedProviders(STOCK_PROVIDER_IDS.filter((id) => !disabled.has(id)));
+          const enabled = STOCK_PROVIDER_IDS.filter((id) => !disabled.has(id));
+          setEnabledProviders(enabled);
+          setSelectedProviders(enabled);
         }
       })
       .catch(() => {});
@@ -189,9 +191,15 @@ export function StockBatchClient() {
   }, [jobId, t.common.error]);
 
   function toggleProvider(id: string) {
+    if (!enabledProviders.includes(id)) return;
     setSelectedProviders((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
+  }
+
+  function selectProviderGroup(providers: readonly string[]): void {
+    const enabled = new Set(enabledProviders);
+    setSelectedProviders(providers.filter((id) => enabled.has(id)));
   }
 
   function addToQueue(entry: QueueEntry) {
@@ -400,12 +408,19 @@ export function StockBatchClient() {
 
         {/* Provider filter */}
         <div>
-          <span className="mb-1 block text-[11px] uppercase tracking-widest text-muted">{t.stock.batchProviderFilter as string}</span>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-[11px] uppercase tracking-widest text-muted">
+            <span>{t.stock.batchProviderFilter as string}</span>
+            <span aria-live="polite">
+              {(t.stock.providerSelectedCount as string)
+                .replace('{selected}', String(selectedProviders.length))
+                .replace('{total}', String(enabledProviders.length))}
+            </span>
+          </div>
           <div className="mb-1.5 flex flex-wrap gap-1">
             <button
               type="button"
               disabled={running}
-              onClick={() => setSelectedProviders([...STOCK_PROVIDER_IDS])}
+              onClick={() => selectProviderGroup(enabledProviders)}
               className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupAll as string}
@@ -421,7 +436,7 @@ export function StockBatchClient() {
             <button
               type="button"
               disabled={running}
-              onClick={() => setSelectedProviders(PROVIDER_GROUPS.aggregator.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              onClick={() => selectProviderGroup(PROVIDER_GROUPS.aggregator)}
               className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupAggregator as string}
@@ -429,7 +444,7 @@ export function StockBatchClient() {
             <button
               type="button"
               disabled={running}
-              onClick={() => setSelectedProviders(PROVIDER_GROUPS.physical.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              onClick={() => selectProviderGroup(PROVIDER_GROUPS.physical)}
               className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupPhysical as string}
@@ -437,7 +452,7 @@ export function StockBatchClient() {
             <button
               type="button"
               disabled={running}
-              onClick={() => setSelectedProviders(PROVIDER_GROUPS.online.filter((id) => (STOCK_PROVIDER_IDS as readonly string[]).includes(id)))}
+              onClick={() => selectProviderGroup(PROVIDER_GROUPS.online)}
               className="min-h-[44px] min-w-[44px] rounded-md border border-border bg-bg px-2 py-1 text-[10px] font-semibold text-muted hover:border-accent hover:text-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {t.stock.batchGroupOnline as string}
@@ -446,13 +461,14 @@ export function StockBatchClient() {
           <div className="flex flex-wrap gap-1">
             {STOCK_PROVIDER_IDS.map((id) => {
               const active = selectedProviders.includes(id);
+              const enabled = enabledProviders.includes(id);
               return (
                 <button
                   key={id}
                   type="button"
-                  disabled={running}
+                  disabled={running || !enabled}
                   onClick={() => toggleProvider(id)}
-                  className={`min-h-[44px] min-w-[44px] rounded px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
+                  className={`min-h-[44px] min-w-[44px] rounded px-2 py-1 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                     active
                       ? 'border border-accent/60 bg-accent/20 text-accent'
                       : 'border border-border text-muted hover:border-accent/60 hover:text-accent'
