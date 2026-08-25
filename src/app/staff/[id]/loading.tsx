@@ -1,19 +1,10 @@
-import { StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
-import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getDict } from '@/lib/i18n/server';
-import {
-  STAFF_DETAIL_SETTINGS_KEY,
-  parseStaffDetailLayoutV1,
-  type StaffSectionId,
-} from '@/lib/staff-detail-layout';
 
 function CreditCardSkeleton({
   visibilityClass,
-  withCharacters,
 }: {
   visibilityClass: string;
-  withCharacters: boolean;
 }) {
   return (
     <li className={`${visibilityClass} gap-3 rounded-lg border border-border bg-bg-elev/40 p-2`}>
@@ -31,38 +22,30 @@ function CreditCardSkeleton({
           <SkeletonBlock className="h-5 w-12" />
           <SkeletonBlock className="h-5 w-14" />
         </div>
-        {withCharacters && (
-          <div className="mt-3 flex items-start gap-2">
-            <SkeletonBlock className="h-11 w-11 shrink-0" />
-            <div className="min-w-0 flex-1 space-y-2 pt-1">
-              <SkeletonBlock className="h-3 w-3/4" />
-              <SkeletonBlock className="h-2.5 w-1/2" />
-            </div>
+        <div className="mt-3 flex items-start gap-2">
+          <SkeletonBlock className="h-11 w-11 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2 pt-1">
+            <SkeletonBlock className="h-3 w-3/4" />
+            <SkeletonBlock className="h-2.5 w-1/2" />
           </div>
-        )}
+        </div>
       </div>
     </li>
   );
 }
 
-function CreditSectionSkeleton({
-  sectionId,
-  withCharacters = false,
-}: {
-  sectionId: StaffSectionId;
-  withCharacters?: boolean;
-}) {
+function CreditSectionSkeleton() {
   return (
     <section
       className="rounded-xl border border-border bg-bg-card p-4 sm:p-6"
-      data-staff-section-skeleton={sectionId}
+      data-staff-primary-credit-skeleton
     >
       <SkeletonBlock className="mb-4 h-4 w-44" />
       <ul
         className="grid gap-3"
         data-staff-credit-grid-skeleton
         style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, var(--card-density-px, ${withCharacters ? '280' : '220'}px)), 1fr))`,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 280px)), 1fr))',
         }}
       >
         {Array.from({ length: 12 }).map((_, index) => {
@@ -71,7 +54,6 @@ function CreditSectionSkeleton({
             <CreditCardSkeleton
               key={index}
               visibilityClass={visibilityClass}
-              withCharacters={withCharacters}
             />
           );
         })}
@@ -80,69 +62,8 @@ function CreditSectionSkeleton({
   );
 }
 
-function SiblingSectionSkeleton() {
-  return (
-    <section
-      className="rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5"
-      data-staff-section-skeleton="siblings"
-      data-staff-siblings-skeleton
-    >
-      <SkeletonBlock className="h-4 w-64 max-w-full" />
-      <SkeletonBlock className="mt-3 h-3 w-[36rem] max-w-full" />
-      <ul className="mt-3 space-y-1.5">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <li key={index} className="flex min-h-7 flex-wrap items-center gap-2">
-            <SkeletonBlock className="h-3 w-32" />
-            <SkeletonBlock className="h-3 w-48 max-w-[55%]" />
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function CollapsedSectionSkeleton({ sectionId }: { sectionId: StaffSectionId }) {
-  return (
-    <div
-      className="mb-2 flex min-h-[44px] w-full items-center gap-2"
-      data-staff-collapsed-section-skeleton={sectionId}
-    >
-      <SkeletonBlock className="h-3.5 w-3.5 shrink-0" />
-      <SkeletonBlock className="h-3 w-36 max-w-[70%]" />
-    </div>
-  );
-}
-
 export default async function StaffDetailLoading() {
-  const [t, rawLayout] = await Promise.all([
-    getDict(),
-    getAppSettingRepository().get(STAFF_DETAIL_SETTINGS_KEY),
-  ]);
-  const layout = parseStaffDetailLayoutV1(rawLayout);
-  const sectionSkeletons: Record<StaffSectionId, React.ReactNode> = {
-    timeline: (
-      <section
-        className="rounded-xl border border-border bg-bg-card p-4 sm:p-6"
-        data-staff-section-skeleton="timeline"
-        data-staff-timeline-skeleton
-      >
-        <SkeletonBlock className="h-4 w-40" />
-        <SkeletonBlock className="mt-3 h-3 w-72 max-w-full" />
-        <div className="mt-4 flex items-end gap-1 overflow-hidden pb-1">
-          {Array.from({ length: 12 }).map((_, index) => (
-            <div key={index} className="w-7 shrink-0">
-              <SkeletonBlock className="h-24 w-7 rounded-sm" />
-              <SkeletonBlock className="mx-auto mt-0.5 h-2 w-4 rounded-sm" />
-            </div>
-          ))}
-        </div>
-      </section>
-    ),
-    siblings: <SiblingSectionSkeleton />,
-    'voice-credits': <CreditSectionSkeleton sectionId="voice-credits" withCharacters />,
-    'production-credits': <CreditSectionSkeleton sectionId="production-credits" />,
-    'extra-credits': <StaffExtraCreditsSkeleton withTopSpacing={false} />,
-  };
+  const t = await getDict();
   return (
     <SkeletonBoundary label={t.common.loading} className="w-full" densityScope="staffWorks">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
@@ -195,15 +116,7 @@ export default async function StaffDetailLoading() {
         </div>
       </header>
 
-      <div className="space-y-6">
-        {layout.order.map((sectionId) => {
-          if (!layout.sections[sectionId].visible) return null;
-          if (layout.sections[sectionId].collapsedByDefault) {
-            return <CollapsedSectionSkeleton key={sectionId} sectionId={sectionId} />;
-          }
-          return <div key={sectionId}>{sectionSkeletons[sectionId]}</div>;
-        })}
-      </div>
+      <CreditSectionSkeleton />
       <div className="mt-4 flex justify-end">
         <SkeletonBlock className="h-11 w-28 can-hover:sm:h-8" />
       </div>

@@ -43,10 +43,6 @@ import YearLoading from '@/app/year/loading';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { DEFAULT_HOME_LAYOUT } from '@/lib/home-section-layout';
-import {
-  STAFF_DETAIL_SETTINGS_KEY,
-  defaultStaffDetailLayoutV1,
-} from '@/lib/staff-detail-layout';
 import { defaultSeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
 import {
   SkeletonBlock,
@@ -234,49 +230,25 @@ describe('route loading skeletons', () => {
     expect(html.match(/rounded-lg border border-border bg-bg-elev\/40 p-3/g)).toHaveLength(10);
   });
 
-  it('matches the staff detail profile, timeline, and horizontal credit-card geometry', async () => {
+  it('matches the staff detail profile and one route-safe horizontal credit grid', async () => {
     const html = renderToStaticMarkup(await StaffDetailLoading());
     expect(html).toContain('--card-density-px:300px');
     expect(html).toContain('data-staff-detail-skeleton');
-    expect(html).toContain('data-staff-timeline-skeleton');
-    expect(html).toContain('data-staff-siblings-skeleton');
-    expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(2);
-    expect(html).toContain('data-staff-extra-group-skeleton');
-    expect(html.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(4);
+    expect(html).toContain('data-staff-primary-credit-skeleton');
+    expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(1);
+    expect(html).not.toContain('data-staff-timeline-skeleton');
+    expect(html).not.toContain('data-staff-siblings-skeleton');
+    expect(html).not.toContain('data-staff-extra-group-skeleton');
     expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
     expect(html).toContain('var(--card-density-px, 280px)');
-    expect(html.match(/gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(28);
+    expect(html.match(/gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(12);
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(12);
-    expect(html.match(/hidden sm:flex gap-3/g)).toHaveLength(8);
-    expect(html.match(/hidden xl:flex gap-3/g)).toHaveLength(8);
-    expect(html.match(/h-24 w-7 rounded-sm/g)).toHaveLength(12);
+    expect(html.match(/hidden sm:flex gap-3/g)).toHaveLength(4);
+    expect(html.match(/hidden xl:flex gap-3/g)).toHaveLength(4);
     expect(html).toContain('data-staff-profile-common-skeleton');
     expect(html).toContain('h-[54px] w-[400px] max-w-full');
     expect(html).toContain('h-11 w-[104px]');
-    expect(html).not.toContain('class="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6"');
     expect(html).toContain('mt-2 space-y-2');
-  });
-
-  it('keeps the staff loading sections in the saved order and omits hidden sections', async () => {
-    const repository = getAppSettingRepository();
-    const previous = await repository.get(STAFF_DETAIL_SETTINGS_KEY);
-    const layout = defaultStaffDetailLayoutV1();
-    layout.order = ['voice-credits', 'timeline', 'production-credits', 'siblings', 'extra-credits'];
-    layout.sections['production-credits'].visible = false;
-    layout.sections.timeline.collapsedByDefault = true;
-    await repository.set(STAFF_DETAIL_SETTINGS_KEY, JSON.stringify(layout));
-    try {
-      const html = renderToStaticMarkup(await StaffDetailLoading());
-      const voiceIndex = html.indexOf('data-staff-section-skeleton="voice-credits"');
-      const timelineIndex = html.indexOf('data-staff-section-skeleton="timeline"');
-      expect(voiceIndex).toBeGreaterThan(0);
-      const collapsedTimelineIndex = html.indexOf('data-staff-collapsed-section-skeleton="timeline"');
-      expect(timelineIndex).toBe(-1);
-      expect(collapsedTimelineIndex).toBeGreaterThan(voiceIndex);
-      expect(html).not.toContain('data-staff-section-skeleton="production-credits"');
-    } finally {
-      await repository.set(STAFF_DETAIL_SETTINGS_KEY, previous);
-    }
   });
 
   it('distinguishes nested detail fallbacks from their index fallbacks', async () => {
