@@ -43,6 +43,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-026 | HIGH | Lazy-loading the destructive stock-cache confirmation injected two generic rows into the VN stock panel before replacing them with a modal. Keep loading in the modal layer and reserve the final title, message, and two-action geometry without shifting the underlying page. | VN stock clear-cache dialog loading | DONE_WITH_DIFF |
 | R14-UX-027 | MEDIUM | Data maintenance loaded duplicate groups, stale VNs, and provider freshness as three identical generic lists despite their different identifiers, actions, and status metadata. Preserve the three-column responsive layout and each column's final row anatomy. | data maintenance loading | DONE_WITH_DIFF |
 | R14-UX-028 | MEDIUM | Physical-bundle and selective-download dialogs loaded operational rows as passive three-line cards. Preserve bundle member metadata plus dissolve actions, and selective checkbox/title/id/year rows, including coarse-pointer action height. | bundle and selective-download dialog loading | DONE_WITH_DIFF |
+| R14-UX-029 | MEDIUM | The VN route skeleton appended a generic passive-row card that did not map to any configurable detail section and changed unpredictably with collection and metadata state. Keep only guaranteed hero, synopsis, and media geometry at the route boundary; section components own their specific loading states after mount. | VN route loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -398,5 +399,12 @@ operations, providers, deployment, backup, and restore.
   and year columns. One hundred thirty-one focused dialog, shelf, responsive,
   and selection scenarios pass, the production build passes, and the full
   suite passes 9,811 tests with exactly 100% statements (44,789/44,789),
+  branches (38,088/38,088), functions (9,151/9,151), and lines
+  (38,245/38,245).
+- VN route loading no longer appends an invented passive-row section beneath
+  the guaranteed hero, synopsis, and media geometry. Configurable sections keep
+  their own destination-specific fallbacks when they mount. Sixty-six focused
+  route and loading scenarios pass, the production build passes, and the full
+  suite remains at 9,811 tests with exactly 100% statements (44,789/44,789),
   branches (38,088/38,088), functions (9,151/9,151), and lines
   (38,245/38,245).

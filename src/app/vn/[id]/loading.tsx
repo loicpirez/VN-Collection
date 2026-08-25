@@ -1,4 +1,4 @@
-import { SkeletonBlock, SkeletonBoundary, SkeletonRows, SkeletonText } from '@/components/Skeleton';
+import { SkeletonBlock, SkeletonBoundary, SkeletonText } from '@/components/Skeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function Loading() {
@@ -55,11 +55,6 @@ export default async function Loading() {
             ))}
           </div>
         </div>
-      </div>
-
-      <div className="rounded-lg border border-border bg-bg-card p-4 sm:p-6">
-        <SkeletonBlock className="mb-4 h-4 w-36" />
-        <SkeletonRows count={3} withThumb={false} />
       </div>
     </SkeletonBoundary>
   );

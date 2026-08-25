@@ -140,6 +140,7 @@ describe('route loading skeletons', () => {
     expect(html).toContain('grid-cols-3');
     expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
+    expect(html).not.toContain('bg-bg-elev/30 p-3');
   });
 
   it('matches the configurable home strips, controls, and library grid geometry', async () => {
