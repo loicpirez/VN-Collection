@@ -610,6 +610,9 @@ describe('VN detail page runtime', () => {
     expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '1'));
     expect(html).toContain('href="/producer/p2"');
     expect(html).toContain('href="/?aspect=16%3A9"');
+    expect(html).toContain('title="Windows"');
+    expect(html).toContain('aria-label="Windows"');
+    expect(html).not.toContain('title="win"');
   });
 
   it('renders full collection-only composition and source preferences', async () => {

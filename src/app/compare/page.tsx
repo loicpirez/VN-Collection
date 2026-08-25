@@ -466,7 +466,7 @@ function PlatformValues({ item, shared, locale }: { item: CollectionItem; shared
       className={`mr-1 inline-block rounded px-1.5 py-0.5 ${
         shared.has(platform) ? 'bg-accent/20 text-accent' : 'bg-bg-elev text-muted'
       }`}
-      title={platform}
+      title={platformLabel(platform, locale)}
     >
       {platformLabel(platform, locale)}
     </span>

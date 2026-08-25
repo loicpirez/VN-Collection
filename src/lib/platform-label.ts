@@ -12,6 +12,8 @@
  *     this helper is presentation-only. Hover tooltips / aria-label
  *     should expose the raw code so power users can still see "win".
  *   - Lookup is case-insensitive.
+ *   - Accessible names and tooltips use the human-readable label. A compact
+ *     disclosure may append the raw code as secondary context.
  *   - Codes that aren't in the map fall back to their UPPERCASE form
  *     so we never render an empty chip.
  *

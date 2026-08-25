@@ -154,6 +154,10 @@ describe('ReleasesSection branches', () => {
     expect(within(item).getByText(t.releases.uncensored)).toBeInTheDocument();
     expect(within(item).getByText(t.releases.hasEro)).toBeInTheDocument();
     expect(within(item).getByText(t.releases.voiced4)).toBeInTheDocument();
+    expect(within(item).getByRole('link', { name: 'English' })).toHaveAttribute('title', 'English');
+    expect(within(item).getByRole('link', { name: 'Japanese' })).toHaveAttribute('title', 'Japanese');
+    expect(within(item).getByRole('link', { name: 'Windows' })).toHaveAttribute('title', 'Windows');
+    expect(within(item).getByRole('link', { name: 'PlayStation 4' })).toHaveAttribute('title', 'PlayStation 4');
     expect(within(item).getByRole('link', { name: 'Studio X' })).toBeInTheDocument();
     expect(within(item).getByRole('link', { name: 'Publisher Z' })).toBeInTheDocument();
     expect(within(item).getByText('CAT-001')).toBeInTheDocument();

@@ -15,6 +15,7 @@ import {
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { platformLabel } from '@/lib/platform-label';
+import { languageDisplayName } from '@/lib/language-names';
 import { formatVndbDateString } from '@/lib/locale-number';
 import { SkeletonRows } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
@@ -146,9 +147,11 @@ const ReleaseRow = memo(function ReleaseRow({
               <Link
                 key={l.lang}
                 href={`/search?langs=${encodeURIComponent(l.lang)}`}
-                className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                title={languageDisplayName(l.lang, locale)}
+                aria-label={languageDisplayName(l.lang, locale)}
+                className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
               >
-                {l.lang}
+                {languageDisplayName(l.lang, locale)}
               </Link>
             ))}
           </span>
@@ -160,8 +163,8 @@ const ReleaseRow = memo(function ReleaseRow({
               <Link
                 key={p}
                 href={`/search?platforms=${encodeURIComponent(p)}`}
-                title={p}
-                aria-label={p}
+                title={platformLabel(p, locale)}
+                aria-label={platformLabel(p, locale)}
                 className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
               >
                 {platformLabel(p, locale)}

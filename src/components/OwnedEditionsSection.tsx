@@ -36,6 +36,7 @@ import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString, formatVndbDateString } from '@/lib/locale-number';
 import { derivePlatformDisplay } from '@/lib/platform-display';
+import { languageDisplayName } from '@/lib/language-names';
 import { platformLabel } from '@/lib/platform-label';
 import { BOX_TYPES, LOCATIONS, type BoxType, type Location } from '@/lib/types';
 import { ASPECT_KEYS, type AspectKey } from '@/lib/aspect-ratio';
@@ -449,7 +450,7 @@ export function OwnedEditionsSection({ vnId, parentVnTitle, parentVnCover }: Sec
                             <LangFlag key={l.lang} lang={l.lang} className="text-xs" />
                           ))}
                           {release?.platforms.slice(0, 3).map((p) => (
-                            <span key={p} title={p}>{platformLabel(p, locale)}</span>
+                            <span key={p} title={platformLabel(p, locale)}>{platformLabel(p, locale)}</span>
                           ))}
                         </div>
                       </div>
@@ -783,7 +784,7 @@ function EditionEditor({
           />
         ) : releasePlatforms.length === 1 ? (
           <div className="input flex items-center justify-between gap-2 bg-bg-elev/40 text-muted">
-            <span className="uppercase text-white">{releasePlatforms[0]}</span>
+            <span className="text-white">{platformLabel(releasePlatforms[0], locale)}</span>
             <span className="text-[10px]">{t.form.ownedPlatformLocked}</span>
           </div>
         ) : (
@@ -794,7 +795,7 @@ function EditionEditor({
           >
             <option value="">{t.form.ownedPlatformUnset}</option>
             {releasePlatforms.map((p) => (
-              <option key={p} value={p}>{p.toUpperCase()}</option>
+              <option key={p} value={p}>{platformLabel(p, locale)}</option>
             ))}
           </select>
         )}
@@ -1101,7 +1102,7 @@ function EditionPicker({
             >
               <option value="">{t.inventory.pickerFilterLang}</option>
               {allLangs.map((l) => (
-                <option key={l} value={l}>{l.toUpperCase()}</option>
+                <option key={l} value={l}>{languageDisplayName(l, locale)}</option>
               ))}
             </select>
             <select
@@ -1112,7 +1113,7 @@ function EditionPicker({
             >
               <option value="">{t.inventory.pickerFilterPlatform}</option>
               {allPlatforms.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>{platformLabel(p, locale)}</option>
               ))}
             </select>
             <select

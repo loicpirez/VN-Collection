@@ -71,7 +71,7 @@ export function PlatformOverflowDisclosure({ items, moreLabel, label, closeLabel
             <Link
               key={item.code}
               href={`/search?platforms=${encodeURIComponent(item.code)}`}
-              title={item.code}
+              title={item.label}
               aria-label={`${item.label} (${item.code})`}
               onClick={() => setOpen(false)}
               className="inline-flex min-h-[44px] items-center rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-[28px] sm:px-1.5 sm:py-0.5"

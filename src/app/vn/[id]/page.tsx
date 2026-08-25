@@ -631,8 +631,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       <Link
                         key={p}
                         href={`/search?platforms=${encodeURIComponent(p)}`}
-                        title={p}
-                        aria-label={p}
+                        title={platformLabel(p, locale)}
+                        aria-label={platformLabel(p, locale)}
                         className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-border bg-bg-elev/40 px-1.5 py-0.5 text-xs tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                       >
                         {platformLabel(p, locale)}

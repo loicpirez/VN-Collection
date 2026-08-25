@@ -238,6 +238,7 @@ describe('compare page runtime', () => {
     expect(html).toContain('Shared tag');
     expect(html).not.toContain('Hidden spoiler');
     expect(html).toContain('Japanese');
+    expect(html).toContain('title="Windows"');
     expect(html).toContain('Shared developer');
     expect(html).toContain('href="/producer/p1"');
     expect(html).toContain('Recurring character');

@@ -38,6 +38,7 @@ vi.mock('@/lib/scrape-producer-relations', () => ({
 
 vi.mock('@/lib/i18n/server', () => ({
   getDict: vi.fn(async () => (await import('@/lib/i18n/dictionaries')).dictionaries.en),
+  getLocale: vi.fn(async () => 'en'),
 }));
 
 vi.mock('@/components/CardDensitySlider', () => ({

@@ -6,7 +6,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getProducer as fetchProducer } from '@/lib/vndb';
-import { getDict } from '@/lib/i18n/server';
+import { getDict, getLocale } from '@/lib/i18n/server';
 import { ProducerLogo } from '@/components/ProducerLogo';
 import { ProducerLogoUpload } from '@/components/ProducerLogoUpload';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -19,6 +19,7 @@ import { DetailReorderLayout, type DetailSection } from '@/components/DetailReor
 import { safeHref } from '@/lib/safe-href';
 import { ProducerVnsSkeleton } from '@/components/ProducerVnsSkeleton';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
+import { languageDisplayName } from '@/lib/language-names';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
   PRODUCER_DETAIL_SETTINGS_KEY,
@@ -67,7 +68,7 @@ export default async function ProducerPage({
   const rawScope = Array.isArray(sp.scope) ? sp.scope[0] : sp.scope;
   const scope = rawScope === 'collection' ? 'collection' : 'all';
   if (!/^p\d+$/i.test(id)) notFound();
-  const t = await getDict();
+  const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const repository = getProducerRepository();
   const [loadedProducer, ownership, rawLayout] = await Promise.all([
     loadProducer(id),
@@ -123,7 +124,7 @@ export default async function ProducerPage({
             )}
             {producer.lang && (
               <span className="rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-muted">
-                {producer.lang.toUpperCase()}
+                {languageDisplayName(producer.lang, locale)}
               </span>
             )}
             {/*

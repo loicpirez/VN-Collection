@@ -225,6 +225,8 @@ describe('EditionInfoPopover branches', () => {
     renderTrigger(makeData({ owned_platform: 'win', rel_platforms: ['win'] }));
     const region = await openPopover();
     expect(within(region).getByText(t.shelfLayout.ownedBadge)).toBeInTheDocument();
+    expect(within(region).getByText('Windows')).toHaveAttribute('title', 'Windows');
+    expect(within(region).getByText('Windows')).toHaveAttribute('aria-label', 'Windows');
   });
 
   it('shows the also-available-on secondary line for a multi-platform pinned release', async () => {
@@ -237,6 +239,8 @@ describe('EditionInfoPopover branches', () => {
     renderTrigger(makeData({ owned_platform: null, rel_platforms: ['ps4'] }));
     const region = await openPopover();
     expect(within(region).getByText(t.shelfLayout.releaseFieldBadge)).toBeInTheDocument();
+    expect(within(region).getByText('PlayStation 4')).toHaveAttribute('title', 'PlayStation 4');
+    expect(within(region).getByText('PlayStation 4')).toHaveAttribute('aria-label', 'PlayStation 4');
   });
 
   it('renders the choose-platform action for a multi-platform release with no pin', async () => {

@@ -576,6 +576,11 @@ describe('OwnedEditionsSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: t.inventory.addEdition }));
 
+    expect(screen.getByRole('option', { name: 'Japanese' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'English' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Windows' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Nintendo Switch' })).toBeTruthy();
+
     fireEvent.change(screen.getByLabelText(t.inventory.pickerSearchPlaceholder), {
       target: { value: 'Final alternate' },
     });

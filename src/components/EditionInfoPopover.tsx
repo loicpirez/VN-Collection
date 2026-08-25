@@ -346,7 +346,11 @@ export function EditionInfoTrigger({
                   return (
                     <div>
                       {t.form.ownedPlatform}:{' '}
-                      <span className="text-white" title={state.platform} aria-label={state.platform}>
+                      <span
+                        className="text-white"
+                        title={platformLabel(state.platform, locale)}
+                        aria-label={platformLabel(state.platform, locale)}
+                      >
                         {platformLabel(state.platform, locale)}
                       </span>
                       <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] uppercase text-accent">
@@ -358,7 +362,11 @@ export function EditionInfoTrigger({
                   return (
                     <div>
                       {t.form.ownedPlatform}:{' '}
-                      <span className="text-white" title={state.platform} aria-label={state.platform}>
+                      <span
+                        className="text-white"
+                        title={platformLabel(state.platform, locale)}
+                        aria-label={platformLabel(state.platform, locale)}
+                      >
                         {platformLabel(state.platform, locale)}
                       </span>
                       <span className="ml-1 rounded bg-bg-elev/40 px-1 text-[9px] uppercase opacity-70">
