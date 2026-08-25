@@ -1166,7 +1166,7 @@ export const dictionaries = {
       vndbTokenClear: 'Effacer le token enregistré',
       vndbTokenPlaceholder: 'vndb-...',
       vndbWriteback: 'Pousser les changements de statut vers VNDB',
-      vndbWritebackDesc: 'Après un changement explicite du statut local, copie uniquement ce statut vers VNDB. Désactivé par défaut. Les notes, dates et notes personnelles utilisent le résolveur de différences.',
+      vndbWritebackDesc: 'Après un changement explicite du statut local, copie uniquement ce statut vers VNDB. Désactivé par défaut. Les évaluations, dates et notes personnelles utilisent le résolveur de différences.',
       vndbPullTitle: 'Comparer les statuts avec VNDB',
       vndbPullDesc: 'Crée un aperçu sans modifier la collection. Sélectionne ensuite précisément les statuts VNDB à appliquer localement.',
       vndbPullAction: 'Comparer',

@@ -88,7 +88,7 @@ afterEach(() => {
 describe('pushStatusToVndb', () => {
   it('rejects a non-VNDB id without any fetch', async () => {
     const r = await pushStatusToVndb('egs_5', 'completed', FAKE_TOKEN);
-    expect(r).toEqual({ ok: false, message: 'not a vndb id' });
+    expect(r).toEqual({ ok: false, status: 400, message: 'not a vndb id' });
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 

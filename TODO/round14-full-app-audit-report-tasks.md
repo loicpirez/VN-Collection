@@ -96,9 +96,10 @@ operations, providers, deployment, backup, and restore.
 | R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
 | R14-STOCK-003 | HIGH | Bulk stock summaries used by VN cards read only the generic offer table, while AliceNet packages are stored separately and synthesized only for detail and place views. AliceNet-only availability and prices therefore disappeared from library cards. Union matched AliceNet packages into both database summary implementations with the same guarded yen parsing used by place views. | `src/lib/db.ts`, `src/lib/db/repositories/stock.ts`, stock database contracts | DONE_WITH_DIFF |
 | R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
-| R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | TODO |
+| R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | DONE_WITH_DIFF |
 | R14-VNDB-002 | CRITICAL | Conflict resolution previously submitted only field names, so an old browser preview could apply values that had changed locally or on VNDB since it was rendered. Submit the exact local/remote snapshot for every selected field, revalidate it against fresh data, use an atomic compare-and-set for local pulls, and reload the panel on conflict. | VN status panel, VNDB status API, SQLite and PostgreSQL collection repositories | DONE_WITH_DIFF |
 | R14-VNDB-003 | MEDIUM | The VNDB conflict API emitted a stable code when the selected synchronization direction was unavailable, but the client error union and all three dictionaries omitted it, reducing a precise conflict to a generic error. Add the code to the typed localized contract and exercise it through the panel. | VNDB status conflict API and panel | DONE_WITH_DIFF |
+| R14-VNDB-005 | MEDIUM | Optional automatic status writeback intentionally preserved a successful local mutation when VNDB failed, but it silently discarded both non-success HTTP responses and network failures while its caller claimed the failure was logged. Emit bounded diagnostics containing only the VN id and response class, without logging the token or upstream body. | automatic VNDB status writeback | DONE_WITH_DIFF |
 | R14-PERF-001 | HIGH | Recheck bounded queries, pagination/virtualization, tag indexes, repeated repository calls, client polling, background jobs, multi-tab behavior, images, DOM size, bundle boundaries, memory, database pool pressure, and slow provider isolation. | application and production runtime | TODO |
 | R14-DATA-001 | CRITICAL | Validate PostgreSQL migrations, indexes, constraints, JSON quarantine, SQLite migration parity, current production data, transaction behavior, connection pooling, backup creation, restore verification, and operational documentation. | PostgreSQL repositories, migrations, production database | TODO |
 | R14-TYPE-001 | HIGH | Re-scan production and test code for weakened types, unsafe casts, suppression directives, unvalidated external payloads, and exported contracts lacking useful documentation. | `src`, `tests`, `scripts` | TODO |
@@ -653,3 +654,15 @@ operations, providers, deployment, backup, and restore.
   PostgreSQL-backed suite passes 9,844 tests with exactly 100% statements
   (44,887/44,887), branches (38,147/38,147), functions (9,193/9,193), and
   lines (38,340/38,340).
+- VNDB synchronization now has a verified field-specific contract for local
+  status, rating, dates, notes, wishlist, and labels. Both per-item and global
+  flows revalidate preview snapshots before applying them, local pulls use an
+  atomic compare-and-set, and absent remote status cannot erase a local value.
+  A read-only production probe confirmed an authenticated entry, eight labels,
+  and explicit pull and push directions for the detected difference.
+  Automatic status writeback keeps local mutations authoritative but now logs
+  bounded HTTP-class or network diagnostics instead of silently discarding
+  failures. One hundred eighty-nine focused scenarios, typecheck, and the
+  production build pass; the complete PostgreSQL-backed suite passes 9,844
+  tests with exactly 100% statements (44,890/44,890), branches
+  (38,149/38,149), functions (9,193/9,193), and lines (38,343/38,343).

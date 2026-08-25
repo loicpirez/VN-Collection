@@ -224,9 +224,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       label: 'Updated collection item',
       payload: fields as Record<string, unknown>,
     });
-    // Best-effort write-back to VNDB. Awaiting it would tie the route's
-    // latency to api.vndb.org; we fire and forget but await so any auth
-    // error surfaces in the dev log (the helper itself never throws).
+    // Best-effort write-back keeps the committed local mutation authoritative;
+    // the helper logs a sanitized HTTP or network diagnostic on remote failure.
     await maybePushStatusToVndb(id, fields.status);
     return NextResponse.json({ item: await getVnReadRepository().getCollectionItem(id) });
   } catch (err) {

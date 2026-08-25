@@ -36,7 +36,7 @@ export const VNDB_LABELS_REVERSE: Record<number, Status> = Object.fromEntries(
 
 export interface VndbWriteResult {
   ok: boolean;
-  status?: number;
+  status: number;
   message?: string;
 }
 
@@ -50,7 +50,7 @@ export async function pushStatusToVndb(
   status: Status | null,
   token: string,
 ): Promise<VndbWriteResult> {
-  if (!isVndbVnId(vnId)) return { ok: false, message: 'not a vndb id' };
+  if (!isVndbVnId(vnId)) return { ok: false, status: 400, message: 'not a vndb id' };
   // Compute which labels to set + unset based on the new status.
   const ALL = Object.values(VNDB_LABELS);
   const target = status ? VNDB_LABELS[status] : null;
@@ -88,9 +88,12 @@ export async function maybePushStatusToVndb(
   const token = await settings.get('vndb_token');
   if (!token?.trim()) return;
   try {
-    await pushStatusToVndb(vnId, status, token.trim());
+    const result = await pushStatusToVndb(vnId, status, token.trim());
+    if (!result.ok) {
+      console.error(`[vndb-writeback:${vnId}] upstream request failed with status ${result.status}`);
+    }
   } catch {
-    // A remote echo must never roll back or fail the local collection change.
+    console.error(`[vndb-writeback:${vnId}] upstream request failed before receiving a response`);
   }
 }
 
