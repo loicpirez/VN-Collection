@@ -47,12 +47,12 @@ completion evidence has run after the final code and documentation revision.
 | R11-PERF-003 | HIGH | The permanent tag-index requirement remains implemented. VN tag aggregates read the normalized indexed table rather than reparsing every VN JSON payload, and PostgreSQL maintains/searches the normalized relation indexes. | `src/lib/db/repositories/collection-list.ts`, `db/postgres/migrations/0008_normalized_json_indexes.sql`, `tests/vn-tag-aggregate-index.test.ts` | VERIFIED_EXISTING |
 | R11-PERF-004 | MEDIUM | Image skeleton work must not reintroduce layout churn or duplicate downloads. Shared image components keep dimensions stable, virtualized cells reset only on source change, and deferred recommendation/stock paths remain bounded and abortable. | `src/components/SafeImage.tsx`, `src/components/LoadingImage.tsx`, `src/lib/virtual-grid.ts` | VERIFIED_EXISTING |
 | R11-TYPE-001 | HIGH | Strict TypeScript currently passes after the loading, responsive, and metadata changes. External JSON continues to cross explicit decoders and no production ignore directive was added. | `tsconfig.json`, `src/lib/*-client-shape.ts`, repository boundary tests | DONE |
-| R11-TEST-001 | CRITICAL | Run the complete repository coverage gate after the final revision and require the exact aggregate `100 / 100 / 100 / 100`; focused passes and a previous round's full run are not completion evidence for this revision. Add behavior tests for any reported branch rather than exclusions or threshold changes. | `scripts/test-coverage.sh`, `vitest.coverage.config.ts`, `tests` | TODO |
-| R11-TEST-002 | HIGH | Re-run the complete unit suite, QA/sentinel suite, PostgreSQL integration suite, production build, and zero-advisory dependency audit after documentation is finalized. | `package.json`, `scripts/browser-qa.sh`, `scripts/test-postgres.sh` | TODO |
+| R11-TEST-001 | CRITICAL | The complete repository coverage gate passes 9,690 tests at exactly 100 percent statements, branches, functions, and lines. No exclusion, ignored branch, threshold reduction, or assertion-only workaround was added. | `scripts/test-coverage.sh`, `vitest.coverage.config.ts`, `tests` | DONE_WITH_DIFF |
+| R11-TEST-002 | HIGH | The final unit/coverage suite, 93-scenario PostgreSQL integration suite, production build, 29-check browser QA, 25-check Chromium/WebKit interaction suite, 29-check sentinel, dependency audit, and production route matrix all pass. | `package.json`, `scripts/browser-qa.sh`, `scripts/test-postgres.sh` | DONE_WITH_DIFF |
 | R11-TEST-003 | HIGH | The stale media-lightbox source assertion expected the pre-skeleton frame classes and failed despite correct runtime behavior. Update the contract to assert the stable lightbox frame and its explicit aspect style, then run the focused media suite. | `tests/media-lightbox-nav-z-index.test.ts`, `src/components/MediaGallery.tsx` | DONE_WITH_DIFF |
 | R11-DOC-001 | MEDIUM | README and agent guidance still described production persistence as SQLite-only after the completed cutover. Document SQLite as the local default and PostgreSQL as the fully implemented, deployed production backend without rewriting migration history. | `README.md`, `CLAUDE.md` | DONE_WITH_DIFF |
 | R11-DOC-002 | MEDIUM | Add this evidence-based audit to the active TODO index and keep prior rounds as historical implementation evidence rather than silently duplicating their closed tasks. | `TODO/README.md`, this report | DONE_WITH_DIFF |
-| R11-DATA-001 | CRITICAL | Production readiness currently reports PostgreSQL available with a bounded pool of 10 and all nine ordered migrations applied. Complete the final freshness, backup-timer, role/listener, and collection-index checks against the deployed final revision before closing the round. | production PostgreSQL and readiness endpoint | TODO |
+| R11-DATA-001 | CRITICAL | Production readiness reports PostgreSQL available with a pool maximum of 10 and no waiting client. All nine migrations and collection indexes are present; the application role is non-superuser, PostgreSQL listens only on loopback, both backup timers are active, every stored checksum passes, and the latest dump restores into an isolated database with expected table counts. | production PostgreSQL and readiness endpoint | DONE_WITH_DIFF |
 | R11-DEPLOY-001 | CRITICAL | Each implementation point has been committed and pushed independently, then deployed through an immutable release directory and private-port readiness check. The current character-title release is active on PostgreSQL with zero service restarts. Repeat the final deployment after the complete gates if the audit report or tests require code changes. | `main`, production release directory, systemd service | DONE |
 
 ## Current evidence
@@ -60,12 +60,12 @@ completion evidence has run after the final code and documentation revision.
 - All 40 route-level loading boundaries have animated skeleton contracts; the
   Library-to-VN transition and VN media lightbox were also checked in WebKit at
   desktop and mobile dimensions.
-- The mobile real-data audit covered 39 routes without horizontal overflow.
-  Twelve critical routes were isolated in fresh WebKit contexts and returned
-  200 with no visible broken images or browser/runtime failures.
+- The final real-data audit covered 39 routes in mobile and desktop WebKit plus
+  mobile and desktop Chromium, for 156 route renders without horizontal
+  overflow, visible broken images, duplicate ids, or browser/runtime failures.
 - The cross-cutting structural pass covered 221 tests for API policy, input
   limits, authentication, CSRF, SSRF/allowlists, i18n, image/loading contracts,
   touch targets, overlays, map layers, platform labels, and shelf metadata.
 - Production readiness is green on PostgreSQL and the service reports zero
-  restarts. Exact global coverage and the final operational freshness audit
-  remain deliberately open above until their post-report runs complete.
+  restarts. Backup checksums and an isolated full restore pass, and the final
+  global coverage result is exactly 100/100/100/100.

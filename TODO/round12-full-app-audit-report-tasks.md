@@ -8,9 +8,10 @@ filters, shelves, images, downloads, stock/providers, shops, maps, backup and
 restore, PostgreSQL repositories, i18n, accessibility, responsive behavior,
 security, performance, typing, tests, documentation, and deployment operations.
 
-The first live WebKit pass visited 39 real-data routes at 390 by 844 pixels.
-Every route returned HTTP 200 with no fatal page text, visible broken image,
-duplicate DOM id, or document-level horizontal overflow. Three reported small
+The final live matrix visited 39 real-data routes in mobile and desktop WebKit
+plus mobile and desktop Chromium, for 156 route renders. Every route returned
+HTTP 200 with no fatal page text, visible broken image, duplicate DOM id, or
+document-level horizontal overflow. Three reported small
 nodes are reviewed exceptions: one inline producer link in prose and two
 20-pixel checkbox glyphs enclosed by 44-pixel labels. Production database and
 journal inspection found issues that source-only mocks did not: the PostgreSQL
@@ -51,15 +52,15 @@ production/provider checks are never inferred from focused tests.
 | R12-PERF-002 | MEDIUM | Production full-document responses are gzip-compressed and measured at about 62 KiB for library, 86 KiB for upcoming/schema, and 133 KiB for a data-rich VN page from Japan. Record these as a baseline; avoid moving the 524 KiB three-locale dictionary wholesale into one client bundle, and investigate namespace splitting only with before/after hydration measurements. | root i18n provider, production responses | VERIFIED_EXISTING |
 | R12-PERF-003 | HIGH | Opening many VN tabs kept one download-status transport alive per hidden tab, while each polling or SSE consumer independently loaded durable jobs and enriched entity names. Hidden tabs now close polling, pending requests, and SSE without touching the server-owned job; visibility restores an immediate current snapshot. Concurrent polling and stream consumers coalesce one database/enrichment build. A stock batch regression advances from 1/10 to 7/10 while hidden and resumes at 7/10 without a cancellation request. Build and the complete 9,689-test suite pass at exact 100/100/100/100. | `src/components/DownloadStatusBar.tsx`, `src/lib/download-status-payload.ts`, download-status routes and tests | DONE_WITH_DIFF |
 | R12-TYPE-001 | HIGH | Strict TypeScript passes with no production `any`, ignore directive, coverage suppression, or unsafe double cast found in source. Preserve explicit decoders at JSON, database, and browser-storage boundaries. | `tsconfig.json`, source and decoder tests | DONE |
-| R12-SEC-003 | CRITICAL | The production dependency audit currently reports zero vulnerabilities across 296 packages. Repeat after the final lockfile revision; the Yarn deprecation warning originates in the Yarn 1 audit client and is not an application dependency advisory. | `package.json`, `yarn.lock` | DONE |
+| R12-SEC-003 | CRITICAL | The final dependency audit reports zero vulnerabilities across 585 packages. The `url.parse` deprecation warning originates in the Yarn 1 audit client and is not an application dependency advisory. | `package.json`, `yarn.lock` | DONE |
 | R12-SEC-004 | HIGH | API policy, auth, CSRF, SSRF, bounded-body, URL allowlist, safe-link, and error-sanitization tests pass. The reverse-proxy runtime gap is closed with fail-closed forwarding detection and proof-gated public Origin resolution; the final whole-suite security rerun remains under `R12-TEST-002`. | API and security modules/tests | DONE_WITH_DIFF |
-| R12-TEST-001 | CRITICAL | After every Round 12 code and documentation change, run the complete repository coverage gate and require exact `100 / 100 / 100 / 100` with no exclusions, thresholds changes, ignored files, or assertion-only hacks. Previous/focused runs do not close this row. | `yarn test:cov`, coverage configuration, all tests | TODO |
-| R12-TEST-002 | HIGH | Run the full unit suite, PostgreSQL integration suite, build, browser QA, regression sentinel, Chromium/WebKit interactions, dependency audit, and production route tour on the final revision. Investigate any timing failure rather than accepting an isolated rerun as the only evidence. | package scripts, browser scripts, production | TODO |
+| R12-TEST-001 | CRITICAL | The complete final coverage gate passes 9,690 tests at exactly 100 percent statements, branches, functions, and lines, with no exclusions, threshold changes, ignored files, or assertion-only hacks. | `yarn test:cov`, coverage configuration, all tests | DONE_WITH_DIFF |
+| R12-TEST-002 | HIGH | The full suite, 93-scenario PostgreSQL integration run, production build, browser QA, regression sentinel, Chromium/WebKit interactions, dependency audit, and 156-render production route tour all pass on the final application code. Timing failures were investigated rather than accepted as isolated reruns. | package scripts, browser scripts, production | DONE_WITH_DIFF |
 | R12-TEST-003 | HIGH | The first complete coverage attempt exposed 83 failures across six older API suites because their request factories combined a loopback URL with incomplete client-forwarding metadata. Those requests correctly became forbidden after proxy hardening. A shared test factory now emits the complete Next.js direct-loopback header shape while preserving deterministic rate-limit buckets; all 97 affected route scenarios pass without weakening production authorization. | `tests/helpers/loopback-forwarding.ts`, API route suites, trusted-proxy contract | DONE_WITH_DIFF |
-| R12-OPS-001 | CRITICAL | Production is on immutable release `9395816b`, PostgreSQL readiness is green with pool max 10, nine migrations are current, systemd is active, and restart count is zero. Re-run roles/listeners/indexes, backup timer and restore evidence, freshness, and final release verification after all Round 12 commits. | production PostgreSQL, systemd, Nginx, backup operations | TODO |
+| R12-OPS-001 | CRITICAL | Production application code is on immutable release `ec2dccd3`, PostgreSQL readiness is green with pool max 10, nine migrations are current, systemd is active, and restart count is zero. The application role is non-superuser, database and application listeners are loopback-only, collection indexes are present, both backup timers and all checksums pass, and the latest dump restores successfully into a disposable database with 9 migrations, 3,317 VN, 167 collection rows, 8,058 offers, and 1,412 AliceNet rows. | production PostgreSQL, systemd, Nginx, backup operations | DONE_WITH_DIFF |
 | R12-OPS-002 | MEDIUM | Safari access logs show the standard one unauthenticated 401 challenge immediately followed by one authenticated 200, not two failed authentications. Keep favicon/apple-icon requests outside Basic Auth and recheck after trusted-proxy changes; do not attribute a second password prompt without a second challenge in evidence. | production Nginx access log and icon snippet | VERIFIED_EXISTING |
 | R12-OPS-003 | HIGH | The release command now discovers the systemd WorkingDirectory, ExecStart, environment file, and existing immutable release store instead of assuming a path. It refuses mismatches, validates the candidate against database-aware readiness, atomically switches the exact service symlink, verifies the running process directory and commit, and restores the previous release if activation fails. | `ops/deploy-release.sh`, systemd unit, production release paths | DONE_WITH_DIFF |
-| R12-PROVIDER-001 | HIGH | Final provider verification must call every configured stock source, including Amazon and the supplied direct examples, from this current machine in Japan. It must not use the production server IP. Production is checked afterward only for persisted/displayed results, freshness, and UI flow. | local Japan network, stock provider matrix, production UI | TODO |
+| R12-PROVIDER-001 | HIGH | All 23 configured providers, Amazon, and every supplied direct example were called from the current workstation in Japan, not the production server. Twenty-one providers returned live HTTP 200 pages; Suruga-ya returned its declared Cloudflare challenge and Joshin returned its provider-specific blocked response. Live parser checks confirm Sofmap, Hgame1, Melonbooks, WonderGOO, Eroge Price, and AliceNet structures; expired Mandarake and empty Trader examples remain bounded. Production was checked only for persisted freshness and UI ownership. | local Japan network, stock provider matrix, production UI | DONE_WITH_DIFF |
 | R12-PROVIDER-002 | HIGH | A live WonderGOO benefit page puts the generic shop name in the first `h1` and the actual product in document metadata. The parser previously selected `WonderGOO`, which weakened title classification and could discard a valid VN offer. Prefer `og:title`, then the document title, before the generic heading; retain the declared store-locator-only availability semantics. | `src/lib/stock.ts`, stock provider parser tests | DONE_WITH_DIFF |
 | R12-DOC-001 | MEDIUM | Data-management implementation narration and SQLite-only drag/restore wording are removed. Exported contracts retain concise semantic documentation, while JSX no longer explains framework choices, page ownership, or component placement to the operator. | data-management components and touched exported contracts | DONE_WITH_DIFF |
 
@@ -69,15 +70,16 @@ production/provider checks are never inferred from focused tests.
 - A 29-file cross-cutting suite passed 369 tests covering API policy, auth,
   CSRF, SSRF, error sanitization, accessibility, responsive geometry, i18n,
   loading/image behavior, pagination, virtualization, map privacy, and layers.
-- The dependency audit found zero vulnerabilities in 296 packages.
-- The WebKit mobile pass covered 39 production routes with no horizontal
-  overflow, fatal render, duplicate id, or visible broken image.
+- The dependency audit found zero vulnerabilities in 585 packages.
+- The final browser matrix covered 39 production routes in four WebKit and
+  Chromium viewport combinations, for 156 renders with no horizontal overflow,
+  fatal render, duplicate id, visible broken image, console error, or failed
+  request.
 - Production route timing from Japan returned HTTP 200 for 16 representative
   pages; measured full-response sizes and latency are recorded above.
-- PostgreSQL inspection confirms Sofmap branch offers were updated on 24 August,
-  while AliceNet's last successful catalogue snapshot is 12 June. The journal
-  records a subsequent AliceNet HTTP 503 and the reproducible cache-statistics
-  SQL error.
+- PostgreSQL inspection confirms 8,058 provider offers updated through 24
+  August and 1,412 AliceNet rows updated on 25 August local time. Five place
+  cards render without a stale badge after client loading completes.
 - A local production-mode Next.js runtime accepts direct loopback access to the
   sensitive settings route while rejecting forged public forwarding metadata;
   the dedicated proxy helper has exact 100 percent branch coverage.
@@ -93,16 +95,11 @@ production/provider checks are never inferred from focused tests.
   no process restart, but confirmed that every tab retained its own progress
   transport and snapshot reconstruction. The focused lifecycle, coalescing,
   route, and authorization set passes 158 tests after the bounded fix. The
-  final feature run passes 9,689 tests with 44,502 statements, 37,818 branches,
+  final feature run passes 9,690 tests with 44,502 statements, 37,818 branches,
   9,015 functions, and 37,995 lines all covered exactly.
-
-## Next execution order
-
-1. Fix and integration-test the PostgreSQL cache query.
-2. Correct backend-aware backup/restore UI and i18n.
-3. Correct route-error alert semantics and consolidate only when safe.
-4. Harden trusted reverse-proxy mutation/origin handling and deploy the matching
-   Nginx proof configuration without locking out the UI.
-5. Improve AliceNet 5xx classification and on-page background-job diagnostics.
-6. Repeat the audit after those fixes, add newly discovered rows, then close the
-   full coverage, PostgreSQL, browser, provider-from-Japan, and production gates.
+- All PostgreSQL and storage backup checksums pass. The newest PostgreSQL dump
+  was restored into a disposable database, queried for expected row counts,
+  and removed cleanly.
+- All 23 configured providers and every supplied direct example were called
+  from this Japanese workstation. The live parser pass exposed and fixed the
+  WonderGOO generic-heading priority without changing its availability model.
