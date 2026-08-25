@@ -25,6 +25,10 @@ const READONLY = readFileSync(
   join(__dirname, '..', 'src/components/ShelfReadOnlyControls.tsx'),
   'utf8',
 );
+const GLOBALS = readFileSync(
+  join(__dirname, '..', 'src/app/globals.css'),
+  'utf8',
+);
 
 /**
  * Variables that BOTH the prefs builder must emit AND the read-only
@@ -53,6 +57,13 @@ describe('shelf-view-prefs CSS variables are produced AND consumed', () => {
       expect(SPATIAL).toMatch(new RegExp(token.replace(/-/g, '\\-')));
     });
   }
+
+  it('applies the fit-mode variable to the nested image rather than its wrapper', () => {
+    expect(PREFS).toContain("'--shelf-fit-mode': prefs.fitMode");
+    expect(SPATIAL.match(/imageClassName="shelf-spatial-image"/g)).toHaveLength(2);
+    expect(SPATIAL).not.toContain("objectFit: 'var(--shelf-fit-mode");
+    expect(GLOBALS).toContain('object-fit: var(--shelf-fit-mode, cover)');
+  });
 
   it('ShelfReadOnlyControls renders a slider for every range-numeric prefs field', () => {
     // Each numeric pref name should appear in the controls component.

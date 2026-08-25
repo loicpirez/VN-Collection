@@ -142,11 +142,18 @@ describe('SafeImage runtime', () => {
 
   it('loads local-first priority images, resets recycled URLs, and reuses loaded URLs', () => {
     const { container, rerender } = render(withLocale(
-      <SafeImage src="/remote-a.jpg" localSrc="vn/local-a.jpg" alt="Cover" priority />,
+      <SafeImage
+        src="/remote-a.jpg"
+        localSrc="vn/local-a.jpg"
+        alt="Cover"
+        imageClassName="custom-image-class"
+        priority
+      />,
     ));
     let image = screen.getByRole('img', { name: 'Cover' });
     expect(image).toHaveAttribute('src', '/api/files/vn/local-a.jpg');
     expect(image).toHaveAttribute('loading', 'eager');
+    expect(image).toHaveClass('custom-image-class');
     expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
     expect(container.querySelector('[data-safe-image-skeleton]')).toHaveClass('skeleton-surface');
     expect(container.querySelector('[data-safe-image-skeleton]')).not.toHaveClass('bg-gradient-to-br');

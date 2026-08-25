@@ -12,6 +12,8 @@ export interface SafeImageProps {
   alt: string;
   sexual?: number | null;
   className?: string;
+  /** Classes applied to the native image rather than its policy wrapper. */
+  imageClassName?: string;
   style?: CSSProperties;
   fit?: 'cover' | 'contain';
   onLoadError?: () => void;
@@ -86,6 +88,7 @@ export function SafeImage({
   alt,
   sexual,
   className = '',
+  imageClassName = '',
   style,
   fit = 'cover',
   onLoadError,
@@ -240,7 +243,7 @@ export function SafeImage({
             alt={alt}
             decoding="async"
             loading={priority ? 'eager' : 'lazy'}
-            className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} ${wasPreloaded ? '' : 'transition-[filter,opacity,transform] duration-200'} ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+            className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} ${wasPreloaded ? '' : 'transition-[filter,opacity,transform] duration-200'} ${loaded ? 'opacity-100' : 'opacity-0'} ${shouldBlur ? 'scale-105 blur-2xl' : ''} ${imageClassName}`}
             style={rotationStyle}
             onLoad={(event) => handleLoad(event.currentTarget)}
             onError={handleError}

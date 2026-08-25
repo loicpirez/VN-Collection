@@ -395,8 +395,8 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
           sexual={slot.rel_image_sexual ?? slot.vn_image_sexual}
           alt={slot.vn_title}
           className="h-full w-full"
+          imageClassName="shelf-spatial-image"
           style={{
-            objectFit: 'var(--shelf-fit-mode, cover)' as never,
             transform: 'scale(var(--shelf-cover-scale, 1))',
           }}
         />
@@ -441,8 +441,8 @@ function DisplayCard({
           sexual={entry.rel_image_sexual ?? entry.vn_image_sexual}
           alt={entry.vn_title}
           className="h-full w-full"
+          imageClassName="shelf-spatial-image"
           style={{
-            objectFit: 'var(--shelf-fit-mode, cover)' as never,
             transform: 'scale(var(--shelf-cover-scale, 1))',
           }}
         />

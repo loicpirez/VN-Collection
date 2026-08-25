@@ -290,6 +290,10 @@
   animation: skeleton-surface-pulse 1.8s ease-in-out infinite;
 }
 
+.shelf-spatial-image {
+  object-fit: var(--shelf-fit-mode, cover);
+}
+
 /*
  * Right-edge fade hint for horizontally-scrollable rows. Indicates
  * there's more content off-screen — without it phones leave the
