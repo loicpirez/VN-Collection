@@ -23,6 +23,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-006 | MEDIUM | Activity reduced three filters and two independently paginated logs to one generic block and one row list, while Brand overlap added thumbnails that do not exist in its two-column credit cards. Preserve both workflows' actual controls, hierarchy, and responsive row structure during navigation. | activity and brand-overlap loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-007 | MEDIUM | Dumped used vertical cover cards instead of its compact edition-progress rows, while Quotes used 2:3 thumbnails instead of square character avatars and citation text. Mirror their summaries, filters, progress, search, citations, and pagination without introducing unrelated geometry. | dumped and quotes loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-008 | HIGH | Year invented cover grids absent from the final review, Schema collapsed three data sources and a table browser into generic rows, and Steam used vertical VN cards instead of mapping workflows. Mirror the year heatmap/rankings, schema source panels/table, and Steam suggestion/link/search sections. | year, schema, and Steam loading boundaries and geometry tests | DONE_WITH_DIFF |
+| R14-UX-009 | HIGH | Recommendations omitted its five modes, explanation, flags, and seed controls; Upcoming used generic rows that disagreed with both density-aware horizontal card variants; Wishlist omitted its final title hierarchy; and the seiyuu loader ignored saved section order while its streamed external covers used a different fixed width. Mirror all final controls and card geometry, share the Upcoming fallback, and honor staff layout order and visibility during loading. | recommendations, upcoming, wishlist, and staff loading boundaries | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -125,11 +126,11 @@ operations, providers, deployment, backup, and restore.
 - Staff loading now mirrors its complete search/filter/sort header and compact
   result cards. Seiyuu detail loading mirrors the variable profile header,
   scope selector, timeline, density-aware horizontal VN credits, and character
-  thumbnails instead of painting unrelated vertical cover cards. Its streamed
-  extra-credit fallback also uses the final horizontal 64 by 96 pixel card
-  geometry and exposes an accessible busy status. Structural render tests pin
-  the responsive dimensions and card counts; the complete 9,754-test coverage
-  suite reports exactly 100% statements, branches, functions, and lines.
+  thumbnails instead of painting unrelated vertical cover cards. It follows
+  the saved section order and visibility, and its streamed extra-credit
+  fallback uses the same density-aware cover width as the final card while
+  exposing an accessible busy status. Structural render tests pin the
+  responsive dimensions, saved order, visibility, and card counts.
 - Character loading now uses the final 2:3 portrait and horizontal appearance
   rows; top-ranked loading preserves rank rows and its filter controls;
   producer loading includes the logo, aliases, tools, and both role sections;
@@ -174,3 +175,11 @@ operations, providers, deployment, backup, and restore.
   scenarios pass, and the complete 9,770-test suite reports exactly 100%
   statements, branches, functions, and lines together with the complete
   typecheck.
+- Recommendations loading now retains all five modes, its explanation, option
+  toggles, and seed control. Upcoming route and streamed loading share the same
+  density-aware horizontal release geometry as both final variants. Wishlist
+  retains its title and subtitle before the real cover grid. Together with the
+  saved-layout-aware seiyuu correction, 167 focused scenarios pass; the full
+  suite passes 9,774 tests and reports exactly 100% statements (44,699/44,699),
+  branches (37,973/37,973), functions (9,095/9,095), and lines
+  (38,163/38,163).

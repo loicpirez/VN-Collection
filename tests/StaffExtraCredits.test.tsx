@@ -166,7 +166,8 @@ describe('StaffExtraCredits', () => {
   it('renders the streaming skeleton shape', () => {
     const markup = renderToStaticMarkup(<StaffExtraCreditsSkeleton />);
     expect(markup.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(8);
-    expect(markup.match(/h-24 w-16 shrink-0/g)).toHaveLength(8);
+    expect(markup.match(/calc\(var\(--card-density-px, 220px\) \* 0\.42\)/g)).toHaveLength(8);
+    expect(markup.match(/aspect-ratio:2 \/ 3/g)).toHaveLength(8);
     expect(markup).toContain('var(--card-density-px, 220px)');
     expect(markup).toContain('role="status"');
     expect(markup).toContain('aria-busy="true"');

@@ -144,7 +144,13 @@ export function StaffExtraCreditsSkeleton() {
             className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2"
             data-staff-extra-credit-skeleton
           >
-            <div className="h-24 w-16 shrink-0 animate-pulse rounded bg-bg-elev/60" />
+            <div
+              className="shrink-0 animate-pulse rounded bg-bg-elev/60"
+              style={{
+                width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
+                aspectRatio: '2 / 3',
+              }}
+            />
             <div className="min-w-0 flex-1 py-1">
               <div className="h-3 w-4/5 animate-pulse rounded bg-bg-elev/60" />
               <div className="mt-2 h-2.5 w-3/5 animate-pulse rounded bg-bg-elev/60" />
@@ -190,7 +196,15 @@ function ExternalVnCard({
         inCollection ? 'border-accent/40' : 'border-border'
       } hover:border-accent`}
     >
-      <Link href={`/vn/${vn.id}`} className="block h-24 w-16 shrink-0 overflow-hidden rounded" tabIndex={-1}>
+      <Link
+        href={`/vn/${vn.id}`}
+        className="block shrink-0 overflow-hidden rounded"
+        style={{
+          width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
+          aspectRatio: '2 / 3',
+        }}
+        tabIndex={-1}
+      >
         <SafeImage src={vn.image_url || vn.image_thumb} alt={vn.title} className="h-full w-full" />
       </Link>
       <div className="min-w-0 flex-1">

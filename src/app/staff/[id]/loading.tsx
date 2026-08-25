@@ -1,5 +1,11 @@
 import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getDict } from '@/lib/i18n/server';
+import {
+  STAFF_DETAIL_SETTINGS_KEY,
+  parseStaffDetailLayoutV1,
+  type StaffSectionId,
+} from '@/lib/staff-detail-layout';
 
 function CreditCardSkeleton({ withCharacters }: { withCharacters: boolean }) {
   return (
@@ -32,9 +38,18 @@ function CreditCardSkeleton({ withCharacters }: { withCharacters: boolean }) {
   );
 }
 
-function CreditSectionSkeleton({ withCharacters = false }: { withCharacters?: boolean }) {
+function CreditSectionSkeleton({
+  sectionId,
+  withCharacters = false,
+}: {
+  sectionId: StaffSectionId;
+  withCharacters?: boolean;
+}) {
   return (
-    <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+    <section
+      className="rounded-xl border border-border bg-bg-card p-4 sm:p-6"
+      data-staff-section-skeleton={sectionId}
+    >
       <SkeletonBlock className="mb-4 h-4 w-44" />
       <ul
         className="grid gap-3"
@@ -52,7 +67,29 @@ function CreditSectionSkeleton({ withCharacters = false }: { withCharacters?: bo
 }
 
 export default async function StaffDetailLoading() {
-  const t = await getDict();
+  const [t, rawLayout] = await Promise.all([
+    getDict(),
+    getAppSettingRepository().get(STAFF_DETAIL_SETTINGS_KEY),
+  ]);
+  const layout = parseStaffDetailLayoutV1(rawLayout);
+  const sectionSkeletons: Partial<Record<StaffSectionId, React.ReactNode>> = {
+    timeline: (
+      <section
+        className="rounded-xl border border-border bg-bg-card p-4 sm:p-5"
+        data-staff-section-skeleton="timeline"
+        data-staff-timeline-skeleton
+      >
+        <SkeletonBlock className="h-4 w-40" />
+        <div className="mt-4 flex items-end gap-2 overflow-hidden">
+          {['h-12', 'h-20', 'h-16', 'h-28', 'h-24', 'h-32', 'h-20', 'h-14'].map((height, index) => (
+            <SkeletonBlock key={index} className={`${height} min-w-8 flex-1 rounded-sm`} />
+          ))}
+        </div>
+      </section>
+    ),
+    'voice-credits': <CreditSectionSkeleton sectionId="voice-credits" withCharacters />,
+    'production-credits': <CreditSectionSkeleton sectionId="production-credits" />,
+  };
   return (
     <SkeletonBoundary label={t.common.loading} className="w-full">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
@@ -94,16 +131,11 @@ export default async function StaffDetailLoading() {
       </header>
 
       <div className="space-y-6">
-        <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5" data-staff-timeline-skeleton>
-          <SkeletonBlock className="h-4 w-40" />
-          <div className="mt-4 flex items-end gap-2 overflow-hidden">
-            {['h-12', 'h-20', 'h-16', 'h-28', 'h-24', 'h-32', 'h-20', 'h-14'].map((height, index) => (
-              <SkeletonBlock key={index} className={`${height} min-w-8 flex-1 rounded-sm`} />
-            ))}
-          </div>
-        </section>
-        <CreditSectionSkeleton withCharacters />
-        <CreditSectionSkeleton />
+        {layout.order.map((sectionId) => {
+          if (!layout.sections[sectionId].visible) return null;
+          const skeleton = sectionSkeletons[sectionId];
+          return skeleton ? <div key={sectionId}>{skeleton}</div> : null;
+        })}
       </div>
     </SkeletonBoundary>
   );

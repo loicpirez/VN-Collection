@@ -40,6 +40,11 @@ import UpcomingLoading from '@/app/upcoming/loading';
 import VnLoading from '@/app/vn/[id]/loading';
 import WishlistLoading from '@/app/wishlist/loading';
 import YearLoading from '@/app/year/loading';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import {
+  STAFF_DETAIL_SETTINGS_KEY,
+  defaultStaffDetailLayoutV1,
+} from '@/lib/staff-detail-layout';
 import {
   SkeletonBlock,
   SkeletonBoundary,
@@ -138,6 +143,25 @@ describe('route loading skeletons', () => {
     expect(html).toContain('var(--card-density-px, 280px)');
     expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
+  });
+
+  it('keeps the staff loading sections in the saved order and omits hidden sections', async () => {
+    const repository = getAppSettingRepository();
+    const previous = await repository.get(STAFF_DETAIL_SETTINGS_KEY);
+    const layout = defaultStaffDetailLayoutV1();
+    layout.order = ['voice-credits', 'timeline', 'production-credits', 'siblings', 'extra-credits'];
+    layout.sections['production-credits'].visible = false;
+    await repository.set(STAFF_DETAIL_SETTINGS_KEY, JSON.stringify(layout));
+    try {
+      const html = renderToStaticMarkup(await StaffDetailLoading());
+      const voiceIndex = html.indexOf('data-staff-section-skeleton="voice-credits"');
+      const timelineIndex = html.indexOf('data-staff-section-skeleton="timeline"');
+      expect(voiceIndex).toBeGreaterThan(0);
+      expect(timelineIndex).toBeGreaterThan(voiceIndex);
+      expect(html).not.toContain('data-staff-section-skeleton="production-credits"');
+    } finally {
+      await repository.set(STAFF_DETAIL_SETTINGS_KEY, previous);
+    }
   });
 
   it('matches the character detail portrait ratio, metadata, and horizontal appearance cards', async () => {
@@ -291,6 +315,30 @@ describe('route loading skeletons', () => {
     expect(html).toContain('data-steam-section-skeleton="unlinked"');
     expect(html.match(/rounded-lg border border-border bg-bg-elev\/30 p-2/g)).toHaveLength(5);
     expect(html).not.toContain('aspect-[2/3]');
+  });
+
+  it('matches recommendation modes, explanation, options, seed controls, and cover results', async () => {
+    const html = renderToStaticMarkup(await RecommendationsLoading());
+    expect(html).toContain('data-recommendations-header-skeleton');
+    expect(html).toContain('data-recommendation-modes-skeleton');
+    expect(html.match(/h-16 w-full/g)).toHaveLength(5);
+    expect(html.match(/flex flex-col overflow-hidden/g)).toHaveLength(12);
+  });
+
+  it('matches the upcoming header controls, tabs, and density-aware horizontal release cards', async () => {
+    const html = renderToStaticMarkup(await UpcomingLoading());
+    expect(html).toContain('data-upcoming-header-skeleton');
+    expect(html).toContain('data-upcoming-results-skeleton="releases"');
+    expect(html).toContain('var(--card-density-px, 240px)');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
+    expect(html.match(/flex items-start gap-3 rounded-xl border border-border bg-bg-card p-3 sm:p-4/g)).toHaveLength(8);
+  });
+
+  it('matches the wishlist title and subtitle before its real cover grid', async () => {
+    const html = renderToStaticMarkup(await WishlistLoading());
+    expect(html).toContain('data-wishlist-header-skeleton');
+    expect(html.match(/flex flex-col overflow-hidden/g)).toHaveLength(18);
+    expect(html).toContain('h-7 w-7 shrink-0');
   });
 
   it('renders every shared skeleton variant with optional labels and compact branches', () => {

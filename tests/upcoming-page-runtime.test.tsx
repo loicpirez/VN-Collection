@@ -64,10 +64,6 @@ vi.mock('@/components/RefreshScopeButton', () => ({
   ),
 }));
 
-vi.mock('@/components/Skeleton', () => ({
-  SkeletonRows: ({ count }: { count: number }) => <div>{`skeleton:${count}`}</div>,
-}));
-
 vi.mock('@/components/UpcomingCard', () => ({
   UpcomingCard: ({ data, meta }: { data: Record<string, unknown>; meta?: React.ReactNode }) => (
     <article data-card={JSON.stringify(data)}>{meta}</article>
