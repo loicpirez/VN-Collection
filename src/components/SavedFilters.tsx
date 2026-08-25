@@ -433,7 +433,7 @@ function PresetRow({
         aria-label={dragHandleLabel}
         title={dragHandleLabel}
         disabled={busy != null}
-        className="inline-flex h-11 w-7 shrink-0 cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing sm:h-8"
+        className="inline-flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded text-muted hover:text-white active:cursor-grabbing can-hover:sm:h-8 can-hover:sm:w-7"
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
       </button>

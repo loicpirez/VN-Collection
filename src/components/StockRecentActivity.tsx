@@ -87,7 +87,7 @@ export function StockRecentActivity() {
           </h2>
           <p className="mt-1 text-xs text-muted">{t.stock.recentActivityHint as string}</p>
         </div>
-        <a href="#stock-batch" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-xs font-semibold text-accent hover:underline sm:min-h-[36px]">
+        <a href="#stock-batch" className="inline-flex min-h-[44px] items-center rounded-md px-2 text-xs font-semibold text-accent hover:underline can-hover:sm:min-h-[36px]">
           {t.stock.openBatchTools as string}
         </a>
       </header>
@@ -105,7 +105,7 @@ export function StockRecentActivity() {
           <button
             type="button"
             onClick={() => setRetryKey((current) => current + 1)}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 font-semibold hover:bg-status-dropped/10 sm:min-h-[36px]"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 font-semibold hover:bg-status-dropped/10 can-hover:sm:min-h-[36px]"
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
             {t.common.retry}

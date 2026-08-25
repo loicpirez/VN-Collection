@@ -1295,7 +1295,7 @@ function AliasAddForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'stock-alias-error' : undefined}
           maxLength={100}
-          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg sm:min-h-[36px]"
+          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg can-hover:sm:min-h-[36px]"
         />
         <button
           type="submit"
@@ -1364,7 +1364,7 @@ function SourceAddForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'stock-source-error' : undefined}
           maxLength={1024}
-          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg sm:min-h-[36px]"
+          className="min-h-[44px] flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-white placeholder-muted focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg can-hover:sm:min-h-[36px]"
         />
         <button
           type="submit"
@@ -1654,7 +1654,7 @@ const ProviderTile = memo(function ProviderTile({
           aria-busy={isRefreshingThis}
           aria-label={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
           title={(t.stock.refreshOnlyProvider as string).replace('{provider}', provider.label)}
-          className="absolute right-1.5 top-1.5 inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent disabled:opacity-40 sm:h-7 sm:w-7"
+          className="absolute right-1.5 top-1.5 inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-accent hover:text-accent disabled:opacity-40 can-hover:sm:h-7 can-hover:sm:w-7"
         >
           {isRefreshingThis ? (
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
@@ -1999,7 +1999,7 @@ const OfferCard = memo(function OfferCard({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${t.stock.openShop}: ${offer.provider_label}`}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:min-h-[36px]"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-xs font-semibold text-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-[36px]"
           >
             {t.stock.openShop}
             <ExternalLink className="h-3 w-3" aria-hidden />

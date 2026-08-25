@@ -51,8 +51,8 @@ export function TopRankedRouteSkeleton() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-1">
-          <SkeletonBlock className="h-11 w-28 sm:h-8" />
-          <SkeletonBlock className="h-11 w-28 sm:h-8" />
+          <SkeletonBlock className="h-11 w-28 can-hover:sm:h-8" />
+          <SkeletonBlock className="h-11 w-28 can-hover:sm:h-8" />
         </div>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
           <div className="space-y-2">
@@ -61,7 +61,7 @@ export function TopRankedRouteSkeleton() {
           </div>
           <div className="flex flex-wrap gap-1">
             {Array.from({ length: 5 }).map((_, index) => (
-              <SkeletonBlock key={index} className="h-11 w-12 sm:h-7" />
+              <SkeletonBlock key={index} className="h-11 w-12 can-hover:sm:h-7" />
             ))}
           </div>
         </div>

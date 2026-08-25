@@ -22,7 +22,7 @@ describe('PlatformOverflowDisclosure', () => {
     const trigger = screen.getByRole('button', { name: '+2: PlayStation 5, PC-FX' });
     expect(trigger).toHaveAttribute('title', 'PlayStation 5, PC-FX');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    expect(trigger).toHaveClass('min-h-[44px]', 'sm:min-h-[28px]');
+    expect(trigger).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-[28px]');
     fireEvent.click(trigger);
     const dialog = await screen.findByRole('dialog', { name: `${t.detail.platforms}: +2` });
     expect(trigger).toHaveAttribute('aria-expanded', 'true');

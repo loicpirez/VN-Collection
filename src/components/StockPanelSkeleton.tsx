@@ -56,7 +56,7 @@ export function StockOfferRowsSkeleton({ label, className = 'mt-4' }: StockOffer
             </div>
             <div className="mt-3 flex items-center justify-between gap-2">
               <SkeletonBlock className="h-3 w-32" />
-              <SkeletonBlock className="h-11 w-24 shrink-0 sm:h-9" />
+              <SkeletonBlock className="h-11 w-24 shrink-0 can-hover:sm:h-9" />
             </div>
           </li>
         ))}

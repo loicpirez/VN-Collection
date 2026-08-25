@@ -82,6 +82,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
 | R14-RESP-002 | HIGH | Seventy-nine route and component surfaces reduced 44-pixel controls at the 640-pixel width breakpoint without checking input capabilities, so landscape phones and tablets received desktop-sized links, tabs, filters, artwork tools, and destructive actions. Keep touch dimensions at every width and compact only when a fine pointer can hover; enforce that invariant across all TSX sources. | application-wide responsive controls | DONE_WITH_DIFF |
+| R14-RESP-003 | HIGH | A second audit found residual width-only compaction in stock operations, release deletion, dump-ignore, saved-filter drag, platform overflow, Eroge Price removal, and five destination-shaped skeleton controls. These controls still fell below 44 px on wide touch devices while their surrounding surfaces followed the pointer-capability contract. Move every reduction behind `can-hover`, align loading and loaded geometry, and broaden the repository invariant beyond only `min-h-0`. | remaining compact controls and matching skeletons | DONE_WITH_DIFF |
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
 | R14-A11Y-002 | HIGH | The mobile navigation trigger rendered at 44 by 32 pixels and the expanded quote refresh action rendered at 12 by 12 pixels, despite pseudo-element helpers that did not change their layout boxes. Give the menu a permanent 44-pixel box and the quote action a 44-pixel box whenever it is interactive while preserving its compact, inert collapsed state. | `src/components/MoreNavMenu.tsx`, `src/components/QuoteFooter.tsx` | DONE_WITH_DIFF |
 | R14-A11Y-003 | HIGH | Sixteen dialog, popover, batch-progress, map-search, and quick-menu components exposed icon-only close actions whose actual layout boxes remained below 44 pixels, sometimes using the tighter pseudo-element helper that only reached about 28 pixels. Give every icon-only close action a real 44-by-44 box and enforce the complete close-button inventory structurally. | shared dialogs, artwork pickers, AliceNet link dialog, map, download, shelf, and quick-action panels | DONE_WITH_DIFF |
@@ -731,3 +732,13 @@ operations, providers, deployment, backup, and restore.
   suite passes 9,853 tests with exactly 100% statements (44,902/44,902),
   branches (38,164/38,164), functions (9,199/9,199), and lines
   (38,350/38,350).
+- Residual compact controls now preserve their 44-pixel hit areas on every
+  coarse-pointer device, including wide touch screens. Stock operations,
+  edition removal, dump ignore, saved-filter dragging, platform overflow, and
+  Eroge Price candidate removal only compact for a fine pointer that supports
+  hover. Their Stock, Dumped, Top Ranked, and list-picker placeholders follow
+  the same rule, and a repository-wide invariant rejects width-only minimum
+  size reductions. Three hundred four focused scenarios, typecheck, and the
+  production build pass; the complete PostgreSQL-backed suite passes 9,854
+  tests with exactly 100% statements (44,902/44,902), branches
+  (38,164/38,164), functions (9,199/9,199), and lines (38,350/38,350).

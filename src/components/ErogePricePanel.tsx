@@ -954,7 +954,7 @@ export function ErogePricePanel({ vnId, extras: initialExtras }: Props) {
                     handleRemove(c.epId);
                   }}
                   disabled={candidateMutationBusy}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped disabled:cursor-progress disabled:opacity-50 can-hover:sm:min-h-0 sm:min-w-[28px]"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-bg text-muted hover:border-status-dropped hover:text-status-dropped disabled:cursor-progress disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-[28px]"
                   title={t.erogePrice.manualMatch.removeCandidate}
                   aria-label={`${t.erogePrice.manualMatch.removeCandidate}: ${c.detail.title}`}
                 >

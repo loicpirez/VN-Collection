@@ -35,7 +35,7 @@ function closeButtons(path: string): string[] {
 
 describe('responsive tap targets', () => {
   it('compacts touch targets only when a fine pointer can hover', () => {
-    const widthOnlyCompaction = /(?<!can-hover:)sm:min-(?:h|w)-0/;
+    const widthOnlyCompaction = /(?<!can-hover:)sm:min-(?:h|w)-(?:0|[6-9]|10|\[(?:24|28|32|36)px\])/;
     for (const path of tsxFiles('src')) {
       expect(source(path), path).not.toMatch(widthOnlyCompaction);
     }
@@ -199,7 +199,7 @@ describe('responsive tap targets', () => {
     expect(dumped).toContain('inline-flex min-h-[44px] items-center gap-1.5');
     expect(dumped).toContain('sm:min-h-0');
     expect(ignore).toContain('inline-flex min-h-[44px] items-center gap-1');
-    expect(ignore).toContain('sm:min-h-8');
+    expect(ignore).toContain('can-hover:sm:min-h-8');
   });
 
   it('keeps detail reorder, density, mobile nav, and game-log controls touch-safe', () => {
@@ -256,7 +256,8 @@ describe('responsive tap targets', () => {
     expect(stock).toContain('className="absolute right-1.5 top-1.5 inline-flex h-11 w-11');
     expect(stock).not.toContain('top-1.5 hidden h-6 w-6');
     expect(stock).toContain('min-h-[44px] flex-1 rounded-md');
-    expect(stock).toContain('sm:min-h-[36px]');
+    expect(stock).toContain('can-hover:sm:min-h-[36px]');
+    expect(stock).toContain('can-hover:sm:h-7 can-hover:sm:w-7');
   });
 
   it('keeps stock provider setup compact until the user opens it', () => {
@@ -439,7 +440,22 @@ describe('responsive tap targets', () => {
     expect(filters).toContain('flex min-h-[44px] w-full items-center');
     expect(filters).toContain('flex min-h-[44px] flex-1 items-center');
     expect(filters).toContain('btn btn-primary btn-xs min-h-[44px] can-hover:sm:min-h-0');
+    expect(filters).toContain('h-11 w-11');
+    expect(filters).toContain('can-hover:sm:h-8 can-hover:sm:w-7');
     expect(filters).toContain('sm:min-h-0');
+  });
+
+  it('keeps audited compact disclosures and loading controls touch-shaped on coarse pointers', () => {
+    const platforms = source('src/components/PlatformOverflowDisclosure.tsx');
+    const stockSkeleton = source('src/components/StockPanelSkeleton.tsx');
+    const topRankedSkeleton = source('src/components/TopRankedSkeleton.tsx');
+    const dumpedSkeleton = source('src/app/dumped/loading.tsx');
+    const listPicker = source('src/components/ListsPickerButton.tsx');
+    expect(platforms.match(/can-hover:sm:min-h-\[28px\]/g)).toHaveLength(2);
+    expect(stockSkeleton).toContain('can-hover:sm:h-9');
+    expect(topRankedSkeleton.match(/can-hover:sm:h-/g)).toHaveLength(3);
+    expect(dumpedSkeleton).toContain('can-hover:sm:h-8');
+    expect(listPicker).toContain('h-11 w-full can-hover:sm:h-8');
   });
 
   it('keeps VNDB and EGS mapping controls touch-safe without inflating desktop rows', () => {
@@ -506,7 +522,7 @@ describe('responsive tap targets', () => {
     const releaseOwned = source('src/components/ReleaseOwnedToggle.tsx');
     const popover = source('src/components/EditionInfoPopover.tsx');
     expect(releaseOwned).toContain('min-h-[44px] min-w-[44px]');
-    expect(releaseOwned).toContain('sm:min-h-[24px] sm:min-w-[24px]');
+    expect(releaseOwned).toContain('can-hover:sm:min-h-[24px] can-hover:sm:min-w-[24px]');
     expect(popover).toContain('inline-flex min-h-[44px] items-center gap-1 rounded border');
     expect(popover).toContain('sm:min-h-0');
   });

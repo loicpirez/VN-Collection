@@ -36,7 +36,7 @@ export function PlatformOverflowDisclosure({ items, moreLabel, label, closeLabel
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-[28px] sm:px-1.5 sm:py-0.5"
+        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent can-hover:sm:min-h-[28px] can-hover:sm:px-1.5 can-hover:sm:py-0.5"
         title={fullLabel}
         aria-label={`${moreLabel}: ${fullLabel}`}
         aria-expanded={open}
@@ -74,7 +74,7 @@ export function PlatformOverflowDisclosure({ items, moreLabel, label, closeLabel
               title={item.label}
               aria-label={`${item.label} (${item.code})`}
               onClick={() => setOpen(false)}
-              className="inline-flex min-h-[44px] items-center rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent sm:min-h-[28px] sm:px-1.5 sm:py-0.5"
+              className="inline-flex min-h-[44px] items-center rounded border border-border bg-bg-elev/40 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-[28px] can-hover:sm:px-1.5 can-hover:sm:py-0.5"
             >
               {item.label}
             </Link>

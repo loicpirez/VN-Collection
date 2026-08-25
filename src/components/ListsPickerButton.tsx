@@ -304,7 +304,7 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
           {loading && (
             <SkeletonBoundary label={t.common.loading} className="space-y-1.5 py-1">
               {Array.from({ length: 4 }).map((_, index) => (
-                <SkeletonBlock key={index} className="h-8 w-full" />
+                <SkeletonBlock key={index} className="h-11 w-full can-hover:sm:h-8" />
               ))}
             </SkeletonBoundary>
           )}

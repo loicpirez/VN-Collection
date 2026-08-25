@@ -193,7 +193,7 @@ export function ReleaseOwnedToggle({
             type="button"
             onClick={toggle}
             disabled={busy}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped sm:min-h-[24px] sm:min-w-[24px]"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted hover:bg-status-dropped/10 hover:text-status-dropped can-hover:sm:min-h-[24px] can-hover:sm:min-w-[24px]"
             title={t.releases.removeMyEdition}
             aria-label={t.releases.removeMyEdition}
           >

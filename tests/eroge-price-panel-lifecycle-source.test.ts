@@ -25,6 +25,6 @@ describe('Eroge Price panel lifecycle', () => {
   it('keeps destructive candidate removal visible and touch-safe', () => {
     expect(PANEL).not.toContain('focus:flex group-hover:flex');
     expect(PANEL).toContain('min-h-[44px] min-w-[44px]');
-    expect(PANEL).toContain('sm:min-h-0 sm:min-w-[28px]');
+    expect(PANEL).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-[28px]');
   });
 });

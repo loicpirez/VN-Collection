@@ -25,7 +25,7 @@ export default async function DumpedLoading() {
 
       <nav className="mb-4 flex flex-wrap gap-2" data-dumped-tabs-skeleton>
         {Array.from({ length: 5 }).map((_, index) => (
-          <SkeletonBlock key={index} className="h-11 w-28 sm:h-8" />
+          <SkeletonBlock key={index} className="h-11 w-28 can-hover:sm:h-8" />
         ))}
       </nav>
       <SkeletonBlock className="mb-3 h-11 w-48" />
