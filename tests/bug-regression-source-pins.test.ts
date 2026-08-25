@@ -9,7 +9,7 @@ function source(path: string): string {
 describe('metadata title template composition', () => {
   it.each([
     'src/app/map/page.tsx',
-    'src/app/places/page.tsx',
+    'src/app/places/(index)/page.tsx',
     'src/app/places/[id]/page.tsx',
   ])('%s leaves product-name suffixing to the root layout', (path) => {
     expect(source(path)).not.toContain('t.app.title');
@@ -93,7 +93,7 @@ describe('shelf editor fullscreen accessibility', () => {
 describe('single main landmark shell', () => {
   it.each([
     'src/app/map/page.tsx',
-    'src/app/places/page.tsx',
+    'src/app/places/(index)/page.tsx',
     'src/app/places/[id]/page.tsx',
     'src/app/stock/loading.tsx',
   ])('%s leaves the primary main landmark to the root layout', (path) => {

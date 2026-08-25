@@ -100,7 +100,7 @@ describe('responsive tap targets', () => {
       'src/app/shelf/page.tsx',
       'src/app/similar/page.tsx',
       'src/app/staff/[id]/page.tsx',
-      'src/app/staff/page.tsx',
+      'src/app/staff/(index)/page.tsx',
       'src/app/steam/page.tsx',
       'src/app/top-ranked/page.tsx',
       'src/app/trait/[id]/page.tsx',
@@ -185,7 +185,7 @@ describe('responsive tap targets', () => {
     expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');
     expect(source('src/app/activity/page.tsx')).toContain('className="input h-11 w-full"');
     expect(source('src/app/characters/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
-    expect(source('src/app/staff/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
+    expect(source('src/app/staff/(index)/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
     expect(source('src/app/compare/page.tsx')).toContain('min-w-[44px]');
     expect(source('src/app/quotes/page.tsx')).toContain('inline-flex min-h-[44px] min-w-[44px] items-center');
     expect(source('src/components/CompareVnPicker.tsx')).toContain('min-w-[44px]');

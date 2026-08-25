@@ -100,7 +100,10 @@ export default async function StaffDetailLoading() {
     <SkeletonBoundary label={t.common.loading} className="w-full" densityScope="staffWorks">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
 
-      <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
+      <header
+        className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6"
+        data-staff-detail-skeleton
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1">
             <SkeletonBlock className="h-8 w-72 max-w-full" />

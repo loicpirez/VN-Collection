@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import MapPage, { generateMetadata as generateMapMetadata } from '@/app/map/page';
-import PlacesPage, { generateMetadata as generatePlacesMetadata } from '@/app/places/page';
+import PlacesPage, { generateMetadata as generatePlacesMetadata } from '@/app/places/(index)/page';
 import PlacePage, { generateMetadata as generatePlaceMetadata } from '@/app/places/[id]/page';
 import SearchPage, { generateMetadata as generateSearchMetadata } from '@/app/search/page';
-import SeriesPage, { generateMetadata as generateSeriesMetadata } from '@/app/series/page';
+import SeriesPage, { generateMetadata as generateSeriesMetadata } from '@/app/series/(index)/page';
 import StockPage, { generateMetadata as generateStockMetadata } from '@/app/stock/page';
 import TraitsPage, { generateMetadata as generateTraitsMetadata } from '@/app/traits/page';
 import WishlistPage, { generateMetadata as generateWishlistMetadata } from '@/app/wishlist/page';

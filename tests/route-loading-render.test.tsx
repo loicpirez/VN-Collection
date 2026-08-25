@@ -10,10 +10,10 @@ import DataLoading from '@/app/data/loading';
 import DumpedLoading from '@/app/dumped/loading';
 import EgsLoading from '@/app/egs/loading';
 import LabelsLoading from '@/app/labels/loading';
-import ListsLoading from '@/app/lists/loading';
+import ListsLoading from '@/app/lists/(index)/loading';
 import ListDetailLoading from '@/app/lists/[id]/loading';
 import MapLoading from '@/app/map/loading';
-import PlacesLoading from '@/app/places/loading';
+import PlacesLoading from '@/app/places/(index)/loading';
 import PlaceDetailLoading from '@/app/places/[id]/loading';
 import ProducerLoading from '@/app/producer/[id]/loading';
 import ProducersLoading from '@/app/producers/loading';
@@ -22,11 +22,11 @@ import RecommendationsLoading from '@/app/recommendations/loading';
 import ReleaseLoading from '@/app/release/[id]/loading';
 import SchemaLoading from '@/app/schema/loading';
 import SearchLoading from '@/app/search/loading';
-import SeriesLoading from '@/app/series/loading';
+import SeriesLoading from '@/app/series/(index)/loading';
 import SeriesDetailLoading from '@/app/series/[id]/loading';
 import ShelfLoading from '@/app/shelf/loading';
 import SimilarLoading from '@/app/similar/loading';
-import StaffLoading from '@/app/staff/loading';
+import StaffLoading from '@/app/staff/(index)/loading';
 import StaffDetailLoading from '@/app/staff/[id]/loading';
 import StatsLoading from '@/app/stats/loading';
 import SteamLoading from '@/app/steam/loading';
@@ -151,6 +151,7 @@ describe('route loading skeletons', () => {
   it('matches the staff detail profile, timeline, and horizontal credit-card geometry', async () => {
     const html = renderToStaticMarkup(await StaffDetailLoading());
     expect(html).toContain('--card-density-px:300px');
+    expect(html).toContain('data-staff-detail-skeleton');
     expect(html).toContain('data-staff-timeline-skeleton');
     expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(2);
     expect(html.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(8);
@@ -179,6 +180,28 @@ describe('route loading skeletons', () => {
     } finally {
       await repository.set(STAFF_DETAIL_SETTINGS_KEY, previous);
     }
+  });
+
+  it('distinguishes nested detail fallbacks from their index fallbacks', async () => {
+    const [listIndex, listDetail, placeIndex, placeDetail, seriesIndex, seriesDetail, staffIndex, staffDetail] = await Promise.all([
+      ListsLoading(),
+      ListDetailLoading(),
+      PlacesLoading(),
+      PlaceDetailLoading(),
+      SeriesLoading(),
+      SeriesDetailLoading(),
+      StaffLoading(),
+      StaffDetailLoading(),
+    ]).then((nodes) => nodes.map((node) => renderToStaticMarkup(node)));
+
+    expect(listIndex).not.toContain('data-list-detail-skeleton');
+    expect(listDetail).toContain('data-list-detail-skeleton');
+    expect(placeIndex).not.toContain('data-place-detail-skeleton');
+    expect(placeDetail).toContain('data-place-detail-skeleton');
+    expect(seriesIndex).not.toContain('data-series-detail-skeleton');
+    expect(seriesDetail).toContain('data-series-detail-skeleton');
+    expect(staffIndex).not.toContain('data-staff-detail-skeleton');
+    expect(staffDetail).toContain('data-staff-detail-skeleton');
   });
 
   it('matches the character detail portrait ratio, metadata, and horizontal appearance cards', async () => {

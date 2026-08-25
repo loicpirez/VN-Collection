@@ -7,7 +7,7 @@ export default async function Loading() {
     <SkeletonBoundary label={t.common.loading} className="space-y-4" densityScope="seriesWorks">
       <div className="h-9 w-72 animate-pulse rounded bg-bg-elev/60" />
       <div className="h-4 w-1/3 animate-pulse rounded bg-bg-elev/40" />
-      <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+      <div className="grid gap-3 sm:grid-cols-[200px_1fr]" data-series-detail-skeleton>
         <div className="aspect-[2/3] animate-pulse rounded-xl bg-bg-elev/40" />
         <div className="space-y-3">
           <div className="h-6 w-3/4 animate-pulse rounded bg-bg-elev/60" />

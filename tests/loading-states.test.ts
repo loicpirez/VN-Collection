@@ -29,10 +29,10 @@ const ROUTES = [
   { row: 'R5-175 /tag/[id]', file: 'src/app/tag/[id]/loading.tsx' },
   { row: 'R5-176 /tags', file: 'src/app/tags/loading.tsx' },
   { row: 'R5-177 /characters', file: 'src/app/characters/loading.tsx' },
-  { row: 'R5-177 /staff', file: 'src/app/staff/loading.tsx' },
+  { row: 'R5-177 /staff', file: 'src/app/staff/(index)/loading.tsx' },
   { row: 'TESTA-003 /stock', file: 'src/app/stock/loading.tsx' },
   { row: 'TESTA-003 /map', file: 'src/app/map/loading.tsx' },
-  { row: 'TESTA-003 /places', file: 'src/app/places/loading.tsx' },
+  { row: 'TESTA-003 /places', file: 'src/app/places/(index)/loading.tsx' },
   { row: 'TESTA-003 /places/[id]', file: 'src/app/places/[id]/loading.tsx' },
 ];
 

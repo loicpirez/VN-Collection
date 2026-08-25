@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import StaffSearchPage, { generateMetadata } from '@/app/staff/page';
+import StaffSearchPage, { generateMetadata } from '@/app/staff/(index)/page';
 import { searchLocalStaff } from '@/lib/db';
 import { searchStaff, type VndbStaff } from '@/lib/vndb';
 import { dictionaries } from '@/lib/i18n/dictionaries';

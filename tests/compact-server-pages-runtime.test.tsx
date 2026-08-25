@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ListsPage, { generateMetadata as generateListsMetadata } from '@/app/lists/page';
+import ListsPage, { generateMetadata as generateListsMetadata } from '@/app/lists/(index)/page';
 import TagsPage, { generateMetadata as generateTagsMetadata } from '@/app/tags/page';
 import LabelsPage, { generateMetadata as generateLabelsMetadata } from '@/app/labels/page';
 import {
