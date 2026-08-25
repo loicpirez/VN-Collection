@@ -749,9 +749,10 @@ export function WishlistClient() {
                 <option key={k} value={k}>{t.wishlist.groupLabel}: {t.wishlist.groupOptions[k]}</option>
               ))}
             </select>
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted">
+            <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-muted sm:min-h-0">
               <input
                 type="checkbox"
+                className="h-5 w-5 shrink-0"
                 checked={hideOwned}
                 onChange={(e) => setHideOwned(e.target.checked)}
               />

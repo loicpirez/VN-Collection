@@ -566,7 +566,7 @@ function TagFlatView({ results, mode, q, localCounts, locale }: { results: VndbT
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent"
+                    className="absolute right-3 top-3 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md border border-border bg-bg-elev/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                     aria-label={t.detail.viewOnVndb}
                   >
                     <ExternalLink className="h-3 w-3" aria-hidden /> VNDB

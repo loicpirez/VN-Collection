@@ -64,7 +64,7 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
   return (
     <form className="mt-4 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto]" onSubmit={submit}>
       <select
-        className="input"
+        className="input h-11 py-0"
         value={a}
         onChange={(e) => setA(e.target.value)}
         aria-label={t.brandOverlap.pickPlaceholderA}
@@ -78,7 +78,7 @@ export function BrandOverlapPicker({ initialA, initialB }: { initialA: string | 
         <ArrowLeftRight className="h-3 w-3" aria-hidden />
       </span>
       <select
-        className="input"
+        className="input h-11 py-0"
         value={b}
         onChange={(e) => setB(e.target.value)}
         aria-label={t.brandOverlap.pickPlaceholderB}
