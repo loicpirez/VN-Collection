@@ -8,7 +8,10 @@ import { createPortal } from 'react-dom';
 import { ArrowRight, CheckCheck, ChevronLeft, ChevronRight, GitCompareArrows, GraduationCap, KeyRound, Loader2, Save, Settings2, X } from 'lucide-react';
 import { useDisplaySettings } from '@/lib/settings/client';
 import { GlobalCardDensitySlider } from './CardDensitySlider';
-import { SkeletonRows } from './Skeleton';
+import {
+  IntegrationsSettingsTabSkeleton,
+  LayoutSettingsTabSkeleton,
+} from './settings/SettingsTabSkeletons';
 import { useLocale, useT } from '@/lib/i18n/client';
 import {
   globalShortcutRows,
@@ -39,12 +42,12 @@ import {
 
 const LayoutSettingsTab = dynamic(
   () => import('./settings/LayoutSettingsTab').then((m) => m.LayoutSettingsTab),
-  { ssr: false, loading: () => <SkeletonRows count={6} withThumb={false} /> },
+  { ssr: false, loading: LayoutSettingsTabSkeleton },
 );
 
 const IntegrationsSettingsTab = dynamic(
   () => import('./settings/IntegrationsSettingsTab').then((m) => m.IntegrationsSettingsTab),
-  { ssr: false, loading: () => <SkeletonRows count={6} withThumb={false} /> },
+  { ssr: false, loading: IntegrationsSettingsTabSkeleton },
 );
 
 const SORT_KEYS: SortKey[] = [
