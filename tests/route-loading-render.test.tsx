@@ -122,6 +122,24 @@ describe('route loading skeletons', () => {
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
   });
 
+  it('matches the staff search controls and compact result geometry', async () => {
+    const html = renderToStaticMarkup(await StaffLoading());
+    expect(html).toContain('data-staff-list-results-skeleton');
+    expect(html).toContain('min-w-[140px]');
+    expect(html).toContain('var(--card-density-px, 220px)');
+    expect(html.match(/rounded-lg border border-border bg-bg-elev\/40 p-3/g)).toHaveLength(10);
+  });
+
+  it('matches the staff detail profile, timeline, and horizontal credit-card geometry', async () => {
+    const html = renderToStaticMarkup(await StaffDetailLoading());
+    expect(html).toContain('data-staff-timeline-skeleton');
+    expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(2);
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
+    expect(html).toContain('var(--card-density-px, 280px)');
+    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
+    expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>

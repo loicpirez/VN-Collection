@@ -7,7 +7,6 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
-import { SkeletonCardGrid } from '@/components/Skeleton';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 /**
@@ -127,10 +126,36 @@ export async function StaffExtraCredits({
  */
 export function StaffExtraCreditsSkeleton() {
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+    <section
+      aria-busy="true"
+      aria-live="polite"
+      role="status"
+      className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6"
+    >
       <div className="mb-3 h-3 w-48 animate-pulse rounded bg-bg-elev/60" />
       <div className="mb-4 h-2.5 w-72 animate-pulse rounded bg-bg-elev/60" />
-      <SkeletonCardGrid count={8} />
+      <ul
+        className="grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+      >
+        {Array.from({ length: 8 }).map((_, index) => (
+          <li
+            key={index}
+            className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2"
+            data-staff-extra-credit-skeleton
+          >
+            <div className="h-24 w-16 shrink-0 animate-pulse rounded bg-bg-elev/60" />
+            <div className="min-w-0 flex-1 py-1">
+              <div className="h-3 w-4/5 animate-pulse rounded bg-bg-elev/60" />
+              <div className="mt-2 h-2.5 w-3/5 animate-pulse rounded bg-bg-elev/60" />
+              <div className="mt-3 flex gap-2">
+                <div className="h-5 w-12 animate-pulse rounded bg-bg-elev/60" />
+                <div className="h-5 w-14 animate-pulse rounded bg-bg-elev/60" />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

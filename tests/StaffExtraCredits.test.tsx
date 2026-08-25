@@ -36,10 +36,6 @@ vi.mock('@/components/SafeImage', () => ({
   SafeImage: ({ alt, src }: { alt: string; src?: string | null }) => <img alt={alt} src={src ?? undefined} />,
 }));
 
-vi.mock('@/components/Skeleton', () => ({
-  SkeletonCardGrid: ({ count }: { count: number }) => <div data-skeleton-count={count} />,
-}));
-
 function production(id: string, overrides: Partial<StaffVnCredit> = {}): StaffVnCredit {
   return {
     id,
@@ -168,6 +164,11 @@ describe('StaffExtraCredits', () => {
   });
 
   it('renders the streaming skeleton shape', () => {
-    expect(renderToStaticMarkup(<StaffExtraCreditsSkeleton />)).toContain('data-skeleton-count="8"');
+    const markup = renderToStaticMarkup(<StaffExtraCreditsSkeleton />);
+    expect(markup.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(8);
+    expect(markup.match(/h-24 w-16 shrink-0/g)).toHaveLength(8);
+    expect(markup).toContain('var(--card-density-px, 220px)');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-busy="true"');
   });
 });
