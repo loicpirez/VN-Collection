@@ -129,7 +129,7 @@ describe('route loading skeletons', () => {
 
   it('matches the VN detail hero, cover overlap, metadata, media, and section geometry', async () => {
     const html = renderToStaticMarkup(await VnLoading());
-    expect(html).toContain('h-11 w-24 md:hidden');
+    expect(html).toContain('vn-mobile-library-return h-11 w-24 md:hidden');
     expect(html).toContain('h-64 w-full');
     expect(html).toContain('-mt-44');
     expect(html).toContain('md:grid-cols-[260px_1fr]');

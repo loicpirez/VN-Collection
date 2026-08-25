@@ -175,6 +175,11 @@ describe('SettingsButton', () => {
     fireEvent.click(headerSpace);
     expect(headerSpace.getAttribute('aria-checked')).toBe('true');
 
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs['vn-page'] as string }));
+    const mobileReturn = within(dialog).getByRole('switch', { name: t.settings.showVnMobileLibraryLink as string });
+    fireEvent.click(mobileReturn);
+    expect(mobileReturn.getAttribute('aria-checked')).toBe('false');
+
     fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.content as string }));
     const majorSpoilers = within(dialog).getByRole('radio', { name: t.spoiler.lvl2 as string });
     fireEvent.click(majorSpoilers);

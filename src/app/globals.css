@@ -294,6 +294,10 @@
   object-fit: var(--shelf-fit-mode, cover);
 }
 
+html[data-vn-mobile-library-return='hidden'] .vn-mobile-library-return {
+  display: none;
+}
+
 /*
  * Right-edge fade hint for horizontally-scrollable rows. Indicates
  * there's more content off-screen — without it phones leave the

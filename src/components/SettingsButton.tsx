@@ -980,7 +980,14 @@ export function SettingsButton() {
                   role="tabpanel"
                   id="settings-panel-vn-page"
                   aria-labelledby="settings-tab-vn-page"
+                  className="space-y-4"
                 >
+                  <Toggle
+                    label={t.settings.showVnMobileLibraryLink}
+                    description={t.settings.showVnMobileLibraryLinkDesc}
+                    value={settings.showVnMobileLibraryLink}
+                    onChange={(value) => set('showVnMobileLibraryLink', value)}
+                  />
                   <LayoutSettingsTab server={server} saveServer={saveServer} />
                 </div>
                 )}

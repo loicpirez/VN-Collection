@@ -13,6 +13,7 @@ describe('sanitizeDisplaySettings', () => {
       hideImages: true,
       blurR18: false,
       wishlistHideOwned: false,
+      showVnMobileLibraryLink: false,
       nsfwThreshold: 99,
       cardDensityPx: 10,
       density: { library: 999, wishlist: 10, injected: 200 },
@@ -23,6 +24,7 @@ describe('sanitizeDisplaySettings', () => {
       hideImages: true,
       blurR18: false,
       wishlistHideOwned: false,
+      showVnMobileLibraryLink: false,
       nsfwThreshold: 2,
       cardDensityPx: CARD_DENSITY_MIN,
       density: { library: CARD_DENSITY_MAX, wishlist: CARD_DENSITY_MIN },
@@ -63,6 +65,15 @@ describe('display-settings persistence boundaries', () => {
   it('uses the shared sanitizer for cookie and local-storage payloads', () => {
     expect(readFileSync('src/app/layout.tsx', 'utf8')).toContain('sanitizeDisplaySettings(JSON.parse(decodeURIComponent(raw)))');
     expect(readFileSync('src/lib/settings/client.tsx', 'utf8')).toContain('sanitizeDisplaySettings(JSON.parse(raw))');
+  });
+
+  it('uses one root visibility state for the VN mobile return and its loader', () => {
+    const page = readFileSync('src/app/vn/[id]/page.tsx', 'utf8');
+    const loading = readFileSync('src/app/vn/[id]/loading.tsx', 'utf8');
+    const styles = readFileSync('src/app/globals.css', 'utf8');
+    expect(page.match(/vn-mobile-library-return/g)).toHaveLength(2);
+    expect(loading).toContain('vn-mobile-library-return h-11 w-24 md:hidden');
+    expect(styles).toContain("html[data-vn-mobile-library-return='hidden'] .vn-mobile-library-return");
   });
 
   it('constructs proxy agents without an unknown bridge cast', () => {

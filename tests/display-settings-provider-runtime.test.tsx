@@ -13,11 +13,15 @@ function SettingsProbe() {
     <div>
       <output data-testid="hidden">{String(settings.hideImages)}</output>
       <output data-testid="library-density">{String(settings.density.library ?? '')}</output>
+      <output data-testid="mobile-return">{String(settings.showVnMobileLibraryLink)}</output>
       <button type="button" onClick={() => set('hideImages', true)}>
         hide
       </button>
       <button type="button" onClick={reset}>
         reset
+      </button>
+      <button type="button" onClick={() => set('showVnMobileLibraryLink', false)}>
+        hide mobile return
       </button>
     </div>
   );
@@ -30,11 +34,13 @@ function MissingSettingsProvider() {
 
 beforeEach(() => {
   localStorage.clear();
+  delete document.documentElement.dataset.vnMobileLibraryReturn;
 });
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  delete document.documentElement.dataset.vnMobileLibraryReturn;
 });
 
 describe('DisplaySettingsProvider runtime', () => {
@@ -53,6 +59,10 @@ describe('DisplaySettingsProvider runtime', () => {
     expect(screen.getByTestId('hidden')).toHaveTextContent('true');
     fireEvent.click(screen.getByRole('button', { name: 'reset' }));
     expect(screen.getByTestId('hidden')).toHaveTextContent('false');
+    expect(document.documentElement.dataset.vnMobileLibraryReturn).toBe('visible');
+    fireEvent.click(screen.getByRole('button', { name: 'hide mobile return' }));
+    expect(screen.getByTestId('mobile-return')).toHaveTextContent('false');
+    expect(document.documentElement.dataset.vnMobileLibraryReturn).toBe('hidden');
   });
 
   it('seeds and marks a legacy library-density migration during hydration', () => {

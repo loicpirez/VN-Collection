@@ -99,6 +99,8 @@ export interface DisplaySettings {
    * content pages can still use compact / wide / canvas frames.
    */
   headerFollowsPageSpace: boolean;
+  /** Show the compact return-to-library action above VN details on phones. */
+  showVnMobileLibraryLink: boolean;
   /**
    * Spoiler level shown by default across the app.
    *   0 = none (default — like VNDB out of the box)
@@ -130,6 +132,7 @@ const DEFAULTS: DisplaySettings = {
   density: {},
   pageSpace: {},
   headerFollowsPageSpace: false,
+  showVnMobileLibraryLink: true,
   spoilerLevel: 0,
   showSexualTraits: false,
   globalPageSpace: null,
@@ -213,6 +216,7 @@ export function sanitizeDisplaySettings(input: unknown): Partial<DisplaySettings
     'denseLibrary',
     'wishlistHideOwned',
     'headerFollowsPageSpace',
+    'showVnMobileLibraryLink',
     'showSexualTraits',
   ] as const) {
     if (typeof input[key] === 'boolean') sanitized[key] = input[key];
@@ -422,6 +426,12 @@ export function DisplaySettingsProvider({
       // ignore
     }
   }, [settings, hydrated]);
+
+  useEffect(() => {
+    document.documentElement.dataset.vnMobileLibraryReturn = settings.showVnMobileLibraryLink
+      ? 'visible'
+      : 'hidden';
+  }, [settings.showVnMobileLibraryLink]);
 
   const value = useMemo<Ctx>(
     () => ({

@@ -106,6 +106,7 @@ describe('per-scope reset never clobbers the legacy default', () => {
       density: { library: 200, wishlist: 240 },
       pageSpace: {},
       headerFollowsPageSpace: false,
+      showVnMobileLibraryLink: true,
       spoilerLevel: 0,
       showSexualTraits: false,
       globalPageSpace: null,

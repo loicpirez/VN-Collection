@@ -93,7 +93,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     return Math.max(CARD_DENSITY_MIN, Math.min(CARD_DENSITY_MAX, Math.round(raw)));
   })();
   return (
-    <html lang={locale} style={{ ['--card-density-px' as never]: `${seedDensity}px` }}>
+    <html
+      lang={locale}
+      data-vn-mobile-library-return={initialSettings?.showVnMobileLibraryLink === false ? 'hidden' : 'visible'}
+      style={{ ['--card-density-px' as never]: `${seedDensity}px` }}
+    >
       <body className="min-h-screen bg-bg text-white">
         <script dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }} />
         <I18nProvider locale={locale} dict={dict}>

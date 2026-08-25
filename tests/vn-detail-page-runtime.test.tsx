@@ -461,6 +461,7 @@ describe('VN detail page runtime', () => {
     expect(html).toContain(dictionaries.en.common.error);
     expect(html).not.toContain('private upstream detail');
     expect(html).toContain('href="https://vndb.org/v90001"');
+    expect(html).toContain('vn-mobile-library-return');
     expect(warn).toHaveBeenCalledWith('[VN_DETAIL_UPSTREAM_LOOKUP_FAILED]', 'v90001', 'private upstream detail');
     warn.mockRestore();
   });
@@ -513,6 +514,7 @@ describe('VN detail page runtime', () => {
 
     html = await renderPage('v90004');
     expect(html).toContain('recent:v90004');
+    expect(html).toContain('vn-mobile-library-return');
     expect(getVn).not.toHaveBeenCalled();
   });
 

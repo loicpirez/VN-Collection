@@ -80,6 +80,7 @@ describe('root layout composition', () => {
     expect(viewport).toEqual({ width: 'device-width', initialScale: 1, themeColor: '#0b1220' });
     const html = renderToStaticMarkup(await RootLayout({ children: <span>Body</span> }));
     expect(html).toContain('lang="en"');
+    expect(html).toContain('data-vn-mobile-library-return="visible"');
     expect(html).toContain('--card-density-px:220px');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain('data-testid="grouped-nav"');
@@ -95,6 +96,10 @@ describe('root layout composition', () => {
     mocks.sanitize.mockReturnValue({ cardDensityPx: 0 });
     html = renderToStaticMarkup(await RootLayout({ children: null }));
     expect(html).toContain('--card-density-px:120px');
+
+    mocks.sanitize.mockReturnValue({ cardDensityPx: 220, showVnMobileLibraryLink: false });
+    html = renderToStaticMarkup(await RootLayout({ children: null }));
+    expect(html).toContain('data-vn-mobile-library-return="hidden"');
   });
 
   it('falls back to default density for malformed cookies and non-numeric settings', async () => {
