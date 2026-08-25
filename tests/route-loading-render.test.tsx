@@ -114,6 +114,9 @@ describe('route loading skeletons', () => {
     expect(html).toContain('-mt-44');
     expect(html).toContain('md:grid-cols-[260px_1fr]');
     expect(html).toContain('max-w-[260px]');
+    expect(html).toContain('data-vn-cover-skeleton-shell');
+    expect(html).toContain('relative z-10 mx-auto aspect-[2/3]');
+    expect(html).toContain('overflow-hidden rounded-xl bg-bg-card');
     expect(html).toContain('grid-cols-3');
     expect(html).toContain('sm:grid-cols-3 lg:grid-cols-5');
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(6);
