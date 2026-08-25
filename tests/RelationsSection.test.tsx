@@ -100,9 +100,11 @@ describe('RelationsSection', () => {
     }));
     const { user } = renderWithProviders(<RelationsSection relations={relations} />, { locale: 'en' });
 
-    expect(screen.getByText('v90024:none:0:Sequel:accent')).toBeInTheDocument();
-    expect(screen.queryByText('v90025:none:0:Sequel:accent')).toBeNull();
+    expect(screen.getByText('v90012:none:0:Sequel:accent')).toBeInTheDocument();
+    expect(screen.queryByText('v90013:none:0:Sequel:accent')).toBeNull();
     const navigation = screen.getByRole('navigation', { name: 'Relation pagination: Sequel' });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('v90013:none:0:Sequel:accent')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('v90025:none:0:Sequel:accent')).toBeInTheDocument();
     expect(navigation).toHaveTextContent('25-25 / 25');

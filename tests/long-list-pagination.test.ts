@@ -136,9 +136,9 @@ describe('VN detail and tag index pagination', () => {
 
   it('bounds the three production DOM hotspots with the shared paginator', () => {
     expect(relations).toContain("import { PaginatedGrid } from './PaginatedGrid'");
-    expect(relations).toContain('pageSize={24}');
+    expect(relations).toContain('pageSize={12}');
     expect(releases).toContain("import { PaginatedGrid } from './PaginatedGrid'");
-    expect(releases).toContain('pageSize={20}');
+    expect(releases).toContain('pageSize={12}');
     expect(tags).toContain("import { PaginatedGrid } from './PaginatedGrid'");
     expect(tags).toContain('pageSize={40}');
   });

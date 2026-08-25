@@ -175,11 +175,11 @@ describe('ReleasesSection branches', () => {
     const { user } = renderWithProviders(<ReleasesSection vnId="v90001" />, { locale: 'en' });
 
     const navigation = await screen.findByRole('navigation', { name: t.releases.paginationLabel });
-    expect(screen.getByRole('link', { name: 'Release 20' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Release 21' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Release 12' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Release 13' })).toBeNull();
     await user.click(within(navigation).getByRole('button', { name: t.common.next }));
     expect(screen.getByRole('link', { name: 'Release 21' })).toBeInTheDocument();
-    expect(navigation).toHaveTextContent('21-21 / 21');
+    expect(navigation).toHaveTextContent('13-21 / 21');
   });
 
   it('does not render an owned-toggle button when not in collection', async () => {

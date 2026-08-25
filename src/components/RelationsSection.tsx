@@ -111,7 +111,7 @@ export function RelationsSection({ relations }: Props) {
               resetKey={`relations:${relation}:${rels.length}:${rels[0]?.id ?? ''}:${rels.at(-1)?.id ?? ''}`}
               className="grid gap-4"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
-              pageSize={24}
+              pageSize={12}
             >
               {rels.map((r) => (
                 <li key={`${r.id}-${r.relation}`}>

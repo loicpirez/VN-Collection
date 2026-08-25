@@ -400,7 +400,7 @@ export function ReleasesSection({
           ariaLabel={t.releases.paginationLabel}
           resetKey={`releases:${vnId}:${releases.map((release) => release.id).join(':')}`}
           className="space-y-3"
-          pageSize={20}
+          pageSize={12}
         >
           {releases.map((r) => (
             <ReleaseRow
