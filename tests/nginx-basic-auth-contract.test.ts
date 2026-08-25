@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const publicIcons = readFileSync('ops/nginx/vndb-public-icons.conf', 'utf8');
 const proxyProof = readFileSync('ops/nginx/vndb-trusted-proxy.conf.example', 'utf8');
+const backupRestore = readFileSync('ops/nginx/vndb-backup-restore.conf', 'utf8');
 
 describe('Nginx Basic Auth public icon contract', () => {
   it('exempts only browser icon discovery routes from Basic Auth', () => {
@@ -30,5 +31,22 @@ describe('Nginx Basic Auth public icon contract', () => {
     expect(proxyProof).toContain('proxy_set_header X-Proxy-Secret');
     expect(proxyProof).toContain('REPLACE_WITH_TRUSTED_PROXY_SECRET');
     expect(proxyProof).not.toMatch(/[a-f0-9]{64}/i);
+  });
+
+  it('raises the upload cap only for authenticated streaming restores', () => {
+    expect(backupRestore).toContain('location = /api/backup/restore {');
+    expect(backupRestore).toContain('include /etc/nginx/snippets/vndb-basic-auth.conf;');
+    expect(backupRestore).toContain('include /etc/nginx/snippets/vndb-proxy-proof.conf;');
+    expect(backupRestore).toContain('client_max_body_size 4G;');
+    expect(backupRestore).toContain('proxy_request_buffering off;');
+    expect(backupRestore).toContain('proxy_read_timeout 300s;');
+    expect(backupRestore).not.toContain('auth_basic off;');
+    expect(backupRestore.match(/location\s*=/g)).toHaveLength(1);
+  });
+
+  it('documents both production Nginx includes', () => {
+    const readme = readFileSync('README.md', 'utf8');
+    expect(readme).toContain('include /etc/nginx/snippets/vndb-public-icons.conf;');
+    expect(readme).toContain('include /etc/nginx/snippets/vndb-backup-restore.conf;');
   });
 });

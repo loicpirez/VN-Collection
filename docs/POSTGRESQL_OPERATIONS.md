@@ -161,6 +161,12 @@ tables in one transaction. It verifies every destination count and realigns
 identity sequences before commit. Any parse, integrity, constraint, count, or
 database failure rolls the transaction back and leaves the active data intact.
 
+The reverse proxy must permit the same 4 GiB maximum on the exact restore route.
+Install `ops/nginx/vndb-backup-restore.conf` in the authenticated HTTPS server;
+it retains Basic Auth and the trusted-proxy proof, disables request buffering,
+and leaves the lower general request limit unchanged. After installation, run
+`sudo nginx -t` before reloading Nginx.
+
 An in-application restore is intentionally destructive and is meant for an
 operator-controlled single-user deployment. Keep scheduled `pg_dump` archives
 as the independent disaster-recovery layer. Test those archives in an isolated

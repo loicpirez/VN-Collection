@@ -243,12 +243,13 @@ forward automatically.
 
 ## Basic Auth reverse proxy
 
-When Nginx protects the deployment with HTTP Basic Auth, include
-`ops/nginx/vndb-public-icons.conf` inside the HTTPS `server` block before the
+When Nginx protects the deployment with HTTP Basic Auth, install the public-icon
+and backup-restore snippets inside the HTTPS `server` block before the
 authenticated `location /` block:
 
 ```nginx
 include /etc/nginx/snippets/vndb-public-icons.conf;
+include /etc/nginx/snippets/vndb-backup-restore.conf;
 
 location / {
     include /etc/nginx/snippets/vndb-basic-auth.conf;
@@ -260,6 +261,12 @@ location / {
     include /etc/nginx/snippets/vndb-proxy-proof.conf;
 }
 ```
+
+`ops/nginx/vndb-backup-restore.conf` keeps its exact route under Basic Auth and
+the trusted-proxy proof, but raises the body cap to the application's 4 GiB
+logical-backup ceiling. Request buffering is disabled so Nginx forwards the
+validated stream without first duplicating a multi-gigabyte archive on disk.
+Keep the general server limit lower for every other route.
 
 Generate one random proxy secret. Store it as `TRUSTED_PROXY_SECRET` in the
 application environment with `ALLOW_TRUSTED_PROXY=1`, and install a root-only
