@@ -1,7 +1,8 @@
 'use client';
 
 import { useT } from '@/lib/i18n/client';
-import { PAGE_SPACE_SCOPES } from '@/lib/page-space';
+import { PAGE_SPACE_PRESET_IDS, PAGE_SPACE_SCOPES } from '@/lib/page-space';
+import { CARD_DENSITY_PRESETS, PAGE_LAYOUT_DENSITY_SCOPES } from '@/lib/page-layout-controls';
 import { SkeletonBlock } from '../Skeleton';
 
 const PROXY_SECTION_COUNT = 4;
@@ -28,11 +29,36 @@ export function LayoutSettingsTabSkeleton() {
         <SkeletonBlock className="h-11 w-24 shrink-0 rounded-md" />
         <SkeletonBlock className="h-11 w-28 shrink-0 rounded-md" />
       </div>
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3">
-        <SkeletonBlock className="h-4 w-40" />
-        <SkeletonBlock className="h-3 w-full max-w-80" />
-        <ul className="mt-1 grid gap-2" data-settings-layout-rows>
-          {PAGE_SPACE_SCOPES.map((scope) => (
+      <PerPageLayoutPanelSkeleton announce={false} />
+    </div>
+  );
+}
+
+/**
+ * Destination-shaped placeholder shared by chunk loading and client hydration.
+ *
+ * @param announce Whether this instance owns the live loading announcement.
+ * @returns The complete per-page spacing and density settings geometry.
+ */
+export function PerPageLayoutPanelSkeleton({ announce = true }: { announce?: boolean }) {
+  const t = useT();
+
+  return (
+    <div
+      role={announce ? 'status' : undefined}
+      aria-live={announce ? 'polite' : undefined}
+      aria-busy={announce ? true : undefined}
+      aria-hidden={announce ? undefined : true}
+      className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3"
+      data-settings-per-page-layout-skeleton
+    >
+      {announce && <span className="sr-only">{t.app.loading}</span>}
+      <SkeletonBlock className="h-4 w-40" />
+      <SkeletonBlock className="h-3 w-full max-w-80" />
+      <ul className="mt-1 grid gap-2" data-settings-layout-rows>
+        {PAGE_SPACE_SCOPES.map((scope) => {
+          const densityScopes = PAGE_LAYOUT_DENSITY_SCOPES[scope] ?? [];
+          return (
             <li
               key={scope}
               className="grid gap-2 rounded-md border border-border/60 bg-bg-card/40 px-2 py-2 lg:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)]"
@@ -42,16 +68,38 @@ export function LayoutSettingsTabSkeleton() {
                 <SkeletonBlock className="h-2.5 w-28" />
               </div>
               <div className="min-w-0 space-y-2">
-                <div className="flex flex-wrap gap-1">
-                  {Array.from({ length: 4 }).map((_, index) => (
+                <div className="flex flex-wrap gap-1" data-settings-space-controls>
+                  {Array.from({ length: PAGE_SPACE_PRESET_IDS.length + 1 }).map((_, index) => (
                     <SkeletonBlock key={index} className="h-11 w-20 rounded-md" />
                   ))}
                 </div>
-                <SkeletonBlock className="h-14 w-full rounded-md" />
+                <div className="flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
+                  {densityScopes.length > 0 ? densityScopes.map((densityScope) => (
+                    <div
+                      key={densityScope}
+                      className="flex w-full flex-wrap items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 p-2"
+                      data-settings-density-control
+                    >
+                      <SkeletonBlock className="mr-1 h-2.5 w-16" />
+                      {CARD_DENSITY_PRESETS.map((preset) => (
+                        <SkeletonBlock key={preset.id} className="h-11 w-20 rounded-md" />
+                      ))}
+                      <SkeletonBlock className="ml-auto h-2.5 w-10" />
+                      <SkeletonBlock className="h-11 w-11 rounded-md" />
+                    </div>
+                  )) : (
+                    <SkeletonBlock className="h-2.5 w-36" />
+                  )}
+                </div>
               </div>
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
+      <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2" data-settings-reset-controls>
+        <SkeletonBlock className="h-11 w-28 rounded-md" />
+        <SkeletonBlock className="h-11 w-28 rounded-md" />
+        <SkeletonBlock className="h-11 w-32 rounded-md" />
       </div>
     </div>
   );

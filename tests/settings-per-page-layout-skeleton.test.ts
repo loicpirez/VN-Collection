@@ -17,9 +17,8 @@ const SOURCE = [
 
 describe('Settings per-page layout panel', () => {
   it('renders a skeleton while client layout settings hydrate', () => {
-    expect(SOURCE).toMatch(/import \{ SkeletonBlock \} from '\.\.?\/Skeleton'/);
+    expect(SOURCE).toContain('PerPageLayoutPanelSkeleton');
     expect(SOURCE).toContain('if (!hydrated)');
-    expect(SOURCE).toContain('aria-busy="true"');
   });
 
   it('keeps the VNDB token save action visibly busy and disabled during save', () => {

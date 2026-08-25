@@ -43,7 +43,7 @@ import {
   type PageSpacePreset,
   type PageSpaceScope,
 } from '@/lib/page-space';
-import { SkeletonBlock } from '../Skeleton';
+import { CARD_DENSITY_PRESETS, PAGE_LAYOUT_DENSITY_SCOPES } from '@/lib/page-layout-controls';
 import { useT } from '@/lib/i18n/client';
 import { DEFAULT_HOME_LAYOUT, HOME_LAYOUT_EVENT, type HomeSectionId, type HomeSectionLayoutV1, type HomeSectionState } from '@/lib/home-section-layout';
 import {
@@ -61,6 +61,7 @@ import { SERIES_DETAIL_LAYOUT_EVENT, SERIES_DETAIL_SECTION_IDS, defaultSeriesDet
 import { useConfirm } from '../ConfirmDialog';
 import type { SaveServer } from '../SettingsButton';
 import type { ServerSettings } from '@/lib/settings-server-client-shape';
+import { PerPageLayoutPanelSkeleton } from './SettingsTabSkeletons';
 
 const PAGE_LAYOUT_TABS = ['home', 'vn', 'character', 'staff', 'producer', 'series'] as const;
 type PageLayoutTab = typeof PAGE_LAYOUT_TABS[number];
@@ -757,32 +758,6 @@ function SortableDetailRow({
   );
 }
 
-const PAGE_LAYOUT_DENSITY_SCOPES: Partial<Record<PageSpaceScope, readonly DensityScope[]>> = {
-  library: ['library'],
-  wishlist: ['wishlist'],
-  search: ['search'],
-  vn: ['vnMedia'],
-  staff: ['staffWorks'],
-  character: ['characterWorks'],
-  producer: ['producerWorks'],
-  series: ['seriesWorks'],
-  lists: ['lists'],
-  shelf: ['shelf'],
-  recommendations: ['recommendations'],
-  topRanked: ['topRanked'],
-  upcoming: ['upcoming'],
-  similar: ['vnSimilar'],
-  tags: ['tagPage'],
-  dumped: ['dumped'],
-  egs: ['egs'],
-};
-
-const CARD_DENSITY_PRESETS = [
-  { id: 'compact', value: 160 },
-  { id: 'balanced', value: 220 },
-  { id: 'comfortable', value: 320 },
-] as const;
-
 /**
  * Settings → Display panel for per-page layout overrides. It combines
  * page spacing and scoped card-density state in one row per route
@@ -846,17 +821,7 @@ function PerPageLayoutPanel() {
   const someDensityOverride = DENSITY_SCOPES.some((scope) => hasScopeOverride(settings, scope));
 
   if (!hydrated) {
-    return (
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/50 p-3" aria-busy="true">
-        <SkeletonBlock className="h-4 w-44" />
-        <SkeletonBlock className="h-3 w-72" />
-        <div className="mt-1 grid gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonBlock key={i} className="h-16 w-full rounded-md" />
-          ))}
-        </div>
-      </div>
-    );
+    return <PerPageLayoutPanelSkeleton />;
   }
 
   return (

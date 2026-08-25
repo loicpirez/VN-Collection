@@ -6,6 +6,7 @@ import {
   LayoutSettingsTabSkeleton,
 } from '@/components/settings/SettingsTabSkeletons';
 import { PAGE_SPACE_SCOPES } from '@/lib/page-space';
+import { PAGE_LAYOUT_DENSITY_SCOPES } from '@/lib/page-layout-controls';
 import { renderWithProviders } from './helpers/render-component';
 
 describe('settings tab skeletons', () => {
@@ -16,7 +17,9 @@ describe('settings tab skeletons', () => {
     expect(status.hasAttribute('data-settings-layout-skeleton')).toBe(true);
     expect(status.getAttribute('aria-busy')).toBe('true');
     expect(container.querySelector('[data-settings-layout-rows]')?.children).toHaveLength(PAGE_SPACE_SCOPES.length);
-    expect(container.querySelectorAll('[data-settings-layout-rows] li .h-11')).toHaveLength(PAGE_SPACE_SCOPES.length * 4);
+    expect(container.querySelectorAll('[data-settings-space-controls] .h-11')).toHaveLength(PAGE_SPACE_SCOPES.length * 5);
+    expect(container.querySelectorAll('[data-settings-density-control]')).toHaveLength(Object.keys(PAGE_LAYOUT_DENSITY_SCOPES).length);
+    expect(container.querySelector('[data-settings-reset-controls]')?.children).toHaveLength(3);
   });
 
   it('preserves credential, proxy, provider, and quote-control geometry', () => {

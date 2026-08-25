@@ -64,6 +64,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-047 | HIGH | AliceNet's dedicated shop surface used the same featureless card and row rectangles despite its richer match status, artwork, price, title-normalization, provider, quick-link, and remap controls. Preserve its special card/list anatomy without moving its operations outside the AliceNet shop page. | AliceNet shop inventory | DONE_WITH_DIFF |
 | R14-UX-048 | HIGH | The shop registry replaced full place cards, detailed list rows, and unassigned-branch actions with uniform height blocks. Preserve each active view's identity, metadata, badges, and 44-pixel actions while registry requests run. | place registry card/list/unassigned views | DONE_WITH_DIFF |
 | R14-UX-049 | HIGH | Seiyuu detail loading still fabricated optional profile metadata and expanded every configured section even when the user had saved it as collapsed, causing large false blocks before the real profile appeared. Reserve only guaranteed profile controls and mirror persisted collapsed headers. | staff detail loading boundary | DONE_WITH_DIFF |
+| R14-UX-050 | HIGH | Per-page layout settings reserved four featureless rows during client hydration although the resolved panel contains 26 route groups with five spacing choices, optional density presets, and three global reset actions. Share the complete destination-shaped placeholder between chunk loading and hydration. | Display settings per-page layout panel | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -564,3 +565,9 @@ operations, providers, deployment, backup, and restore.
   pass, the production build passes, and the PostgreSQL-backed suite passes
   9,828 tests with exactly 100% statements (44,842/44,842), branches
   (38,088/38,088), functions (9,183/9,183), and lines (38,296/38,296).
+- Per-page layout settings now share one complete 26-row placeholder across
+  lazy chunk loading and client hydration, including spacing presets, optional
+  density controls, and reset actions. Thirty-six focused settings scenarios
+  pass, the production build passes, and the PostgreSQL-backed suite passes
+  9,828 tests with exactly 100% statements (44,846/44,846), branches
+  (38,103/38,103), functions (9,185/9,185), and lines (38,300/38,300).
