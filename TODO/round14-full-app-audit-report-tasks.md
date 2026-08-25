@@ -111,7 +111,7 @@ operations, providers, deployment, backup, and restore.
 | R14-STOCK-003 | HIGH | Bulk stock summaries used by VN cards read only the generic offer table, while AliceNet packages are stored separately and synthesized only for detail and place views. AliceNet-only availability and prices therefore disappeared from library cards. Union matched AliceNet packages into both database summary implementations with the same guarded yen parsing used by place views. | `src/lib/db.ts`, `src/lib/db/repositories/stock.ts`, stock database contracts | DONE_WITH_DIFF |
 | R14-STOCK-004 | HIGH | AliceNet place and per-VN freshness used each row's general `updated_at`, which also changes when matching metadata is edited. A match could therefore make an old inventory snapshot appear freshly synchronized. Derive generic stock timestamps from `fetched_at` in both database engines and the synthesized VN offer so only an actual stock download changes freshness. | SQLite and PostgreSQL place repositories, per-VN stock synthesis | DONE_WITH_DIFF |
 | R14-STOCK-005 | HIGH | A linked shop stock request returned every VN and every offer before the browser paginated locally; the production AliceNet shop therefore transferred more than one thousand VN rows for each visit and repeated the full payload for every filter. Validate bounded query parameters, filter and sort on the server, return stable page and producer metadata, restrict offer loading to the visible VN window, preserve legacy response decoding, and keep loaded results visible during background page changes. | place stock API, repository offer window, place stock browser, response decoder | DONE_WITH_DIFF |
-| R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | TODO |
+| R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | DONE_WITH_DIFF |
 | R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | DONE_WITH_DIFF |
 | R14-VNDB-002 | CRITICAL | Conflict resolution previously submitted only field names, so an old browser preview could apply values that had changed locally or on VNDB since it was rendered. Submit the exact local/remote snapshot for every selected field, revalidate it against fresh data, use an atomic compare-and-set for local pulls, and reload the panel on conflict. | VN status panel, VNDB status API, SQLite and PostgreSQL collection repositories | DONE_WITH_DIFF |
 | R14-VNDB-003 | MEDIUM | The VNDB conflict API emitted a stable code when the selected synchronization direction was unavailable, but the client error union and all three dictionaries omitted it, reducing a precise conflict to a generic error. Add the code to the typed localized contract and exercise it through the panel. | VNDB status conflict API and panel | DONE_WITH_DIFF |
@@ -761,3 +761,15 @@ operations, providers, deployment, backup, and restore.
   build pass; the complete PostgreSQL-backed suite passes 9,854 tests with
   exactly 100% statements (44,903/44,903), branches (38,164/38,164),
   functions (9,200/9,200), and lines (38,351/38,351).
+- AliceNet remains a specialized embedded surface on its linked shop detail
+  page, with no standalone route or navigation entry. A live production stock
+  run exercised detached startup, indeterminate fetch progress, determinate
+  completion at 1,412 of 1,412 rows, and zero errors. The resulting timestamp
+  immediately changed the shop freshness label to today and propagated to its
+  synthesized per-VN offers. Initial request failures now remain visible with
+  an explicit retry, while refresh failures preserve the previously loaded
+  stock instead of displaying a false empty state. Pagination, all match and
+  ownership filters, grouping, sorting, search, background stop and retry,
+  manual linking, both database engines, and migration compatibility are
+  covered by 387 passing focused scenarios. Final complete-suite coverage
+  verification remains tracked by R14-TEST-002.
