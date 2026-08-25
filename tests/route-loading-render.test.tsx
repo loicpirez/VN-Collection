@@ -401,6 +401,16 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 
+  it('matches trait browser identity, controls, density, and result cards', async () => {
+    const html = renderToStaticMarkup(await TraitsLoading());
+    expect(html).toContain('data-traits-header-skeleton');
+    expect(html).toContain('data-traits-controls-skeleton');
+    expect(html).toContain('data-traits-results-skeleton');
+    expect(html).toContain('h-[54px] w-full max-w-[320px]');
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-4/g)).toHaveLength(12);
+    expect(html.match(/h-5 w-10 shrink-0/g)).toHaveLength(3);
+  });
+
   it('matches tag detail metadata, mode controls, actions, and VN result section', async () => {
     const html = renderToStaticMarkup(await TagLoading());
     expect(html).toContain('data-tag-detail-skeleton');
