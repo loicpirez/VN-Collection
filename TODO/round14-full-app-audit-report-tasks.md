@@ -22,6 +22,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-005 | HIGH | EGS had two divergent fallbacks built from vertical cover cards, place detail omitted its seven counters and filtering workspace, and Stock omitted recent activity and batch tools. Share the EGS fallback and preserve the real horizontal cards, shop controls, stock history, and batch workspace while these routes stream. | EGS, place detail, and stock loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-006 | MEDIUM | Activity reduced three filters and two independently paginated logs to one generic block and one row list, while Brand overlap added thumbnails that do not exist in its two-column credit cards. Preserve both workflows' actual controls, hierarchy, and responsive row structure during navigation. | activity and brand-overlap loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-007 | MEDIUM | Dumped used vertical cover cards instead of its compact edition-progress rows, while Quotes used 2:3 thumbnails instead of square character avatars and citation text. Mirror their summaries, filters, progress, search, citations, and pagination without introducing unrelated geometry. | dumped and quotes loading boundaries and geometry tests | DONE_WITH_DIFF |
+| R14-UX-008 | HIGH | Year invented cover grids absent from the final review, Schema collapsed three data sources and a table browser into generic rows, and Steam used vertical VN cards instead of mapping workflows. Mirror the year heatmap/rankings, schema source panels/table, and Steam suggestion/link/search sections. | year, schema, and Steam loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -165,3 +166,11 @@ operations, providers, deployment, backup, and restore.
   loading-sentinel, and geometry scenarios pass, and the complete 9,767-test
   suite reports exactly 100% statements, branches, functions, and lines with
   the complete typecheck.
+- Year loading now mirrors navigation, three statistics, goal progress,
+  activity heatmap, tags, and ranked titles without fake covers. Schema loading
+  separates local, EGS, and VNDB data and preserves the four-column browser.
+  Steam loading mirrors suggestions, current mappings, and unlinked-game search
+  rows. One hundred five focused route, schema, Steam, sentinel, and geometry
+  scenarios pass, and the complete 9,770-test suite reports exactly 100%
+  statements, branches, functions, and lines together with the complete
+  typecheck.

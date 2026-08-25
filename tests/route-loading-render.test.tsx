@@ -262,6 +262,37 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-20 w-14');
   });
 
+  it('matches the year navigation, summary, goal, heatmap, tags, and ranking without covers', async () => {
+    const html = renderToStaticMarkup(await YearLoading());
+    expect(html).toContain('data-year-header-skeleton');
+    expect(html).toContain('data-year-stats-skeleton');
+    expect(html).toContain('data-year-goal-skeleton');
+    expect(html).toContain('data-year-heatmap-skeleton');
+    expect(html).toContain('data-year-ranking-skeleton');
+    expect(html.match(/aspect-square min-w-2 rounded-sm/g)).toHaveLength(108);
+    expect(html).not.toContain('aspect-[2/3]');
+  });
+
+  it('matches the local, EGS, and VNDB schema sections with a tabular browser', async () => {
+    const html = renderToStaticMarkup(await SchemaLoading());
+    expect(html).toContain('data-schema-header-skeleton');
+    expect(html).toContain('data-schema-section-skeleton="local"');
+    expect(html).toContain('data-schema-section-skeleton="egs"');
+    expect(html).toContain('data-schema-section-skeleton="vndb"');
+    expect(html).toContain('grid-template-columns:repeat(4, 1fr)');
+    expect(html.match(/class="grid p-3"/g)).toHaveLength(7);
+  });
+
+  it('matches Steam suggestions, linked mappings, and unlinked search rows without cover cards', async () => {
+    const html = renderToStaticMarkup(await SteamLoading());
+    expect(html).toContain('data-steam-header-skeleton');
+    expect(html).toContain('data-steam-section-skeleton="suggestions"');
+    expect(html).toContain('data-steam-section-skeleton="links"');
+    expect(html).toContain('data-steam-section-skeleton="unlinked"');
+    expect(html.match(/rounded-lg border border-border bg-bg-elev\/30 p-2/g)).toHaveLength(5);
+    expect(html).not.toContain('aspect-[2/3]');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>
