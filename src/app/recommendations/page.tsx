@@ -21,6 +21,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeedTagControls } from '@/components/SeedTagControls';
+import { SeedTagControlsSkeleton } from '@/components/SeedTagControlsSkeleton';
 import { SkeletonCardGrid } from '@/components/Skeleton';
 import { VnSeedPicker, type SeedChipData } from '@/components/VnSeedPicker';
 import { SimilarSeedEmptyState } from '@/components/SimilarSeedEmptyState';
@@ -211,7 +212,7 @@ export default async function RecommendationsPage({
           <CardDensitySlider scope="recommendations" />
         </div>
 
-        <Suspense fallback={<div className="mt-3 h-10 animate-pulse rounded-lg bg-bg-elev/40" />}>
+        <Suspense fallback={<SeedTagControlsSkeleton />}>
           <SeedTagSlot
             mode={mode}
             seedVnId={seedVnId}

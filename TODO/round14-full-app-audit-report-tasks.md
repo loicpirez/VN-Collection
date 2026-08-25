@@ -56,6 +56,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-039 | MEDIUM | Trait-browser route loading omitted page identity, refresh, collection scope, and density controls, then painted generic taxonomy cards with nonexistent chips. Preserve all browser controls and the actual title, optional R18 badge, description, and count card geometry. | trait browser route loading | DONE_WITH_DIFF |
 | R14-UX-040 | MEDIUM | Tag route and filtered-query loading used generic taxonomy cards, while the route omitted source tabs, category filter, refresh, and the external VNDB action. Share one destination-shaped flat-result skeleton and preserve the complete browser shell during both navigation and client fetches. | tag browser route and query loading | DONE_WITH_DIFF |
 | R14-UX-041 | HIGH | Similar loading always invented a selected seed and twelve results although the default route resolves to only a seed picker, and the loading boundary cannot know query state. Preserve the common mobile return, identity, subtitle, and seed input without fabricating result content. | similar route loading | DONE_WITH_DIFF |
+| R14-UX-042 | MEDIUM | Recommendation seed derivation used one anonymous 40-pixel bar before resolving into a labelled TagPicker with chips, search, and help. Preserve the guaranteed control frame while server-derived seed names load. | recommendation seed-tag Suspense fallback | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -497,3 +498,9 @@ operations, providers, deployment, backup, and restore.
   full suite passes 9,823 tests with exactly 100% statements (44,820/44,820),
   branches (38,100/38,100), functions (9,171/9,171), and lines
   (38,274/38,274).
+- Recommendation seed derivation now retains the complete labelled chip,
+  search, and hint frame instead of one anonymous bar. Ninety-three focused
+  recommendation, seed-control, route, and loading scenarios pass, the
+  production build passes, and the full suite passes 9,824 tests with exactly
+  100% statements (44,821/44,821), branches (38,100/38,100), functions
+  (9,172/9,172), and lines (38,275/38,275).

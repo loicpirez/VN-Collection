@@ -60,6 +60,7 @@ import {
   SkeletonText,
 } from '@/components/Skeleton';
 import { HomeSectionSkeleton } from '@/components/HomePageSkeleton';
+import { SeedTagControlsSkeleton } from '@/components/SeedTagControlsSkeleton';
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
@@ -437,6 +438,14 @@ describe('route loading skeletons', () => {
     expect(html).toContain('h-11 w-full rounded-md');
     expect(html).not.toContain('aspect-[2/3]');
     expect(html).not.toContain('grid gap-5');
+  });
+
+  it('matches the recommendation seed controls while server-derived tags resolve', () => {
+    const html = renderToStaticMarkup(<SeedTagControlsSkeleton />);
+    expect(html).toContain('data-seed-tag-controls-skeleton');
+    expect(html).toContain('rounded-lg border border-border bg-bg-elev/40 p-3');
+    expect(html.match(/rounded-full/g)).toHaveLength(3);
+    expect(html).toContain('h-11 w-full rounded-md');
   });
 
   it('matches release inventory identity and owned-action rows', async () => {

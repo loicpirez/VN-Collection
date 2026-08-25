@@ -59,9 +59,13 @@ vi.mock('@/components/SeedTagControls', () => ({
   ),
 }));
 
-vi.mock('@/components/Skeleton', () => ({
-  SkeletonCardGrid: ({ count }: { count: number }) => <div>{`skeleton:${count}`}</div>,
-}));
+vi.mock('@/components/Skeleton', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/Skeleton')>();
+  return {
+    ...actual,
+    SkeletonCardGrid: ({ count }: { count: number }) => <div>{`skeleton:${count}`}</div>,
+  };
+});
 
 vi.mock('@/components/VnSeedPicker', () => ({
   VnSeedPicker: ({ initialSeed }: { initialSeed: { id: string } }) => <div>{`picker:${initialSeed.id}`}</div>,
