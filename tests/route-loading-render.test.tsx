@@ -226,6 +226,23 @@ describe('route loading skeletons', () => {
     expect(html).toContain('sm:grid-cols-2 lg:grid-cols-3');
   });
 
+  it('matches the activity filters and both paginated event logs', async () => {
+    const html = renderToStaticMarkup(await ActivityLoading());
+    expect(html).toContain('data-activity-header-skeleton');
+    expect(html.match(/data-activity-log-skeleton=/g)).toHaveLength(2);
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-3/g)).toHaveLength(10);
+    expect(html).toContain('sm:min-w-[220px]');
+  });
+
+  it('matches the brand picker and two-column overlap credit cards without thumbnails', async () => {
+    const html = renderToStaticMarkup(await BrandOverlapLoading());
+    expect(html).toContain('data-brand-overlap-header-skeleton');
+    expect(html).toContain('data-brand-overlap-results-skeleton');
+    expect(html).toContain('sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]');
+    expect(html.match(/rounded-lg border border-border bg-bg-elev\/30 p-3/g)).toHaveLength(6);
+    expect(html).not.toContain('h-20 w-14');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>
