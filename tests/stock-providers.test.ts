@@ -266,6 +266,20 @@ describe('stock provider parsers', () => {
     expect(offer).toMatchObject({ availability: 'unknown', edition_label: 'store_bonus' });
   });
 
+  it('prefers WonderGOO product metadata over its generic site heading', () => {
+    const offer = parseWondergooDetail(
+      `<html><head><title>Sample VN Limited Set - WonderGOO</title></head>
+       <body><h1>WonderGOO</h1><main><h2>Sample VN Limited Set</h2></main></body></html>`,
+      'https://www.wonder.co.jp/benefit/game/detail/?id=90002',
+      target,
+    );
+    expect(offer).toMatchObject({
+      provider_offer_id: '90002',
+      title: 'Sample VN Limited Set - WonderGOO',
+      edition_label: 'store_bonus',
+    });
+  });
+
   it('parseMandarakeDetail returns offer from a typical product page', () => {
     const html = `<html><head><title>Sample VN - まんだらけ</title></head><body>
       <h1>Sample Visual Novel Deluxe Box</h1>

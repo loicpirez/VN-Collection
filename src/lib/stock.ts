@@ -1005,9 +1005,9 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Stock
 /** Parse one WonderGOO product page into a `ParsedOffer`. */
 export function parseWondergooDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const title =
-    firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ??
     firstMatchText(html, /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i) ??
-    firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
+    firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i) ??
+    firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i);
   if (!title) return null;
   const id = new URL(url).searchParams.get('id') ?? target.jan ?? url;
   return {
