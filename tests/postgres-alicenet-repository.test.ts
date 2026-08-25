@@ -122,6 +122,9 @@ describe('PostgreSQL AliceNet repository', () => {
       total: 7,
       producers: [{ id: 'p1', name: 'Producer', count: 1 }],
     });
+    const ungroupedPageSql = String(mocks.postgresQuery.mock.calls[1]?.[0]);
+    expect(ungroupedPageSql).toContain('0::BIGINT AS server_group_count');
+    expect(ungroupedPageSql).not.toContain('COUNT(*) OVER');
 
     mocks.postgresQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
     const filters: AliceNetStockListQuery['filter'][] = ['matched', 'vndb', 'egs_only', 'unmatched', 'none_found', 'collection'];
@@ -156,6 +159,7 @@ describe('PostgreSQL AliceNet repository', () => {
     expect(sql).toContain('app_search_normalize');
     expect(sql).toContain('LIKE');
     expect(sql).toContain('LIMIT');
+    expect(sql).toContain('COUNT(*) OVER (PARTITION BY');
     expect(mocks.postgresQuery.mock.calls.some(([, values]) => (
       Array.isArray(values) && values.includes('%a\\%\\_\\\\b%')
     ))).toBe(true);

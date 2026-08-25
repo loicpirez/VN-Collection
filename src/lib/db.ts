@@ -10468,6 +10468,9 @@ export function queryAliceNetStockPage(query: AliceNetStockListQuery): AliceNetS
   const safeOffset = Number.isFinite(query.offset) && query.offset > 0 ? Math.min(10_000_000, Math.floor(query.offset)) : 0;
   const where = aliceNetWhereSql(query);
   const groupSql = aliceNetGroupSql(query.group);
+  const groupCountSql = query.group === 'none'
+    ? '0'
+    : `COUNT(*) OVER (PARTITION BY ${groupSql})`;
   const wishlistJson = JSON.stringify(query.wishlistIds ?? []);
   const commonFrom = `
     FROM alicenet_stock k
@@ -10484,7 +10487,7 @@ export function queryAliceNetStockPage(query: AliceNetStockListQuery): AliceNetS
            v.image_sexual AS vn_image_sexual,
            v.developers AS vn_developers,
            ${groupSql} AS server_group_key,
-           COUNT(*) OVER (PARTITION BY ${groupSql}) AS server_group_count
+           ${groupCountSql} AS server_group_count
     ${commonFrom}
     ${where.sql}
     ORDER BY ${aliceNetOrderSql(query)}, k.code ASC

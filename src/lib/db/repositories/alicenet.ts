@@ -230,6 +230,9 @@ export function createPostgresAliceNetRepository(): AliceNetRepository {
       const limitParameter = bindings.add(safeLimit);
       const offsetParameter = bindings.add(safeOffset);
       const selectedGroup = groupSql(query.group);
+      const selectedGroupCount = query.group === 'none'
+        ? '0::BIGINT'
+        : `COUNT(*) OVER (PARTITION BY ${selectedGroup})`;
       const itemResult = await postgresQuery<PgAliceNetListRow>(`
         SELECT k.*,
           CASE WHEN c.vn_id IS NOT NULL THEN 1 ELSE 0 END AS in_collection,
@@ -239,7 +242,7 @@ export function createPostgresAliceNetRepository(): AliceNetRepository {
           v.image_sexual AS vn_image_sexual,
           v.developers AS vn_developers,
           ${selectedGroup} AS server_group_key,
-          COUNT(*) OVER (PARTITION BY ${selectedGroup}) AS server_group_count
+          ${selectedGroupCount} AS server_group_count
         ${commonFrom}
         ${where}
         ORDER BY ${orderSql(query)}, k.code ASC

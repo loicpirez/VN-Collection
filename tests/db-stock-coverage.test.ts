@@ -323,7 +323,11 @@ describe('alicenet paging + per-VN listing', () => {
     const first = queryAliceNetStockPage(base);
     expect(first.total).toBe(3);
     expect(first.items).toHaveLength(1);
-    expect(first.items[0]).toMatchObject({ code: '401-000002-002', in_wishlist: 1 });
+    expect(first.items[0]).toMatchObject({
+      code: '401-000002-002',
+      in_wishlist: 1,
+      server_group_count: 0,
+    });
     expect(first.producers).toContainEqual({ id: 'p90001', name: 'Producer A', count: 1 });
 
     const grouped = queryAliceNetStockPage({ ...base, limit: 10, group: 'producer' });

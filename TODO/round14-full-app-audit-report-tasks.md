@@ -123,6 +123,7 @@ operations, providers, deployment, backup, and restore.
 | R14-VNDB-003 | MEDIUM | The VNDB conflict API emitted a stable code when the selected synchronization direction was unavailable, but the client error union and all three dictionaries omitted it, reducing a precise conflict to a generic error. Add the code to the typed localized contract and exercise it through the panel. | VNDB status conflict API and panel | DONE_WITH_DIFF |
 | R14-VNDB-005 | MEDIUM | Optional automatic status writeback intentionally preserved a successful local mutation when VNDB failed, but it silently discarded both non-success HTTP responses and network failures while its caller claimed the failure was logged. Emit bounded diagnostics containing only the VN id and response class, without logging the token or upstream body. | automatic VNDB status writeback | DONE_WITH_DIFF |
 | R14-PERF-001 | HIGH | Recheck bounded queries, pagination/virtualization, tag indexes, repeated repository calls, client polling, background jobs, multi-tab behavior, images, DOM size, bundle boundaries, memory, database pool pressure, and slow provider isolation. | application and production runtime | TODO |
+| R14-PERF-002 | HIGH | AliceNet's ungrouped page query calculated `COUNT(*) OVER` even though the UI uses the independently queried page total in that mode. The unused window forced PostgreSQL to join and sort all stock rows before applying `LIMIT/OFFSET`, bypassing title and price pagination indexes. Emit a zero sentinel only for ungrouped pages, retain exact partition counts for grouped views, and keep PostgreSQL and SQLite behavior aligned. | AliceNet page repositories and production query plans | DONE_WITH_DIFF |
 | R14-DATA-001 | CRITICAL | Validate PostgreSQL migrations, indexes, constraints, JSON quarantine, SQLite migration parity, current production data, transaction behavior, connection pooling, backup creation, restore verification, and operational documentation. | PostgreSQL repositories, migrations, production database | TODO |
 | R14-TYPE-001 | HIGH | Re-scan production and test code for weakened types, unsafe casts, suppression directives, unvalidated external payloads, and exported contracts lacking useful documentation. | `src`, `tests`, `scripts` | TODO |
 | R14-TEST-002 | HIGH | Run focused tests while fixing findings, then the complete unit, PostgreSQL, exact coverage, QA, interaction, sentinel, provider, browser, and production health gates. No ignored files, skipped new scenarios, or threshold workarounds. | all test and QA suites | TODO |
@@ -158,6 +159,10 @@ operations, providers, deployment, backup, and restore.
   across the root, scoped density, and page-spacing surfaces. A recursive test
   confirms `src` contains no `as never` cast or TypeScript suppression directive;
   59 focused tests, strict typecheck, and the production build pass.
+- Production plan recapture exposed an unused AliceNet window aggregate on
+  ungrouped pages. PostgreSQL and SQLite now emit a zero group-count sentinel in
+  that mode while retaining exact partition counts for every grouped view; 169
+  repository, client, and decoder tests, strict typecheck, and build pass.
 
 - At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
   with PostgreSQL ready, pool maximum 10, and zero service restarts.
