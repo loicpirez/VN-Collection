@@ -435,7 +435,7 @@ describe('responsive tap targets', () => {
   it('keeps AliceNet filters and remap controls touch-safe without inflating desktop rows', () => {
     const client = source('src/components/AliceNetClient.tsx');
     const dialog = source('src/components/alicenet/AliceNetLinkDialog.tsx');
-    expect(client).toContain('inline-flex min-h-[44px] items-center gap-1 rounded');
+    expect(client).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded');
     expect(client).toContain('inline-flex min-h-[44px] items-center gap-1.5 rounded-md border');
     expect(client).toContain('btn btn-xs min-h-[44px] can-hover:sm:min-h-0');
     expect(dialog).toContain('input min-h-[44px] w-full');
@@ -465,5 +465,15 @@ describe('responsive tap targets', () => {
     expect(releaseOwned).toContain('sm:min-h-[24px] sm:min-w-[24px]');
     expect(popover).toContain('inline-flex min-h-[44px] items-center gap-1 rounded border');
     expect(popover).toContain('sm:min-h-0');
+  });
+
+  it('keeps VN tag controls and the inline favorite action touch-safe', () => {
+    const tags = source('src/components/VnTagsGroupedView.tsx');
+    const favorite = source('src/components/FavoriteToggleButton.tsx');
+    expect(tags).toContain('min-h-[44px] min-w-[44px] rounded-md border');
+    expect(tags).toContain('min-h-[44px] min-w-[44px] items-center justify-center rounded-r-md');
+    expect(tags).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
+    expect(favorite).toContain('inline-flex min-h-[44px] items-center justify-center');
+    expect(favorite).toContain('can-hover:sm:min-h-9');
   });
 });

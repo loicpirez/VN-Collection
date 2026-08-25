@@ -107,7 +107,7 @@ export function FavoriteToggleButton({
         aria-label={label}
         title={label}
         data-shortcut="vn-favorite"
-        className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 can-hover:sm:min-h-9 ${
           on
             ? 'border-status-dropped/60 bg-status-dropped/10 text-status-dropped hover:bg-status-dropped/15'
             : 'border-border bg-bg-elev/40 text-muted hover:border-status-dropped/40 hover:text-status-dropped'

@@ -268,7 +268,7 @@ function CandidateChips({ candidates, currentId, code, onRemapped }: CandidateCh
             onClick={() => pick(c.id)}
             disabled={busy != null || isActive}
             title={`${c.title}${c.alttitle ? ` / ${c.alttitle}` : ''}${c.released ? ` (${formatVndbDateString(c.released, locale)})` : ''}`}
-            className={`inline-flex min-h-[44px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors can-hover:sm:min-h-0 ${
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
               isActive
                 ? 'bg-accent/20 text-accent cursor-default'
                 : 'border border-border bg-bg-elev/30 text-muted hover:border-accent hover:text-white'

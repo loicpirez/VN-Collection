@@ -192,7 +192,7 @@ function TagSection({
                 href={links.vndbExternal}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="-ml-px inline-flex min-h-[44px] items-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-2 text-xs uppercase tracking-wider text-muted hover:border-accent hover:text-accent"
+                className="-ml-px inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-r-md border border-l-0 border-border bg-bg-elev/40 px-2 text-xs uppercase tracking-wider text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 aria-label={t.detail.openOnVndb}
                 title={t.detail.openOnVndb}
               >
@@ -220,7 +220,7 @@ function ToggleChip({
       type="button"
       onClick={onClick}
       aria-pressed={pressed}
-      className={`rounded-md border px-1.5 py-0.5 transition-colors ${
+      className={`min-h-[44px] min-w-[44px] rounded-md border px-1.5 py-0.5 transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
         pressed
           ? 'border-accent bg-accent/15 text-accent font-bold'
           : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-accent'
