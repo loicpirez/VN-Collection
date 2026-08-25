@@ -14,22 +14,13 @@ import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
 import { SafeImage } from '@/components/SafeImage';
 import { LangList } from '@/components/LangFlag';
-import { SkeletonBlock } from '@/components/Skeleton';
+import { ComparePickerSkeleton } from '@/components/ComparePickerSkeleton';
 import type { CompareVn } from '@/components/CompareVnPicker';
 import { findSharedVasForVns } from '@/lib/compare-credits';
 import { isValidVnId, normalizeVnId } from '@/lib/vn-id-shape';
 
 const CompareVnPicker = nextDynamic(() => import('@/components/CompareVnPicker').then((m) => m.CompareVnPicker), {
-  loading: () => (
-    <div className="mt-4">
-      <div className="mb-4 flex flex-wrap gap-3">
-        {Array.from({ length: 2 }).map((_, i) => (
-          <SkeletonBlock key={i} className="h-[88px] w-[180px]" />
-        ))}
-      </div>
-      <SkeletonBlock className="h-9 w-32" />
-    </div>
-  ),
+  loading: () => <ComparePickerSkeleton />,
 });
 
 export const dynamic = 'force-dynamic';

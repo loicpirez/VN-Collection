@@ -333,15 +333,14 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-72 w-full');
   });
 
-  it('matches compare picker, common facets, mobile rows, and desktop matrix', async () => {
+  it('keeps compare loading to the guaranteed picker controls', async () => {
     const html = renderToStaticMarkup(await CompareLoading());
     expect(html).toContain('data-compare-picker-skeleton');
-    expect(html).toContain('data-compare-common-skeleton');
-    expect(html).toContain('data-compare-mobile-skeleton');
-    expect(html).toContain('data-compare-desktop-skeleton');
-    expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(4);
-    expect(html.match(/grid min-h-\[44px\]/g)).toHaveLength(18);
-    expect(html).not.toContain('h-64 w-full');
+    expect(html).toContain('data-compare-picker-controls-skeleton');
+    expect(html).toContain('h-11 w-full rounded-md');
+    expect(html).not.toContain('data-compare-common-skeleton');
+    expect(html).not.toContain('data-compare-mobile-skeleton');
+    expect(html).not.toContain('data-compare-desktop-skeleton');
   });
 
   it('matches printable label toolbar and horizontal QR label geometry', async () => {
