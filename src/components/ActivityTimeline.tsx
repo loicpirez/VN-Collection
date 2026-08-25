@@ -18,7 +18,8 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { BCP47 } from '@/lib/locale-number';
+import { BCP47, formatIsoDateString, formatMinutes } from '@/lib/locale-number';
+import { isValidStatus } from '@/lib/types';
 import { formatHydrationSafeDate, useHydrationSafeTimeZone } from '@/lib/use-hydration-safe-time-zone';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -59,7 +60,7 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
     case 'status':
       return (
         <>
-          {t.activity.kind.status}: {String(p.from ?? '-')} <Arrow /> {String(p.to ?? '-')}
+          {t.activity.kind.status}: {formatStatus(p.from, t)} <Arrow /> {formatStatus(p.to, t)}
         </>
       );
     case 'rating':
@@ -73,16 +74,16 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
       const sign = delta > 0 ? '+' : '';
       return (
         <>
-          {t.activity.kind.playtime}: {sign}{delta} min (<Arrow /> {String(p.to)} min)
+          {t.activity.kind.playtime}: {sign}{formatMinutes(delta, locale)} (<Arrow /> {formatMinutes(typeof p.to === 'number' ? p.to : 0, locale)})
         </>
       );
     }
     case 'favorite':
       return p.to ? t.activity.kind.favoriteOn : t.activity.kind.favoriteOff;
     case 'started':
-      return `${t.activity.kind.started}: ${String(p.to ?? '-')}`;
+      return `${t.activity.kind.started}: ${formatActivityDate(p.to, locale)}`;
     case 'finished':
-      return `${t.activity.kind.finished}: ${String(p.to ?? '-')}`;
+      return `${t.activity.kind.finished}: ${formatActivityDate(p.to, locale)}`;
     case 'note':
       return `${t.activity.kind.note} (${typeof p.length === 'number' ? p.length : 0} ${t.userActivity.noteChars})`;
     case 'manual':
@@ -92,6 +93,14 @@ function summary(entry: Entry, t: ReturnType<typeof useT>, locale: Locale): Reac
       return String(_exhaustive);
     }
   }
+}
+
+function formatStatus(value: NonNullable<Entry['payload']>[string], t: ReturnType<typeof useT>): string {
+  return isValidStatus(value) ? t.status[value] : '-';
+}
+
+function formatActivityDate(value: NonNullable<Entry['payload']>[string], locale: Locale): string {
+  return typeof value === 'string' ? formatIsoDateString(value, locale) : '-';
 }
 
 function formatRating(v: unknown, locale: Locale): string {

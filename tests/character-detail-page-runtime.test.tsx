@@ -268,6 +268,7 @@ describe('character detail page runtime', () => {
     expect(html).toContain('Alias one / Alias two');
     expect(html).toContain('href="/characters?bloodType=ab"');
     expect(html).toContain('href="/characters?birthMonth=5"');
+    expect(html).toContain('May 6');
     expect(html).toContain('href="/characters?sex=b"');
     expect(html).toContain('data-section="siblings"');
     expect(html).toContain('data-section="description"');

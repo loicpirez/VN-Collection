@@ -81,7 +81,11 @@ describe('ActivityTimeline branches', () => {
     ];
     renderWithProviders(<ActivityTimeline vnId={VN_ID} initial={initial} />, { locale: 'en' });
 
-    expect(screen.getByText(/playing/)).toBeInTheDocument();
+    expect(document.body.textContent).toContain(`${t.activity.kind.status}: ${t.status.playing}`);
+    expect(document.body.textContent).toContain('+30 min');
+    expect(document.body.textContent).toContain(`${t.activity.kind.started}: Jan 2, 2024`);
+    expect(document.body.textContent).toContain(`${t.activity.kind.finished}: Mar 4, 2024`);
+    expect(document.body.textContent).not.toContain('2024-01-02');
     expect(screen.getByText('Manual text X')).toBeInTheDocument();
     expect(screen.getByText(t.activity.kind.favoriteOn)).toBeInTheDocument();
     expect(screen.getByText(t.activity.kind.favoriteOff)).toBeInTheDocument();

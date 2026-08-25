@@ -10,7 +10,7 @@ import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-co
 import { Check } from 'lucide-react';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { BCP47, fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatMonthDay } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -52,8 +52,7 @@ function fmtBirthday(b: [number, number] | null, locale: Locale): string | null 
   if (!b) return null;
   const [m, d] = b;
   if (!m) return null;
-  if (!d) return new Date(0, m - 1).toLocaleString(BCP47[locale], { month: 'long' });
-  return `${d}/${String(m).padStart(2, '0')}`;
+  return formatMonthDay(m, d || null, locale);
 }
 
 function sexLabel(v: string, t: Awaited<ReturnType<typeof getDict>>): string {

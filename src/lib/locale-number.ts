@@ -113,3 +113,23 @@ export function formatIsoDateString(raw: string | null | undefined, locale: Loca
     timeZone: 'UTC',
   }).format(date);
 }
+
+/** Format a recurring month/day value without inventing a calendar year. */
+export function formatMonthDay(month: number, day: number | null, locale: Locale): string {
+  const date = new Date(Date.UTC(2000, month - 1, day ?? 1));
+  return new Intl.DateTimeFormat(BCP47[locale], {
+    month: 'long',
+    ...(day == null ? {} : { day: 'numeric' }),
+    timeZone: 'UTC',
+  }).format(date);
+}
+
+/** Format a minute duration with locale-aware digits and unit placement. */
+export function formatMinutes(minutes: number, locale: Locale): string {
+  return new Intl.NumberFormat(BCP47[locale], {
+    style: 'unit',
+    unit: 'minute',
+    unitDisplay: 'short',
+    maximumFractionDigits: 0,
+  }).format(minutes);
+}

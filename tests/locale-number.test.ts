@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { currencyFormatter, currentCalendarYear, fmtDate, fmtNum, formatCurrency, formatIsoDateString, formatVndbDateString, isoCalendarDay, yearOnly } from '@/lib/locale-number';
+import {
+  currencyFormatter,
+  currentCalendarYear,
+  fmtDate,
+  fmtNum,
+  formatCurrency,
+  formatIsoDateString,
+  formatMinutes,
+  formatMonthDay,
+  formatVndbDateString,
+  isoCalendarDay,
+  yearOnly,
+} from '@/lib/locale-number';
 
 describe('locale date formatting', () => {
   it('formats VNDB partial dates without inventing missing precision', () => {
@@ -20,6 +32,19 @@ describe('locale date formatting', () => {
     expect(formatVndbDateString('not-a-date', 'en')).toBe('not-a-date');
     expect(formatIsoDateString(undefined, 'en')).toBe('—');
     expect(formatIsoDateString('not-a-date', 'en')).toBe('not-a-date');
+  });
+
+  it('formats recurring month/day values in locale order without a fake year', () => {
+    expect(formatMonthDay(5, 6, 'en')).toBe('May 6');
+    expect(formatMonthDay(5, 6, 'fr')).toBe('6 mai');
+    expect(formatMonthDay(5, 6, 'ja')).toBe('5月6日');
+    expect(formatMonthDay(5, null, 'en')).toBe('May');
+  });
+
+  it('formats minute durations with locale-aware unit placement', () => {
+    expect(formatMinutes(30, 'en')).toBe('30 min');
+    expect(formatMinutes(30, 'fr')).toBe('30 min');
+    expect(formatMinutes(30, 'ja')).toBe('30 分');
   });
 
   it('formats numbers with locale-specific separators', () => {

@@ -21,6 +21,7 @@ operations, providers, deployment, backup, and restore.
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
 | R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
+| R14-I18N-002 | HIGH | Character birthdays forced day/month order, VN activity start/finish dates exposed ISO storage values, status changes exposed internal status keys, and playtime used a hardcoded `min` suffix. Route all four through locale-aware formatters and test French, English, and Japanese ordering and units. | `src/lib/locale-number.ts`, character detail, VN activity timeline | DONE_WITH_DIFF |
 | R14-SEC-001 | CRITICAL | Re-audit authentication gates, mutation authorization, CSRF/origin handling, SSRF and URL allowlists, uploads and path traversal, request size limits, secret/error exposure, CSP and headers, proxy behavior, dependencies, and production TLS/reverse-proxy configuration. | all APIs, middleware, Next and production configuration | TODO |
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
 | R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
@@ -51,3 +52,7 @@ operations, providers, deployment, backup, and restore.
   skeleton and a segment-local error boundary. The shared recovery test covers
   retry, digest, logging, and route-aware return behavior, while a structural
   contract prevents future pages from omitting either boundary.
+- Character birthdays, VN activity dates, activity status transitions, and
+  minute durations now use the active locale rather than fixed display tokens.
+  Forty-four focused i18n, page, and component tests pass together with the
+  complete typecheck and production build.
