@@ -9,7 +9,7 @@ interface SearchSkeletonProps {
  * Render the complete search workspace while the route or client shell resolves.
  *
  * @param props Optional localized loading announcement.
- * @returns Source tabs, query controls, density control, and the VN card grid.
+ * @returns Source tabs and query controls without inventing an active search.
  */
 export function SearchPageSkeleton({ label }: SearchSkeletonProps): ReactElement {
   return (
@@ -24,7 +24,6 @@ export function SearchPageSkeleton({ label }: SearchSkeletonProps): ReactElement
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <SkeletonBlock className="h-11 w-32" />
         </div>
-        <SearchVndbResultsSkeleton label={label} />
       </div>
     </SkeletonBoundary>
   );
