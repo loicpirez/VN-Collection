@@ -6,7 +6,11 @@ import { ArrowLeft, ArrowLeftRight, ArrowRight, Check, Gamepad2, Link2, Loader2,
 import { useLocale, useT } from '@/lib/i18n/client';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmDialog';
-import { SkeletonRows } from '@/components/Skeleton';
+import {
+  SteamLinksSectionSkeleton,
+  SteamSuggestionsSkeleton,
+  SteamUnlinkedRowsSkeleton,
+} from '@/components/SteamPageSkeleton';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { formatMinutes } from '@/lib/format';
 
@@ -296,7 +300,7 @@ export default function SteamSyncPage() {
           {t.steam.suggestionsTitle}
         </h2>
         {suggestionsLoading ? (
-          <SkeletonRows count={5} withThumb={false} />
+          <SteamSuggestionsSkeleton label={t.common.loading} />
         ) : suggestions.length === 0 ? (
           <p className="text-sm text-muted">{t.steam.noSuggestions}</p>
         ) : null}
@@ -373,10 +377,7 @@ export default function SteamSyncPage() {
 
       {/* Section 2: Current links */}
       {linksLoading && (
-        <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-          <div className="mb-3 h-3 w-28 animate-pulse rounded bg-bg-elev" />
-          <SkeletonRows count={4} withThumb={false} />
-        </section>
+        <SteamLinksSectionSkeleton label={t.common.loading} />
       )}
       {!linksLoading && links.length > 0 && (
         <section className="mb-8 rounded-xl border border-border bg-bg-card p-4 sm:p-5">
@@ -427,7 +428,7 @@ export default function SteamSyncPage() {
         </h2>
         <p className="mb-3 text-[11px] text-muted">{t.steam.unlinkedHint}</p>
         {unlinkedLoading ? (
-          <SkeletonRows count={5} withThumb={false} />
+          <SteamUnlinkedRowsSkeleton label={t.common.loading} />
         ) : unlinked.length === 0 ? (
           <p className="text-sm text-muted">{t.steam.empty}</p>
         ) : null}

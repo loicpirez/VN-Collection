@@ -128,6 +128,9 @@ describe('Steam sync page runtime', () => {
     renderWithProviders(<SteamSyncPage />, { locale: 'en' });
 
     expect(screen.getAllByText('Pending suggestions')).toHaveLength(1);
+    expect(document.querySelector('[data-steam-suggestions-skeleton]')).not.toBeNull();
+    expect(document.querySelector('[data-steam-section-skeleton="links"]')).not.toBeNull();
+    expect(document.querySelector('[data-steam-unlinked-skeleton]')).not.toBeNull();
     await waitFor(() => expect(screen.getByText('No playtime updates pending.')).toBeInTheDocument());
     expect(screen.getByText('No Steam games to map. Set the API key + SteamID in settings.')).toBeInTheDocument();
   });
