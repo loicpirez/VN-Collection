@@ -39,12 +39,13 @@ describe('QuoteFooter hover loader', () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
-    expect(refresh).toHaveClass('h-3', 'w-3');
-    expect(refresh).not.toHaveClass('min-h-[44px]', 'min-w-[44px]');
+    expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
+    expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
+    expect(footer.querySelector('.max-h-11')).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
     fireEvent.mouseEnter(footer);
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]');
-    expect(refresh).not.toHaveClass('h-3', 'w-3');
+    expect(refresh).not.toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0');
     expect(await screen.findByText(/Quoted line/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Heroine/ })).toHaveAttribute('href', '/character/c90001');
     expect(screen.getByRole('link', { name: 'Visual novel' })).toHaveAttribute('href', '/vn/v90001');

@@ -71,8 +71,8 @@ export function QuoteFooter() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="mx-auto max-w-7xl px-6">
-        <div className="overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out max-h-5 group-hover:max-h-28 group-focus-within:max-h-28 group-[.is-open]:max-h-28">
-          <div className="flex items-center gap-2 px-3 py-0.5 text-[10px]">
+        <div className="max-h-11 overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out group-hover:max-h-28 group-focus-within:max-h-28 group-[.is-open]:max-h-28 can-hover:sm:max-h-5">
+          <div className={`flex items-center gap-2 px-3 py-0.5 text-[10px] ${hovered ? 'min-h-[44px]' : 'min-h-[44px] can-hover:sm:min-h-0'}`}>
             <MessageSquareQuote className="h-3 w-3 shrink-0 text-muted transition-colors can-hover:group-hover:text-accent" aria-hidden />
             <span className="shrink-0 font-medium uppercase tracking-wider text-muted/70 transition-colors group-hover:text-muted">
               {t.quotes.randomTitle}
@@ -96,7 +96,7 @@ export function QuoteFooter() {
               className={`inline-flex shrink-0 items-center justify-center rounded text-muted transition-opacity duration-200 hover:text-white disabled:opacity-50 ${
                 hovered
                   ? 'min-h-[44px] min-w-[44px] opacity-100'
-                  : 'pointer-events-none h-3 w-3 opacity-0'
+                  : 'min-h-[44px] min-w-[44px] opacity-100 can-hover:sm:pointer-events-none can-hover:sm:h-3 can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0'
               }`}
               aria-label={t.quotes.shuffle}
               title={t.quotes.shuffle}
