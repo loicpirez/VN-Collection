@@ -77,6 +77,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-057 | HIGH | AliceNet's initial request rendered “no snapshot”, zero tab counts, and a missing selection action before replacing them with the real stock state. These were false empty values rather than loading UI. Reserve the timestamp, every count, the data-dependent action, and result geometry until the first snapshot resolves. | embedded AliceNet shop client | DONE_WITH_DIFF |
 | R14-UX-058 | HIGH | Long seiyuu profiles paginate up to 60 rich voice or production credits, but each route-loading section reserved only four cards, less than one row on a wide display, and omitted the possible-profile-match section entirely. Reserve four cards on phone, eight on tablet, and twelve on wide layouts, and mirror the missing match-section anatomy without inflating the optional streamed external-credit fallback. | staff detail loading boundary | DONE_WITH_DIFF |
 | R14-UX-059 | CRITICAL | Shared images remained transparent and kept pulsing after the browser had fired `load` because both wrappers awaited an unbounded `HTMLImageElement.decode()` promise before revealing the frame. Treat `load` as the authoritative ready signal, run decode only as a non-blocking best effort, and recover images that completed before hydration attached event handlers. | `SafeImage`, `LoadingImage`, every cover, card, logo, avatar, and media consumer | DONE_WITH_DIFF |
+| R14-UX-060 | HIGH | A VN banner that failed before React hydration had its error state reset after the native error event had already passed, leaving the banner pulse mounted forever. Reconcile both successful and failed completed images from `complete` and `naturalWidth` so every pre-hydration outcome reaches a stable frame. | `HeroBanner` hydration lifecycle | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -722,3 +723,11 @@ operations, providers, deployment, backup, and restore.
   and the production build pass; the complete PostgreSQL-backed suite passes
   9,852 tests with exactly 100% statements (44,900/44,900), branches
   (38,165/38,165), functions (9,199/9,199), and lines (38,348/38,348).
+- The VN hero banner now reconciles both outcomes when its native image request
+  finishes before React hydration. A cached success reveals immediately, while
+  an early failure replaces the pulse with the stable image fallback instead
+  of waiting for an event that cannot fire again. Fifty-six focused scenarios,
+  typecheck, and the production build pass; the complete PostgreSQL-backed
+  suite passes 9,853 tests with exactly 100% statements (44,902/44,902),
+  branches (38,164/38,164), functions (9,199/9,199), and lines
+  (38,350/38,350).

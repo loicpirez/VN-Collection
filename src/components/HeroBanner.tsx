@@ -103,8 +103,12 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     setBannerLoaded(false);
     setBannerErrored(false);
     const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
-      setBannerLoaded(true);
+    if (img?.complete) {
+      if (img.naturalWidth > 0) {
+        setBannerLoaded(true);
+      } else {
+        setBannerErrored(true);
+      }
     }
   }, [liveSrc]);
 

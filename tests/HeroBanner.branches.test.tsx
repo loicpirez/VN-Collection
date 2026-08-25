@@ -190,6 +190,16 @@ describe('HeroBanner branches', () => {
     await waitFor(() => expect(container.querySelector('[data-hero-banner-skeleton]')).toBeNull());
   });
 
+  it('shows the stable fallback when the banner failed before hydration', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(0);
+    const { container } = renderHero(
+      <HeroBanner vnId="v90056" src="https://example.com/failed-before-hydration.jpg" customBanner initialPosition={null} inCollection={false} />,
+    );
+    await waitFor(() => expect(container.querySelector('img')).toBeNull());
+    expect(container.querySelector('[data-hero-banner-skeleton]')).toBeNull();
+  });
+
   it('cancels editing back to read-only via the cancel control', async () => {
     renderHero(
       <HeroBanner vnId="v90028" src="https://example.com/banner.jpg" customBanner initialPosition="50% 50%" inCollection />,
