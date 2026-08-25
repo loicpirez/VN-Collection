@@ -60,6 +60,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-043 | MEDIUM | Optional external seiyuu credits reserved eight ungrouped cards even though the response may be absent and resolved content always groups voice or production work. Use one compact neutral group and the card anatomy shared by both result types. | streamed staff external-credit fallback | DONE_WITH_DIFF |
 | R14-UX-044 | HIGH | Opening the EGS cover source showed one opaque 192-pixel rectangle before replacing it with 2:3 candidate tiles and an automatic-cover action. Preserve a bounded candidate grid, labels, and footer action while image sources load. | VN cover source picker | DONE_WITH_DIFF |
 | R14-UX-045 | HIGH | Trait route loading mirrored real cards, but every search or collection-scope request replaced them with eight generic compact blocks. Share the density-aware trait-card skeleton between the route boundary and internal query transitions. | trait browser route and client loading | DONE_WITH_DIFF |
+| R14-UX-046 | HIGH | Place stock loading used featureless 384-pixel card blocks and 96-pixel row blocks, hiding the 2:3 artwork, status, metadata, producer, and action geometry that follows. Mirror both saved card and list views during every place-stock request. | place detail stock browser | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -527,3 +528,10 @@ operations, providers, deployment, backup, and restore.
   wrapper scenarios pass, the production build passes, and the full suite
   passes 9,825 tests with exactly 100% statements (44,823/44,823), branches
   (38,102/38,102), functions (9,174/9,174), and lines (38,277/38,277).
+- Place-stock loading now follows the persisted view: cards retain their 2:3
+  artwork, status, metadata, producer, and action zones, while list mode keeps
+  its thumbnail, text, status, and VN action row. Eighty focused place-browser,
+  route-loading, and image-loading scenarios pass, the production build passes,
+  and the full suite passes 9,826 tests with exactly 100% statements
+  (44,827/44,827), branches (38,096/38,096), functions (9,176/9,176), and
+  lines (38,281/38,281).

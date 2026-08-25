@@ -113,6 +113,25 @@ describe('PlaceVnBrowser branches', () => {
     vi.restoreAllMocks();
   });
 
+  it('preserves card and list anatomy while place stock loads', async () => {
+    const cardRequest = deferredResponse();
+    global.fetch = vi.fn(() => cardRequest.promise);
+    const cards = renderBrowser();
+    await waitFor(() => expect(cards.container.querySelector('[data-place-vn-card-skeleton]')).toBeInTheDocument());
+    expect(cards.container.querySelectorAll('[data-place-vn-card-skeleton] article')).toHaveLength(12);
+    expect(cards.container.querySelectorAll('[data-place-vn-card-skeleton] .aspect-\\[2\\/3\\]')).toHaveLength(12);
+    cards.unmount();
+
+    localStorage.setItem('vncoll.place-vn-browser.prefs.v1', JSON.stringify({ view: 'list' }));
+    const listRequest = deferredResponse();
+    global.fetch = vi.fn(() => listRequest.promise);
+    const list = renderBrowser();
+    await waitFor(() => expect(list.container.querySelector('[data-place-vn-list-skeleton]')).toBeInTheDocument());
+    expect(list.container.querySelectorAll('[data-place-vn-list-skeleton] > li:not(.sr-only)')).toHaveLength(10);
+    expect(list.container.querySelectorAll('[data-place-vn-list-skeleton] .h-20.w-14')).toHaveLength(10);
+    list.unmount();
+  });
+
   it('groups VNs lacking a provider or year under the unknown bucket', async () => {
     serve([
       vn({ vn_id: 'v10001', title: 'Title Y', developers: null, released: null }),

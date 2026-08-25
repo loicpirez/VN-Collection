@@ -63,6 +63,66 @@ function parseDevs(json: string | null): { id: string; name: string }[] {
   return parseNamedIdRows(json);
 }
 
+function PlaceVnResultsSkeleton({ view, label }: { view: ViewMode; label: string }) {
+  if (view === 'list') {
+    return (
+      <ul aria-busy aria-live="polite" role="status" className="space-y-2" data-place-vn-list-skeleton>
+        <li className="sr-only">{label}</li>
+        {Array.from({ length: 10 }).map((_, index) => (
+          <li key={index} className="rounded-xl border border-border bg-bg-card p-3">
+            <div className="flex gap-3">
+              <SkeletonBlock className="h-20 w-14 shrink-0 rounded-lg" />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <SkeletonBlock className="h-4 w-3/5" />
+                    <SkeletonBlock className="h-3 w-2/5" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <SkeletonBlock className="h-6 w-20 rounded-full" />
+                    <SkeletonBlock className="h-11 w-20 rounded-md" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div
+      aria-busy
+      aria-live="polite"
+      role="status"
+      className="grid gap-3"
+      data-place-vn-card-skeleton
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+    >
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: 12 }).map((_, index) => (
+        <article key={index} className="flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card">
+          <div className="relative aspect-[2/3] bg-bg-elev">
+            <SkeletonBlock className="absolute inset-0 rounded-none" />
+            <SkeletonBlock className="absolute left-2 top-2 h-6 w-20 rounded-full" />
+          </div>
+          <div className="flex flex-1 flex-col gap-2 p-3">
+            <SkeletonBlock className="h-4 w-4/5" />
+            <SkeletonBlock className="h-3 w-3/5" />
+            <SkeletonBlock className="h-3 w-2/5" />
+            <SkeletonBlock className="h-11 w-28 rounded-md" />
+            <div className="mt-auto flex gap-2 pt-2">
+              <SkeletonBlock className="h-11 w-20 rounded-md" />
+              <SkeletonBlock className="h-11 w-20 rounded-md" />
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 /** AliceNet-identical VN browser for a single place's stock. */
 export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: number; placeName: string }) {
   const t = useT();
@@ -616,22 +676,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
 
       {/* Items */}
       {loading ? (
-        <div
-          aria-busy
-          aria-live="polite"
-          role="status"
-          className={view === 'cards' ? 'grid gap-3' : 'space-y-2'}
-          style={
-            view === 'cards'
-              ? { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }
-              : undefined
-          }
-        >
-          <span className="sr-only">{t.common.loading as string}</span>
-          {Array.from({ length: view === 'cards' ? 12 : 10 }).map((_, i) => (
-            <SkeletonBlock key={i} className={`${view === 'cards' ? 'h-96' : 'h-24'} rounded-xl`} />
-          ))}
-        </div>
+        <PlaceVnResultsSkeleton view={view} label={t.common.loading as string} />
       ) : loadError && items.length === 0 ? null : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-card p-10 text-center text-sm text-muted">
           {items.length === 0 ? (
