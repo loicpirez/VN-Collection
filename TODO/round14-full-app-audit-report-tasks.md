@@ -65,6 +65,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-048 | HIGH | The shop registry replaced full place cards, detailed list rows, and unassigned-branch actions with uniform height blocks. Preserve each active view's identity, metadata, badges, and 44-pixel actions while registry requests run. | place registry card/list/unassigned views | DONE_WITH_DIFF |
 | R14-UX-049 | HIGH | Seiyuu detail loading still fabricated optional profile metadata and expanded every configured section even when the user had saved it as collapsed, causing large false blocks before the real profile appeared. Reserve only guaranteed profile controls and mirror persisted collapsed headers. | staff detail loading boundary | DONE_WITH_DIFF |
 | R14-UX-050 | HIGH | Per-page layout settings reserved four featureless rows during client hydration although the resolved panel contains 26 route groups with five spacing choices, optional density presets, and three global reset actions. Share the complete destination-shaped placeholder between chunk loading and hydration. | Display settings per-page layout panel | DONE_WITH_DIFF |
+| R14-UX-051 | MEDIUM | Recent stock activity represented recent VN checks and completed background batches as four identical bars in both route and hydrated loading states. Share a skeleton that preserves both headings, compact VN identity rows, batch timestamps, and summary lines. | stock recent activity route and client loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -571,3 +572,9 @@ operations, providers, deployment, backup, and restore.
   pass, the production build passes, and the PostgreSQL-backed suite passes
   9,828 tests with exactly 100% statements (44,846/44,846), branches
   (38,103/38,103), functions (9,185/9,185), and lines (38,300/38,300).
+- Recent stock activity now shares one route/client placeholder with four VN
+  identity rows and two completed-batch rows carrying timestamp and summary
+  geometry. Fifty-three focused stock and route-loading scenarios pass, the
+  production build passes, and the PostgreSQL-backed suite passes 9,828 tests
+  with exactly 100% statements (44,847/44,847), branches (38,114/38,114),
+  functions (9,186/9,186), and lines (38,301/38,301).

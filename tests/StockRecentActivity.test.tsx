@@ -57,9 +57,11 @@ describe('StockRecentActivity', () => {
       { vn_id: 'v90001', title: 'Recent title' },
       { vn_id: 'v90002', title: null },
     ]);
-    renderWithProviders(<StockRecentActivity />, { locale: 'en' });
+    const { container } = renderWithProviders(<StockRecentActivity />, { locale: 'en' });
 
     expect(screen.getByLabelText(t.common.loading)).toHaveAttribute('aria-busy', 'true');
+    expect(container.querySelectorAll('[data-stock-recent-checks-skeleton] li')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-stock-recent-batches-skeleton] li')).toHaveLength(2);
     const recent = await screen.findByRole('link', { name: /Recent title/ });
     expect(recent).toHaveAttribute('href', '/stock?vn=v90001');
     expect(recent).toHaveClass('min-w-0');

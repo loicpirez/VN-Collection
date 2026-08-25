@@ -539,6 +539,8 @@ describe('route loading skeletons', () => {
     const html = renderToStaticMarkup(await StockLoading());
     expect(html).toContain('data-stock-picker-skeleton');
     expect(html).toContain('data-stock-recent-skeleton');
+    expect(html).toContain('data-stock-recent-checks-skeleton');
+    expect(html).toContain('data-stock-recent-batches-skeleton');
     expect(html).toContain('data-stock-batch-skeleton');
     expect(html).toContain('sm:grid-cols-2 lg:grid-cols-3');
   });

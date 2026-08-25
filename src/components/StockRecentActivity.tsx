@@ -10,7 +10,7 @@ import {
   decodeDownloadStatusSnapshot,
   type DownloadStatusJob,
 } from '@/lib/download-status-snapshot';
-import { SkeletonBlock } from './Skeleton';
+import { StockRecentActivitySkeleton } from './StockRecentActivitySkeleton';
 
 type FinishedStockJob = DownloadStatusJob & { finished_at: number };
 
@@ -93,11 +93,7 @@ export function StockRecentActivity() {
       </header>
 
       {!activity && !error && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2" aria-busy="true" aria-label={t.common.loading}>
-          {Array.from({ length: 4 }, (_unused, index) => (
-            <SkeletonBlock key={index} className="h-12 w-full" />
-          ))}
-        </div>
+        <StockRecentActivitySkeleton label={t.common.loading} />
       )}
 
       {error && (

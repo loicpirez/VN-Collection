@@ -1,4 +1,5 @@
 import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
+import { StockRecentActivitySkeleton } from '@/components/StockRecentActivitySkeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function LoadingStockPage() {
@@ -29,11 +30,7 @@ export default async function LoadingStockPage() {
           </div>
           <SkeletonBlock className="h-11 w-28" />
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <SkeletonBlock key={index} className="h-12 w-full" />
-          ))}
-        </div>
+        <StockRecentActivitySkeleton label={t.common.loading} announce={false} />
       </section>
 
       <section className="mt-5 rounded-xl border border-border bg-bg-card p-4 sm:p-5" data-stock-batch-skeleton>
