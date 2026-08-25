@@ -208,7 +208,7 @@ export function SafeImage({
   const loadingSkeleton = !loaded ? (
     <div
       data-safe-image-skeleton
-      className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70"
+      className="pointer-events-none absolute inset-0 animate-pulse bg-bg-elev/60"
       aria-hidden
     />
   ) : null;
@@ -241,7 +241,7 @@ export function SafeImage({
         <div
           data-safe-image-skeleton
           data-safe-image-deferred
-          className={`pointer-events-none h-full w-full bg-gradient-to-br from-bg-elev/80 via-bg-elev/35 to-bg-elev/70 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
+          className={`pointer-events-none h-full w-full bg-bg-elev/60 transition-[filter,transform] duration-200 ${shouldBlur ? 'scale-105 blur-2xl' : ''}`}
           aria-hidden
         />
       )}
