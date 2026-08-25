@@ -26,6 +26,7 @@ operations, providers, deployment, backup, and restore.
 | R14-I18N-004 | MEDIUM | The character browser's voice-language filter exposed raw VNDB language codes while equivalent filters elsewhere used localized language names. Route every option through the shared `Intl.DisplayNames` helper while preserving the submitted code. | character browser filter and runtime test | DONE_WITH_DIFF |
 | R14-SEC-001 | CRITICAL | Re-audit authentication gates, mutation authorization, CSRF/origin handling, SSRF and URL allowlists, uploads and path traversal, request size limits, secret/error exposure, CSP and headers, proxy behavior, dependencies, and production TLS/reverse-proxy configuration. | all APIs, middleware, Next and production configuration | TODO |
 | R14-SEC-002 | CRITICAL | Production Nginx capped every request at 50 MiB while the authenticated PostgreSQL logical restore endpoint supports archives up to 4 GiB and current database backups already exceed 200 MiB. Add an exact authenticated restore location with the matching cap, streaming request forwarding, trusted-proxy proof, and bounded timeouts while retaining the lower global limit. | `ops/nginx/vndb-backup-restore.conf`, production Nginx, PostgreSQL operations docs | DONE_WITH_DIFF |
+| R14-SEC-003 | MEDIUM | Production correctly enforced Basic Auth at Nginx and exposed Next only on loopback, but omitted `VN_PUBLIC_READ_AUTH=upstream`, so the application classified its personal-data reads as open despite the deployed proxy contract. Declare the upstream authentication mode in the root-managed runtime environment and verify page, API, SSE, and direct-port behavior. | production runtime environment and security verification | DONE_WITH_DIFF |
 | R14-FEAT-001 | HIGH | Exercise complete library, wishlist, search, filter/group/sort, collection mutation, compare, shelf, release/edition, lists, series, staff, downloads, backups, and settings workflows, including immediate state refresh and failure recovery. | core product workflows | TODO |
 | R14-STOCK-001 | HIGH | Verify per-VN lookup, generic stock aggregation, cached/fresh semantics, aliases, provider diagnostics, background jobs, stale timestamps, place assignment, map integration, and every configured provider. Keep AliceNet mirror controls only on its linked shop detail page. | `/stock`, VN stock section, `/places`, `/map`, stock APIs | TODO |
 | R14-STOCK-002 | HIGH | Provider maintenance inferred the last completed batch from progress rows that are intentionally deleted after one hour, so a successful older sync reverted to the misleading `no batch` state while provider statuses remained durable. Persist one bounded latest-completed summary per provider independently from progress history and use it for maintenance comparisons. | durable stock batch store, provider maintenance repository, SQLite and PostgreSQL schemas | DONE_WITH_DIFF |
@@ -65,6 +66,13 @@ operations, providers, deployment, backup, and restore.
   The exact restore route now has a tested 4 GiB streaming allowance while
   every other route keeps the lower general cap and the restore remains behind
   Basic Auth plus the trusted-proxy proof.
+- Production now explicitly declares its upstream read-authentication policy.
+  HTTP redirects to HTTPS, unauthenticated HTTPS returns 401, authenticated
+  pages, health checks, and the status stream return 200, and Next listens only
+  on loopback with its public port unreachable. The certificate verifies, HSTS
+  and the expected CSP/security headers are present, and 390 focused security
+  scenarios plus the 297-package production dependency audit pass without a
+  vulnerability finding.
 - EGS and AliceNet HTML ingestion now share a standards-based, single-pass
   entity decoder. SQLite and PostgreSQL migrations clean historical title and
   producer fields without recursively decoding escaped text. The focused suite
