@@ -86,6 +86,7 @@ export type KnownApiErrorCode =
   | 'vndb_malformed_payload'
   | 'vndb_rate_limited'
   | 'vndb_token_required'
+  | 'vndb_listwrite_required'
   | 'vndb_unavailable'
   | 'vndb_sync_changed'
   | 'vndb_sync_direction_unavailable'

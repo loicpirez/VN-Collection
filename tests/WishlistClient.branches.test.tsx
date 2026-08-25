@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { renderWithProviders } from './helpers/render-component';
 import { WishlistClient } from '@/components/WishlistClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
+import type { Locale } from '@/lib/i18n/dictionaries';
 import type { WishlistClientItem, WishlistClientState } from '@/lib/vndb-ui-client-shape';
 
 const nav = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), searchParams: new URLSearchParams() }));
@@ -79,12 +80,12 @@ function state(items: WishlistClientItem[], overrides: Partial<WishlistClientSta
   return { needsAuth: false, items, ...overrides };
 }
 
-function renderWishlist() {
+function renderWishlist(locale: Locale = 'en') {
   return renderWithProviders(
     <DisplaySettingsProvider>
       <WishlistClient />
     </DisplaySettingsProvider>,
-    { locale: 'en' },
+    { locale },
   );
 }
 
@@ -180,6 +181,22 @@ describe('WishlistClient branches', () => {
     expect(await screen.findByText('remove boom')).toBeInTheDocument();
     // The card stays because the delete failed.
     expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('localizes the missing listwrite permission when removing one card', async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (isWishlistRead(url, init)) return json(state([item('v90001', 'Alpha')]));
+      if (url === '/api/wishlist/v90001' && init?.method === 'DELETE') {
+        return json({ error: 'raw upstream detail', code: 'vndb_listwrite_required' }, 401);
+      }
+      return json({ ok: true });
+    });
+    const { user } = renderWishlist('fr');
+    await screen.findByText('Alpha');
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha' }));
+    expect(await screen.findByText("Le jeton VNDB n'autorise pas la modification des listes. Regénère-le avec la permission listwrite.")).toBeInTheDocument();
+    expect(screen.queryByText('raw upstream detail')).not.toBeInTheDocument();
   });
 
   it('navigates back a page via Previous', async () => {

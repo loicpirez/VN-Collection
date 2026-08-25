@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
  * - POST sets ulist label 5 on the VN (creates the ulist entry if needed).
  * - DELETE unsets ulist label 5.
  *
- * Both routes are strictly VNDB-side. They never touch the local SQLite
+ * Both routes are strictly VNDB-side. They never touch the local
  * `collection` table, so a VN can be on the VNDB wishlist regardless of
  * whether it lives in the user's local collection — and vice versa.
  */
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const r = await addToVndbWishlist(vnId);
     if ('needsAuth' in r) {
-      return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+      return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     }
     invalidateVndbWishlistCache();
     await recordActivity({ kind: 'wishlist.add', entity: 'vn', entityId: vnId, label: 'Added VNDB wishlist label' });
@@ -65,7 +65,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   try {
     const r = await removeFromVndbWishlist(vnId);
     if ('needsAuth' in r) {
-      return NextResponse.json({ error: 'VNDB token required' }, { status: 401 });
+      return NextResponse.json({ error: 'VNDB token required', code: 'vndb_token_required' }, { status: 401 });
     }
     invalidateVndbWishlistCache();
     await recordActivity({ kind: 'wishlist.remove', entity: 'vn', entityId: vnId, label: 'Removed VNDB wishlist label' });

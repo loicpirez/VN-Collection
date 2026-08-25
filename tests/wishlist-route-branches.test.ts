@@ -197,7 +197,7 @@ describe('wishlist route branches', () => {
     addWishlistMock.mockResolvedValue({ needsAuth: true });
     res = await wishlistPOST(req('/api/wishlist/v90001', 'POST'), ctx('v90001'));
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'VNDB token required' });
+    expect(await res.json()).toEqual({ error: 'VNDB token required', code: 'vndb_token_required' });
   });
 
   it('translates VNDB listwrite failures and sanitizes generic add failures', async () => {
@@ -234,7 +234,7 @@ describe('wishlist route branches', () => {
     removeWishlistMock.mockResolvedValueOnce({ needsAuth: true });
     res = await wishlistDELETE(req('/api/wishlist/v90001', 'DELETE'), ctx('v90001'));
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'VNDB token required' });
+    expect(await res.json()).toEqual({ error: 'VNDB token required', code: 'vndb_token_required' });
 
     res = await wishlistDELETE(req('/api/wishlist/egs_1', 'DELETE'), ctx('egs_1'));
     expect(res.status).toBe(400);

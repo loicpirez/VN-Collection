@@ -451,6 +451,7 @@ export const dictionaries = {
     },
     apiErrors: {
       vndbTokenRequired: 'Jeton VNDB requis pour cette action.',
+      vndbListwriteRequired: "Le jeton VNDB n'autorise pas la modification des listes. Regénère-le avec la permission listwrite.",
       vndbUnavailable: 'VNDB est indisponible. Réessaie plus tard.',
       vndbSyncChanged: 'Les données ont changé depuis cet aperçu. Actualise et vérifie-les avant de synchroniser.',
       vndbSyncDirectionUnavailable: "Cette direction de synchronisation n'est pas disponible pour les champs sélectionnés.",
@@ -4204,6 +4205,7 @@ export const dictionaries = {
     },
     apiErrors: {
       vndbTokenRequired: 'A VNDB token is required for this action.',
+      vndbListwriteRequired: 'The VNDB token cannot modify lists. Regenerate it with the listwrite permission.',
       vndbUnavailable: 'VNDB is unavailable. Try again later.',
       vndbSyncChanged: 'The data changed since this preview. Refresh and review it before syncing.',
       vndbSyncDirectionUnavailable: 'This synchronization direction is unavailable for the selected fields.',
@@ -7954,6 +7956,7 @@ export const dictionaries = {
     },
     apiErrors: {
       vndbTokenRequired: 'この操作には VNDB トークンが必要です。',
+      vndbListwriteRequired: 'VNDB トークンにリスト更新権限がありません。listwrite 権限を有効にして再発行してください。',
       vndbUnavailable: 'VNDB に接続できません。しばらくして再試行してください。',
       vndbSyncChanged: 'プレビュー後にデータが変更されました。更新して内容を確認してから同期してください。',
       vndbSyncDirectionUnavailable: '選択した項目では、この同期方向を使用できません。',

@@ -641,7 +641,21 @@ export function WishlistClient() {
       setRemovingId(id);
       try {
         const r = await fetch(`/api/wishlist/${id}`, { method: 'DELETE', signal: controller.signal });
-        if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+        if (!r.ok) {
+          const message = locale === 'en'
+            ? await readApiError(r, t.wishlist.errorUnavailable)
+            : await readApiErrorLocalized(
+                r,
+                {
+                  vndb_listwrite_required: t.apiErrors.vndbListwriteRequired,
+                  vndb_token_required: t.apiErrors.vndbTokenRequired,
+                  vndb_unavailable: t.wishlist.errorUnavailable,
+                  upstream_unavailable: t.wishlist.errorUnavailable,
+                },
+                t.wishlist.errorUnavailable,
+              );
+          throw new Error(message);
+        }
         if (!mountedRef.current || mutationAbortRef.current !== controller || controller.signal.aborted) return;
         removeItemsLocally(new Set([id]));
         toast.success(t.wishlist.removeOneDone);
@@ -657,7 +671,15 @@ export function WishlistClient() {
         }
       }
     },
-    [removeItemsLocally, t.common.error, t.wishlist.removeOneDone, toast],
+    [
+      locale,
+      removeItemsLocally,
+      t.apiErrors.vndbListwriteRequired,
+      t.apiErrors.vndbTokenRequired,
+      t.wishlist.errorUnavailable,
+      t.wishlist.removeOneDone,
+      toast,
+    ],
   );
   const selectionLiveStatus = bulkDeletePhase === 'deleting'
     ? t.wishlist.deleteProgress

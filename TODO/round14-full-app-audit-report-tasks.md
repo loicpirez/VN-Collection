@@ -14,6 +14,7 @@ operations, providers, deployment, backup, and restore.
 
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
+| R14-VNDB-004 | HIGH | Wishlist mutations emitted an actionable `listwrite` permission failure, but the typed client contract omitted it and French/Japanese UI reduced it to a generic error. Add stable auth and permission codes, localize all three dictionaries, preserve useful unknown diagnostics in English, and cover both paths. | wishlist mutation API and client | DONE_WITH_DIFF |
 | R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
 | R14-UX-001 | HIGH | The VN loading cover pulsed as a translucent block over an overlapping translucent banner skeleton. Firefox can composite both animated opacities and make the banner appear as a brighter foreground rectangle. Keep the cover pulse but place it inside an opaque, correctly layered shell matching the final cover geometry. | `src/app/vn/[id]/loading.tsx`, route-loading tests | DONE_WITH_DIFF |
 | R14-UX-002 | HIGH | Staff and seiyuu loading routes used a generic tall block or vertical cover grid that did not resemble the final search controls, profile, timeline, or horizontal VN/character credits. Mirror the actual responsive geometry so loading does not replace one page shape with another. | staff list/detail loading boundaries and geometry tests | DONE_WITH_DIFF |
@@ -592,3 +593,10 @@ operations, providers, deployment, backup, and restore.
   production build passes, and the PostgreSQL-backed suite passes 9,829 tests
   with exactly 100% statements (44,849/44,849), branches (38,114/38,114),
   functions (9,188/9,188), and lines (38,303/38,303).
+- VNDB wishlist mutations now expose stable token and `listwrite` permission
+  codes. French and Japanese users receive an actionable localized message,
+  while English retains useful diagnostics for unknown failures. Fifty-nine
+  focused wishlist and i18n scenarios pass, the production build passes, and
+  the PostgreSQL-backed suite passes 9,830 tests with exactly 100% statements
+  (44,850/44,850), branches (38,116/38,116), functions (9,188/9,188), and
+  lines (38,305/38,305).
