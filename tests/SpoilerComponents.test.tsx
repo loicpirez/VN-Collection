@@ -234,6 +234,22 @@ describe('SpoilerToggle', () => {
     )).toEqual({ left: 860, top: 68, width: 320, maxHeight: 820 });
   });
 
+  it('handles a queued resize callback after the trigger is removed', () => {
+    let resizeListener: EventListener | null = null;
+    const originalAddEventListener = window.addEventListener.bind(window);
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'resize') resizeListener = listener as EventListener;
+      originalAddEventListener(type, listener, options);
+    });
+    const view = renderWithProviders(<SpoilerToggle />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.contentControls.title }));
+    expect(resizeListener).not.toBeNull();
+
+    view.unmount();
+
+    expect(() => resizeListener?.(new Event('resize'))).not.toThrow();
+  });
+
   it('opens, focuses, mutates all content controls, and dispatches the full-settings event', () => {
     const openSettings = vi.fn();
     window.addEventListener('vn:open-settings', openSettings);

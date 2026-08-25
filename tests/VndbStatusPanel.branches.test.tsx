@@ -257,6 +257,170 @@ describe('VndbStatusPanel branches', () => {
     await waitFor(() => expect(body).toEqual({ direction: 'local_to_vndb', fields: ['status', 'vote'] }));
   });
 
+  it('labels date conflicts and supports bulk remote resolution', async () => {
+    let body: unknown = null;
+    global.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        body = JSON.parse(String(init.body));
+        return json({ ok: true });
+      }
+      return json(statePayload({
+        entry: true,
+        local: {
+          status: 'playing',
+          vote: null,
+          started: '2025-01-01',
+          finished: '2025-01-02',
+          notes: null,
+        },
+        differences: [
+          { field: 'started', local: '2025-01-01', remote: '2024-01-01', canPullRemote: true, canPushLocal: true },
+          { field: 'finished', local: '2025-01-02', remote: null, canPullRemote: true, canPushLocal: true },
+        ],
+      }));
+    });
+    render();
+
+    expect(await screen.findAllByText(t.vndbStatus.fieldStarted)).not.toHaveLength(0);
+    expect(screen.getAllByText(t.vndbStatus.fieldFinished)).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useAllRemote }));
+
+    await waitFor(() => expect(body).toEqual({ direction: 'vndb_to_local', fields: ['started', 'finished'] }));
+  });
+
+  it('ignores a second conflict resolution while the first request is pending', async () => {
+    const pending = deferredResponse();
+    let postCalls = 0;
+    const conflict = statePayload({
+      entry: true,
+      local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    });
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        postCalls += 1;
+        return pending.promise;
+      }
+      return Promise.resolve(json(conflict));
+    });
+    render();
+    const local = await screen.findByRole('button', { name: t.vndbStatus.useLocal });
+    const remote = screen.getByRole('button', { name: t.vndbStatus.useRemote });
+
+    act(() => {
+      fireEvent.click(local);
+      fireEvent.click(remote);
+    });
+
+    expect(postCalls).toBe(1);
+    pending.resolve(json({ ok: true }));
+    await pending.promise;
+  });
+
+  it('ignores a successful conflict response after the VN identity changes', async () => {
+    const pending = deferredResponse();
+    const conflict = statePayload({
+      entry: true,
+      local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    });
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => (
+      init?.method === 'POST' ? pending.promise : Promise.resolve(json(conflict))
+    ));
+    const view = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    view.rerender(<VndbStatusPanel vnId="v90006" />);
+
+    await act(async () => {
+      pending.resolve(json({ ok: true }));
+      await pending.promise;
+    });
+
+    expect(screen.queryByText(t.toast.saved)).toBeNull();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not refresh after a conflict reload becomes stale', async () => {
+    const reload = deferredResponse();
+    let getCalls = 0;
+    const conflict = statePayload({
+      entry: true,
+      local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    });
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(json({ ok: true }));
+      getCalls += 1;
+      if (getCalls === 1) return Promise.resolve(json(conflict));
+      if (getCalls === 2) return reload.promise;
+      return Promise.resolve(json(conflict));
+    });
+    const view = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    await screen.findByText(t.toast.saved);
+    view.rerender(<VndbStatusPanel vnId="v90007" />);
+
+    await act(async () => {
+      reload.resolve(json(conflict));
+      await reload.promise;
+    });
+
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it('silences aborted and identity-stale conflict failures', async () => {
+    const abortConflict = statePayload({
+      entry: true,
+      local: { status: 'completed', vote: null, started: null, finished: null, notes: null },
+      differences: [{
+        field: 'status',
+        local: 'completed',
+        remote: 'playing',
+        canPullRemote: true,
+        canPushLocal: true,
+      }],
+    });
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.reject(new DOMException('aborted', 'AbortError'));
+      return Promise.resolve(json(abortConflict));
+    });
+    const first = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    await waitFor(() => expect(screen.queryByText('aborted')).toBeNull());
+    first.unmount();
+
+    const stale = deferredResponse();
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => (
+      init?.method === 'POST' ? stale.promise : Promise.resolve(json(abortConflict))
+    ));
+    const second = render();
+    fireEvent.click(await screen.findByRole('button', { name: t.vndbStatus.useLocal }));
+    second.rerender(<VndbStatusPanel vnId="v90008" />);
+    await act(async () => {
+      stale.reject(new Error('stale conflict failure'));
+      await stale.promise.catch(() => undefined);
+    });
+    expect(screen.queryByText('stale conflict failure')).toBeNull();
+  });
+
   it('surfaces a conflict-resolution API failure without refreshing the route', async () => {
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') {

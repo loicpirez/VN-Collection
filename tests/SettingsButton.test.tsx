@@ -270,6 +270,28 @@ describe('SettingsButton', () => {
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   });
 
+  it('does not apply selected VNDB changes when confirmation is canceled', async () => {
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+    const selection = await within(dialog).findByRole('checkbox', {
+      name: t.settings.vndbPullSelectItem.replace('{title}', 'Title Y'),
+    });
+    fireEvent.click(selection);
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullApply as string }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.cancel as string }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    const applyCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((call) => {
+      if (String(call[0]) !== '/api/vndb/pull-statuses') return false;
+      return JSON.parse(String(call[1]?.body)).action === 'apply';
+    });
+    expect(applyCalls).toHaveLength(0);
+  });
+
   it('shows the VNDB pull error returned by the API', async () => {
     pullStatus = 500;
     pullBody = {
@@ -293,6 +315,26 @@ describe('SettingsButton', () => {
     await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
     fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('sync failed'));
+  });
+
+  it('localizes a missing VNDB token during status import', async () => {
+    pullStatus = 401;
+    pullBody = {
+      ...pullStatusPayload(),
+      ok: false,
+      needsAuth: true,
+      message: 'raw authentication message',
+    };
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: t.settings.title as string }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
+    await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+
+    fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullAction as string }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(t.apiErrors.vndbTokenRequired));
+    expect(screen.queryByText('raw authentication message')).toBeNull();
   });
 
   it('localizes incomplete snapshots and never offers partial results', async () => {
@@ -347,6 +389,14 @@ describe('SettingsButton', () => {
     expect(await screen.findByText(t.settings.vndbPullConflicts.replace('{count}', '2'))).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Title 1' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Title 26' })).toBeNull();
+
+    const firstSelection = within(dialog).getByRole('checkbox', {
+      name: t.settings.vndbPullSelectItem.replace('{title}', 'Title 1'),
+    });
+    fireEvent.click(firstSelection);
+    expect(screen.getByText(t.settings.vndbPullSelected.replace('{count}', '1'))).toBeTruthy();
+    fireEvent.click(firstSelection);
+    expect(screen.getByText(t.settings.vndbPullSelected.replace('{count}', '0'))).toBeTruthy();
 
     fireEvent.click(within(dialog).getByRole('button', { name: t.settings.vndbPullSelectAll as string }));
     expect(screen.getByText(t.settings.vndbPullSelected.replace('{count}', '26'))).toBeTruthy();

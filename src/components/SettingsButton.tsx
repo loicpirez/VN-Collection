@@ -280,10 +280,7 @@ export function SettingsButton() {
     }
   }
 
-  async function onApplyPullStatuses() {
-    if (!pullDiff) return;
-    const selections = pullDiff.changes.filter((change) => selectedPullIds.has(change.vn_id));
-    if (selections.length === 0) return;
+  async function onApplyPullStatuses(selections: PullDiff['changes']) {
     const approved = await confirm({
       message: t.settings.vndbPullApplyConfirm.replace('{count}', String(selections.length)),
       tone: 'danger',
@@ -670,7 +667,9 @@ export function SettingsButton() {
                                   <button
                                     type="button"
                                     className="btn btn-primary btn-sm min-h-[44px]"
-                                    onClick={() => void onApplyPullStatuses()}
+                                    onClick={() => void onApplyPullStatuses(
+                                      pullDiff.changes.filter((change) => selectedPullIds.has(change.vn_id)),
+                                    )}
                                     disabled={pulling || selectedPullIds.size === 0}
                                   >
                                     <CheckCheck className="h-3.5 w-3.5" aria-hidden />
