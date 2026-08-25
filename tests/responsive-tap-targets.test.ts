@@ -486,4 +486,12 @@ describe('responsive tap targets', () => {
     expect(steam).toContain('className="min-h-[44px] w-full bg-transparent text-xs focus:outline-none can-hover:sm:min-h-0"');
     expect(steam).toContain('can-hover:sm:min-h-0 can-hover:sm:py-1');
   });
+
+  it('keeps statistics disclosure and account controls touch-safe', () => {
+    const cache = source('src/components/CachePanel.tsx');
+    const stats = source('src/app/stats/page.tsx');
+    expect(cache).toContain('flex min-h-[44px] w-full items-center');
+    expect(cache).toContain('can-hover:sm:min-h-0');
+    expect(stats).toContain('inline-flex min-h-[44px] items-center rounded font-bold');
+  });
 });

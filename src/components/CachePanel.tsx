@@ -100,7 +100,7 @@ export function CachePanel() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 text-left"
+        className="flex min-h-[44px] w-full items-center gap-2 rounded text-left can-hover:sm:min-h-0"
         aria-expanded={open}
         aria-controls={panelId}
       >

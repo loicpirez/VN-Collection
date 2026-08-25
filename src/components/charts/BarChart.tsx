@@ -90,10 +90,10 @@ export function VBarChart({
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <div
-      className="grid items-end gap-1"
+      className="grid items-end gap-1 overflow-x-auto"
       style={{
         height: `${height + 28}px`,
-        gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+        gridTemplateColumns: `repeat(${data.length}, minmax(44px, 1fr))`,
       }}
     >
       {data.map((d, i) => {
@@ -125,7 +125,7 @@ export function VBarChart({
             key={`${d.label}-${i}`}
             href={d.href}
             aria-label={tooltip}
-            className="block rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="block min-w-[44px] rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {inner}
           </Link>

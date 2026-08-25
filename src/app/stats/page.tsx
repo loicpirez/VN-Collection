@@ -309,7 +309,7 @@ export default async function StatsPage() {
               href={`https://vndb.org/${auth.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-bold text-accent hover:underline"
+              className="inline-flex min-h-[44px] items-center rounded font-bold text-accent hover:underline can-hover:sm:min-h-0"
             >
               {auth.username}
             </a>

@@ -98,6 +98,8 @@ describe('bar chart primitives', () => {
 
     expect(html).toContain('href="/linked"');
     expect(html).toContain('aria-label="Custom tooltip"');
+    expect(html).toContain('grid-template-columns:repeat(2, minmax(44px, 1fr))');
+    expect(html).toContain('min-w-[44px]');
     expect(html).toContain('title="Plain / 0 vns"');
     expect(html).toContain('height:100px');
     expect(html).toContain('height:0px');
