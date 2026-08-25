@@ -48,6 +48,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-031 | HIGH | Character browser loading represented its search, three source modes, four segmented filter groups, and six numeric/misc groups as one opaque rectangle. Preserve the complete responsive filter hierarchy before the 3:4 result grid resolves. | character browser route loading | DONE_WITH_DIFF |
 | R14-UX-032 | HIGH | Compare loading assumed four covers and replaced the comparison body with one opaque rectangle. Preserve the picker, common-facet summary, two-item mobile card anatomy, and desktop comparison matrix without inventing four selected VNs. | compare route loading | DONE_WITH_DIFF |
 | R14-UX-033 | MEDIUM | Printable-label loading invented a large panel and vertical cards although the destination is a return/print toolbar followed by compact horizontal QR labels. Preserve the 80 px QR frame, title/id/location text, and print-grid breakpoints. | printable labels route loading | DONE_WITH_DIFF |
+| R14-UX-034 | MEDIUM | Series-index loading hid the three-field creation form behind an opaque panel and rendered result cards with nonexistent chips while omitting their delete action. Preserve creation columns, title/description identity, density grid, and action geometry. | series index route loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -438,3 +439,9 @@ operations, providers, deployment, backup, and restore.
   and loading scenarios pass, the production build passes, and the full suite
   passes 9,815 tests with exactly 100% statements (44,797/44,797), branches
   (38,090/38,090), functions (9,159/9,159), and lines (38,253/38,253).
+- Series-index loading now retains the name/description/create form and
+  density-aware title/description cards with their delete actions. Eighty-six
+  focused route, manager, density, and loading scenarios pass, the production
+  build passes, and the full suite passes 9,816 tests with exactly 100%
+  statements (44,798/44,798), branches (38,090/38,090), functions
+  (9,160/9,160), and lines (38,254/38,254).

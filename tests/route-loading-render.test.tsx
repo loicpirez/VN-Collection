@@ -330,6 +330,15 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-32 w-full');
   });
 
+  it('matches series creation fields and actionable series cards', async () => {
+    const html = renderToStaticMarkup(await SeriesLoading());
+    expect(html).toContain('data-series-create-skeleton');
+    expect(html).toContain('data-series-grid-skeleton');
+    expect(html).toContain('sm:grid-cols-[1fr_2fr_auto]');
+    expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(8);
+    expect(html).not.toContain('h-24 w-full');
+  });
+
   it('matches the trait detail header, scope controls, and horizontal character cards', async () => {
     const html = renderToStaticMarkup(await TraitLoading());
     expect(html).toContain('data-trait-detail-skeleton');
