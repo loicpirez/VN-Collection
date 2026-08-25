@@ -134,7 +134,19 @@ describe('UpcomingCard server rendering', () => {
     const html = renderToStaticMarkup(
       <UpcomingCard t={t} locale="en" data={{ ...baseCard, id: 'unmapped', variant: 'wide' }} />,
     );
-    expect(html).toContain('line-clamp-2 text-base font-bold');
+    expect(html).toContain('break-words line-clamp-2 text-base font-bold');
+  });
+
+  it('keeps compact mapped and unmapped titles shrinkable and wrapped', () => {
+    let html = renderToStaticMarkup(
+      <UpcomingCard t={t} locale="en" data={{ ...baseCard, title: 'LongTitleWithoutNaturalBreaks', id: 'v90001' }} />,
+    );
+    expect(html).toContain('min-w-0 max-w-full break-words line-clamp-2 font-bold hover:text-accent');
+
+    html = renderToStaticMarkup(
+      <UpcomingCard t={t} locale="en" data={{ ...baseCard, title: 'LongTitleWithoutNaturalBreaks', id: 'unmapped' }} />,
+    );
+    expect(html).toContain('min-w-0 max-w-full break-words line-clamp-2 font-bold');
   });
 });
 

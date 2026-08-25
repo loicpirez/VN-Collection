@@ -154,15 +154,15 @@ export function UpcomingCard({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-2">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2">
           {internalHref ? (
             <Link
               href={internalHref}
               title={title}
               className={
                 variant === 'wide'
-                  ? 'line-clamp-2 text-base font-bold hover:text-accent'
-                  : 'font-bold hover:text-accent'
+                  ? 'min-w-0 max-w-full break-words line-clamp-2 text-base font-bold hover:text-accent'
+                  : 'min-w-0 max-w-full break-words line-clamp-2 font-bold hover:text-accent'
               }
             >
               {title}
@@ -171,7 +171,9 @@ export function UpcomingCard({
             <span
               title={title}
               className={
-                variant === 'wide' ? 'line-clamp-2 text-base font-bold' : 'font-bold'
+                variant === 'wide'
+                  ? 'min-w-0 max-w-full break-words line-clamp-2 text-base font-bold'
+                  : 'min-w-0 max-w-full break-words line-clamp-2 font-bold'
               }
             >
               {title}
@@ -192,7 +194,7 @@ export function UpcomingCard({
           )}
         </div>
         {alttitle && alttitle !== title && (
-          <div className="text-[11px] text-muted">{alttitle}</div>
+          <div className="break-words text-[11px] text-muted">{alttitle}</div>
         )}
         {meta && <div className="mt-1">{meta}</div>}
         <div
