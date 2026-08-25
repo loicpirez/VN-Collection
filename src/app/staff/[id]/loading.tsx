@@ -1,3 +1,4 @@
+import { StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { SkeletonBlock, SkeletonBoundary } from '@/components/Skeleton';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getDict } from '@/lib/i18n/server';
@@ -75,35 +76,40 @@ export default async function StaffDetailLoading() {
   const sectionSkeletons: Partial<Record<StaffSectionId, React.ReactNode>> = {
     timeline: (
       <section
-        className="rounded-xl border border-border bg-bg-card p-4 sm:p-5"
+        className="rounded-xl border border-border bg-bg-card p-4 sm:p-6"
         data-staff-section-skeleton="timeline"
         data-staff-timeline-skeleton
       >
         <SkeletonBlock className="h-4 w-40" />
-        <div className="mt-4 flex items-end gap-2 overflow-hidden">
-          {['h-12', 'h-20', 'h-16', 'h-28', 'h-24', 'h-32', 'h-20', 'h-14'].map((height, index) => (
-            <SkeletonBlock key={index} className={`${height} min-w-8 flex-1 rounded-sm`} />
+        <SkeletonBlock className="mt-3 h-3 w-72 max-w-full" />
+        <div className="mt-4 flex items-end gap-1 overflow-hidden pb-1">
+          {Array.from({ length: 12 }).map((_, index) => (
+            <div key={index} className="w-7 shrink-0">
+              <SkeletonBlock className="h-24 w-7 rounded-sm" />
+              <SkeletonBlock className="mx-auto mt-0.5 h-2 w-4 rounded-sm" />
+            </div>
           ))}
         </div>
       </section>
     ),
     'voice-credits': <CreditSectionSkeleton sectionId="voice-credits" withCharacters />,
     'production-credits': <CreditSectionSkeleton sectionId="production-credits" />,
+    'extra-credits': <StaffExtraCreditsSkeleton />,
   };
   return (
-    <SkeletonBoundary label={t.common.loading} className="w-full">
+    <SkeletonBoundary label={t.common.loading} className="w-full" densityScope="staffWorks">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1">
             <SkeletonBlock className="h-8 w-72 max-w-full" />
             <SkeletonBlock className="mt-2 h-4 w-48 max-w-full" />
             <div className="mt-3 flex flex-wrap gap-2">
-              <SkeletonBlock className="h-11 w-24 sm:h-7" />
-              <SkeletonBlock className="h-11 w-28 sm:h-7" />
-              <SkeletonBlock className="h-11 w-36 sm:h-7" />
-              <SkeletonBlock className="h-11 w-32 sm:h-7" />
+              <SkeletonBlock className="h-11 w-24 can-hover:sm:h-7" />
+              <SkeletonBlock className="h-11 w-28 can-hover:sm:h-7" />
+              <SkeletonBlock className="h-11 w-36 can-hover:sm:h-7" />
+              <SkeletonBlock className="h-11 w-32 can-hover:sm:h-7" />
             </div>
             <SkeletonBlock className="mt-4 h-3 w-20" />
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -118,8 +124,8 @@ export default async function StaffDetailLoading() {
               <SkeletonBlock className="h-3 w-2/3" />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 self-start">
-            <SkeletonBlock className="h-11 w-36" />
+          <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto">
+            <SkeletonBlock className="h-[54px] w-full max-w-[320px]" />
             <SkeletonBlock className="h-11 w-32" />
             <SkeletonBlock className="h-11 w-24" />
           </div>
@@ -136,6 +142,9 @@ export default async function StaffDetailLoading() {
           const skeleton = sectionSkeletons[sectionId];
           return skeleton ? <div key={sectionId}>{skeleton}</div> : null;
         })}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <SkeletonBlock className="h-11 w-28 can-hover:sm:h-8" />
       </div>
     </SkeletonBoundary>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup as renderReactToStaticMarkup } from 'react-dom/server';
 import HomeLoading from '@/app/loading';
 import ActivityLoading from '@/app/activity/loading';
 import BrandOverlapLoading from '@/app/brand-overlap/loading';
@@ -41,6 +41,7 @@ import VnLoading from '@/app/vn/[id]/loading';
 import WishlistLoading from '@/app/wishlist/loading';
 import YearLoading from '@/app/year/loading';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
+import { DisplaySettingsProvider } from '@/lib/settings/client';
 import {
   STAFF_DETAIL_SETTINGS_KEY,
   defaultStaffDetailLayoutV1,
@@ -60,6 +61,18 @@ import {
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
 }));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+function renderToStaticMarkup(node: React.ReactNode): string {
+  return renderReactToStaticMarkup(
+    <DisplaySettingsProvider initial={{ density: { staffWorks: 300 } }}>
+      {node}
+    </DisplaySettingsProvider>,
+  );
+}
 
 const routeLoaders = [
   HomeLoading,
@@ -137,12 +150,16 @@ describe('route loading skeletons', () => {
 
   it('matches the staff detail profile, timeline, and horizontal credit-card geometry', async () => {
     const html = renderToStaticMarkup(await StaffDetailLoading());
+    expect(html).toContain('--card-density-px:300px');
     expect(html).toContain('data-staff-timeline-skeleton');
     expect(html.match(/data-staff-credit-grid-skeleton/g)).toHaveLength(2);
+    expect(html.match(/data-staff-extra-credit-skeleton/g)).toHaveLength(8);
     expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
     expect(html).toContain('var(--card-density-px, 280px)');
-    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
+    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(16);
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
+    expect(html.match(/h-24 w-7 rounded-sm/g)).toHaveLength(12);
+    expect(html).toContain('h-[54px] w-full max-w-[320px]');
   });
 
   it('keeps the staff loading sections in the saved order and omits hidden sections', async () => {

@@ -3,7 +3,7 @@ import { SkeletonBlock, SkeletonBoundary } from './Skeleton';
 /** Render the EGS integration header, sync panel, tools, and horizontal VN rows while data resolves. */
 export function EgsPageSkeleton({ label }: { label: string }) {
   return (
-    <SkeletonBoundary label={label} className="w-full">
+    <SkeletonBoundary label={label} className="w-full" densityScope="egs">
         <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
         <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
           <div className="flex items-center gap-2">

@@ -4,7 +4,7 @@ import { getDict } from '@/lib/i18n/server';
 export default async function HomeLoading() {
   const t = await getDict();
   return (
-    <SkeletonBoundary label={t.app.loading} className="space-y-6">
+    <SkeletonBoundary label={t.app.loading} className="space-y-6" densityScope="library">
       <SkeletonBlock className="h-9 w-64" />
       <SkeletonBlock className="h-10 w-full rounded-xl" />
       <SkeletonCardGrid count={18} />

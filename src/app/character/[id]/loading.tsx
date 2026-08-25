@@ -4,7 +4,7 @@ import { getDict } from '@/lib/i18n/server';
 export default async function CharacterLoading() {
   const t = await getDict();
   return (
-    <SkeletonBoundary label={t.common.loading} className="w-full">
+    <SkeletonBoundary label={t.common.loading} className="w-full" densityScope="characterWorks">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
       <div className="grid gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:gap-6 sm:p-6 md:grid-cols-[200px_1fr] md:gap-8">
         <SkeletonBlock className="aspect-[2/3] w-full rounded-xl" />

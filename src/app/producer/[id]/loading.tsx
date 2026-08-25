@@ -5,7 +5,7 @@ import { getDict } from '@/lib/i18n/server';
 export default async function Loading() {
   const t = await getDict();
   return (
-    <SkeletonBoundary label={t.common.loading} className="w-full">
+    <SkeletonBoundary label={t.common.loading} className="w-full" densityScope="producerWorks">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
       <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-bg-card p-4 sm:flex-row sm:items-start sm:p-6">
         <SkeletonBlock className="h-24 w-24 shrink-0 rounded-xl" />

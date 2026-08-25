@@ -4,7 +4,7 @@ import { getDict } from '@/lib/i18n/server';
 export default async function PlaceDetailLoading() {
   const t = await getDict();
   return (
-    <SkeletonBoundary label={t.common.loading} className="mx-auto max-w-7xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+    <SkeletonBoundary label={t.common.loading} className="mx-auto max-w-7xl space-y-5 px-4 py-8 sm:px-6 lg:px-8" densityScope="places">
       <SkeletonBlock className="h-11 w-28" />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">

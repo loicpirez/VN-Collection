@@ -24,6 +24,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-007 | MEDIUM | Dumped used vertical cover cards instead of its compact edition-progress rows, while Quotes used 2:3 thumbnails instead of square character avatars and citation text. Mirror their summaries, filters, progress, search, citations, and pagination without introducing unrelated geometry. | dumped and quotes loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-008 | HIGH | Year invented cover grids absent from the final review, Schema collapsed three data sources and a table browser into generic rows, and Steam used vertical VN cards instead of mapping workflows. Mirror the year heatmap/rankings, schema source panels/table, and Steam suggestion/link/search sections. | year, schema, and Steam loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-UX-009 | HIGH | Recommendations omitted its five modes, explanation, flags, and seed controls; Upcoming used generic rows that disagreed with both density-aware horizontal card variants; Wishlist omitted its final title hierarchy; and the seiyuu loader ignored saved section order while its streamed external covers used a different fixed width. Mirror all final controls and card geometry, share the Upcoming fallback, and honor staff layout order and visibility during loading. | recommendations, upcoming, wishlist, and staff loading boundaries | DONE_WITH_DIFF |
+| R14-UX-010 | HIGH | Route placeholders for every density-adjustable surface inherited only the global density, so a page-specific override changed the column count and artwork width when loading resolved. The seiyuu placeholder also used a variable-height chart unlike the fixed 24-pixel timeline, omitted the streamed external-credit section, compacted touch geometry by width alone, and understated the density toolbar. Scope all 22 affected placeholders to their resolved surface, mirror the seiyuu timeline/profile/streaming geometry, and enforce the complete route-to-scope inventory. | shared skeleton boundary; library, people, discovery, place, list, shelf, tag, EGS, upcoming, search, and wishlist loading surfaces | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -219,3 +220,14 @@ operations, providers, deployment, backup, and restore.
   portal, and root-composition scenarios pass. The full suite passes 9,776
   tests with exactly 100% statements, branches, functions, and lines, together
   with the complete typecheck.
+- All 22 route-level placeholders for density-adjustable surfaces now inherit
+  the exact page-specific density, including root Library, search, wishlist,
+  people, discovery, lists, shelves, places, tags, EGS, and Upcoming. The
+  seiyuu placeholder now uses the final fixed-height timeline columns, retains
+  the streamed external-credit section, reserves the complete density toolbar,
+  and preserves touch geometry on coarse pointers. Chromium and Firefox at
+  390 pixels render the settled staff page without browser errors or horizontal
+  overflow, every sourced image resolves, and no stale busy surface remains.
+  The full suite passes 9,777 tests and reports exactly 100% statements
+  (44,710/44,710), branches (37,979/37,979), functions (9,097/9,097), and lines
+  (38,173/38,173).

@@ -30,9 +30,35 @@ const ALL_TSX = walk(ROOT);
 const FILE_TEXT = new Map<string, string>();
 for (const f of ALL_TSX) FILE_TEXT.set(f, readFileSync(f, 'utf8'));
 
-const DENSITY_SCOPED_FILES = ALL_TSX.filter((f) =>
-  /DensityScopeProvider/.test(FILE_TEXT.get(f) ?? ''),
-);
+const DENSITY_SCOPED_FILES = ALL_TSX.filter((f) => {
+  const text = FILE_TEXT.get(f) ?? '';
+  return /<DensityScopeProvider\b/.test(text) && !/densityScope\?: DensityScope/.test(text);
+});
+
+const EXPECTED_LOADING_SCOPES = [
+  'app/character/[id]/loading.tsx:characterWorks',
+  'app/characters/loading.tsx:characterWorks',
+  'app/dumped/loading.tsx:dumped',
+  'app/lists/[id]/loading.tsx:lists',
+  'app/loading.tsx:library',
+  'app/places/[id]/loading.tsx:places',
+  'app/places/loading.tsx:places',
+  'app/producer/[id]/loading.tsx:producerWorks',
+  'app/recommendations/loading.tsx:recommendations',
+  'app/search/loading.tsx:search',
+  'app/series/[id]/loading.tsx:seriesWorks',
+  'app/shelf/loading.tsx:shelf',
+  'app/similar/loading.tsx:vnSimilar',
+  'app/staff/[id]/loading.tsx:staffWorks',
+  'app/staff/loading.tsx:staffWorks',
+  'app/tag/[id]/loading.tsx:tagPage',
+  'app/top-ranked/loading.tsx:topRanked',
+  'app/trait/[id]/loading.tsx:characterWorks',
+  'app/traits/loading.tsx:traitsList',
+  'app/wishlist/loading.tsx:wishlist',
+  'components/EgsPageSkeleton.tsx:egs',
+  'components/UpcomingSkeleton.tsx:upcoming',
+] as const;
 
 function resolveLocalImport(fromFile: string, spec: string): string | null {
   // Resolve only relative imports for the coverage check; alias imports
@@ -114,5 +140,15 @@ describe('density-scope coverage — every page using DensityScopeProvider also 
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps every route placeholder on the exact density scope of its resolved surface', () => {
+    const declared: string[] = [];
+    for (const [file, source] of FILE_TEXT) {
+      for (const match of source.matchAll(/densityScope="([^"]+)"/g)) {
+        declared.push(`${file.replace(`${ROOT}/`, '')}:${match[1]}`);
+      }
+    }
+    expect(declared.sort()).toEqual([...EXPECTED_LOADING_SCOPES].sort());
   });
 });

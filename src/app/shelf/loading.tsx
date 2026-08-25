@@ -4,7 +4,7 @@ import { getDict } from '@/lib/i18n/server';
 export default async function ShelfLoading() {
   const t = await getDict();
   return (
-    <SkeletonBoundary label={t.common.loading} className="w-full space-y-4">
+    <SkeletonBoundary label={t.common.loading} className="w-full space-y-4" densityScope="shelf">
       <SkeletonBlock className="h-5 w-24 md:hidden" />
       <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <SkeletonBlock className="h-8 w-48" />

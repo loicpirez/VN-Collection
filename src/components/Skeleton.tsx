@@ -1,3 +1,6 @@
+import { DensityScopeProvider } from './DensityScopeProvider';
+import type { DensityScope } from '@/lib/settings/client';
+
 /**
  * Loading skeleton primitives. Use these instead of spinners - they mirror the
  * shape of the eventual content so the UI doesn't jump when data arrives.
@@ -31,21 +34,30 @@ export function SkeletonBoundary({
   children,
   label,
   className,
+  densityScope,
 }: {
   children: React.ReactNode;
   label?: string;
   className?: string;
+  /** Keep route-level placeholders on the same per-page density as their resolved content. */
+  densityScope?: DensityScope;
 }) {
-  return (
+  const boundary = (
     <div
       aria-busy
       aria-live="polite"
       role="status"
-      className={className}
+      className={densityScope ? undefined : className}
     >
       {label && <span className="sr-only">{label}</span>}
       {children}
     </div>
+  );
+  if (!densityScope) return boundary;
+  return (
+    <DensityScopeProvider scope={densityScope} className={className}>
+      {boundary}
+    </DensityScopeProvider>
   );
 }
 

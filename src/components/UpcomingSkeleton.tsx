@@ -49,7 +49,7 @@ export function UpcomingResultsSkeleton({ anticipated = false }: { anticipated?:
 /** Render the upcoming page controls and default release results while the route resolves. */
 export function UpcomingRouteSkeleton({ label }: { label: string }) {
   return (
-    <SkeletonBoundary label={label} className="w-full">
+    <SkeletonBoundary label={label} className="w-full" densityScope="upcoming">
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6" data-upcoming-header-skeleton>
         <div className="flex flex-wrap items-start gap-3">
