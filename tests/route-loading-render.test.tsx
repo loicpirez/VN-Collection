@@ -47,6 +47,7 @@ import {
   STAFF_DETAIL_SETTINGS_KEY,
   defaultStaffDetailLayoutV1,
 } from '@/lib/staff-detail-layout';
+import { defaultSeriesDetailLayoutV1 } from '@/lib/series-detail-layout';
 import {
   SkeletonBlock,
   SkeletonBoundary,
@@ -297,6 +298,36 @@ describe('route loading skeletons', () => {
     expect(html).toContain('h-12 w-12 shrink-0');
     expect(html.match(/absolute right-2 top-2 h-11 w-11/g)).toHaveLength(12);
     expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(12);
+  });
+
+  it('matches series detail layout tools, works, media editor, and removable item grid', async () => {
+    const html = renderToStaticMarkup(await SeriesDetailLoading());
+    expect(html).toContain('data-series-detail-skeleton');
+    expect(html).toContain('data-series-hero-skeleton');
+    expect(html).toContain('data-series-works-skeleton');
+    expect(html).toContain('data-series-metadata-skeleton');
+    expect(html).toContain('md:grid-cols-[140px_1fr]');
+    expect(html.match(/absolute right-2 top-2 h-11 w-11/g)).toHaveLength(12);
+    expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(13);
+  });
+
+  it('keeps series loading sections in saved order and honours hidden or collapsed state', async () => {
+    const repository = getAppSettingRepository();
+    const key = 'series_detail_section_layout_v1';
+    const previous = await repository.get(key);
+    const layout = defaultSeriesDetailLayoutV1();
+    layout.order = ['metadata', 'works', 'hero', 'related', 'stats'];
+    layout.sections.works.visible = false;
+    layout.sections.hero.collapsedByDefault = true;
+    await repository.set(key, JSON.stringify(layout));
+    try {
+      const html = renderToStaticMarkup(await SeriesDetailLoading());
+      expect(html).toContain('data-series-collapsed-skeleton="hero"');
+      expect(html).not.toContain('data-series-works-skeleton');
+      expect(html.indexOf('data-series-metadata-skeleton')).toBeLessThan(html.indexOf('data-series-collapsed-skeleton="hero"'));
+    } finally {
+      await repository.set(key, previous);
+    }
   });
 
   it('matches the character detail portrait ratio, metadata, and horizontal appearance cards', async () => {
