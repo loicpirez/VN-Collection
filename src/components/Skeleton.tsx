@@ -18,6 +18,8 @@ import type { DensityScope } from '@/lib/settings/client';
 interface BlockProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Tailwind size classes (h-* w-* etc.) - anything goes. */
   className?: string;
+  /** Disable the local pulse when a composite parent owns one shared animation. */
+  animated?: boolean;
 }
 
 /**
@@ -69,11 +71,11 @@ function cx(...parts: (string | false | null | undefined)[]): string {
  * Single rectangle pulse. Use to mock a heading, a line of text, an avatar -
  * combine multiple to mock more complex layouts.
  */
-export function SkeletonBlock({ className, ...rest }: BlockProps) {
+export function SkeletonBlock({ className, animated = true, ...rest }: BlockProps) {
   return (
     <div
       aria-hidden
-      className={cx('animate-pulse rounded-md bg-bg-elev/60', className)}
+      className={cx(animated && 'animate-pulse', 'rounded-md bg-bg-elev/60', className)}
       {...rest}
     />
   );

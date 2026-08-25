@@ -433,7 +433,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
           {!bannerLoaded && (
             <div
               data-hero-banner-skeleton
-              className="pointer-events-none absolute inset-0 animate-pulse bg-bg-elev/60"
+              className="pointer-events-none absolute inset-0 bg-bg-elev/60"
               aria-hidden
             />
           )}

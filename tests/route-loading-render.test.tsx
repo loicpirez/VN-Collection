@@ -134,6 +134,8 @@ describe('route loading skeletons', () => {
     expect(html).toContain('md:grid-cols-[260px_1fr]');
     expect(html).toContain('max-w-[260px]');
     expect(html).toContain('data-vn-cover-skeleton-shell');
+    expect(html).toContain('data-vn-hero-skeleton');
+    expect(html.match(/animate-pulse/g)).toHaveLength(2);
     expect(html).toContain('relative z-10 mx-auto aspect-[2/3]');
     expect(html).toContain('overflow-hidden rounded-xl bg-bg-card');
     expect(html).toContain('grid-cols-3');
@@ -634,6 +636,7 @@ describe('route loading skeletons', () => {
       <div>
         <SkeletonBoundary label="Loading" className="boundary">
           <SkeletonBlock className="h-1" data-testid="block" />
+          <SkeletonBlock className="h-2" data-testid="static-block" animated={false} />
         </SkeletonBoundary>
         <SkeletonBoundary>
           <SkeletonCard />
@@ -654,6 +657,7 @@ describe('route loading skeletons', () => {
     expect(html).toContain('tabs');
     expect(html).toContain('text');
     expect(html).toContain('Table');
+    expect(html).toMatch(/class="rounded-md bg-bg-elev\/60 h-2" data-testid="static-block"/);
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 
