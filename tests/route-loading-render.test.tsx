@@ -320,6 +320,16 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-64 w-full');
   });
 
+  it('matches printable label toolbar and horizontal QR label geometry', async () => {
+    const html = renderToStaticMarkup(await LabelsLoading());
+    expect(html).toContain('data-labels-toolbar-skeleton');
+    expect(html).toContain('data-label-sheet-skeleton');
+    expect(html).toContain('sm:grid-cols-3 md:grid-cols-4');
+    expect(html.match(/h-20 w-20 shrink-0/g)).toHaveLength(12);
+    expect(html).not.toContain('h-24 w-full');
+    expect(html).not.toContain('h-32 w-full');
+  });
+
   it('matches the trait detail header, scope controls, and horizontal character cards', async () => {
     const html = renderToStaticMarkup(await TraitLoading());
     expect(html).toContain('data-trait-detail-skeleton');
