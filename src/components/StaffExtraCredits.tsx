@@ -121,8 +121,9 @@ export async function StaffExtraCredits({
 }
 
 /**
- * Placeholder card grid shown while the staff payload downloads. Keeps the
- * spot "this is loading" visible instead of leaving the page silently empty.
+ * Compact placeholder for the optional external-credit payload. It keeps the
+ * title, one guaranteed credit group, and the card anatomy shared by voice and
+ * production results without reserving a large section that may resolve empty.
  */
 export function StaffExtraCreditsSkeleton() {
   return (
@@ -134,11 +135,12 @@ export function StaffExtraCreditsSkeleton() {
     >
       <div className="mb-3 h-3 w-48 animate-pulse rounded bg-bg-elev/60" />
       <div className="mb-4 h-2.5 w-72 animate-pulse rounded bg-bg-elev/60" />
+      <div className="mb-2 h-2.5 w-32 animate-pulse rounded bg-bg-elev/60" data-staff-extra-group-skeleton />
       <ul
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
       >
-        {Array.from({ length: 8 }).map((_, index) => (
+        {Array.from({ length: 4 }).map((_, index) => (
           <li
             key={index}
             className="flex gap-3 rounded-lg border border-border bg-bg-elev/40 p-2"
@@ -158,6 +160,7 @@ export function StaffExtraCreditsSkeleton() {
                 <div className="h-5 w-12 animate-pulse rounded bg-bg-elev/60" />
                 <div className="h-5 w-14 animate-pulse rounded bg-bg-elev/60" />
               </div>
+              <div className="mt-3 h-2.5 w-3/4 animate-pulse rounded bg-bg-elev/60" />
             </div>
           </li>
         ))}
