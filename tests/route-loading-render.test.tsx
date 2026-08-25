@@ -310,6 +310,15 @@ describe('route loading skeletons', () => {
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 
+  it('matches tag detail metadata, mode controls, actions, and VN result section', async () => {
+    const html = renderToStaticMarkup(await TagLoading());
+    expect(html).toContain('data-tag-detail-skeleton');
+    expect(html).toContain('data-tag-results-skeleton');
+    expect(html).toContain('h-[54px] w-full max-w-[320px]');
+    expect(html.match(/aspect-\[2\/3\]/g)).toHaveLength(12);
+    expect(html).not.toContain('h-36 w-full');
+  });
+
   it('matches release inventory identity and owned-action rows', async () => {
     const html = renderToStaticMarkup(await ReleaseLoading());
     expect(html).toContain('data-release-inventory-skeleton');
