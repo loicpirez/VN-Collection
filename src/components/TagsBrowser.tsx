@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, SearchX, Tags } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
-import { SkeletonCompactGrid, SkeletonRows } from './Skeleton';
+import { SkeletonBlock, SkeletonCompactGrid } from './Skeleton';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
@@ -496,13 +496,44 @@ function TagListPanel({
 
 function VndbTreeSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true">
+    <div className="space-y-6" aria-busy="true" data-vndb-tag-tree-skeleton>
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-5">
-        <SkeletonRows count={5} withThumb={false} />
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <SkeletonBlock className="h-4 w-36" />
+          <SkeletonBlock className="h-11 w-20 can-hover:sm:h-8" />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="overflow-hidden rounded-lg border border-border bg-bg-elev/35">
+              <div className="flex min-h-[48px] items-center gap-3 px-4 py-3">
+                <SkeletonBlock className="h-4 w-4 shrink-0" />
+                <SkeletonBlock className="h-4 w-32" />
+                <SkeletonBlock className="h-3 w-8" />
+              </div>
+              <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
+                <SkeletonBlock className="h-7 w-24 rounded-full" />
+                <SkeletonBlock className="h-7 w-20 rounded-full" />
+                <SkeletonBlock className="h-7 w-28 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        <SkeletonRows count={6} withThumb={false} />
-        <SkeletonRows count={6} withThumb={false} />
+        {Array.from({ length: 2 }).map((_, panelIndex) => (
+          <section key={panelIndex} className="rounded-xl border border-border bg-bg-card p-4">
+            <SkeletonBlock className="mb-3 h-4 w-36" />
+            <ul className="space-y-2">
+              {Array.from({ length: 6 }).map((_, rowIndex) => (
+                <li key={rowIndex} className="flex min-h-[40px] items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-3 py-2">
+                  <SkeletonBlock className="h-3 w-2/3" />
+                  <SkeletonBlock className="ml-auto h-3 w-12" />
+                  <SkeletonBlock className="h-5 w-8" />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </div>
     </div>
   );

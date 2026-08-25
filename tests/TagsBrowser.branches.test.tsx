@@ -158,6 +158,17 @@ function routedFetch(map: { local?: unknown; tree?: unknown; tags?: unknown }) {
 }
 
 describe('TagsBrowser branches', () => {
+  it('preserves the hierarchy and ranking-panel geometry while VNDB tags load', () => {
+    global.fetch = vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    const { container } = renderWithProviders(<TagsBrowser initialMode="vndb" />, { locale: 'en' });
+    const skeleton = container.querySelector('[data-vndb-tag-tree-skeleton]');
+    expect(skeleton).toBeInTheDocument();
+    expect(skeleton?.querySelectorAll('.lg\\:grid-cols-2')).toHaveLength(2);
+    expect(skeleton?.querySelectorAll('.rounded-full')).toHaveLength(18);
+    expect(skeleton?.querySelectorAll('section')).toHaveLength(3);
+    expect(skeleton?.querySelectorAll('li')).toHaveLength(12);
+  });
+
   it('renders the local empty state after a resolved empty fetch', async () => {
     global.fetch = routedFetch({ local: localTagsApi([]) }) as unknown as typeof fetch;
     renderWithProviders(<TagsBrowser />, { locale: 'en' });
