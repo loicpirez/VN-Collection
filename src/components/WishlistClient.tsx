@@ -730,7 +730,7 @@ export function WishlistClient() {
             <select
               value={sort}
               onChange={(e) => setParam('sort', e.target.value === 'added_desc' ? null : e.target.value)}
-              className="input min-h-[44px] py-0 text-xs"
+              className="input h-11 py-0 text-xs"
               title={t.wishlist.sortLabel}
               aria-label={t.wishlist.sortLabel}
             >
@@ -741,7 +741,7 @@ export function WishlistClient() {
             <select
               value={group}
               onChange={(e) => setParam('group', e.target.value === 'none' ? null : e.target.value)}
-              className="input min-h-[44px] py-0 text-xs"
+              className="input h-11 py-0 text-xs"
               title={t.wishlist.groupLabel}
               aria-label={t.wishlist.groupLabel}
             >
@@ -830,7 +830,7 @@ export function WishlistClient() {
                 <select
                   value={filterLang}
                   onChange={(e) => setParam('lang', e.target.value || null)}
-                  className="input min-h-[44px] py-0 text-xs"
+                  className="input h-11 py-0 text-xs"
                   aria-label={t.wishlist.filterByLanguage}
                 >
                   <option value="">{t.wishlist.filterByLanguage}</option>
@@ -843,7 +843,7 @@ export function WishlistClient() {
                 <select
                   value={filterPlatform}
                   onChange={(e) => setParam('platform', e.target.value || null)}
-                  className="input min-h-[44px] py-0 text-xs"
+                  className="input h-11 py-0 text-xs"
                   aria-label={t.wishlist.filterByPlatform}
                 >
                   <option value="">{t.wishlist.filterByPlatform}</option>

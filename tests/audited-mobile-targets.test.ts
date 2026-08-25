@@ -20,5 +20,6 @@ describe('audited mobile touch targets', () => {
     expect(wishlist).toContain('inline-flex min-h-[44px] cursor-pointer items-center');
     expect(wishlist).toContain('can-hover:sm:min-h-0');
     expect(wishlist).toContain('className="h-5 w-5 shrink-0"');
+    expect(wishlist.match(/className="input h-11 py-0 text-xs"/g)).toHaveLength(4);
   });
 });
