@@ -36,4 +36,12 @@ describe('App Router loading contract', () => {
       .map(({ route }) => route);
     expect(rawLoaders).toEqual([]);
   });
+
+  it('keeps a local recovery boundary beside every page', () => {
+    const missing = collectPageDirectories(APP_ROOT)
+      .filter((directory) => !existsSync(join(directory, 'error.tsx')))
+      .map((directory) => relative(APP_ROOT, directory) || '/');
+
+    expect(missing).toEqual([]);
+  });
 });

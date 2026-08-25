@@ -13,14 +13,19 @@ import CompareError from '@/app/compare/error';
 import DataError from '@/app/data/error';
 import DumpedError from '@/app/dumped/error';
 import EgsError from '@/app/egs/error';
+import LabelsError from '@/app/labels/error';
 import ListsError from '@/app/lists/error';
 import ListDetailError from '@/app/lists/[id]/error';
+import MapError from '@/app/map/error';
+import PlaceDetailError from '@/app/places/[id]/error';
+import PlacesError from '@/app/places/error';
 import ProducerError from '@/app/producer/[id]/error';
 import ProducersError from '@/app/producers/error';
 import QuotesError from '@/app/quotes/error';
 import RecommendationsError from '@/app/recommendations/error';
 import ReleaseError from '@/app/release/[id]/error';
 import SchemaError from '@/app/schema/error';
+import SearchError from '@/app/search/error';
 import SeriesError from '@/app/series/error';
 import SeriesDetailError from '@/app/series/[id]/error';
 import ShelfError from '@/app/shelf/error';
@@ -28,10 +33,13 @@ import SimilarError from '@/app/similar/error';
 import StaffError from '@/app/staff/error';
 import StaffDetailError from '@/app/staff/[id]/error';
 import StatsError from '@/app/stats/error';
+import SteamError from '@/app/steam/error';
+import StockError from '@/app/stock/error';
 import TagError from '@/app/tag/[id]/error';
 import TagsError from '@/app/tags/error';
 import TopRankedError from '@/app/top-ranked/error';
 import TraitError from '@/app/trait/[id]/error';
+import TraitsError from '@/app/traits/error';
 import UpcomingError from '@/app/upcoming/error';
 import VnError from '@/app/vn/[id]/error';
 import WishlistError from '@/app/wishlist/error';
@@ -53,14 +61,19 @@ const boundaries: Array<[string, ComponentType<BoundaryProps>, string, string]> 
   ['data', DataError, '/', 'Route error'],
   ['dumped', DumpedError, '/', 'Route error'],
   ['egs', EgsError, '/', 'Route error'],
+  ['labels', LabelsError, '/', 'Labels page error'],
   ['lists', ListsError, '/', 'Lists error'],
   ['list detail', ListDetailError, '/lists', 'List detail error'],
+  ['map', MapError, '/places', 'Map page error'],
+  ['place detail', PlaceDetailError, '/places', 'Place detail error'],
+  ['places', PlacesError, '/', 'Places page error'],
   ['producer detail', ProducerError, '/producers', 'Producer detail error'],
   ['producers', ProducersError, '/', 'Route error'],
   ['quotes', QuotesError, '/', 'Quotes error'],
   ['recommendations', RecommendationsError, '/', 'Route error'],
   ['release detail', ReleaseError, '/', 'Release detail error'],
   ['schema', SchemaError, '/', 'Schema page error'],
+  ['search', SearchError, '/', 'Search page error'],
   ['series', SeriesError, '/', 'Series page error'],
   ['series detail', SeriesDetailError, '/series', 'Series detail error'],
   ['shelf', ShelfError, '/', 'Shelf page error'],
@@ -68,10 +81,13 @@ const boundaries: Array<[string, ComponentType<BoundaryProps>, string, string]> 
   ['staff', StaffError, '/', 'Staff page error'],
   ['staff detail', StaffDetailError, '/staff', 'Staff detail error'],
   ['stats', StatsError, '/', 'Stats page error'],
+  ['steam', SteamError, '/', 'Steam page error'],
+  ['stock', StockError, '/', 'Stock page error'],
   ['tag detail', TagError, '/tags', 'Tag detail error'],
   ['tags', TagsError, '/', 'Tags page error'],
   ['top ranked', TopRankedError, '/', 'Top-ranked page error'],
   ['trait detail', TraitError, '/traits', 'Trait detail error'],
+  ['traits', TraitsError, '/', 'Traits page error'],
   ['upcoming', UpcomingError, '/', 'Upcoming page error'],
   ['vn detail', VnError, '/', 'VN detail error'],
   ['wishlist', WishlistError, '/', 'Wishlist page error'],

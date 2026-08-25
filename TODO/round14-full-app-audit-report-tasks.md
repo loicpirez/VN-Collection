@@ -16,6 +16,7 @@ operations, providers, deployment, backup, and restore.
 | --- | --- | --- | --- | --- |
 | R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
 | R14-UX-001 | HIGH | The VN loading cover pulsed as a translucent block over an overlapping translucent banner skeleton. Firefox can composite both animated opacities and make the banner appear as a brighter foreground rectangle. Keep the cover pulse but place it inside an opaque, correctly layered shell matching the final cover geometry. | `src/app/vn/[id]/loading.tsx`, route-loading tests | DONE_WITH_DIFF |
+| R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
@@ -46,3 +47,7 @@ operations, providers, deployment, backup, and restore.
   pulse with the overlapping banner pulse. Forty-seven focused loading/image
   tests, typecheck, and production build pass; production activates the commit
   with PostgreSQL ready and zero service restarts.
+- Every one of the 40 App Router pages now has both a route-matched loading
+  skeleton and a segment-local error boundary. The shared recovery test covers
+  retry, digest, logging, and route-aware return behavior, while a structural
+  contract prevents future pages from omitting either boundary.
