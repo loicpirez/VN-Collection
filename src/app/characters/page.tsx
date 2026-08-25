@@ -646,7 +646,13 @@ function ChipLink({
 }) {
   const cls = active ? 'chip chip-active' : 'chip';
   return (
-    <Link href={href} className={[cls, className].filter(Boolean).join(' ')} aria-pressed={active} title={title}>
+    <Link
+      href={href}
+      prefetch={false}
+      className={[cls, className].filter(Boolean).join(' ')}
+      aria-pressed={active}
+      title={title}
+    >
       {children}
     </Link>
   );

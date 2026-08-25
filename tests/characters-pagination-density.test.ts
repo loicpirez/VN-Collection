@@ -23,4 +23,9 @@ describe('characters page pagination and density', () => {
     expect(DICT_SOURCE).toContain("paginationLabel: 'Characters pagination'");
     expect(DICT_SOURCE).toContain("paginationLabel: 'キャラクターのページ移動'");
   });
+
+  it('does not speculatively prefetch every dynamic filter destination', () => {
+    const chipLinkSource = PAGE_SOURCE.slice(PAGE_SOURCE.indexOf('function ChipLink('));
+    expect(chipLinkSource).toContain('prefetch={false}');
+  });
 });
