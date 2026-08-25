@@ -287,6 +287,7 @@ describe('top-ranked page runtime', () => {
     vi.mocked(fetchEgsTopRankedPage).mockRejectedValueOnce(new EgsUnreachable('network', 'offline'));
     let html = await renderPage({ tab: 'egs' });
     expect(html).toContain(dictionaries.en.topRanked.egsUnreachableTitle);
+    expect(html).toContain(dictionaries.en.topRanked.openIntegrations);
 
     vi.mocked(fetchVndbTopRankedPage).mockRejectedValueOnce(new Error('VNDB failed'));
     html = await renderPage();

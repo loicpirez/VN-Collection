@@ -15,6 +15,7 @@ import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
+import { OpenSettingsButton } from '@/components/OpenSettingsButton';
 import { brandHref, yearHref } from '@/lib/egs-links';
 import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 
@@ -179,6 +180,9 @@ async function TabContent({
         <div className="rounded-xl border border-status-on_hold/40 bg-status-on_hold/10 p-4 text-sm">
           <p className="font-bold text-status-on_hold">{t.topRanked.egsUnreachableTitle}</p>
           <p className="mt-1 text-[12px] text-muted">{t.topRanked.egsUnreachableHint}</p>
+          <div className="mt-3">
+            <OpenSettingsButton tab="integrations" label={t.topRanked.openIntegrations} />
+          </div>
         </div>
       );
     }
