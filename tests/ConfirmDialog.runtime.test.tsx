@@ -79,14 +79,18 @@ function MissingConfirmProvider() {
   return null;
 }
 
-function renderControls() {
-  return render(
+function ControlsTree() {
+  return (
     <I18nProvider locale="en" dict={t}>
       <ConfirmProvider>
         <ConfirmControls />
       </ConfirmProvider>
-    </I18nProvider>,
+    </I18nProvider>
   );
+}
+
+function renderControls() {
+  return render(<ControlsTree />);
 }
 
 afterEach(() => {
@@ -130,21 +134,33 @@ describe('ConfirmProvider runtime', () => {
   });
 
   it('enforces typed danger confirmation and traps keyboard focus', async () => {
-    renderControls();
-    fireEvent.click(screen.getByRole('button', { name: 'danger confirm' }));
+    const view = renderControls();
+    const launch = screen.getByRole('button', { name: 'danger confirm' });
+    launch.focus();
+    fireEvent.click(launch);
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(screen.getByText(t.common.dangerWarning)).toBeInTheDocument();
     const input = screen.getByRole('textbox');
     const erase = screen.getByRole('button', { name: 'Erase' });
+    const close = screen.getByRole('button', { name: t.common.close });
+    const cancel = screen.getByRole('button', { name: 'Keep' });
+    expect(input).toHaveFocus();
     expect(erase).toBeDisabled();
+    cancel.focus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(close).toHaveFocus();
     fireEvent.change(input, { target: { value: 'wrong' } });
     expect(erase).toBeDisabled();
+    input.focus();
+    view.rerender(<ControlsTree />);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('wrong');
     fireEvent.change(input, { target: { value: 'ERASE' } });
     expect(erase).toBeEnabled();
 
     erase.focus();
     fireEvent.keyDown(window, { key: 'Tab' });
-    expect(screen.getByRole('button', { name: t.common.close })).toHaveFocus();
+    expect(close).toHaveFocus();
     fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
     expect(erase).toHaveFocus();
     input.focus();
@@ -155,6 +171,7 @@ describe('ConfirmProvider runtime', () => {
 
     fireEvent.click(erase);
     await waitFor(() => expect(screen.getByTestId('history')).toHaveTextContent('danger:true'));
+    expect(launch).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: 'danger confirm' }));
     fireEvent.click(screen.getByRole('button', { name: t.common.close }));

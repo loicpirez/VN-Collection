@@ -31,6 +31,7 @@ operations, providers, deployment, backup, and restore.
 | R14-A11Y-001 | HIGH | Recheck landmarks, headings, names, labels, focus order, keyboard operation, dialogs, announcements, image alternatives, color-independent state, reduced motion, and target sizing across every route and major interaction. | application-wide | TODO |
 | R14-A11Y-002 | HIGH | The mobile navigation trigger rendered at 44 by 32 pixels and the expanded quote refresh action rendered at 12 by 12 pixels, despite pseudo-element helpers that did not change their layout boxes. Give the menu a permanent 44-pixel box and the quote action a 44-pixel box whenever it is interactive while preserving its compact, inert collapsed state. | `src/components/MoreNavMenu.tsx`, `src/components/QuoteFooter.tsx` | DONE_WITH_DIFF |
 | R14-A11Y-003 | HIGH | Sixteen dialog, popover, batch-progress, map-search, and quick-menu components exposed icon-only close actions whose actual layout boxes remained below 44 pixels, sometimes using the tighter pseudo-element helper that only reached about 28 pixels. Give every icon-only close action a real 44-by-44 box and enforce the complete close-button inventory structurally. | shared dialogs, artwork pickers, AliceNet link dialog, map, download, shelf, and quick-action panels | DONE_WITH_DIFF |
+| R14-A11Y-004 | HIGH | Typed confirmations relied on native `autoFocus`, captured focus after that transfer, included disabled submit buttons in their Tab loop, and rebuilt the focus effect when an inline close callback changed. This could lose the trigger for restoration, break wrapping while validation was incomplete, or move focus during an unrelated app rerender. Capture the trigger before moving focus, focus the required input explicitly, exclude disabled controls, and keep close callbacks behind a current ref. | `src/components/ConfirmDialog.tsx` | DONE_WITH_DIFF |
 | R14-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, hardcoded visible strings, date/time and number formatting, platform names, plural/range text, metadata, error messages, and layout resilience under longer translations. | i18n dictionaries and all rendered surfaces | TODO |
 | R14-I18N-002 | HIGH | Character birthdays forced day/month order, VN activity start/finish dates exposed ISO storage values, status changes exposed internal status keys, and playtime used a hardcoded `min` suffix. Route all four through locale-aware formatters and test French, English, and Japanese ordering and units. | `src/lib/locale-number.ts`, character detail, VN activity timeline | DONE_WITH_DIFF |
 | R14-I18N-003 | HIGH | EGS only decoded a hand-maintained entity subset and AliceNet did not decode HTML entities at ingestion, leaving encoded producer and title text in the shop UI, EGS metadata, search, and filters. Use a standards-based single-pass decoder for future ingestion and migrate historical SQLite and PostgreSQL values. | EGS and AliceNet parsers, SQLite bootstrap, PostgreSQL migration 0010 | DONE_WITH_DIFF |
@@ -210,3 +211,11 @@ operations, providers, deployment, backup, and restore.
   responsive scenarios pass. The full suite passes 9,776 tests with exactly
   100% statements, branches, functions, and lines, together with the complete
   typecheck.
+- Typed confirmations now capture their launcher before explicitly focusing
+  the required input, exclude disabled controls from their Tab loop, keep focus
+  stable across parent rerenders, and return it to the launcher after closing.
+  Prompt and confirm Escape handling now reads the latest close callback
+  without rebuilding the focus lifecycle. Seventeen focused runtime, server,
+  portal, and root-composition scenarios pass. The full suite passes 9,776
+  tests with exactly 100% statements, branches, functions, and lines, together
+  with the complete typecheck.

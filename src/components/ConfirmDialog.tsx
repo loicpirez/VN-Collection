@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -150,14 +151,21 @@ function ConfirmDialog({
   const [typed, setTyped] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const typeInputRef = useRef<HTMLInputElement>(null);
   const previouslyFocused = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    previouslyFocused.current = document.activeElement;
+  }, []);
 
   // Focus management: remember the element that had focus, move focus
   // to the confirm button on open, restore on close. ESC + outside-
   // click both dismiss as a cancel.
   useEffect(() => {
-    previouslyFocused.current = document.activeElement;
-    confirmBtnRef.current?.focus();
+    const initial = entry.requireTyping ? typeInputRef.current : confirmBtnRef.current;
+    initial?.focus();
     // Body-scroll lock (WCAG 2.4.3) so the underlying page can't
     // scroll behind the modal while it's open.
     const prevOverflow = document.body.style.overflow;
@@ -165,13 +173,13 @@ function ConfirmDialog({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose(false);
+        onCloseRef.current(false);
         return;
       }
       // Trap Tab inside the dialog.
       if (e.key === 'Tab' && dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
@@ -196,7 +204,7 @@ function ConfirmDialog({
         previouslyFocused.current.focus();
       }
     };
-  }, [onClose]);
+  }, [entry.requireTyping]);
 
   const needsTyping = !!entry.requireTyping;
   const typingOk = !needsTyping || typed === entry.requireTyping;
@@ -253,7 +261,7 @@ function ConfirmDialog({
               {t.common.confirmTypeHint.replace('{token}', entry.requireTyping!)}
             </label>
             <input
-              autoFocus
+              ref={typeInputRef}
               className="input mt-1 w-full"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
@@ -303,9 +311,14 @@ function PromptDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const previouslyFocused = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    previouslyFocused.current = document.activeElement;
+  }, []);
 
   useEffect(() => {
-    previouslyFocused.current = document.activeElement;
     inputRef.current?.focus();
     inputRef.current?.select();
     // Body-scroll lock (WCAG 2.4.3) so the underlying page can't
@@ -315,12 +328,12 @@ function PromptDialog({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose(null);
+        onCloseRef.current(null);
         return;
       }
       if (e.key === 'Tab' && dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
@@ -345,7 +358,7 @@ function PromptDialog({
         previouslyFocused.current.focus();
       }
     };
-  }, [onClose]);
+  }, []);
 
   const validationError = entry.validate ? entry.validate(value) : null;
   const canSubmit = !validationError;
