@@ -129,7 +129,7 @@ describe('producer detail page branches', () => {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
     let shell = '';
-    for (let i = 0; i < 50 && !shell.includes('h-16 w-11 shrink-0 rounded bg-bg-elev/60'); i += 1) {
+    for (let i = 0; i < 50 && !shell.includes('data-producer-role-skeleton="publisher"'); i += 1) {
       const { value, done } = await reader.read();
       if (value) shell += decoder.decode(value, { stream: true });
       if (done) break;
@@ -137,7 +137,8 @@ describe('producer detail page branches', () => {
 
     expect(shell).toContain('animate-pulse');
     expect(shell).toContain('--card-density-px, 220px');
-    expect(shell).toContain('h-16 w-11 shrink-0 rounded bg-bg-elev/60');
+    expect(shell).toContain('data-producer-role-skeleton="developer"');
+    expect(shell).toContain('data-producer-role-skeleton="publisher"');
     expect(shell).not.toContain('producer-vns-resolved');
 
     suspendState.resolve?.();

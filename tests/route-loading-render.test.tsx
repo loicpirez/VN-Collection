@@ -140,6 +140,44 @@ describe('route loading skeletons', () => {
     expect(html.match(/h-11 w-11 shrink-0/g)).toHaveLength(4);
   });
 
+  it('matches the character detail portrait ratio, metadata, and horizontal appearance cards', async () => {
+    const html = renderToStaticMarkup(await CharacterLoading());
+    expect(html).toContain('md:grid-cols-[200px_1fr]');
+    expect(html).toContain('aspect-[2/3]');
+    expect(html).not.toContain('aspect-[3/4]');
+    expect(html).toContain('data-character-credit-grid-skeleton');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.32)');
+    expect(html.match(/flex gap-3 rounded-lg border border-border bg-bg-elev\/40 p-2/g)).toHaveLength(8);
+  });
+
+  it('matches the ranked header and density-aware horizontal result cards', async () => {
+    const html = renderToStaticMarkup(await TopRankedLoading());
+    expect(html).toContain('data-top-ranked-results-skeleton');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.42)');
+    expect(html.match(/relative flex gap-3 rounded-xl border border-border bg-bg-card p-3/g)).toHaveLength(12);
+    expect(html.match(/absolute -left-1.5 -top-1.5/g)).toHaveLength(12);
+  });
+
+  it('matches the producer logo, tools, and both density-aware credit groups', async () => {
+    const html = renderToStaticMarkup(await ProducerLoading());
+    expect(html).toContain('h-24 w-24 shrink-0');
+    expect(html.match(/data-producer-role-skeleton=/g)).toHaveLength(2);
+    expect(html).toContain('data-producer-role-skeleton="developer"');
+    expect(html).toContain('data-producer-role-skeleton="publisher"');
+    expect(html).toContain('clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)');
+    expect(html.match(/relative flex gap-2 rounded-lg border border-border bg-bg-elev\/40 p-2 pr-10/g)).toHaveLength(12);
+  });
+
+  it('matches the places registry counters, controls, and action rows without VN cover cards', async () => {
+    const html = renderToStaticMarkup(await PlacesLoading());
+    expect(html).toContain('max-w-7xl');
+    expect(html).toContain('data-place-stats-skeleton');
+    expect(html).toContain('data-place-rows-skeleton');
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-4 text-center/g)).toHaveLength(6);
+    expect(html.match(/rounded-xl border border-border bg-bg-card p-3/g)).toHaveLength(6);
+    expect(html).not.toContain('aspect-[2/3]');
+  });
+
   it('renders every shared skeleton variant with optional labels and compact branches', () => {
     const html = renderToStaticMarkup(
       <div>

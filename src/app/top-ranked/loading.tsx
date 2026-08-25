@@ -1,12 +1,12 @@
-import { SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { SkeletonBoundary } from '@/components/Skeleton';
+import { TopRankedRouteSkeleton } from '@/components/TopRankedSkeleton';
 import { getDict } from '@/lib/i18n/server';
 
 export default async function Loading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.common.loading} className="w-full">
-      <div className="mb-6 h-32 animate-pulse rounded-2xl border border-border bg-bg-card" />
-      <SkeletonCardGrid count={12} />
+      <TopRankedRouteSkeleton />
     </SkeletonBoundary>
   );
 }

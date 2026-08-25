@@ -10,7 +10,7 @@ import { fmtDate, fmtNum, yearOnly } from '@/lib/locale-number';
 import { getCacheRepository } from '@/lib/db/repositories/cache';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { SafeImage } from '@/components/SafeImage';
-import { SkeletonCardGrid } from '@/components/Skeleton';
+import { TopRankedResultsSkeleton } from '@/components/TopRankedSkeleton';
 import { RefreshScopeButton } from '@/components/RefreshScopeButton';
 import { MapEgsToVndbButton } from '@/components/MapEgsToVndbButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -113,7 +113,7 @@ export default async function TopRankedPage({
         </div>
       </header>
 
-      <Suspense key={`${tab}-${page}-${minVotes}`} fallback={<SkeletonCardGrid count={12} />}>
+      <Suspense key={`${tab}-${page}-${minVotes}`} fallback={<TopRankedResultsSkeleton />}>
         <TabContent tab={tab} page={page} minVotes={minVotes} t={t} locale={locale} />
       </Suspense>
     </DensityScopeProvider>

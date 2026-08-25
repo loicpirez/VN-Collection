@@ -17,6 +17,7 @@ import { readScrapedProducerInfo, type ScrapedProducerInfo } from '@/lib/scrape-
 import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { safeHref } from '@/lib/safe-href';
+import { ProducerVnsSkeleton } from '@/components/ProducerVnsSkeleton';
 import { VNDB_CACHE_MS, isCacheFresh } from '@/lib/cache-age';
 import {
   PRODUCER_DETAIL_LAYOUT_EVENT,
@@ -216,7 +217,7 @@ export default async function ProducerPage({
           id: 'works',
           label: sectionLabels.works,
           node: (
-            <Suspense fallback={<ProducerVnsSkeleton />}>
+            <Suspense fallback={<ProducerVnsSkeleton label={t.common.loading} />}>
               <ProducerVnsSections producerId={producer.id} scope={scope} />
             </Suspense>
           ),
@@ -250,42 +251,6 @@ export default async function ProducerPage({
         );
       })()}
     </DensityScopeProvider>
-  );
-}
-
-function ProducerVnsSkeleton() {
-  return (
-    <section className="mb-8 space-y-6 animate-pulse">
-      <div className="h-6 w-64 rounded bg-bg-elev/60" />
-      <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
-        <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={`dev-skel-${i}`} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
-              <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-3/4 rounded bg-bg-elev/60" />
-                <div className="h-2 w-1/2 rounded bg-bg-elev/60" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
-        <div className="mb-4 h-4 w-40 rounded bg-bg-elev/60" />
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={`pub-skel-${i}`} className="flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2">
-              <div className="h-16 w-11 shrink-0 rounded bg-bg-elev/60" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-3/4 rounded bg-bg-elev/60" />
-                <div className="h-2 w-1/2 rounded bg-bg-elev/60" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
   );
 }
 

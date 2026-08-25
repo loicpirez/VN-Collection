@@ -17,6 +17,7 @@ operations, providers, deployment, backup, and restore.
 | R14-TEST-001 | HIGH | Full coverage initially reported two untested fallback branches in a relation-group key even though each map group is structurally non-empty. Encode that invariant directly and test that replacing the terminal relation resets pagination; rerun the complete PostgreSQL-backed coverage suite until all four metrics are exactly 100%. | `src/components/RelationsSection.tsx`, `tests/RelationsSection.test.tsx` | DONE_WITH_DIFF |
 | R14-UX-001 | HIGH | The VN loading cover pulsed as a translucent block over an overlapping translucent banner skeleton. Firefox can composite both animated opacities and make the banner appear as a brighter foreground rectangle. Keep the cover pulse but place it inside an opaque, correctly layered shell matching the final cover geometry. | `src/app/vn/[id]/loading.tsx`, route-loading tests | DONE_WITH_DIFF |
 | R14-UX-002 | HIGH | Staff and seiyuu loading routes used a generic tall block or vertical cover grid that did not resemble the final search controls, profile, timeline, or horizontal VN/character credits. Mirror the actual responsive geometry so loading does not replace one page shape with another. | staff list/detail loading boundaries and geometry tests | DONE_WITH_DIFF |
+| R14-UX-003 | HIGH | Character, top-ranked, producer, and place loading routes used incorrect artwork ratios or unrelated generic card grids. Mirror each destination's real header, controls, card direction, density behavior, statistics, and actions so streamed transitions preserve the final responsive geometry. | character, top-ranked, producer, and place loading boundaries and geometry tests | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -124,3 +125,11 @@ operations, providers, deployment, backup, and restore.
   geometry and exposes an accessible busy status. Structural render tests pin
   the responsive dimensions and card counts; the complete 9,754-test coverage
   suite reports exactly 100% statements, branches, functions, and lines.
+- Character loading now uses the final 2:3 portrait and horizontal appearance
+  rows; top-ranked loading preserves rank rows and its filter controls;
+  producer loading includes the logo, aliases, tools, and both role sections;
+  place loading presents its statistics, filters, and shop actions instead of
+  unrelated VN covers. Focused route, runtime, and component suites pass 62
+  scenarios, and the complete 9,758-test suite reports exactly 100% statements,
+  branches, functions, and lines together with typecheck and the production
+  build.
