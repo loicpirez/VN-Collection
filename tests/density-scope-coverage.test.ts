@@ -45,7 +45,7 @@ const EXPECTED_LOADING_SCOPES = [
   'app/places/(index)/loading.tsx:places',
   'app/producer/[id]/loading.tsx:producerWorks',
   'app/recommendations/loading.tsx:recommendations',
-  'app/search/loading.tsx:search',
+  'components/SearchPageSkeleton.tsx:search',
   'app/series/[id]/loading.tsx:seriesWorks',
   'app/shelf/loading.tsx:shelf',
   'app/similar/loading.tsx:vnSimilar',

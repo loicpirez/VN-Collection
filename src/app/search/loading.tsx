@@ -1,4 +1,4 @@
-import { SkeletonCardGrid, SkeletonBoundary } from '@/components/Skeleton';
+import { SearchPageSkeleton } from '@/components/SearchPageSkeleton';
 import { getDict } from '@/lib/i18n/server';
 
 /**
@@ -9,10 +9,5 @@ import { getDict } from '@/lib/i18n/server';
  */
 export default async function Loading() {
   const t = await getDict();
-  return (
-    <SkeletonBoundary label={t.common.loading} densityScope="search">
-      <div className="mb-3 h-10 w-full animate-pulse rounded-md bg-bg-elev/60" />
-      <SkeletonCardGrid count={18} />
-    </SkeletonBoundary>
-  );
+  return <SearchPageSkeleton label={t.common.loading} />;
 }

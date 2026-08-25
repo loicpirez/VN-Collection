@@ -29,6 +29,7 @@ operations, providers, deployment, backup, and restore.
 | R14-UX-012 | HIGH | `SafeImage` animated every reserved image frame before its intersection observer initiated a request. Long staff and seiyuu pages therefore retained hundreds of off-screen pulse animations after the page itself had settled. Keep far-offscreen frames static, animate only after entering the preload margin, and remove the skeleton after image decoding while preserving the existing responsive lightbox frame. | shared SafeImage lifecycle, long credit pages, VN media lightbox | DONE_WITH_DIFF |
 | R14-UX-013 | HIGH | Home navigation replaced its configurable strip composition with one unrelated cover grid and held the Library behind the reading-queue and anniversary queries. Mirror each saved section's order, visibility, collapsed state, and final responsive geometry; stream server feeds independently and do not query sections disabled in settings. | root route loading, home composition, configurable section fallbacks | DONE_WITH_DIFF |
 | R14-UX-014 | HIGH | VN character, quote, release, route, and stock sections used different generic placeholders while loading their code and data, then replaced those placeholders with artwork, metadata, action, and price-card geometries. Share destination-shaped fallbacks across both loading phases so the section does not flash, stack, or change dimensions as each chunk resolves. | VN lazy sections, stock panel, shared section skeletons | DONE_WITH_DIFF |
+| R14-UX-015 | HIGH | Search used four incompatible loading bodies: the route omitted source tabs and filters, the page Suspense boundary painted unrelated thumbnail rows, VNDB omitted the density toolbar, and EGS/local module loads used generic cover rows. Share source-specific geometry across route, shell, and request phases so tabs, input, filters, density, and each result type stay stable. | Search route, client shell, VNDB/EGS/local result loading | DONE_WITH_DIFF |
 | R14-RES-001 | HIGH | Eight routes had dedicated loading UI but no segment-local error boundary, so failures discarded route context and fell through to root recovery. Add tested local recovery for labels, map, place list/detail, search, Steam, stock, and traits, then enforce both loading and error siblings for every page. | App Router route boundaries and route-boundary tests | DONE_WITH_DIFF |
 | R14-UI-001 | HIGH | Re-audit all page layouts, navigation, dialogs, density controls, long lists, overflow, artwork controls, empty/error states, and workflow coherence at representative desktop, tablet, and mobile widths. Fix every reproducible inconsistency rather than relying on the Round 13 matrix. | all 40 pages and shared UI | TODO |
 | R14-RESP-001 | HIGH | Run a new Firefox, WebKit, and Chromium responsive matrix, including loading transitions, navbar/category menus, shelves, VN artwork, map overlays, settings controls, and long localized strings. Check page overflow, local scrollers, focus reachability, stacking, and 44 px touch surfaces. | production browser matrix | TODO |
@@ -292,3 +293,13 @@ operations, providers, deployment, backup, and restore.
   passes 195 scenarios, the production build passes, and the full suite passes
   9,797 tests with exactly 100% statements (44,756/44,756), branches
   (38,062/38,062), functions (9,122/9,122), and lines (38,212/38,212).
+- Search loading now preserves its three source tabs, query field, advanced
+  filter action, scoped density toolbar, and destination-specific result body
+  across route, Suspense, chunk, and request loading. VNDB retains its
+  density-aware cover grid, EGS retains compact metadata rows and add actions,
+  and Local retains its bordered text-result panel without invented artwork.
+  Real VNDB, EGS, and Local transitions at 390 pixels settle without a busy
+  surface or horizontal overflow. The focused suite passes 119 scenarios and
+  the full suite passes 9,800 tests with exactly 100% statements
+  (44,762/44,762), branches (38,070/38,070), functions (9,128/9,128), and lines
+  (38,218/38,218).

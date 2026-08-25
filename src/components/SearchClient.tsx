@@ -4,11 +4,15 @@ import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
-import { SkeletonCardGrid, SkeletonRows } from './Skeleton';
+import {
+  SearchEgsRowsSkeleton,
+  SearchLocalPanelSkeleton,
+  SearchVndbResultsSkeleton,
+} from './SearchPageSkeleton';
 
 const TextualSearchPanel = dynamic(() => import('./TextualSearchPanel').then((m) => m.TextualSearchPanel), {
   ssr: false,
-  loading: () => <SkeletonRows count={4} />,
+  loading: () => <SearchLocalPanelSkeleton />,
 });
 import { CardDensitySlider, cardGridColumns } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
@@ -786,7 +790,7 @@ export function SearchClient() {
         <TextualSearchPanel query={q} mode="standalone" />
       ) : source === 'egs' ? (
         egsLoading ? (
-          <SkeletonRows count={6} />
+          <SearchEgsRowsSkeleton label={t.common.loading} />
         ) : !touched && !egsResults.length ? (
           <div className="py-20 text-center">
             <h2 className="mb-2 text-xl font-bold">{t.search.heroTitleEgs}</h2>
@@ -831,7 +835,7 @@ export function SearchClient() {
           </ul>
         )
       ) : vndbLoading ? (
-        <SkeletonCardGrid count={18} />
+        <SearchVndbResultsSkeleton label={t.common.loading} />
       ) : !touched && !results.length ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.search.heroTitle}</h2>
