@@ -164,15 +164,21 @@ describe('route loading skeletons', () => {
   });
 
   it('matches the configurable home strips, controls, and library grid geometry', async () => {
-    const html = renderToStaticMarkup(await HomeLoading());
-    expect(html).toContain('data-home-section-skeleton="recently-viewed"');
-    expect(html).toContain('data-home-section-skeleton="reading-queue"');
-    expect(html).toContain('data-home-section-skeleton="anniversary"');
-    expect(html).toContain('data-home-section-skeleton="library-controls"');
-    expect(html).toContain('data-home-section-skeleton="library-grid"');
-    expect(html).toContain('data-home-library-grid-skeleton');
-    expect(html).toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
-    expect(html.match(/flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card/g)).toHaveLength(18);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const html = renderToStaticMarkup(await HomeLoading());
+      expect(html).toContain('data-home-section-skeleton="recently-viewed"');
+      expect(html).toContain('data-home-section-skeleton="reading-queue"');
+      expect(html).toContain('data-home-section-skeleton="anniversary"');
+      expect(html).toContain('data-home-section-skeleton="library-controls"');
+      expect(html).toContain('data-home-section-skeleton="library-grid"');
+      expect(html).toContain('data-home-library-grid-skeleton');
+      expect(html).toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
+      expect(html.match(/flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card/g)).toHaveLength(18);
+      expect(error.mock.calls.some((args) => args.some((arg) => String(arg).includes('unique "key" prop')))).toBe(false);
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('announces an isolated home section while only that server feed is pending', () => {

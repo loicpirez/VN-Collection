@@ -3,6 +3,7 @@ import {
   SkeletonBoundary,
   SkeletonCard,
 } from './Skeleton';
+import { Fragment } from 'react';
 import type {
   HomeSectionId,
   HomeSectionLayoutV1,
@@ -54,7 +55,9 @@ export function HomePageSkeleton({ layout, label }: HomePageSkeletonProps) {
       className="space-y-5"
       densityScope="library"
     >
-      {layout.order.map((id) => renderers[id])}
+      {layout.order.map((id) => (
+        <Fragment key={id}>{renderers[id]}</Fragment>
+      ))}
     </SkeletonBoundary>
   );
 }
