@@ -85,7 +85,7 @@ describe('ReadingGoalCard', () => {
     expect(await screen.findByText('10/5')).toBeInTheDocument();
     expect(screen.getByText('100%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: t.readingGoal.label })).toHaveAttribute('aria-valuenow', '100');
-    expect(screen.getByRole('button', { name: t.common.edit })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t.common.edit })).toHaveClass('min-w-[44px]', 'can-hover:sm:min-w-0');
   });
 
   it('supports edit cancellation by keyboard and button', async () => {

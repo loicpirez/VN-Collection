@@ -200,6 +200,13 @@ describe('ReadingQueueStripView', () => {
     expect(screen.getByText('You ≈ 1h 35m')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'First VN' })).toHaveAttribute('src', 'https://example.com/thumb.jpg');
     expect(screen.getByRole('img', { name: 'First VN' })).toHaveAttribute('data-local-src', '/local/thumb.jpg');
+    expect(screen.getByRole('link', { name: /First VN/ })).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
+    expect(screen.getByRole('img', { name: 'First VN' }).parentElement).toHaveClass(
+      'h-11',
+      'w-11',
+      'can-hover:sm:h-8',
+      'can-hover:sm:w-6',
+    );
     const item = screen.getByRole('listitem');
     expect(item).toHaveClass('opacity-40');
     expect(item).toHaveClass('cursor-grab');

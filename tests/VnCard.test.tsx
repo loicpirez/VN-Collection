@@ -263,7 +263,9 @@ describe('VnCard', () => {
     vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 200 }));
     renderWithProviders(<VnCard data={card()} enableAdd onAdded={onAdded} />, { locale: 'en' });
 
-    fireEvent.click(screen.getByRole('button', { name: t.cardAdd }));
+    const add = screen.getByRole('button', { name: t.cardAdd });
+    expect(add).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'can-hover:sm:min-h-0', 'can-hover:sm:min-w-0');
+    fireEvent.click(add);
 
     await waitFor(() => expect(toastMocks.success).toHaveBeenCalledWith(t.toast.added));
     expect(onAdded).toHaveBeenCalledWith('v90001');

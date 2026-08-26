@@ -95,7 +95,7 @@ export default async function DataPage() {
         </div>
 
         <details className="group rounded-lg border border-border bg-bg-elev/30 px-3 py-2 text-xs">
-          <summary className="cursor-pointer list-none text-muted [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center text-muted can-hover:sm:min-h-0 [&::-webkit-details-marker]:hidden">
             <CollapsibleSummary>
               <KeyRound className="inline h-3 w-3" aria-hidden /> {t.dataMgmt.statusRows}
             </CollapsibleSummary>

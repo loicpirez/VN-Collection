@@ -323,7 +323,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
           }}
           disabled={adding}
-          className="card-action-overlay absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-0.5 text-[11px] font-bold text-bg shadow-card hover:bg-accent disabled:opacity-50"
+          className="card-action-overlay absolute right-2 top-2 z-20 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md bg-accent/90 px-3 py-1.5 text-[11px] font-bold text-bg shadow-card hover:bg-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0 can-hover:sm:px-2 can-hover:sm:py-0.5"
           title={t.form.add}
         >
           <span className="inline-flex h-3 w-3 items-center justify-center">

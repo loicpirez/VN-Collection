@@ -42,6 +42,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                 href={`/character/${c.id}`}
                 className="block h-20 w-14 shrink-0 overflow-hidden rounded"
                 tabIndex={-1}
+                aria-label={c.name}
               >
                 <SafeImage
                   src={c.image?.url ?? null}

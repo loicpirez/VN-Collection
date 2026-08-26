@@ -229,10 +229,10 @@ function QueueChip({
     >
       <Link
         href={`/vn/${entry.vn_id}`}
-        className="group flex items-center gap-2 rounded-md bg-bg-elev/40 px-2 py-1 text-xs hover:bg-bg-elev"
+        className="group flex min-h-[44px] items-center gap-2 rounded-md bg-bg-elev/40 px-2 py-1 text-xs hover:bg-bg-elev can-hover:sm:min-h-0"
       >
         <span className="font-mono text-[10px] text-muted">{position}</span>
-        <div className="h-8 w-6 overflow-hidden rounded">
+        <div className="h-11 w-11 shrink-0 overflow-hidden rounded can-hover:sm:h-8 can-hover:sm:w-6">
           <SafeImage
             src={entry.image_url || entry.image_thumb}
             localSrc={entry.local_image_thumb}

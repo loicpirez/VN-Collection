@@ -183,6 +183,36 @@ describe('responsive tap targets', () => {
     const anniversary = source('src/components/AnniversaryFeedView.tsx');
     expect(anniversary).toContain('flex min-h-[44px] items-center');
     expect(anniversary).toContain('sm:min-h-0');
+    expect(anniversary).toContain('h-11 w-11 shrink-0');
+    expect(anniversary).toContain('can-hover:sm:h-8 can-hover:sm:w-6');
+  });
+
+  it('keeps route-matrix disclosures, cards, goals, and VN metadata touch-safe', () => {
+    const queue = source('src/components/ReadingQueueStripView.tsx');
+    expect(queue).toContain('flex min-h-[44px] items-center');
+    expect(queue).toContain('h-11 w-11 shrink-0');
+    expect(queue).toContain('can-hover:sm:h-8 can-hover:sm:w-6');
+
+    const card = source('src/components/VnCard.tsx');
+    expect(card).toContain('min-h-[44px] min-w-[44px]');
+    expect(card).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
+
+    for (const path of [
+      'src/app/data/page.tsx',
+      'src/components/SchemaLocalSection.tsx',
+      'src/components/StaffSection.tsx',
+      'src/app/vn/[id]/page.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('min-h-[44px]');
+      expect(body, path).toContain('can-hover:sm:min-h-0');
+    }
+
+    const goal = source('src/components/ReadingGoalCard.tsx');
+    expect(goal).toContain('min-w-[44px]');
+    expect(goal).toContain('can-hover:sm:min-w-0');
+
+    expect(source('src/components/CastSection.tsx')).toContain('aria-label={c.name}');
   });
 
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {

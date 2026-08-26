@@ -126,7 +126,7 @@ export function ReadingGoalCard({ year }: Props) {
           <Target className="h-5 w-5 text-accent" aria-hidden /> {t.readingGoal.label} {year}
         </h2>
         {loaded && !editing && (
-          <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-primary">
+          <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-primary min-w-[44px] can-hover:sm:min-w-0">
             {target == null ? t.readingGoal.setCta : t.common.edit}
           </button>
         )}
@@ -149,7 +149,7 @@ export function ReadingGoalCard({ year }: Props) {
             aria-label={t.readingGoal.label}
             className="input w-32"
           />
-          <button type="button" onClick={save} disabled={busy} className="btn btn-xs btn-primary">
+          <button type="button" onClick={save} disabled={busy} className="btn btn-xs btn-primary min-w-[44px] can-hover:sm:min-w-0">
             {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.common.save}
           </button>
           <button type="button" onClick={() => setEditing(false)} disabled={busy} className="btn btn-xs">

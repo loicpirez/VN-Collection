@@ -36,7 +36,7 @@ export async function SchemaLocalSection() {
       <div className="mt-4 space-y-3">
         {snapshot.tables.map((table) => (
           <details key={table.name} className="group rounded-lg border border-border bg-bg-elev/30">
-            <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-3 py-2 text-sm font-semibold can-hover:sm:min-h-0 [&::-webkit-details-marker]:hidden">
               <CollapsibleSummary>
                 {table.name} <span className="text-xs font-normal text-muted">({table.columns.length})</span>
               </CollapsibleSummary>

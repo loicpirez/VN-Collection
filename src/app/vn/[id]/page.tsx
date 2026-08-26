@@ -817,14 +817,14 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                   <Link
                     key={place}
                     href={`/?place=${encodeURIComponent(place)}`}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 transition-colors hover:border-accent hover:text-accent"
+                    className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0"
                     title={t.form.physicalLocation}
                   >
                     <Home className="h-3 w-3 text-accent" aria-hidden /> {place}
                   </Link>
                 ))}
                 {(vn.series ?? []).map((s) => (
-                  <Link key={s.id} href={`/series/${s.id}`} className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 hover:border-accent">
+                  <Link key={s.id} href={`/series/${s.id}`} className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 hover:border-accent can-hover:sm:min-h-0">
                     {s.name}
                   </Link>
                 ))}
@@ -840,7 +840,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 {vn.dumped && (
                   <Link
                     href="/?dumped=1"
-                    className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent transition-colors hover:border-accent hover:bg-accent/20"
+                    className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-accent transition-colors hover:border-accent hover:bg-accent/20 can-hover:sm:min-h-0"
                     title={t.form.dumpedHint}
                   >
                     <HardDriveDownload className="h-3 w-3" aria-hidden /> {t.form.dumped}

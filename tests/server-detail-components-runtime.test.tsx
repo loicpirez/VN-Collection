@@ -102,6 +102,8 @@ describe('server detail helpers', () => {
     expect(html).toContain('href="/staff?role=qa"');
     expect(html.match(/href="\/staff\/s90001"/g)).toHaveLength(2);
     expect(html).toContain('href="/staff?role=staff"');
+    expect(html).toContain('min-h-[44px]');
+    expect(html).toContain('can-hover:sm:min-h-0');
   });
 
   it('renders valid cast links with local artwork and skips incomplete credits', async () => {
@@ -127,6 +129,7 @@ describe('server detail helpers', () => {
     expect(html).toContain('/local/c90001.jpg');
     expect(html).toContain('Original Heroine');
     expect(html).toContain('Original Actor');
+    expect(html).toContain('aria-label="Heroine"');
   });
 
   it('renders an anime chip only for matched VNDB results', async () => {

@@ -137,6 +137,8 @@ describe('SchemaLocalSection', () => {
     expect(html).toContain(dictionaries.en.common.no);
     expect(html).toContain('SQLite');
     expect(html).toContain(dictionaries.en.schemaLocal.notApplicable);
+    expect(html).toContain('min-h-[44px]');
+    expect(html).toContain('can-hover:sm:min-h-0');
   });
 
   it('renders PostgreSQL migration and pool diagnostics', async () => {
