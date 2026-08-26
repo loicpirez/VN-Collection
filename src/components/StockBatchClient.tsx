@@ -191,7 +191,6 @@ export function StockBatchClient() {
   }, [jobId, t.common.error]);
 
   function toggleProvider(id: string) {
-    if (!enabledProviders.includes(id)) return;
     setSelectedProviders((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );

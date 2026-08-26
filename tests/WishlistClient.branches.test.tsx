@@ -226,11 +226,11 @@ describe('WishlistClient branches', () => {
   it('commits a blank search and ignores non-Enter numeric key presses', async () => {
     nav.searchParams = new URLSearchParams('hideOwned=0&q=alpha');
     installFetch(state([item('v90001', 'Alpha')]));
-    renderWishlist();
-    await screen.findByText('Alpha');
-
     vi.useFakeTimers();
     try {
+      renderWishlist();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
       nav.replace.mockClear();
       await act(async () => {
         fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: '   ' } });

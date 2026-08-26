@@ -779,6 +779,30 @@ describe('AliceNetClient', () => {
     expect(statusCalls).toBeGreaterThan(1);
   });
 
+  it('shows the API diagnostic when polling an active job returns a failure response', async () => {
+    let statusCalls = 0;
+    global.fetch = vi.fn((url: RequestInfo | URL) => {
+      const value = String(url);
+      if (value === '/api/download-status') {
+        statusCalls += 1;
+        if (statusCalls > 1) return Promise.resolve(json({ error: 'Status service unavailable' }, 503));
+        return Promise.resolve(json({
+          throttle: { active: 0, queued: 0 },
+          jobs: [{
+            id: 'alice-job-http-error', kind: 'alicenet', vn_id: null, label: 'AliceNet status check',
+            total: 2, done: 1, current_item: null, errors: [], started_at: 10, finished_at: null,
+          }],
+        }));
+      }
+      return Promise.resolve(json(snapshot({ items: [VNDB_ITEM], stats: { matched: 1, vndb_matched: 1 } })));
+    });
+
+    renderClient();
+    await screen.findByText('AliceNet status check');
+    expect(await screen.findByText('AliceNet operation status is temporarily unavailable.', {}, { timeout: 3_000 })).toBeInTheDocument();
+    expect(statusCalls).toBeGreaterThan(1);
+  });
+
   it('ignores a status snapshot that resolves after unmount', async () => {
     const statusRequest = deferredResponse();
     const fetchMock = vi.fn((url: RequestInfo | URL) => {

@@ -193,6 +193,19 @@ describe('SpoilerChip', () => {
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'hidden');
   });
 
+  it('hydrates an already-open native disclosure as revealed', () => {
+    const open = vi.spyOn(HTMLDetailsElement.prototype, 'open', 'get').mockReturnValue(true);
+    try {
+      renderWithProviders(
+        <SpoilerChip level={1} currentSpoilerLevel={0} showSexual href="/tag/g5">Pre-opened tag</SpoilerChip>,
+        { locale: 'en' },
+      );
+      expect(document.querySelector('[data-spoiler-state]')).toHaveAttribute('data-spoiler-state', 'revealed');
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it('resets its mirrored disclosure state when a different chip mounts', () => {
     const { rerender } = renderWithProviders(
       <SpoilerChip level={2} currentSpoilerLevel={0} showSexual href="/tag/g1">Secret</SpoilerChip>,

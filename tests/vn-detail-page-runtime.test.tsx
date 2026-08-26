@@ -574,7 +574,7 @@ describe('VN detail page runtime', () => {
         { id: 'p90005', name: 'Publisher 5' },
         { id: 'p90006', name: 'Publisher 6' },
         { id: 'p90007', name: 'Publisher 7' },
-        { id: 'p90008', name: 'Publisher 8' },
+        { id: '', name: 'Overflow publisher' },
       ],
       tags: [{ id: 'g1', name: 'Tag', rating: 3, spoiler: 0 }],
       screenshots: [{ url: 'shot.jpg', thumbnail: 'shot-thumb.jpg' }],
@@ -626,10 +626,12 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('data-quote-rows-skeleton');
     expect(html).toContain('data-stock-panel-skeleton');
     expect(html).toContain(dictionaries.en.library.fanDisc);
-    expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '1'));
+    expect(html).toContain(dictionaries.en.form.andNMore.replace('{n}', '2'));
     expect(html).toContain('data-metadata-overflow-variant="language"');
     expect(html).toContain('data-metadata-overflow-variant="publisher"');
     expect(html).toContain('href="/producer/p2"');
+    expect(html).toContain('Anonymous publisher');
+    expect(html).toContain('Overflow publisher');
     expect(html).toContain('href="/?aspect=16%3A9"');
     expect(html).toContain('title="Windows"');
     expect(html).toContain('aria-label="Windows"');

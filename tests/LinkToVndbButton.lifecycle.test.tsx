@@ -53,4 +53,34 @@ describe('LinkToVndbButton lifecycle guards', () => {
       vi.useRealTimers();
     }
   });
+
+  it('ignores a queued timer callback that runs after the identity changes', async () => {
+    let queuedSearch: ((value: void) => void) | undefined;
+    const placeholder = global.setTimeout(() => {}, 60_000);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler: (value: void) => void) => {
+      queuedSearch = handler;
+      return placeholder;
+    });
+    try {
+      const view = renderWithProviders(
+        <LinkToVndbButton vnId="egs_7" seedQuery="Title A" />,
+        { locale: 'en' },
+      );
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(t.linkVndb.cta) }));
+      const dialog = screen.getByRole('dialog');
+      fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'queued query' } });
+      const staleCallback = queuedSearch;
+      if (!staleCallback) throw new Error('Expected a queued search callback');
+      view.rerender(<LinkToVndbButton vnId="egs_8" seedQuery="Title B" />);
+      vi.mocked(global.fetch).mockClear();
+
+      await act(async () => {
+        staleCallback(undefined);
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    } finally {
+      setTimeoutSpy.mockRestore();
+      global.clearTimeout(placeholder);
+    }
+  });
 });

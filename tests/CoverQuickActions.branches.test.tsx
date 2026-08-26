@@ -48,6 +48,28 @@ function deferredResponse() {
   return { promise, resolve, reject };
 }
 
+function delayedJsonResponse() {
+  let streamController!: ReadableStreamDefaultController<Uint8Array>;
+  let markReading!: () => void;
+  const reading = new Promise<void>((resolve) => { markReading = resolve; });
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+    },
+    pull() {
+      markReading();
+    },
+  });
+  return {
+    response: new Response(stream, { headers: { 'content-type': 'application/json' } }),
+    reading,
+    resolve(body: unknown) {
+      streamController.enqueue(new TextEncoder().encode(JSON.stringify(body)));
+      streamController.close();
+    },
+  };
+}
+
 describe('CoverQuickActions branches', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -172,6 +194,17 @@ describe('CoverQuickActions branches', () => {
     view.unmount();
     await act(async () => {
       status.resolve(jsonResponse(statusPayload(false)));
+    });
+  });
+
+  it('ignores status JSON that finishes decoding after unmount', async () => {
+    const status = delayedJsonResponse();
+    global.fetch = vi.fn().mockResolvedValue(status.response);
+    const view = renderWithProviders(<CoverQuickActions vnId="v90001" inCollection={false} mode="tracking" />, { locale: 'en' });
+    await status.reading;
+    view.unmount();
+    await act(async () => {
+      status.resolve(statusPayload(false));
     });
   });
 

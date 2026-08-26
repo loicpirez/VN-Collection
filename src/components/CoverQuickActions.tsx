@@ -100,9 +100,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all', variant = 
       try {
         const r = await requestVndbStatus(vnId, false, ac.signal);
         if (!r.ok) {
-          if (!ac.signal.aborted) {
-            setWishlist({ loading: false, available: false, onWishlist: false });
-          }
+          setWishlist({ loading: false, available: false, onWishlist: false });
           return;
         }
         const data = decodeVndbStatusClientState(await r.json());
