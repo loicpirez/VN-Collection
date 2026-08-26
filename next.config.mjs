@@ -1,4 +1,5 @@
 const isDevelopment = process.env.NODE_ENV === 'development';
+const isInteractionQa = process.env.VNCOLL_QA === '1';
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''}`,
@@ -14,7 +15,7 @@ const contentSecurityPolicy = [
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
-  ...(isDevelopment ? [] : ['upgrade-insecure-requests']),
+  ...(isDevelopment || isInteractionQa ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 
 /** @type {import('next').NextConfig} */

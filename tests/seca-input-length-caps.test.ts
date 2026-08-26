@@ -129,6 +129,8 @@ describe('seca-input-length-caps — security headers in next.config.mjs', () =>
     expect(src).toContain("base-uri 'self'");
     expect(src).toContain("form-action 'self'");
     expect(src).toContain('upgrade-insecure-requests');
+    expect(src).toContain("const isInteractionQa = process.env.VNCOLL_QA === '1'");
+    expect(src).toContain('isDevelopment || isInteractionQa ? []');
     expect(src).toContain("isDevelopment ? \" 'unsafe-eval'\" : ''");
   });
 });

@@ -21,6 +21,12 @@ if (process.env.VNCOLL_QA !== '1') die('VNCOLL_QA=1 is required for write-capabl
 if (!dbPath || dbPath === realDb || !dbPath.includes(qaRoot)) die(`refusing DB_PATH=${dbPath || '<unset>'}; use .qa/data/collection.db`);
 if (!storageRoot || storageRoot === realStorage || !storageRoot.includes(qaRoot)) die(`refusing STORAGE_ROOT=${storageRoot || '<unset>'}; use .qa/storage`);
 
+const qaServerResponse = await fetch(base);
+const qaServerCsp = qaServerResponse.headers.get('content-security-policy') ?? '';
+if (new URL(base).protocol === 'http:' && qaServerCsp.includes('upgrade-insecure-requests')) {
+  die('the HTTP QA server still enforces upgrade-insecure-requests; start it with VNCOLL_QA=1');
+}
+
 const checks = [];
 function check(name, fn) {
   checks.push({ name, fn });
@@ -380,19 +386,38 @@ check('spoiler hover and click reveal text without opaque block', async (page) =
     await handle.hover();
     await page.waitForTimeout(200);
     const hoverState = await handle.getAttribute('data-spoiler-state');
+    const nativeDisclosure = await handle.evaluate((element) => element instanceof HTMLDetailsElement);
+    const nativePreviewVisible = nativeDisclosure
+      ? await handle.evaluate((element) => {
+          const preview = element.querySelector('[data-spoiler-preview]');
+          if (!(preview instanceof HTMLElement)) return false;
+          const style = getComputedStyle(preview);
+          const rect = preview.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        })
+      : false;
     assert(
-      hoverState === 'transient' || hoverState === 'revealed',
+      hoverState === 'transient' || hoverState === 'revealed' || nativePreviewVisible,
       `${url} spoiler did not reveal on hover (state=${hoverState})`,
     );
     await page.mouse.move(5, 5);
     await page.waitForTimeout(200);
     // SpoilerChip keeps its outer wrapper stable across the gated
-    // button -> revealed link transition.
-    await handle.click();
+    // native disclosure -> revealed link transition.
+    if (nativeDisclosure) {
+      const summary = await handle.$('[data-spoiler-summary]');
+      assert(summary, `${url} native spoiler is missing its summary control`);
+      await summary.click();
+    } else {
+      await handle.click();
+    }
     await page.waitForTimeout(300);
     const clickState = await handle.getAttribute('data-spoiler-state');
+    const nativeOpen = nativeDisclosure
+      ? await handle.evaluate((element) => element instanceof HTMLDetailsElement && element.open)
+      : false;
     assert(
-      clickState === 'revealed',
+      clickState === 'revealed' || nativeOpen,
       `${url} spoiler did not persist after click (state=${clickState})`,
     );
     const blackBlock = await page.locator('.bg-black').count();
@@ -485,6 +510,9 @@ check('shelf display controls change rendered CSS variables', async (page) => {
     ? current + step * 4
     : Math.max(min, current - step * 4);
   assert(target !== current, `shelf width slider has no movable range (${min}..${max})`);
+  const targetSave = page.waitForResponse((response) =>
+    response.url().endsWith('/api/settings') && response.request().method() === 'PATCH',
+  );
   await slider.fill(String(target));
   await page.waitForFunction(
     (previous) => {
@@ -494,8 +522,13 @@ check('shelf display controls change rendered CSS variables', async (page) => {
     },
     before,
   );
+  const targetResponse = await targetSave;
+  assert(targetResponse.ok(), `shelf width save failed with HTTP ${targetResponse.status()}`);
   const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   assert(before !== after, `shelf cell width CSS variable did not change (${before} -> ${after})`);
+  const restoreSave = page.waitForResponse((response) =>
+    response.url().endsWith('/api/settings') && response.request().method() === 'PATCH',
+  );
   await slider.fill(String(current));
   await page.waitForFunction(
     (expected) => {
@@ -505,6 +538,8 @@ check('shelf display controls change rendered CSS variables', async (page) => {
     },
     before,
   );
+  const restoreResponse = await restoreSave;
+  assert(restoreResponse.ok(), `shelf width restore failed with HTTP ${restoreResponse.status()}`);
 });
 
 check('shelf scroll frame clips wide rows and paints fades only at hidden edges', async (page) => {

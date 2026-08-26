@@ -75,6 +75,7 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toMatch(/WRITE_QA_ALLOWED=1 is required/);
     expect(INTERACTIONS).toMatch(/VNCOLL_QA=1 is required/);
     expect(INTERACTIONS).toMatch(/refusing DB_PATH/);
+    expect(INTERACTIONS).toMatch(/HTTP QA server still enforces upgrade-insecure-requests/i);
   });
 
   it('waits for the streamed route skeleton to leave before asserting page content', () => {
