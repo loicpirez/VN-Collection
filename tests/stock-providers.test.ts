@@ -695,6 +695,14 @@ describe('getProviderMeta', () => {
     expect(m?.confirmedPhysicalUsable).toBe(false);
   });
 
+  it('describes Joshin as a blocked limited phone lead', () => {
+    const m = getProviderMeta('joshin');
+    expect(m?.supportLevel).toBe('limited');
+    expect(m?.physicalStockMode).toBe('phone_only');
+    expect(m?.cloudflare).toBe(true);
+    expect(m?.confirmedPhysicalUsable).toBe(false);
+  });
+
   it('returns metadata for trader — online_only (chuko-tsuhan.com is online-only)', () => {
     const m = getProviderMeta('trader');
     expect(m?.physicalStockMode).toBe('online_only');
