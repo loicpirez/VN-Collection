@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const ROUTES = readFileSync('src/components/RoutesSection.tsx', 'utf8');
+const VN_PAGE = readFileSync('src/app/vn/[id]/page.tsx', 'utf8');
 
 describe('route-section lifecycle', () => {
   it('resets VN-scoped route state and nested add drafts on identity changes', () => {
@@ -44,5 +45,11 @@ describe('route-section lifecycle', () => {
   it('uses a locale-neutral ASCII suggestion separator', () => {
     expect(ROUTES).toContain('`${c.name} / ${c.original}`');
     expect(ROUTES).not.toContain('`${c.name} · ${c.original}`');
+  });
+
+  it('does not nest the route data skeleton inside a streamed dynamic-module fallback', () => {
+    expect(VN_PAGE).toContain("import { RoutesSection } from '@/components/RoutesSection';");
+    expect(VN_PAGE).not.toContain("nextDynamic(() => import('@/components/RoutesSection')");
+    expect(ROUTES).toContain('<RouteRowsSkeleton label={t.common.loading} />');
   });
 });

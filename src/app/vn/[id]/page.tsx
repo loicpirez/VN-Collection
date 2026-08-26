@@ -23,7 +23,6 @@ import {
   CharacterCardsSkeleton,
   QuoteRowsSkeleton,
   ReleaseRowsSkeleton,
-  RouteRowsSkeleton,
 } from '@/components/VnSectionSkeletons';
 import { AspectOverrideControl } from '@/components/AspectOverrideControl';
 import { getVn } from '@/lib/vndb';
@@ -73,6 +72,7 @@ import { parseJsonRecord } from '@/lib/json-shape';
 import { MatchBadges } from '@/components/MatchBadges';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { StockPanelBoundary } from '@/components/StockPanelBoundary';
+import { RoutesSection } from '@/components/RoutesSection';
 import { FieldCompare } from '@/components/FieldCompare';
 import { CustomSynopsis } from '@/components/CustomSynopsis';
 import { BrandCompare } from '@/components/BrandCompare';
@@ -98,10 +98,6 @@ const MediaGallery = nextDynamic(() => import('@/components/MediaGallery').then(
 
 const CharactersSection = nextDynamic(() => import('@/components/CharactersSection').then((m) => m.CharactersSection), {
   loading: () => <div className="px-6 py-5"><CharacterCardsSkeleton /></div>,
-});
-
-const RoutesSection = nextDynamic(() => import('@/components/RoutesSection').then((m) => m.RoutesSection), {
-  loading: () => <section className="p-4 sm:p-6"><RouteRowsSkeleton /></section>,
 });
 
 const QuotesSection = nextDynamic(() => import('@/components/QuotesSection').then((m) => m.QuotesSection), {
