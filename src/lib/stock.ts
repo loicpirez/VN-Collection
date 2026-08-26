@@ -1649,6 +1649,12 @@ async function refreshGenericProvider(provider: StockProviderId, vnId: string, r
   };
   for (const target of allTargetsForProvider(releases, provider, vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { encoding: providerEncoding(provider), signal });
+    if (
+      provider === 'amazon_jp'
+      && /triggerInterstitialChallenge|validateCaptcha|enter the characters you see below/i.test(html)
+    ) {
+      throw new Error('amazon_challenge');
+    }
     for (const parsed of parseGenericProviderPage(provider, html, target.url, target).slice(0, 10)) {
       const cl = classifyOffer(parsed.title, parsed.category ?? null, classifyTarget, { source: stockTargetSource(target), provider: provider });
       offers.push(offerInput(vnId, provider, stockTargetSource(target), now, { ...parsed, ...classificationToFields(cl) }));
@@ -2583,19 +2589,21 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       const msg = providerCtrl.signal.aborted
         ? `provider timeout after ${STOCK_PROVIDER_TIMEOUT_MS}ms`
         : (e as Error).message;
-      const isCloudflare = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
-      const cachedOffers = provider === 'surugaya'
+      const isProtected = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
+      const cachedOffers = isProtected
         ? (await stockRepository.listOffers(vnId)).filter((offer) => offer.provider === provider)
         : [];
-      const preserveExistingOffers = isCloudflare && cachedOffers.length > 0;
+      const preserveExistingOffers = isProtected && cachedOffers.length > 0;
       await stockRepository.replaceProviderSnapshot(vnId, provider, [], {
-        status: isCloudflare ? 'protected' : 'error',
-        message: isCloudflare
-          ? 'Cloudflare protected — automated access blocked.'
+        status: isProtected ? 'protected' : 'error',
+        message: isProtected
+          ? provider === 'amazon_jp'
+            ? 'Amazon anti-bot challenge blocked the automated lookup.'
+            : 'Cloudflare protected — automated access blocked.'
           : msg,
         fetched_at: now,
         offer_count: preserveExistingOffers ? cachedOffers.length : 0,
-        blocked_kind: isCloudflare ? 'search_page' : null,
+        blocked_kind: isProtected ? 'search_page' : null,
         fresh_offers_found: 0,
         cached_offers_available: preserveExistingOffers ? cachedOffers.length : 0,
       }, { preserveExistingOffers });

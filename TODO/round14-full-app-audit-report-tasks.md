@@ -143,6 +143,7 @@ operations, providers, deployment, backup, and restore.
 | R14-STOCK-005 | HIGH | A linked shop stock request returned every VN and every offer before the browser paginated locally; the production AliceNet shop therefore transferred more than one thousand VN rows for each visit and repeated the full payload for every filter. Validate bounded query parameters, filter and sort on the server, return stable page and producer metadata, restrict offer loading to the visible VN window, preserve legacy response decoding, and keep loaded results visible during background page changes. | place stock API, repository offer window, place stock browser, response decoder | DONE_WITH_DIFF |
 | R14-STOCK-006 | HIGH | Batch stock controls could visually reselect providers disabled in Settings through the All, physical, online, or aggregator shortcuts, while the server silently omitted them. A narrow run could also be mistaken for a global refresh because the workspace did not state that freshness changes only for selected providers. Keep disabled providers unavailable through every shortcut, display the selected/active count, and explain the scope before launch. | batch stock provider selection and localized guidance | DONE_WITH_DIFF |
 | R14-STOCK-007 | MEDIUM | Joshin was advertised as a fully supported automated provider even though fresh checks from the workstation and 414 of 416 persisted production checks were rejected with HTTP 403. Classify it as a limited, blocked, phone-only lead while preserving its parser for the rare accessible response. | provider capability catalogue and stock diagnostics | DONE_WITH_DIFF |
+| R14-STOCK-008 | HIGH | Amazon Japan returned HTTP 200 to the workstation while serving an anti-bot interstitial instead of search results. The generic parser treated that response as a successful empty result and could erase a useful cached snapshot. Detect the interstitial as a protected provider response, retain existing offers, and report the blocked lookup explicitly instead of claiming that no stock exists. | Amazon provider refresh, protected-provider snapshot handling | DONE_WITH_DIFF |
 | R14-ALICE-001 | HIGH | Exercise the AliceNet shop-only control surface, detached progress, stop/retry, fetch, matching, VNDB/EGS enrichment, pagination, errors, manual links, cached generic offers, and migration compatibility without reintroducing a navbar or standalone mirror page. | linked AliceNet `/places/[id]`, `/api/alicenet/*` | DONE_WITH_DIFF |
 | R14-VNDB-001 | HIGH | Verify local/VNDB status, rating, notes, wishlist, and label conflict behavior. Ensure preview/apply is field-specific, stale previews cannot overwrite newer changes, missing remote values do not silently erase local meaning, and every direction is explicit. | VN status panel, settings sync, VNDB APIs and sync library | DONE_WITH_DIFF |
 | R14-VNDB-002 | CRITICAL | Conflict resolution previously submitted only field names, so an old browser preview could apply values that had changed locally or on VNDB since it was rendered. Submit the exact local/remote snapshot for every selected field, revalidate it against fresh data, use an atomic compare-and-set for local pulls, and reload the panel on conflict. | VN status panel, VNDB status API, SQLite and PostgreSQL collection repositories | DONE_WITH_DIFF |
@@ -212,6 +213,13 @@ operations, providers, deployment, backup, and restore.
   current 1,412-row cardinality and completes in 15.003 ms. One hundred
   sixty-nine repository, client, and decoder tests, strict typecheck, and build
   pass.
+- A fresh provider pass from the workstation in Japan reached 23 of the 25
+  configured example URLs with HTTP 200. Suruga-ya returned its Cloudflare
+  challenge and Joshin returned HTTP 403, matching their limited-provider
+  classification. Amazon's HTTP-200 body was an anti-bot interstitial rather
+  than result HTML; the refresh now reports that provider as protected and
+  preserves its cached offers. The focused provider suite passes 99 tests and
+  the complete suite passes 9,848 tests across 949 files.
 
 - At the Round 14 baseline, production served commit `d4b356fd0675e59f17f89b6202e1b78d3dae3a5e`
   with PostgreSQL ready, pool maximum 10, and zero service restarts.

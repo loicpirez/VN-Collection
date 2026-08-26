@@ -41,11 +41,13 @@ import {
   db,
   getCollectionItem,
   listVnStockProviderStatuses,
+  replaceVnStockProviderSnapshot,
   setAppSetting,
   upsertStockAlias,
   upsertStockSource,
   upsertVn,
   type RawVnPayload,
+  type VnStockOfferInput,
 } from '@/lib/db';
 import type { VndbRelease } from '@/lib/vndb';
 
@@ -79,6 +81,43 @@ function melonbooksDetailHtml(title: string, price: number): string {
 
 function wondergooDetailHtml(title: string, price: number): string {
   return `<h1>${title}</h1><p class="price">${price.toLocaleString('en-US')}円(税込)</p>`;
+}
+
+function cachedAmazonOffer(): VnStockOfferInput {
+  return {
+    vn_id: VN_ID,
+    provider: 'amazon_jp',
+    provider_offer_id: 'cached-product',
+    source: 'search',
+    title: 'Test Game',
+    url: 'https://www.amazon.co.jp/dp/EXAMPLE001',
+    price: 3200,
+    currency: 'JPY',
+    availability: 'in_stock',
+    availability_label: null,
+    condition: null,
+    edition_label: null,
+    location_label: 'Amazon JP',
+    location_branch: null,
+    source_release_id: null,
+    jan: null,
+    fetched_at: 1,
+    error: null,
+    content_kind: null,
+    platform: null,
+    edition_kind: null,
+    series_relation: null,
+    match_confidence: null,
+    match_score: null,
+    match_warnings_json: null,
+    marketplace_price: null,
+    marketplace_count: null,
+    list_price: null,
+    category: null,
+    store_code: null,
+    product_id: null,
+    page_kind: null,
+  };
 }
 
 function seedVn(overrides: Partial<RawVnPayload> = {}): void {
@@ -204,6 +243,26 @@ describe('refreshStockForVn — provider status branches', () => {
     const status = statusFor('melonbooks');
     expect(status?.status).toBe('protected');
     expect(status?.message).toMatch(/Cloudflare/i);
+  });
+
+  it('classifies an Amazon HTTP-200 interstitial as protected and preserves cached offers', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'amazon_jp', [cachedAmazonOffer()], {
+      status: 'ok',
+      message: null,
+      fetched_at: 1,
+      offer_count: 1,
+    });
+    respondWith('<script>function triggerInterstitialChallenge() {}</script>');
+
+    const snapshot = await refreshStockForVn(VN_ID, ['amazon_jp']);
+    const status = statusFor('amazon_jp');
+    expect(status?.status).toBe('protected');
+    expect(status?.blocked_kind).toBe('search_page');
+    expect(status?.message).toMatch(/Amazon anti-bot/i);
+    expect(status?.cached_offers_available).toBe(1);
+    expect(snapshot.offers).toHaveLength(1);
+    expect(snapshot.offers[0]?.provider_offer_id).toBe('cached-product');
   });
 
   it('writes an error status when the provider fetch returns a non-ok HTTP status', async () => {
