@@ -108,6 +108,13 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
       inCollection: ownedSet.has(v.id),
       owned: ownedRows[index] ?? null,
     }));
+  const seenReleaseImages = new Set<string>();
+  const releaseImages = release.images.filter((image) => {
+    const identity = `${image.id}\u0000${image.type}\u0000${image.url}`;
+    if (seenReleaseImages.has(identity)) return false;
+    seenReleaseImages.add(identity);
+    return true;
+  });
 
   return (
     <div className="w-full">
@@ -334,7 +341,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.media.section}</h2>
-        {release.images.length === 0 ? (
+        {releaseImages.length === 0 ? (
           parentCover && (parentCover.url || parentCover.localPath) ? (
             // No release-level images - fall back to the parent VN
             // cover so the user gets a visual anchor instead of a
@@ -363,12 +370,12 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             className="grid gap-3"
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
           >
-            {release.images.map((img) => {
+            {releaseImages.map((img) => {
               const aspect = img.type === 'pkgmed' ? 'aspect-square' : img.type === 'dig' ? 'aspect-video' : 'aspect-[2/3]';
               const typeKey = TYPE_LABEL[img.type];
               return (
                 <figure
-                  key={img.id}
+                  key={`${img.id}:${img.type}:${img.url}`}
                   className="overflow-hidden rounded-lg border border-border bg-bg-elev"
                 >
                   <div className={`${aspect} w-full`}>

@@ -301,6 +301,8 @@ describe('release detail page runtime', () => {
       ],
       images: [
         { id: 'i1', url: 'https://example.test/front.jpg', type: 'pkgfront', sexual: 1, languages: ['ja'] },
+        { id: 'i1', url: 'https://example.test/front.jpg', type: 'pkgfront', sexual: 1, languages: ['ja'] },
+        { id: 'i1', url: 'https://example.test/back.jpg', type: 'pkgback', sexual: 1, languages: ['ja'] },
         { id: 'i2', url: 'https://example.test/media.jpg', type: 'pkgmed' },
         { id: 'i3', url: 'https://example.test/digital.jpg', type: 'dig', languages: [] },
       ],
@@ -335,6 +337,8 @@ describe('release detail page runtime', () => {
     expect(html).toContain('aspect-square');
     expect(html).toContain('aspect-video');
     expect(html).toContain('aspect-[2/3]');
+    expect(html.match(/<img alt="Rich release - Front"/g)).toHaveLength(1);
+    expect(html.match(/<img alt="Rich release - Back"/g)).toHaveLength(1);
   });
 
   it('renders string resolutions and ignores unsupported voiced levels', async () => {
