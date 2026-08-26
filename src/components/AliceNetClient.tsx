@@ -409,6 +409,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
   const [producerOptions, setProducerOptions] = useState<AliceNetProducerOption[]>([]);
   const [wishlistAvailable, setWishlistAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [starting, setStarting] = useState<AliceNetRunOp | null>(null);
   const startingRef = useRef(false);
@@ -531,6 +532,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
 
   useEffect(() => {
     mountedRef.current = true;
+    setHydrated(true);
     void load();
     return () => {
       mountedRef.current = false;
@@ -1427,7 +1429,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
           <button
             type="button"
             onClick={() => startServerOp('download')}
-            disabled={starting !== null}
+            disabled={!hydrated || starting !== null}
             className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'download' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
@@ -1436,7 +1438,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
           <button
             type="button"
             onClick={() => startServerOp('pipeline')}
-            disabled={starting !== null}
+            disabled={!hydrated || starting !== null}
             className="btn btn-primary btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'pipeline' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Zap className="h-3.5 w-3.5" aria-hidden />}
@@ -1445,7 +1447,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
           <button
             type="button"
             onClick={() => startServerOp('match-vndb')}
-            disabled={starting !== null}
+            disabled={!hydrated || starting !== null}
             className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'match-vndb' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Search className="h-3.5 w-3.5" aria-hidden />}
@@ -1454,7 +1456,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
           <button
             type="button"
             onClick={() => startServerOp('match-egs')}
-            disabled={starting !== null}
+            disabled={!hydrated || starting !== null}
             className="btn btn-sm min-h-[44px] disabled:opacity-50 can-hover:sm:min-h-0"
           >
             {starting === 'match-egs' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Link2 className="h-3.5 w-3.5" aria-hidden />}
