@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { subscribeStatus } from '@/lib/download-status';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { buildDownloadStatusSnapshot } from '@/lib/download-status-payload';
+import { registerServerShutdownHandler } from '@/lib/server-shutdown';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   let cleanedUp = false;
   let keepAlive: ReturnType<typeof setInterval> | null = null;
   let unsubscribe: (() => void) | null = null;
+  let unregisterShutdown: (() => void) | null = null;
   let activeController: ReadableStreamDefaultController<Uint8Array> | null = null;
 
   const cleanup = () => {
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     aborted = true;
     if (keepAlive) clearInterval(keepAlive);
     unsubscribe?.();
+    unregisterShutdown?.();
     req.signal.removeEventListener('abort', cleanup);
     try {
       activeController?.close();
@@ -77,6 +80,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       }, 25_000);
 
       req.signal.addEventListener('abort', cleanup);
+      unregisterShutdown = registerServerShutdownHandler(cleanup);
     },
     // Fired by Next.js / undici when the consumer cancels the stream
     // without firing the request abort signal — make sure we still

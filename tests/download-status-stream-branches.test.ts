@@ -7,6 +7,8 @@ type StreamRoute = typeof import('@/app/api/download-status/stream/route');
 async function loadRouteWithStatusMock(failDurableMerge = false) {
   let listener: StatusListener | null = null;
   const unsubscribe = vi.fn();
+  const unregisterShutdown = vi.fn();
+  let shutdownHandler: (() => void) | null = null;
 
   vi.resetModules();
   vi.doMock('@/lib/download-status', () => ({
@@ -27,9 +29,21 @@ async function loadRouteWithStatusMock(failDurableMerge = false) {
       ? async () => { throw new Error('durable unavailable'); }
       : (jobs: readonly []) => jobs,
   }));
+  vi.doMock('@/lib/server-shutdown', () => ({
+    registerServerShutdownHandler: (handler: () => void) => {
+      shutdownHandler = handler;
+      return unregisterShutdown;
+    },
+  }));
 
   const route: StreamRoute = await import('@/app/api/download-status/stream/route');
-  return { route, getListener: () => listener, unsubscribe };
+  return {
+    route,
+    getListener: () => listener,
+    getShutdownHandler: () => shutdownHandler,
+    unregisterShutdown,
+    unsubscribe,
+  };
 }
 
 describe('download-status SSE stream branches', () => {
@@ -40,6 +54,7 @@ describe('download-status SSE stream branches', () => {
     vi.doUnmock('@/lib/download-status-names');
     vi.doUnmock('@/lib/vndb-throttle');
     vi.doUnmock('@/lib/stock-batch-store');
+    vi.doUnmock('@/lib/server-shutdown');
     vi.resetModules();
   });
 
@@ -58,7 +73,7 @@ describe('download-status SSE stream branches', () => {
   });
 
   it('treats cleanup as idempotent when the runtime cancels twice', async () => {
-    const { route, unsubscribe } = await loadRouteWithStatusMock();
+    const { route, unregisterShutdown, unsubscribe } = await loadRouteWithStatusMock();
     const NativeReadableStream = ReadableStream;
 
     class CancellingReadableStream extends NativeReadableStream<Uint8Array> {
@@ -79,6 +94,20 @@ describe('download-status SSE stream branches', () => {
 
     expect(response.status).toBe(200);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(unregisterShutdown).toHaveBeenCalledOnce();
+  });
+
+  it('closes the live stream as soon as server shutdown begins', async () => {
+    const { route, getShutdownHandler, unregisterShutdown, unsubscribe } = await loadRouteWithStatusMock();
+    const response = await route.GET(new NextRequest('http://127.0.0.1/api/download-status/stream'));
+    const reader = response.body!.getReader();
+
+    await reader.read();
+    getShutdownHandler()?.();
+
+    await expect(reader.read()).resolves.toMatchObject({ done: true });
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(unregisterShutdown).toHaveBeenCalledOnce();
   });
 
   it('falls back to live jobs when durable status loading fails', async () => {

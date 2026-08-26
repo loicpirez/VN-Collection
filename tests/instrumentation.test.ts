@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readDatabaseConfig: vi.fn(),
   assertPostgresRuntimeReady: vi.fn(),
   installPostgresShutdownHooks: vi.fn(),
+  installServerShutdownHooks: vi.fn(),
 }));
 
 vi.mock('@/lib/db/postgres-config', () => ({
@@ -17,6 +18,10 @@ vi.mock('@/lib/db/postgres', () => ({
   installPostgresShutdownHooks: mocks.installPostgresShutdownHooks,
 }));
 
+vi.mock('@/lib/server-shutdown', () => ({
+  installServerShutdownHooks: mocks.installServerShutdownHooks,
+}));
+
 import { register } from '@/instrumentation';
 
 describe('Next.js database instrumentation', () => {
@@ -26,6 +31,7 @@ describe('Next.js database instrumentation', () => {
     mocks.readDatabaseConfig.mockImplementation(() => mocks.config.value);
     mocks.assertPostgresRuntimeReady.mockResolvedValue(undefined);
     mocks.installPostgresShutdownHooks.mockReturnValue(() => {});
+    mocks.installServerShutdownHooks.mockReturnValue(() => {});
   });
 
   afterEach(() => {
@@ -36,11 +42,13 @@ describe('Next.js database instrumentation', () => {
     vi.stubEnv('NEXT_RUNTIME', 'edge');
     await register();
     expect(mocks.readDatabaseConfig).not.toHaveBeenCalled();
+    expect(mocks.installServerShutdownHooks).not.toHaveBeenCalled();
   });
 
   it('keeps SQLite startup unchanged', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'nodejs');
     await register();
+    expect(mocks.installServerShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.readDatabaseConfig).toHaveBeenCalledOnce();
     expect(mocks.assertPostgresRuntimeReady).not.toHaveBeenCalled();
   });
@@ -62,6 +70,7 @@ describe('Next.js database instrumentation', () => {
     mocks.assertPostgresRuntimeReady.mockRejectedValueOnce(mismatch);
 
     await expect(register()).rejects.toBe(mismatch);
+    expect(mocks.installServerShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.installPostgresShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.assertPostgresRuntimeReady).toHaveBeenCalledOnce();
   });

@@ -1,21 +1,22 @@
 import { Pool, types, type PoolClient, type PoolConfig, type QueryResult, type QueryResultRow } from 'pg';
 import { readDatabaseConfig, type PostgresDatabaseConfig } from './postgres-config';
 import { assertPostgresSchemaCurrent } from './migrate';
+import {
+  installServerShutdownHooks,
+  registerServerShutdownHandler,
+  type ServerShutdownSignal,
+  type ServerShutdownSignalTarget,
+} from '../server-shutdown';
 
 let sharedPool: Pool | null = null;
 let schemaReadyPromise: Promise<void> | null = null;
-let shutdownHooksInstalled = false;
+let shutdownHandlerRegistered = false;
 
 /** Signals used to start graceful PostgreSQL pool shutdown. */
-export type PostgresShutdownSignal = 'SIGTERM' | 'SIGINT';
+export type PostgresShutdownSignal = ServerShutdownSignal;
 
 /** Minimal signal surface accepted by the shutdown-hook installer. */
-export interface PostgresSignalTarget {
-  /** Register a one-shot listener. */
-  once(event: PostgresShutdownSignal, listener: () => void): void;
-  /** Remove a previously registered listener. */
-  removeListener(event: PostgresShutdownSignal, listener: () => void): void;
-}
+export type PostgresSignalTarget = ServerShutdownSignalTarget;
 
 /** Convert a PostgreSQL `BIGINT` into the existing safe JavaScript number contract. */
 export function parsePostgresBigInt(value: string): number {
@@ -108,19 +109,18 @@ export async function closePostgresPool(): Promise<void> {
  * @returns A cleanup function that removes this installation's listeners.
  */
 export function installPostgresShutdownHooks(target: PostgresSignalTarget = process): () => void {
-  if (shutdownHooksInstalled) return () => {};
-  shutdownHooksInstalled = true;
-  const shutdown = (): void => {
+  const removeSignalHooks = installServerShutdownHooks(target);
+  if (shutdownHandlerRegistered) return removeSignalHooks;
+  shutdownHandlerRegistered = true;
+  const removeShutdownHandler = registerServerShutdownHandler(() => {
     void closePostgresPool().catch(() => {
       console.error('[postgres:shutdown] failed to close the connection pool');
     });
-  };
-  target.once('SIGTERM', shutdown);
-  target.once('SIGINT', shutdown);
+  });
   return () => {
-    target.removeListener('SIGTERM', shutdown);
-    target.removeListener('SIGINT', shutdown);
-    shutdownHooksInstalled = false;
+    removeShutdownHandler();
+    removeSignalHooks();
+    shutdownHandlerRegistered = false;
   };
 }
 
