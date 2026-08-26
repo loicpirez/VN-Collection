@@ -70,6 +70,25 @@ describe('CompareWithButton', () => {
     expect(String(url)).toContain('sort=released');
   });
 
+  it('focuses the search field on the frame after the dialog opens', async () => {
+    let frameCallback: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      frameCallback = callback;
+      return 17;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+
+    const { unmount } = renderWithProviders(<CompareWithButton currentVnId="v90099" />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
+    const search = await screen.findByRole('textbox', { name: t.compareWith.searchPlaceholder });
+    expect(frameCallback).not.toBeNull();
+    if (frameCallback) frameCallback(0);
+    expect(document.activeElement).toBe(search);
+
+    unmount();
+    expect(cancelFrame).toHaveBeenCalledWith(17);
+  });
+
   it('toggles selection up to three rows and updates the hint count', async () => {
     renderWithProviders(<CompareWithButton currentVnId="v90099" />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
