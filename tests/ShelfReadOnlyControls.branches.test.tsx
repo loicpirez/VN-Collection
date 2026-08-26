@@ -103,7 +103,7 @@ describe('ShelfReadOnlyControls branches', () => {
     expect(sliders[0].value).toBe('123');
   });
 
-  it('applies and cleans shelf-view CSS variables on shelf roots', () => {
+  it('applies shelf-view CSS variables without removing them when a sibling control unmounts', () => {
     const root = document.createElement('div');
     root.className = 'shelf-view-root';
     root.style.setProperty('--display-aspect-row-0', 'portrait');
@@ -114,7 +114,7 @@ describe('ShelfReadOnlyControls branches', () => {
     expect(root.style.getPropertyValue('--not-a-display-aspect-row')).toBe('kept');
     expect(root.style.getPropertyValue('--shelf-cell-w-px')).not.toBe('');
     view.unmount();
-    expect(root.style.getPropertyValue('--shelf-cell-w-px')).toBe('');
+    expect(root.style.getPropertyValue('--shelf-cell-w-px')).not.toBe('');
     root.remove();
   });
 

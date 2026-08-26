@@ -149,12 +149,6 @@ export function ShelfReadOnlyControls({
       for (const [k, v] of Object.entries(css)) el.style.setProperty(k, v);
       for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
     }
-    return () => {
-      for (const el of targets) {
-        for (const k of Object.keys(css)) el.style.removeProperty(k);
-        for (const k of Object.keys(attrs)) el.removeAttribute(k);
-      }
-    };
   }, [prefs]);
 
   // Sync with cross-tab / Settings-modal changes. Two events:
