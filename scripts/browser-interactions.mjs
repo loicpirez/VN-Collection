@@ -85,6 +85,7 @@ async function assertResponsiveNavigation(page) {
   await page.setViewportSize({ width: 1366, height: 768 });
   await gotoClean(page, '/');
   const discover = page.getByRole('button', { name: /Découvrir|Discover|見つける/i }).first();
+  await waitForEnabled(discover);
   await discover.click();
   const menu = page.getByRole('menu', { name: /Découvrir|Discover|見つける/i });
   await menu.waitFor({ state: 'visible', timeout: 10000 });
@@ -109,7 +110,9 @@ async function assertResponsiveNavigation(page) {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoClean(page, '/');
-  await page.getByRole('button', { name: /Ouvrir le menu|Open menu|メニューを開く/i }).click();
+  const mobileTrigger = page.getByRole('button', { name: /Ouvrir le menu|Open menu|メニューを開く/i });
+  await waitForEnabled(mobileTrigger);
+  await mobileTrigger.click();
   const sheet = page.getByRole('dialog', { name: /Ouvrir le menu|Open menu|メニューを開く/i });
   await sheet.waitFor({ state: 'visible', timeout: 10000 });
   const mobileGeometry = await sheet.evaluate((element) => {

@@ -91,6 +91,8 @@ describe('GroupedNav / MoreNavMenu branches', () => {
     const u = userEvent.setup();
     renderWithProviders(<GroupedNav />, { locale: 'en' });
     const browseTrigger = screen.getByRole('button', { name: t.nav.groupBrowse });
+    expect(browseTrigger).toBeEnabled();
+    expect(screen.getByRole('navigation')).toHaveAttribute('data-nav-hydrated', 'true');
     expect(browseTrigger).toHaveAttribute('aria-expanded', 'false');
     await u.click(browseTrigger);
     expect(browseTrigger).toHaveAttribute('aria-expanded', 'true');

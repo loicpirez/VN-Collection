@@ -77,6 +77,7 @@ export function GroupedNav() {
   const t = useT();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const mobileSheetId = useId();
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
   const navigation = useMemo(() => buildNavigationRegistry(currentYear), [currentYear]);
@@ -168,6 +169,8 @@ export function GroupedNav() {
   // /traits - Gamepad2 disambiguates it as a games database.
   const insights = groupItems('insights');
 
+  useEffect(() => setHydrated(true), []);
+
   // Active when any item in the group matches the current route - the
   // dropdown trigger lights up so the user knows roughly where they are
   // even though the destination is inside a collapsed menu.
@@ -179,6 +182,7 @@ export function GroupedNav() {
       <nav
         className="hidden flex-wrap items-center gap-0.5 md:flex lg:gap-1"
         aria-label={t.nav.mainNavLabel}
+        data-nav-hydrated={hydrated ? 'true' : 'false'}
       >
         {primary.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
@@ -189,6 +193,7 @@ export function GroupedNav() {
           icon={Compass}
           pathname={pathname}
           active={groupActive(discover)}
+          interactive={hydrated}
         />
         <NavGroup
           label={t.nav.groupBrowse}
@@ -196,6 +201,7 @@ export function GroupedNav() {
           icon={Tags}
           pathname={pathname}
           active={groupActive(browse)}
+          interactive={hydrated}
         />
         <NavGroup
           label={t.nav.groupInsights}
@@ -203,6 +209,7 @@ export function GroupedNav() {
           icon={BarChart3}
           pathname={pathname}
           active={groupActive(insights)}
+          interactive={hydrated}
         />
       </nav>
       <button
@@ -213,6 +220,8 @@ export function GroupedNav() {
         aria-expanded={mobileOpen}
         aria-haspopup="dialog"
         aria-controls={mobileSheetId}
+        aria-busy={!hydrated}
+        disabled={!hydrated}
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
@@ -270,12 +279,14 @@ function NavGroup({
   icon: Icon,
   pathname,
   active,
+  interactive,
 }: {
   label: string;
   items: NavItem[];
   icon?: LucideIcon;
   pathname: string | null;
   active: boolean;
+  interactive: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -357,6 +368,8 @@ function NavGroup({
         aria-controls={menuId}
         aria-label={label}
         title={label}
+        aria-busy={!interactive}
+        disabled={!interactive}
         className={`tap-target inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition-colors 2xl:gap-1.5 2xl:px-2.5 ${
           active
             ? 'bg-accent/15 text-accent hover:bg-accent/20'
