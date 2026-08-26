@@ -76,7 +76,8 @@ describe('D-A8 — SpoilerChip: <Link> does not carry aria-pressed', () => {
     expect(src).not.toMatch(/aria-pressed=\{wasGatedAndRevealed \? true : undefined\}/);
   });
 
-  it('the hide <button> still carries aria-pressed={true}', () => {
-    expect(src).toMatch(/aria-pressed=\{true\}/);
+  it('the native summary exposes the localized reveal and hide labels', () => {
+    expect(src).toMatch(/aria-label=\{revealed \? t\.spoiler\.hideOne : t\.spoiler\.revealOne\}/);
+    expect(src).not.toMatch(/aria-pressed=/);
   });
 });

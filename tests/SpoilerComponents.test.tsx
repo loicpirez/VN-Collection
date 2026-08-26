@@ -166,44 +166,48 @@ describe('SpoilerChip', () => {
     expect(screen.getByRole('link', { name: 'Sexual' })).toHaveAttribute('href', '/tag/g4');
   });
 
-  it('previews a hidden spoiler and persists reveal through its reveal and hide buttons', () => {
+  it('previews a hidden spoiler and mirrors the native disclosure state', () => {
     renderWithProviders(
       <SpoilerChip level={1} currentSpoilerLevel={0} showSexual href="/tag/g1">Secret tag</SpoilerChip>,
       { locale: 'en' },
     );
-    const wrapper = document.querySelector('[data-spoiler-state]') as HTMLElement;
+    const wrapper = document.querySelector('[data-spoiler-state]') as HTMLDetailsElement;
+    const summary = wrapper.querySelector('summary') as HTMLElement;
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'hidden');
-    expect(screen.getByRole('button', { name: t.spoiler.revealOne })).toHaveAttribute('title', t.spoiler.markupSummary);
+    expect(summary).toHaveAttribute('aria-label', t.spoiler.revealOne);
+    expect(summary).toHaveAttribute('title', t.spoiler.markupSummary);
     fireEvent.pointerEnter(wrapper);
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'transient');
-    expect(screen.getByRole('button', { name: t.spoiler.revealOne })).toHaveAttribute('title', t.spoiler.hideHint);
+    expect(summary).toHaveAttribute('title', t.spoiler.hideHint);
     fireEvent.pointerLeave(wrapper);
-    fireEvent.focus(wrapper);
+    fireEvent.focus(summary);
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'transient');
-    fireEvent.blur(wrapper);
-    fireEvent.click(screen.getByRole('button', { name: t.spoiler.revealOne }));
+    fireEvent.blur(summary);
+    wrapper.open = true;
+    fireEvent(wrapper, new Event('toggle'));
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'revealed');
     expect(screen.getByRole('link', { name: 'Secret tag' })).toHaveAttribute('href', '/tag/g1');
-    fireEvent.click(screen.getByRole('button', { name: t.spoiler.hideOne }));
+    expect(summary).toHaveAttribute('aria-label', t.spoiler.hideOne);
+    wrapper.open = false;
+    fireEvent(wrapper, new Event('toggle'));
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'hidden');
   });
 
-  it('reveals from wrapper mouse click and keyboard while ignoring synthetic click and unrelated keys', () => {
+  it('resets its mirrored disclosure state when a different chip mounts', () => {
     const { rerender } = renderWithProviders(
       <SpoilerChip level={2} currentSpoilerLevel={0} showSexual href="/tag/g1">Secret</SpoilerChip>,
       { locale: 'en' },
     );
-    let wrapper = document.querySelector('[data-spoiler-state]') as HTMLElement;
-    fireEvent.click(wrapper, { detail: 0 });
-    expect(wrapper).toHaveAttribute('data-spoiler-state', 'hidden');
-    fireEvent.click(wrapper, { detail: 1 });
+    let wrapper = document.querySelector('[data-spoiler-state]') as HTMLDetailsElement;
+    wrapper.open = true;
+    fireEvent(wrapper, new Event('toggle'));
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'revealed');
 
     rerender(<SpoilerChip key="other" level={2} currentSpoilerLevel={0} showSexual href="/tag/g2">Other</SpoilerChip>);
-    wrapper = document.querySelector('[data-spoiler-state]') as HTMLElement;
-    fireEvent.keyDown(wrapper, { key: 'ArrowDown' });
+    wrapper = document.querySelector('[data-spoiler-state]') as HTMLDetailsElement;
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'hidden');
-    fireEvent.keyDown(wrapper, { key: 'Enter' });
+    wrapper.open = true;
+    fireEvent(wrapper, new Event('toggle'));
     expect(wrapper).toHaveAttribute('data-spoiler-state', 'revealed');
   });
 

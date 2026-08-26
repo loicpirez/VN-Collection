@@ -429,7 +429,7 @@ describe('responsive tap targets', () => {
     const placeStock = source('src/components/PlaceVnBrowser.tsx');
     const releaseOwned = source('src/components/ReleaseOwnedToggle.tsx');
     expect(languages).toContain('inline-flex min-h-[44px] min-w-[44px]');
-    expect(spoilerChip.match(/min-h-\[44px\] min-w-\[44px\]/g)).toHaveLength(3);
+    expect(spoilerChip.match(/min-h-\[44px\] min-w-\[44px\]/g)).toHaveLength(2);
     expect(spoilerReveal).toContain('inline-block min-h-[44px] min-w-[44px]');
     expect(character).toContain('inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent');
     expect(staff).toContain('inline-flex min-h-[44px] min-w-[44px] items-center justify-center');

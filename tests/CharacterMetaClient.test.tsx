@@ -127,7 +127,7 @@ describe('CharacterMetaClient', () => {
     expect(screen.getByText(`${t.spoiler.title}: ${t.spoiler.lvl0} / ${t.spoiler.hideSexual}`)).toBeInTheDocument();
     expect(screen.getByText('Group /')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Visible$/ })).toHaveAttribute('href', '/trait/i1');
-    expect(screen.getAllByRole('button', { name: t.spoiler.revealOne })).toHaveLength(2);
+    expect(document.querySelectorAll(`summary[aria-label="${t.spoiler.revealOne}"]`)).toHaveLength(2);
 
     settingsMocks.settings = { ...settingsMocks.settings, spoilerLevel: 1, showSexualTraits: true };
     rerender(<CharacterMetaClient char={char} />);

@@ -59,30 +59,25 @@ describe('character page — trait chips route through <SpoilerChip>', () => {
   });
 });
 
-describe('SpoilerChip — aria-pressed and hide affordance', () => {
+describe('SpoilerChip — native disclosure and hide affordance', () => {
   const src = read('src/components/SpoilerChip.tsx');
 
-  it('uses aria-expanded on the hidden-state reveal button', () => {
-    expect(src).toMatch(/aria-expanded=\{effectiveState === 'transient'\}/);
+  it('uses native details and summary elements for pre-hydration activation', () => {
+    expect(src).toMatch(/<details[\s\S]*?<summary/);
+    expect(src).toMatch(/onToggle=\{\(event\) => setRevealed\(event\.currentTarget\.open\)\}/);
   });
-  it('hide button carries aria-pressed={true} to signal toggle state', () => {
-    expect(src).toMatch(/aria-pressed=\{true\}/);
+  it('does not apply toggle-only pressed state to the revealed link', () => {
+    expect(src).not.toMatch(/aria-pressed=/);
   });
-  it('revealed <Link> does not carry aria-pressed (links are not toggles)', () => {
-    expect(src).not.toMatch(/aria-pressed=\{wasGatedAndRevealed \? true : undefined\}/);
-  });
-  it('exposes a localised "Reveal spoiler" aria-label on the gated state', () => {
-    expect(src).toMatch(/aria-label=\{t\.spoiler\.revealOne\}/);
+  it('exposes localized reveal and hide names on the native summary', () => {
+    expect(src).toMatch(/aria-label=\{revealed \? t\.spoiler\.hideOne : t\.spoiler\.revealOne\}/);
   });
   it('does not render block-character redaction placeholders', () => {
     expect(src).not.toMatch(/█/);
   });
-  it('exposes a localised "Hide spoiler" aria-label on the hide button', () => {
-    expect(src).toMatch(/aria-label=\{t\.spoiler\.hideOne\}/);
-  });
-  it('reveals via setRevealed(true) and hides via setRevealed(false)', () => {
+  it('recovers a native open state that occurred before hydration', () => {
+    expect(src).toMatch(/detailsRef\.current\?\.open/);
     expect(src).toMatch(/setRevealed\(true\)/);
-    expect(src).toMatch(/setRevealed\(false\)/);
   });
 });
 
@@ -117,14 +112,19 @@ describe('SpoilerChip — hover/focus preview parity with SpoilerReveal', () => 
   const src = read('src/components/SpoilerChip.tsx');
 
   it('wires hover and focus handlers on the gated state', () => {
-    expect(src).toMatch(/onPointerEnter=\{onPointerEnter\}/);
-    expect(src).toMatch(/onPointerLeave=\{onPointerLeave\}/);
-    expect(src).toMatch(/onFocus=\{onFocus\}/);
-    expect(src).toMatch(/onBlur=\{onBlur\}/);
+    expect(src).toMatch(/onPointerEnter=\{\(\) => setHovered\(true\)\}/);
+    expect(src).toMatch(/onPointerLeave=\{\(\) => setHovered\(false\)\}/);
+    expect(src).toMatch(/onFocus=\{\(\) => setFocused\(true\)\}/);
+    expect(src).toMatch(/onBlur=\{\(\) => setFocused\(false\)\}/);
+    expect(src).toMatch(/data-spoiler-preview/);
   });
 
   it('exposes data-spoiler-state for QA/Playwright assertions', () => {
     expect(src).toMatch(/data-spoiler-state=/);
+  });
+
+  it('does not prefetch every dense trait destination before interaction', () => {
+    expect(src).toMatch(/<Link\s+href=\{href\}\s+prefetch=\{false\}/);
   });
 });
 
