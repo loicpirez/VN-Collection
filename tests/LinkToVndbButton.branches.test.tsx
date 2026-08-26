@@ -34,8 +34,8 @@ interface Handlers {
   link?: (body: unknown) => Response | Promise<Response>;
 }
 
-function installFetch(h: Handlers) {
-  global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+function installFetch(h: Handlers = {}) {
+  const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     if (u.startsWith('/api/search')) return h.search ? h.search() : json(RESULTS);
     if (u.includes('/link-vndb') && init?.method === 'POST') {
@@ -43,6 +43,8 @@ function installFetch(h: Handlers) {
     }
     return json({});
   });
+  global.fetch = fetchMock;
+  return fetchMock;
 }
 
 function renderBtn(props: Partial<React.ComponentProps<typeof LinkToVndbButton>> = {}) {
@@ -70,6 +72,7 @@ describe('LinkToVndbButton branches', () => {
   });
 
   it('opens the dialog, runs the seeded search, and lists hits with developers', async () => {
+    const fetchMock = installFetch();
     renderBtn();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.linkVndb.cta) }));
     const dialog = await screen.findByRole('dialog');
@@ -78,6 +81,8 @@ describe('LinkToVndbButton branches', () => {
     // Developers (max 2) rendered on the first hit.
     expect(within(dialog).getByText('Studio X')).toBeInTheDocument();
     expect(within(dialog).getByText('Studio Z')).toBeInTheDocument();
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith('/api/search'))).toHaveLength(1);
   });
 
   it('shows the empty copy when the search returns no hits', async () => {

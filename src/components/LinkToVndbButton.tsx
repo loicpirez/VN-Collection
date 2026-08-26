@@ -6,7 +6,6 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { DialogPortal, useDialogA11y } from './Dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { useDebouncedCallback } from '@/lib/hooks';
 import { formatVndbDateString } from '@/lib/locale-number';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -39,6 +38,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
   const identityRef = useRef<string | null>(identity);
   const mutationRef = useRef(false);
   const mutationAbortRef = useRef<AbortController | null>(null);
+  const skipNextDebounceRef = useRef(false);
   useDialogA11y({ open, onClose: () => { if (!mutationRef.current) setOpen(false); }, panelRef });
 
   // Abort the in-flight VNDB search whenever the user types again or
@@ -89,6 +89,7 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     setHits([]);
     setSearching(false);
     setLinkingId(null);
+    skipNextDebounceRef.current = false;
     return () => {
       identityRef.current = null;
       mutationRef.current = false;
@@ -98,19 +99,17 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     };
   }, [identity, seedQuery]);
 
-  const debouncedSearch = useDebouncedCallback((q: string) => search(q), 300);
-
   useEffect(() => {
     if (!open) return;
-    debouncedSearch(query);
-  }, [open, query, debouncedSearch]);
-
-  useEffect(() => {
-    if (open && hits.length === 0) {
-      search(query);
+    if (skipNextDebounceRef.current) {
+      skipNextDebounceRef.current = false;
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    const timer = window.setTimeout(() => {
+      void search(query);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [open, query, search]);
 
   useEffect(() => {
     if (open) return;
@@ -164,7 +163,11 @@ export function LinkToVndbButton({ vnId, seedQuery, triggerClassName, keepMenuOp
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          skipNextDebounceRef.current = true;
+          setOpen(true);
+          void search(query);
+        }}
         className={triggerClassName ?? 'btn'}
         title={t.linkVndb.title}
         {...(keepMenuOpen ? { 'data-menu-keep-open': '' } : {})}
