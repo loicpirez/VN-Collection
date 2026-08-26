@@ -162,6 +162,22 @@ describe('VnCard', () => {
     expect(onSelect).toHaveBeenCalledTimes(3);
   });
 
+  it('keeps remote custom covers remote instead of routing them through local files', () => {
+    renderWithProviders(
+      <VnCard
+        data={card({
+          poster: 'https://images.example.test/default.jpg',
+          localPoster: 'images/default.jpg',
+          customCover: 'https://images.example.test/custom.jpg',
+        })}
+      />,
+      { locale: 'en' },
+    );
+
+    expect(screen.getByAltText('Card title')).toHaveAttribute('src', 'https://images.example.test/custom.jpg');
+    expect(screen.getByAltText('Card title')).toHaveAttribute('data-local', '');
+  });
+
   it('opens and closes collection context menus through overflow, contextmenu, and touch long-press', () => {
     vi.useFakeTimers();
     renderWithProviders(

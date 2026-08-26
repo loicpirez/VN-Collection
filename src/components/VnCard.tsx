@@ -220,7 +220,11 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
   const visibleAspectKeys = (data.aspectKeys ?? []).filter((key) => key !== 'unknown');
 
-  const localSrc = data.customCover || data.localPoster || null;
+  const customCoverIsRemote = !!data.customCover && /^https?:\/\//i.test(data.customCover);
+  const posterSrc = customCoverIsRemote ? data.customCover : data.poster;
+  const localSrc = data.customCover
+    ? customCoverIsRemote ? null : data.customCover
+    : data.localPoster || null;
 
   const className = `group relative flex flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
     selectable
@@ -329,7 +333,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         </button>
       )}
       <SafeImage
-        src={data.poster}
+        src={posterSrc}
         localSrc={localSrc}
         alt={data.title}
         sexual={data.sexual ?? null}
