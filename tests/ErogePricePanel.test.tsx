@@ -166,6 +166,24 @@ describe('ErogePricePanel', () => {
     });
   });
 
+  it('keeps distinct products from the same retailer as uniquely keyed rows', () => {
+    const sameRetailerProducts = [
+      retailer({ retailerId: 51, retailerName: 'Retailer A', productCode: 'product-a', productUrl: 'https://example.test/p/a' }),
+      retailer({ retailerId: 51, retailerName: 'Retailer A', productCode: 'product-b', productUrl: 'https://example.test/p/b' }),
+    ];
+    renderWithProviders(
+      <ErogePricePanel
+        vnId="v90001"
+        extras={extras({
+          candidates: [bundle(90001, { detail: detail({ downloadRetailers: [], packageRetailers: sameRetailerProducts }) })],
+        })}
+      />,
+    );
+
+    expect(screen.getAllByRole('link', { name: `${t.erogePrice.openOnRetailer}: Retailer A` })).toHaveLength(2);
+    expect(vi.mocked(console.error).mock.calls.flat().join(' ')).not.toContain('same key');
+  });
+
   it('switches the displayed candidate when a candidate tab is clicked', () => {
     renderWithProviders(<ErogePricePanel vnId="v90001" extras={extras()} />);
     const group = screen.getByRole('group', { name: t.erogePrice.candidates as string });

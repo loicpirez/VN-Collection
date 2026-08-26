@@ -150,8 +150,12 @@ function RetailerList({ retailers, label, edition }: { retailers: EpApiRetailer[
   const hasOverflow = retailers.length > RETAILER_PAGE_SIZE;
   return (
     <ul className="rounded-lg border border-border bg-bg-elev/30 px-3 py-2">
-      {visible.map((r) => (
-        <RetailerRow key={`${edition}-${r.retailerId}`} r={r} label={label} />
+      {visible.map((r, index) => (
+        <RetailerRow
+          key={`${edition}:${r.retailerId}:${r.productCode ?? r.productUrl}:${index}`}
+          r={r}
+          label={label}
+        />
       ))}
       {hasOverflow && (
         <li className="border-t border-border/60 pt-2 first:border-t-0">
