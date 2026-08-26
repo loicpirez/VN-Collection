@@ -33,6 +33,28 @@ function deferredResponse() {
   return { promise, resolve, reject };
 }
 
+function delayedJsonResponse() {
+  let streamController!: ReadableStreamDefaultController<Uint8Array>;
+  let markReading!: () => void;
+  const reading = new Promise<void>((resolve) => { markReading = resolve; });
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+    },
+    pull() {
+      markReading();
+    },
+  });
+  return {
+    response: new Response(stream, { headers: { 'content-type': 'application/json' } }),
+    reading,
+    resolve(body: unknown) {
+      streamController.enqueue(new TextEncoder().encode(JSON.stringify(body)));
+      streamController.close();
+    },
+  };
+}
+
 const LABELS = [
   { id: 1, label: 'Playing', private: false },
   { id: 2, label: 'Finished', private: false },
@@ -168,6 +190,21 @@ describe('VndbStatusPanel branches', () => {
     expect(screen.queryByText(t.vndbStatus.needsToken)).toBeNull();
     fresh.resolve(json(statePayload({ entry: false })));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Playing' })).toBeInTheDocument());
+  });
+
+  it('ignores a status body that finishes decoding after a newer load starts', async () => {
+    const stale = delayedJsonResponse();
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(stale.response)
+      .mockResolvedValueOnce(json(statePayload({ entry: false })));
+    render();
+    await stale.reading;
+    window.dispatchEvent(new CustomEvent(EGS_CHANGED_EVENT, { detail: { vnId: 'v90001' } }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    stale.resolve(statePayload({ needsAuth: true }));
+
+    expect(await screen.findByRole('button', { name: 'Playing' })).toBeInTheDocument();
+    expect(screen.queryByText(t.vndbStatus.needsToken)).toBeNull();
   });
 
   it('renders the needs-token notice when the server reports needsAuth', async () => {

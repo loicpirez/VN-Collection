@@ -111,7 +111,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     } finally {
       if (loadAbortRef.current === controller) {
         loadAbortRef.current = null;
-        if (showLoading) setLoading(false);
+        setLoading(false);
       }
     }
   }, [vnId, t.common.error]);
