@@ -236,7 +236,7 @@ export function DataMaintenance() {
                       type="button"
                       onClick={() => refreshOne(s.id)}
                       disabled={refreshing !== null}
-                      className="min-h-[44px] shrink-0 rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent can-hover:sm:min-h-0"
+                      className="min-h-[44px] min-w-[44px] shrink-0 rounded-md border border-border bg-bg-card px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                     >
                       {refreshing === s.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : t.maintenance.refresh}
                     </button>

@@ -61,7 +61,7 @@ export function SchemaBrowser({ schema }: Props) {
           onChange={(e) => setRawQuery(e.target.value)}
           placeholder={t.schemaPage.filterPlaceholder}
           aria-label={t.schemaPage.filterPlaceholder}
-          className="flex-1 bg-transparent outline-none"
+          className="min-h-[44px] flex-1 bg-transparent outline-none can-hover:sm:min-h-0"
         />
       </label>
       {topKeys.length === 0 ? (
