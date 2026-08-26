@@ -27,13 +27,16 @@ interface CapturedRequest {
 
 const captured: CapturedRequest[] = [];
 const responseQueue: Array<{ statusCode: number; headers: Record<string, string> }> = [];
+let destroyedRequests = 0;
 
 function fakeRequest(options: CapturedRequest['options'], cb: (res: EventEmitter & { statusCode: number; headers: Record<string, string> }) => void) {
   const queued = responseQueue.shift() ?? { statusCode: 200, headers: {} };
   captured.push({ options, statusCode: queued.statusCode, headers: queued.headers });
   const req = new EventEmitter() as EventEmitter & { write: () => void; end: () => void; destroy: () => void };
   req.write = () => {};
-  req.destroy = () => {};
+  req.destroy = () => {
+    destroyedRequests += 1;
+  };
   req.end = () => {
     const res = new EventEmitter() as EventEmitter & { statusCode: number; headers: Record<string, string> };
     res.statusCode = queued.statusCode;
@@ -86,6 +89,7 @@ function runLookup(agent: { options?: { lookup?: unknown } } | undefined): { all
 beforeEach(() => {
   captured.length = 0;
   responseQueue.length = 0;
+  destroyedRequests = 0;
   mockResolve4.mockReset();
   mockResolve6.mockReset();
 });
@@ -194,6 +198,26 @@ describe('safeFetch — SSRF pinning (R5-SEC-012)', () => {
 });
 
 describe('proxy hop validation', () => {
+  it('destroys a proxy request when the signal aborts after hop resolution', async () => {
+    const controller = new AbortController();
+    const { nodeAgentFetch } = await import('@/lib/proxy-fetch');
+    const proxyAgent = new Agent();
+
+    await expect(
+      nodeAgentFetch(
+        'https://api.vndb.org/kana/vn',
+        { signal: controller.signal },
+        undefined,
+        async () => {
+          controller.abort();
+          return { agent: proxyAgent };
+        },
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(captured).toHaveLength(1);
+    expect(destroyedRequests).toBe(1);
+  });
+
   it('rejects an off-allowlist initial proxy target before opening a socket', async () => {
     mockResolve4.mockResolvedValue(['93.184.216.34']);
     mockResolve6.mockResolvedValue([]);

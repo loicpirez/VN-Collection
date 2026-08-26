@@ -146,6 +146,17 @@ describe('resolveAndCheckHostname — IPv6 branches', () => {
     expect(result.ipv6).toEqual(['2001:4860:4860::8888']);
   });
 
+  it('continues to IPv6 when a signaled IPv4 lookup rejects', async () => {
+    mockResolve4.mockRejectedValue(new Error('NODATA'));
+    mockResolve6.mockResolvedValue(['2001:4860:4860::8888']);
+    const controller = new AbortController();
+
+    const result = await resolveAndCheckHostname('v6only.example.com', controller.signal);
+
+    expect(result.ipv4).toEqual([]);
+    expect(result.ipv6).toEqual(['2001:4860:4860::8888']);
+  });
+
   it('assertNoPrivateIpRebind delegates to resolveAndCheckHostname', async () => {
     mockResolve4.mockResolvedValue(['1.1.1.1']);
     mockResolve6.mockResolvedValue([]);

@@ -99,6 +99,21 @@ describe('1 req/s serialization', () => {
     await p2;
     expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps the existing wake timer when another caller joins the delayed queue', async () => {
+    const { throttledFetch } = await freshThrottle();
+    providerFetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
+    await throttledFetch(VNDB, {});
+
+    const second = throttledFetch(VNDB, {});
+    const third = throttledFetch(VNDB, {});
+    await vi.advanceTimersByTimeAsync(1_100);
+    await second;
+    await vi.advanceTimersByTimeAsync(1_100);
+    await third;
+
+    expect(providerFetchMock).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe('429 Retry-After handling', () => {

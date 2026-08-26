@@ -37,7 +37,6 @@ interface ThrottleWaiter {
   resolve: () => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout> | null;
-  settled: boolean;
   onAbort: () => void;
 }
 
@@ -86,7 +85,6 @@ function pumpQueue(): void {
   }
 
   waiters.shift();
-  waiter.settled = true;
   waiter.signal?.removeEventListener('abort', waiter.onAbort);
   activeCount += 1;
   activeLabel = waiter.label;
@@ -103,14 +101,11 @@ function acquire(label: string, signal?: AbortSignal | null): Promise<void> {
       resolve,
       reject,
       timer: null,
-      settled: false,
       onAbort: () => {
-        if (waiter.settled) return;
-        waiter.settled = true;
         if (waiter.timer) clearTimeout(waiter.timer);
         waiter.timer = null;
-        const index = waiters.indexOf(waiter);
-        if (index >= 0) waiters.splice(index, 1);
+        const remaining = waiters.filter((candidate) => candidate !== waiter);
+        waiters.splice(0, waiters.length, ...remaining);
         signal?.removeEventListener('abort', waiter.onAbort);
         reject(abortReason(signal!));
         pumpQueue();
@@ -124,7 +119,7 @@ function acquire(label: string, signal?: AbortSignal | null): Promise<void> {
 
 function release(): void {
   activeCount = Math.max(0, activeCount - 1);
-  if (activeCount === 0) activeLabel = null;
+  activeLabel = null;
   pumpQueue();
 }
 
