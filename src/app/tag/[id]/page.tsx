@@ -62,8 +62,12 @@ const TAG_WEB_DETAIL_SKELETON = (
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const dict = await getDict();
-  const tagInfo = await readCachedTag(id.toLowerCase());
-  const baseTitle = tagInfo?.tag?.name ?? id;
+  const tagId = id.toLowerCase();
+  const [tagInfo, webDetail] = await Promise.all([
+    readCachedTag(tagId),
+    readVndbTagWebDetailCache(tagId),
+  ]);
+  const baseTitle = tagInfo?.tag?.name ?? webDetail?.data.name ?? dict.tagPage.titleFallback;
   return { title: `${baseTitle} - ${dict.nav.tags}` };
 }
 

@@ -211,10 +211,18 @@ describe('tag detail page runtime', () => {
       title: `Drama - ${dictionaries.en.nav.tags}`,
     });
     expect(readCachedTag).toHaveBeenCalledWith('g1');
+    expect(readVndbTagWebDetailCache).toHaveBeenCalledWith('g1');
 
     vi.mocked(readCachedTag).mockResolvedValueOnce(null);
+    vi.mocked(readVndbTagWebDetailCache).mockResolvedValueOnce(cachedDetail(detail({ name: 'Cached tag name' })));
     expect(await generateTagMetadata({ params: Promise.resolve({ id: 'G2' }) })).toEqual({
-      title: `G2 - ${dictionaries.en.nav.tags}`,
+      title: `Cached tag name - ${dictionaries.en.nav.tags}`,
+    });
+
+    vi.mocked(readCachedTag).mockResolvedValueOnce(null);
+    vi.mocked(readVndbTagWebDetailCache).mockResolvedValueOnce(null);
+    expect(await generateTagMetadata({ params: Promise.resolve({ id: 'G3' }) })).toEqual({
+      title: `${dictionaries.en.tagPage.titleFallback} - ${dictionaries.en.nav.tags}`,
     });
   });
 

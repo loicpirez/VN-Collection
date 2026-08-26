@@ -2720,6 +2720,7 @@ export const dictionaries = {
       dumped: 'dumpé',
     },
     tagPage: {
+      titleFallback: 'Détails du tag',
       emptyHint: "Aucun VN avec ce tag dans ta bibliothèque locale.",
       countHint: '{n} VN avec ce tag dans ta bibliothèque.',
       localLimitNotice: 'affiché limité à 500',
@@ -6483,6 +6484,7 @@ export const dictionaries = {
       dumped: 'dumped',
     },
     tagPage: {
+      titleFallback: 'Tag details',
       emptyHint: 'No VNs with this tag in your local library.',
       countHint: '{n} VNs with this tag in your library.',
       localLimitNotice: 'display capped at 500',
@@ -10243,6 +10245,7 @@ export const dictionaries = {
       dumped: 'ダンプ済み',
     },
     tagPage: {
+      titleFallback: 'タグ詳細',
       emptyHint: 'ローカルライブラリにこのタグの VN はありません。',
       countHint: 'ライブラリにこのタグの VN が {n} 件あります。',
       localLimitNotice: '表示は500件に制限されています',
