@@ -159,6 +159,12 @@ describe('BannerSourcePicker branches', () => {
     expect(screen.getByText(t.coverPicker.galleryEmpty)).toBeInTheDocument();
   });
 
+  it('does not repeat identical release artwork in the gallery', async () => {
+    renderPicker({ releaseImages: [...releaseImages, { ...releaseImages[0] }] });
+    const dialog = await open();
+    expect(within(dialog).getAllByTitle(/Release X/)).toHaveLength(1);
+  });
+
   it('resets the banner via DELETE and broadcasts a cleared backdrop', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     renderPicker({ currentBanner: 'cover/custom-banner.jpg' });

@@ -27,6 +27,7 @@ import { dispatchBannerChanged, dispatchCoverChanged } from '@/lib/cover-banner-
 import { safeHref } from '@/lib/safe-href';
 import { readApiError } from '@/lib/api-error-read';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
+import { releaseImageIdentity, uniqueReleaseImages } from '@/lib/release-image-identity';
 
 export interface MediaItem {
   key: string;
@@ -98,11 +99,8 @@ export function MediaGallery({
         dims: s.dims ?? null,
       })),
     };
-    const seenReleaseImages = new Set<string>();
-    for (const img of releaseImages) {
-      const identity = `${img.release_id}:${img.type}:${img.id ?? ''}:${img.url}`;
-      if (seenReleaseImages.has(identity)) continue;
-      seenReleaseImages.add(identity);
+    for (const img of uniqueReleaseImages(releaseImages)) {
+      const identity = releaseImageIdentity(img);
       const localizedType = t.media[img.type];
       const item: MediaItem = {
         key: identity,

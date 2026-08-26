@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { dispatchBannerChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
+import { releaseImageIdentity, uniqueReleaseImages } from '@/lib/release-image-identity';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeUploadedBannerPath } from '@/lib/image-source-client-shape';
@@ -226,12 +227,12 @@ export function BannerSourcePicker({
       label: `${t.media.screenshots} ${i + 1}`,
       aspect: 'aspect-video' as const,
     })),
-    ...releaseImages.map((img) => {
+    ...uniqueReleaseImages(releaseImages).map((img) => {
       const typeKey = img.type.toLowerCase() as keyof typeof t.media;
       const localizedType =
         typeKey in t.media && typeof t.media[typeKey] === 'string' ? t.media[typeKey] : img.type;
       return {
-        key: `${img.release_id}-${img.id ?? img.url}`,
+        key: releaseImageIdentity(img),
         src: img.thumbnail || img.url,
         local: img.local_thumb || img.local || null,
         value: img.local || img.url,

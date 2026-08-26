@@ -581,7 +581,7 @@ describe('CoverSourcePicker branches', () => {
   });
 
   it('renders the gallery count reflecting screenshots plus release art', async () => {
-    renderPicker({ showTrigger: false });
+    renderPicker({ showTrigger: false, releaseImages: [...releaseImages, { ...releaseImages[1] }] });
     openViaEvent();
     await screen.findByRole('dialog');
     expect(screen.getByText(`${t.coverPicker.galleryLabel} / 4`)).toBeInTheDocument();

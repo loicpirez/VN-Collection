@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { dispatchCoverChanged } from '@/lib/cover-banner-events';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
+import { releaseImageIdentity, uniqueReleaseImages } from '@/lib/release-image-identity';
 
 import { readApiError } from '@/lib/api-error-read';
 import {
@@ -364,8 +365,8 @@ export function CoverSourcePicker({
       sexual: s.sexual ?? null,
       label: `${t.media.screenshots} ${i + 1}`,
     })),
-    ...releaseImages.map((img) => ({
-      key: `${img.release_id}-${img.id ?? img.url}`,
+    ...uniqueReleaseImages(releaseImages).map((img) => ({
+      key: releaseImageIdentity(img),
       src: img.thumbnail || img.url,
       local: img.local_thumb || img.local || null,
       value: img.local || img.url,
