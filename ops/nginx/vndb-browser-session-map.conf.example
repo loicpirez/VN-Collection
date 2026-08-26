@@ -1,0 +1,11 @@
+map_hash_bucket_size 128;
+
+map $cookie_vndb_auth_session $vndb_auth_realm {
+    default "VNDB private";
+    "REPLACE_WITH_64_HEX_SESSION_TOKEN" off;
+}
+
+map $http_authorization $vndb_session_cookie {
+    default "";
+    ~*^Basic\s+ "vndb_auth_session=REPLACE_WITH_64_HEX_SESSION_TOKEN; Path=/; Max-Age=604800; Secure; HttpOnly; SameSite=Strict";
+}

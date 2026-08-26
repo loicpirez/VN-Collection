@@ -243,11 +243,25 @@ forward automatically.
 
 ## Basic Auth reverse proxy
 
-When Nginx protects the deployment with HTTP Basic Auth, install the public-icon
-and backup-restore snippets inside the HTTPS `server` block before the
-authenticated `location /` block:
+When Nginx protects the deployment with HTTP Basic Auth, install the public-icon,
+backup-restore, and browser-session snippets. Generate the browser-session map
+from `ops/nginx/vndb-browser-session-map.conf.example` without printing its
+random token, and keep the installed map readable only by root:
+
+```bash
+sudo sh -c 'umask 077; token="$(openssl rand -hex 32)"; sed "s/REPLACE_WITH_64_HEX_SESSION_TOKEN/$token/g" ops/nginx/vndb-browser-session-map.conf.example > /etc/nginx/conf.d/vndb-browser-session.conf'
+sudo install -o root -g root -m 0644 ops/nginx/vndb-basic-auth.conf /etc/nginx/snippets/vndb-basic-auth.conf
+sudo install -o root -g root -m 0644 ops/nginx/vndb-browser-session-cookie.conf /etc/nginx/snippets/vndb-browser-session-cookie.conf
+```
+
+Include the cookie header at HTTPS `server` scope so the normal page, API, and
+backup locations inherit it without replacing the server's security headers.
+Keep the public-icon and backup-restore locations before the authenticated
+`location /` block:
 
 ```nginx
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+include /etc/nginx/snippets/vndb-browser-session-cookie.conf;
 include /etc/nginx/snippets/vndb-public-icons.conf;
 include /etc/nginx/snippets/vndb-backup-restore.conf;
 
@@ -261,6 +275,16 @@ location / {
     include /etc/nginx/snippets/vndb-proxy-proof.conf;
 }
 ```
+
+The first successful Basic Auth response sets a secure, HTTP-only,
+same-site-strict browser session for seven days. This prevents concurrent Safari
+and WebKit tabs from racing independent authentication challenges. A missing,
+expired, or incorrect cookie still receives the Basic Auth challenge. The
+cookie header intentionally omits Nginx's `always` parameter, so a failed Basic
+Auth response cannot mint a session. Rotate the browser-session token whenever
+the Basic Auth password changes or the session token may have been exposed,
+then test the configuration and reload Nginx. Rotation invalidates every
+existing browser session immediately.
 
 Keep the password file readable only by root and the Nginx worker group. After
 creating or rotating it, enforce `root:www-data` ownership and mode `0640`, then
@@ -292,7 +316,10 @@ Safari and iOS can request `favicon.ico` and Apple touch icons from a separate
 `NetworkingExtension` credential context immediately after the document login.
 Challenging those no-content discovery requests can display a second Basic Auth
 prompt. The reviewed snippet returns an empty cacheable response only for those
-icon names. All pages, Next.js assets, and API routes remain behind Basic Auth.
+icon names. All pages, Next.js assets, and API routes remain behind Basic Auth
+or the exact bounded browser-session token. The session cookie is only a
+time-limited proof of a prior successful challenge, not a public route
+exemption.
 
 Validate with `sudo nginx -t` before reloading Nginx.
 
