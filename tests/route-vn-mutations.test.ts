@@ -223,7 +223,8 @@ describe('GET /api/vn/[id]/vndb-status', () => {
       notes: null,
       labels: [{ id: 1, label: 'Playing' }],
     });
-    const res = await statusGET(localReq('/api/vn/v90402/vndb-status?fresh=1', 'GET'), ctx(REAL_VN));
+    const request = localReq('/api/vn/v90402/vndb-status?fresh=1', 'GET');
+    const res = await statusGET(request, ctx(REAL_VN));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.labels).toHaveLength(1);
@@ -241,7 +242,8 @@ describe('GET /api/vn/[id]/vndb-status', () => {
       'finished',
       'notes',
     ]);
-    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true });
+    expect(labelsMock).toHaveBeenCalledWith(request.signal);
+    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true, signal: request.signal });
   });
 
   it('200 with needsAuth when entry loading reports missing auth after labels resolve', async () => {
@@ -807,11 +809,17 @@ describe('GET /api/vn/[id]/erogamescape', () => {
 
   it('200 with game/source/manual fields', async () => {
     resolveMock.mockResolvedValue({ game: { id: 1, gamename: 'X' }, source: 'cache' });
-    const res = await egsGET(localReq('/api/vn/v90402/erogamescape', 'GET'), ctx(REAL_VN));
+    const request = localReq('/api/vn/v90402/erogamescape', 'GET');
+    const res = await egsGET(request, ctx(REAL_VN));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toMatchObject({ source: 'cache', manual: null });
     expect(body.game.id).toBe(1);
+    expect(resolveMock).toHaveBeenCalledWith(REAL_VN, {
+      force: false,
+      allowSearch: true,
+      signal: request.signal,
+    });
   });
 
   it('200 includes a manual EGS link when one is stored for the VN', async () => {

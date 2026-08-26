@@ -236,6 +236,21 @@ describe('fetchEgsGame', () => {
     await expect(fetchEgsGame(9)).rejects.toMatchObject({ kind: 'network' });
   });
 
+  it('preserves caller cancellation instead of converting it to an EGS outage', async () => {
+    mockProviderFetch.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      if (init?.signal?.aborted) return Promise.reject(init.signal.reason);
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      });
+    });
+    const controller = new AbortController();
+    const request = fetchEgsGame(904, { signal: controller.signal });
+    const settlement = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+
+    controller.abort();
+    await settlement;
+  });
+
   it('maps a non-Error thrown fetch value to a network EgsUnreachable', async () => {
     mockProviderFetch.mockRejectedValueOnce('offline');
     await expect(fetchEgsGame(901)).rejects.toMatchObject({ kind: 'network' });

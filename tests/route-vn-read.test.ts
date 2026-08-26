@@ -97,11 +97,13 @@ describe('GET /api/vn/[id]/characters', () => {
 
   it('200 with characters enriched with a localImage field', async () => {
     charsMock.mockResolvedValue([{ id: 'c90001', name: 'Heroine', traits: [] }]);
-    const res = await vnCharsGET(localReq('/api/vn/v90301/characters', 'GET'), ctx());
+    const request = localReq('/api/vn/v90301/characters', 'GET');
+    const res = await vnCharsGET(request, ctx());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.characters).toHaveLength(1);
     expect(body.characters[0]).toMatchObject({ id: 'c90001', localImage: null });
+    expect(charsMock).toHaveBeenCalledWith(VN, 30, request.signal);
   });
 
   it('502 when the upstream throws', async () => {

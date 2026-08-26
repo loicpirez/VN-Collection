@@ -48,13 +48,53 @@ function circuitOpen(): boolean {
   return recent429s.length >= CIRCUIT_THRESHOLD;
 }
 
-function acquire(): Promise<void> {
-  return new Promise((resolve) => {
+function abortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('The operation was aborted', 'AbortError');
+}
+
+function acquire(signal?: AbortSignal | null): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortReason(signal));
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let queued = false;
+    let settled = false;
+    const removeQueued = () => {
+      if (!queued) return;
+      const index = waiters.indexOf(tryStart);
+      if (index >= 0) waiters.splice(index, 1);
+      queued = false;
+    };
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      removeQueued();
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      if (settled || !signal) return;
+      settled = true;
+      cleanup();
+      reject(abortReason(signal));
+    };
+    const schedule = (delay: number) => {
+      timer = setTimeout(() => {
+        timer = null;
+        tryStart();
+      }, delay);
+    };
     const tryStart = () => {
+      queued = false;
+      if (settled) return;
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
       // Soft pause when the circuit is open. Affects new acquirers only —
       // the in-flight retry has already paid its Retry-After sleep.
       if (circuitOpen()) {
-        setTimeout(tryStart, SOFT_PAUSE_MS);
+        schedule(SOFT_PAUSE_MS);
         return;
       }
       const now = Date.now();
@@ -62,6 +102,8 @@ function acquire(): Promise<void> {
       if (activeCount < MAX_CONCURRENT && sinceLast >= MIN_GAP_MS) {
         activeCount += 1;
         lastStart = now;
+        settled = true;
+        cleanup();
         resolve();
         return;
       }
@@ -69,11 +111,13 @@ function acquire(): Promise<void> {
         ? Math.max(0, MIN_GAP_MS - sinceLast)
         : 0;
       if (delay > 0) {
-        setTimeout(tryStart, delay);
+        schedule(delay);
       } else {
         waiters.push(tryStart);
+        queued = true;
       }
     };
+    signal?.addEventListener('abort', onAbort, { once: true });
     tryStart();
   });
 }
@@ -95,8 +139,20 @@ function note429(retryAfterMs: number): void {
   void import('./download-status').then((m) => m.bumpStatus());
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((r) => setTimeout(r, ms));
+async function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (signal?.aborted) throw abortReason(signal);
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(signal ? abortReason(signal) : new DOMException('The operation was aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /**
@@ -119,7 +175,7 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
   let attempt = 0;
   while (true) {
     attempt += 1;
-    await acquire();
+    await acquire(init?.signal);
     let res: Response;
     try {
       res = await providerFetch(url, init ?? {}, provider);
@@ -130,7 +186,7 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
         (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError'))
       ) throw err;
       if (attempt > MAX_RETRY) throw err;
-      await sleep(Math.min(MAX_RETRY_AFTER_MS, NET_ERR_RETRY_BASE_MS * (2 ** (attempt - 1))));
+      await sleep(Math.min(MAX_RETRY_AFTER_MS, NET_ERR_RETRY_BASE_MS * (2 ** (attempt - 1))), init?.signal);
       continue;
     }
     release();
@@ -140,7 +196,7 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
       const waitMs = Math.min(MAX_RETRY_AFTER_MS, Math.max(2_000, headerMs));
       note429(waitMs);
       if (attempt > MAX_RETRY) return res;
-      await sleep(waitMs);
+      await sleep(waitMs, init?.signal);
       continue;
     }
     return res;

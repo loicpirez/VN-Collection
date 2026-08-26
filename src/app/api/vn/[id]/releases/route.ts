@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
-    const releases = await getReleasesForVn(id);
+    const releases = await getReleasesForVn(id, 50, req.signal);
     await Promise.all(releases.map((release) => getOwnedReleaseRepository().upsertResolutionCache({
       releaseId: release.id,
       vnId: id,

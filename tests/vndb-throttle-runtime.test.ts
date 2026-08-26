@@ -186,14 +186,46 @@ describe('network-error back-off', () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('does not retry after the caller aborts even when the provider throws another error type', async () => {
+  it('does not start a provider request when the caller already aborted', async () => {
     const { throttledFetch } = await freshThrottle();
     const controller = new AbortController();
     controller.abort();
-    providerFetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
 
-    await expect(throttledFetch(VNDB, { signal: controller.signal })).rejects.toThrow(/fetch failed/);
+    await expect(throttledFetch(VNDB, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('removes an aborted caller from the serialization queue', async () => {
+    const { throttledFetch, getVndbThrottleStats } = await freshThrottle();
+    const firstResponse = new Promise<Response>(() => {});
+    providerFetchMock.mockReturnValueOnce(firstResponse);
+    const first = throttledFetch(VNDB, {});
+    const controller = new AbortController();
+    const queued = throttledFetch(VNDB, { signal: controller.signal });
+    const queuedSettlement = expect(queued).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getVndbThrottleStats().queued).toBe(1);
+
+    controller.abort();
+    await queuedSettlement;
+    expect(getVndbThrottleStats().queued).toBe(0);
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
+    void first;
+  });
+
+  it('cancels a network retry back-off when the caller leaves', async () => {
+    const { throttledFetch } = await freshThrottle();
+    const controller = new AbortController();
+    providerFetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+    const request = throttledFetch(VNDB, { signal: controller.signal });
+    const settlement = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+
+    controller.abort();
+    await settlement;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
   });
 });
 

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
-    const quotes = await getQuotesForVn(id);
+    const quotes = await getQuotesForVn(id, { signal: req.signal });
     // Enrich each quote with the locally-mirrored character portrait
     // (when downloaded). Single batched lookup against
     // `character_image` keeps this O(1) regardless of quote count.

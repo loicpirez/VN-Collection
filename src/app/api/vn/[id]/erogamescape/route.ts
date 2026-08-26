@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const allowSearch = sp.get('search') !== '0';
   const force = sp.get('refresh') === '1';
   try {
-    const { game, source } = await resolveEgsForVn(id, { force, allowSearch });
+    const { game, source } = await resolveEgsForVn(id, { force, allowSearch, signal: req.signal });
     const manual = isVndbVnId(id) ? await getEgsRepository().getVnLink(id) : null;
     return NextResponse.json({
       game,

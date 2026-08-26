@@ -35,6 +35,13 @@ const SQL_ENDPOINT = `${EGS_BASE}/sql_for_erogamer_form.php`;
 const CACHE_TTL_MS = 24 * 3600 * 1000;
 const FETCH_TIMEOUT_MS = 7000;
 
+function throwIfRequestAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('The operation was aborted', 'AbortError');
+}
+
 export interface EgsGame {
   id: number;
   gamename: string;
@@ -159,16 +166,19 @@ export class EgsUnreachable extends Error {
  * returns an HTML table (not JSON/CSV), column names are lowercase.
  * Practical row cap ~10k — callers must LIMIT in the SQL.
  */
-async function fetchTableOnce(sql: string): Promise<string[][]> {
+async function fetchTableOnce(sql: string, requestSignal?: AbortSignal): Promise<string[][]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  const signal = requestSignal
+    ? AbortSignal.any([requestSignal, ctrl.signal])
+    : ctrl.signal;
   let res: Response;
   try {
     res = await providerFetch(
       SQL_ENDPOINT,
       {
         method: 'POST',
-        signal: ctrl.signal,
+        signal,
         headers: {
           'User-Agent': 'vndb-collection/1.0 (personal use)',
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -178,6 +188,7 @@ async function fetchTableOnce(sql: string): Promise<string[][]> {
       'egs',
     );
   } catch (e) {
+    throwIfRequestAborted(requestSignal);
     const msg = e instanceof Error ? e.message : String(e);
     throw new EgsUnreachable('network', msg);
   } finally {
@@ -198,11 +209,11 @@ async function fetchTableOnce(sql: string): Promise<string[][]> {
   return parseHtmlTable(html);
 }
 
-async function fetchTable(sql: string): Promise<string[][]> {
+async function fetchTable(sql: string, signal?: AbortSignal): Promise<string[][]> {
   if (!isAllowedHttpTarget(SQL_ENDPOINT)) {
     throw new EgsUnreachable('blocked', 'host not on SSRF allowlist');
   }
-  return fetchTableOnce(sql);
+  return fetchTableOnce(sql, signal);
 }
 
 const TABLE_RE = /<table\b[^>]*class="[^"]*\bsql_for_erogamer\b[^"]*"[^>]*>([\s\S]*?)<\/table>/i;
@@ -306,11 +317,12 @@ function toBool(v: string | undefined): boolean | null {
   return null;
 }
 
-async function fetchOne(sql: string): Promise<Record<string, string | null> | null> {
+async function fetchOne(sql: string, signal?: AbortSignal): Promise<Record<string, string | null> | null> {
   let rows: string[][];
   try {
-    rows = await fetchTable(sql);
+    rows = await fetchTable(sql, signal);
   } catch (e) {
+    throwIfRequestAborted(signal);
     if (e instanceof EgsUnreachable) throw e;
     return null;
   }
@@ -353,7 +365,7 @@ function assertSqlInt(n: number, fieldName: string): void {
   }
 }
 
-export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): Promise<EgsGame | null> {
+export async function fetchEgsGame(id: number, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<EgsGame | null> {
   assertSqlInt(id, 'gamelist.id');
   const cacheK = cacheKey('game', String(id));
   if (!opts.force) {
@@ -376,7 +388,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
     LIMIT 1
   `;
   // fetchOne re-throws EgsUnreachable so the caller can preserve a
-  const row = await fetchOne(sql);
+  const row = await fetchOne(sql, opts.signal);
   if (!row) {
     await writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
@@ -389,7 +401,7 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean } = {}): 
   // EGS has no structured synopsis. We used to surface a top user comment as a
   // stand-in but the result was misleading (single user opinion ≠ synopsis), so
   // it's been dropped. EGS-side data is just scores, brand, genre, playtime.
-  const playMin = await fetchEgsPlaytimeMedian(id);
+  const playMin = await fetchEgsPlaytimeMedian(id, opts.signal);
 
   const game: EgsGame = {
     id,
@@ -429,7 +441,7 @@ function egsHoursToMinutes(v: string | null | undefined): number | null {
   return Math.round(n * 60);
 }
 
-async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
+async function fetchEgsPlaytimeMedian(gameId: number, signal?: AbortSignal): Promise<number | null> {
   assertSqlInt(gameId, 'userreview.game');
   // userreview.total_play_time is in HOURS. We compute the median across
   // non-null entries client-side then convert to minutes for our internal
@@ -437,8 +449,9 @@ async function fetchEgsPlaytimeMedian(gameId: number): Promise<number | null> {
   const sql = `SELECT total_play_time FROM userreview WHERE game = ${gameId} AND total_play_time IS NOT NULL AND total_play_time > 0 ORDER BY total_play_time`;
   let rows: string[][];
   try {
-    rows = await fetchTable(sql);
+    rows = await fetchTable(sql, signal);
   } catch {
+    throwIfRequestAborted(signal);
     return null;
   }
   if (rows.length < 2) return null;
@@ -562,9 +575,10 @@ export interface ResolveResult {
  */
 export async function resolveEgsForVn(
   vnId: string,
-  opts: { force?: boolean; allowSearch?: boolean } = {},
+  opts: { force?: boolean; allowSearch?: boolean; signal?: AbortSignal } = {},
 ): Promise<ResolveResult> {
-  const { force = false, allowSearch = true } = opts;
+  const { force = false, allowSearch = true, signal } = opts;
+  throwIfRequestAborted(signal);
 
   // Manual override beats everything else.
   if (isVndbVnId(vnId)) {
@@ -574,7 +588,7 @@ export async function resolveEgsForVn(
         return { game: null, source: 'manual-none' };
       }
       // Pinned to a specific EGS id — fetch (using existing cache).
-      const game = await fetchEgsGame(manual.egs_id, { force }).catch((e: unknown) => {
+      const game = await fetchEgsGame(manual.egs_id, { force, signal }).catch((e: unknown) => {
         if (e instanceof EgsUnreachable) return null;
         throw e;
       });
@@ -610,7 +624,7 @@ export async function resolveEgsForVn(
     if (Number.isInteger(parsed) && parsed > 0) egsId = parsed;
   } else {
     try {
-      const releases = await getReleasesForVn(vnId);
+      const releases = await getReleasesForVn(vnId, 50, signal);
       for (const r of releases) {
         const candidate = findEgsIdInExtlinks(r.extlinks);
         if (candidate != null) {
@@ -619,6 +633,7 @@ export async function resolveEgsForVn(
         }
       }
     } catch {
+      throwIfRequestAborted(signal);
       // releases unavailable — leave egsId null and try name search below
     }
   }
@@ -631,7 +646,7 @@ export async function resolveEgsForVn(
       // Bypass the per-EGS-id cache too when force is set, so users can re-pull
       // data after EGS publishes updates (median changed, new playtime entries,
       // newly added trailer URL, etc.).
-      game = await fetchEgsGame(egsId, { force });
+      game = await fetchEgsGame(egsId, { force, signal });
       if (game) source = 'extlink';
     } catch (e) {
       if (e instanceof EgsUnreachable) unreachable = true;
@@ -643,7 +658,7 @@ export async function resolveEgsForVn(
     const probe = item?.alttitle?.trim() || item?.title?.trim();
     if (probe) {
       try {
-        game = await searchEgsByName(probe, { force });
+        game = await searchEgsByName(probe, { force, signal });
         if (game) source = 'search';
       } catch (e) {
         if (e instanceof EgsUnreachable) unreachable = true;
@@ -653,6 +668,7 @@ export async function resolveEgsForVn(
   }
 
   if (game && source) {
+    throwIfRequestAborted(signal);
     // Synthetic egs_* entries aren't matched via a VNDB extlink — the EGS id
     // is the id itself. Persist as 'manual' so MatchBadges doesn't falsely
     // attribute the match to VNDB.
@@ -710,7 +726,7 @@ export async function clearEgsCache(
 }
 
 /** Best-effort name search when no VNDB extlink is available. Returns the top hit. */
-export async function searchEgsByName(query: string, opts: { force?: boolean } = {}): Promise<EgsGame | null> {
+export async function searchEgsByName(query: string, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<EgsGame | null> {
   const trimmed = query.trim();
   if (!trimmed) return null;
   const cacheK = cacheKey('search', trimmed.toLowerCase());
@@ -737,14 +753,14 @@ export async function searchEgsByName(query: string, opts: { force?: boolean } =
     LIMIT 1
   `;
   // Re-throw EgsUnreachable so resolveEgsForVn can preserve a prior match.
-  const rows = await fetchTable(sql);
+  const rows = await fetchTable(sql, opts.signal);
   if (rows.length < 2) {
     await writeCache(cacheK, null, 6 * 3600 * 1000);
     return null;
   }
   const id = toNumber(rows[1][0]);
   if (id == null) return null;
-  const game = await fetchEgsGame(id, { force: opts.force });
+  const game = await fetchEgsGame(id, { force: opts.force, signal: opts.signal });
   await writeCache(cacheK, game, 12 * 3600 * 1000);
   return game;
 }

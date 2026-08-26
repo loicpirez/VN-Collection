@@ -241,21 +241,24 @@ async function vndbPost<T>(
   body: unknown,
   ttlMs: number,
   decodeRow: CachePayloadDecoder<T>,
+  signal?: AbortSignal,
 ): Promise<VndbResponse<T>> {
   const decode = createVndbResultsEnvelopeDecoder(decodeRow);
   const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
     method: 'POST',
     headers: await authHeaders(),
     body: JSON.stringify(body),
+    signal,
     __pathTag: `POST ${path}`,
   }, { ttlMs, decode });
   return r.data;
 }
 
-async function vndbGet<T>(path: string, ttlMs: number, decode?: CachePayloadDecoder<T>): Promise<T> {
+async function vndbGet<T>(path: string, ttlMs: number, decode?: CachePayloadDecoder<T>, signal?: AbortSignal): Promise<T> {
   const r = await cachedFetch<T>(`${VNDB_API}${path}`, {
     method: 'GET',
     headers: await authHeaders(),
+    signal,
     __pathTag: `GET ${path}`,
   }, { ttlMs, decode });
   return r.data;
@@ -638,13 +641,13 @@ export interface VndbCharacterVn {
  * Fetch up to `max` characters credited to one VN. Returns an empty array
  * for synthetic `egs_*` ids since VNDB doesn't know them.
  */
-export async function getCharactersForVn(vnId: string, max = 30): Promise<VndbCharacter[]> {
+export async function getCharactersForVn(vnId: string, max = 30, signal?: AbortSignal): Promise<VndbCharacter[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbCharacter>('/character', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: CHARACTER_FIELDS,
     results: Math.min(max, 100),
-  }, TTL.characters, decodeVndbCharacter);
+  }, TTL.characters, decodeVndbCharacter, signal);
   return r.results;
 }
 
@@ -1250,14 +1253,14 @@ export async function searchTraits(query: string, { results = 50 } = {}): Promis
  * Fetch up to `max` releases of one VN, ordered by release date. Returns
  * an empty array for synthetic `egs_*` ids — VNDB doesn't know them.
  */
-export async function getReleasesForVn(vnId: string, max = 50): Promise<VndbRelease[]> {
+export async function getReleasesForVn(vnId: string, max = 50, signal?: AbortSignal): Promise<VndbRelease[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbRelease>('/release', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: RELEASE_FIELDS,
     sort: 'released',
     results: Math.min(max, 100),
-  }, TTL.releases, decodeVndbRelease);
+  }, TTL.releases, decodeVndbRelease, signal);
   return r.results;
 }
 
@@ -1329,7 +1332,10 @@ export async function getRandomQuoteForVns(vnIds: string[]): Promise<VndbQuote |
  * Fetch up to `results` quotes attached to one VN. Returns an empty array
  * for synthetic `egs_*` ids since VNDB doesn't know them.
  */
-export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promise<VndbQuote[]> {
+export async function getQuotesForVn(
+  vnId: string,
+  { results = 20, signal }: { results?: number; signal?: AbortSignal } = {},
+): Promise<VndbQuote[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbQuote>('/quote', {
     filters: ['vn', '=', ['id', '=', vnId]],
@@ -1337,7 +1343,7 @@ export async function getQuotesForVn(vnId: string, { results = 20 } = {}): Promi
     sort: 'score',
     reverse: true,
     results: Math.min(results, 100),
-  }, TTL.quotesByVn, decodeVndbQuote);
+  }, TTL.quotesByVn, decodeVndbQuote, signal);
   return r.results;
 }
 
@@ -1616,10 +1622,10 @@ export interface VndbUlistLabel {
  * Lists every ulist label for the authenticated user (predefined + custom).
  * Cached at the VNDB cache layer so the labels modal opens instantly.
  */
-export async function fetchUlistLabels(): Promise<VndbUlistLabel[] | { needsAuth: true }> {
+export async function fetchUlistLabels(signal?: AbortSignal): Promise<VndbUlistLabel[] | { needsAuth: true }> {
   const token = await readVndbToken();
   if (!token) return { needsAuth: true };
-  const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user, decodeVndbUlistLabelsResponse);
+  const r = await vndbGet<{ labels: VndbUlistLabel[] }>('/ulist_labels?fields=count', TTL.user, decodeVndbUlistLabelsResponse, signal);
   return r.labels;
 }
 
@@ -1638,7 +1644,7 @@ export interface VndbUlistEntryDetail {
 
 export async function fetchUlistEntry(
   vnId: string,
-  options: { fresh?: boolean } = {},
+  options: { fresh?: boolean; signal?: AbortSignal } = {},
 ): Promise<VndbUlistEntryDetail | null | { needsAuth: true }> {
   const auth = await getAuthInfo();
   if (!auth) return { needsAuth: true };
@@ -1655,6 +1661,7 @@ export async function fetchUlistEntry(
     // conflict resolver never acts on a five-minute-old ulist snapshot.
     options.fresh ? 0 : 5 * 60 * 1000,
     decodeVndbUlistEntryDetailRow,
+    options.signal,
   );
   return r.results[0] ?? null;
 }

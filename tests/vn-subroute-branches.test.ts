@@ -133,7 +133,8 @@ describe('GET /api/vn/[id]/quotes', () => {
   });
 
   it('enriches quotes with character portraits and VN cover fallback fields', async () => {
-    const response = await quotesGET(req(`/api/vn/${VN_ID}/quotes`), ctx());
+    const request = req(`/api/vn/${VN_ID}/quotes`);
+    const response = await quotesGET(request, ctx());
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       quotes: [
@@ -159,6 +160,7 @@ describe('GET /api/vn/[id]/quotes', () => {
         },
       ],
     });
+    expect(mocks.getQuotesForVn).toHaveBeenCalledWith(VN_ID, { signal: request.signal });
   });
 
   it('returns a sanitized upstream error when quote loading fails', async () => {
@@ -186,7 +188,8 @@ describe('GET /api/vn/[id]/releases', () => {
   });
 
   it('persists release resolution cache rows while returning releases', async () => {
-    const response = await releasesGET(req(`/api/vn/${VN_ID}/releases`), ctx());
+    const request = req(`/api/vn/${VN_ID}/releases`);
+    const response = await releasesGET(request, ctx());
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       releases: [
@@ -204,6 +207,7 @@ describe('GET /api/vn/[id]/releases', () => {
       vnId: VN_ID,
       resolution: null,
     });
+    expect(mocks.getReleasesForVn).toHaveBeenCalledWith(VN_ID, 50, request.signal);
   });
 
   it('returns a sanitized upstream error when release loading fails', async () => {

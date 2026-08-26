@@ -9,7 +9,7 @@ import { useConfirm } from './ConfirmDialog';
 import { readApiError } from '@/lib/api-error-read';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { decodeVndbStatusClientState } from '@/lib/vndb-ui-client-shape';
-import { clearVndbStatusRequest, requestVndbStatus } from '@/lib/vndb-status-client';
+import { requestVndbStatus } from '@/lib/vndb-status-client';
 import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 import { useVnCollectionState } from '@/lib/use-vn-collection-state';
 import { ActionMenu } from './ActionMenu';
@@ -98,7 +98,7 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all', variant = 
     setWishlist((prev) => ({ ...prev, loading: true }));
     (async () => {
       try {
-        const r = await requestVndbStatus(vnId);
+        const r = await requestVndbStatus(vnId, false, ac.signal);
         if (!r.ok) {
           if (!ac.signal.aborted) {
             setWishlist({ loading: false, available: false, onWishlist: false });
@@ -123,7 +123,6 @@ export function CoverQuickActions({ vnId, inCollection, mode = 'all', variant = 
       identityRef.current = null;
       mutationAbortRef.current?.abort();
       mutationAbortRef.current = null;
-      clearVndbStatusRequest(vnId);
       ac.abort();
     };
   }, [vnId, wishlistSupported]);

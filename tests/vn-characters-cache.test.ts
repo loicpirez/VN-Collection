@@ -42,6 +42,51 @@ describe('vn-characters-cache', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the shared request alive while another consumer remains', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    fetchSpy.mockImplementationOnce((_url: RequestInfo | URL, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const first = fetchVnCharacters(VN_ID, firstController.signal);
+    const second = fetchVnCharacters(VN_ID, secondController.signal);
+    const firstSettlement = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+
+    firstController.abort();
+    await firstSettlement;
+    expect(captured.signal?.aborted).toBe(false);
+    resolveFetch(new Response(JSON.stringify({ characters: [{ id: 'c95001', name: 'Sample', localImage: null }] })));
+    await expect(second).resolves.toHaveLength(1);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it('aborts the network request after its last consumer leaves', async () => {
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    fetchSpy.mockImplementationOnce((_url: RequestInfo | URL, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      });
+    });
+    const controller = new AbortController();
+    const abandoned = fetchVnCharacters(VN_ID, controller.signal);
+    const settlement = expect(abandoned).rejects.toMatchObject({ name: 'AbortError' });
+
+    controller.abort();
+    await settlement;
+    expect(captured.signal?.aborted).toBe(true);
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ characters: [{ id: 'c95002', name: 'Retry', localImage: null }] }),
+    });
+    await expect(fetchVnCharacters(VN_ID)).resolves.toMatchObject([{ id: 'c95002' }]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('invalidate clears the cache', async () => {
     await fetchVnCharacters(VN_ID);
     invalidateVnCharactersCache(VN_ID);

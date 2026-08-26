@@ -15,9 +15,10 @@ export type { VnCharacterRow } from './vn-character-row';
  * cache entry). The route handler still has its own 24h server cache
  * — this layer just deduplicates within one page lifecycle.
  *
- * Concurrent calls for the same `vnId` share a single in-flight
- * Promise (`Map<vnId, Promise>`), so two `useEffect`s firing on the
- * same tick produce ONE network request, not two.
+ * Concurrent calls for the same `vnId` share a single in-flight request, so
+ * two `useEffect`s firing on the same tick produce one network request. Each
+ * caller retains its own cancellation lifecycle; the shared fetch is aborted
+ * only after its last consumer leaves.
  */
 
 interface CacheEntry {
@@ -27,7 +28,64 @@ interface CacheEntry {
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, CacheEntry>();
-const inflight = new Map<string, Promise<VnCharacterRow[]>>();
+interface InflightCharactersRequest {
+  controller: AbortController;
+  promise: Promise<VnCharacterRow[]>;
+  consumers: Set<symbol>;
+}
+
+const inflight = new Map<string, InflightCharactersRequest>();
+
+function characterAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('The operation was aborted', 'AbortError');
+}
+
+function subscribeToCharacters(
+  vnId: string,
+  entry: InflightCharactersRequest,
+  signal?: AbortSignal,
+): Promise<VnCharacterRow[]> {
+  if (signal?.aborted) return Promise.reject(characterAbortReason(signal));
+  const consumer = Symbol(vnId);
+  entry.consumers.add(consumer);
+  return new Promise<VnCharacterRow[]>((resolve, reject) => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      signal?.removeEventListener('abort', onCallerAbort);
+      entry.controller.signal.removeEventListener('abort', onSharedAbort);
+      entry.consumers.delete(consumer);
+      if (entry.consumers.size === 0 && inflight.get(vnId) === entry) {
+        inflight.delete(vnId);
+        entry.controller.abort();
+      }
+    };
+    const onCallerAbort = () => {
+      release();
+      if (signal) reject(characterAbortReason(signal));
+    };
+    const onSharedAbort = () => {
+      if (released) return;
+      release();
+      reject(characterAbortReason(entry.controller.signal));
+    };
+    signal?.addEventListener('abort', onCallerAbort, { once: true });
+    entry.controller.signal.addEventListener('abort', onSharedAbort, { once: true });
+    entry.promise.then(
+      (rows) => {
+        release();
+        resolve(rows);
+      },
+      (error: unknown) => {
+        release();
+        reject(error);
+      },
+    );
+  });
+}
 
 export async function fetchVnCharacters(
   vnId: string,
@@ -38,24 +96,26 @@ export async function fetchVnCharacters(
     return hit.data;
   }
   const pending = inflight.get(vnId);
-  if (pending) return pending;
+  if (pending) return subscribeToCharacters(vnId, pending, signal);
 
+  const controller = new AbortController();
   const p = (async () => {
-    try {
-      const r = await fetch(`/api/vn/${vnId}/characters`, {
-        signal,
-        cache: 'no-store',
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const characters = readVnCharacterRows(await r.json());
-      cache.set(vnId, { data: characters, fetchedAt: Date.now() });
-      return characters;
-    } finally {
-      inflight.delete(vnId);
-    }
+    const r = await fetch(`/api/vn/${vnId}/characters`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const characters = readVnCharacterRows(await r.json());
+    cache.set(vnId, { data: characters, fetchedAt: Date.now() });
+    return characters;
   })();
-  inflight.set(vnId, p);
-  return p;
+  const entry: InflightCharactersRequest = { controller, promise: p, consumers: new Set() };
+  inflight.set(vnId, entry);
+  const release = () => {
+    if (inflight.get(vnId) === entry) inflight.delete(vnId);
+  };
+  void p.then(release, release);
+  return subscribeToCharacters(vnId, entry, signal);
 }
 
 /**
@@ -64,5 +124,8 @@ export async function fetchVnCharacters(
  */
 export function invalidateVnCharactersCache(vnId: string): void {
   cache.delete(vnId);
+  const pending = inflight.get(vnId);
+  if (!pending) return;
   inflight.delete(vnId);
+  pending.controller.abort();
 }

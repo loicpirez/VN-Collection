@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
-    const characters = await getCharactersForVn(id);
+    const characters = await getCharactersForVn(id, 30, req.signal);
     const localPaths = await getPeopleRepository().characterImages(characters.map((c) => c.id));
     const enriched = characters.map((c) => ({
       ...c,

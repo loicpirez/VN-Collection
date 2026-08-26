@@ -54,10 +54,11 @@ describe('VNDB status client request coalescing', () => {
       .mockImplementationOnce(() => newPending.promise);
 
     const oldRequest = requestVndbStatus(VN_ONE);
+    const oldSettlement = expect(oldRequest).rejects.toMatchObject({ name: 'AbortError' });
     clearVndbStatusRequest(VN_ONE);
     const newRequest = requestVndbStatus(VN_ONE);
+    await oldSettlement;
     oldPending.resolve(new Response('{"version":"old"}'));
-    await oldRequest;
 
     const sharedNewRequest = requestVndbStatus(VN_ONE);
     expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -72,8 +73,8 @@ describe('VNDB status client request coalescing', () => {
     await Promise.all([requestVndbStatus(VN_ONE), requestVndbStatus(VN_TWO)]);
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status`, { cache: 'no-store' });
-    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_TWO}/vndb-status`, { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status`, expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
+    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_TWO}/vndb-status`, expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
   });
 
   it('keeps explicit fresh reads separate from cached in-flight reads', async () => {
@@ -82,6 +83,41 @@ describe('VNDB status client request coalescing', () => {
     await Promise.all([requestVndbStatus(VN_ONE), requestVndbStatus(VN_ONE, true)]);
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status?fresh=1`, { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith(`/api/vn/${VN_ONE}/vndb-status?fresh=1`, expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
+  });
+
+  it('keeps the shared fetch alive while another consumer still needs it', async () => {
+    const pending = deferredResponse();
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return pending.promise;
+    });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const first = requestVndbStatus(VN_ONE, false, firstController.signal);
+    const second = requestVndbStatus(VN_ONE, false, secondController.signal);
+    const firstSettlement = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+
+    firstController.abort();
+    await firstSettlement;
+    expect(captured.signal?.aborted).toBe(false);
+    pending.resolve(new Response('{"entry":null}'));
+    await expect((await second).json()).resolves.toEqual({ entry: null });
+  });
+
+  it('aborts the shared fetch after its last consumer leaves', async () => {
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    global.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return new Promise<Response>(() => {});
+    });
+    const controller = new AbortController();
+    const request = requestVndbStatus(VN_ONE, false, controller.signal);
+    const settlement = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+
+    controller.abort();
+    await settlement;
+    expect(captured.signal?.aborted).toBe(true);
   });
 });

@@ -135,7 +135,59 @@ export interface CachedFetchOptions<T> {
   decode?: CachePayloadDecoder<T>;
 }
 
-const inflight = new Map<string, Promise<FetchResult<unknown>>>();
+interface InflightRequest {
+  key: string;
+  promise: Promise<FetchResult<unknown>>;
+  controller: AbortController;
+  subscribers: Set<symbol>;
+  settled: boolean;
+}
+
+const inflight = new Map<string, InflightRequest>();
+
+function requestAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('The operation was aborted', 'AbortError');
+}
+
+function isAbortFailure(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
+}
+
+function subscribeToInflight<T>(entry: InflightRequest, signal?: AbortSignal | null): Promise<FetchResult<T>> {
+  if (signal?.aborted) return Promise.reject(requestAbortReason(signal));
+  const subscriber = Symbol(entry.key);
+  entry.subscribers.add(subscriber);
+  return new Promise<FetchResult<T>>((resolve, reject) => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      signal?.removeEventListener('abort', onAbort);
+      entry.subscribers.delete(subscriber);
+      if (!entry.settled && entry.subscribers.size === 0) {
+        if (inflight.get(entry.key) === entry) inflight.delete(entry.key);
+        entry.controller.abort();
+      }
+    };
+    const onAbort = () => {
+      release();
+      if (signal) reject(requestAbortReason(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    entry.promise.then(
+      (result) => {
+        release();
+        resolve(result as FetchResult<T>);
+      },
+      (error: unknown) => {
+        release();
+        reject(error);
+      },
+    );
+  });
+}
 
 export async function cachedFetch<T>(
   url: string,
@@ -147,6 +199,8 @@ export async function cachedFetch<T>(
   const body = init.body ? safeParse(init.body) : undefined;
   const key = buildKey(method, path, body);
   const now = Date.now();
+
+  if (init.signal?.aborted) throw requestAbortReason(init.signal);
 
   if (ttlMs <= 0) {
     return doFetch<T>(url, init, key, ttlMs, undefined, decode);
@@ -171,13 +225,15 @@ export async function cachedFetch<T>(
   }
 
   const existing = inflight.get(key);
-  if (existing) return existing as Promise<FetchResult<T>>;
+  if (existing) return subscribeToInflight<T>(existing, init.signal);
 
-  const p = (async (): Promise<FetchResult<T>> => {
+  const controller = new AbortController();
+  const sharedInit = { ...init, signal: controller.signal };
+  const promise = (async (): Promise<FetchResult<T>> => {
     try {
-      return await doFetch<T>(url, init, key, ttlMs, cached, decode);
+      return await doFetch<T>(url, sharedInit, key, ttlMs, cached, decode);
     } catch (err) {
-      if (cached && staleWhileError) {
+      if (cached && staleWhileError && !isAbortFailure(err)) {
         let staleData: T;
         try {
           staleData = decodePayload(JSON.parse(cached.body), decode);
@@ -193,12 +249,27 @@ export async function cachedFetch<T>(
         };
       }
       throw err;
-    } finally {
-      inflight.delete(key);
     }
   })();
-  inflight.set(key, p as Promise<FetchResult<unknown>>);
-  return p;
+  const entry: InflightRequest = {
+    key,
+    promise: promise as Promise<FetchResult<unknown>>,
+    controller,
+    subscribers: new Set(),
+    settled: false,
+  };
+  inflight.set(key, entry);
+  void promise.then(
+    () => {
+      entry.settled = true;
+      if (inflight.get(key) === entry) inflight.delete(key);
+    },
+    () => {
+      entry.settled = true;
+      if (inflight.get(key) === entry) inflight.delete(key);
+    },
+  );
+  return subscribeToInflight<T>(entry, init.signal);
 }
 
 async function doFetch<T>(

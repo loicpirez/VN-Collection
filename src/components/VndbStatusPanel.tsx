@@ -94,7 +94,7 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     if (showLoading) setLoading(true);
     try {
       if (fresh) clearVndbStatusRequest(vnId);
-      const r = await requestVndbStatus(vnId, fresh);
+      const r = await requestVndbStatus(vnId, fresh, controller.signal);
       if (!r.ok) throw new Error(await readApiErrorLocalized(r, apiErrorMessages(t), t.common.error));
       const d = decodeVndbStatusClientState(await r.json());
       if (!d) throw new Error(t.common.error);
@@ -140,7 +140,6 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     return () => {
       loadAbortRef.current?.abort();
       loadAbortRef.current = null;
-      clearVndbStatusRequest(vnId);
     };
   }, [load, vnId]);
 

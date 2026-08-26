@@ -120,11 +120,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const vnId = id.toLowerCase();
   try {
-    const labels = await fetchUlistLabels();
+    const labels = await fetchUlistLabels(req.signal);
     if (typeof labels === 'object' && 'needsAuth' in labels) {
       return NextResponse.json({ needsAuth: true, entry: null, labels: [] });
     }
-    const entry = await fetchUlistEntry(vnId, { fresh: new URL(req.url).searchParams.get('fresh') === '1' });
+    const entry = await fetchUlistEntry(vnId, {
+      fresh: new URL(req.url).searchParams.get('fresh') === '1',
+      signal: req.signal,
+    });
     if (entry && typeof entry === 'object' && 'needsAuth' in entry) {
       return NextResponse.json({ needsAuth: true, entry: null, labels });
     }

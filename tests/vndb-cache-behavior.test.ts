@@ -224,6 +224,51 @@ describe('in-flight de-dupe', () => {
     expect(r2.status).toBe(200);
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps one shared fetch alive when only one consumer aborts', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    providerFetchMock.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const base = { method: 'POST', body: JSON.stringify({ d: 2 }), __pathTag: 'POST /vn' };
+    const first = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: firstController.signal }, { ttlMs: TTL.vnDetail });
+    const second = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: secondController.signal }, { ttlMs: TTL.vnDetail });
+    const firstSettlement = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    firstController.abort();
+    await firstSettlement;
+    expect(captured.signal?.aborted).toBe(false);
+    resolveFetch(jsonResponse({ ok: 2 }));
+    await expect(second).resolves.toMatchObject({ status: 200 });
+  });
+
+  it('aborts upstream and permits a fresh request when every consumer leaves', async () => {
+    const captured: { signal: AbortSignal | null } = { signal: null };
+    providerFetchMock.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      captured.signal = init?.signal ?? null;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      });
+    });
+    const controller = new AbortController();
+    const base = { method: 'POST', body: JSON.stringify({ d: 3 }), __pathTag: 'POST /vn' };
+    const abandoned = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: controller.signal }, { ttlMs: TTL.vnDetail });
+    const settlement = expect(abandoned).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    controller.abort();
+    await settlement;
+    expect(captured.signal?.aborted).toBe(true);
+
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 3 }));
+    await expect(cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ status: 200 });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('corrupt cache body is treated as a miss', () => {
