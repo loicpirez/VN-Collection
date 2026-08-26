@@ -51,10 +51,10 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                   className="h-full w-full"
                 />
               </Link>
-              <div className="min-w-0 flex-1 self-center">
+              <div className="grid min-h-[88px] min-w-0 flex-1 grid-rows-2 self-center">
                 <Link
                   href={`/character/${c.id}`}
-                  className="flex min-h-8 flex-col justify-center text-xs font-bold leading-tight hover:text-accent"
+                  className="flex min-h-[44px] flex-col justify-end pb-0.5 text-xs font-bold leading-tight hover:text-accent can-hover:sm:min-h-0"
                   title={c.name}
                 >
                   <span className="line-clamp-1">{c.name}</span>
@@ -64,7 +64,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                 </Link>
                 <Link
                   href={`/staff/${s.id}`}
-                  className="mt-0.5 inline-flex min-h-8 items-center text-[11px] leading-tight text-muted hover:text-accent"
+                  className="inline-flex min-h-[44px] items-start pt-0.5 text-[11px] leading-tight text-muted hover:text-accent can-hover:sm:min-h-0"
                   title={v.note ?? undefined}
                 >
                   {t.characters.castLabel}: <span className="font-semibold">{s.name}</span>
