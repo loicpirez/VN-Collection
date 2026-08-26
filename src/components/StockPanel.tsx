@@ -290,6 +290,13 @@ export function StockPanel({
         if (!data) throw new Error(t.common.error);
         if (controller.signal.aborted || loadAbortRef.current !== controller) return false;
         setSnapshot(data);
+        if (defaultProviderScope === 'physical' && !physicalDefaultRef.current) {
+          physicalDefaultRef.current = true;
+          const physicalIds = data.providers
+            .filter((provider) => provider.physical && !provider.disabled)
+            .map((provider) => provider.id);
+          if (physicalIds.length > 0) setSelectedProviders(physicalIds);
+        }
         return true;
       } catch (e) {
         if ((e as Error).name === 'AbortError' || controller.signal.aborted || loadAbortRef.current !== controller) {
@@ -304,7 +311,7 @@ export function StockPanel({
         }
       }
     },
-    [vnId, t.common.error],
+    [defaultProviderScope, vnId, t.common.error],
   );
 
   useEffect(() => {
@@ -377,13 +384,6 @@ export function StockPanel({
   }, [vnId]);
 
   const providers = snapshot?.providers ?? EMPTY_PROVIDERS;
-
-  useEffect(() => {
-    if (defaultProviderScope === 'all' || initialSnapshot || physicalDefaultRef.current || providers.length === 0) return;
-    physicalDefaultRef.current = true;
-    const physicalIds = providers.filter((p) => p.physical && !p.disabled).map((p) => p.id);
-    if (physicalIds.length > 0) setSelectedProviders(physicalIds);
-  }, [defaultProviderScope, initialSnapshot, providers.length]);
 
   async function refresh() {
     const ctrl = beginSnapshotMutation(abortRef);
