@@ -117,11 +117,14 @@ describe('MediaGallery branches', () => {
     const dialog = await screen.findByRole('dialog');
     const frame = dialog.querySelector<HTMLElement>('[data-media-lightbox-frame]');
     expect(frame).not.toBeNull();
-    Object.defineProperty(frame, 'setPointerCapture', { configurable: true, value: vi.fn() });
 
     fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 1, clientX: 50, clientY: 100 });
     fireEvent.pointerDown(frame!, { pointerType: 'mouse', pointerId: 2, clientX: 200, clientY: 100 });
     fireEvent.pointerUp(frame!, { pointerType: 'mouse', pointerId: 2, clientX: 50, clientY: 100 });
+    expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
+
+    fireEvent.pointerDown(dialog, { pointerType: 'touch', pointerId: 10, clientX: 220, clientY: 100 });
+    fireEvent.pointerUp(dialog, { pointerType: 'touch', pointerId: 10, clientX: 80, clientY: 105 });
     expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
 
     fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 3, clientX: 220, clientY: 100 });

@@ -207,13 +207,17 @@ export function MediaGallery({
   useDialogA11y({ open: active != null, onClose: close, panelRef: lightboxRef });
 
   const beginLightboxSwipe = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== 'touch' || visible.length <= 1) return;
+    if (
+      event.pointerType !== 'touch'
+      || visible.length <= 1
+      || !(event.target instanceof Element)
+      || !event.target.closest('[data-media-lightbox-frame]')
+    ) return;
     lightboxSwipeRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
     };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [visible.length]);
 
   const finishLightboxSwipe = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -303,6 +307,9 @@ export function MediaGallery({
             aria-describedby={lightboxDescId}
             tabIndex={-1}
             className="fixed inset-0 z-layer-modal flex items-center justify-center p-4 outline-none"
+            onPointerDown={beginLightboxSwipe}
+            onPointerUp={finishLightboxSwipe}
+            onPointerCancel={cancelLightboxSwipe}
           >
           {/* Sibling backdrop so the close-on-click target is the
               backdrop element itself, not the dialog. Previously a
@@ -352,9 +359,6 @@ export function MediaGallery({
             className="relative z-10 bg-bg-elev"
             style={{ ...lightboxFrameStyle(visible[active]), touchAction: 'pan-y pinch-zoom' }}
             onClick={(e) => e.stopPropagation()}
-            onPointerDown={beginLightboxSwipe}
-            onPointerUp={finishLightboxSwipe}
-            onPointerCancel={cancelLightboxSwipe}
           >
             <SafeImage
               key={visible[active].key}
