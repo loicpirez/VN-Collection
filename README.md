@@ -262,6 +262,16 @@ location / {
 }
 ```
 
+Keep the password file readable only by root and the Nginx worker group. After
+creating or rotating it, enforce `root:www-data` ownership and mode `0640`, then
+verify readability as the worker identity before reloading Nginx:
+
+```bash
+sudo chown root:www-data /etc/nginx/.htpasswd
+sudo chmod 0640 /etc/nginx/.htpasswd
+sudo -u www-data test -r /etc/nginx/.htpasswd
+```
+
 `ops/nginx/vndb-backup-restore.conf` keeps its exact route under Basic Auth and
 the trusted-proxy proof, but raises the body cap to the application's 4 GiB
 logical-backup ceiling. Request buffering is disabled so Nginx forwards the
