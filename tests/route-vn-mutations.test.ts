@@ -242,8 +242,9 @@ describe('GET /api/vn/[id]/vndb-status', () => {
       'finished',
       'notes',
     ]);
-    expect(labelsMock).toHaveBeenCalledWith(request.signal);
-    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true, signal: request.signal });
+    expect(labelsMock).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(entryMock).toHaveBeenCalledWith(REAL_VN, { fresh: true, signal: expect.any(AbortSignal) });
+    expect(labelsMock.mock.calls[0]?.[0]).not.toBe(request.signal);
   });
 
   it('200 with needsAuth when entry loading reports missing auth after labels resolve', async () => {

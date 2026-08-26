@@ -132,6 +132,21 @@ afterEach(() => {
 });
 
 describe('providerFetch routing', () => {
+  it('aborts provider configuration resolution at the provider deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      mResolveProxy.mockReturnValue(new Promise<ProxyConfig | null>(() => undefined));
+      const { providerFetch } = await import('@/lib/proxy-fetch');
+      const request = providerFetch('https://api.vndb.org/kana/vn', {}, 'vndb');
+      const rejected = expect(request).rejects.toMatchObject({ name: 'TimeoutError' });
+      await vi.advanceTimersByTimeAsync(12_000);
+      await rejected;
+      expect(mSafeFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('falls back to safeFetch when no proxy is configured for the provider', async () => {
     mResolveProxy.mockResolvedValue(null);
     const sentinel = new Response('direct', { status: 200 });
@@ -172,6 +187,21 @@ describe('providerFetch routing', () => {
 });
 
 describe('stockProviderFetch routing', () => {
+  it('aborts stock proxy resolution at the stock-provider deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      mResolveStockProxy.mockReturnValue(new Promise<ProxyConfig | null>(() => undefined));
+      const { stockProviderFetch } = await import('@/lib/proxy-fetch');
+      const request = stockProviderFetch('https://www.suruga-ya.jp/x', {}, 'surugaya');
+      const rejected = expect(request).rejects.toMatchObject({ name: 'TimeoutError' });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await rejected;
+      expect(mSafeFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('uses safeFetch directly inside runStockFetchDirect even when a proxy exists', async () => {
     mResolveStockProxy.mockResolvedValue(PROXY);
     const sentinel = new Response('forced-direct', { status: 200 });

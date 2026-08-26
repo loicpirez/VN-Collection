@@ -5,6 +5,7 @@ import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getQuotesForVn } from '@/lib/vndb';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
+import { createRequestDeadline } from '@/lib/request-deadline';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,8 +16,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const deadline = createRequestDeadline(req.signal);
   try {
-    const quotes = await getQuotesForVn(id, { signal: req.signal });
+    const quotes = await getQuotesForVn(id, { signal: deadline.signal });
     // Enrich each quote with the locally-mirrored character portrait
     // (when downloaded). Single batched lookup against
     // `character_image` keeps this O(1) regardless of quote count.
@@ -50,5 +52,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ quotes: enriched });
   } catch (err) {
     return upstreamError('vn/[id]/quotes', err);
+  } finally {
+    deadline.dispose();
   }
 }

@@ -34,12 +34,15 @@ function pinnedLookup(pinned: PinnedAddress[]) {
  * agent whose socket is pinned to those addresses plus the `servername` so TLS
  * still verifies against the real hostname rather than the IP literal.
  */
-async function resolvePinnedHop(hopUrl: string): Promise<{ agent: HttpAgent | HttpsAgent; servername?: string }> {
+async function resolvePinnedHop(
+  hopUrl: string,
+  signal?: AbortSignal | null,
+): Promise<{ agent: HttpAgent | HttpsAgent; servername?: string }> {
   if (!isAllowedHttpTarget(hopUrl)) {
     throw new Error(`safe-fetch: blocked by host allowlist: ${hopUrl}`);
   }
   const { hostname, protocol } = new URL(hopUrl);
-  const { pinned } = await resolveAndCheckHostname(hostname);
+  const { pinned } = await resolveAndCheckHostname(hostname, signal);
   const lookup = pinnedLookup(pinned);
   if (protocol === 'https:') {
     return { agent: new HttpsAgent({ lookup }), servername: hostname };

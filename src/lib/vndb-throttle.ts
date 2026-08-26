@@ -29,7 +29,19 @@ const NET_ERR_RETRY_BASE_MS = 1_000;
 
 let activeCount = 0;
 let lastStart = 0;
-const waiters: Array<() => void> = [];
+let activeLabel: string | null = null;
+
+interface ThrottleWaiter {
+  label: string;
+  signal?: AbortSignal | null;
+  resolve: () => void;
+  reject: (reason: Error) => void;
+  timer: ReturnType<typeof setTimeout> | null;
+  settled: boolean;
+  onAbort: () => void;
+}
+
+const waiters: ThrottleWaiter[] = [];
 
 /** Timestamps of recent 429 responses. Newer entries first. */
 const recent429s: number[] = [];
@@ -54,72 +66,66 @@ function abortReason(signal: AbortSignal): Error {
     : new DOMException('The operation was aborted', 'AbortError');
 }
 
-function acquire(signal?: AbortSignal | null): Promise<void> {
+function pumpQueue(): void {
+  if (activeCount >= MAX_CONCURRENT) return;
+  const waiter = waiters[0];
+  if (!waiter) return;
+
+  const now = Date.now();
+  const delay = circuitOpen()
+    ? SOFT_PAUSE_MS
+    : Math.max(0, MIN_GAP_MS - (now - lastStart));
+  if (delay > 0) {
+    if (!waiter.timer) {
+      waiter.timer = setTimeout(() => {
+        waiter.timer = null;
+        pumpQueue();
+      }, delay);
+    }
+    return;
+  }
+
+  waiters.shift();
+  waiter.settled = true;
+  waiter.signal?.removeEventListener('abort', waiter.onAbort);
+  activeCount += 1;
+  activeLabel = waiter.label;
+  lastStart = now;
+  waiter.resolve();
+}
+
+function acquire(label: string, signal?: AbortSignal | null): Promise<void> {
   if (signal?.aborted) return Promise.reject(abortReason(signal));
   return new Promise((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let queued = false;
-    let settled = false;
-    const removeQueued = () => {
-      if (!queued) return;
-      const index = waiters.indexOf(tryStart);
-      waiters.splice(index, 1);
-      queued = false;
+    const waiter: ThrottleWaiter = {
+      label,
+      signal,
+      resolve,
+      reject,
+      timer: null,
+      settled: false,
+      onAbort: () => {
+        if (waiter.settled) return;
+        waiter.settled = true;
+        if (waiter.timer) clearTimeout(waiter.timer);
+        waiter.timer = null;
+        const index = waiters.indexOf(waiter);
+        if (index >= 0) waiters.splice(index, 1);
+        signal?.removeEventListener('abort', waiter.onAbort);
+        reject(abortReason(signal!));
+        pumpQueue();
+      },
     };
-    const cleanup = () => {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      removeQueued();
-      signal?.removeEventListener('abort', onAbort);
-    };
-    const onAbort = () => {
-      settled = true;
-      cleanup();
-      reject(abortReason(signal!));
-    };
-    const schedule = (delay: number) => {
-      timer = setTimeout(() => {
-        timer = null;
-        tryStart();
-      }, delay);
-    };
-    const tryStart = () => {
-      queued = false;
-      // Soft pause when the circuit is open. Affects new acquirers only —
-      // the in-flight retry has already paid its Retry-After sleep.
-      if (circuitOpen()) {
-        schedule(SOFT_PAUSE_MS);
-        return;
-      }
-      const now = Date.now();
-      const sinceLast = now - lastStart;
-      if (activeCount < MAX_CONCURRENT && sinceLast >= MIN_GAP_MS) {
-        activeCount += 1;
-        lastStart = now;
-        settled = true;
-        cleanup();
-        resolve();
-        return;
-      }
-      const delay = activeCount < MAX_CONCURRENT
-        ? Math.max(0, MIN_GAP_MS - sinceLast)
-        : 0;
-      if (delay > 0) {
-        schedule(delay);
-      } else {
-        waiters.push(tryStart);
-        queued = true;
-      }
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-    tryStart();
+    waiters.push(waiter);
+    signal?.addEventListener('abort', waiter.onAbort, { once: true });
+    pumpQueue();
   });
 }
 
 function release(): void {
   activeCount = Math.max(0, activeCount - 1);
-  const next = waiters.shift();
-  if (next) setTimeout(next, 0);
+  if (activeCount === 0) activeLabel = null;
+  pumpQueue();
 }
 
 function note429(retryAfterMs: number): void {
@@ -167,9 +173,10 @@ export async function throttledFetch(url: string, init?: RequestInit, provider: 
     throw new Error(`vndb-throttle: refusing fetch to non-allowlisted URL ${url}`);
   }
   let attempt = 0;
+  const requestLabel = `${provider}:${new URL(url).pathname}`;
   while (true) {
     attempt += 1;
-    await acquire(init?.signal);
+    await acquire(requestLabel, init?.signal);
     let res: Response;
     try {
       res = await providerFetch(url, init ?? {}, provider);
@@ -204,6 +211,8 @@ export function getVndbThrottleStats(): {
   recent429s: number;
   circuitOpen: boolean;
   retryAfterMs: number;
+  activeRequest: string | null;
+  queuedRequests: string[];
 } {
   trim429Window();
   const remaining = Math.max(0, lastRetryAfterUntil - Date.now());
@@ -213,5 +222,7 @@ export function getVndbThrottleStats(): {
     recent429s: recent429s.length,
     circuitOpen: circuitOpen(),
     retryAfterMs: remaining,
+    activeRequest: activeLabel,
+    queuedRequests: waiters.map((waiter) => waiter.label),
   };
 }

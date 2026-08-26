@@ -20,13 +20,42 @@ const PROVIDER_TIMEOUT_MS: Record<ProviderId, number> = {
 };
 const STOCK_PROVIDER_TIMEOUT_MS = 30_000;
 
-function withRequestTimeout(init: RequestInit, timeoutMs: number): RequestInit {
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+interface BoundedRequest {
+  init: RequestInit & { signal: AbortSignal };
+  dispose: () => void;
+}
+
+async function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function withRequestTimeout(init: RequestInit, timeoutMs: number): BoundedRequest {
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => {
+    timeoutController.abort(new DOMException('Provider request timed out', 'TimeoutError'));
+  }, timeoutMs);
   return {
-    ...init,
-    signal: init.signal
-      ? AbortSignal.any([init.signal, timeoutSignal])
-      : timeoutSignal,
+    init: {
+      ...init,
+      signal: init.signal
+        ? AbortSignal.any([init.signal, timeoutController.signal])
+        : timeoutController.signal,
+    },
+    dispose: () => clearTimeout(timer),
   };
 }
 
@@ -174,7 +203,10 @@ const MAX_PROXY_REDIRECTS = 20;
  * use plus the TLS `servername` for SNI / certificate verification. Used by
  * `safeFetch` to re-resolve and re-pin every redirect hop to a validated IP.
  */
-export type HopResolver = (hopUrl: string) => Promise<{ agent: Agent; servername?: string }>;
+export type HopResolver = (
+  hopUrl: string,
+  signal?: AbortSignal | null,
+) => Promise<{ agent: Agent; servername?: string }>;
 
 /**
  * Builds a proxy-agent hop resolver that rejects off-allowlist URLs and hosts
@@ -186,12 +218,12 @@ export type HopResolver = (hopUrl: string) => Promise<{ agent: Agent; servername
  * @returns Hop resolver for {@link nodeAgentFetch}.
  */
 export function createProxyHopResolver(agent: Agent): HopResolver {
-  return async (hopUrl) => {
+  return async (hopUrl, signal) => {
     if (!isAllowedHttpTarget(hopUrl)) {
       throw new Error('proxy-fetch: blocked by host allowlist');
     }
     const { hostname } = new URL(hopUrl);
-    await resolveAndCheckHostname(hostname);
+    await resolveAndCheckHostname(hostname, signal);
     return { agent };
   };
 }
@@ -234,7 +266,10 @@ export async function nodeAgentFetch(
     let hopAgent = agent;
     let hopServername: string | undefined;
     if (resolveHop) {
-      const resolved = await resolveHop(currentUrl);
+      const resolved = await resolveHop(
+        currentUrl,
+        init.signal as AbortSignal | null | undefined,
+      );
       hopAgent = resolved.agent;
       hopServername = resolved.servername;
     }
@@ -307,11 +342,15 @@ export async function providerFetch(
   init: RequestInit,
   provider: ProviderId,
 ): Promise<Response> {
-  const boundedInit = withRequestTimeout(init, PROVIDER_TIMEOUT_MS[provider]);
-  const config = await resolveProxyConfig(provider);
-  if (!config) return safeFetch(url, boundedInit);
-  const agent = await buildAgent(config);
-  return nodeAgentFetch(url, boundedInit, undefined, createProxyHopResolver(agent));
+  const bounded = withRequestTimeout(init, PROVIDER_TIMEOUT_MS[provider]);
+  try {
+    const config = await awaitWithSignal(resolveProxyConfig(provider), bounded.init.signal);
+    if (!config) return await safeFetch(url, bounded.init);
+    const agent = await awaitWithSignal(buildAgent(config), bounded.init.signal);
+    return await nodeAgentFetch(url, bounded.init, undefined, createProxyHopResolver(agent));
+  } finally {
+    bounded.dispose();
+  }
 }
 
 /**
@@ -324,10 +363,14 @@ export async function stockProviderFetch(
   init: RequestInit,
   providerId: string,
 ): Promise<Response> {
-  const boundedInit = withRequestTimeout(init, STOCK_PROVIDER_TIMEOUT_MS);
-  if (directFetchStore.getStore() === true) return safeFetch(url, boundedInit);
-  const config = await resolveStockProviderProxy(providerId);
-  if (!config) return safeFetch(url, boundedInit);
-  const agent = await buildAgent(config);
-  return nodeAgentFetch(url, boundedInit, undefined, createProxyHopResolver(agent));
+  const bounded = withRequestTimeout(init, STOCK_PROVIDER_TIMEOUT_MS);
+  try {
+    if (directFetchStore.getStore() === true) return await safeFetch(url, bounded.init);
+    const config = await awaitWithSignal(resolveStockProviderProxy(providerId), bounded.init.signal);
+    if (!config) return await safeFetch(url, bounded.init);
+    const agent = await awaitWithSignal(buildAgent(config), bounded.init.signal);
+    return await nodeAgentFetch(url, bounded.init, undefined, createProxyHopResolver(agent));
+  } finally {
+    bounded.dispose();
+  }
 }

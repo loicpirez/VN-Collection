@@ -249,6 +249,41 @@ describe('network-error back-off', () => {
     void first;
   });
 
+  it('does not acquire or remove another waiter when the shifted caller aborts before dispatch', async () => {
+    const { throttledFetch, getVndbThrottleStats } = await freshThrottle();
+    let resolveFirst!: (response: Response) => void;
+    const firstResponse = new Promise<Response>((resolve) => {
+      resolveFirst = resolve;
+    });
+    providerFetchMock
+      .mockReturnValueOnce(firstResponse)
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+
+    const first = throttledFetch(VNDB, {});
+    const secondController = new AbortController();
+    const second = throttledFetch(VNDB, { signal: secondController.signal });
+    const secondSettlement = expect(second).rejects.toMatchObject({ name: 'AbortError' });
+    const third = throttledFetch(VNDB, {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getVndbThrottleStats()).toMatchObject({ active: 1, queued: 2 });
+
+    resolveFirst(new Response('{}', { status: 200 }));
+    await first;
+    secondController.abort();
+    await secondSettlement;
+    expect(getVndbThrottleStats()).toMatchObject({ active: 0, queued: 1 });
+
+    await vi.advanceTimersByTimeAsync(1_100);
+    await third;
+    expect(getVndbThrottleStats()).toMatchObject({
+      active: 0,
+      queued: 0,
+      activeRequest: null,
+      queuedRequests: [],
+    });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('cancels a network retry back-off when the caller leaves', async () => {
     const { throttledFetch } = await freshThrottle();
     const controller = new AbortController();

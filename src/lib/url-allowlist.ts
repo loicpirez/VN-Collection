@@ -182,6 +182,25 @@ export interface PinnedAddress {
   family: 4 | 6;
 }
 
+async function resolveDnsWithSignal<T>(operation: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  if (!signal) return operation;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * Resolves `hostname` ONCE, rejects any answer in a private / loopback /
  * link-local / ULA / reserved range, and returns the surviving public IPs.
@@ -198,17 +217,20 @@ export interface PinnedAddress {
  */
 export async function resolveAndCheckHostname(
   hostname: string,
+  signal?: AbortSignal | null,
 ): Promise<{ ipv4: string[]; ipv6: string[]; pinned: PinnedAddress[] }> {
   let v4addrs: string[] = [];
   let v6addrs: string[] = [];
   try {
-    v4addrs = await dnsResolve4(hostname);
+    v4addrs = await resolveDnsWithSignal(dnsResolve4(hostname), signal);
   } catch {
+    signal?.throwIfAborted();
     // NODATA for A records is normal for IPv6-only hosts — continue to v6 check.
   }
   try {
-    v6addrs = await dnsResolve6(hostname);
+    v6addrs = await resolveDnsWithSignal(dnsResolve6(hostname), signal);
   } catch {
+    signal?.throwIfAborted();
     // NODATA for AAAA records is normal — continue.
   }
   if (v4addrs.length === 0 && v6addrs.length === 0) {

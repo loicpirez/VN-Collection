@@ -4,6 +4,7 @@ import { getCharactersForVn } from '@/lib/vndb';
 import { getPeopleRepository } from '@/lib/db/repositories/people';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
+import { createRequestDeadline } from '@/lib/request-deadline';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const deadline = createRequestDeadline(req.signal);
   try {
-    const characters = await getCharactersForVn(id, 30, req.signal);
+    const characters = await getCharactersForVn(id, 30, deadline.signal);
     const localPaths = await getPeopleRepository().characterImages(characters.map((c) => c.id));
     const enriched = characters.map((c) => ({
       ...c,
@@ -24,5 +26,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ characters: enriched });
   } catch (err) {
     return upstreamError('vn/[id]/characters', err);
+  } finally {
+    deadline.dispose();
   }
 }

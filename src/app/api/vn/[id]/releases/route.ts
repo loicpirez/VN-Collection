@@ -4,6 +4,7 @@ import { getReleasesForVn } from '@/lib/vndb';
 import { getOwnedReleaseRepository } from '@/lib/db/repositories/owned-release';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { isValidVnId } from '@/lib/vn-id-shape';
+import { createRequestDeadline } from '@/lib/request-deadline';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id: rawId } = await ctx.params;
   const id = rawId.toLowerCase();
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  const deadline = createRequestDeadline(req.signal);
   try {
-    const releases = await getReleasesForVn(id, 50, req.signal);
+    const releases = await getReleasesForVn(id, 50, deadline.signal);
     await Promise.all(releases.map((release) => getOwnedReleaseRepository().upsertResolutionCache({
       releaseId: release.id,
       vnId: id,
@@ -24,5 +26,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ releases });
   } catch (err) {
     return upstreamError('vn/[id]/releases', err);
+  } finally {
+    deadline.dispose();
   }
 }

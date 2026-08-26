@@ -103,7 +103,8 @@ describe('GET /api/vn/[id]/characters', () => {
     const body = await res.json();
     expect(body.characters).toHaveLength(1);
     expect(body.characters[0]).toMatchObject({ id: 'c90001', localImage: null });
-    expect(charsMock).toHaveBeenCalledWith(VN, 30, request.signal);
+    expect(charsMock).toHaveBeenCalledWith(VN, 30, expect.any(AbortSignal));
+    expect(charsMock.mock.calls[0]?.[2]).not.toBe(request.signal);
   });
 
   it('502 when the upstream throws', async () => {

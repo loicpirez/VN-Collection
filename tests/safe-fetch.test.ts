@@ -95,6 +95,29 @@ afterEach(() => {
 });
 
 describe('safeFetch — SSRF pinning (R5-SEC-012)', () => {
+  it('aborts a DNS lookup that has not completed', async () => {
+    mockResolve4.mockReturnValue(new Promise<string[]>(() => undefined));
+    mockResolve6.mockResolvedValue([]);
+    const controller = new AbortController();
+    const { safeFetch } = await import('@/lib/safe-fetch');
+    const request = safeFetch('https://api.vndb.org/kana/vn', { signal: controller.signal });
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(captured).toHaveLength(0);
+  });
+
+  it('rejects before DNS when the request signal is already aborted', async () => {
+    mockResolve4.mockReturnValue(new Promise<string[]>(() => undefined));
+    mockResolve6.mockResolvedValue([]);
+    const controller = new AbortController();
+    controller.abort();
+    const { safeFetch } = await import('@/lib/safe-fetch');
+    await expect(
+      safeFetch('https://api.vndb.org/kana/vn', { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(captured).toHaveLength(0);
+  });
+
   it('rejects an off-allowlist host before opening any socket', async () => {
     mockResolve4.mockResolvedValue(['93.184.216.34']);
     mockResolve6.mockResolvedValue([]);

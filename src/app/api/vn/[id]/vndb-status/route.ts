@@ -28,6 +28,7 @@ import {
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
+import { createRequestDeadline } from '@/lib/request-deadline';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 const MAX_LABEL_IDS = 100;
@@ -119,14 +120,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   if (!isVndbVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const vnId = id.toLowerCase();
+  const deadline = createRequestDeadline(req.signal);
   try {
-    const labels = await fetchUlistLabels(req.signal);
+    const labels = await fetchUlistLabels(deadline.signal);
     if (typeof labels === 'object' && 'needsAuth' in labels) {
       return NextResponse.json({ needsAuth: true, entry: null, labels: [] });
     }
     const entry = await fetchUlistEntry(vnId, {
       fresh: new URL(req.url).searchParams.get('fresh') === '1',
-      signal: req.signal,
+      signal: deadline.signal,
     });
     if (entry && typeof entry === 'object' && 'needsAuth' in entry) {
       return NextResponse.json({ needsAuth: true, entry: null, labels });
@@ -141,6 +143,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   } catch (e) {
     return upstreamError('vn/[id]/vndb-status', e);
+  } finally {
+    deadline.dispose();
   }
 }
 

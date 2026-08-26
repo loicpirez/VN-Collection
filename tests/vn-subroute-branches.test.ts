@@ -160,7 +160,8 @@ describe('GET /api/vn/[id]/quotes', () => {
         },
       ],
     });
-    expect(mocks.getQuotesForVn).toHaveBeenCalledWith(VN_ID, { signal: request.signal });
+    expect(mocks.getQuotesForVn).toHaveBeenCalledWith(VN_ID, { signal: expect.any(AbortSignal) });
+    expect(mocks.getQuotesForVn.mock.calls[0]?.[1]?.signal).not.toBe(request.signal);
   });
 
   it('returns a sanitized upstream error when quote loading fails', async () => {
@@ -207,7 +208,8 @@ describe('GET /api/vn/[id]/releases', () => {
       vnId: VN_ID,
       resolution: null,
     });
-    expect(mocks.getReleasesForVn).toHaveBeenCalledWith(VN_ID, 50, request.signal);
+    expect(mocks.getReleasesForVn).toHaveBeenCalledWith(VN_ID, 50, expect.any(AbortSignal));
+    expect(mocks.getReleasesForVn.mock.calls[0]?.[2]).not.toBe(request.signal);
   });
 
   it('returns a sanitized upstream error when release loading fails', async () => {
