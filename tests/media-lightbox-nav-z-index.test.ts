@@ -59,7 +59,9 @@ describe('MediaGallery lightbox nav z-index', () => {
     // dimensions now come from lightboxFrameStyle so the skeleton and loaded
     // image reserve the same frame instead of changing geometry after load.
     expect(SOURCE).toMatch(/data-media-lightbox-frame[\s\S]*className="relative z-10 bg-bg-elev"/);
-    expect(SOURCE).toContain('style={lightboxFrameStyle(visible[active])}');
+    expect(SOURCE).toContain(
+      "style={{ ...lightboxFrameStyle(visible[active]), touchAction: 'pan-y pinch-zoom' }}",
+    );
   });
 
   it('nav buttons retain a backdrop-blur background so the image stays partially visible', () => {
