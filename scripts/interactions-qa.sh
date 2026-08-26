@@ -19,7 +19,7 @@
 #       yarn dev &
 #   • The QA copy must exist:
 #       mkdir -p .qa/data .qa/storage
-#       cp data/collection.db .qa/data/collection.db
+#       yarn qa:prepare
 #
 # DATA SAFETY: this script refuses to run when DB_PATH is unset or
 # points at the real data directory. WRITE_QA_ALLOWED=1 must also be

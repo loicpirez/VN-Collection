@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
     "smoke": "bash scripts/smoke.sh",
+    "qa:prepare": "tsx scripts/prepare-qa-snapshot.ts",
     "qa": "bash scripts/browser-qa.sh",
     "qa:interactions": "node scripts/browser-interactions.mjs",
     "sentinel": "node scripts/frontend-regression-sentinel.mjs",

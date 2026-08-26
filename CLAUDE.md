@@ -2092,9 +2092,14 @@ Two strict requirements:
 ### Reset a disposable QA copy
 ```bash
 mkdir -p .qa/data .qa/storage
-cp data/collection.db .qa/data/collection.db
+yarn qa:prepare
 DB_PATH="$PWD/.qa/data/collection.db" STORAGE_ROOT="$PWD/.qa/storage" yarn dev
 ```
+
+`qa:prepare` uses SQLite's online backup API and verifies both the source and
+the snapshot with `PRAGMA quick_check`. Do not copy a live SQLite main file
+directly: when WAL mode is active, committed rows may still be in the `-wal`
+file and a main-file-only copy can be malformed or incomplete.
 
 ---
 
