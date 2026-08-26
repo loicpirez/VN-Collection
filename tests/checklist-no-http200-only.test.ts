@@ -1,32 +1,11 @@
-/**
- * R5-217 pin: every FIXED_VERIFIED row carries:
- *   - a real commit hash (7+ hex chars) in the commit column.
- *   - non-empty evidence text of meaningful length.
- *
- * The check is intentionally MINIMUM-bar — it doesn't try to
- * parse the evidence cell into a machine-readable schema (that
- * would force a brittle re-write of every legacy row). The
- * heuristic is: if a row was actually verified, the operator
- * had enough to say beyond "(this commit)" or "OK".
- *
- * The source doc is optional: a fresh checkout may not carry
- * `docs/round6-master-regression-checklist.md` yet. When the file
- * is absent the suite skips itself instead of throwing at module
- * load — the gate only fires once the doc exists.
- */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-let CHECKLIST: string | null = null;
-try {
-  CHECKLIST = readFileSync(
-    join(__dirname, '..', 'docs/round6-master-regression-checklist.md'),
-    'utf8',
-  );
-} catch {
-  CHECKLIST = null;
-}
+const REPORT = readFileSync(
+  join(__dirname, '..', 'TODO/round14-full-app-audit-report-tasks.md'),
+  'utf8',
+);
 
 /**
  * Split a markdown table row by `|` while respecting `\|`
@@ -64,46 +43,27 @@ function splitMarkdownRow(line: string): string[] {
   return cells;
 }
 
-(CHECKLIST ? describe : describe.skip)('R6-217 — FIXED_VERIFIED rows have commit + substantive evidence', () => {
-  const lines = (CHECKLIST ?? '').split('\n').filter((line) => /\bFIXED_VERIFIED\b\s*\|\s*$/.test(line));
+const closedRows = REPORT
+  .split('\n')
+  .filter((line) => /^\| R14-[A-Z]+-\d+ /.test(line) && /\| DONE_WITH_DIFF \|$/.test(line))
+  .map(splitMarkdownRow);
 
-  it('the suite finds a meaningful number of closed rows', () => {
-    // We expect some rows to be fixed verified already as per the instructions
-    expect(lines.length).toBeGreaterThan(10);
+describe('active audit report closure evidence', () => {
+  it('contains a meaningful set of closed findings', () => {
+    expect(closedRows.length).toBeGreaterThan(100);
   });
 
-  it('every FIXED_VERIFIED row has a commit hash OR an "already shipped" marker', () => {
-    const offenders: string[] = [];
-    for (const line of lines) {
-      const cells = splitMarkdownRow(line);
-      const commit = cells[5] ?? '';
-      const ok =
-        /[0-9a-f]{7,}/.test(commit) ||
-        /\((?:Codex pre-session|already shipped|pre-existing|already pinned|R5-\d+\s+covers\s+this)\b[^)]*\)/i.test(commit);
-      if (!ok) {
-        const id = cells[1] ?? '<?>';
-        offenders.push(`${id}: commit='${commit}'`);
-      }
-    }
+  it('gives every closed finding a substantive problem and resolution statement', () => {
+    const offenders = closedRows
+      .filter((cells) => (cells[3] ?? '').length < 80)
+      .map((cells) => cells[1]);
     expect(offenders).toEqual([]);
   });
 
-  it('every FIXED_VERIFIED row has evidence at least 14 chars long', () => {
-    // Threshold gated to reject trivial placeholders like "OK",
-    // "Done.", "Fixed", "—". 14 chars covers a meaningful
-    // sentence stub or a cross-reference like "same as R5-104".
-    // The gate is intentionally lenient: this row is about
-    // FORWARD policy, not retroactively rejecting every legacy
-    // smoke-test entry.
-    const offenders: string[] = [];
-    for (const line of lines) {
-      const cells = splitMarkdownRow(line);
-      const evidence = cells[6] ?? '';
-      if (evidence.length < 14) {
-        const id = cells[1] ?? '<?>';
-        offenders.push(`${id}: evidence='${evidence}' (${evidence.length} chars)`);
-      }
-    }
+  it('identifies the implementation surface for every closed finding', () => {
+    const offenders = closedRows
+      .filter((cells) => !cells[4] || cells[4] === '—')
+      .map((cells) => cells[1]);
     expect(offenders).toEqual([]);
   });
 });
