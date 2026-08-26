@@ -843,7 +843,7 @@ export function WishlistClient() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 text-[11px] text-muted hover:text-status-dropped can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 >
                   <X className="h-3 w-3" aria-hidden />
                   {t.wishlist.filterReset}

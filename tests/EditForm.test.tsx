@@ -173,6 +173,11 @@ describe('EditForm (in collection)', () => {
     const vn = makeVn({ series: [{ id: 1, name: 'Series One' }] });
     renderWithProviders(<EditForm vn={vn} inCollection allSeries={allSeries} />);
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const seriesLink = screen.getByRole('link', { name: 'Series One' });
+    expect(seriesLink.className).toContain('min-h-[44px]');
+    expect(seriesLink.className).toContain('min-w-[44px]');
+    expect(seriesLink.className).toContain('can-hover:sm:min-h-0');
+    expect(seriesLink.className).toContain('can-hover:sm:min-w-0');
     const removeBtn = screen.getByRole('button', { name: t.series.removeFromSeries });
     await act(async () => {
       fireEvent.click(removeBtn);
@@ -206,6 +211,10 @@ describe('EditForm remove flow (real timers)', () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     const { user } = renderWithProviders(<EditForm vn={makeVn()} inCollection allSeries={allSeries} />);
     const removeBtn = screen.getByRole('button', { name: new RegExp(t.form.remove) });
+    expect(removeBtn.className).toContain('min-h-[44px]');
+    expect(removeBtn.className).toContain('min-w-[44px]');
+    expect(removeBtn.className).toContain('can-hover:sm:min-h-0');
+    expect(removeBtn.className).toContain('can-hover:sm:min-w-0');
     await user.click(removeBtn);
     // Confirm dialog appears in a portal; click its confirm button.
     const confirmBtn = await screen.findByRole('button', { name: t.common.confirm });

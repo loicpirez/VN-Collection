@@ -63,7 +63,7 @@ export function TagInput({
       className={`flex flex-col gap-1.5 ${className}`}
       onClick={() => inputRef.current?.focus()}
     >
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 py-1.5 focus-within:border-accent">
+      <div className="flex min-h-[44px] flex-wrap items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 focus-within:border-accent can-hover:sm:min-h-[34px]">
         {values.map((v, i) => (
           <span
             key={`${v}-${i}`}
@@ -97,7 +97,7 @@ export function TagInput({
           }}
           placeholder={values.length === 0 ? placeholder : ''}
           aria-label={placeholder}
-          className="min-w-[120px] flex-1 bg-transparent text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg placeholder:text-muted/60"
+          className="min-h-[44px] min-w-[120px] flex-1 bg-transparent text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg placeholder:text-muted/60 can-hover:sm:min-h-[32px]"
           maxLength={maxLength}
         />
       </div>

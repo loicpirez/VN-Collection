@@ -1043,7 +1043,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
               <p className="text-xs text-muted/80">{t.similar.sectionHint}</p>
               <Link
                 href={`/similar?vn=${vn.id}`}
-                className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-bold text-muted hover:border-accent hover:text-accent"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-bold text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-9"
               >
                 <Sparkles className="h-3 w-3" aria-hidden /> {t.similar.moreLink}
               </Link>

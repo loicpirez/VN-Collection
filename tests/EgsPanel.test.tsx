@@ -106,6 +106,15 @@ describe('EgsPanel', () => {
 
     const refreshButton = document.querySelector(`button[title="${t.egs.refresh}"]`);
     expect(refreshButton).toBeTruthy();
+    expect(refreshButton?.className).toContain('min-h-[44px]');
+    expect(refreshButton?.className).toContain('min-w-[44px]');
+    expect(refreshButton?.className).toContain('can-hover:sm:min-h-0');
+    expect(refreshButton?.className).toContain('can-hover:sm:min-w-0');
+    const unlinkButton = document.querySelector(`button[title="${t.egs.unlink}"]`);
+    expect(unlinkButton?.className).toContain('min-h-[44px]');
+    expect(unlinkButton?.className).toContain('min-w-[44px]');
+    expect(unlinkButton?.className).toContain('can-hover:sm:min-h-0');
+    expect(unlinkButton?.className).toContain('can-hover:sm:min-w-0');
     fireEvent.click(refreshButton as HTMLButtonElement);
     await waitFor(() => expect(screen.getByText('Refreshed EGS Game')).toBeTruthy());
     await waitFor(() => expect(listener).toHaveBeenCalled());

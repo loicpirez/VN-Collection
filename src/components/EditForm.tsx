@@ -733,7 +733,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           <div className="mb-3 flex flex-wrap gap-2">
             {myseries.map((s) => (
               <span key={s.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev px-3 py-1 text-xs">
-                <Link href={`/series/${s.id}`} className="hover:text-accent">{s.name}</Link>
+                <Link href={`/series/${s.id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{s.name}</Link>
                 <button
                   type="button"
                   className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-status-dropped disabled:cursor-wait disabled:opacity-60 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
@@ -813,7 +813,7 @@ export function EditForm({ vn, inCollection, allSeries }: Props) {
           onClick={handleRemove}
           disabled={pending || removingItem}
           aria-busy={removingItem || undefined}
-          className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-status-dropped disabled:opacity-40 disabled:hover:text-muted"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 text-[11px] text-muted hover:text-status-dropped disabled:opacity-40 disabled:hover:text-muted can-hover:sm:min-h-0 can-hover:sm:min-w-0"
         >
           {removingItem
             ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden />

@@ -200,6 +200,7 @@ describe('EgsRichDetails branches', () => {
     expect(trailerLink).toHaveAttribute('href', 'https://erogetrailers.com/movie/777');
     const dmmLink = screen.getByText('DMM').closest('a');
     expect(dmmLink).toHaveAttribute('href', 'https://dlsoft.dmm.co.jp/detail/abc123/');
+    expect(dmmLink).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
     const dlsiteLink = screen.getByText('DLsite').closest('a');
     expect(dlsiteLink).toHaveAttribute('href', 'https://www.dlsite.com/maniax/work/=/product_id/RJ12345.html');
     const gyuttoLink = screen.getByText('Gyutto').closest('a');

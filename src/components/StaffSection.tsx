@@ -36,7 +36,7 @@ export async function StaffSection({ staff }: { staff: StaffEntry[] }) {
             <dt className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted">
               <Link
                 href={`/staff?role=${encodeURIComponent(g.role)}`}
-                className="inline-flex min-h-[44px] items-center hover:text-accent can-hover:sm:min-h-0"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 title={g.role}
               >
                 {t.staff[ROLE_KEY[g.role]]}

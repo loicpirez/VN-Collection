@@ -215,6 +215,34 @@ describe('responsive tap targets', () => {
     expect(source('src/components/CastSection.tsx')).toContain('aria-label={c.name}');
   });
 
+  it('keeps independently clickable VN metadata controls touch-safe', () => {
+    for (const path of [
+      'src/components/EgsPanel.tsx',
+      'src/components/EgsRichDetails.tsx',
+      'src/components/TagCoOccurrence.tsx',
+      'src/components/StaffSection.tsx',
+      'src/components/AspectOverrideControl.tsx',
+      'src/components/TagInput.tsx',
+      'src/components/EditForm.tsx',
+      'src/components/WishlistClient.tsx',
+      'src/app/vn/[id]/page.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('min-h-[44px]');
+    }
+    for (const path of [
+      'src/components/EgsPanel.tsx',
+      'src/components/StaffSection.tsx',
+      'src/components/AspectOverrideControl.tsx',
+      'src/components/EditForm.tsx',
+      'src/components/WishlistClient.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('min-w-[44px]');
+      expect(body, path).toContain('can-hover:sm:min-w-0');
+    }
+  });
+
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
     expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0');
     const library = source('src/components/LibraryClient.tsx');

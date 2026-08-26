@@ -201,6 +201,8 @@ describe('TagCoOccurrence', () => {
     expect(html).toContain('width:8%');
     expect(html).toContain('text-status-dropped');
     expect(html).toContain('text-status-on_hold');
+    expect(html).toContain('min-h-[44px]');
+    expect(html).toContain('can-hover:sm:min-h-0');
 
     const zeroMaxHtml = renderToStaticMarkup(await TagCoOccurrence({
       rows: [{ id: 'g6', name: 'Zero max', category: null, shared: 0 }],

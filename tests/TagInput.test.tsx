@@ -22,6 +22,8 @@ describe('TagInput', () => {
     const input = screen.getByLabelText('Tags');
     expect(input).toHaveAttribute('placeholder', 'Tags');
     expect(input).not.toHaveAttribute('list');
+    expect(input).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-[32px]');
+    expect(input.parentElement).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-[34px]');
     expect(rendered.container.firstChild).toHaveClass('custom');
 
     fireEvent.change(input, { target: { value: '  first  ' } });

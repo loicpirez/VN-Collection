@@ -30,7 +30,7 @@ export async function TagCoOccurrence({ rows }: { rows: CoOccurringTag[] }) {
             <li key={r.id}>
               <Link
                 href={`/?tag=${encodeURIComponent(r.id)}`}
-                className={`group relative block overflow-hidden rounded-md border bg-bg-elev/30 px-2.5 py-1 text-xs transition-colors hover:border-accent ${tone}`}
+                className={`group relative flex min-h-[44px] items-center overflow-hidden rounded-md border bg-bg-elev/30 px-2.5 py-1 text-xs transition-colors hover:border-accent can-hover:sm:min-h-0 ${tone}`}
                 title={`${r.shared} ${t.tags.cooccurrence.sharedSuffix}`}
               >
                 <div
@@ -38,7 +38,7 @@ export async function TagCoOccurrence({ rows }: { rows: CoOccurringTag[] }) {
                   style={{ width: `${pct}%` }}
                   aria-hidden
                 />
-                <div className="relative flex items-baseline justify-between gap-2">
+                <div className="relative flex w-full items-baseline justify-between gap-2">
                   <span className="truncate font-semibold" title={r.name}>{r.name}</span>
                   <span className="shrink-0 text-[10px] text-muted">{r.shared}</span>
                 </div>
