@@ -11,7 +11,7 @@ export default async function Loading() {
     <SkeletonBoundary label={t.app.loading} className="w-full space-y-4">
       <SkeletonBlock className="vn-mobile-library-return h-11 w-24 md:hidden" />
       <div
-        className="relative isolate animate-pulse rounded-2xl border border-border bg-bg-card shadow-card"
+        className="vn-hero-skeleton-context relative isolate rounded-2xl border border-border bg-bg-card shadow-card"
         data-vn-hero-skeleton
       >
         <div className="relative z-0 h-64 overflow-hidden rounded-t-2xl" data-vn-banner-skeleton-shell>

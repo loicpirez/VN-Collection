@@ -385,7 +385,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         <NotInCollectionBanner vnId={vn.id} initialInCollection={inCol} />
       )}
 
-      <div className="relative rounded-2xl border border-border bg-bg-card shadow-card">
+      <div className="vn-hero-skeleton-context relative rounded-2xl border border-border bg-bg-card shadow-card">
         <div className="overflow-hidden rounded-t-2xl">
           <HeroBanner
             vnId={vn.id}
@@ -400,7 +400,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
 
         <div className="relative -mt-44 grid grid-cols-1 gap-4 px-3 pb-4 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 md:pb-8">
           <div className="z-10 mx-auto w-full max-w-[260px] md:mx-0">
-            <div className="group relative">
+            <div className="group relative rounded-xl ring-1 ring-border" data-vn-cover-hero>
               {inCol && (egsPosterHas || customPosterHas) ? (
                 <CoverCompare
                   vnId={vn.id}

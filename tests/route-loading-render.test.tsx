@@ -138,7 +138,8 @@ describe('route loading skeletons', () => {
     expect(html).toContain('data-vn-cover-skeleton-shell');
     expect(html).toContain('data-vn-banner-skeleton-shell');
     expect(html).toContain('data-vn-hero-skeleton');
-    expect(html.match(/animate-pulse/g)).toHaveLength(2);
+    expect(html).toContain('vn-hero-skeleton-context');
+    expect(html.match(/animate-pulse/g)).toHaveLength(1);
     expect(html).toContain('relative z-10 mx-auto aspect-[2/3]');
     expect(html).toContain('overflow-hidden rounded-xl border border-border bg-bg-card shadow-card');
     expect(html).toContain('grid-cols-3');

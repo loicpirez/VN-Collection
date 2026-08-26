@@ -281,6 +281,17 @@
   50% { background-color: #222b3e; }
 }
 
+@property --vn-hero-skeleton-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #19202e;
+}
+
+@keyframes vn-hero-skeleton-pulse {
+  0%, 100% { --vn-hero-skeleton-color: #19202e; }
+  50% { --vn-hero-skeleton-color: #222b3e; }
+}
+
 .skeleton-surface,
 .skeleton-surface-static {
   background-color: #19202e;
@@ -288,6 +299,31 @@
 
 .skeleton-surface.animate-pulse {
   animation: skeleton-surface-pulse 1.8s ease-in-out infinite;
+}
+
+.vn-hero-skeleton-context:has(
+  [data-hero-banner-skeleton],
+  [data-vn-cover-hero] [data-safe-image-skeleton],
+  .skeleton-surface-static
+) {
+  animation: vn-hero-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+.vn-hero-skeleton-context [data-hero-banner-skeleton],
+.vn-hero-skeleton-context [data-vn-cover-hero] [data-safe-image-skeleton],
+.vn-hero-skeleton-context[data-vn-hero-skeleton] .skeleton-surface-static {
+  animation: none;
+  background-color: var(--vn-hero-skeleton-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vn-hero-skeleton-context:has(
+    [data-hero-banner-skeleton],
+    [data-vn-cover-hero] [data-safe-image-skeleton],
+    .skeleton-surface-static
+  ) {
+    animation: none;
+  }
 }
 
 .shelf-spatial-image {

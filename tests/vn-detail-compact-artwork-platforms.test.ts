@@ -7,6 +7,22 @@ function source(path: string): string {
 }
 
 describe('VN detail compact artwork and platform disclosure', () => {
+  it('shares one skeleton clock across the banner and overlapping cover', () => {
+    const page = source('src/app/vn/[id]/page.tsx');
+    const loading = source('src/app/vn/[id]/loading.tsx');
+    const styles = source('src/app/globals.css');
+
+    expect(page).toContain('vn-hero-skeleton-context relative rounded-2xl');
+    expect(page).toContain('data-vn-cover-hero');
+    expect(loading).toContain('vn-hero-skeleton-context relative isolate');
+    expect(styles).toContain('@property --vn-hero-skeleton-color');
+    expect(styles).toContain('.vn-hero-skeleton-context [data-hero-banner-skeleton]');
+    expect(styles).toContain('.vn-hero-skeleton-context [data-vn-cover-hero] [data-safe-image-skeleton]');
+    expect(styles).toContain('background-color: var(--vn-hero-skeleton-color)');
+    expect(styles).toContain('.vn-hero-skeleton-context:has(');
+    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
   it('keeps artwork overlays off compact covers and exposes one responsive toolbar entry', () => {
     const overlay = source('src/components/CoverEditOverlay.tsx');
     const menu = source('src/components/ArtworkActionMenu.tsx');
