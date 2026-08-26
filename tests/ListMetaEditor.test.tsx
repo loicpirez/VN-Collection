@@ -96,12 +96,14 @@ describe('ListMetaEditor', () => {
     const description = screen.getByRole('textbox', { name: t.series.descriptionField });
     expect(name).toHaveValue('Favorites');
     expect(description).toHaveValue('');
-    expect(screen.getByRole('button', { name: t.lists.noColor })).toHaveClass('ring-2');
+    expect(screen.getByRole('button', { name: t.lists.noColor })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Red' }));
-    expect(screen.getByRole('button', { name: 'Red' })).toHaveClass('ring-2');
+    expect(screen.getByRole('button', { name: 'Red' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: t.lists.noColor })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: t.lists.noColor }));
-    expect(screen.getByRole('button', { name: t.lists.noColor })).toHaveClass('ring-2');
+    expect(screen.getByRole('button', { name: t.lists.noColor })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Red' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.change(name, { target: { value: '' } });
     expect(screen.getByRole('button', { name: t.common.save })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: t.common.cancel }));

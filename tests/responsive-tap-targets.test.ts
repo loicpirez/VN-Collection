@@ -66,16 +66,23 @@ describe('responsive tap targets', () => {
   });
 
   it('keeps floating and input chip controls touch-safe', () => {
-    // ToastProvider migrated from `min-h-[44px] min-w-[44px]` on the
-    // dismiss button to the `.tap-target` utility class. The visible
-    // chrome is smaller (the toast no longer leaves an empty 20-px
-    // band below single-line text — see
-    // tests/toast-no-empty-bottom-space.test.ts) but the WCAG-AA
-    // ±10-px invisible hit area is provided by the CSS pseudo-element.
+    const css = source('src/app/globals.css');
+    expect(css).toMatch(/\.tap-target,[\s\S]*\.tap-target-tight\s*\{[\s\S]*min-height:\s*44px;[\s\S]*min-width:\s*44px;/);
+    expect(css).not.toMatch(/\.tap-target(?::after|::after)/);
+    expect(css).toContain('@media (hover: hover) and (pointer: fine) and (min-width: 640px)');
     const toast = source('src/components/ToastProvider.tsx');
     expect(toast).toMatch(/tap-target|min-h-\[44px\]/);
     expect(source('src/components/TagInput.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/DateInput.tsx')).toContain('min-h-[44px]');
+  });
+
+  it('keeps list colour swatches compact inside real touch targets', () => {
+    for (const path of ['src/components/CreateListForm.tsx', 'src/components/ListMetaEditor.tsx']) {
+      const body = source(path);
+      expect(body, path).toContain('tap-target-tight inline-flex items-center justify-center');
+      expect(body, path).toContain('className={`h-6 w-6 rounded');
+    }
+    expect(source('src/components/CreateListForm.tsx')).toContain('flex flex-wrap items-center gap-1');
   });
 
   it('uses an explicit touch height for the native language selector in WebKit', () => {

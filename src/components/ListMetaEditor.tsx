@@ -194,20 +194,32 @@ export function ListMetaEditor({ list }: { list: List }) {
           type="button"
           onClick={() => setColor(null)}
           aria-label={t.lists.noColor}
+          aria-pressed={color == null}
           disabled={busy}
-          className={`tap-target-tight h-6 w-6 rounded ${color == null ? 'ring-2 ring-accent' : 'opacity-60 hover:opacity-100'}`}
-          style={{ background: 'linear-gradient(135deg, #475569 50%, #1e293b 50%)' }}
-        />
+          className="group tap-target-tight inline-flex items-center justify-center rounded"
+        >
+          <span
+            aria-hidden
+            className={`h-6 w-6 rounded ${color == null ? 'ring-2 ring-accent' : 'opacity-60 group-hover:opacity-100'}`}
+            style={{ background: 'linear-gradient(135deg, #475569 50%, #1e293b 50%)' }}
+          />
+        </button>
         {PRESET_COLORS.map(({ hex, name }) => (
           <button
             key={hex}
             type="button"
             onClick={() => setColor(hex)}
             aria-label={name}
+            aria-pressed={color === hex}
             disabled={busy}
-            className={`tap-target-tight h-6 w-6 rounded ${color === hex ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'}`}
-            style={{ backgroundColor: hex }}
-          />
+            className="group tap-target-tight inline-flex items-center justify-center rounded"
+          >
+            <span
+              aria-hidden
+              className={`h-6 w-6 rounded ${color === hex ? 'ring-2 ring-white' : 'opacity-60 group-hover:opacity-100'}`}
+              style={{ backgroundColor: hex }}
+            />
+          </button>
         ))}
       </div>
       <div className="flex justify-end gap-2">
