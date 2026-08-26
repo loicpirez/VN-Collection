@@ -51,16 +51,20 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
                   className="h-full w-full"
                 />
               </Link>
-              <div className="min-w-0 flex-1">
-                <Link href={`/character/${c.id}`} className="min-h-[44px] line-clamp-2 text-xs font-bold hover:text-accent can-hover:sm:min-h-0" title={c.name}>
-                  {c.name}
+              <div className="min-w-0 flex-1 self-center">
+                <Link
+                  href={`/character/${c.id}`}
+                  className="flex min-h-8 flex-col justify-center text-xs font-bold leading-tight hover:text-accent"
+                  title={c.name}
+                >
+                  <span className="line-clamp-1">{c.name}</span>
+                  {c.original && c.original !== c.name && (
+                    <span className="line-clamp-1 text-[10px] font-normal text-muted" title={c.original}>{c.original}</span>
+                  )}
                 </Link>
-                {c.original && c.original !== c.name && (
-                  <div className="line-clamp-1 text-[10px] text-muted" title={c.original}>{c.original}</div>
-                )}
                 <Link
                   href={`/staff/${s.id}`}
-                  className="mt-1 inline-flex min-h-[44px] items-center text-[11px] text-muted hover:text-accent can-hover:sm:min-h-0"
+                  className="mt-0.5 inline-flex min-h-8 items-center text-[11px] leading-tight text-muted hover:text-accent"
                   title={v.note ?? undefined}
                 >
                   {t.characters.castLabel}: <span className="font-semibold">{s.name}</span>

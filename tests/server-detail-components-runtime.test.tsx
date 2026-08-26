@@ -130,6 +130,9 @@ describe('server detail helpers', () => {
     expect(html).toContain('Original Heroine');
     expect(html).toContain('Original Actor');
     expect(html).toContain('aria-label="Heroine"');
+    expect(html.match(/min-h-8/g)).toHaveLength(4);
+    expect(html).not.toContain('min-h-[44px]');
+    expect(html).toContain('self-center');
   });
 
   it('renders an anime chip only for matched VNDB results', async () => {
