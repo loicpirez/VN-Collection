@@ -94,7 +94,9 @@ interpretation and gather evidence before acting.
 ## Project at a glance
 
 **What it is**: a single-user, self-hosted Visual Novel collection manager.
-Owner runs it locally on `localhost:3000`. No login, no cloud, no telemetry.
+It can run locally on `localhost:3000` without an application login, or behind
+an authenticated reverse proxy for remote access. It has no telemetry and does
+not depend on a hosted application service.
 
 **What it does**: mirrors metadata + images from [VNDB Kana API v2](https://api.vndb.org/kana)
 **and** [ErogameScape's public SQL form](https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/)
@@ -2178,23 +2180,23 @@ New DB tables introduced by recent batches:
 
 ## Single-user threat model
 
-The app is single-user / self-hosted on `localhost:3000`. Mutating
-routes (`POST` / `PATCH` / `DELETE`) gate via `requireLocalhostOrToken`,
-which accepts loopback connections or a session token. **Read-only
-collection GET routes deliberately stay un-gated** — they return
-metadata the operator already owns, and the loopback gate would just
-add ceremony.
+The app is single-user and self-hosted. Mutating routes (`POST` / `PATCH` /
+`DELETE`) gate via `requireLocalhostOrToken`, which accepts loopback requests,
+an admin token, or a request carrying the configured trusted-proxy proof.
+Read-only collection routes remain open only in the historical localhost or
+trusted-LAN mode. `VN_PUBLIC_READ_AUTH=token` enforces the admin token for API
+reads, while `VN_PUBLIC_READ_AUTH=upstream` declares that an authenticated
+reverse proxy protects the entire page, asset, and API surface.
 
 Consequences:
 - `GET /api/collection/[id]/*` returns `404` for a VN not in the
   collection and `200` for one that is. The HTTP status difference is
   intentional — collection presence is not a secret from the operator.
-- Every such handler carries an explicit
-  `// intentionally public — single-user self-hosted app …` comment so
-  the next reader doesn't add `requireLocalhostOrToken` and break the
-  library page.
-- If you publish the app multi-user, every "intentionally public" GET
-  needs review.
+- Every intentionally open handler imports `PUBLIC_READ_ROUTE`, while the
+  shared proxy applies the optional read-authentication policy before route
+  code runs.
+- Multi-user publishing remains out of scope. It requires a separate identity,
+  authorization, and data-isolation review rather than reusing this policy.
 
 ---
 
