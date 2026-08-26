@@ -388,13 +388,13 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | POST | `/api/shelves/[id]/slots` | Place an owned edition at `(row, col)` — atomic swap if both ends are slots |
 | DELETE | `/api/shelves/[id]/slots` | Return an edition to the unplaced pool |
 | GET | `/api/download-status/stream` | SSE stream of the download-status snapshot (pub/sub driven, with keep-alive comments every 25 s) |
-| GET | `/api/alicenet` | Bounded/paged result: `{ items, stats, pending, last_fetch }`. `stats` is the nested counter block (`total, matched, vndb_matched, egs_only, unmatched, none_found, in_wishlist`), `pending` is `{ vndb_pending, egs_pending }`, and `last_fetch` is the last download epoch (or `null`). Reads the mirrored rows from SQLite but also calls VNDB via `fetchAuthenticatedWishlist()` to annotate each item with the live wishlist label (Label 5); it does not re-fetch the AliceNet website. |
+| GET | `/api/alicenet` | Bounded/paged result: `{ items, stats, pending, last_fetch, page, producers, wishlist_available }`. Reads the mirror through the configured SQLite or PostgreSQL repository and enriches wishlist state from the bounded local VNDB wishlist cache; it never fetches the AliceNet website or blocks the page on a live VNDB request. |
 | POST | `/api/alicenet/fetch` | Download the AliceNet stock page (EUC-JP decoded), parse, full-sync the DB (`added / updated / removed`), return `{ count, added, updated, removed, fetched_at }`. |
 | POST | `/api/alicenet/match-next` | Match the next batch against VNDB + EGS. Body: `{ batch?: number (1–20), retry_none?: boolean }`. Returns `{ processed, remaining }`. |
 | POST | `/api/alicenet/reset-matches` | Clear all auto-matched VN links (`vn_match_source = 'auto'`). Returns `{ cleared }`. Manual links are preserved. |
 | POST | `/api/alicenet/download-vndb` | Download VNDB metadata for matched items not yet in the local `vn` table. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
 | POST | `/api/alicenet/resolve-egs` | Resolve EGS links for alicenet items with `vn_id` but no `egs_id`, via `resolveEgsForVn`. Body: `{ batch? }`. Returns `{ processed, remaining }`. |
-| POST/DELETE | `/api/alicenet/[code]/link` | Manually set VN and/or EGS link for a AliceNet item, or clear a manual link. |
+| POST/DELETE | `/api/alicenet/[code]/link` | Manually set VN and/or EGS link for an AliceNet item, or clear a manual link. |
 | POST | `/api/refresh/scope` | Scoped cache invalidation. Body: `{ scope: string, params?: Record<string, string> }`. Returns `{ ok, deleted, patterns, scope }`. Scope and template params are validated against `REFRESH_SCOPES`. |
 | POST | `/api/proxy/test` | Test a proxy configuration against the provider's canonical URL. Body: `{ provider, … }`. Returns reachability result. |
 

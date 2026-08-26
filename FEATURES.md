@@ -766,7 +766,8 @@ Data model:
   title, shop URL, price, currency, availability, condition, edition label,
   location label, source release id, JAN, timestamps, and parser error.
 - `vn_stock_provider_status` stores the last provider result for the VN:
-  `ok`, `skipped`, or `error`, with message, timestamp, and offer count.
+  `ok`, `no_results`, `partial`, `protected`, `error`, `skipped`, or
+  `not_checked`, with message, timestamp, and offer count.
 
 Provider discovery combines:
 - VNDB release extlinks when they point directly at a supported shop.
@@ -931,10 +932,10 @@ The **In my wishlist** tab keys on `in_wishlist === 1`, which the
 5) via `fetchAuthenticatedWishlist()`, not from any local `collection.status`.
 The separate **In collection** tab keys on `in_collection === 1`.
 
-DB: `listAliceNetStock()` LEFT JOINs the `collection` table to populate the
-`in_collection` flag inline, and LEFT JOINs `vn` for `image_url`,
-`local_image`, and `image_sexual`. It does not produce `in_wishlist`; that
-flag is layered on by the route from the live VNDB wishlist.
+DB: the configured AliceNet repository applies bounded filters, grouping,
+sorting, and pagination before enriching the visible window from `collection`
+and `vn`. The route layers `in_wishlist` from the bounded local VNDB wishlist
+cache and reports `wishlist_available: false` when that cache is unavailable.
 
 ### VN cover thumbnails ✅
 Each matched row renders a small `SafeImage` thumbnail (40 × 56 px) sourced
