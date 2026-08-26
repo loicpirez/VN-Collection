@@ -120,4 +120,24 @@ describe('VNDB status client request coalescing', () => {
     await settlement;
     expect(captured.signal?.aborted).toBe(true);
   });
+
+  it('rejects an already-aborted consumer without subscribing it', async () => {
+    global.fetch = vi.fn(() => new Promise<Response>(() => {}));
+    const controller = new AbortController();
+    controller.abort('route disposed');
+
+    await expect(requestVndbStatus(VN_ONE, false, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(global.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects every active consumer when the shared request is cleared', async () => {
+    global.fetch = vi.fn(() => new Promise<Response>(() => {}));
+    const first = requestVndbStatus(VN_ONE);
+    const second = requestVndbStatus(VN_ONE);
+    const firstSettlement = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    const secondSettlement = expect(second).rejects.toMatchObject({ name: 'AbortError' });
+
+    clearVndbStatusRequest(VN_ONE);
+    await Promise.all([firstSettlement, secondSettlement]);
+  });
 });

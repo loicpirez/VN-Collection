@@ -167,13 +167,13 @@ function subscribeToInflight<T>(entry: InflightRequest, signal?: AbortSignal | n
       signal?.removeEventListener('abort', onAbort);
       entry.subscribers.delete(subscriber);
       if (!entry.settled && entry.subscribers.size === 0) {
-        if (inflight.get(entry.key) === entry) inflight.delete(entry.key);
+        inflight.delete(entry.key);
         entry.controller.abort();
       }
     };
     const onAbort = () => {
       release();
-      if (signal) reject(requestAbortReason(signal));
+      reject(requestAbortReason(signal!));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
     entry.promise.then(

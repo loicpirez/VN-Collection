@@ -32,10 +32,9 @@ function subscribeToStatusRequest(entry: SharedStatusRequest, signal?: AbortSign
     };
     const onCallerAbort = () => {
       release();
-      if (signal) reject(statusAbortReason(signal));
+      reject(statusAbortReason(signal!));
     };
     const onSharedAbort = () => {
-      if (released) return;
       release();
       reject(statusAbortReason(entry.controller.signal));
     };

@@ -65,10 +65,9 @@ function subscribeToCharacters(
     };
     const onCallerAbort = () => {
       release();
-      if (signal) reject(characterAbortReason(signal));
+      reject(characterAbortReason(signal!));
     };
     const onSharedAbort = () => {
-      if (released) return;
       release();
       reject(characterAbortReason(entry.controller.signal));
     };

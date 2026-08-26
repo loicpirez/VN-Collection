@@ -105,4 +105,45 @@ describe('vn-characters-cache', () => {
     expect(rows[0].id).toBe('c95001');
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('rejects an already-aborted consumer with a normalized abort error', async () => {
+    const controller = new AbortController();
+    controller.abort('route disposed');
+
+    await expect(fetchVnCharacters(VN_ID, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it('aborts active consumers when the character cache is invalidated', async () => {
+    fetchSpy.mockImplementationOnce((_url: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('invalidated', 'AbortError')), { once: true });
+      }));
+    const request = fetchVnCharacters(VN_ID);
+    const settlement = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+
+    invalidateVnCharactersCache(VN_ID);
+    await settlement;
+  });
+
+  it('does not let an invalidated request completion remove its replacement', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    let resolveNew: (response: Response) => void = () => {};
+    fetchSpy
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveNew = resolve; }));
+
+    const oldRequest = fetchVnCharacters(VN_ID);
+    const oldSettlement = expect(oldRequest).rejects.toMatchObject({ name: 'AbortError' });
+    invalidateVnCharactersCache(VN_ID);
+    await oldSettlement;
+    const newRequest = fetchVnCharacters(VN_ID);
+    const sharedNewRequest = fetchVnCharacters(VN_ID);
+    resolveOld(new Response(JSON.stringify({ characters: [] })));
+    resolveNew(new Response(JSON.stringify({ characters: [{ id: 'c95003', name: 'Replacement', localImage: null }] })));
+
+    await expect(newRequest).resolves.toMatchObject([{ id: 'c95003' }]);
+    await expect(sharedNewRequest).resolves.toMatchObject([{ id: 'c95003' }]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });

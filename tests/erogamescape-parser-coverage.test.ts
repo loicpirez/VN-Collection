@@ -251,6 +251,15 @@ describe('fetchEgsGame', () => {
     await settlement;
   });
 
+  it('normalizes a non-Error reason when the request is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort('route disposed');
+
+    await expect(fetchEgsGame(905, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
+    expect(mockProviderFetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
   it('maps a non-Error thrown fetch value to a network EgsUnreachable', async () => {
     mockProviderFetch.mockRejectedValueOnce('offline');
     await expect(fetchEgsGame(901)).rejects.toMatchObject({ kind: 'network' });

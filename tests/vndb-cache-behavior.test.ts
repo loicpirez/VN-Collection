@@ -55,6 +55,7 @@ import {
   TTL,
 } from '@/lib/vndb-cache';
 import { clearCache, getCacheRow, putCacheRow, setAppSetting } from '@/lib/db';
+import { getCacheRepository } from '@/lib/db/repositories/cache';
 
 const PRIMARY = 'https://api.vndb.org/kana';
 
@@ -267,6 +268,79 @@ describe('in-flight de-dupe', () => {
 
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 3 }));
     await expect(cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ status: 200 });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('normalizes a non-Error reason for an already-aborted caller', async () => {
+    const controller = new AbortController();
+    controller.abort('route disposed');
+
+    await expect(cachedFetch(
+      `${PRIMARY}/vn`,
+      { method: 'POST', body: JSON.stringify({ d: 4 }), __pathTag: 'POST /vn:already-aborted', signal: controller.signal },
+      { ttlMs: TTL.vnDetail },
+    )).rejects.toMatchObject({ name: 'AbortError' });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an already-aborted subscriber without canceling the active consumer', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    providerFetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const base = { method: 'POST', body: JSON.stringify({ d: 5 }), __pathTag: 'POST /vn:late-aborted' };
+    const active = cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    const controller = new AbortController();
+    controller.abort('route disposed');
+    const rejected = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: controller.signal }, { ttlMs: TTL.vnDetail });
+
+    await expect(rejected).rejects.toMatchObject({ name: 'AbortError' });
+    resolveFetch(jsonResponse({ ok: 5 }));
+    await expect(active).resolves.toMatchObject({ data: { ok: 5 } });
+  });
+
+  it('rejects a caller aborted while its cache lookup is in progress', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    providerFetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const base = { method: 'POST', body: JSON.stringify({ d: 7 }), __pathTag: 'POST /vn:lookup-abort' };
+    const active = cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    const controller = new AbortController();
+    const repository = getCacheRepository();
+    const get = vi.spyOn(repository, 'get').mockImplementationOnce(async () => {
+      controller.abort('route disposed');
+      return null;
+    });
+    const aborted = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: controller.signal }, { ttlMs: TTL.vnDetail });
+    await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
+    get.mockRestore();
+
+    resolveFetch(jsonResponse({ ok: 7 }));
+    await expect(active).resolves.toMatchObject({ data: { ok: 7 } });
+  });
+
+  it('does not let an abandoned completion clear its replacement request', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    let resolveNew: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveNew = resolve; }));
+    const base = { method: 'POST', body: JSON.stringify({ d: 6 }), __pathTag: 'POST /vn:replacement' };
+    const controller = new AbortController();
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, { ...base, signal: controller.signal }, { ttlMs: TTL.vnDetail });
+    const oldSettlement = expect(oldRequest).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    controller.abort();
+    await oldSettlement;
+
+    const replacement = cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail });
+    const sharedReplacement = cachedFetch(`${PRIMARY}/vn`, base, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledTimes(2));
+    resolveOld(jsonResponse({ ok: 4 }));
+    resolveNew(jsonResponse({ ok: 6 }));
+
+    await expect(replacement).resolves.toMatchObject({ data: { ok: 6 } });
+    await expect(sharedReplacement).resolves.toMatchObject({ data: { ok: 6 } });
     expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
 });

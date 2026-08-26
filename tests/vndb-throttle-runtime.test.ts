@@ -195,6 +195,42 @@ describe('network-error back-off', () => {
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
+  it('normalizes a non-Error abort reason before acquisition', async () => {
+    const { throttledFetch } = await freshThrottle();
+    const controller = new AbortController();
+    controller.abort('navigation changed');
+
+    await expect(throttledFetch(VNDB, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('clears a scheduled minimum-gap timer when its caller aborts', async () => {
+    const { throttledFetch } = await freshThrottle();
+    providerFetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
+    await throttledFetch(VNDB, {});
+
+    const controller = new AbortController();
+    const delayed = throttledFetch(VNDB, { signal: controller.signal });
+    const settlement = expect(delayed).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    await settlement;
+    await vi.advanceTimersByTimeAsync(1_100);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('stops before a 429 retry when the provider aborts the caller signal', async () => {
+    const { throttledFetch } = await freshThrottle();
+    const controller = new AbortController();
+    providerFetchMock.mockImplementationOnce(async () => {
+      controller.abort('route disposed');
+      return new Response('rate', { status: 429 });
+    });
+
+    await expect(throttledFetch(VNDB, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+  });
+
   it('removes an aborted caller from the serialization queue', async () => {
     const { throttledFetch, getVndbThrottleStats } = await freshThrottle();
     const firstResponse = new Promise<Response>(() => {});

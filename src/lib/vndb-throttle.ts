@@ -63,7 +63,7 @@ function acquire(signal?: AbortSignal | null): Promise<void> {
     const removeQueued = () => {
       if (!queued) return;
       const index = waiters.indexOf(tryStart);
-      if (index >= 0) waiters.splice(index, 1);
+      waiters.splice(index, 1);
       queued = false;
     };
     const cleanup = () => {
@@ -73,10 +73,9 @@ function acquire(signal?: AbortSignal | null): Promise<void> {
       signal?.removeEventListener('abort', onAbort);
     };
     const onAbort = () => {
-      if (settled || !signal) return;
       settled = true;
       cleanup();
-      reject(abortReason(signal));
+      reject(abortReason(signal!));
     };
     const schedule = (delay: number) => {
       timer = setTimeout(() => {
@@ -86,11 +85,6 @@ function acquire(signal?: AbortSignal | null): Promise<void> {
     };
     const tryStart = () => {
       queued = false;
-      if (settled) return;
-      if (signal?.aborted) {
-        onAbort();
-        return;
-      }
       // Soft pause when the circuit is open. Affects new acquirers only —
       // the in-flight retry has already paid its Retry-After sleep.
       if (circuitOpen()) {
@@ -149,7 +143,7 @@ async function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
     const onAbort = () => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
-      reject(signal ? abortReason(signal) : new DOMException('The operation was aborted', 'AbortError'));
+      reject(abortReason(signal!));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
   });
