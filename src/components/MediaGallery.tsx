@@ -1,5 +1,16 @@
 'use client';
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
@@ -46,6 +57,31 @@ export interface MediaItem {
 
 const TYPE_KEYS = ['all', 'pkgfront', 'pkgback', 'pkgcontent', 'pkgside', 'pkgmed', 'dig', 'screenshots'] as const;
 type TypeKey = (typeof TYPE_KEYS)[number];
+
+interface LightboxSwipePoint {
+  x: number;
+  y: number;
+}
+
+const LIGHTBOX_SWIPE_MIN_PX = 48;
+
+/**
+ * Resolve a deliberate horizontal lightbox gesture without treating a short
+ * tap or primarily vertical movement as image navigation.
+ *
+ * @param start Initial touch position.
+ * @param end Released touch position.
+ * @returns The requested image direction, or `null` for a non-swipe gesture.
+ */
+export function lightboxSwipeDirection(
+  start: LightboxSwipePoint,
+  end: LightboxSwipePoint,
+): 'prev' | 'next' | null {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  if (Math.abs(deltaX) < LIGHTBOX_SWIPE_MIN_PX || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return null;
+  return deltaX < 0 ? 'next' : 'prev';
+}
 
 export function lightboxFrameStyle(item: Pick<MediaItem, 'aspect' | 'dims'>): CSSProperties {
   const fallback: [number, number] = item.aspect === 'landscape'
@@ -165,9 +201,33 @@ export function MediaGallery({
   );
 
   const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const lightboxSwipeRef = useRef<(LightboxSwipePoint & { pointerId: number }) | null>(null);
   const lightboxTitleId = useId();
   const lightboxDescId = useId();
   useDialogA11y({ open: active != null, onClose: close, panelRef: lightboxRef });
+
+  const beginLightboxSwipe = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'touch' || visible.length <= 1) return;
+    lightboxSwipeRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }, [visible.length]);
+
+  const finishLightboxSwipe = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = lightboxSwipeRef.current;
+    lightboxSwipeRef.current = null;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const direction = lightboxSwipeDirection(start, { x: event.clientX, y: event.clientY });
+    if (direction === 'next') next();
+    else if (direction === 'prev') prev();
+  }, [next, prev]);
+
+  const cancelLightboxSwipe = useCallback(() => {
+    lightboxSwipeRef.current = null;
+  }, []);
 
   // Arrow-key navigation in the lightbox so the user can flip through
   // images without reaching for the mouse. ESC handled by useDialogA11y.
@@ -290,8 +350,11 @@ export function MediaGallery({
           <div
             data-media-lightbox-frame
             className="relative z-10 bg-bg-elev"
-            style={lightboxFrameStyle(visible[active])}
+            style={{ ...lightboxFrameStyle(visible[active]), touchAction: 'pan-y pinch-zoom' }}
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={beginLightboxSwipe}
+            onPointerUp={finishLightboxSwipe}
+            onPointerCancel={cancelLightboxSwipe}
           >
             <SafeImage
               key={visible[active].key}

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
-import { lightboxFrameStyle, MediaGallery } from '@/components/MediaGallery';
+import { lightboxFrameStyle, lightboxSwipeDirection, MediaGallery } from '@/components/MediaGallery';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { ReleaseImage, Screenshot } from '@/lib/types';
 
@@ -53,6 +53,13 @@ describe('MediaGallery branches', () => {
       aspectRatio: '2 / 3',
       width: 'min(92vw, 1200px, calc(88vh * 0.6666666666666666))',
     });
+  });
+
+  it('classifies only deliberate horizontal lightbox swipes', () => {
+    expect(lightboxSwipeDirection({ x: 100, y: 100 }, { x: 60, y: 100 })).toBeNull();
+    expect(lightboxSwipeDirection({ x: 100, y: 100 }, { x: 170, y: 180 })).toBeNull();
+    expect(lightboxSwipeDirection({ x: 200, y: 100 }, { x: 100, y: 105 })).toBe('next');
+    expect(lightboxSwipeDirection({ x: 100, y: 100 }, { x: 200, y: 95 })).toBe('prev');
   });
 
   it('shows a non-collapsing animated skeleton when the lightbox opens', async () => {
@@ -104,6 +111,42 @@ describe('MediaGallery branches', () => {
     await waitFor(() => expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument());
   });
 
+  it('navigates the lightbox with touch swipes and ignores unrelated pointer sequences', async () => {
+    renderGallery(twoScreens, []);
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(t.media.openLightbox) })[0]);
+    const dialog = await screen.findByRole('dialog');
+    const frame = dialog.querySelector<HTMLElement>('[data-media-lightbox-frame]');
+    expect(frame).not.toBeNull();
+    Object.defineProperty(frame, 'setPointerCapture', { configurable: true, value: vi.fn() });
+
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 1, clientX: 50, clientY: 100 });
+    fireEvent.pointerDown(frame!, { pointerType: 'mouse', pointerId: 2, clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'mouse', pointerId: 2, clientX: 50, clientY: 100 });
+    expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
+
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 3, clientX: 220, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 4, clientX: 80, clientY: 105 });
+    expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
+
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 5, clientX: 220, clientY: 100 });
+    fireEvent.pointerCancel(frame!, { pointerType: 'touch', pointerId: 5 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 5, clientX: 80, clientY: 105 });
+    expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
+
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 9, clientX: 220, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 9, clientX: 200, clientY: 102 });
+    expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument();
+
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 6, clientX: 220, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 6, clientX: 80, clientY: 105 });
+    await waitFor(() => expect(within(dialog).getByText(/2 \/ 2/)).toBeInTheDocument());
+
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 7, clientX: 80, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 7, clientX: 220, clientY: 95 });
+    await waitFor(() => expect(within(dialog).getByText(/1 \/ 2/)).toBeInTheDocument());
+    expect(frame).toHaveStyle({ touchAction: 'pan-y pinch-zoom' });
+  });
+
   it('closes the lightbox when the backdrop is clicked', async () => {
     renderGallery(twoScreens, []);
     fireEvent.click(screen.getAllByRole('button', { name: new RegExp(t.media.openLightbox) })[0]);
@@ -119,6 +162,10 @@ describe('MediaGallery branches', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByRole('button', { name: t.common.next })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: t.common.prev })).toBeNull();
+    const frame = dialog.querySelector<HTMLElement>('[data-media-lightbox-frame]');
+    fireEvent.pointerDown(frame!, { pointerType: 'touch', pointerId: 8, clientX: 220, clientY: 100 });
+    fireEvent.pointerUp(frame!, { pointerType: 'touch', pointerId: 8, clientX: 80, clientY: 105 });
+    expect(within(dialog).getByText(/1 \/ 1/)).toBeInTheDocument();
   });
 
   it('opens the lightbox via keyboard activation on a tile', async () => {
