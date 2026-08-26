@@ -71,9 +71,8 @@ describe('CompareWithButton', () => {
   });
 
   it('focuses the search field on the frame after the dialog opens', async () => {
-    let frameCallback: FrameRequestCallback | null = null;
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      frameCallback = callback;
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
       return 17;
     });
     const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
@@ -81,8 +80,7 @@ describe('CompareWithButton', () => {
     const { unmount } = renderWithProviders(<CompareWithButton currentVnId="v90099" />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t.compareWith.cta) }));
     const search = await screen.findByRole('textbox', { name: t.compareWith.searchPlaceholder });
-    expect(frameCallback).not.toBeNull();
-    if (frameCallback) frameCallback(0);
+    expect(requestFrame).toHaveBeenCalledOnce();
     expect(document.activeElement).toBe(search);
 
     unmount();
