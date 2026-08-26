@@ -125,6 +125,7 @@ export function StockRecentActivity() {
               <li key={entry.vnId} className="min-w-0">
                 <Link
                   href={`/stock?vn=${encodeURIComponent(entry.vnId)}`}
+                  prefetch={false}
                   className="flex min-h-[44px] min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-bg px-3 py-2 text-xs hover:border-accent hover:text-accent"
                 >
                   <span className="min-w-0 truncate font-semibold">{entry.title ?? entry.vnId}</span>

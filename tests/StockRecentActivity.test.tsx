@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { StockRecentActivity } from '@/components/StockRecentActivity';
@@ -76,6 +78,11 @@ describe('StockRecentActivity', () => {
     const rows = screen.getAllByRole('listitem').filter((item) => item.textContent?.includes('batch') || item.textContent?.includes('Stock refresh'));
     expect(rows[0]).toHaveTextContent('Stock refresh x 2');
     expect(screen.getByText('2/2 processed, 1 error(s)')).toBeInTheDocument();
+  });
+
+  it('keeps recent stock navigation out of speculative WebKit prefetch', () => {
+    const source = readFileSync(join(process.cwd(), 'src/components/StockRecentActivity.tsx'), 'utf8');
+    expect(source).toMatch(/href=\{`\/stock\?vn=.*?\}[\s\S]*?prefetch=\{false\}/);
   });
 
   it('renders a clear empty state when neither checks nor batches exist', async () => {
