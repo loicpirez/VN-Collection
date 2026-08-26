@@ -156,6 +156,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
                       <li key={`${c.vn_id}-${i}`}>
                         <Link
                           href={`/vn/${c.vn_id}`}
+                          prefetch={false}
                           className={ownedSet.has(c.vn_id) ? 'inline-flex items-center gap-1 text-accent hover:text-white' : 'hover:text-accent'}
                           data-in-collection={ownedSet.has(c.vn_id) ? 'true' : undefined}
                         >
@@ -179,6 +180,7 @@ async function Result({ a, b, page }: { a: string; b: string; page: number }) {
                       <li key={`${c.vn_id}-${i}`}>
                         <Link
                           href={`/vn/${c.vn_id}`}
+                          prefetch={false}
                           className={ownedSet.has(c.vn_id) ? 'inline-flex items-center gap-1 text-accent hover:text-white' : 'hover:text-accent'}
                           data-in-collection={ownedSet.has(c.vn_id) ? 'true' : undefined}
                         >

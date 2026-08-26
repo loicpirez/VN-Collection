@@ -184,13 +184,13 @@ export default async function SimilarPage({
 
   return (
     <DensityScopeProvider scope="vnSimilar" className="w-full">
-      <Link href={`/vn/${seed.id}`} className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
+      <Link prefetch={false} href={`/vn/${seed.id}`} className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {seed.title}
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex items-start gap-4">
-          <Link href={`/vn/${seed.id}`} className="block shrink-0">
+          <Link prefetch={false} href={`/vn/${seed.id}`} className="block shrink-0">
             <SafeImage
               src={seedImageUrl}
               sexual={seed.image_sexual ?? null}
@@ -251,6 +251,7 @@ export default async function SimilarPage({
               >
                 <Link
                   href={`/vn/${r.id}`}
+                  prefetch={false}
                   className="flex flex-col"
                 >
                   <SafeImage

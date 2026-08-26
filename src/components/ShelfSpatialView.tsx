@@ -379,6 +379,7 @@ function ShelfCard({ slot, t }: { slot: ShelfSlotEntry; t: Dictionary }) {
   return (
     <Link
       href={`/vn/${slot.vn_id}`}
+      prefetch={false}
       className="group block overflow-hidden rounded-md border border-border bg-bg-elev/40 transition-all hover:scale-[1.03] hover:border-accent hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       style={{
         width: 'var(--shelf-cell-w-px, 120px)',
@@ -426,6 +427,7 @@ function DisplayCard({
   return (
     <Link
       href={`/vn/${entry.vn_id}`}
+      prefetch={false}
       className="group block overflow-hidden rounded-md border border-accent-blue/50 bg-accent-blue/5 transition-all hover:scale-[1.03] hover:border-accent-blue hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-blue"
       style={{
         width: 'var(--shelf-front-size-px, 140px)',

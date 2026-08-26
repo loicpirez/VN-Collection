@@ -183,6 +183,7 @@ function RoleSection({
             <li key={v.id} className="relative">
               <Link
                 href={`/vn/${v.id}`}
+                prefetch={false}
                 className="group flex gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 pr-10 transition-colors hover:border-accent"
               >
                 {/* Density-aware row cover. The multiplier mirrors

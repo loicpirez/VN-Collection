@@ -271,7 +271,7 @@ export default async function StaffPage({
                     <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
                       {sib.vns.map((v, i) => (
                         <span key={v.vn_id}>
-                          <Link href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
+                          <Link prefetch={false} href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
                           {i < sib.vns.length - 1 && <span className="text-muted">,</span>}
                         </span>
                       ))}
@@ -474,6 +474,7 @@ function VnCard({
           row-style cards scale at the same rate as the slider. */}
       <Link
         href={`/vn/${vn.id}`}
+        prefetch={false}
         aria-label={vn.title}
         className="block shrink-0 overflow-hidden rounded"
         style={{
@@ -493,6 +494,7 @@ function VnCard({
         <div className="flex items-baseline gap-2">
           <Link
             href={`/vn/${vn.id}`}
+            prefetch={false}
             title={vn.title}
             className="min-h-[44px] flex-1 line-clamp-2 text-xs font-bold transition-colors hover:text-accent can-hover:sm:min-h-0"
           >

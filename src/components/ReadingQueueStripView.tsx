@@ -229,6 +229,7 @@ function QueueChip({
     >
       <Link
         href={`/vn/${entry.vn_id}`}
+        prefetch={false}
         className="group flex min-h-[44px] items-center gap-2 rounded-md bg-bg-elev/40 px-2 py-1 text-xs hover:bg-bg-elev can-hover:sm:min-h-0"
       >
         <span className="font-mono text-[10px] text-muted">{position}</span>

@@ -420,6 +420,7 @@ async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked
             </span>
             <Link
               href={`/vn/${v.id}`}
+              prefetch={false}
               className="relative block shrink-0 overflow-hidden rounded-lg"
               aria-label={v.title}
               style={{
@@ -438,6 +439,7 @@ async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked
             <div className="min-w-0 flex-1 text-[11px]">
               <Link
                 href={`/vn/${v.id}`}
+                prefetch={false}
                 title={v.title}
                 className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent can-hover:sm:min-h-0"
               >

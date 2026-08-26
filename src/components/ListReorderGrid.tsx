@@ -195,6 +195,7 @@ export function StubCard({ vnId }: { vnId: string }) {
   return (
     <Link
       href={`/vn/${vnId}`}
+      prefetch={false}
       className="group relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-bg-elev/30 p-4 text-center text-muted hover:border-accent hover:text-white"
     >
       <ListChecks className="h-6 w-6" aria-hidden />

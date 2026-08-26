@@ -219,6 +219,7 @@ export function TextualSearchPanel({
                       <li key={h.id}>
                         <Link
                           href={`/vn/${h.id}`}
+                          prefetch={false}
                           className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
                         >
                           <div className="w-10 shrink-0 overflow-hidden rounded border border-border bg-bg">
@@ -257,6 +258,7 @@ export function TextualSearchPanel({
                   <li key={`${h.vn_id}:${h.source}:${i}`}>
                     <Link
                       href={`/vn/${h.vn_id}`}
+                      prefetch={false}
                       className="group flex gap-2 rounded-md border border-border bg-bg-elev/30 p-2 transition-colors hover:border-accent"
                     >
                       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />

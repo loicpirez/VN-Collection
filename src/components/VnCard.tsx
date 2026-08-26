@@ -496,6 +496,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     <>
       <Link
         href={`/vn/${data.id}`}
+        prefetch={false}
         className={className}
         onContextMenu={onContextMenu}
         onPointerDown={onPointerDown}

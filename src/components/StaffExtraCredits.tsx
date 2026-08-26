@@ -206,6 +206,7 @@ function ExternalVnCard({
     >
       <Link
         href={`/vn/${vn.id}`}
+        prefetch={false}
         className="block shrink-0 overflow-hidden rounded"
         style={{
           width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',
@@ -217,7 +218,7 @@ function ExternalVnCard({
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <Link href={`/vn/${vn.id}`} title={vn.title} className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors hover:text-accent can-hover:sm:min-h-0">
+          <Link prefetch={false} href={`/vn/${vn.id}`} title={vn.title} className="min-h-[44px] line-clamp-2 text-xs font-bold transition-colors hover:text-accent can-hover:sm:min-h-0">
             {vn.title}
           </Link>
           {inCollection && (

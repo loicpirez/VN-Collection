@@ -295,7 +295,7 @@ function ModeSummary({
             {t.recommend.whyBasedOn}{' '}
             {topRated.map((v, i, arr) => (
               <span key={v.id}>
-                <Link href={`/vn/${v.id}`} className="font-semibold text-white hover:text-accent">
+                <Link prefetch={false} href={`/vn/${v.id}`} className="font-semibold text-white hover:text-accent">
                   {v.title}
                 </Link>
                 {i < arr.length - 1 ? (i === arr.length - 2 ? ` ${t.recommend.whyAnd} ` : ', ') : ''}
@@ -705,6 +705,7 @@ function ResultsGrid({
           <li key={r.id} className="flex">
             <Link
               href={`/vn/${r.id}`}
+              prefetch={false}
               className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
             >
               <div className="relative">

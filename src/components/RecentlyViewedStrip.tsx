@@ -61,6 +61,7 @@ export function RecentlyViewedStrip({ initialState }: Props) {
             <Link
               key={it.id}
               href={`/vn/${it.id}`}
+              prefetch={false}
               // Width is now density-aware via the shared CSS variable
               // so the strip scales with the same slider the listing
               // grids use. The legacy `w-24` (96px) was hard-coded and

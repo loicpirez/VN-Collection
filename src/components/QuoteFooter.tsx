@@ -138,7 +138,7 @@ export function QuoteFooter() {
                   {quote.vn && (
                     <>
                       {quote.character && ' / '}
-                      <Link href={`/vn/${quote.vn.id}`} className="hover:text-accent">
+                      <Link prefetch={false} href={`/vn/${quote.vn.id}`} className="hover:text-accent">
                         {quote.vn.title}
                       </Link>
                     </>

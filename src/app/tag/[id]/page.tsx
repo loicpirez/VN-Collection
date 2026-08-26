@@ -422,6 +422,7 @@ function TagVndbResults({
             <li key={v.id}>
               <Link
                 href={`/vn/${v.id}`}
+                prefetch={false}
                 className="group flex flex-col gap-2 rounded-lg border border-border bg-bg-elev/40 p-2 transition-colors hover:border-accent"
               >
                 <div className="aspect-[2/3] w-full overflow-hidden rounded">

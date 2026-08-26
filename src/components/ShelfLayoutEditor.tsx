@@ -1516,6 +1516,7 @@ function DraggableDisplayItem({
       />
       <Link
         href={`/vn/${slot.vn_id}`}
+        prefetch={false}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         title={slot.bundle_name ?? slot.vn_title}
@@ -1682,6 +1683,7 @@ function DraggableSlotItem({ slot, highlighted }: { slot: ShelfSlotEntry; highli
       />
       <Link
         href={`/vn/${slot.vn_id}`}
+        prefetch={false}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         title={slot.bundle_name ?? slot.vn_title}
