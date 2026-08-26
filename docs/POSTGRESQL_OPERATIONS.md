@@ -152,12 +152,22 @@ file, validates the completed archive with `pg_restore --list`, writes a
 SHA-256 sidecar, and only then exposes the new restore point. The storage job
 uses the same temporary-file, checksum, and atomic-publication pattern.
 
-The cutover dump was restored into an isolated temporary database after all
-nine migrations were applied. Counts for collection, VN, AliceNet, and schema
-migrations matched production; all 57 public tables were present and no
-constraint remained unvalidated. The temporary restore was removed only after
-that proof passed. Keep at least one current encrypted copy outside the
-database host; the on-host timers do not protect against total host loss.
+The initial cutover dump was restored into an isolated temporary database after
+the nine migrations present at cutover were applied. Counts for collection,
+VN, AliceNet, and schema migrations matched production; all 57 public tables
+then present were restored and no constraint remained unvalidated. The
+temporary restore was removed only after that proof passed.
+
+The 2026-08-26 recovery drill revalidated the current 11-migration, 58-table
+schema. The latest custom-format dump restored into a disposable database with
+exact production counts for collection, VN, AliceNet stock, and generic stock
+offers, zero invalid constraints or indexes, and zero quarantined JSON rows.
+The temporary database was dropped after verification. A fresh media backup
+also passed its SHA-256 check and restored all 13,769 files and 1,498,187,503
+bytes into an isolated directory before cleanup.
+
+Keep at least one current encrypted copy outside the database host; the on-host
+timers do not protect against total host loss.
 
 ### In-application logical backups
 

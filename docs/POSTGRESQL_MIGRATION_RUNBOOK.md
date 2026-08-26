@@ -267,7 +267,7 @@ Attach the following to the change record:
 - pre/post-cutover health and latency samples;
 - decision, operator, timestamps, and rollback-window close time.
 
-## Verified production completion record
+## Verified initial cutover record
 
 The 2026-08-24/25 production execution followed this runbook and retained its
 evidence under a timestamped, read-only rollback archive:
@@ -289,3 +289,13 @@ collection row is an intentional synthetic EGS-only record. Developer and tag
 indexes were rebuilt to 3,543 and 101,076 rows. A failed EGS upstream request
 does not erase the previously verified cache, and AliceNet retains its last
 known catalogue when its own upstream returns HTTP 503.
+
+## Current recovery verification
+
+The 2026-08-26 recovery drill covers the evolved production schema without
+rewriting the historical cutover record above. PostgreSQL 16.15 reported all
+11 ordered migrations and 58 public application tables. The newest verified
+custom-format dump restored into an isolated database with exact key counts,
+zero invalid constraints or indexes, and zero quarantined JSON rows. A fresh
+media archive restored all 13,769 files and 1,498,187,503 bytes into an isolated
+directory. Both temporary restore targets were removed after verification.
