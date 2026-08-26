@@ -111,8 +111,8 @@ async function assertResponsiveNavigation(page) {
   assert(desktopGeometry.documentOverflow <= 1, `desktop navigation creates ${desktopGeometry.documentOverflow}px page overflow`);
   await menu.locator('a[href="/upcoming"]').click();
   await page.waitForURL((url) => url.pathname === '/upcoming', { timeout: 10000 });
-  await page.getByRole('heading', { name: /Sorties à venir|Upcoming releases|発売予定/i }).waitFor({ state: 'visible', timeout: 20000 });
   await waitForPagePaint(page);
+  await page.getByRole('heading', { name: /Sorties à venir|Upcoming releases|発売予定/i }).waitFor({ state: 'visible', timeout: 20000 });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoClean(page, '/');
@@ -137,6 +137,7 @@ async function assertResponsiveNavigation(page) {
   assert(mobileGeometry.documentOverflow <= 1, `mobile navigation creates ${mobileGeometry.documentOverflow}px page overflow`);
   await sheet.locator('a[href="/wishlist"]').click();
   await page.waitForURL((url) => url.pathname === '/wishlist', { timeout: 10000 });
+  await waitForPagePaint(page);
 }
 
 check('detail pages do not crash across RSC boundary', async (page) => {
@@ -280,7 +281,9 @@ check('AliceNet shop runs background progress and stop controls on its place pag
 
   try {
     await gotoClean(page, placeHref);
-    await page.getByRole('button', { name: /Tout mettre à jour|Download all|すべてダウンロード/i }).click();
+    const downloadAll = page.getByRole('button', { name: /Tout mettre à jour|Download all|すべてダウンロード/i });
+    await waitForEnabled(downloadAll);
+    await downloadAll.click();
     const progress = page.getByRole('progressbar', { name: /Progression AliceNet|AliceNet progress|AliceNet進捗/i });
     await progress.waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForSelector('[role="progressbar"][aria-valuenow="2"][aria-valuemax="5"]', { timeout: 10000 });
@@ -427,14 +430,19 @@ check('spoiler hover and click reveal text without opaque block', async (page) =
 
 check('character and staff filters browse actual results', async (page) => {
   await gotoClean(page, '/characters?sex=f&ageMin=18&ageMax=30');
-  assert(await page.locator('a[href^="/character/"]').count() > 0, 'character filtered browse returned no character links');
+  const characterLinks = page.locator('a[href^="/character/"]');
+  assert(await characterLinks.count() > 0, 'character filtered browse returned no character links');
+  const characterHref = await characterLinks.first().getAttribute('href');
+  const characterId = characterHref?.match(/^\/character\/(c\d+)/)?.[1] ?? null;
+  assert(characterId !== null, 'character filtered browse returned an invalid character link');
   await gotoClean(page, '/characters?hasVoice=1&vaLang=ja');
   assert(await page.locator('a[href^="/character/"]').count() > 0, 'character VA-language browse returned no character links');
-  await gotoClean(page, '/characters?q=c90980');
+  await gotoClean(page, `/characters?q=${encodeURIComponent(characterId)}`);
+  await page.waitForURL((url) => url.pathname === `/character/${characterId}`, { timeout: 5000 }).catch(() => undefined);
   assert(
-    /\/character\/c90980(?:$|\?)/.test(page.url()) ||
-      (await page.locator('a[href="/character/c90980"], a[href^="/character/c90980?"]').count()) > 0,
-    'character id search did not route to or expose c90980',
+    new URL(page.url()).pathname === `/character/${characterId}` ||
+      (await page.locator(`a[href="/character/${characterId}"], a[href^="/character/${characterId}?"]`).count()) > 0,
+    `character id search did not route to or expose ${characterId}`,
   );
   await gotoClean(page, '/staff?q=&role=translator&lang=ja');
   assert(await page.locator('a[href^="/staff/"]').count() > 0, 'staff role/lang filter returned no staff links');
@@ -497,6 +505,11 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await gotoClean(page, '/shelf');
   const root = page.locator('.shelf-view-root').first();
   await root.waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const element = document.querySelector('.shelf-view-root');
+    return element instanceof HTMLElement &&
+      getComputedStyle(element).getPropertyValue('--shelf-cell-w-px').trim().length > 0;
+  });
   const before = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   await page.getByRole('button', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first().click();
   const panel = page.getByRole('region', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first();

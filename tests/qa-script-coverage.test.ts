@@ -81,12 +81,23 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
   it('waits for the streamed route skeleton to leave before asserting page content', () => {
     expect(INTERACTIONS).toContain(':scope > .page-space-frame > [role="status"][aria-busy="true"]');
     expect(INTERACTIONS).toContain("routeLoadingBoundary.waitFor({ state: 'detached', timeout: 30000 })");
+    expect(INTERACTIONS.indexOf("url.pathname === '/upcoming'")).toBeLessThan(
+      INTERACTIONS.indexOf("getByRole('heading', { name: /Sorties à venir"),
+    );
   });
 
   it('moves bounded shelf sliders in either direction and restores the initial value', () => {
+    expect(INTERACTIONS).toContain("getPropertyValue('--shelf-cell-w-px').trim().length > 0");
     expect(INTERACTIONS).toContain('current + step * 4 <= max');
     expect(INTERACTIONS).toContain('Math.max(min, current - step * 4)');
     expect(INTERACTIONS).toContain('await slider.fill(String(current))');
+  });
+
+  it('waits for AliceNet hydration and searches a character id selected from live QA results', () => {
+    expect(INTERACTIONS).toContain('await waitForEnabled(downloadAll)');
+    expect(INTERACTIONS).toContain('const characterId = characterHref?.match');
+    expect(INTERACTIONS).toContain('encodeURIComponent(characterId)');
+    expect(INTERACTIONS).toContain('url.pathname === `/character/${characterId}`');
   });
 });
 
