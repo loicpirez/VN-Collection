@@ -1700,7 +1700,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
               .replace('{shown}', new Intl.NumberFormat(BCP47[locale]).format(shownThrough))
               .replace('{total}', new Intl.NumberFormat(BCP47[locale]).format(pageMeta.total))}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto">
             <button
               type="button"
               className="btn min-h-[44px] min-w-[44px]"
@@ -1711,7 +1711,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
             >
               {t.alicenet.alicenetPreviousPage}
             </button>
-            <span className="min-w-[7rem] text-center text-xs tabular-nums text-muted">
+            <span className="col-span-2 row-start-1 min-w-0 text-center text-xs tabular-nums text-muted sm:col-auto sm:row-auto sm:min-w-[7rem]">
               {t.alicenet.alicenetPageLabel
                 .replace('{current}', String(Math.min(page, pageCount)))
                 .replace('{total}', String(pageCount))}

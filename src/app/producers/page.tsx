@@ -165,7 +165,7 @@ function ProducerTable({
                     )}
                   </td>
                   <td className="px-3 py-3 align-middle sm:px-4">
-                    <Link href={`/producer/${p.id}`} className="flex items-center gap-3 hover:text-accent">
+                    <Link href={`/producer/${p.id}`} className="flex min-h-[44px] items-center gap-3 hover:text-accent can-hover:sm:min-h-0">
                       <ProducerLogo producer={p} size={36} />
                       <div className="min-w-0">
                         <div className="font-semibold">{p.name}</div>

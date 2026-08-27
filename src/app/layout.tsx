@@ -18,7 +18,6 @@ import {
 } from '@/lib/settings/client';
 import { CardDensityVarSetter } from '@/components/CardDensityVarSetter';
 import { HeaderHeightVar } from '@/components/HeaderHeightVar';
-import { VisualViewportAnchor } from '@/components/VisualViewportAnchor';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
 import { SpoilerToggle } from '@/components/SpoilerToggle';
@@ -108,7 +107,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider initial={initialSettings}>
             <CardDensityVarSetter />
-            <VisualViewportAnchor />
             {/* R-124: publish the sticky header's real height as
                   `--header-height` for sticky/fixed elements that
                   need to clear it (especially under the longer

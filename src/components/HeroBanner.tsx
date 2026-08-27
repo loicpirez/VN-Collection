@@ -555,7 +555,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
                   <button
                     type="button"
                     onClick={startEditing}
-                    className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md bg-bg-card/90 px-2 py-1 text-[11px] font-semibold text-white shadow-card backdrop-blur transition-colors hover:bg-accent hover:text-bg can-hover:sm:h-7 can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                     title={t.banner.adjust}
                     aria-label={t.banner.adjust}
                   >

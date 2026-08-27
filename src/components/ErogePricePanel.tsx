@@ -505,7 +505,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={opt.key}
                   type="button"
                   onClick={() => setRange(opt.key)}
-                  className={`min-h-[44px] rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors can-hover:sm:min-h-0 ${
+                  className={`min-h-[44px] min-w-[44px] rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                     range === opt.key
                       ? 'bg-accent text-white'
                       : 'border border-border text-muted hover:border-accent hover:text-accent'
@@ -528,7 +528,7 @@ function CandidateCard({ bundle, vnMatches }: { bundle: ErogePriceBundle; vnMatc
                   key={edition}
                   type="button"
                   onClick={() => toggleGroup(edition)}
-                  className={`min-h-[44px] rounded border px-2 py-0.5 text-[10px] font-bold transition-colors can-hover:sm:min-h-0 ${
+                  className={`min-h-[44px] min-w-[44px] rounded border px-2 py-0.5 text-[10px] font-bold transition-colors can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                     allHidden
                       ? 'border-border text-muted opacity-50'
                       : 'border-accent/60 bg-accent/10 text-accent'

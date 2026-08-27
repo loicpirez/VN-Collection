@@ -123,7 +123,7 @@ export function StockPhysicalLocations({
                 {placeMap[branch] != null ? (
                   <Link
                     href={`/places/${placeMap[branch]}`}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 text-xs font-bold text-accent hover:underline can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                   >
                     <MapPin className="h-3 w-3" aria-hidden />
                     {branch}
@@ -167,7 +167,7 @@ export function StockPhysicalLocations({
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`${t.stock.openShop}: ${offer.provider_label}`}
-                          className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                          className="mt-0.5 inline-flex min-h-[44px] min-w-[44px] items-center justify-end gap-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                         >
                           {t.stock.openShop}
                           <ExternalLink className="h-2.5 w-2.5" aria-hidden />

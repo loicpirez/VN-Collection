@@ -488,7 +488,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   }
 
   return (
-    <DensityScopeProvider scope="places">
+    <DensityScopeProvider scope="places" className="min-w-0">
 
       {/* Stats grid */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
@@ -657,7 +657,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                   <span className="rounded bg-accent/15 px-1 text-[10px] text-accent">{activeFilterCount}</span>
                 )}
               </button>
-              <CardDensitySlider scope="places" className="min-w-[14rem] max-w-full flex-1 lg:flex-none" />
+              <CardDensitySlider scope="places" className="w-full min-w-0 max-w-full flex-1 sm:min-w-[14rem] lg:w-auto lg:flex-none" />
             </div>
           </div>
         </div>
@@ -758,7 +758,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
             </section>
           ))}
           {totalPages > 1 && (
-            <nav className="flex flex-wrap items-center justify-between gap-2" aria-label={t.places.vnPaginationLabel as string}>
+            <nav className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:justify-between" aria-label={t.places.vnPaginationLabel as string}>
               <button
                 type="button"
                 className="btn min-h-[44px]"
@@ -768,7 +768,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
                 <ChevronLeft className="h-4 w-4" aria-hidden />
                 {t.common.prev as string}
               </button>
-              <span className="text-xs text-muted">
+              <span className="col-span-2 row-start-1 text-center text-xs text-muted sm:col-auto sm:row-auto">
                 {fmtNum(pageStart + 1, locale)}-{fmtNum(pageStart + pageItems.length, locale)}
                 {' / '}
                 {fmtNum(pageTotal, locale)}

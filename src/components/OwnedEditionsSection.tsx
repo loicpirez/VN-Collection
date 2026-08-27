@@ -866,7 +866,7 @@ function EditionEditor({
           maxLength={200}
         />
       </label>
-      <label className="flex items-start gap-2">
+      <label className="flex min-h-[44px] min-w-[44px] items-start gap-2 can-hover:sm:min-h-0">
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"

@@ -1930,7 +1930,7 @@ const OfferCard = memo(function OfferCard({
           return placeId != null ? (
             <Link
               href={`/places/${placeId}`}
-              className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent hover:bg-accent/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 font-semibold text-accent hover:bg-accent/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             >
               {inner}
             </Link>

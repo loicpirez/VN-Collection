@@ -74,7 +74,7 @@ export function CardDensitySlider({
   const customTitle = t.cardDensity.customOverride;
   return (
     <div
-      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:flex-nowrap sm:gap-2 ${className}`}
+      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
       title={canReset ? customTitle : followsDefaultTitle}
     >
       <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
@@ -98,11 +98,7 @@ export function CardDensitySlider({
       >
         <Minimize2 className="h-3 w-3" aria-hidden />
       </button>
-      {/*
-        `min-w-0` lets the range input shrink below its content-based
-        preferred width when the row is squeezed on a narrow viewport.
-        Width grows from 5rem on phone up to 7rem on desktop.
-      */}
+      {/* The range keeps a usable touch width and grows into available space. */}
       <input
         id={id}
         type="range"
@@ -115,7 +111,7 @@ export function CardDensitySlider({
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-11 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
+        className="h-11 w-20 min-w-[44px] flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"
@@ -175,7 +171,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
     // slider above - keeps the row inside the Settings panel column on
     // narrow viewports.
     <div
-      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:flex-nowrap sm:gap-2 ${className}`}
+      className={`flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-1 text-[11px] sm:gap-2 ${className}`}
     >
       <label htmlFor={id} className="inline-flex shrink-0 items-center gap-1 text-muted">
         <LayoutGrid className="h-3 w-3" aria-hidden />
@@ -202,7 +198,7 @@ export function GlobalCardDensitySlider({ className = '' }: { className?: string
         aria-valuemax={CARD_DENSITY_MAX}
         aria-valuenow={value}
         aria-label={t.cardDensity.label}
-        className="h-11 w-20 min-w-0 flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
+        className="h-11 w-20 min-w-[44px] flex-1 cursor-pointer accent-accent sm:w-28 sm:flex-none"
       />
       <button
         type="button"

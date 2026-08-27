@@ -47,7 +47,7 @@ export async function StaffSection({ staff }: { staff: StaffEntry[] }) {
                 <Link
                   key={`${s.id}-${s.eid ?? 'base'}-${i}`}
                   href={`/staff/${s.id}`}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 text-xs text-white/85 transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev px-2 py-1 text-xs text-white/85 transition-colors hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                   title={s.note ?? undefined}
                 >
                   <span>{s.name}</span>

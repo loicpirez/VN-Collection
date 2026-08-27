@@ -76,6 +76,23 @@ describe('responsive tap targets', () => {
     expect(source('src/components/DateInput.tsx')).toContain('min-h-[44px]');
   });
 
+  it('keeps edition checkboxes touch-safe without enlarging the native control', () => {
+    for (const path of [
+      'src/components/edit-form/OwnedEditions.tsx',
+      'src/components/OwnedEditionsSection.tsx',
+    ]) {
+      const body = source(path);
+      expect(body, path).toContain('flex min-h-[44px] min-w-[44px] items-start gap-2');
+      expect(body, path).toContain('h-4 w-4 shrink-0 cursor-pointer');
+    }
+  });
+
+  it('stacks AliceNet pagination controls on narrow touch viewports', () => {
+    const body = source('src/components/AliceNetClient.tsx');
+    expect(body).toContain('grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto');
+    expect(body).toContain('col-span-2 row-start-1 min-w-0 text-center');
+  });
+
   it('keeps list colour swatches compact inside real touch targets', () => {
     for (const path of ['src/components/CreateListForm.tsx', 'src/components/ListMetaEditor.tsx']) {
       const body = source(path);
@@ -280,10 +297,10 @@ describe('responsive tap targets', () => {
     expect(source('src/components/CardDensitySlider.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/MoreNavMenu.tsx')).toContain('min-h-[44px]');
     const quoteFooter = source('src/components/QuoteFooter.tsx');
-    expect(quoteFooter).toContain('visual-viewport-anchor-bottom z-layer-footer pointer-events-none');
-    expect(quoteFooter).toContain('data-visual-viewport-anchor');
-    expect(quoteFooter).toContain('<PageSpaceFrame>');
-    expect(quoteFooter).toContain('data-quote-footer-surface');
+    expect(quoteFooter).toContain('fixed inset-x-0 bottom-0 z-layer-footer');
+    expect(quoteFooter).toContain('data-quote-footer-root');
+    expect(quoteFooter).toContain('mx-auto max-w-7xl px-6');
+    expect(quoteFooter).toContain("paddingBottom: 'env(safe-area-inset-bottom)'");
     expect(quoteFooter).toContain('max-h-12');
     expect(quoteFooter).toContain('can-hover:sm:max-h-5');
     expect(quoteFooter).toContain('min-h-[44px] min-w-0 flex-1');
@@ -292,15 +309,13 @@ describe('responsive tap targets', () => {
     expect(quoteFooter).toContain('inline-flex min-h-[44px] min-w-[44px]');
     expect(quoteFooter).toContain('can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0');
     const globals = source('src/app/globals.css');
-    expect(globals).toContain('.visual-viewport-anchor-bottom[data-visual-viewport-anchor]');
-    expect(globals).toContain('position: static');
-    expect(globals).toContain('@media (hover: hover) and (pointer: fine)');
-    expect(globals).toContain('position: fixed');
-    expect(globals).toContain('@supports (display: grid-lanes)');
-    expect(globals).toContain('display: grid-lanes !important');
-    expect(globals).toContain('grid-auto-flow: row dense');
+    expect(globals).not.toContain('.visual-viewport-anchor-bottom[data-visual-viewport-anchor]');
+    expect(globals).not.toContain('.quote-footer-frame');
+    expect(globals).not.toContain('display: grid-lanes');
+    expect(globals).not.toContain('grid-auto-flow: row dense');
     const downloadStatus = source('src/components/DownloadStatusBar.tsx');
-    expect(downloadStatus).toContain('className="visual-viewport-anchor-bottom fixed bottom-16');
+    expect(downloadStatus).toContain('className="fixed bottom-16');
+    expect(downloadStatus).not.toContain('visual-viewport-anchor-bottom');
     expect(downloadStatus).toContain('can-hover:sm:bottom-5');
     expect(source('src/components/GameLog.tsx')).toContain('min-h-[44px]');
   });
@@ -368,7 +383,7 @@ describe('responsive tap targets', () => {
     const places = source('src/components/PlaceBrowser.tsx');
     const stock = source('src/components/PlaceVnBrowser.tsx');
     expect(map).toContain('absolute inset-y-0 right-2 my-auto flex min-h-[44px] min-w-[44px]');
-    expect(map).toContain('className={`min-h-[44px] rounded border px-2 py-0.5');
+    expect(map).toContain('className={`min-h-[44px] min-w-[44px] rounded border px-2 py-0.5');
     expect(map).toContain('min-h-[44px] w-full px-3 py-2 text-left text-[12px]');
     expect(modal).toContain('className="min-h-[44px] w-full rounded border');
     expect(places).not.toContain('min-h-[36px]');

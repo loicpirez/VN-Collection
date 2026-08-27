@@ -28,7 +28,7 @@ describe('LibraryClient grid spacing', () => {
     // The ternary in `<ListingGrid>` keys on `dense`; the comfortable
     // branch is the second arm.
     expect(src).toMatch(
-      /dense \? 'library-card-lanes grid gap-4' : 'library-card-lanes grid gap-3'/,
+      /dense \? 'grid gap-4' : 'grid gap-3'/,
     );
   });
 

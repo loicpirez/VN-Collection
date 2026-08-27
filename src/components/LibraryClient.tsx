@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
-import { MasonryGridItem } from './MasonryGridItem';
 import { toCardData } from './cardData';
 import { SkeletonBlock, SkeletonCardGrid } from './Skeleton';
 import { MoreFiltersSkeleton } from './library/MoreFiltersSkeleton';
@@ -52,7 +51,6 @@ import {
 } from '@/lib/virtual-grid';
 import type { CollectionPage } from '@/lib/collection-api-client';
 import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
-import type { CssCustomProperties } from '@/lib/css-custom-properties';
 
 /**
  * Tri-state flag panel for the long tail of boolean library filters.
@@ -1770,7 +1768,7 @@ function Grid({
   // mode). The slider value itself is the floor; the grid auto-fills
   // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
   // so cover size scales with column width.
-  const cls = dense ? 'library-card-lanes grid gap-4' : 'library-card-lanes grid gap-3';
+  const cls = dense ? 'grid gap-4' : 'grid gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
   /**
@@ -1785,12 +1783,11 @@ function Grid({
     Math.round(VIRTUAL_GRID_THRESHOLD / 2),
     Math.round(VIRTUAL_GRID_THRESHOLD * densityMul),
   );
-  const gridStyle = useMemo<CssCustomProperties>(
+  const gridStyle: React.CSSProperties = useMemo(
     () => ({
       gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
-      '--library-card-lane-gap': `${gapPx}px`,
     }),
-    [densityMul, gapPx],
+    [densityMul],
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const measureFrameRef = useRef<number | null>(null);
@@ -1864,29 +1861,28 @@ function Grid({
     <div
       ref={containerRef}
       role="list"
-      className="min-w-0"
+      className={cls}
+      style={gridStyle}
       data-virtualized-library-grid={virtual.enabled ? true : undefined}
+      data-library-card-grid
     >
       {virtual.enabled && virtual.topSpacer > 0 && (
-        <div role="presentation" aria-hidden style={{ height: virtual.topSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
       )}
-      <div role="presentation" className={cls} style={gridStyle} data-library-card-lanes>
-        {renderedItems.map((it, i) => (
-          <MemoCard
-            key={it.id}
-            id={it.id}
-            data={cardData[i]}
-            selectable={selectMode}
-            selected={selected.has(it.id)}
-            onSelect={onSelectFor}
-            position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}
-            setSize={items.length}
-            gap={gapPx}
-          />
-        ))}
-      </div>
+      {renderedItems.map((it, i) => (
+        <MemoCard
+          key={it.id}
+          id={it.id}
+          data={cardData[i]}
+          selectable={selectMode}
+          selected={selected.has(it.id)}
+          onSelect={onSelectFor}
+          position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}
+          setSize={items.length}
+        />
+      ))}
       {virtual.enabled && virtual.bottomSpacer > 0 && (
-        <div role="presentation" aria-hidden style={{ height: virtual.bottomSpacer }} />
+        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
       )}
     </div>
   );
@@ -1900,7 +1896,6 @@ const MemoCard = memo(function MemoCard({
   onSelect,
   position,
   setSize,
-  gap,
 }: {
   id: string;
   data: ReturnType<typeof toCardData>;
@@ -1909,18 +1904,17 @@ const MemoCard = memo(function MemoCard({
   onSelect: (id: string) => void;
   position: number;
   setSize: number;
-  gap: number;
 }) {
   const handle = useCallback(() => onSelect(id), [onSelect, id]);
   return (
-    <MasonryGridItem gap={gap} position={position} setSize={setSize}>
+    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="min-w-0">
       <VnCard
         selectable={selectable}
         selected={selected}
         onSelect={handle}
         data={data}
       />
-    </MasonryGridItem>
+    </div>
   );
 });
 

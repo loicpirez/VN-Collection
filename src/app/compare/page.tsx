@@ -332,8 +332,8 @@ export default async function ComparePage({
                     className="h-full w-full"
                   />
                 </Link>
-                <Link href={`/vn/${it.id}`} title={it.title} className="mt-2 line-clamp-2 block text-sm font-bold hover:text-accent">
-                  {it.title}
+                <Link href={`/vn/${it.id}`} title={it.title} className="mt-2 inline-flex min-h-[44px] items-center text-sm font-bold hover:text-accent can-hover:sm:min-h-0">
+                  <span className="line-clamp-2">{it.title}</span>
                 </Link>
                 {it.alttitle && it.alttitle !== it.title && (
                   <p className="text-[10px] text-muted">{it.alttitle}</p>

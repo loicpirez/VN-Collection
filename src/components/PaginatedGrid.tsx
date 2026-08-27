@@ -50,7 +50,7 @@ export function PaginatedGrid({
         {visibleItems}
       </ul>
       {totalPages > 1 && (
-        <nav className="mt-4 flex flex-wrap items-center justify-between gap-2" aria-label={ariaLabel}>
+        <nav className="mt-4 grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:justify-between" aria-label={ariaLabel}>
           <button
             type="button"
             className="btn min-h-[44px]"
@@ -60,7 +60,7 @@ export function PaginatedGrid({
             <ChevronLeft className="h-4 w-4" aria-hidden />
             {t.common.prev}
           </button>
-          <span className="text-xs text-muted">
+          <span className="col-span-2 row-start-1 text-center text-xs text-muted sm:col-auto sm:row-auto">
             {fmtNum(pageStart + 1, locale)}-{fmtNum(Math.min(items.length, pageStart + pageSize), locale)}
             {' / '}
             {fmtNum(items.length, locale)}

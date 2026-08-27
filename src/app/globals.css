@@ -14,7 +14,6 @@
     --z-layer-toast: 1100;
     --z-layer-confirmation: 1200;
     --z-layer-accessibility: 1300;
-    --visual-viewport-anchor-shift: 0px;
   }
   html, body {
     @apply bg-bg text-white antialiased;
@@ -35,41 +34,6 @@
   .z-layer-toast { z-index: var(--z-layer-toast); }
   .z-layer-confirmation { z-index: var(--z-layer-confirmation); }
   .z-layer-accessibility { z-index: var(--z-layer-accessibility); }
-  .visual-viewport-anchor-bottom {
-    transform: none;
-  }
-  .visual-viewport-anchor-bottom[data-visual-viewport-anchor] {
-    position: static;
-  }
-  .library-card-lanes {
-    grid-auto-flow: row dense;
-    grid-auto-rows: 1px;
-    align-items: start;
-    column-gap: var(--library-card-lane-gap);
-    row-gap: 0;
-  }
-  @supports (display: grid-lanes) {
-    .library-card-lanes {
-      display: grid-lanes !important;
-      grid-auto-flow: initial;
-      grid-auto-rows: auto;
-      gap: var(--library-card-lane-gap);
-    }
-    .library-card-lane-item {
-      grid-row-end: auto !important;
-      padding-bottom: 0 !important;
-    }
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .visual-viewport-anchor-bottom {
-      transform: translate3d(0, var(--visual-viewport-anchor-shift), 0);
-    }
-    .visual-viewport-anchor-bottom[data-visual-viewport-anchor] {
-      position: fixed;
-      inset-inline: 0;
-      bottom: 0;
-    }
-  }
 }
 
 @layer components {

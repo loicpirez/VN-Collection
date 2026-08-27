@@ -170,7 +170,7 @@ check('WebKit navigation remains bounded and navigable', async () => {
   }
 });
 
-check('WebKit mobile footer stays in flow and card lanes pack natural heights', async () => {
+check('WebKit mobile quote dock stays fixed and library cards keep aligned rows', async () => {
   const webkitBrowser = await webkit.launch({ headless: true });
   const webkitContext = await webkitBrowser.newContext({
     viewport: { width: 390, height: 844 },
@@ -190,94 +190,68 @@ check('WebKit mobile footer stays in flow and card lanes pack natural heights', 
   webkitPage.setDefaultTimeout(15000);
   try {
     await gotoClean(webkitPage, '/');
-    const footer = webkitPage.locator('[data-visual-viewport-anchor]');
-    const surface = footer.locator('[data-quote-footer-surface]');
-    const lanes = webkitPage.locator('[data-library-card-lanes]').first();
+    const footer = webkitPage.locator('[data-quote-footer-root]');
+    const grid = webkitPage.locator('[data-library-card-grid]').first();
     await footer.waitFor({ state: 'visible', timeout: 10000 });
-    await lanes.waitFor({ state: 'visible', timeout: 10000 });
-    await lanes.evaluate((element) => {
-      element.parentElement?.style.setProperty('--card-density-px', '140px');
+    await grid.waitFor({ state: 'visible', timeout: 10000 });
+    await grid.evaluate((element) => {
+      element.style.setProperty('--card-density-px', '140px');
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       window.dispatchEvent(new Event('resize'));
     });
     await webkitPage.waitForTimeout(200);
-    await webkitPage.waitForFunction(() => (
-      document.querySelector('[data-visual-viewport-anchor]')?.getAttribute('data-visual-viewport-mode') === 'flow'
-    ));
 
     const initial = await footer.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       const panel = element.querySelector('[data-quote-footer-panel]');
       const panelRect = panel?.getBoundingClientRect();
-      const mainRect = document.querySelector('main')?.getBoundingClientRect();
-      const viewport = window.visualViewport;
-      const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
       return {
-        footerTop: rect.top + window.scrollY,
-        mainBottom: (mainRect?.bottom ?? 0) + window.scrollY,
-        viewportGap: rect.top - visibleBottom,
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportHeight: window.innerHeight,
         leftGap: panelRect?.left ?? Number.NaN,
         rightGap: window.innerWidth - (panelRect?.right ?? Number.NaN),
-        mode: element.getAttribute('data-visual-viewport-mode'),
         position: getComputedStyle(element).position,
       };
     });
-    assert(initial.mode === 'flow', `quote footer did not select document flow: ${initial.mode}`);
-    assert(initial.position === 'static', `quote footer still uses ${initial.position} positioning on touch WebKit`);
-    assert(initial.footerTop >= initial.mainBottom - 1, 'quote footer is not ordered after the main content');
-    assert(initial.viewportGap >= 0, `quote footer overlaps the initial viewport by ${-initial.viewportGap}px`);
-    assert(Math.abs(initial.leftGap - 12) <= 1, `quote footer starts ${initial.leftGap}px from the page edge`);
-    assert(Math.abs(initial.rightGap - 12) <= 1, `quote footer ends ${initial.rightGap}px from the page edge`);
-    assert(await surface.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgb(12, 15, 20)', 'quote footer safe-area surface is not opaque');
+    assert(initial.position === 'fixed', `quote footer uses ${initial.position} instead of fixed positioning`);
+    assert(Math.abs(initial.bottom - initial.viewportHeight) <= 1, `quote footer ends ${initial.viewportHeight - initial.bottom}px from the viewport bottom`);
+    assert(initial.leftGap >= 23, `quote panel lost its mobile side gutter: ${initial.leftGap}px`);
+    assert(Math.abs(initial.leftGap - initial.rightGap) <= 1, `quote panel gutters differ by ${Math.abs(initial.leftGap - initial.rightGap)}px`);
     assert(await footer.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgba(0, 0, 0, 0)', 'quote footer gutters are not transparent');
 
-    const laneGeometry = await lanes.evaluate((element) => {
+    const rowGeometry = await grid.evaluate((element) => {
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-      const rowGap = Number.parseFloat(getComputedStyle(element).rowGap);
-      const items = Array.from(element.querySelectorAll('[data-masonry-grid-item]')).map((item) => {
+      const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
-        return { left: Math.round(rect.left), top: rect.top, bottom: rect.bottom };
+        return { top: Math.round(rect.top * 100) / 100, rowEnd: item.style.gridRowEnd };
       });
-      const columns = new Map();
-      for (const item of items) {
-        const column = columns.get(item.left) ?? [];
-        column.push(item);
-        columns.set(item.left, column);
-      }
-      const verticalGaps = [];
-      for (const column of columns.values()) {
-        column.sort((a, b) => a.top - b.top);
-        for (let index = 1; index < column.length; index += 1) {
-          verticalGaps.push(column[index].top - column[index - 1].bottom);
-        }
+      const pairOffsets = [];
+      for (let index = 0; index + 1 < items.length; index += 2) {
+        pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
       }
       return {
         display: getComputedStyle(element).display,
         itemCount: items.length,
-        columnCount: columns.size,
-        rowGap,
-        maxVerticalGap: Math.max(...verticalGaps),
+        maxPairOffset: Math.max(...pairOffsets),
+        hasManualRows: items.some((item) => item.rowEnd !== ''),
       };
     });
-    assert(laneGeometry.display === 'grid-lanes', `WebKit did not use Grid Lanes: ${laneGeometry.display}`);
-    assert(laneGeometry.itemCount >= 4, `library rendered only ${laneGeometry.itemCount} cards for lane QA`);
-    assert(laneGeometry.columnCount >= 2, `library rendered only ${laneGeometry.columnCount} card column`);
-    assert(
-      laneGeometry.maxVerticalGap <= laneGeometry.rowGap + 1,
-      `card lanes leave a ${laneGeometry.maxVerticalGap}px vertical hole for a ${laneGeometry.rowGap}px gap`,
-    );
+    assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
+    assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
+    assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);
+    assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
 
     await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
     await webkitPage.waitForTimeout(400);
-    const middleGap = await footer.evaluate((element) => {
-      const viewport = window.visualViewport;
-      const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-      return element.getBoundingClientRect().top - visibleBottom;
-    });
-    assert(middleGap >= 0, `quote footer overlays cards mid-scroll by ${-middleGap}px`);
+    const middleTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
+    assert(Math.abs(middleTop - initial.top) <= 1, `quote footer moved ${middleTop - initial.top}px while scrolling down`);
 
-    await webkitPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await webkitPage.waitForTimeout(500);
+    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 6)));
+    await webkitPage.waitForTimeout(400);
+    const reverseTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
+    assert(Math.abs(reverseTop - initial.top) <= 1, `quote footer moved ${reverseTop - initial.top}px while scrolling back up`);
+
     const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
     await toggle.tap();
     assert(await toggle.getAttribute('aria-expanded') === 'true', 'quote footer did not open from a touch click');
@@ -295,65 +269,42 @@ check('WebKit mobile footer stays in flow and card lanes pack natural heights', 
   }
 });
 
-check('Chromium masonry fallback packs natural-height library cards', async (page) => {
+check('Chromium library grid keeps sequential cards on aligned rows', async (page) => {
   await page.setViewportSize({ width: 390, height: 844 });
   try {
     await gotoClean(page, '/');
-    const lanes = page.locator('[data-library-card-lanes]').first();
-    await lanes.waitFor({ state: 'visible', timeout: 10000 });
-    await lanes.evaluate((element) => {
-      element.parentElement?.style.setProperty('--card-density-px', '140px');
+    const grid = page.locator('[data-library-card-grid]').first();
+    await grid.waitFor({ state: 'visible', timeout: 10000 });
+    await grid.evaluate((element) => {
+      element.style.setProperty('--card-density-px', '140px');
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       window.dispatchEvent(new Event('resize'));
     });
-    await page.waitForFunction(() => {
-      const items = Array.from(document.querySelectorAll('[data-library-card-lanes] [data-masonry-grid-item]'));
-      return items.length >= 4 && items.every((item) => item.style.gridRowEnd.startsWith('span '));
-    });
-    const geometry = await lanes.evaluate((element) => {
+    await page.waitForTimeout(200);
+    const geometry = await grid.evaluate((element) => {
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-      const items = Array.from(element.querySelectorAll('[data-masonry-grid-item]')).map((item) => {
+      const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
         return {
-          left: Math.round(rect.left),
-          top: rect.top,
-          bottom: rect.bottom - Number.parseFloat(getComputedStyle(item).paddingBottom),
-          height: rect.height,
-          paddingBottom: Number.parseFloat(getComputedStyle(item).paddingBottom),
+          top: Math.round(rect.top * 100) / 100,
           rowEnd: item.style.gridRowEnd,
         };
       });
-      const columns = new Map();
-      for (const item of items) {
-        const column = columns.get(item.left) ?? [];
-        column.push(item);
-        columns.set(item.left, column);
-      }
-      const verticalGaps = [];
-      for (const column of columns.values()) {
-        column.sort((a, b) => a.top - b.top);
-        for (let index = 1; index < column.length; index += 1) {
-          verticalGaps.push(column[index].top - column[index - 1].bottom);
-        }
+      const pairOffsets = [];
+      for (let index = 0; index + 1 < items.length; index += 2) {
+        pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
       }
       return {
         display: getComputedStyle(element).display,
         itemCount: items.length,
-        columnCount: columns.size,
-        uniqueHeights: new Set(items.map((item) => Math.round(item.height))).size,
-        minPadding: Math.min(...items.map((item) => item.paddingBottom)),
-        maxPadding: Math.max(...items.map((item) => item.paddingBottom)),
-        maxVerticalGap: Math.max(...verticalGaps),
-        measuredRows: items.every((item) => item.rowEnd.startsWith('span ')),
+        maxPairOffset: Math.max(...pairOffsets),
+        hasManualRows: items.some((item) => item.rowEnd !== ''),
       };
     });
-    assert(geometry.display === 'grid', `Chromium fallback uses ${geometry.display} instead of grid`);
-    assert(geometry.itemCount >= 4, `fallback rendered only ${geometry.itemCount} cards`);
-    assert(geometry.columnCount >= 2, `fallback rendered only ${geometry.columnCount} card column`);
-    assert(geometry.uniqueHeights > 1, 'fallback QA did not include unequal card heights');
-    assert(geometry.measuredRows, 'fallback left at least one card without a measured row span');
-    assert(geometry.minPadding === 12 && geometry.maxPadding === 12, 'fallback card gap is not exactly 12px');
-    assert(geometry.maxVerticalGap <= 13, `fallback leaves a ${geometry.maxVerticalGap}px vertical hole`);
+    assert(geometry.display === 'grid', `Chromium library uses ${geometry.display} instead of grid`);
+    assert(geometry.itemCount >= 4, `library rendered only ${geometry.itemCount} cards`);
+    assert(geometry.maxPairOffset <= 1, `paired cards differ by ${geometry.maxPairOffset}px at their top edge`);
+    assert(!geometry.hasManualRows, 'library cards still carry measured masonry row spans');
   } finally {
     await page.setViewportSize({ width: 1280, height: 900 });
   }

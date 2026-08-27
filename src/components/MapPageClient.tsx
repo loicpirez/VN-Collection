@@ -321,7 +321,7 @@ export function MapPageClient({ places, focusLat, focusLng, focusId }: Props) {
             type="button"
             onClick={() => changeSize(s)}
             aria-pressed={mapSize === s}
-            className={`min-h-[44px] rounded border px-2 py-0.5 text-[11px] transition-colors ${
+            className={`min-h-[44px] min-w-[44px] rounded border px-2 py-0.5 text-[11px] transition-colors ${
               mapSize === s
                 ? 'border-accent bg-accent/10 text-accent'
                 : 'border-border bg-bg-elev/30 text-muted hover:border-accent/50 hover:text-white'

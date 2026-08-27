@@ -7,9 +7,10 @@
  * natural width pushed past a 360 px viewport, forcing a horizontal
  * scrollbar on every detail page that mounted the slider.
  *
- * The fix wraps the container in `flex max-w-full` and makes the range
- * input `min-w-0 flex-1` below `sm:`, plus the buttons and badge are
- * `shrink-0` so the range absorbs the squeeze.
+ * The fix wraps the container in `flex max-w-full`, lets controls wrap at
+ * every touch width, and gives the range input a real 44 px minimum target
+ * while it claims the remaining row width. Buttons and badges remain
+ * `shrink-0` so they keep stable hit areas.
  *
  * These source-pin assertions ensure the responsive treatment is not
  * accidentally reverted to `inline-flex` + fixed-width children in a
@@ -31,18 +32,18 @@ describe('CardDensitySlider responsive shrink', () => {
     // openings, one per export.
     const matches = SOURCE.match(/flex max-w-full flex-wrap items-center/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
-    expect(SOURCE.match(/sm:flex-nowrap/g) ?? []).toHaveLength(2);
+    expect(SOURCE).not.toContain('sm:flex-nowrap');
   });
 
-  it('range input is `min-w-0 flex-1` so it absorbs shrink', () => {
-    // Without `min-w-0`, a flex item's intrinsic min-width keeps the row
-    // wider than the viewport. `flex-1` lets the slider claim leftover
-    // horizontal space. `sm:flex-none` restores fixed width on desktop.
+  it('range input keeps a 44px minimum while absorbing the remaining row width', () => {
+    // `min-w-[44px]` preserves a usable touch target. `flex-1` lets the
+    // slider claim leftover horizontal space, while `sm:flex-none` restores
+    // the compact fixed width when the container has room.
     const rangeBlock = SOURCE.match(/type="range"[\s\S]+?className="[^"]+"/g) ?? [];
     expect(rangeBlock.length).toBeGreaterThanOrEqual(2);
     for (const block of rangeBlock) {
       expect(block, `range block missing responsive classes: ${block}`).toMatch(
-        /min-w-0 flex-1.*sm:flex-none/s,
+        /min-w-\[44px\] flex-1.*sm:flex-none/s,
       );
     }
   });

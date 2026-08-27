@@ -116,7 +116,7 @@ export const OwnedEditions = memo(function OwnedEditions({
           />
           <span className="text-[10px] text-muted/70">{t.form.downloadUrlHint}</span>
         </label>
-        <label className="flex items-start gap-2 sm:col-span-2">
+        <label className="flex min-h-[44px] min-w-[44px] items-start gap-2 sm:col-span-2 can-hover:sm:min-h-0">
           <input
             type="checkbox"
             className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
@@ -128,7 +128,7 @@ export const OwnedEditions = memo(function OwnedEditions({
             <span className="text-[10px] text-muted/70">{t.form.dumpedHint}</span>
           </div>
         </label>
-        <label className="flex items-start gap-2 sm:col-span-2">
+        <label className="flex min-h-[44px] min-w-[44px] items-start gap-2 sm:col-span-2 can-hover:sm:min-h-0">
           <input
             type="checkbox"
             className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"

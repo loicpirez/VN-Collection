@@ -318,7 +318,7 @@ export default async function StaffPage({
                       <li key={c.id} className="flex items-start gap-2">
                         <Link
                           href={`/character/${c.id}`}
-                          className="block h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 sm:h-10 sm:w-10"
+                          className="block h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 can-hover:sm:h-10 can-hover:sm:w-10"
                           aria-label={c.name}
                         >
                           <SafeImage

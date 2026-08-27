@@ -57,7 +57,7 @@ const CharacterCard = memo(function CharacterCard({
           <Link
             href={`/character/${c.id}`}
             title={c.name}
-            className="truncate text-sm font-bold hover:text-accent"
+            className="inline-flex min-h-[44px] min-w-[44px] max-w-full items-center text-sm font-bold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
           >
             <h3 className="truncate">{c.name}</h3>
           </Link>

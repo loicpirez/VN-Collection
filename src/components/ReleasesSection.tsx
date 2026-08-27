@@ -93,7 +93,7 @@ const ReleaseRow = memo(function ReleaseRow({
               <span className="sr-only">{t.releases.ownedYes}</span>
             </>
           )}
-          <Link href={`/release/${r.id}`} className="hover:text-accent">
+          <Link href={`/release/${r.id}`} className="inline-flex min-h-[44px] items-center hover:text-accent can-hover:sm:min-h-0">
             {r.title}
           </Link>
           {rtype && (
@@ -103,7 +103,7 @@ const ReleaseRow = memo(function ReleaseRow({
           )}
           <Link
             href={`/release/${r.id}`}
-            className="inline-flex items-center gap-0.5 rounded bg-bg px-1.5 py-0.5 text-[10px] font-normal text-muted hover:bg-accent hover:text-bg"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center gap-0.5 rounded bg-bg px-1.5 py-0.5 text-[10px] font-normal text-muted hover:bg-accent hover:text-bg can-hover:sm:min-h-0 can-hover:sm:min-w-0"
             title={t.releases.viewDetails}
           >
             <Info className="h-3 w-3" aria-hidden /> {t.releases.viewDetails}
@@ -121,7 +121,7 @@ const ReleaseRow = memo(function ReleaseRow({
               onClick={() => onToggle(r.id, isOwned)}
               disabled={pending}
               aria-pressed={isOwned}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+              className={`inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0 ${
                 isOwned
                   ? 'border-status-completed bg-status-completed/20 text-status-completed'
                   : 'border-border bg-bg text-muted hover:border-accent hover:text-white'
@@ -149,7 +149,7 @@ const ReleaseRow = memo(function ReleaseRow({
                 href={`/search?langs=${encodeURIComponent(l.lang)}`}
                 title={languageDisplayName(l.lang, locale)}
                 aria-label={languageDisplayName(l.lang, locale)}
-                className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               >
                 {languageDisplayName(l.lang, locale)}
               </Link>
@@ -165,7 +165,7 @@ const ReleaseRow = memo(function ReleaseRow({
                 href={`/search?platforms=${encodeURIComponent(p)}`}
                 title={platformLabel(p, locale)}
                 aria-label={platformLabel(p, locale)}
-                className="inline-flex items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center rounded border border-border bg-bg-elev/40 px-1 py-0.5 text-[10px] tracking-wide text-muted transition-colors hover:border-accent hover:bg-accent/10 hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               >
                 {platformLabel(p, locale)}
               </Link>
@@ -197,7 +197,7 @@ const ReleaseRow = memo(function ReleaseRow({
               {i > 0 && <span aria-hidden>/</span>}
               <Link
                 href={`/producer/${p.id}`}
-                className="font-bold text-white/80 transition-colors hover:text-accent"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center font-bold text-white/80 transition-colors hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 title={p.name}
               >
                 {p.name}
@@ -210,7 +210,7 @@ const ReleaseRow = memo(function ReleaseRow({
               {i > 0 && <span aria-hidden>/</span>}
               <Link
                 href={`/producer/${p.id}`}
-                className="transition-colors hover:text-accent"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center transition-colors hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
                 title={p.name}
               >
                 {p.name}
@@ -246,7 +246,7 @@ const ReleaseRow = memo(function ReleaseRow({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1 rounded-md border border-border bg-bg px-2 py-0.5 text-[11px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> {l.label}
               </a>

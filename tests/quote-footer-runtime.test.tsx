@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuoteFooter } from '@/components/QuoteFooter';
@@ -13,12 +12,6 @@ vi.mock('@/components/QuoteAvatar', () => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
-}));
-
-vi.mock('@/components/PageSpaceFrame', () => ({
-  PageSpaceFrame: ({ children }: { children: ReactNode }) => (
-    <div className="page-space-frame" data-page-space-scope="library">{children}</div>
-  ),
 }));
 
 const t = dictionaries.en;
@@ -49,17 +42,14 @@ describe('QuoteFooter hover loader', () => {
   it('loads only after interaction and renders linked character and VN attribution', async () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
-    expect(footer).toHaveClass('visual-viewport-anchor-bottom', 'z-layer-footer', 'pointer-events-none');
-    expect(footer).not.toHaveClass('fixed', 'bg-bg', 'bg-bg/95', 'backdrop-blur');
-    expect(footer).toHaveAttribute('data-visual-viewport-anchor');
-    const frame = footer.querySelector<HTMLElement>('.page-space-frame');
-    const surface = footer.querySelector<HTMLElement>('[data-quote-footer-surface]');
+    expect(footer).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'z-layer-footer');
+    expect(footer).not.toHaveClass('bg-bg', 'bg-bg/95', 'backdrop-blur');
+    expect(footer).toHaveAttribute('data-quote-footer-root');
+    expect(footer).toHaveStyle({ paddingBottom: 'env(safe-area-inset-bottom)' });
+    const frame = footer.querySelector<HTMLElement>('.max-w-7xl');
     const panel = footer.querySelector<HTMLElement>('[data-quote-footer-panel]');
-    expect(frame).toHaveAttribute('data-page-space-scope', 'library');
-    expect(surface).toHaveClass('pointer-events-auto', 'bg-bg');
-    expect(surface).toHaveStyle({ paddingBottom: 'env(safe-area-inset-bottom)' });
-    expect(panel).toHaveClass('bg-bg');
-    expect(panel).not.toHaveClass('bg-bg/95');
+    expect(frame).toHaveClass('mx-auto', 'max-w-7xl', 'px-6');
+    expect(panel).toHaveClass('bg-bg/95', 'backdrop-blur');
     const toggle = screen.getByRole('button', { name: t.quotes.expand });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(toggle).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
