@@ -171,6 +171,62 @@ describe('SafeImage runtime', () => {
     expect(image).not.toHaveClass('transition-[filter,opacity,transform]');
   });
 
+  it('keeps the skeleton while falling back from a missing local copy to the remote image', () => {
+    const onLoadError = vi.fn<() => void>();
+    const { container } = render(withLocale(
+      <SafeImage
+        src="https://images.example.test/cover.jpg"
+        localSrc="vn/missing-cover.jpg"
+        alt="Fallback cover"
+        priority
+        onLoadError={onLoadError}
+      />,
+    ));
+    let image = screen.getByRole('img', { name: 'Fallback cover' });
+    expect(image).toHaveAttribute('src', '/api/files/vn/missing-cover.jpg');
+    expect(image).toHaveAttribute('data-safe-image-source', 'primary');
+
+    fireEvent.error(image);
+
+    image = screen.getByRole('img', { name: 'Fallback cover' });
+    expect(image).toHaveAttribute('src', 'https://images.example.test/cover.jpg');
+    expect(image).toHaveAttribute('data-safe-image-source', 'fallback');
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeInTheDocument();
+    expect(onLoadError).not.toHaveBeenCalled();
+
+    fireEvent.load(image);
+
+    expect(container.querySelector('[data-safe-image-skeleton]')).toBeNull();
+    expect(image.parentElement).toHaveAttribute('data-safe-image-fallback-from', '/api/files/vn/missing-cover.jpg');
+    expect(image.parentElement).toHaveAttribute('data-safe-image-fallback-to', 'https://images.example.test/cover.jpg');
+  });
+
+  it('reports an unavailable image only after both preferred and fallback sources fail', () => {
+    const onLoadError = vi.fn<() => void>();
+    render(withLocale(
+      <SafeImage
+        src="https://images.example.test/missing.jpg"
+        localSrc="vn/missing.jpg"
+        alt="Missing pair"
+        priority
+        onLoadError={onLoadError}
+      />,
+    ));
+    fireEvent.error(screen.getByRole('img', { name: 'Missing pair' }));
+    fireEvent.error(screen.getByRole('img', { name: 'Missing pair' }));
+    expect(onLoadError).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('img', { name: 'Image unavailable: Missing pair' })).toHaveTextContent(dictionaries.en.common.noImage);
+  });
+
+  it('falls back from a missing remote image to local storage when remote images are preferred', () => {
+    settingsState.current.preferLocalImages = false;
+    render(withLocale(
+      <SafeImage src="/missing-remote.jpg" localSrc="vn/local-copy.jpg" alt="Local recovery" priority />,
+    ));
+    fireEvent.error(screen.getByRole('img', { name: 'Local recovery' }));
+    expect(screen.getByRole('img', { name: 'Local recovery' })).toHaveAttribute('src', '/api/files/vn/local-copy.jpg');
+  });
+
   it('reveals an image that completed before the load handler attached', async () => {
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(640);

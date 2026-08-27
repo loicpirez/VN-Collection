@@ -44,14 +44,9 @@ interface Props {
  * this hero immediately. router.refresh() runs in parallel as a
  * defensive fallback so server components also see the new state.
  *
- * Source-resolution fallback: the server hands down a single resolved
- * source (custom > vndb > egs priority), but its remote URL can still
- * 404 at render time (a dead EGS cover proxy, a stale custom URL). When
- * the remote fails AND a mirrored `local` copy exists, the remote is
- * dropped so `SafeImage` renders the local bytes rather than its
- * no-image placeholder. The placeholder is reserved for the genuine
- * "no usable source anywhere" case, never shown while another image is
- * available.
+ * `SafeImage` owns source fallback centrally. A dead preferred source
+ * therefore switches to the alternate remote/local source without this
+ * wrapper maintaining a second, competing failure state.
  */
 export function CoverHero({
   vnId,
@@ -66,16 +61,13 @@ export function CoverHero({
   const [remote, setRemote] = useState<string | null>(initialRemote);
   const [local, setLocal] = useState<string | null>(initialLocal);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
-  const [remoteFailed, setRemoteFailed] = useState(false);
   const currentInCollection = useVnCollectionState(vnId, inCollection);
   // Keep client state synced with server-rendered props on refresh.
   useEffect(() => {
     setRemote(initialRemote);
     setLocal(initialLocal);
     setRotation(initialRotation);
-    setRemoteFailed(false);
   }, [vnId, initialRemote, initialLocal, initialRotation]);
-  useEffect(() => setRemoteFailed(false), [remote, local]);
 
   useEffect(() => {
     function applyChange(detail: VnCoverChangedDetail | null) {
@@ -103,20 +95,16 @@ export function CoverHero({
     return () => window.removeEventListener(VN_COVER_CHANGED_EVENT, onChanged as EventListener);
   }, [vnId]);
 
-  const effectiveRemote = remoteFailed ? null : remote;
   return (
     <div className="group relative">
       <SafeImage
-        src={effectiveRemote}
+        src={remote}
         localSrc={local}
         alt={alt}
         sexual={sexual}
         rotation={rotation}
         className={className}
         priority
-        onLoadError={() => {
-          if (!remoteFailed && local) setRemoteFailed(true);
-        }}
       />
       {currentInCollection && <CoverEditOverlay vnId={vnId} />}
       {/*

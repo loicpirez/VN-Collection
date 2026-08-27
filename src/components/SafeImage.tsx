@@ -99,6 +99,7 @@ export function SafeImage({
   const { settings } = useDisplaySettings();
   const [reveal, setReveal] = useState(false);
   const [errored, setErrored] = useState(false);
+  const [failedPrimaryUrl, setFailedPrimaryUrl] = useState<string | null>(null);
   const [inView, setInView] = useState(priority);
   const [loaded, setLoaded] = useState(false);
   const [wasPreloaded, setWasPreloaded] = useState(false);
@@ -133,12 +134,22 @@ export function SafeImage({
   }, [rotationActive]);
 
   const local = publicLocal(localSrc);
-  const url = settings.preferLocalImages ? local || src || '' : src || local || '';
+  const primaryUrl = settings.preferLocalImages ? local || src || '' : src || local || '';
+  const fallbackUrl = local && src && local !== src
+    ? primaryUrl === local ? src : local
+    : '';
+  const usingFallback = failedPrimaryUrl === primaryUrl && fallbackUrl !== '';
+  const url = usingFallback ? fallbackUrl : primaryUrl;
   const explicit = isExplicit(sexual, settings.nsfwThreshold);
   const shouldBlur = explicit && settings.blurR18 && !reveal;
   const unavailableLabel = alt
     ? `${t.common.imageUnavailable}: ${alt}`
     : t.common.imageUnavailable;
+
+  useEffect(() => {
+    setFailedPrimaryUrl(null);
+    setErrored(false);
+  }, [primaryUrl, fallbackUrl]);
 
   useEffect(() => {
     setErrored(false);
@@ -166,6 +177,13 @@ export function SafeImage({
   }
 
   function handleError(): void {
+    if (!usingFallback && fallbackUrl) {
+      setFailedPrimaryUrl(primaryUrl);
+      setLoaded(false);
+      setWasPreloaded(false);
+      setInView(true);
+      return;
+    }
     setErrored(true);
     onLoadError?.();
   }
@@ -228,7 +246,13 @@ export function SafeImage({
   ) : null;
 
   return (
-    <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={style}>
+    <div
+      ref={containerRef}
+      className={`relative overflow-hidden ${className}`}
+      style={style}
+      data-safe-image-fallback-from={usingFallback && loaded ? primaryUrl : undefined}
+      data-safe-image-fallback-to={usingFallback && loaded ? fallbackUrl : undefined}
+    >
       {/* Omit the src attribute entirely until the element is in
           view. Setting src=undefined caused some browsers to
           interpret the prop as the document URL and issue a
@@ -240,6 +264,7 @@ export function SafeImage({
           <img
             ref={imageRef}
             src={url}
+            data-safe-image-source={usingFallback ? 'fallback' : 'primary'}
             alt={alt}
             decoding="async"
             loading={priority ? 'eager' : 'lazy'}
