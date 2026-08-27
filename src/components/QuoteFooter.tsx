@@ -59,15 +59,14 @@ export function QuoteFooter() {
       // component in a `<footer role="contentinfo">` landmark. A
       // second `<footer>` here would create nested landmarks that
       // SR users can't easily distinguish.
-      className={`visual-viewport-fixed-bottom group fixed bottom-0 left-0 right-0 z-20 ${hovered ? 'is-open' : ''}`}
+      className={`group fixed bottom-0 left-0 right-0 z-layer-footer ${hovered ? 'is-open' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
-      // Touch users: tapping anywhere on the collapsed footer expands
-      // it so the refresh button becomes reachable. Without this the
-      // button stayed `pointer-events-none opacity-0` forever on
-      // phones and tablets.
-      onTouchStart={() => setHovered(true)}
+      onClick={(event) => {
+        if ((event.target as Element).closest('a, button')) return;
+        setHovered((open) => !open);
+      }}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="mx-auto max-w-7xl px-6">

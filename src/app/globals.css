@@ -5,6 +5,7 @@
 @layer base {
   :root {
     --z-layer-map: 0;
+    --z-layer-footer: 300;
     --z-layer-navigation: 400;
     --z-layer-fullscreen: 500;
     --z-layer-status: 600;
@@ -13,7 +14,6 @@
     --z-layer-toast: 1100;
     --z-layer-confirmation: 1200;
     --z-layer-accessibility: 1300;
-    --visual-viewport-bottom-offset: 0px;
   }
   html, body {
     @apply bg-bg text-white antialiased;
@@ -25,6 +25,7 @@
 
 @layer utilities {
   .z-layer-map { z-index: var(--z-layer-map); }
+  .z-layer-footer { z-index: var(--z-layer-footer); }
   .z-layer-navigation { z-index: var(--z-layer-navigation); }
   .z-layer-fullscreen { z-index: var(--z-layer-fullscreen); }
   .z-layer-status { z-index: var(--z-layer-status); }
@@ -33,9 +34,6 @@
   .z-layer-toast { z-index: var(--z-layer-toast); }
   .z-layer-confirmation { z-index: var(--z-layer-confirmation); }
   .z-layer-accessibility { z-index: var(--z-layer-accessibility); }
-  .visual-viewport-fixed-bottom {
-    transform: translate3d(0, var(--visual-viewport-bottom-offset), 0);
-  }
 }
 
 @layer components {

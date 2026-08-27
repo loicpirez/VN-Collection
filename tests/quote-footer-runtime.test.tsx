@@ -38,7 +38,7 @@ describe('QuoteFooter hover loader', () => {
   it('loads only after interaction and renders linked character and VN attribution', async () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
-    expect(footer).toHaveClass('visual-viewport-fixed-bottom', 'fixed', 'bottom-0', 'left-0', 'right-0');
+    expect(footer).toHaveClass('fixed', 'bottom-0', 'left-0', 'right-0', 'z-layer-footer');
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
     expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
@@ -58,13 +58,25 @@ describe('QuoteFooter hover loader', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('does not expand at swipe start and toggles on a deliberate footer tap', () => {
+    const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
+    const footer = container.firstElementChild as HTMLElement;
+    fireEvent.touchStart(footer);
+    expect(footer).not.toHaveClass('is-open');
+    expect(global.fetch).not.toHaveBeenCalled();
+    fireEvent.click(footer);
+    expect(footer).toHaveClass('is-open');
+    fireEvent.click(footer);
+    expect(footer).not.toHaveClass('is-open');
+  });
+
   it('renders the loading skeleton and replaces it with a VN-only attribution', async () => {
     let resolveFetch: (response: Response) => void = () => {};
     global.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
       resolveFetch = resolve;
     }));
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
-    fireEvent.touchStart(container.firstElementChild as HTMLElement);
+    fireEvent.click(container.firstElementChild as HTMLElement);
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3);
     await act(async () => {
       resolveFetch(quoteResponse(null));

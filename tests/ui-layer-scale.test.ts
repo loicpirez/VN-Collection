@@ -19,6 +19,7 @@ describe('global UI layer scale', () => {
     const css = source('src/app/globals.css');
     const names = [
       'map',
+      'footer',
       'navigation',
       'fullscreen',
       'status',
@@ -30,7 +31,7 @@ describe('global UI layer scale', () => {
     ];
     const values = names.map((name) => layerValue(css, name));
 
-    expect(values).toEqual([0, 400, 500, 600, 700, 1000, 1100, 1200, 1300]);
+    expect(values).toEqual([0, 300, 400, 500, 600, 700, 1000, 1100, 1200, 1300]);
     expect(values.every((value, index) => index === 0 || value > values[index - 1])).toBe(true);
     for (const name of names) {
       expect(css).toContain(`.z-layer-${name} { z-index: var(--z-layer-${name}); }`);
@@ -40,6 +41,7 @@ describe('global UI layer scale', () => {
   it('assigns each global surface to its semantic layer', () => {
     expect(source('src/app/layout.tsx')).toContain('z-layer-navigation');
     expect(source('src/app/layout.tsx')).toContain('z-layer-accessibility');
+    expect(source('src/components/QuoteFooter.tsx')).toContain('z-layer-footer');
     expect(source('src/components/ShelfSpatialFullscreen.tsx')).toContain('z-layer-fullscreen');
     expect(source('src/components/ShelfLayoutEditor.tsx')).toContain('z-layer-fullscreen');
     expect(source('src/components/DownloadStatusBar.tsx')).toContain('z-layer-status');
