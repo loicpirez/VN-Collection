@@ -38,6 +38,20 @@
   .visual-viewport-anchor-bottom {
     transform: translate3d(0, var(--visual-viewport-anchor-shift), 0);
   }
+  .visual-viewport-anchor-bottom[data-visual-viewport-anchor] {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+  }
+  @supports (-webkit-touch-callout: none) {
+    @media (pointer: coarse) {
+      .visual-viewport-anchor-bottom[data-visual-viewport-anchor] {
+        position: absolute;
+        bottom: auto;
+        transform: none;
+      }
+    }
+  }
 }
 
 @layer components {
