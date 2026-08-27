@@ -185,7 +185,7 @@ describe('DownloadStatusBar (polling fallback path)', () => {
   });
 
   it('opens the popover and links the VN embedded in a finished job label', async () => {
-    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, vn_id: 'v90011', vn_title: 'Title Z' }] })));
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, vn_id: 'v90011', vn_title: 'Title Z', finished_at: Date.now() }] })));
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
@@ -199,7 +199,7 @@ describe('DownloadStatusBar (polling fallback path)', () => {
   });
 
   it('dismisses one finished job, collapsing the whole bar when nothing remains', async () => {
-    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, vn_id: 'v90011' }] })));
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, vn_id: 'v90011', finished_at: Date.now() }] })));
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
@@ -211,13 +211,54 @@ describe('DownloadStatusBar (polling fallback path)', () => {
   });
 
   it('runs the dismiss-all control for finished jobs', async () => {
-    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [FINISHED_JOB] })));
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [{ ...FINISHED_JOB, finished_at: Date.now() }] })));
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
     const region = screen.getByRole('region', { name: 'Active downloads' });
     fireEvent.click(within(region).getByRole('button', { name: 'Dismiss all' }));
     // Dismissing the last finished job collapses the whole bar.
+    expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
+  });
+
+  it('briefly confirms a successful job and then removes the floating chip', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({
+      jobs: [{ ...FINISHED_JOB, finished_at: Date.now() }],
+    })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    const trigger = screen.getByRole('button', { name: 'Active downloads' });
+    expect(within(trigger).getByText('Done')).not.toBeNull();
+    await flush(10_001);
+    expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
+  });
+
+  it('expires multiple successful jobs at their individual deadlines', async () => {
+    const now = Date.now();
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({
+      jobs: [
+        { ...FINISHED_JOB, id: 'job-done-first', finished_at: now - 5_000 },
+        { ...FINISHED_JOB, id: 'job-done-second', finished_at: now },
+      ],
+    })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Active downloads' }));
+    expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(2);
+
+    await flush(5_001);
+    expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(1);
+
+    await flush(5_000);
+    expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
+  });
+
+  it('does not float an already old successful job over mobile content', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({
+      jobs: [{ ...FINISHED_JOB, finished_at: Date.now() - 60_000 }],
+    })));
+    renderWithProviders(<DownloadStatusBar />, { locale: 'en' });
+    await flush();
     expect(screen.queryByRole('button', { name: 'Active downloads' })).toBeNull();
   });
 

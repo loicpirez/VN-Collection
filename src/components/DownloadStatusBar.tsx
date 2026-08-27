@@ -10,6 +10,12 @@ import {
   type DownloadStatusSnapshot as Snapshot,
 } from '@/lib/download-status-snapshot';
 
+const FINISHED_SUCCESS_VISIBILITY_MS = 10_000;
+
+function jobFinishedWithFailure(job: Job): boolean {
+  return job.errors.length > 0 || job.cancelled === true || job.interrupted === true;
+}
+
 function interpolate(template: string, params?: Record<string, string | number> | null): string {
   if (!params) return template;
   return Object.entries(params).reduce(
@@ -131,6 +137,7 @@ function JobLabelText({
 export function DownloadStatusBar() {
   const t = useT();
   const [data, setData] = useState<Snapshot | null>(null);
+  const [statusClock, setStatusClock] = useState(() => Date.now());
   const [open, setOpen] = useState(false);
   const popoverId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -153,6 +160,24 @@ export function DownloadStatusBar() {
   }, [open]);
   const [dismissedFinished, setDismissedFinished] = useState<Set<string>>(new Set());
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const nextExpiration = data?.jobs
+      .filter((job): job is Job & { finished_at: number } => (
+        job.finished_at != null
+        && !jobFinishedWithFailure(job)
+        && !dismissedFinished.has(job.id)
+      ))
+      .map((job) => job.finished_at + FINISHED_SUCCESS_VISIBILITY_MS)
+      .filter((expiration) => expiration > statusClock)
+      .sort((a, b) => a - b)[0];
+    if (nextExpiration == null) return;
+    const timer = window.setTimeout(
+      () => setStatusClock(Date.now()),
+      Math.max(0, nextExpiration - Date.now()) + 1,
+    );
+    return () => window.clearTimeout(timer);
+  }, [data, dismissedFinished, statusClock]);
 
   useEffect(() => {
     // Server-Sent Events stream gives us push-style updates within
@@ -276,9 +301,18 @@ export function DownloadStatusBar() {
   }, []);
 
   const live = data?.jobs.filter((j) => j.finished_at == null) ?? [];
-  const visibleFinished = (data?.jobs.filter((j) => j.finished_at != null && !dismissedFinished.has(j.id)) ?? []).slice(0, 6);
+  const visibleFinished = (data?.jobs.filter((job) => (
+    job.finished_at != null
+    && !dismissedFinished.has(job.id)
+    && (
+      jobFinishedWithFailure(job)
+      || statusClock - job.finished_at < FINISHED_SUCCESS_VISIBILITY_MS
+    )
+  )) ?? []).slice(0, 6);
   const visibleJobs = [...live, ...visibleFinished];
   const totalErrors = visibleJobs.reduce((acc, j) => acc + j.errors.length, 0);
+  const hasFinishedFailure = visibleFinished.some(jobFinishedWithFailure);
+  const hasRecentSuccess = visibleFinished.some((job) => !jobFinishedWithFailure(job));
   const activeReq = data?.throttle.active ?? 0;
   const queuedReq = data?.throttle.queued ?? 0;
   // Server reports how long the most recent Retry-After still has to run.
@@ -309,9 +343,8 @@ export function DownloadStatusBar() {
   };
 
   return (
-    // Anchored bottom-right above the QuoteFooter (which lives at bottom-0
-    // and grows to ~112px on hover - `bottom-32` clears the expanded
-    // height). Popover opens upward so it stays inside the viewport.
+    // Mobile keeps only active, recent, or failed work in this floating
+    // surface. The quote footer stays in document flow on touch devices.
     <div
       className="fixed bottom-5 right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
@@ -336,7 +369,7 @@ export function DownloadStatusBar() {
             ? 'border-status-on_hold/60 bg-status-on_hold/15 text-status-on_hold'
             : live.length > 0
               ? 'border-accent bg-accent/15 text-accent'
-              : totalErrors > 0
+              : hasFinishedFailure
                 ? 'border-status-dropped/50 bg-status-dropped/10 text-status-dropped'
                 : 'border-border bg-bg-card text-muted hover:text-white'
         }`}
@@ -379,7 +412,11 @@ export function DownloadStatusBar() {
                   ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
                   : totalErrors > 0
                     ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
-                    : t.downloadStatus.idle
+                    : hasFinishedFailure
+                      ? t.downloadStatus.kindError
+                      : hasRecentSuccess
+                        ? t.downloadStatus.kindDone
+                        : t.downloadStatus.idle
           }
         >
           {retryingNow
@@ -395,7 +432,11 @@ export function DownloadStatusBar() {
                 ? t.downloadStatus.runningCount.replace('{n}', String(live.length))
                 : totalErrors > 0
                   ? t.downloadStatus.errorCount.replace('{n}', String(totalErrors))
-                  : t.downloadStatus.idle}
+                  : hasFinishedFailure
+                    ? t.downloadStatus.kindError
+                    : hasRecentSuccess
+                      ? t.downloadStatus.kindDone
+                      : t.downloadStatus.idle}
         </span>
         {live.length === 1 && live[0].total > 0 && (
           <span className="shrink-0 text-[10px] font-normal opacity-80">

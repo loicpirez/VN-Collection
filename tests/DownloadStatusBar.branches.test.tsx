@@ -124,7 +124,7 @@ describe('DownloadStatusBar branches', () => {
   it('renders a job label that embeds a vn id but does not link when vn_id is absent', async () => {
     const job = {
       id: 'nolink', kind: 'producers', vn_id: null, label: 'Plain label no id',
-      total: 2, done: 2, errors: [], started_at: 1, finished_at: 9,
+      total: 2, done: 2, errors: [], started_at: 1, finished_at: Date.now(),
     };
     global.fetch = vi.fn().mockResolvedValue(okJson(snapshot({ jobs: [job] })));
     renderWithProviders(<DownloadStatusBar />, { locale: 'en' });

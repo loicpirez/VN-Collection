@@ -10,7 +10,7 @@
  * `marginBottom: 'env(safe-area-inset-bottom)'` on its inline
  * `style={…}`.
  *
- * The bottom-0 sticky case (QuoteFooter) and the bottom-4 /
+ * The desktop-fixed bottom-0 QuoteFooter and the bottom-4 /
  * bottom-5 / bottom-10 / bottom-12 fixed cases all qualify.
  */
 import { describe, expect, it } from 'vitest';
