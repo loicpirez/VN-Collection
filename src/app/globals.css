@@ -13,6 +13,7 @@
     --z-layer-toast: 1100;
     --z-layer-confirmation: 1200;
     --z-layer-accessibility: 1300;
+    --visual-viewport-bottom-offset: 0px;
   }
   html, body {
     @apply bg-bg text-white antialiased;
@@ -32,6 +33,9 @@
   .z-layer-toast { z-index: var(--z-layer-toast); }
   .z-layer-confirmation { z-index: var(--z-layer-confirmation); }
   .z-layer-accessibility { z-index: var(--z-layer-accessibility); }
+  .visual-viewport-fixed-bottom {
+    transform: translate3d(0, var(--visual-viewport-bottom-offset), 0);
+  }
 }
 
 @layer components {

@@ -343,10 +343,10 @@ export function DownloadStatusBar() {
   };
 
   return (
-    // Mobile keeps only active, recent, or failed work in this floating
-    // surface. The quote footer stays in document flow on touch devices.
+    // Touch layouts clear the quote footer's 44px interaction surface.
+    // Fine-pointer layouts keep the original compact footer spacing.
     <div
-      className="fixed bottom-5 right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
+      className="visual-viewport-fixed-bottom fixed bottom-16 right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 can-hover:sm:bottom-5 sm:right-4 sm:max-w-sm"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {retryingNow && (

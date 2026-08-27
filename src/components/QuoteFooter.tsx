@@ -59,7 +59,7 @@ export function QuoteFooter() {
       // component in a `<footer role="contentinfo">` landmark. A
       // second `<footer>` here would create nested landmarks that
       // SR users can't easily distinguish.
-      className={`group relative z-20 mt-4 can-hover:sm:fixed can-hover:sm:bottom-0 can-hover:sm:left-0 can-hover:sm:right-0 can-hover:sm:mt-0 ${hovered ? 'is-open' : ''}`}
+      className={`visual-viewport-fixed-bottom group fixed bottom-0 left-0 right-0 z-20 ${hovered ? 'is-open' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
@@ -71,7 +71,7 @@ export function QuoteFooter() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="mx-auto max-w-7xl px-6">
-        <div className="max-h-12 overflow-hidden rounded-md border border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out group-hover:max-h-28 group-focus-within:max-h-28 group-[.is-open]:max-h-28 can-hover:sm:max-h-5 can-hover:sm:rounded-b-none can-hover:sm:border-b-0">
+        <div className="max-h-12 overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out group-hover:max-h-28 group-focus-within:max-h-28 group-[.is-open]:max-h-28 can-hover:sm:max-h-5">
           <div className={`flex items-center gap-2 px-3 py-0 text-[10px] can-hover:sm:py-0.5 ${hovered ? 'min-h-[44px]' : 'min-h-[44px] can-hover:sm:min-h-0'}`}>
             <MessageSquareQuote className="h-3 w-3 shrink-0 text-muted transition-colors can-hover:group-hover:text-accent" aria-hidden />
             <span className="shrink-0 font-medium uppercase tracking-wider text-muted/70 transition-colors group-hover:text-muted">

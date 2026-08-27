@@ -54,6 +54,7 @@ vi.mock('@/components/SettingsButton', () => ({ SettingsButton: () => <span data
 vi.mock('@/components/SpoilerToggle', () => ({ SpoilerToggle: () => <span data-testid="spoiler" /> }));
 vi.mock('@/components/ToastProvider', () => ({ ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/TutorialTour', () => ({ TutorialTour: () => <span data-testid="tour" /> }));
+vi.mock('@/components/VisualViewportOffset', () => ({ VisualViewportOffset: () => <span data-testid="visual-viewport" /> }));
 
 vi.mock('@/components/RecentlyViewedStrip', () => ({ RecentlyViewedStrip: () => <div>recent</div> }));
 vi.mock('@/components/ReadingQueueStrip', () => ({ ReadingQueueStrip: () => <div>queue</div> }));
@@ -84,6 +85,7 @@ describe('root layout composition', () => {
     expect(html).toContain('--card-density-px:220px');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain('data-testid="grouped-nav"');
+    expect(html).toContain('data-testid="visual-viewport"');
     expect(html).toContain('Body');
   });
 
