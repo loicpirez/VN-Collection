@@ -154,6 +154,14 @@ describe('VnCard', () => {
     expect(screen.getByText('16:9 / 4:3 +1')).toBeInTheDocument();
     expect(screen.getByText('Developer')).toBeInTheDocument();
     expect(screen.getByText('Publisher')).toBeInTheDocument();
+    const producerRow = screen.getByText('Developer').closest('[data-card-producers]');
+    expect(producerRow).toContainElement(screen.getByText('Publisher'));
+    const developerChip = screen.getByTitle(`${t.detail.developers}: Developer, Second developer`);
+    const publisherChip = screen.getByTitle(`${t.detail.publishers}: Publisher, Second publisher`);
+    expect(developerChip).toHaveClass('min-w-0', 'flex-1');
+    expect(publisherChip).toHaveClass('min-w-0', 'flex-1');
+    expect(developerChip).toHaveTextContent('Developer +1');
+    expect(publisherChip).toHaveTextContent('Publisher +1');
 
     fireEvent.click(selectable);
     fireEvent.keyDown(selectable, { key: 'Enter' });

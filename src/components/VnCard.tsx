@@ -221,6 +221,16 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
   const visibleAspectKeys = (data.aspectKeys ?? []).filter((key) => key !== 'unknown');
+  const developerNames = (data.developers ?? []).map((developer) => developer.name).filter(Boolean);
+  const developerIds = new Set((data.developers ?? []).map((developer) => developer.id).filter(Boolean));
+  const normalizedDeveloperNames = new Set(developerNames.map((name) => name.trim().toLowerCase()));
+  const publisherNames = (data.publishers ?? [])
+    .filter((publisher) => (
+      (!publisher.id || !developerIds.has(publisher.id)) &&
+      !normalizedDeveloperNames.has(publisher.name.trim().toLowerCase())
+    ))
+    .map((publisher) => publisher.name)
+    .filter(Boolean);
 
   const customCoverIsRemote = !!data.customCover && /^https?:\/\//i.test(data.customCover);
   const posterSrc = customCoverIsRemote ? data.customCover : data.poster;
@@ -318,56 +328,34 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             </div>
           </div>
         )}
-        {data.developers && data.developers.length > 0 && (() => {
-          // Show only the primary developer name with a "+N" suffix
-          // when there are more - comma-joining the whole list got
-          // truncated to the first ~6 visible characters on dense
-          // grids, which was useless (a clipped studio name or worse).
-          const names = data.developers.map((d) => d.name).filter(Boolean);
-          const primary = names[0];
-          const extra = names.length - 1;
-          return (
-            <div
-              className="inline-flex items-center gap-1 text-[11px] text-muted"
-              title={`${t.detail.developers}: ${names.join(', ')}`}
-            >
-              <Building2 className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="line-clamp-1">
-                {primary}
-                {extra > 0 && <span className="text-muted/70"> +{extra}</span>}
-              </span>
-            </div>
-          );
-        })()}
-        {(() => {
-          // Publishers that are ALSO developers are dropped - they're
-          // already represented in the developer chip above. Showing
-          // them twice would just waste a row on every self-published
-          // studio. Dedup normalises trim + case because VNDB
-          // occasionally returns names with trailing whitespace.
-          if (!data.publishers || data.publishers.length === 0) return null;
-          const norm = (s: string) => s.trim().toLowerCase();
-          const devIds = new Set((data.developers ?? []).map((d) => d.id).filter(Boolean));
-          const devNames = new Set((data.developers ?? []).map((d) => norm(d.name)));
-          const distinct = data.publishers.filter(
-            (p) => (!p.id || !devIds.has(p.id)) && !devNames.has(norm(p.name)),
-          );
-          if (distinct.length === 0) return null;
-          const primary = distinct[0].name;
-          const extra = distinct.length - 1;
-          return (
-            <div
-              className="inline-flex items-center gap-1 text-[11px] text-accent-blue/90"
-              title={`${t.detail.publishers}: ${distinct.map((p) => p.name).join(', ')}`}
-            >
-              <Package className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="line-clamp-1">
-                {primary}
-                {extra > 0 && <span className="text-accent-blue/70"> +{extra}</span>}
-              </span>
-            </div>
-          );
-        })()}
+        {(developerNames.length > 0 || publisherNames.length > 0) && (
+          <div className="flex min-w-0 items-center gap-2" data-card-producers>
+            {developerNames.length > 0 && (
+              <div
+                className="inline-flex min-w-0 flex-1 items-center gap-1 text-[11px] text-muted"
+                title={`${t.detail.developers}: ${developerNames.join(', ')}`}
+              >
+                <Building2 className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="min-w-0 truncate">
+                  {developerNames[0]}
+                  {developerNames.length > 1 && <span className="text-muted/70"> +{developerNames.length - 1}</span>}
+                </span>
+              </div>
+            )}
+            {publisherNames.length > 0 && (
+              <div
+                className="inline-flex min-w-0 flex-1 items-center gap-1 text-[11px] text-accent-blue/90"
+                title={`${t.detail.publishers}: ${publisherNames.join(', ')}`}
+              >
+                <Package className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="min-w-0 truncate">
+                  {publisherNames[0]}
+                  {publisherNames.length > 1 && <span className="text-accent-blue/70"> +{publisherNames.length - 1}</span>}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
     </div>
   );
 
