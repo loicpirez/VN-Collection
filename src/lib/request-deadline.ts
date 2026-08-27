@@ -1,5 +1,5 @@
 /** Maximum wall-clock time for an automatically loaded interactive upstream panel. */
-export const INTERACTIVE_UPSTREAM_TIMEOUT_MS = 10_000;
+export const INTERACTIVE_UPSTREAM_TIMEOUT_MS = 30_000;
 
 /** Signal and cleanup handle for one bounded interactive request. */
 export interface RequestDeadline {

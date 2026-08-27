@@ -122,18 +122,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const vnId = id.toLowerCase();
   const deadline = createRequestDeadline(req.signal);
   try {
-    const labels = await fetchUlistLabels(deadline.signal);
+    const fresh = new URL(req.url).searchParams.get('fresh') === '1';
+    const [labels, entry, item] = await Promise.all([
+      fetchUlistLabels(deadline.signal),
+      fetchUlistEntry(vnId, { fresh, signal: deadline.signal }),
+      getVnReadRepository().getCollectionItem(vnId),
+    ]);
     if (typeof labels === 'object' && 'needsAuth' in labels) {
       return NextResponse.json({ needsAuth: true, entry: null, labels: [] });
     }
-    const entry = await fetchUlistEntry(vnId, {
-      fresh: new URL(req.url).searchParams.get('fresh') === '1',
-      signal: deadline.signal,
-    });
     if (entry && typeof entry === 'object' && 'needsAuth' in entry) {
       return NextResponse.json({ needsAuth: true, entry: null, labels });
     }
-    const local = localUserData(await getVnReadRepository().getCollectionItem(vnId));
+    const local = localUserData(item);
     const remote = remoteUserData(entry);
     return NextResponse.json({
       entry,

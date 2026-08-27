@@ -199,8 +199,15 @@ describe('GET /api/vn/[id]/vndb-status', () => {
   });
 
   it('200 with needsAuth when no token is configured', async () => {
-    labelsMock.mockResolvedValue({ needsAuth: true });
-    const res = await statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
+    let resolveLabels: ((value: { needsAuth: true }) => void) | undefined;
+    labelsMock.mockImplementation(() => new Promise<{ needsAuth: true }>((resolve) => {
+      resolveLabels = resolve;
+    }));
+    entryMock.mockResolvedValue({ needsAuth: true });
+    const response = statusGET(localReq('/api/vn/v90402/vndb-status', 'GET'), ctx(REAL_VN));
+    await vi.waitFor(() => expect(entryMock).toHaveBeenCalledOnce());
+    resolveLabels?.({ needsAuth: true });
+    const res = await response;
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ needsAuth: true, entry: null, labels: [] });
   });

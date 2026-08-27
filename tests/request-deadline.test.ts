@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRequestDeadline } from '@/lib/request-deadline';
+import { createRequestDeadline, INTERACTIVE_UPSTREAM_TIMEOUT_MS } from '@/lib/request-deadline';
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe('createRequestDeadline', () => {
+  it('allows a cold VN detail fanout to drain through the serialized upstream queue', () => {
+    expect(INTERACTIVE_UPSTREAM_TIMEOUT_MS).toBe(30_000);
+  });
+
   it('aborts when the parent request is canceled', () => {
     const parent = new AbortController();
     const deadline = createRequestDeadline(parent.signal);
