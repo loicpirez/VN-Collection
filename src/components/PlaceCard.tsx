@@ -102,7 +102,7 @@ export function PlaceCard({ place, onEdit, onDelete, onAssign }: Props) {
   }
 
   return (
-    <article className="group flex flex-col rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
+    <article className="group flex flex-col rounded-xl border border-border bg-bg-card transition-all can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

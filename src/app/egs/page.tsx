@@ -163,7 +163,7 @@ async function EgsPageContent() {
             {links.map((l) => (
               <li
                 key={l.vn_id}
-                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
+                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
               >
                 {/* The whole row used to be a single Next <Link> with an
                     external EGS <a> nested inside - invalid HTML (nested
@@ -253,7 +253,7 @@ async function EgsPageContent() {
             {unlinkedRows.map((u) => (
               <li
                 key={u.vn_id}
-                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
+                className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all focus-within:border-accent can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
               >
                 <Link
                   href={`/vn/${u.vn_id}`}

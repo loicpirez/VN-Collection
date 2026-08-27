@@ -58,4 +58,24 @@ describe('R5-150 — no hover-only control hides itself on touch', () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it('keeps positional card hover transforms off coarse touch pointers', () => {
+    const cardSources = [
+      'src/components/VnCard.tsx',
+      'src/components/PlaceCard.tsx',
+      'src/components/PlaceVnBrowser.tsx',
+      'src/components/AliceNetClient.tsx',
+      'src/components/UpcomingCard.tsx',
+      'src/app/similar/page.tsx',
+      'src/app/recommendations/page.tsx',
+      'src/app/egs/page.tsx',
+      'src/app/top-ranked/page.tsx',
+    ];
+
+    for (const path of cardSources) {
+      const body = readFileSync(join(ROOT, path), 'utf8');
+      expect(body, path).not.toMatch(/(?<!can-hover:)hover:-translate-y-/);
+      expect(body, path).toContain('can-hover:hover:-translate-y-');
+    }
+  });
 });

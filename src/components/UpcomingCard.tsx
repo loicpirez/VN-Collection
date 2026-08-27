@@ -97,7 +97,7 @@ export function UpcomingCard({
       data-variant={variant}
       className={
         variant === 'wide'
-          ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card sm:p-4'
+          ? 'group flex items-start gap-4 rounded-xl border border-border bg-bg-card p-3 transition-all can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card sm:p-4'
           : 'flex items-start gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:border-accent'
       }
     >

@@ -1055,7 +1055,7 @@ export function AliceNetClient({ basePath = '/places', embedded = false }: Alice
         aria-posinset={listPosition.position}
         aria-setsize={listPosition.setSize}
         aria-describedby={selectMode ? selectionDescriptionId : undefined}
-        className={`group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border bg-bg-card transition-all hover:-translate-y-0.5 hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'}`}
+        className={`group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border bg-bg-card transition-all can-hover:hover:-translate-y-0.5 hover:shadow-card ${isSelected ? 'border-accent ring-2 ring-accent' : 'border-border hover:border-accent'}`}
       >
         {selectMode && (
           <span id={selectionDescriptionId} className="sr-only">

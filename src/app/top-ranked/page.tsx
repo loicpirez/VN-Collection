@@ -413,7 +413,7 @@ async function VndbSection({ rows, t, startRank, locale }: { rows: VndbTopRanked
         {rows.map((v, i) => (
           <li
             key={v.id}
-            className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
+            className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
           >
             <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
               {startRank + i + 1}
@@ -519,7 +519,7 @@ function EgsSection({
           return (
             <li
               key={r.egs_id}
-              className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
+              className="group relative flex gap-3 rounded-xl border border-border bg-bg-card p-3 transition-all can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card"
             >
               <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-bg shadow-card">
                 {startRank + i + 1}

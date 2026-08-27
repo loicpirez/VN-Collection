@@ -231,7 +231,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const className = `group relative flex flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
     selectable
       ? `cursor-pointer ${selected ? 'border-accent ring-2 ring-accent shadow-card' : 'border-border hover:border-accent focus-visible:border-accent'}`
-      : 'border-border hover:-translate-y-1 hover:border-accent hover:shadow-card focus-visible:-translate-y-1 focus-visible:border-accent focus-visible:shadow-card'
+      : 'border-border can-hover:hover:-translate-y-1 hover:border-accent hover:shadow-card focus-visible:-translate-y-1 focus-visible:border-accent focus-visible:shadow-card'
   }`;
 
   const cover = (

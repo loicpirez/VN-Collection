@@ -706,7 +706,7 @@ function ResultsGrid({
             <Link
               href={`/vn/${r.id}`}
               prefetch={false}
-              className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
+              className="group relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all can-hover:hover:-translate-y-1 hover:border-accent hover:shadow-card"
             >
               <div className="relative">
                 <SafeImage

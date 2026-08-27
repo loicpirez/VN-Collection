@@ -247,7 +247,7 @@ export default async function SimilarPage({
             return (
               <li
                 key={r.id}
-                className="group relative overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-1 hover:border-accent hover:shadow-card"
+                className="group relative overflow-hidden rounded-xl border border-border bg-bg-card transition-all can-hover:hover:-translate-y-1 hover:border-accent hover:shadow-card"
               >
                 <Link
                   href={`/vn/${r.id}`}

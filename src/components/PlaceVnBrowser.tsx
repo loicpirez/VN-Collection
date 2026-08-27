@@ -357,7 +357,7 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
     const devs = parseDevs(vn.developers);
     const producer = devs[0];
     return (
-      <article key={vn.vn_id} role="listitem" className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
+      <article key={vn.vn_id} role="listitem" className="group flex min-h-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-all can-hover:hover:-translate-y-0.5 hover:border-accent hover:shadow-card">
         <div className="relative aspect-[2/3] bg-bg-elev">
           <SafeImage
             src={vn.image_url}
