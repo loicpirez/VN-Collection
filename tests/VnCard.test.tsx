@@ -151,7 +151,11 @@ describe('VnCard', () => {
     expect(screen.getByText(t.library.fanDisc)).toBeInTheDocument();
     expect(screen.getByText('9.0')).toBeInTheDocument();
     expect(screen.getByText('82')).toBeInTheDocument();
-    expect(screen.getByText('16:9 / 4:3 +1')).toBeInTheDocument();
+    expect(screen.getByText('16:9 +2')).toBeInTheDocument();
+    const aspectChip = screen.getByTitle(`${t.aspectOverride.title}: 16:9 / 4:3 / 16:10`);
+    expect(aspectChip).toBeInTheDocument();
+    expect(aspectChip).toHaveClass('px-0.5', 'text-[10px]', 'whitespace-nowrap');
+    expect(aspectChip.closest('[data-card-facts]')).toHaveClass('gap-x-1.5');
     expect(screen.getByText('Developer')).toBeInTheDocument();
     expect(screen.getByText('Publisher')).toBeInTheDocument();
     const producerRow = screen.getByText('Developer').closest('[data-card-producers]');
@@ -402,6 +406,16 @@ describe('VnCard', () => {
     expect(screen.getByText('4:3')).toBeInTheDocument();
     expect(screen.getAllByText('30min')).toHaveLength(2);
     expect(screen.queryByTitle(`${t.detail.publishers}: Shared studio`)).toBeNull();
+  });
+
+  it('prioritizes a concrete aspect ratio over the generic other bucket', () => {
+    renderWithProviders(
+      <VnCard data={card({ aspectKeys: ['other', '4:3'] })} />,
+      { locale: 'en' },
+    );
+
+    expect(screen.getByText('4:3 +1')).toBeInTheDocument();
+    expect(screen.getByTitle(`${t.aspectOverride.title}: 4:3 / Other`)).toBeInTheDocument();
   });
 
   it('opens an in-collection badge menu without optional status, developer, or publisher props', () => {

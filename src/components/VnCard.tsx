@@ -220,7 +220,15 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   const allPlaytime = fmtMinutes(allPlaytimeMin, locale, t.year);
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
-  const visibleAspectKeys = (data.aspectKeys ?? []).filter((key) => key !== 'unknown');
+  const distinctAspectKeys = Array.from(new Set((data.aspectKeys ?? []).filter((key) => key !== 'unknown')));
+  const visibleAspectKeys = [
+    ...distinctAspectKeys.filter((key) => key !== 'other'),
+    ...distinctAspectKeys.filter((key) => key === 'other'),
+  ];
+  const aspectLabels = visibleAspectKeys.map((key) => t.aspect.keys[key]);
+  const aspectSummary = aspectLabels.length > 0
+    ? `${aspectLabels[0]}${aspectLabels.length > 1 ? ` +${aspectLabels.length - 1}` : ''}`
+    : null;
   const developerNames = (data.developers ?? []).map((developer) => developer.name).filter(Boolean);
   const developerIds = new Set((data.developers ?? []).map((developer) => developer.id).filter(Boolean));
   const normalizedDeveloperNames = new Set(developerNames.map((name) => name.trim().toLowerCase()));
@@ -259,7 +267,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         <div className="line-clamp-2 text-sm font-semibold leading-tight" title={titlePair.sub ?? titlePair.main}>
           {titlePair.main}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted" data-card-facts>
           {rating && (
             <span
               className="inline-flex items-center gap-0.5 text-accent"
@@ -282,10 +290,12 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
               {t.editions[data.editionType]}
             </span>
           )}
-          {visibleAspectKeys.length > 0 && (
-            <span className="inline-flex rounded bg-bg-elev/70 px-1.5 py-0.5 text-muted" title={t.aspectOverride.title}>
-              {visibleAspectKeys.slice(0, 2).map((key) => t.aspect.keys[key]).join(' / ')}
-              {visibleAspectKeys.length > 2 ? ` +${visibleAspectKeys.length - 2}` : ''}
+          {aspectSummary && (
+            <span
+              className="inline-flex whitespace-nowrap rounded bg-bg-elev/70 px-0.5 py-0.5 text-[10px] text-muted"
+              title={`${t.aspectOverride.title}: ${aspectLabels.join(' / ')}`}
+            >
+              {aspectSummary}
             </span>
           )}
           {/* Library card grid: no stock chip. Availability lookup lives on /stock. */}
