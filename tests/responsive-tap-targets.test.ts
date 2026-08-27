@@ -195,7 +195,15 @@ describe('responsive tap targets', () => {
 
     const card = source('src/components/VnCard.tsx');
     expect(card).toContain('min-h-[44px] min-w-[44px]');
-    expect(card).toContain('can-hover:sm:min-h-0 can-hover:sm:min-w-0');
+    expect(card).toContain('can-hover:sm:min-h-7 can-hover:sm:min-w-0');
+    expect(card).toContain('card-action-touch absolute left-2');
+    expect(card).toContain('card-action-visual bg-bg-card/90');
+
+    const globalStyles = source('src/app/globals.css');
+    expect(globalStyles).toContain('.card-action-touch');
+    expect(globalStyles).toContain('@apply pointer-events-auto inline-flex h-11 w-11');
+    expect(globalStyles).toContain('.card-action-visual');
+    expect(globalStyles).toContain('@apply pointer-events-none inline-flex h-8 min-w-8');
 
     for (const path of [
       'src/app/data/page.tsx',

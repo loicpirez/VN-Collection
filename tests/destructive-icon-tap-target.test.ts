@@ -56,16 +56,18 @@ function findJsxOpenTagEnd(src: string, tagStart: number): number {
   return -1;
 }
 
-describe('R5-151 — destructive overlay controls have tap-target + aria-label', () => {
-  it('SeriesRemoveVn carries tap-target + aria-label', () => {
+describe('R5-151: destructive overlay controls have independent touch geometry and labels', () => {
+  it('SeriesRemoveVn carries card-action-touch + aria-label', () => {
     const src = readFileSync(join(ROOT, 'src/components/SeriesRemoveVn.tsx'), 'utf8');
-    expect(src).toMatch(/\btap-target\b/);
+    expect(src).toMatch(/\bcard-action-touch\b/);
+    expect(src).toMatch(/\bcard-action-visual\b/);
     expect(src).toMatch(/aria-label=/);
   });
 
-  it('ListRemoveVn carries tap-target + aria-label', () => {
+  it('ListRemoveVn carries card-action-touch + aria-label', () => {
     const src = readFileSync(join(ROOT, 'src/components/ListRemoveVn.tsx'), 'utf8');
-    expect(src).toMatch(/\btap-target\b/);
+    expect(src).toMatch(/\bcard-action-touch\b/);
+    expect(src).toMatch(/\bcard-action-visual\b/);
     expect(src).toMatch(/aria-label=/);
   });
 });

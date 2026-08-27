@@ -216,6 +216,8 @@ describe('SeriesRemoveVn', () => {
     );
     const remove = screen.getByRole('button', { name: t.series.removeFromSeries });
     expect(remove).toHaveAttribute('type', 'button');
+    expect(remove).toHaveClass('card-action-touch', 'left-2', 'top-14');
+    expect(remove.firstElementChild).toHaveClass('card-action-visual');
     fireEvent.click(remove);
     await waitFor(() => expect(confirmMocks.confirm).toHaveBeenCalled());
     expect(fetch).not.toHaveBeenCalled();

@@ -113,11 +113,23 @@
     min-height: 44px;
     min-width: 44px;
   }
+  .card-action-touch {
+    @apply pointer-events-auto inline-flex h-11 w-11 items-center justify-center bg-transparent;
+  }
+  .card-action-visual {
+    @apply pointer-events-none inline-flex h-8 min-w-8 items-center justify-center rounded-md shadow-card backdrop-blur;
+  }
   @media (hover: hover) and (pointer: fine) and (min-width: 640px) {
     .tap-target,
     .tap-target-tight {
       min-height: 0;
       min-width: 0;
+    }
+    .card-action-touch {
+      @apply h-7 w-7;
+    }
+    .card-action-visual {
+      @apply h-7 min-w-7;
     }
   }
   .card-action-overlay {

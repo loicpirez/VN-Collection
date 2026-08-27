@@ -190,6 +190,8 @@ describe('VnCard', () => {
     );
 
     const overflow = screen.getByRole('button', { name: t.quickActions.title });
+    const link = screen.getByRole('link');
+    expect(link).not.toContainElement(overflow);
     vi.spyOn(overflow, 'getBoundingClientRect').mockReturnValue({
       x: 1,
       y: 2,
@@ -201,12 +203,16 @@ describe('VnCard', () => {
       left: 1,
       toJSON: () => ({}),
     });
+    const actionTouch = new Event('pointerdown', { bubbles: true });
+    Object.defineProperty(actionTouch, 'pointerType', { value: 'touch' });
+    fireEvent(overflow, actionTouch);
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByText(/menu:v90001/)).toBeNull();
     fireEvent.click(overflow);
     expect(screen.getByText(/menu:v90001:playing:Developer:Publisher:4:6/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'close-menu' }));
     expect(screen.queryByText(/menu:v90001/)).toBeNull();
 
-    const link = screen.getByRole('link');
     fireEvent.contextMenu(link, { clientX: 7, clientY: 8 });
     expect(screen.getByText(/menu:v90001:playing:Developer:Publisher:7:8/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'close-menu' }));
@@ -264,7 +270,7 @@ describe('VnCard', () => {
     renderWithProviders(<VnCard data={card()} enableAdd onAdded={onAdded} />, { locale: 'en' });
 
     const add = screen.getByRole('button', { name: t.cardAdd });
-    expect(add).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'can-hover:sm:min-h-0', 'can-hover:sm:min-w-0');
+    expect(add).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'can-hover:sm:min-h-7', 'can-hover:sm:min-w-0');
     fireEvent.click(add);
 
     await waitFor(() => expect(toastMocks.success).toHaveBeenCalledWith(t.toast.added));
@@ -354,6 +360,22 @@ describe('VnCard', () => {
     expect(screen.getByText('lists:v90001:2')).toBeInTheDocument();
     expect(screen.getByText('New')).toBeInTheDocument();
     expect(screen.queryByTitle(t.aspectOverride.title)).toBeNull();
+  });
+
+  it('positions queue and fan-disc indicators around an overflow action without a relation badge', () => {
+    renderWithProviders(
+      <VnCard
+        data={card({
+          status: 'playing',
+          inReadingQueue: true,
+          isFanDisc: true,
+        })}
+      />,
+      { locale: 'en' },
+    );
+
+    expect(screen.getByText(t.library.moreFilters.inReadingQueue).previousElementSibling).toHaveClass('bottom-2');
+    expect(screen.getByText(t.library.fanDisc).closest('span')).toHaveClass('bottom-14');
   });
 
   it('renders a single aspect and mine-only playtime while dropping duplicate publishers', () => {

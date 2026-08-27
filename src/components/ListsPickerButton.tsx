@@ -248,14 +248,14 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
   const triggerClass =
     variant === 'inline'
       ? `inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-white sm:h-9 can-hover:sm:min-h-0`
-      : `tap-target absolute right-2 top-11 z-10 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10px] font-bold uppercase tracking-wider shadow-card backdrop-blur transition-opacity hover:bg-bg-card ${
+      : `card-action-touch absolute right-2 top-14 z-20 text-[10px] font-bold uppercase tracking-wider transition-opacity ${
           hasMembership
-            ? 'bg-accent text-bg !opacity-100'
-            : `bg-bg-card/85 text-white can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100${open ? ' !opacity-100' : ''}`
+            ? 'text-bg !opacity-100'
+            : `text-white can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100${open ? ' !opacity-100' : ''}`
         }`;
 
   return (
-    <div className="relative inline-flex">
+    <div className={variant === 'inline' ? 'relative inline-flex' : 'contents'}>
       <button
         ref={triggerRef}
         type="button"
@@ -267,12 +267,19 @@ export function ListsPickerButton({ vnId, variant = 'overlay', initialMemberCoun
         aria-controls={popoverId}
         title={t.lists.addToListAria}
       >
-        {variant === 'inline' ? <ListPlus className="h-3.5 w-3.5" aria-hidden /> : <Bookmark className="h-3.5 w-3.5" aria-hidden />}
-        {variant === 'inline' ? t.lists.cardChip : null}
-        {(memberCount ?? 0) > 0 && (
-          <span className={variant === 'inline' ? 'rounded bg-accent px-1 text-bg' : 'rounded bg-accent px-1 text-bg'}>
-            {memberCount}
+        {variant === 'inline' ? (
+          <>
+            <ListPlus className="h-3.5 w-3.5" aria-hidden />
+            {t.lists.cardChip}
+          </>
+        ) : (
+          <span className={`card-action-visual gap-1 px-1.5 ${hasMembership ? 'bg-accent' : 'bg-bg-card/85'}`}>
+            <Bookmark className="h-3.5 w-3.5" aria-hidden />
+            {(memberCount ?? 0) > 0 && <span>{memberCount}</span>}
           </span>
+        )}
+        {variant === 'inline' && (memberCount ?? 0) > 0 && (
+          <span className="rounded bg-accent px-1 text-bg">{memberCount}</span>
         )}
       </button>
       <PortalPopover

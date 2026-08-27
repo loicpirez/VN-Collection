@@ -131,17 +131,19 @@ export function FavoriteToggleButton({
       aria-pressed={on}
       aria-label={label}
       title={label}
-      className={`absolute z-10 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md shadow-card transition-opacity ${
+      className={`card-action-touch absolute left-2 top-2 z-20 transition-opacity ${
         on
-          ? 'bg-status-dropped/90 text-white hover:bg-status-dropped !opacity-100'
-          : 'bg-bg-card/85 text-muted backdrop-blur hover:text-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100'
-      } left-2 top-2`}
+          ? 'text-white !opacity-100'
+          : 'text-muted hover:text-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+      }`}
     >
-      {busy ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-      ) : (
-        <Heart className={`h-4 w-4 ${on ? 'fill-white' : ''}`} aria-hidden />
-      )}
+      <span className={`card-action-visual ${on ? 'bg-status-dropped/90' : 'bg-bg-card/85'}`}>
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Heart className={`h-4 w-4 ${on ? 'fill-white' : ''}`} aria-hidden />
+        )}
+      </span>
     </button>
   );
 }

@@ -89,6 +89,13 @@ describe('ListsPickerButton branches', () => {
     expect(within(trigger).getByText('3')).toBeInTheDocument();
   });
 
+  it('renders the inline variant without a count chip while membership is unknown', () => {
+    renderBtn({ variant: 'inline' });
+    const trigger = screen.getByRole('button', { name: t.lists.addToListAria });
+    expect(within(trigger).getByText(t.lists.cardChip)).toBeInTheDocument();
+    expect(trigger.querySelector('.bg-accent')).toBeNull();
+  });
+
   it('closes again when the trigger is clicked while open', async () => {
     renderBtn();
     await openPopover();

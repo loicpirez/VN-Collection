@@ -122,6 +122,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.pointerType !== 'touch') return;
+    if ((e.target as Element).closest('button')) return;
     longPressFired.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
@@ -165,6 +166,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   }
   const showAddButton = enableAdd && !selectable && !data.status && !data.inCollectionBadge && !addedLocal;
   const showAddedBadge = !selectable && !data.status && (data.inCollectionBadge || addedLocal);
+  const showOverflow = (data.status || data.inCollectionBadge) && !selectable;
 
   async function handleAdd(e: React.MouseEvent | React.KeyboardEvent) {
     e.preventDefault();
@@ -226,120 +228,24 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     ? customCoverIsRemote ? null : data.customCover
     : data.localPoster || null;
 
-  const className = `group relative flex flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+  const className = `group relative flex flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
     selectable
       ? `cursor-pointer ${selected ? 'border-accent ring-2 ring-accent shadow-card' : 'border-border hover:border-accent focus-visible:border-accent'}`
       : 'border-border hover:-translate-y-1 hover:border-accent hover:shadow-card focus-visible:-translate-y-1 focus-visible:border-accent focus-visible:shadow-card'
   }`;
 
-  const inner = (
-    <>
-      {selectable && (
-        <span
-          className={`absolute left-2 top-2 z-20 flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
-            selected ? 'border-accent bg-accent text-bg' : 'border-white/60 bg-bg-card/80 text-transparent'
-          }`}
-          aria-hidden
-        >
-          <Check className="h-3 w-3" aria-hidden />
-        </span>
-      )}
-      {selectable && data.favorite && (
-        <>
-          <Star
-            className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" aria-hidden />
-          <span className="sr-only">{t.form.favorite}</span>
-        </>
-      )}
-      {data.inReadingQueue && (
-        <>
-          <BookMarked
-            className="absolute bottom-2 left-2 z-10 h-4 w-4 fill-accent/80 text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" aria-hidden />
-          <span className="sr-only">{t.library.moreFilters.inReadingQueue}</span>
-        </>
-      )}
-      {!selectable && (data.status || data.inCollectionBadge || data.favorite) && (
-        <FavoriteToggleButton
-          vnId={data.id}
-          initial={!!data.favorite}
-          inCollection={!!(data.status || data.inCollectionBadge)}
-        />
-      )}
-      {!selectable && (
-        <ListsPickerButton vnId={data.id} initialMemberCount={data.listCount ?? 0} />
-      )}
-      {!selectable && data.status && (
-        <div className="absolute right-2 top-2 z-10">
-          <StatusBadge status={data.status} />
-        </div>
-      )}
-      {!selectable && (showAddedBadge) && (
-        <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg">
-          <CheckCheck className="h-3 w-3" aria-hidden />
-          {t.search.inCollection}
-        </span>
-      )}
-      {!selectable && onRemoveFromWishlist && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void onRemoveFromWishlist();
-          }}
-          disabled={removingFromWishlist}
-          title={t.wishlist.removeOne}
-          aria-label={t.wishlist.removeOne}
-          className="card-action-overlay absolute left-2 top-11 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {removingFromWishlist ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
-        </button>
-      )}
-      {badge && (
-        <span
-          className={`absolute bottom-[calc(33%+0.5rem)] left-2 z-10 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-card ${
-            badge.tone === 'muted'
-              ? 'bg-bg-card/90 text-muted backdrop-blur'
-              : 'bg-accent text-bg'
-          }`}
-        >
-          {badge.label}
-        </span>
-      )}
-      {data.isFanDisc && (
-        <span
-          className="absolute bottom-[calc(33%+0.5rem)] right-2 z-10 inline-flex items-center gap-1 rounded-md bg-accent-blue/85 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg shadow-card backdrop-blur"
-          title={t.library.fanDiscHint}
-        >
-          <Disc3 className="h-3 w-3" aria-hidden />
-          {t.library.fanDisc}
-        </span>
-      )}
-      {!selectable && showAddButton && (
-        <button
-          type="button"
-          onClick={handleAdd}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
-          }}
-          disabled={adding}
-          className="card-action-overlay absolute right-2 top-2 z-20 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md bg-accent/90 px-3 py-1.5 text-[11px] font-bold text-bg shadow-card hover:bg-accent disabled:opacity-50 can-hover:sm:min-h-0 can-hover:sm:min-w-0 can-hover:sm:px-2 can-hover:sm:py-0.5"
-          title={t.form.add}
-        >
-          <span className="inline-flex h-3 w-3 items-center justify-center">
-            {adding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
-          </span>
-          {t.cardAdd}
-        </button>
-      )}
-      <SafeImage
-        src={posterSrc}
-        localSrc={localSrc}
-        alt={data.title}
-        sexual={data.sexual ?? null}
-        className="aspect-[2/3] w-full"
-      />
-      <div className="flex flex-1 flex-col gap-1 p-3">
+  const cover = (
+    <SafeImage
+      src={posterSrc}
+      localSrc={localSrc}
+      alt={data.title}
+      sexual={data.sexual ?? null}
+      className="aspect-[2/3] w-full"
+    />
+  );
+
+  const details = (
+    <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight" title={titlePair.sub ?? titlePair.main}>
           {titlePair.main}
         </div>
@@ -462,8 +368,130 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
             </div>
           );
         })()}
-      </div>
+    </div>
+  );
+
+  const actions = (
+    <>
+      {(data.status || data.inCollectionBadge || data.favorite) && (
+        <FavoriteToggleButton
+          vnId={data.id}
+          initial={!!data.favorite}
+          inCollection={!!(data.status || data.inCollectionBadge)}
+        />
+      )}
+      <ListsPickerButton vnId={data.id} initialMemberCount={data.listCount ?? 0} />
+      {onRemoveFromWishlist && (
+        <button
+          type="button"
+          onClick={() => void onRemoveFromWishlist()}
+          disabled={removingFromWishlist}
+          title={t.wishlist.removeOne}
+          aria-label={t.wishlist.removeOne}
+          className="card-action-overlay card-action-touch absolute left-2 top-14 z-30 text-bg disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="card-action-visual bg-status-dropped/90">
+            {removingFromWishlist ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
+          </span>
+        </button>
+      )}
+      {showAddButton && (
+        <button
+          type="button"
+          onClick={handleAdd}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleAdd(e);
+          }}
+          disabled={adding}
+          className="card-action-overlay pointer-events-auto absolute right-2 top-2 z-30 inline-flex min-h-[44px] min-w-[44px] items-center justify-center bg-transparent text-[11px] font-bold text-bg disabled:opacity-50 can-hover:sm:min-h-7 can-hover:sm:min-w-0"
+          title={t.form.add}
+        >
+          <span className="card-action-visual gap-1 bg-accent/90 px-2">
+            <span className="inline-flex h-3 w-3 items-center justify-center">
+              {adding ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Plus className="h-3 w-3" aria-hidden />}
+            </span>
+            {t.cardAdd}
+          </span>
+        </button>
+      )}
     </>
+  );
+
+  const coverOverlay = (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 aspect-[2/3]">
+      {selectable && (
+        <span
+          className={`absolute left-2 top-2 z-20 flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+            selected ? 'border-accent bg-accent text-bg' : 'border-white/60 bg-bg-card/80 text-transparent'
+          }`}
+          aria-hidden
+        >
+          <Check className="h-3 w-3" aria-hidden />
+        </span>
+      )}
+      {selectable && data.favorite && (
+        <>
+          <Star className="absolute right-2 top-2 z-10 h-5 w-5 fill-accent text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" aria-hidden />
+          <span className="sr-only">{t.form.favorite}</span>
+        </>
+      )}
+      {data.inReadingQueue && (
+        <>
+          <BookMarked
+            className={`absolute left-2 z-10 h-4 w-4 fill-accent/80 text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] ${badge ? 'bottom-10' : 'bottom-2'}`}
+            aria-hidden
+          />
+          <span className="sr-only">{t.library.moreFilters.inReadingQueue}</span>
+        </>
+      )}
+      {!selectable && data.status && (
+        <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%_-_4rem)]">
+          <StatusBadge status={data.status} className="max-w-full [&>span]:min-w-0 [&>span]:truncate" />
+        </div>
+      )}
+      {!selectable && showAddedBadge && (
+        <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-status-completed px-2 py-0.5 text-[11px] font-bold text-bg">
+          <CheckCheck className="h-3 w-3" aria-hidden />
+          {t.search.inCollection}
+        </span>
+      )}
+      {badge && (
+        <span
+          className={`absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-card ${
+            badge.tone === 'muted'
+              ? 'bg-bg-card/90 text-muted backdrop-blur'
+              : 'bg-accent text-bg'
+          }`}
+        >
+          {badge.label}
+        </span>
+      )}
+      {data.isFanDisc && (
+        <span
+          className={`absolute right-2 z-10 inline-flex items-center gap-1 rounded-md bg-accent-blue/85 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg shadow-card backdrop-blur ${showOverflow ? 'bottom-14' : 'bottom-2'}`}
+          title={t.library.fanDiscHint}
+        >
+          <Disc3 className="h-3 w-3" aria-hidden />
+          {t.library.fanDisc}
+        </span>
+      )}
+      {!selectable && actions}
+      {showOverflow && (
+        <button
+          type="button"
+          aria-label={t.quickActions.title}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+            openMenuAt(rect.right, rect.bottom);
+          }}
+          className="card-action-touch absolute bottom-2 right-2 z-30 text-muted hover:text-white sm:hidden"
+        >
+          <span className="card-action-visual bg-bg-card/90">
+            <MoreVertical className="h-4 w-4" aria-hidden />
+          </span>
+        </button>
+      )}
+    </div>
   );
 
   if (selectable) {
@@ -482,21 +510,16 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         }}
         className={className}
       >
-        {inner}
+        {cover}
+        {details}
+        {coverOverlay}
       </div>
     );
   }
 
-  // Touch-visible overflow button: same surface as the right-click
-  // menu, since touch devices can't trigger contextmenu. Hidden on
-  // sm+ where right-click is the expected gesture.
-  const showOverflow = (data.status || data.inCollectionBadge) && !selectable;
-
   return (
     <>
-      <Link
-        href={`/vn/${data.id}`}
-        prefetch={false}
+      <div
         className={className}
         onContextMenu={onContextMenu}
         onPointerDown={onPointerDown}
@@ -505,23 +528,23 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
         onPointerCancel={clearLongPress}
         onClickCapture={onClickCapture}
       >
-        {inner}
-        {showOverflow && (
-          <button
-            type="button"
-            aria-label={t.quickActions.title}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-              openMenuAt(rect.right, rect.bottom);
-            }}
-            className="absolute bottom-2 right-2 z-30 tap-target inline-flex h-7 w-7 items-center justify-center rounded-md bg-bg-card/90 text-muted shadow-card backdrop-blur hover:text-white sm:hidden"
+        <div className="relative">
+          {cover}
+          <Link
+            href={`/vn/${data.id}`}
+            prefetch={false}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute inset-0 z-10"
           >
-            <MoreVertical className="h-4 w-4" aria-hidden />
-          </button>
-        )}
-      </Link>
+            <span className="sr-only">{titlePair.main}</span>
+          </Link>
+        </div>
+        <Link href={`/vn/${data.id}`} prefetch={false} className="flex min-h-0 flex-1 flex-col focus-visible:outline-none">
+          {details}
+        </Link>
+        {coverOverlay}
+      </div>
       {menuAnchor && (
         <CardContextMenu
           vnId={data.id}

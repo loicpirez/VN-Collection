@@ -60,7 +60,10 @@ describe('ListRemoveVn', () => {
   it('removes an item and refreshes the list', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse());
     renderWithProviders(<ListRemoveVn listId={7} vnId="egs_123" />, { locale: 'en' });
-    fireEvent.click(screen.getByRole('button', { name: t.lists.removeFromList }));
+    const remove = screen.getByRole('button', { name: t.lists.removeFromList });
+    expect(remove).toHaveClass('card-action-touch', 'left-2', 'top-14');
+    expect(remove.firstElementChild).toHaveClass('card-action-visual');
+    fireEvent.click(remove);
 
     await waitFor(() => expect(navigationMocks.refresh).toHaveBeenCalledTimes(1));
     expect(fetch).toHaveBeenCalledWith('/api/lists/7/items?vn=egs_123', expect.objectContaining({ method: 'DELETE' }));

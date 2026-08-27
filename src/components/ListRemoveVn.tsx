@@ -66,9 +66,11 @@ export function ListRemoveVn({ listId, vnId }: { listId: number; vnId: string })
       disabled={busy}
       aria-label={t.lists.removeFromList}
       title={t.lists.removeFromList}
-      className="tap-target absolute right-2 top-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md bg-status-dropped/90 text-bg shadow-card hover:bg-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      className="card-action-touch absolute left-2 top-14 z-30 text-bg transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
     >
-      {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
+      <span className="card-action-visual bg-status-dropped/90">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
+      </span>
     </button>
   );
 }

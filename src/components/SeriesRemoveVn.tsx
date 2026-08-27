@@ -36,7 +36,7 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
   return (
     <button
       type="button"
-      className="tap-target absolute right-1 top-1 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white transition-opacity hover:bg-status-dropped can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      className="card-action-touch absolute left-2 top-14 z-30 text-white transition-opacity can-hover:md:opacity-0 can-hover:md:group-hover:opacity-100 md:group-focus-within:opacity-100"
       aria-label={t.series.removeFromSeries}
       title={t.series.removeFromSeries}
       onClick={async (e) => {
@@ -79,7 +79,9 @@ export function SeriesRemoveVn({ seriesId, vnId }: { seriesId: number; vnId: str
       }}
       disabled={pending || busy}
     >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
+      <span className="card-action-visual bg-status-dropped/90">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
+      </span>
     </button>
   );
 }

@@ -266,7 +266,7 @@ export function SafeImage({
             e.stopPropagation();
             setReveal(true);
           }}
-          className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 text-white backdrop-blur-sm hover:bg-black/40"
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/50 text-white backdrop-blur-sm hover:bg-black/40"
         >
           <ShieldAlert className="h-6 w-6 text-accent" aria-hidden />
           <span className="text-xs font-bold uppercase tracking-wider">{t.settings.r18Blurred}</span>
