@@ -78,7 +78,7 @@ describe('root layout composition', () => {
       title: { template: '%s / VN Collection', default: 'VN Collection' },
       description: dictionaries.en.app.tagline,
     });
-    expect(viewport).toEqual({ width: 'device-width', initialScale: 1, themeColor: '#0b1220' });
+    expect(viewport).toEqual({ width: 'device-width', initialScale: 1, themeColor: '#0c0f14' });
     const html = renderToStaticMarkup(await RootLayout({ children: <span>Body</span> }));
     expect(html).toContain('lang="en"');
     expect(html).toContain('data-vn-mobile-library-return="visible"');

@@ -199,7 +199,7 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
     });
     const initial = await measure();
     assert(Math.abs(initial.bottomGap) <= 1, `quote footer starts ${initial.bottomGap}px from the visual viewport bottom`);
-    assert(initial.backgroundColor !== 'rgba(0, 0, 0, 0)', 'quote footer safe-area surface is transparent');
+    assert(initial.backgroundColor === 'rgb(12, 15, 20)', `quote footer safe-area surface is not opaque: ${initial.backgroundColor}`);
 
     const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
     await toggle.tap();
@@ -569,6 +569,8 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await panel.waitFor({ state: 'visible', timeout: 10000 });
   const slider = panel.locator('input[type="range"]').first();
   const current = Number(await slider.inputValue());
+  const beforeWidth = Number.parseFloat(before);
+  assert(beforeWidth === current, `shelf width starts out of sync (CSS ${beforeWidth}, slider ${current})`);
   const min = Number(await slider.getAttribute('min'));
   const max = Number(await slider.getAttribute('max'));
   const step = Number(await slider.getAttribute('step')) || 4;
@@ -576,36 +578,46 @@ check('shelf display controls change rendered CSS variables', async (page) => {
     ? current + step * 4
     : Math.max(min, current - step * 4);
   assert(target !== current, `shelf width slider has no movable range (${min}..${max})`);
-  const targetSave = page.waitForResponse((response) =>
-    response.url().endsWith('/api/settings') && response.request().method() === 'PATCH',
-  );
+  const widthSave = (expected) => page.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/settings') || response.request().method() !== 'PATCH') return false;
+    try {
+      return response.request().postDataJSON()?.shelf_view_prefs_v1?.cellWidthPx === expected;
+    } catch {
+      return false;
+    }
+  });
+  const targetSave = widthSave(target);
   await slider.fill(String(target));
   await page.waitForFunction(
     (previous) => {
       const element = document.querySelector('.shelf-view-root');
       return element instanceof HTMLElement &&
-        getComputedStyle(element).getPropertyValue('--shelf-cell-w-px') !== previous;
+        Number.parseFloat(getComputedStyle(element).getPropertyValue('--shelf-cell-w-px')) !== previous;
     },
-    before,
+    beforeWidth,
   );
   const targetResponse = await targetSave;
   assert(targetResponse.ok(), `shelf width save failed with HTTP ${targetResponse.status()}`);
-  const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
-  assert(before !== after, `shelf cell width CSS variable did not change (${before} -> ${after})`);
-  const restoreSave = page.waitForResponse((response) =>
-    response.url().endsWith('/api/settings') && response.request().method() === 'PATCH',
+  await page.waitForFunction(() =>
+    document.querySelector('[data-shelf-controls-id="default"] [role="region"]')?.getAttribute('aria-busy') === 'false',
   );
+  const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
+  assert(Number.parseFloat(after) === target, `shelf cell width CSS variable did not reach ${target}px (${before} -> ${after})`);
+  const restoreSave = widthSave(current);
   await slider.fill(String(current));
+  const restoreResponse = await restoreSave;
+  assert(restoreResponse.ok(), `shelf width restore failed with HTTP ${restoreResponse.status()}`);
+  await page.waitForFunction(() =>
+    document.querySelector('[data-shelf-controls-id="default"] [role="region"]')?.getAttribute('aria-busy') === 'false',
+  );
   await page.waitForFunction(
     (expected) => {
       const element = document.querySelector('.shelf-view-root');
       return element instanceof HTMLElement &&
-        getComputedStyle(element).getPropertyValue('--shelf-cell-w-px') === expected;
+        Number.parseFloat(getComputedStyle(element).getPropertyValue('--shelf-cell-w-px')) === expected;
     },
-    before,
+    current,
   );
-  const restoreResponse = await restoreSave;
-  assert(restoreResponse.ok(), `shelf width restore failed with HTTP ${restoreResponse.status()}`);
 });
 
 check('shelf scroll frame clips wide rows and paints fades only at hidden edges', async (page) => {

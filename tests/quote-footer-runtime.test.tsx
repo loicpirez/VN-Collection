@@ -39,9 +39,12 @@ describe('QuoteFooter hover loader', () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
     expect(footer).toHaveClass('visual-viewport-anchor-bottom', 'fixed', 'bottom-0', 'left-0', 'right-0', 'z-layer-footer');
-    expect(footer).toHaveClass('bg-bg/95', 'backdrop-blur');
+    expect(footer).toHaveClass('bg-bg');
+    expect(footer).not.toHaveClass('bg-bg/95', 'backdrop-blur');
     expect(footer).toHaveAttribute('data-visual-viewport-anchor');
     expect(footer).toHaveStyle({ paddingBottom: 'env(safe-area-inset-bottom)' });
+    expect(footer.querySelector('.overflow-hidden')).toHaveClass('bg-bg');
+    expect(footer.querySelector('.overflow-hidden')).not.toHaveClass('bg-bg/95');
     const toggle = screen.getByRole('button', { name: t.quotes.expand });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(toggle).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');

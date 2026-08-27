@@ -67,7 +67,7 @@ export function QuoteFooter() {
       // second `<footer>` here would create nested landmarks that
       // SR users can't easily distinguish.
       data-visual-viewport-anchor
-      className={`visual-viewport-anchor-bottom fixed bottom-0 left-0 right-0 z-layer-footer bg-bg/95 backdrop-blur ${expanded ? 'is-open' : ''}`}
+      className={`visual-viewport-anchor-bottom fixed bottom-0 left-0 right-0 z-layer-footer bg-bg ${expanded ? 'is-open' : ''}`}
       onPointerEnter={(event) => {
         if (event.pointerType === 'mouse') setPointerPreview(true);
       }}
@@ -78,7 +78,7 @@ export function QuoteFooter() {
     >
       <div className="mx-auto max-w-7xl px-6">
         <div
-          className={`overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 transition-[max-height] duration-300 ease-out ${
+          className={`overflow-hidden rounded-t-md border border-b-0 border-border bg-bg transition-[max-height] duration-300 ease-out ${
             expanded ? 'max-h-28' : 'max-h-12 can-hover:sm:max-h-5'
           }`}
         >

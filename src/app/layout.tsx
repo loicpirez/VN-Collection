@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0b1220',
+  themeColor: '#0c0f14',
 };
 
 const BASIC_AUTH_URL_SCRUB_SCRIPT = `
