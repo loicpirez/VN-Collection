@@ -87,15 +87,15 @@ export default async function UpcomingPage({
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="flex flex-wrap items-start gap-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0 flex-1">
             <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
               <CalendarRange className="h-6 w-6 text-accent" aria-hidden /> {t.upcoming.title}
             </h1>
             <p className="mt-1 text-sm text-muted">{t.upcoming.subtitle}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <CardDensitySlider scope="upcoming" />
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <CardDensitySlider scope="upcoming" className="w-full min-w-0 sm:w-auto" />
             {tab === 'anticipated' ? (
               <RefreshScopeButton scope="upcoming-anticipated" lastUpdatedAt={lastUpdatedAt} />
             ) : tab === 'all' ? (

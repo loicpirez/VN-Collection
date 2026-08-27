@@ -248,20 +248,24 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start gap-3">
-        <Tags className="h-7 w-7 text-accent" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">{t.tags.pageTitle}</h1>
-          <p className="text-sm text-muted">
-            {mode === 'vndb' ? t.tags.vndbTabHint : t.tags.pageSubtitle}
-          </p>
+      <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Tags className="h-7 w-7 shrink-0 text-accent" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold">{t.tags.pageTitle}</h1>
+            <p className="text-sm text-muted">
+              {mode === 'vndb' ? t.tags.vndbTabHint : t.tags.pageSubtitle}
+            </p>
+          </div>
         </div>
-        {mode === 'vndb' && !q && !category && (
-          <button type="button" className="btn" onClick={() => setRefreshNonce((n) => n + 1)}>
-            {t.tags.refreshHierarchy}
-          </button>
-        )}
-        <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
+        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+          {mode === 'vndb' && !q && !category && (
+            <button type="button" className="btn" onClick={() => setRefreshNonce((n) => n + 1)}>
+              {t.tags.refreshHierarchy}
+            </button>
+          )}
+          <RefreshScopeButton scope="tags-list" lastUpdatedAt={lastUpdatedAt} />
+        </div>
       </header>
 
       <div role="tablist" aria-label={t.tags.modeSwitcherLabel} onKeyDown={onTablistKeyDown} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">

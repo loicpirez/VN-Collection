@@ -254,7 +254,7 @@ export default async function ShelfPage({
       </Link>
 
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0 flex-1">
             <h1 className="inline-flex items-center gap-2 text-2xl font-bold">
               <Library className="h-6 w-6 text-accent" aria-hidden /> {t.shelf.title}
@@ -281,8 +281,8 @@ export default async function ShelfPage({
             and mounting it consistently keeps the header layout
             stable across the four view modes.
           */}
-          <div className="flex flex-wrap items-center gap-2">
-            <CardDensitySlider scope="shelf" />
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <CardDensitySlider scope="shelf" className="w-full min-w-0 sm:w-auto" />
             {/* Display knobs only relevant to the read-only views. The
                 layout editor owns its own placement geometry and
                 ignores the css variables, so the controls render

@@ -6,11 +6,13 @@ export default async function TagsLoading() {
   const t = await getDict();
   return (
     <SkeletonBoundary label={t.common.loading}>
-      <header className="mb-6 flex flex-wrap items-start gap-3" data-tags-header-skeleton>
-        <SkeletonBlock className="h-7 w-7 rounded-full" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <SkeletonBlock className="h-7 w-40" />
-          <SkeletonBlock className="h-4 w-72 max-w-full" />
+      <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start" data-tags-header-skeleton>
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <SkeletonBlock className="h-7 w-7 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <SkeletonBlock className="h-7 w-40" />
+            <SkeletonBlock className="h-4 w-72 max-w-full" />
+          </div>
         </div>
         <SkeletonBlock className="h-11 w-32 rounded-md" />
       </header>

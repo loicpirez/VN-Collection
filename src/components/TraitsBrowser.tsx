@@ -122,13 +122,17 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
 
   return (
     <DensityScopeProvider scope="traitsList">
-      <header className="mb-6 flex flex-wrap items-start gap-3">
-        <Sparkles className="h-7 w-7 text-accent" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">{t.traits.pageTitle}</h1>
-          <p className="text-sm text-muted">{t.traits.pageSubtitle}</p>
+      <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Sparkles className="h-7 w-7 shrink-0 text-accent" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold">{t.traits.pageTitle}</h1>
+            <p className="text-sm text-muted">{t.traits.pageSubtitle}</p>
+          </div>
         </div>
-        <RefreshScopeButton scope="traits-list" lastUpdatedAt={lastUpdatedAt} />
+        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+          <RefreshScopeButton scope="traits-list" lastUpdatedAt={lastUpdatedAt} />
+        </div>
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">

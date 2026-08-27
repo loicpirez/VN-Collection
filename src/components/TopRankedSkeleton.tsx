@@ -40,13 +40,13 @@ export function TopRankedRouteSkeleton() {
     <>
       <SkeletonBlock className="mb-4 h-11 w-28 md:hidden" />
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
-        <div className="flex flex-wrap items-start gap-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0 flex-1 space-y-2">
             <SkeletonBlock className="h-8 w-52 max-w-full" />
             <SkeletonBlock className="h-4 w-[30rem] max-w-full" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <SkeletonBlock className="h-11 w-36" />
+          <div className="flex min-w-0 flex-wrap gap-2 lg:justify-end">
+            <SkeletonBlock className="h-11 w-full sm:w-36" />
             <SkeletonBlock className="h-11 w-28" />
           </div>
         </div>

@@ -60,7 +60,9 @@ vi.mock('@/lib/files', () => ({
 }));
 
 vi.mock('@/components/CardDensitySlider', () => ({
-  CardDensitySlider: ({ scope }: { scope: string }) => <div data-testid="density">{scope}</div>,
+  CardDensitySlider: ({ scope, className }: { scope: string; className?: string }) => (
+    <div data-testid="density" className={className}>{scope}</div>
+  ),
 }));
 
 vi.mock('@/components/DensityScopeProvider', () => ({
@@ -225,6 +227,8 @@ describe('series detail page runtime', () => {
     expect(html).toContain('src="/files/banner.jpg"');
     expect(html).toContain('src="/files/cover.jpg"');
     expect(html).toContain('Description');
+    expect(html).toContain('lg:grid-cols-[auto_minmax(0,1fr)_auto]');
+    expect(html).toContain('class="w-full min-w-0 lg:w-auto"');
     expect(html).toContain('&quot;listCount&quot;:3');
     expect(html).toContain('&quot;inReadingQueue&quot;:true');
     expect(html).toContain('data-testid="series-remove"');

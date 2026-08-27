@@ -8,14 +8,16 @@ const SERIES_LAYOUT_KEY = 'series_detail_section_layout_v1';
 function HeroSkeleton() {
   return (
     <header className="overflow-hidden rounded-2xl border border-border bg-bg-card" data-series-hero-skeleton>
-      <div className="flex items-start gap-4 p-6">
-        <SkeletonBlock className="h-7 w-7 shrink-0" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <SkeletonBlock className="h-7 w-64 max-w-full" />
-          <SkeletonBlock className="h-4 w-4/5" />
-          <SkeletonBlock className="h-3 w-16" />
+      <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start">
+        <div className="flex min-w-0 items-start gap-4 lg:contents">
+          <SkeletonBlock className="h-7 w-7 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <SkeletonBlock className="h-7 w-64 max-w-full" />
+            <SkeletonBlock className="h-4 w-4/5" />
+            <SkeletonBlock className="h-3 w-16" />
+          </div>
         </div>
-        <SkeletonBlock className="h-[54px] w-36 shrink-0 rounded-md" />
+        <SkeletonBlock className="h-[54px] w-full min-w-0 rounded-md lg:w-56 lg:shrink-0" />
       </div>
     </header>
   );

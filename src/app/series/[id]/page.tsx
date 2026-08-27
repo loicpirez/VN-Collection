@@ -65,27 +65,29 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           />
         </div>
       )}
-      <div className="flex items-start gap-4 p-6">
-        {series.cover_path ? (
-          <SafeImage
-            src={publicUrlFor(series.cover_path) ?? ''}
-            alt={`${series.name} - ${t.series.cover}`}
-            className="h-32 w-24 shrink-0 rounded-lg"
-          />
-        ) : (
-          <Bookmark className="h-7 w-7 text-accent" aria-hidden />
-        )}
-        <div className="min-w-0 flex-1">
-          <h1 className="break-words text-2xl font-bold">{series.name}</h1>
-          {series.description && (
-            <p className="mt-1 whitespace-pre-line text-sm text-muted">{series.description}</p>
+      <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start">
+        <div className="flex min-w-0 items-start gap-4 lg:contents">
+          {series.cover_path ? (
+            <SafeImage
+              src={publicUrlFor(series.cover_path) ?? ''}
+              alt={`${series.name} - ${t.series.cover}`}
+              className="h-32 w-24 shrink-0 rounded-lg"
+            />
+          ) : (
+            <Bookmark className="h-7 w-7 shrink-0 text-accent" aria-hidden />
           )}
-          <div className="mt-2 text-xs text-muted">
-            {items.length} {t.series.vnCount}
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-2xl font-bold">{series.name}</h1>
+            {series.description && (
+              <p className="mt-1 whitespace-pre-line text-sm text-muted">{series.description}</p>
+            )}
+            <div className="mt-2 text-xs text-muted">
+              {items.length} {t.series.vnCount}
+            </div>
           </div>
         </div>
-        <div className="shrink-0">
-          <CardDensitySlider scope="seriesWorks" />
+        <div className="min-w-0 lg:shrink-0">
+          <CardDensitySlider scope="seriesWorks" className="w-full min-w-0 lg:w-auto" />
         </div>
       </div>
     </header>

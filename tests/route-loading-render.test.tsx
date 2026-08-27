@@ -314,6 +314,7 @@ describe('route loading skeletons', () => {
     const html = renderToStaticMarkup(await SeriesDetailLoading());
     expect(html).toContain('data-series-detail-skeleton');
     expect(html).toContain('data-series-hero-skeleton');
+    expect(html).toContain('lg:grid-cols-[auto_minmax(0,1fr)_auto]');
     expect(html).toContain('data-series-works-skeleton');
     expect(html).toContain('data-series-metadata-skeleton');
     expect(html).toContain('md:grid-cols-[140px_1fr]');
