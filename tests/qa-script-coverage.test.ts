@@ -19,6 +19,10 @@ const INTERACTIONS = readFileSync(
   join(ROOT, 'scripts/browser-interactions.mjs'),
   'utf8',
 );
+const RESPONSIVE = readFileSync(
+  join(ROOT, 'scripts/responsive-audit.mjs'),
+  'utf8',
+);
 
 describe('R5-179 — yarn qa is DOM QA gated on .qa', () => {
   it('script defaults to PORT=3100 (the isolated QA server)', () => {
@@ -98,6 +102,24 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toContain('const characterId = characterHref?.match');
     expect(INTERACTIONS).toContain('encodeURIComponent(characterId)');
     expect(INTERACTIONS).toContain('url.pathname === `/character/${characterId}`');
+  });
+});
+
+describe('responsive audit matrix', () => {
+  it('covers the full route inventory across all three browser engines and five viewport classes', () => {
+    expect(RESPONSIVE).toContain('const expectedPageCount = 40');
+    expect(RESPONSIVE).toContain('chromium,');
+    expect(RESPONSIVE).toContain('firefox,');
+    expect(RESPONSIVE).toContain('webkit,');
+    for (const viewport of ['narrow', 'phone', 'landscape', 'tablet', 'desktop']) {
+      expect(RESPONSIVE).toContain(`${viewport}: {`);
+    }
+  });
+
+  it('keeps recovered local-image failures visible without treating them as blocking errors', () => {
+    expect(RESPONSIVE).toContain("document.querySelectorAll('[data-safe-image-fallback-from]')");
+    expect(RESPONSIVE).toContain('recoveredBrowserErrors: classifiedErrors.recovered');
+    expect(RESPONSIVE).toContain('error === `HTTP 404 ${url}`');
   });
 });
 

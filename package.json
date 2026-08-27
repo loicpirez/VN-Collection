@@ -11,6 +11,7 @@
     "qa:prepare": "tsx scripts/prepare-qa-snapshot.ts",
     "qa": "bash scripts/browser-qa.sh",
     "qa:interactions": "node scripts/browser-interactions.mjs",
+    "qa:responsive": "node scripts/responsive-audit.mjs",
     "sentinel": "node scripts/frontend-regression-sentinel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
