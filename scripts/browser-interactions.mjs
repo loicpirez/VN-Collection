@@ -180,26 +180,45 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
   });
   await webkitContext.addInitScript(() => {
     window.localStorage.setItem('vn_tour_completed_v1', '1');
+    Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
+      configurable: true,
+      get: () => 5,
+    });
   });
   const webkitPage = await webkitContext.newPage();
   webkitPage.setDefaultTimeout(15000);
   try {
     await gotoClean(webkitPage, '/');
     const footer = webkitPage.locator('[data-visual-viewport-anchor]');
+    const surface = footer.locator('[data-quote-footer-surface]');
+    const panel = footer.locator('[data-quote-footer-panel]');
     await footer.waitFor({ state: 'visible', timeout: 10000 });
+    await webkitPage.waitForFunction(() => (
+      document.querySelector('[data-visual-viewport-anchor]')?.getAttribute('data-visual-viewport-mode') === 'document'
+    ));
 
     const measure = () => footer.evaluate((element) => {
       const rect = element.getBoundingClientRect();
+      const panel = element.querySelector('[data-quote-footer-panel]');
+      const panelRect = panel?.getBoundingClientRect();
       const viewport = window.visualViewport;
       const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
       return {
         bottomGap: visibleBottom - rect.bottom,
-        backgroundColor: getComputedStyle(element).backgroundColor,
+        leftGap: panelRect?.left ?? Number.NaN,
+        rightGap: window.innerWidth - (panelRect?.right ?? Number.NaN),
+        mode: element.getAttribute('data-visual-viewport-mode'),
+        position: getComputedStyle(element).position,
       };
     });
     const initial = await measure();
     assert(Math.abs(initial.bottomGap) <= 1, `quote footer starts ${initial.bottomGap}px from the visual viewport bottom`);
-    assert(initial.backgroundColor === 'rgb(12, 15, 20)', `quote footer safe-area surface is not opaque: ${initial.backgroundColor}`);
+    assert(initial.mode === 'document', `quote footer did not select document anchoring: ${initial.mode}`);
+    assert(initial.position === 'absolute', `quote footer still uses ${initial.position} positioning on touch WebKit`);
+    assert(Math.abs(initial.leftGap - 12) <= 1, `quote footer starts ${initial.leftGap}px from the page edge`);
+    assert(Math.abs(initial.rightGap - 12) <= 1, `quote footer ends ${initial.rightGap}px from the page edge`);
+    assert(await surface.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgb(12, 15, 20)', 'quote footer safe-area surface is not opaque');
+    assert(await footer.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgba(0, 0, 0, 0)', 'quote footer gutters are not transparent');
 
     const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
     await toggle.tap();
@@ -217,6 +236,12 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
     await webkitPage.waitForTimeout(300);
     const afterScroll = await measure();
     assert(Math.abs(afterScroll.bottomGap) <= 1, `quote footer ends ${afterScroll.bottomGap}px from the visual viewport bottom after scroll`);
+    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
+    await webkitPage.waitForTimeout(300);
+    const afterReverseScroll = await measure();
+    assert(Math.abs(afterReverseScroll.bottomGap) <= 1, `quote footer ends ${afterReverseScroll.bottomGap}px from the visual viewport bottom after reverse scroll`);
+    assert(Math.abs(afterReverseScroll.leftGap - 12) <= 1, `quote footer gutter changed after scroll: ${afterReverseScroll.leftGap}px`);
+    assert(await panel.isVisible(), 'quote footer panel disappeared after reverse scroll');
   } finally {
     await webkitContext.close();
     await webkitBrowser.close();
@@ -567,6 +592,8 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   await page.getByRole('button', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first().click();
   const panel = page.getByRole('region', { name: /Options d'affichage de l'étagère|Shelf display options|表示/i }).first();
   await panel.waitFor({ state: 'visible', timeout: 10000 });
+  const shelfScope = panel.getByRole('button', { name: /Étagère «|Shelf "|棚「|Cette étagère|This shelf|この棚/i }).first();
+  if (await shelfScope.count()) await shelfScope.click();
   const slider = panel.locator('input[type="range"]').first();
   const current = Number(await slider.inputValue());
   const beforeWidth = Number.parseFloat(before);
@@ -578,10 +605,14 @@ check('shelf display controls change rendered CSS variables', async (page) => {
     ? current + step * 4
     : Math.max(min, current - step * 4);
   assert(target !== current, `shelf width slider has no movable range (${min}..${max})`);
-  const widthSave = (expected) => page.waitForResponse((response) => {
+  const widthSave = (expected, allowInheritedReset = false) => page.waitForResponse((response) => {
     if (!response.url().endsWith('/api/settings') || response.request().method() !== 'PATCH') return false;
     try {
-      return response.request().postDataJSON()?.shelf_view_prefs_v1?.cellWidthPx === expected;
+      const body = response.request().postDataJSON();
+      if (body?.shelf_view_prefs_v1?.cellWidthPx === expected) return true;
+      const shelfPrefs = Object.values(body?.shelf_display_overrides_v1?.shelves ?? {});
+      return shelfPrefs.some((prefs) => prefs?.cellWidthPx === expected) ||
+        (allowInheritedReset && shelfPrefs.some((prefs) => Object.keys(prefs ?? {}).length === 0));
     } catch {
       return false;
     }
@@ -603,7 +634,7 @@ check('shelf display controls change rendered CSS variables', async (page) => {
   );
   const after = await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--shelf-cell-w-px') || el.style.getPropertyValue('--shelf-cell-w-px'));
   assert(Number.parseFloat(after) === target, `shelf cell width CSS variable did not reach ${target}px (${before} -> ${after})`);
-  const restoreSave = widthSave(current);
+  const restoreSave = widthSave(current, true);
   await slider.fill(String(current));
   const restoreResponse = await restoreSave;
   assert(restoreResponse.ok(), `shelf width restore failed with HTTP ${restoreResponse.status()}`);
