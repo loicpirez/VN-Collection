@@ -59,7 +59,8 @@ export function QuoteFooter() {
       // component in a `<footer role="contentinfo">` landmark. A
       // second `<footer>` here would create nested landmarks that
       // SR users can't easily distinguish.
-      className={`group fixed bottom-0 left-0 right-0 z-layer-footer ${hovered ? 'is-open' : ''}`}
+      data-visual-viewport-anchor
+      className={`visual-viewport-anchor-bottom group fixed bottom-0 left-0 right-0 z-layer-footer ${hovered ? 'is-open' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}

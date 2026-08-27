@@ -38,7 +38,8 @@ describe('QuoteFooter hover loader', () => {
   it('loads only after interaction and renders linked character and VN attribution', async () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
-    expect(footer).toHaveClass('fixed', 'bottom-0', 'left-0', 'right-0', 'z-layer-footer');
+    expect(footer).toHaveClass('visual-viewport-anchor-bottom', 'fixed', 'bottom-0', 'left-0', 'right-0', 'z-layer-footer');
+    expect(footer).toHaveAttribute('data-visual-viewport-anchor');
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
     expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
