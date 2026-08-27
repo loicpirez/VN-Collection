@@ -77,6 +77,8 @@ describe('ShelfReadOnlyControls', () => {
     const region = screen.getByRole('region', { name: TRIGGER });
     const sliders = within(region).getAllByRole('slider') as HTMLInputElement[];
     // cellWidth, cellHeight, coverScale, rowGap, sectionGap, frontDisplaySize.
+    expect(sliders[0]?.step).toBe('1');
+    expect(sliders[1]?.step).toBe('1');
     const values = ['200', '210', '1.2', '12', '24', '160'];
     sliders.slice(0, 6).forEach((s, i) => {
       fireEvent.change(s, { target: { value: values[i] ?? '100' } });

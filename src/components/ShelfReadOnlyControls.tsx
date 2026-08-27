@@ -435,7 +435,7 @@ export function ShelfReadOnlyControls({
               value={prefs.cellWidthPx}
               min={SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.min}
               max={SHELF_VIEW_PREFS_BOUNDS.cellWidthPx.max}
-              step={4}
+              step={1}
               suffix="px"
               onChange={(n) => void persist({ ...prefs, cellWidthPx: n, cellSizePx: n })}
             />
@@ -444,7 +444,7 @@ export function ShelfReadOnlyControls({
               value={prefs.cellHeightPx}
               min={SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.min}
               max={SHELF_VIEW_PREFS_BOUNDS.cellHeightPx.max}
-              step={4}
+              step={1}
               suffix="px"
               onChange={(n) => void persist({ ...prefs, cellHeightPx: n })}
             />
