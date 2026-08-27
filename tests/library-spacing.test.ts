@@ -27,7 +27,9 @@ describe('LibraryClient grid spacing', () => {
   it('comfortable mode uses gap-3 (consistent with every other listing grid)', () => {
     // The ternary in `<ListingGrid>` keys on `dense`; the comfortable
     // branch is the second arm.
-    expect(src).toMatch(/dense \? 'grid gap-4' : 'grid gap-3'/);
+    expect(src).toMatch(
+      /dense \? 'library-card-lanes grid gap-4' : 'library-card-lanes grid gap-3'/,
+    );
   });
 
   it('does not regress to the old gap-5 / gap-3 split', () => {

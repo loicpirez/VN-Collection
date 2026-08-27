@@ -93,6 +93,7 @@ describe('virtual grid window calculation', () => {
 describe('LibraryClient virtual grid wiring', () => {
   const source = readFileSync(join(__dirname, '..', 'src/components/LibraryClient.tsx'), 'utf8');
   const gridBody = source.split('function Grid({')[1]?.split('\nconst MemoCard')[0] ?? '';
+  const memoCardBody = source.split('const MemoCard')[1]?.split('\ninterface Group')[0] ?? '';
 
   it('renders only the computed item slice in the normal grid branch', () => {
     expect(gridBody).toContain('calculateVirtualGridWindow');
@@ -103,6 +104,9 @@ describe('LibraryClient virtual grid wiring', () => {
 
   it('marks the live grid when virtualization is active for browser QA', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
+    expect(gridBody).toContain('data-library-card-lanes');
+    expect(memoCardBody).toContain('<MasonryGridItem');
+    expect(gridBody).toContain("'--library-card-lane-gap': `${gapPx}px`");
     expect(gridBody).toContain('position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}');
     expect(gridBody).toContain('setSize={items.length}');
     expect(gridBody).not.toContain('aria-rowcount');

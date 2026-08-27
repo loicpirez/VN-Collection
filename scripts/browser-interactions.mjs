@@ -170,7 +170,7 @@ check('WebKit navigation remains bounded and navigable', async () => {
   }
 });
 
-check('WebKit quote footer remains bottom anchored and touch reversible', async () => {
+check('WebKit mobile footer stays in flow and card lanes pack natural heights', async () => {
   const webkitBrowser = await webkit.launch({ headless: true });
   const webkitContext = await webkitBrowser.newContext({
     viewport: { width: 390, height: 844 },
@@ -180,6 +180,7 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
   });
   await webkitContext.addInitScript(() => {
     window.localStorage.setItem('vn_tour_completed_v1', '1');
+    Reflect.deleteProperty(window, 'EventSource');
     Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
       configurable: true,
       get: () => 5,
@@ -191,35 +192,92 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
     await gotoClean(webkitPage, '/');
     const footer = webkitPage.locator('[data-visual-viewport-anchor]');
     const surface = footer.locator('[data-quote-footer-surface]');
-    const panel = footer.locator('[data-quote-footer-panel]');
+    const lanes = webkitPage.locator('[data-library-card-lanes]').first();
     await footer.waitFor({ state: 'visible', timeout: 10000 });
+    await lanes.waitFor({ state: 'visible', timeout: 10000 });
+    await lanes.evaluate((element) => {
+      element.parentElement?.style.setProperty('--card-density-px', '140px');
+      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+      window.dispatchEvent(new Event('resize'));
+    });
+    await webkitPage.waitForTimeout(200);
     await webkitPage.waitForFunction(() => (
-      document.querySelector('[data-visual-viewport-anchor]')?.getAttribute('data-visual-viewport-mode') === 'document'
+      document.querySelector('[data-visual-viewport-anchor]')?.getAttribute('data-visual-viewport-mode') === 'flow'
     ));
 
-    const measure = () => footer.evaluate((element) => {
+    const initial = await footer.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       const panel = element.querySelector('[data-quote-footer-panel]');
       const panelRect = panel?.getBoundingClientRect();
+      const mainRect = document.querySelector('main')?.getBoundingClientRect();
       const viewport = window.visualViewport;
       const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
       return {
-        bottomGap: visibleBottom - rect.bottom,
+        footerTop: rect.top + window.scrollY,
+        mainBottom: (mainRect?.bottom ?? 0) + window.scrollY,
+        viewportGap: rect.top - visibleBottom,
         leftGap: panelRect?.left ?? Number.NaN,
         rightGap: window.innerWidth - (panelRect?.right ?? Number.NaN),
         mode: element.getAttribute('data-visual-viewport-mode'),
         position: getComputedStyle(element).position,
       };
     });
-    const initial = await measure();
-    assert(Math.abs(initial.bottomGap) <= 1, `quote footer starts ${initial.bottomGap}px from the visual viewport bottom`);
-    assert(initial.mode === 'document', `quote footer did not select document anchoring: ${initial.mode}`);
-    assert(initial.position === 'absolute', `quote footer still uses ${initial.position} positioning on touch WebKit`);
+    assert(initial.mode === 'flow', `quote footer did not select document flow: ${initial.mode}`);
+    assert(initial.position === 'static', `quote footer still uses ${initial.position} positioning on touch WebKit`);
+    assert(initial.footerTop >= initial.mainBottom - 1, 'quote footer is not ordered after the main content');
+    assert(initial.viewportGap >= 0, `quote footer overlaps the initial viewport by ${-initial.viewportGap}px`);
     assert(Math.abs(initial.leftGap - 12) <= 1, `quote footer starts ${initial.leftGap}px from the page edge`);
     assert(Math.abs(initial.rightGap - 12) <= 1, `quote footer ends ${initial.rightGap}px from the page edge`);
     assert(await surface.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgb(12, 15, 20)', 'quote footer safe-area surface is not opaque');
     assert(await footer.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgba(0, 0, 0, 0)', 'quote footer gutters are not transparent');
 
+    const laneGeometry = await lanes.evaluate((element) => {
+      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+      const rowGap = Number.parseFloat(getComputedStyle(element).rowGap);
+      const items = Array.from(element.querySelectorAll('[data-masonry-grid-item]')).map((item) => {
+        const rect = item.getBoundingClientRect();
+        return { left: Math.round(rect.left), top: rect.top, bottom: rect.bottom };
+      });
+      const columns = new Map();
+      for (const item of items) {
+        const column = columns.get(item.left) ?? [];
+        column.push(item);
+        columns.set(item.left, column);
+      }
+      const verticalGaps = [];
+      for (const column of columns.values()) {
+        column.sort((a, b) => a.top - b.top);
+        for (let index = 1; index < column.length; index += 1) {
+          verticalGaps.push(column[index].top - column[index - 1].bottom);
+        }
+      }
+      return {
+        display: getComputedStyle(element).display,
+        itemCount: items.length,
+        columnCount: columns.size,
+        rowGap,
+        maxVerticalGap: Math.max(...verticalGaps),
+      };
+    });
+    assert(laneGeometry.display === 'grid-lanes', `WebKit did not use Grid Lanes: ${laneGeometry.display}`);
+    assert(laneGeometry.itemCount >= 4, `library rendered only ${laneGeometry.itemCount} cards for lane QA`);
+    assert(laneGeometry.columnCount >= 2, `library rendered only ${laneGeometry.columnCount} card column`);
+    assert(
+      laneGeometry.maxVerticalGap <= laneGeometry.rowGap + 1,
+      `card lanes leave a ${laneGeometry.maxVerticalGap}px vertical hole for a ${laneGeometry.rowGap}px gap`,
+    );
+
+    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
+    await webkitPage.waitForTimeout(400);
+    const middleGap = await footer.evaluate((element) => {
+      const viewport = window.visualViewport;
+      const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      return element.getBoundingClientRect().top - visibleBottom;
+    });
+    assert(middleGap >= 0, `quote footer overlays cards mid-scroll by ${-middleGap}px`);
+
+    await webkitPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await webkitPage.waitForTimeout(500);
     const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
     await toggle.tap();
     assert(await toggle.getAttribute('aria-expanded') === 'true', 'quote footer did not open from a touch click');
@@ -231,20 +289,73 @@ check('WebKit quote footer remains bottom anchored and touch reversible', async 
     assert(await toggle.getAttribute('aria-expanded') === 'false', 'quote footer did not close while its toggle retained focus');
     assert(await webkitPage.evaluate(() => document.activeElement?.getAttribute('aria-controls') === 'quote-footer-content'), 'quote footer toggle lost focus while closing');
     assert(await footer.locator('#quote-footer-content').getAttribute('hidden') !== null, 'closed quote content remains exposed');
-
-    await webkitPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await webkitPage.waitForTimeout(300);
-    const afterScroll = await measure();
-    assert(Math.abs(afterScroll.bottomGap) <= 1, `quote footer ends ${afterScroll.bottomGap}px from the visual viewport bottom after scroll`);
-    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
-    await webkitPage.waitForTimeout(300);
-    const afterReverseScroll = await measure();
-    assert(Math.abs(afterReverseScroll.bottomGap) <= 1, `quote footer ends ${afterReverseScroll.bottomGap}px from the visual viewport bottom after reverse scroll`);
-    assert(Math.abs(afterReverseScroll.leftGap - 12) <= 1, `quote footer gutter changed after scroll: ${afterReverseScroll.leftGap}px`);
-    assert(await panel.isVisible(), 'quote footer panel disappeared after reverse scroll');
   } finally {
     await webkitContext.close();
     await webkitBrowser.close();
+  }
+});
+
+check('Chromium masonry fallback packs natural-height library cards', async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  try {
+    await gotoClean(page, '/');
+    const lanes = page.locator('[data-library-card-lanes]').first();
+    await lanes.waitFor({ state: 'visible', timeout: 10000 });
+    await lanes.evaluate((element) => {
+      element.parentElement?.style.setProperty('--card-density-px', '140px');
+      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+      window.dispatchEvent(new Event('resize'));
+    });
+    await page.waitForFunction(() => {
+      const items = Array.from(document.querySelectorAll('[data-library-card-lanes] [data-masonry-grid-item]'));
+      return items.length >= 4 && items.every((item) => item.style.gridRowEnd.startsWith('span '));
+    });
+    const geometry = await lanes.evaluate((element) => {
+      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+      const items = Array.from(element.querySelectorAll('[data-masonry-grid-item]')).map((item) => {
+        const rect = item.getBoundingClientRect();
+        return {
+          left: Math.round(rect.left),
+          top: rect.top,
+          bottom: rect.bottom - Number.parseFloat(getComputedStyle(item).paddingBottom),
+          height: rect.height,
+          paddingBottom: Number.parseFloat(getComputedStyle(item).paddingBottom),
+          rowEnd: item.style.gridRowEnd,
+        };
+      });
+      const columns = new Map();
+      for (const item of items) {
+        const column = columns.get(item.left) ?? [];
+        column.push(item);
+        columns.set(item.left, column);
+      }
+      const verticalGaps = [];
+      for (const column of columns.values()) {
+        column.sort((a, b) => a.top - b.top);
+        for (let index = 1; index < column.length; index += 1) {
+          verticalGaps.push(column[index].top - column[index - 1].bottom);
+        }
+      }
+      return {
+        display: getComputedStyle(element).display,
+        itemCount: items.length,
+        columnCount: columns.size,
+        uniqueHeights: new Set(items.map((item) => Math.round(item.height))).size,
+        minPadding: Math.min(...items.map((item) => item.paddingBottom)),
+        maxPadding: Math.max(...items.map((item) => item.paddingBottom)),
+        maxVerticalGap: Math.max(...verticalGaps),
+        measuredRows: items.every((item) => item.rowEnd.startsWith('span ')),
+      };
+    });
+    assert(geometry.display === 'grid', `Chromium fallback uses ${geometry.display} instead of grid`);
+    assert(geometry.itemCount >= 4, `fallback rendered only ${geometry.itemCount} cards`);
+    assert(geometry.columnCount >= 2, `fallback rendered only ${geometry.columnCount} card column`);
+    assert(geometry.uniqueHeights > 1, 'fallback QA did not include unequal card heights');
+    assert(geometry.measuredRows, 'fallback left at least one card without a measured row span');
+    assert(geometry.minPadding === 12 && geometry.maxPadding === 12, 'fallback card gap is not exactly 12px');
+    assert(geometry.maxVerticalGap <= 13, `fallback leaves a ${geometry.maxVerticalGap}px vertical hole`);
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 900 });
   }
 });
 

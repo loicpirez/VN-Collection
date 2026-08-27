@@ -7,7 +7,6 @@ const ANCHOR_SELECTOR = '[data-visual-viewport-anchor]';
 const SETTLE_DELAYS_MS = [120, 360] as const;
 
 type VisualViewportGeometry = Pick<VisualViewport, 'height' | 'offsetTop'>;
-type DocumentViewportGeometry = VisualViewportGeometry & Partial<Pick<VisualViewport, 'pageTop'>>;
 
 export function calculateVisualViewportAnchorShift(
   visualViewport: VisualViewportGeometry | null,
@@ -27,51 +26,19 @@ export function calculateVisualViewportAnchorShift(
   return Math.round(shift * 100) / 100;
 }
 
-export function calculateDocumentViewportAnchorTop(
-  visualViewport: DocumentViewportGeometry | null,
-  scrollY: number,
-  innerHeight: number,
-  documentHeight: number,
-  anchorHeight: number,
-): number | null {
-  const viewportHeight = visualViewport?.height ?? innerHeight;
-  const reportedPageTop = visualViewport?.pageTop;
-  const pageTop = reportedPageTop !== undefined && Number.isFinite(reportedPageTop)
-    ? reportedPageTop
-    : scrollY + (visualViewport?.offsetTop ?? 0);
-  if (
-    viewportHeight <= 0 ||
-    documentHeight <= 0 ||
-    anchorHeight < 0 ||
-    !Number.isFinite(viewportHeight) ||
-    !Number.isFinite(pageTop) ||
-    !Number.isFinite(documentHeight) ||
-    !Number.isFinite(anchorHeight)
-  ) return null;
-  const boundedPageTop = Math.min(Math.max(pageTop, 0), Math.max(documentHeight - viewportHeight, 0));
-  return Math.round((boundedPageTop + viewportHeight - anchorHeight) * 100) / 100;
-}
-
-export function shouldUseDocumentViewportAnchor(
-  maxTouchPoints: number,
-  supportsWebkitTouchCallout: boolean,
-  userAgent: string,
-): boolean {
-  const isWebKit = /AppleWebKit\//.test(userAgent);
-  const isBlinkDesktop = /(?:Chrome|Chromium|Edg|OPR)\//.test(userAgent);
-  return maxTouchPoints > 0 && (supportsWebkitTouchCallout || (isWebKit && !isBlinkDesktop));
-}
-
 export function VisualViewportAnchor() {
   useEffect(() => {
     const root = document.documentElement;
-    const viewport = window.visualViewport;
     const anchor = document.querySelector<HTMLElement>(ANCHOR_SELECTOR);
-    const useDocumentAnchor = shouldUseDocumentViewportAnchor(
-      navigator.maxTouchPoints,
-      CSS.supports('-webkit-touch-callout', 'none'),
-      navigator.userAgent,
-    );
+    if (!anchor) return;
+    if (getComputedStyle(anchor).position !== 'fixed') {
+      anchor.dataset.visualViewportMode = 'flow';
+      root.style.removeProperty(SHIFT_PROPERTY);
+      return () => {
+        delete anchor.dataset.visualViewportMode;
+      };
+    }
+    const viewport = window.visualViewport;
     let primaryFrame: number | null = null;
     let settleFrame: number | null = null;
     let settleTimers: number[] = [];
@@ -79,23 +46,6 @@ export function VisualViewportAnchor() {
     let resizeObserver: ResizeObserver | null = null;
 
     const writePosition = () => {
-      if (!anchor) return;
-      if (useDocumentAnchor) {
-        const nextTop = calculateDocumentViewportAnchorTop(
-          window.visualViewport,
-          window.scrollY,
-          window.innerHeight,
-          document.documentElement.scrollHeight,
-          anchor.getBoundingClientRect().height,
-        );
-        if (nextTop === null) return;
-        anchor.dataset.visualViewportMode = 'document';
-        anchor.style.position = 'absolute';
-        anchor.style.top = `${nextTop}px`;
-        anchor.style.bottom = 'auto';
-        anchor.style.transform = 'none';
-        return;
-      }
       anchor.dataset.visualViewportMode = 'fixed';
       const nextShift = calculateVisualViewportAnchorShift(
         window.visualViewport,
@@ -123,7 +73,6 @@ export function VisualViewportAnchor() {
     };
     const scheduleShift = () => {
       cancelScheduled();
-      if (useDocumentAnchor) writePosition();
       primaryFrame = window.requestAnimationFrame(() => {
         primaryFrame = null;
         writePosition();
@@ -137,7 +86,7 @@ export function VisualViewportAnchor() {
 
     writePosition();
     scheduleShift();
-    if (anchor && typeof ResizeObserver !== 'undefined') {
+    if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(scheduleShift);
       resizeObserver.observe(anchor);
     }
@@ -163,13 +112,7 @@ export function VisualViewportAnchor() {
       window.removeEventListener('pageshow', scheduleShift);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       resizeObserver?.disconnect();
-      if (anchor) {
-        delete anchor.dataset.visualViewportMode;
-        anchor.style.removeProperty('position');
-        anchor.style.removeProperty('top');
-        anchor.style.removeProperty('bottom');
-        anchor.style.removeProperty('transform');
-      }
+      delete anchor.dataset.visualViewportMode;
       root.style.removeProperty(SHIFT_PROPERTY);
     };
   }, []);

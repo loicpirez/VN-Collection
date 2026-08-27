@@ -293,6 +293,12 @@ describe('responsive tap targets', () => {
     expect(quoteFooter).toContain('can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0');
     const globals = source('src/app/globals.css');
     expect(globals).toContain('.visual-viewport-anchor-bottom[data-visual-viewport-anchor]');
+    expect(globals).toContain('position: static');
+    expect(globals).toContain('@media (hover: hover) and (pointer: fine)');
+    expect(globals).toContain('position: fixed');
+    expect(globals).toContain('@supports (display: grid-lanes)');
+    expect(globals).toContain('display: grid-lanes !important');
+    expect(globals).toContain('grid-auto-flow: row dense');
     const downloadStatus = source('src/components/DownloadStatusBar.tsx');
     expect(downloadStatus).toContain('className="visual-viewport-anchor-bottom fixed bottom-16');
     expect(downloadStatus).toContain('can-hover:sm:bottom-5');
