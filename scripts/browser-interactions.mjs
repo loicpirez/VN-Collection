@@ -170,6 +170,59 @@ check('WebKit navigation remains bounded and navigable', async () => {
   }
 });
 
+check('WebKit quote footer remains bottom anchored and touch reversible', async () => {
+  const webkitBrowser = await webkit.launch({ headless: true });
+  const webkitContext = await webkitBrowser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    hasTouch: true,
+    isMobile: true,
+  });
+  await webkitContext.addInitScript(() => {
+    window.localStorage.setItem('vn_tour_completed_v1', '1');
+  });
+  const webkitPage = await webkitContext.newPage();
+  webkitPage.setDefaultTimeout(15000);
+  try {
+    await gotoClean(webkitPage, '/');
+    const footer = webkitPage.locator('[data-visual-viewport-anchor]');
+    await footer.waitFor({ state: 'visible', timeout: 10000 });
+
+    const measure = () => footer.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      return {
+        bottomGap: visibleBottom - rect.bottom,
+        backgroundColor: getComputedStyle(element).backgroundColor,
+      };
+    });
+    const initial = await measure();
+    assert(Math.abs(initial.bottomGap) <= 1, `quote footer starts ${initial.bottomGap}px from the visual viewport bottom`);
+    assert(initial.backgroundColor !== 'rgba(0, 0, 0, 0)', 'quote footer safe-area surface is transparent');
+
+    const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
+    await toggle.tap();
+    assert(await toggle.getAttribute('aria-expanded') === 'true', 'quote footer did not open from a touch click');
+    await toggle.tap();
+    assert(await toggle.getAttribute('aria-expanded') === 'false', 'quote footer did not close from the second touch');
+    await toggle.tap();
+    await toggle.focus();
+    await toggle.press('Enter');
+    assert(await toggle.getAttribute('aria-expanded') === 'false', 'quote footer did not close while its toggle retained focus');
+    assert(await webkitPage.evaluate(() => document.activeElement?.getAttribute('aria-controls') === 'quote-footer-content'), 'quote footer toggle lost focus while closing');
+    assert(await footer.locator('#quote-footer-content').getAttribute('hidden') !== null, 'closed quote content remains exposed');
+
+    await webkitPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await webkitPage.waitForTimeout(300);
+    const afterScroll = await measure();
+    assert(Math.abs(afterScroll.bottomGap) <= 1, `quote footer ends ${afterScroll.bottomGap}px from the visual viewport bottom after scroll`);
+  } finally {
+    await webkitContext.close();
+    await webkitBrowser.close();
+  }
+});
+
 check('settings modal tabs are reachable and non-empty', async (page) => {
   for (const url of ['/', '/shelf', '/vn/v26180']) {
     await gotoClean(page, url);

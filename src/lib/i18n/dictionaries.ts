@@ -2230,7 +2230,9 @@ export const dictionaries = {
       empty: 'Aucune citation.',
       randomTitle: 'Citation du moment',
       shuffle: 'Nouvelle citation',
-      hoverHint: 'Survoler pour révéler...',
+      hoverHint: 'Toucher ou survoler pour révéler...',
+      expand: 'Afficher la citation',
+      collapse: 'Masquer la citation',
     },
     media: {
       section: 'Médias',
@@ -5994,7 +5996,9 @@ export const dictionaries = {
       empty: 'No quote.',
       randomTitle: 'Quote of the moment',
       shuffle: 'New quote',
-      hoverHint: 'Hover to reveal...',
+      hoverHint: 'Tap or hover to reveal...',
+      expand: 'Show quote',
+      collapse: 'Hide quote',
     },
     media: {
       section: 'Media',
@@ -9755,7 +9759,9 @@ export const dictionaries = {
       empty: '台詞がありません。',
       randomTitle: '今の名台詞',
       shuffle: '別の台詞',
-      hoverHint: 'カーソルを合わせて表示...',
+      hoverHint: 'タップまたはカーソルで表示...',
+      expand: '台詞を表示',
+      collapse: '台詞を隠す',
     },
     media: {
       section: 'メディア',

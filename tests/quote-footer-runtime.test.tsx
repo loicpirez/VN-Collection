@@ -39,36 +39,53 @@ describe('QuoteFooter hover loader', () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
     expect(footer).toHaveClass('visual-viewport-anchor-bottom', 'fixed', 'bottom-0', 'left-0', 'right-0', 'z-layer-footer');
+    expect(footer).toHaveClass('bg-bg/95', 'backdrop-blur');
     expect(footer).toHaveAttribute('data-visual-viewport-anchor');
+    expect(footer).toHaveStyle({ paddingBottom: 'env(safe-area-inset-bottom)' });
+    const toggle = screen.getByRole('button', { name: t.quotes.expand });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
     expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
     expect(footer.querySelector('.max-h-12')).toBeInTheDocument();
-    expect(footer.querySelector('.py-0.can-hover\\:sm\\:py-0\\.5')).toBeInTheDocument();
+    expect(screen.getByText(t.quotes.hoverHint)).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
-    fireEvent.mouseEnter(footer);
+    fireEvent.pointerEnter(footer, { pointerType: 'mouse' });
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]');
     expect(refresh).not.toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0');
+    expect(screen.getByRole('button', { name: t.quotes.collapse })).toHaveAttribute('aria-expanded', 'true');
     expect(await screen.findByText(/Quoted line/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Heroine/ })).toHaveAttribute('href', '/character/c90001');
     expect(screen.getByRole('link', { name: 'Visual novel' })).toHaveAttribute('href', '/vn/v90001');
     expect(screen.getByTestId('avatar')).toBeInTheDocument();
-    fireEvent.mouseLeave(footer);
-    fireEvent.focus(footer);
+    fireEvent.pointerLeave(footer, { pointerType: 'mouse' });
+    fireEvent.focus(toggle);
     fireEvent.touchStart(footer);
+    expect(footer).not.toHaveClass('is-open');
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('does not expand at swipe start and toggles on a deliberate footer tap', () => {
+  it('ignores touch hover emulation and closes from the focused mobile toggle', () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
+    const toggle = screen.getByRole('button', { name: t.quotes.expand });
     fireEvent.touchStart(footer);
+    fireEvent.pointerEnter(footer, { pointerType: 'touch' });
+    fireEvent.pointerLeave(footer, { pointerType: 'touch' });
     expect(footer).not.toHaveClass('is-open');
     expect(global.fetch).not.toHaveBeenCalled();
-    fireEvent.click(footer);
+    fireEvent.click(toggle);
     expect(footer).toHaveClass('is-open');
-    fireEvent.click(footer);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAccessibleName(t.quotes.collapse);
+    toggle.focus();
+    fireEvent.click(toggle);
     expect(footer).not.toHaveClass('is-open');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveAccessibleName(t.quotes.expand);
+    expect(toggle).toHaveFocus();
+    expect(document.getElementById('quote-footer-content')).not.toBeVisible();
   });
 
   it('renders the loading skeleton and replaces it with a VN-only attribution', async () => {
@@ -77,7 +94,7 @@ describe('QuoteFooter hover loader', () => {
       resolveFetch = resolve;
     }));
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
-    fireEvent.click(container.firstElementChild as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: t.quotes.expand }));
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3);
     await act(async () => {
       resolveFetch(quoteResponse(null));
@@ -99,7 +116,7 @@ describe('QuoteFooter hover loader', () => {
       }));
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
-    fireEvent.mouseEnter(footer);
+    fireEvent.pointerEnter(footer, { pointerType: 'mouse' });
     expect(await screen.findByText('quote failed')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.quotes.shuffle }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(t.common.error));
@@ -112,7 +129,7 @@ describe('QuoteFooter hover loader', () => {
       return new Promise<Response>(() => {});
     });
     const { container, unmount } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
-    fireEvent.mouseEnter(container.firstElementChild as HTMLElement);
+    fireEvent.pointerEnter(container.firstElementChild as HTMLElement, { pointerType: 'mouse' });
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('button', { name: t.quotes.shuffle })).toBeDisabled();
     unmount();

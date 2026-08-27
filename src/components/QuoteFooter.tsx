@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { MessageSquareQuote, RefreshCcw, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, MessageSquareQuote, RefreshCcw } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
 import { QuoteAvatar } from './QuoteAvatar';
 import { ErrorAlert } from './ErrorAlert';
@@ -15,7 +15,8 @@ export function QuoteFooter() {
   const [quote, setQuote] = useState<VndbQuote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hovered, setHovered] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [pointerPreview, setPointerPreview] = useState(false);
   const fetchedRef = useRef(false);
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -45,13 +46,19 @@ export function QuoteFooter() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Load only when the user actually hovers - never on page load.
+  const expanded = open || pointerPreview;
+
   useEffect(() => {
-    if (hovered && !fetchedRef.current) {
+    if (expanded && !fetchedRef.current) {
       fetchedRef.current = true;
       load();
     }
-  }, [hovered, load]);
+  }, [expanded, load]);
+
+  const toggle = () => {
+    setOpen(!expanded);
+    setPointerPreview(false);
+  };
 
   return (
     <div
@@ -60,31 +67,42 @@ export function QuoteFooter() {
       // second `<footer>` here would create nested landmarks that
       // SR users can't easily distinguish.
       data-visual-viewport-anchor
-      className={`visual-viewport-anchor-bottom group fixed bottom-0 left-0 right-0 z-layer-footer ${hovered ? 'is-open' : ''}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onClick={(event) => {
-        if ((event.target as Element).closest('a, button')) return;
-        setHovered((open) => !open);
+      className={`visual-viewport-anchor-bottom fixed bottom-0 left-0 right-0 z-layer-footer bg-bg/95 backdrop-blur ${expanded ? 'is-open' : ''}`}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') setPointerPreview(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') setPointerPreview(false);
       }}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="mx-auto max-w-7xl px-6">
-        <div className="max-h-12 overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out group-hover:max-h-28 group-focus-within:max-h-28 group-[.is-open]:max-h-28 can-hover:sm:max-h-5">
-          <div className={`flex items-center gap-2 px-3 py-0 text-[10px] can-hover:sm:py-0.5 ${hovered ? 'min-h-[44px]' : 'min-h-[44px] can-hover:sm:min-h-0'}`}>
-            <MessageSquareQuote className="h-3 w-3 shrink-0 text-muted transition-colors can-hover:group-hover:text-accent" aria-hidden />
-            <span className="shrink-0 font-medium uppercase tracking-wider text-muted/70 transition-colors group-hover:text-muted">
-              {t.quotes.randomTitle}
-            </span>
-            <span
-              className={`flex-1 truncate text-muted/50 transition-opacity duration-200 ${
-                hovered ? 'opacity-0' : 'opacity-100'
-              }`}
-              aria-hidden="true"
+        <div
+          className={`overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 transition-[max-height] duration-300 ease-out ${
+            expanded ? 'max-h-28' : 'max-h-12 can-hover:sm:max-h-5'
+          }`}
+        >
+          <div className="flex items-center text-[10px]">
+            <button
+              type="button"
+              onClick={toggle}
+              className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 px-3 text-left text-muted hover:text-white can-hover:sm:min-h-0 can-hover:sm:py-0.5"
+              aria-expanded={expanded}
+              aria-controls="quote-footer-content"
+              aria-label={expanded ? t.quotes.collapse : t.quotes.expand}
+              title={expanded ? t.quotes.collapse : t.quotes.expand}
             >
-              {t.quotes.hoverHint}
-            </span>
+              <MessageSquareQuote className="h-3 w-3 shrink-0 text-muted" aria-hidden />
+              <span className="shrink-0 font-medium uppercase tracking-wider text-muted/70">
+                {t.quotes.randomTitle}
+              </span>
+              <span className={`flex-1 truncate text-muted/50 transition-opacity duration-200 ${expanded ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true">
+                {t.quotes.hoverHint}
+              </span>
+              {expanded
+                ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                : <ChevronUp className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+            </button>
             <button
               type="button"
               onClick={(e) => {
@@ -93,10 +111,8 @@ export function QuoteFooter() {
                 load();
               }}
               disabled={loading}
-              className={`inline-flex shrink-0 items-center justify-center rounded text-muted transition-opacity duration-200 hover:text-white disabled:opacity-50 ${
-                hovered
-                  ? 'min-h-[44px] min-w-[44px] opacity-100'
-                  : 'min-h-[44px] min-w-[44px] opacity-100 can-hover:sm:pointer-events-none can-hover:sm:h-3 can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0'
+              className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-muted transition-opacity duration-200 hover:text-white disabled:opacity-50 ${
+                expanded ? 'opacity-100' : 'opacity-100 can-hover:sm:pointer-events-none can-hover:sm:h-3 can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0'
               }`}
               aria-label={t.quotes.shuffle}
               title={t.quotes.shuffle}
@@ -106,9 +122,9 @@ export function QuoteFooter() {
           </div>
 
           <div
-            className={`px-3 pb-2 transition-opacity duration-300 ${
-              hovered ? 'opacity-100 delay-75' : 'opacity-0'
-            }`}
+            id="quote-footer-content"
+            hidden={!expanded}
+            className="px-3 pb-2"
           >
             {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
             {!error && !quote && loading && (

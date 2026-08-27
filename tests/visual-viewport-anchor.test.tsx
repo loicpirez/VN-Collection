@@ -20,6 +20,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   restoreProperty(window, 'visualViewport', originalVisualViewport);
   restoreProperty(document, 'visibilityState', originalVisibilityState);
   vi.restoreAllMocks();
@@ -36,7 +37,8 @@ describe('visual viewport anchor', () => {
     expect(calculateVisualViewportAnchorShift({ offsetTop: Number.POSITIVE_INFINITY, height: 700 }, 900, 0)).toBeNull();
   });
 
-  it('tracks measured viewport changes, coalesces frames, and cleans up', () => {
+  it('settles delayed Safari viewport geometry, coalesces events, and cleans up', () => {
+    vi.useFakeTimers();
     const viewport = new EventTarget();
     Object.defineProperties(viewport, {
       height: { configurable: true, value: 700, writable: true },
@@ -71,45 +73,71 @@ describe('visual viewport anchor', () => {
     const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
       frames.delete(id);
     });
+    const runNextFrame = () => {
+      const next = frames.entries().next();
+      if (next.done) throw new Error('Expected a queued animation frame');
+      const [id, callback] = next.value;
+      frames.delete(id);
+      act(() => callback(0));
+    };
 
     const view = render(<VisualViewportAnchor />);
     expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-180px');
+    expect(frames.size).toBe(1);
+    renderedBottom = 720;
 
     viewport.dispatchEvent(new Event('resize'));
     viewport.dispatchEvent(new Event('scroll'));
+    viewport.dispatchEvent(new Event('scrollend'));
     window.dispatchEvent(new Event('scroll'));
-    expect(requestFrame).toHaveBeenCalledTimes(3);
-    expect(cancelFrame).toHaveBeenCalledTimes(2);
+    expect(frames.size).toBe(1);
+    expect(requestFrame).toHaveBeenCalledTimes(5);
+    expect(cancelFrame).toHaveBeenCalledTimes(4);
+
+    runNextFrame();
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-180px');
+    expect(frames.size).toBe(1);
 
     renderedBottom = 720;
     Object.defineProperty(viewport, 'height', { configurable: true, value: 760, writable: true });
-    const pending = [...frames.values()][0];
-    act(() => pending?.(0));
-    frames.clear();
+    act(() => vi.advanceTimersByTime(120));
+    expect(frames.size).toBe(1);
+    runNextFrame();
     expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-120px');
 
+    Object.defineProperty(viewport, 'height', { configurable: true, value: 780, writable: true });
     renderedBottom = 780;
-    viewport.dispatchEvent(new Event('scroll'));
-    act(() => [...frames.values()][0]?.(0));
-    frames.clear();
-    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-120px');
+    act(() => vi.advanceTimersByTime(240));
+    runNextFrame();
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-100px');
+
+    renderedBottom = 800;
+    window.dispatchEvent(new Event('scrollend'));
+    runNextFrame();
+    runNextFrame();
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-100px');
 
     Object.defineProperty(viewport, 'height', { configurable: true, value: 0, writable: true });
     window.dispatchEvent(new Event('resize'));
-    act(() => [...frames.values()][0]?.(0));
-    frames.clear();
-    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-120px');
+    runNextFrame();
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('-100px');
 
+    const requestsBeforeVisibility = requestFrame.mock.calls.length;
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden', writable: true });
     document.dispatchEvent(new Event('visibilitychange'));
-    expect(frames.size).toBe(0);
+    expect(requestFrame).toHaveBeenCalledTimes(requestsBeforeVisibility);
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible', writable: true });
     document.dispatchEvent(new Event('visibilitychange'));
     expect(frames.size).toBe(1);
 
     view.unmount();
-    expect(cancelFrame).toHaveBeenCalledTimes(3);
+    expect(cancelFrame).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
     expect(document.documentElement.style.getPropertyValue('--visual-viewport-anchor-shift')).toBe('');
+    const requestsAfterUnmount = requestFrame.mock.calls.length;
+    viewport.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event('pageshow'));
+    expect(requestFrame).toHaveBeenCalledTimes(requestsAfterUnmount);
     anchor.remove();
   });
 

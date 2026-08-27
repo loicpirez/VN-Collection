@@ -280,11 +280,14 @@ describe('responsive tap targets', () => {
     expect(source('src/components/CardDensitySlider.tsx')).toContain('min-h-[44px]');
     expect(source('src/components/MoreNavMenu.tsx')).toContain('min-h-[44px]');
     const quoteFooter = source('src/components/QuoteFooter.tsx');
-    expect(quoteFooter).toContain('visual-viewport-anchor-bottom group fixed bottom-0 left-0 right-0 z-layer-footer');
+    expect(quoteFooter).toContain('visual-viewport-anchor-bottom fixed bottom-0 left-0 right-0 z-layer-footer');
     expect(quoteFooter).toContain('data-visual-viewport-anchor');
     expect(quoteFooter).toContain('max-h-12');
     expect(quoteFooter).toContain('can-hover:sm:max-h-5');
-    expect(quoteFooter).toContain("'min-h-[44px] min-w-[44px] opacity-100'");
+    expect(quoteFooter).toContain('min-h-[44px] min-w-0 flex-1');
+    expect(quoteFooter).toContain('aria-expanded={expanded}');
+    expect(quoteFooter).toContain('hidden={!expanded}');
+    expect(quoteFooter).toContain('inline-flex min-h-[44px] min-w-[44px]');
     expect(quoteFooter).toContain('can-hover:sm:min-h-0 can-hover:sm:w-3 can-hover:sm:min-w-0 can-hover:sm:opacity-0');
     const downloadStatus = source('src/components/DownloadStatusBar.tsx');
     expect(downloadStatus).toContain('className="visual-viewport-anchor-bottom fixed bottom-16');

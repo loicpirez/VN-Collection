@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 const SHIFT_PROPERTY = '--visual-viewport-anchor-shift';
 const ANCHOR_SELECTOR = '[data-visual-viewport-anchor]';
+const SETTLE_DELAYS_MS = [120, 360] as const;
 
 type VisualViewportGeometry = Pick<VisualViewport, 'height' | 'offsetTop'>;
 
@@ -29,11 +30,12 @@ export function VisualViewportAnchor() {
   useEffect(() => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
-    let frame: number | null = null;
+    let primaryFrame: number | null = null;
+    let settleFrame: number | null = null;
+    let settleTimers: number[] = [];
     let currentShift = 0;
 
     const writeShift = () => {
-      frame = null;
       const anchor = document.querySelector<HTMLElement>(ANCHOR_SELECTOR);
       if (!anchor) return;
       const nextShift = calculateVisualViewportAnchorShift(
@@ -45,29 +47,54 @@ export function VisualViewportAnchor() {
       currentShift = nextShift;
       root.style.setProperty(SHIFT_PROPERTY, `${nextShift}px`);
     };
+    const cancelScheduled = () => {
+      if (primaryFrame !== null) window.cancelAnimationFrame(primaryFrame);
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      for (const timer of settleTimers) window.clearTimeout(timer);
+      primaryFrame = null;
+      settleFrame = null;
+      settleTimers = [];
+    };
+    const scheduleSettledFrame = () => {
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      settleFrame = window.requestAnimationFrame(() => {
+        settleFrame = null;
+        writeShift();
+      });
+    };
     const scheduleShift = () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(writeShift);
+      cancelScheduled();
+      primaryFrame = window.requestAnimationFrame(() => {
+        primaryFrame = null;
+        writeShift();
+        scheduleSettledFrame();
+      });
+      settleTimers = SETTLE_DELAYS_MS.map((delay) => window.setTimeout(scheduleSettledFrame, delay));
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') scheduleShift();
     };
 
     writeShift();
+    scheduleShift();
     viewport?.addEventListener('resize', scheduleShift);
     viewport?.addEventListener('scroll', scheduleShift);
+    viewport?.addEventListener('scrollend', scheduleShift);
     window.addEventListener('resize', scheduleShift);
     window.addEventListener('scroll', scheduleShift, { passive: true });
+    window.addEventListener('scrollend', scheduleShift);
     window.addEventListener('orientationchange', scheduleShift);
     window.addEventListener('pageshow', scheduleShift);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
+      cancelScheduled();
       viewport?.removeEventListener('resize', scheduleShift);
       viewport?.removeEventListener('scroll', scheduleShift);
+      viewport?.removeEventListener('scrollend', scheduleShift);
       window.removeEventListener('resize', scheduleShift);
       window.removeEventListener('scroll', scheduleShift);
+      window.removeEventListener('scrollend', scheduleShift);
       window.removeEventListener('orientationchange', scheduleShift);
       window.removeEventListener('pageshow', scheduleShift);
       document.removeEventListener('visibilitychange', onVisibilityChange);
