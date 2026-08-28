@@ -4,13 +4,13 @@ This folder separates active audit work from historical reports.
 
 ## Active reports
 
-No report is currently open. Start the next independent audit in a new round so
-completed evidence is not silently reused as proof of current behavior.
+- `round15-full-app-audit-report-tasks.md` - current independent application,
+  responsive, provider, database, and production audit.
 
 ## Completed reports
 
 Rounds 8 through 14 are completed evidence sets retained in this folder because
-the current audit links to their implementation and production verification:
+the current audit may link to their implementation history:
 
 - `round8-full-app-audit-report-tasks.md`
 - `round9-postgresql-migration-report-tasks.md`
