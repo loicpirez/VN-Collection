@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from '
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Virtuoso } from 'react-virtuoso';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
@@ -38,15 +39,11 @@ import { useConfirm } from './ConfirmDialog';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import { FacetCombobox } from './library/FacetCombobox';
-import { isExplicit, useDisplaySettings } from '@/lib/settings/client';
+import { isExplicit, resolveScopedDensity, useDisplaySettings } from '@/lib/settings/client';
 import { STATUSES, type Status } from '@/lib/types';
 import type { CollectionCardApiItem, Stats } from '@/lib/types';
 import { ASPECT_KEYS, isAspectKey, type AspectKey } from '@/lib/aspect-ratio';
 import {
-  calculateVirtualGridWindow,
-  parseCssPixelValue,
-  VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
-  supportsEstimatedRowVirtualization,
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 import type { CollectionPage } from '@/lib/collection-api-client';
@@ -401,6 +398,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
   );
 
   const { settings, set } = useDisplaySettings();
+  const libraryDensityPx = resolveScopedDensity(settings, 'library', searchParams.get('density'));
   const [items, setItems] = useState<CollectionCardApiItem[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, byStatus: [], playtime_minutes: 0 });
   const [pagination, setPagination] = useState<CollectionPage>({
@@ -1660,6 +1658,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
                   selected={selected}
                   onToggle={toggleSelected}
                   dense={settings.denseLibrary}
+                  densityPx={libraryDensityPx}
+                  virtualize
                 />
               </>
             )
@@ -1678,6 +1678,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
                     selected={selected}
                     onToggle={toggleSelected}
                     dense={settings.denseLibrary}
+                    densityPx={libraryDensityPx}
                   />
                 </section>
               ))}
@@ -1732,21 +1733,14 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
   );
 }
 
-interface GridMeasurements {
-  width: number;
-  scrollY: number;
-  viewportHeight: number;
-  containerTop: number;
-  densityPx: number;
+interface VirtualCardRow {
+  key: string;
+  startIndex: number;
+  items: CollectionCardApiItem[];
+  data: ReturnType<typeof toCardData>[];
 }
 
-const DEFAULT_GRID_MEASUREMENTS: GridMeasurements = {
-  width: 0,
-  scrollY: 0,
-  viewportHeight: VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
-  containerTop: 0,
-  densityPx: 220,
-};
+const VIRTUAL_GRID_MIN_WIDTH = 640;
 
 function Grid({
   items,
@@ -1754,12 +1748,16 @@ function Grid({
   selected,
   onToggle,
   dense,
+  densityPx,
+  virtualize = false,
 }: {
   items: CollectionCardApiItem[];
   selectMode: boolean;
   selected: Set<string>;
   onToggle?: (id: string) => void;
   dense: boolean;
+  densityPx: number;
+  virtualize?: boolean;
 }) {
   // Library grid is density-responsive via the shared
   // `--card-density-px` CSS variable (set by <CardDensitySlider>).
@@ -1783,69 +1781,42 @@ function Grid({
     Math.round(VIRTUAL_GRID_THRESHOLD / 2),
     Math.round(VIRTUAL_GRID_THRESHOLD * densityMul),
   );
-  const gridStyle: React.CSSProperties = useMemo(
+  const nativeGridStyle: React.CSSProperties = useMemo(
     () => ({
       gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityMul})), 1fr))`,
     }),
     [densityMul],
   );
   const containerRef = useRef<HTMLDivElement>(null);
-  const measureFrameRef = useRef<number | null>(null);
-  const [measurements, setMeasurements] = useState<GridMeasurements>(DEFAULT_GRID_MEASUREMENTS);
-  const effectiveVirtualThreshold = supportsEstimatedRowVirtualization(measurements.width)
-    ? virtualThreshold
-    : Number.MAX_SAFE_INTEGER;
+  const [containerWidth, setContainerWidth] = useState(0);
   const measureGrid = useCallback(() => {
-    if (measureFrameRef.current !== null) return;
-    measureFrameRef.current = window.requestAnimationFrame(() => {
-      measureFrameRef.current = null;
-      const el = containerRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const next: GridMeasurements = {
-        width: Math.max(0, Math.round(rect.width)),
-        scrollY: Math.max(0, Math.round(window.scrollY)),
-        viewportHeight: Math.max(0, Math.round(window.innerHeight)),
-        containerTop: Math.round(rect.top + window.scrollY),
-        densityPx: parseCssPixelValue(getComputedStyle(el).getPropertyValue('--card-density-px'), 220),
-      };
-      setMeasurements(next);
-    });
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(Math.max(0, Math.round(el.getBoundingClientRect().width)));
   }, []);
   useEffect(() => {
-    if (items.length <= virtualThreshold) return;
-    const el = containerRef.current!;
+    if (!virtualize || items.length <= virtualThreshold) return;
+    const el = containerRef.current;
+    if (!el) return;
     measureGrid();
-    window.addEventListener('scroll', measureGrid, { passive: true });
     window.addEventListener('resize', measureGrid);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureGrid);
     observer?.observe(el);
     return () => {
-      window.removeEventListener('scroll', measureGrid);
       window.removeEventListener('resize', measureGrid);
       observer?.disconnect();
-      window.cancelAnimationFrame(Number(measureFrameRef.current));
-      measureFrameRef.current = null;
     };
-  }, [items.length, measureGrid, virtualThreshold]);
-  const virtual = useMemo(
-    () => calculateVirtualGridWindow({
-      itemCount: items.length,
-      width: measurements.width,
-      scrollY: measurements.scrollY,
-      viewportHeight: measurements.viewportHeight,
-      containerTop: measurements.containerTop,
-      densityPx: measurements.densityPx,
-      densityMultiplier: densityMul,
-      gapPx,
-      threshold: effectiveVirtualThreshold,
-    }),
-    [densityMul, effectiveVirtualThreshold, gapPx, items.length, measurements],
-  );
-  const renderedItems = useMemo(
-    () => (virtual.enabled ? items.slice(virtual.startIndex, virtual.endIndex) : items),
-    [items, virtual.enabled, virtual.endIndex, virtual.startIndex],
-  );
+  }, [items.length, measureGrid, virtualThreshold, virtualize]);
+  useEffect(() => {
+    if (virtualize && items.length > virtualThreshold) measureGrid();
+  }, [densityPx, items.length, measureGrid, virtualThreshold, virtualize]);
+  const columnCount = useMemo(() => {
+    const columnFloor = Math.max(1, densityPx * densityMul);
+    return Math.max(1, Math.floor((containerWidth + gapPx) / (columnFloor + gapPx)));
+  }, [containerWidth, densityMul, densityPx, gapPx]);
+  const useMeasuredRows = virtualize
+    && items.length > virtualThreshold
+    && containerWidth >= VIRTUAL_GRID_MIN_WIDTH;
   // Stash the per-render onToggle in a ref so each `<VnCard>` can get
   // an `onSelect` reference that's stable across renders. Without this
   // the `() => onToggle?.(it.id)` arrow was freshly allocated every
@@ -1856,36 +1827,66 @@ function Grid({
   const onSelectFor = useCallback((id: string) => {
     onToggleRef.current?.(id);
   }, []);
-  // Re-project once per `items` reference change instead of identity-
-  // caching each row. WeakMap-by-identity inside `toCardData` still
-  // catches re-renders that re-use the same array, and `useMemo`
-  const cardData = useMemo(() => renderedItems.map(toCardData), [renderedItems]);
+  const cardData = useMemo(() => items.map(toCardData), [items]);
+  const rows = useMemo<VirtualCardRow[]>(() => {
+    if (!useMeasuredRows) return [];
+    const next: VirtualCardRow[] = [];
+    for (let startIndex = 0; startIndex < items.length; startIndex += columnCount) {
+      next.push({
+        key: `${columnCount}:${items[startIndex]?.id ?? startIndex}`,
+        startIndex,
+        items: items.slice(startIndex, startIndex + columnCount),
+        data: cardData.slice(startIndex, startIndex + columnCount),
+      });
+    }
+    return next;
+  }, [cardData, columnCount, items, useMeasuredRows]);
+
+  const renderCard = useCallback((it: CollectionCardApiItem, data: ReturnType<typeof toCardData>, position: number) => (
+    <MemoCard
+      key={it.id}
+      id={it.id}
+      data={data}
+      selectable={selectMode}
+      selected={selected.has(it.id)}
+      onSelect={onSelectFor}
+      position={position}
+      setSize={items.length}
+    />
+  ), [items.length, onSelectFor, selectMode, selected]);
+
   return (
-    <div
-      ref={containerRef}
-      role="list"
-      className={cls}
-      style={gridStyle}
-      data-virtualized-library-grid={virtual.enabled ? true : undefined}
-      data-library-card-grid
-    >
-      {virtual.enabled && virtual.topSpacer > 0 && (
-        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.topSpacer }} />
-      )}
-      {renderedItems.map((it, i) => (
-        <MemoCard
-          key={it.id}
-          id={it.id}
-          data={cardData[i]}
-          selectable={selectMode}
-          selected={selected.has(it.id)}
-          onSelect={onSelectFor}
-          position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}
-          setSize={items.length}
+    <div ref={containerRef} className="min-w-0 w-full" data-library-card-grid-host>
+      {useMeasuredRows ? (
+        <Virtuoso
+          key={`${columnCount}:${densityPx}:${dense ? 'dense' : 'comfortable'}`}
+          role="list"
+          data={rows}
+          computeItemKey={(_index, row) => row.key}
+          useWindowScroll
+          increaseViewportBy={{ top: 1200, bottom: 1800 }}
+          minOverscanItemCount={{ top: 1, bottom: 1 }}
+          data-virtualized-library-grid="measured-rows"
+          data-library-card-virtualizer
+          itemContent={(rowIndex, row) => (
+            <div
+              role="presentation"
+              className={cls}
+              style={{
+                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                paddingBottom: rowIndex === rows.length - 1 ? 0 : gapPx,
+              }}
+              data-library-card-grid
+              data-library-card-row
+            >
+              {row.items.map((it, index) => renderCard(it, row.data[index], row.startIndex + index + 1))}
+            </div>
+          )}
         />
-      ))}
-      {virtual.enabled && virtual.bottomSpacer > 0 && (
-        <div role="presentation" aria-hidden style={{ gridColumn: '1 / -1', height: virtual.bottomSpacer }} />
+      ) : (
+        <div role="list" className={cls} style={nativeGridStyle} data-library-card-grid>
+          {items.map((it, index) => renderCard(it, cardData[index], index + 1))}
+        </div>
       )}
     </div>
   );

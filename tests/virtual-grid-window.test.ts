@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateVirtualGridWindow,
   parseCssPixelValue,
-  supportsEstimatedRowVirtualization,
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 
@@ -89,14 +88,6 @@ describe('virtual grid window calculation', () => {
     expect(parseCssPixelValue('', 220)).toBe(220);
     expect(parseCssPixelValue('-10px', 220)).toBe(220);
   });
-
-  it('keeps variable-height compact rows in native document flow', () => {
-    expect(supportsEstimatedRowVirtualization(0)).toBe(false);
-    expect(supportsEstimatedRowVirtualization(390)).toBe(false);
-    expect(supportsEstimatedRowVirtualization(639)).toBe(false);
-    expect(supportsEstimatedRowVirtualization(640)).toBe(true);
-    expect(supportsEstimatedRowVirtualization(Number.NaN)).toBe(false);
-  });
 });
 
 describe('LibraryClient virtual grid wiring', () => {
@@ -105,12 +96,14 @@ describe('LibraryClient virtual grid wiring', () => {
   const gridBody = source.split('function Grid({')[1]?.split('\nconst MemoCard')[0] ?? '';
   const memoCardBody = source.split('const MemoCard')[1]?.split('\ninterface Group')[0] ?? '';
 
-  it('renders only the computed item slice in the normal grid branch', () => {
-    expect(gridBody).toContain('calculateVirtualGridWindow');
-    expect(gridBody).toContain('supportsEstimatedRowVirtualization(measurements.width)');
-    expect(gridBody).toContain('items.slice(virtual.startIndex, virtual.endIndex)');
-    expect(gridBody).toContain('renderedItems.map((it, i)');
-    expect(gridBody).not.toContain('items.map((it, i)');
+  it('virtualizes complete measured rows instead of estimated card heights', () => {
+    expect(gridBody).toContain('<Virtuoso');
+    expect(gridBody).toContain('useWindowScroll');
+    expect(gridBody).toContain('data-library-card-row');
+    expect(gridBody).toContain('row.items.map((it, index)');
+    expect(gridBody).not.toContain('calculateVirtualGridWindow');
+    expect(gridBody).not.toContain('topSpacer');
+    expect(gridBody).not.toContain('bottomSpacer');
   });
 
   it('marks the live grid when virtualization is active for browser QA', () => {
@@ -127,7 +120,7 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(cardSource).not.toContain('group relative flex h-full w-full flex-1 flex-col');
     expect(gridBody).not.toContain('data-library-card-lanes');
     expect(memoCardBody).not.toContain('MasonryGridItem');
-    expect(gridBody).toContain('position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}');
+    expect(gridBody).toContain('row.startIndex + index + 1');
     expect(gridBody).toContain('setSize={items.length}');
     expect(gridBody).not.toContain('aria-rowcount');
   });

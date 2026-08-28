@@ -387,6 +387,66 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
   }
 });
 
+check('Chromium desktop library keeps measured virtual rows aligned', async (page) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await gotoClean(page, '/?density=220');
+  const virtualizer = page.locator('[data-library-card-virtualizer]');
+  await virtualizer.waitFor({ state: 'visible', timeout: 10000 });
+  assert(
+    await virtualizer.getAttribute('data-virtualized-library-grid') === 'measured-rows',
+    'desktop library did not activate measured-row virtualization',
+  );
+
+  const samples = [];
+  for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
+    const maximumScroll = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), Math.round(maximumScroll * fraction));
+    await page.waitForTimeout(250);
+    samples.push(await virtualizer.evaluate((element) => {
+      const rows = Array.from(element.querySelectorAll('[data-library-card-row]'));
+      let maximumTopOffset = 0;
+      let maximumBottomOffset = 0;
+      let directCards = true;
+      let manualRows = false;
+      for (const row of rows) {
+        const cards = Array.from(row.querySelectorAll(':scope > [data-vn-card]'));
+        directCards = directCards && cards.length === row.querySelectorAll('[data-vn-card]').length;
+        manualRows = manualRows || cards.some((card) => card.style.gridRowEnd !== '');
+        if (cards.length < 2) continue;
+        const rects = cards.map((card) => card.getBoundingClientRect());
+        maximumTopOffset = Math.max(
+          maximumTopOffset,
+          Math.max(...rects.map((rect) => rect.top)) - Math.min(...rects.map((rect) => rect.top)),
+        );
+        maximumBottomOffset = Math.max(
+          maximumBottomOffset,
+          Math.max(...rects.map((rect) => rect.bottom)) - Math.min(...rects.map((rect) => rect.bottom)),
+        );
+      }
+      return {
+        cardCount: element.querySelectorAll('[data-vn-card]').length,
+        rowCount: rows.length,
+        maximumTopOffset,
+        maximumBottomOffset,
+        directCards,
+        manualRows,
+      };
+    }));
+  }
+
+  const maximumMountedCards = Math.max(...samples.map((sample) => sample.cardCount));
+  const maximumMountedRows = Math.max(...samples.map((sample) => sample.rowCount));
+  const maximumTopOffset = Math.max(...samples.map((sample) => sample.maximumTopOffset));
+  const maximumBottomOffset = Math.max(...samples.map((sample) => sample.maximumBottomOffset));
+  assert(maximumMountedCards >= 4, `desktop virtualizer mounted only ${maximumMountedCards} cards`);
+  assert(maximumMountedCards < 96, `desktop virtualizer mounted ${maximumMountedCards} cards`);
+  assert(maximumMountedRows >= 2, `desktop virtualizer mounted only ${maximumMountedRows} rows`);
+  assert(maximumTopOffset <= 1, `desktop card row tops differ by ${maximumTopOffset}px`);
+  assert(maximumBottomOffset <= 1, `desktop card row bottoms differ by ${maximumBottomOffset}px`);
+  assert(samples.every((sample) => sample.directCards), 'desktop virtual rows wrap cards in a sizing element');
+  assert(samples.every((sample) => !sample.manualRows), 'desktop cards still carry manual masonry row spans');
+});
+
 check('settings modal tabs are reachable and non-empty', async (page) => {
   for (const url of ['/', '/shelf', '/vn/v26180']) {
     await gotoClean(page, url);

@@ -81,6 +81,8 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).not.toContain("element.style.setProperty('--card-density-px', '140px')");
     expect(INTERACTIONS).toContain('compact library still uses estimated-row virtualization');
     expect(INTERACTIONS).toContain('document height drifted by');
+    expect(INTERACTIONS).toContain('desktop library did not activate measured-row virtualization');
+    expect(INTERACTIONS).toContain('desktop card row bottoms differ by');
   });
 
   it('refuses to run without VNCOLL_QA + WRITE_QA_ALLOWED + .qa-rooted DB_PATH', () => {

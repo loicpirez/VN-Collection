@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
+import { VirtuosoMockContext } from 'react-virtuoso';
 
 let searchParamsValue = new URLSearchParams();
 const replaceMock = vi.fn();
@@ -1766,13 +1767,9 @@ describe('LibraryClient', () => {
     expect(mixedReleaseHeadings[0]).toHaveTextContent('Has Date');
   });
 
-  it('renders virtualized large grids and reacts to scroll measurements', async () => {
-    const originalRequestAnimationFrame = window.requestAnimationFrame;
-    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+  it('virtualizes large desktop grids as complete measured rows', async () => {
     const originalResizeObserver = window.ResizeObserver;
-    const originalInnerHeight = window.innerHeight;
-    const originalScrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
-    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    let rect = {
       width: 900,
       top: 10,
       left: 0,
@@ -1782,90 +1779,57 @@ describe('LibraryClient', () => {
       x: 0,
       y: 10,
       toJSON: () => ({}),
-    });
-    class TestResizeObserver {
-      observe = vi.fn();
-      unobserve = vi.fn();
-      disconnect = vi.fn();
+    };
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect);
+    class TestResizeObserver implements ResizeObserver {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
     }
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       writable: true,
       value: TestResizeObserver,
     });
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
-    window.requestAnimationFrame = ((cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0)) as typeof window.requestAnimationFrame;
-    window.cancelAnimationFrame = ((id: number) => window.clearTimeout(id)) as typeof window.cancelAnimationFrame;
     const rows = Array.from({ length: 120 }, (_, index) => cardRow(`v9${String(index + 1).padStart(4, '0')}`, `VN ${index + 1}`));
     installFetchRouter({ collectionItems: rows, total: rows.length });
     const { container } = renderWithProviders(
-      <DisplaySettingsProvider>
-        <LibraryClient mode="full" />
-      </DisplaySettingsProvider>,
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 420 }}>
+        <DisplaySettingsProvider>
+          <LibraryClient mode="full" />
+        </DisplaySettingsProvider>
+      </VirtuosoMockContext.Provider>,
       { locale: 'en' },
     );
     await screen.findByText('VN 1');
     await waitFor(() => {
-      expect(container.querySelector('[data-virtualized-library-grid="true"]')).not.toBeNull();
+      expect(container.querySelector('[data-virtualized-library-grid="measured-rows"]')).not.toBeNull();
     });
-    const grid = container.querySelector<HTMLElement>('[data-virtualized-library-grid="true"]');
-    expect(grid).not.toBeNull();
-    let rect = { width: 900, top: 10, left: 0, right: 900, bottom: 800, height: 790, x: 0, y: 10, toJSON: () => ({}) };
-    Object.defineProperty(grid!, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => rect,
-    });
-    await act(async () => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    await waitFor(() => expect(grid).toHaveAttribute('role', 'list'));
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 10000 });
-    await act(async () => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 820 });
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    rect = { width: 900, top: -10000, left: 0, right: 900, bottom: -9200, height: 800, x: 0, y: -10000, toJSON: () => ({}) };
-    await act(async () => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    grid!.style.setProperty('--card-density-px', '260px');
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    await waitFor(() => expect(grid).toHaveAttribute('role', 'list'));
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    await waitFor(() => expect(grid!.firstElementChild).toHaveAttribute('aria-hidden', 'true'));
-    const spacer = grid!.firstElementChild as HTMLElement;
-    expect(spacer).toHaveAttribute('role', 'presentation');
-    expect(Number.parseFloat(spacer!.style.height)).toBeGreaterThan(0);
-    const listItems = within(grid!).getAllByRole('listitem');
+    const virtualizer = container.querySelector<HTMLElement>('[data-virtualized-library-grid="measured-rows"]');
+    expect(virtualizer).toHaveAttribute('role', 'list');
+    const firstRow = container.querySelector<HTMLElement>('[data-library-card-row]');
+    expect(firstRow?.style.gridTemplateColumns).toContain('repeat(3,');
+    const listItems = within(virtualizer!).getAllByRole('listitem');
     expect(listItems.length).toBeLessThan(rows.length);
     expect(listItems[0]).toHaveAttribute('aria-setsize', String(rows.length));
-    expect(Number(listItems[0].getAttribute('aria-posinset'))).toBeGreaterThan(1);
-    window.requestAnimationFrame = originalRequestAnimationFrame;
-    window.cancelAnimationFrame = originalCancelAnimationFrame;
+    expect(listItems[0]).toHaveAttribute('aria-posinset', '1');
+
+    rect = { ...rect, width: 660, right: 660 };
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    await waitFor(() => {
+      expect(container.querySelector<HTMLElement>('[data-library-card-row]')?.style.gridTemplateColumns).toContain('repeat(2,');
+    });
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       writable: true,
       value: originalResizeObserver,
     });
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight });
-    if (originalScrollYDescriptor) Object.defineProperty(window, 'scrollY', originalScrollYDescriptor);
     rectSpy.mockRestore();
   });
 
   it('keeps compact mobile card rows in native flow without virtual spacers', async () => {
-    const originalRequestAnimationFrame = window.requestAnimationFrame;
-    window.requestAnimationFrame = ((cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0)) as typeof window.requestAnimationFrame;
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 390,
       top: 10,
@@ -1891,46 +1855,50 @@ describe('LibraryClient', () => {
     expect(within(grid!).getAllByRole('listitem')).toHaveLength(rows.length);
     expect(grid!.querySelector('[role="presentation"]')).toBeNull();
     rectSpy.mockRestore();
-    window.requestAnimationFrame = originalRequestAnimationFrame;
   });
 
-  it('handles virtual grid measurement when ResizeObserver is unavailable and a frame fires after unmount', async () => {
-    const originalRequestAnimationFrame = window.requestAnimationFrame;
-    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+  it('falls back to window resize measurement when ResizeObserver is unavailable', async () => {
     const originalResizeObserver = window.ResizeObserver;
-    const pendingFrame: { current?: FrameRequestCallback } = {};
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 900,
+      top: 10,
+      left: 0,
+      right: 900,
+      bottom: 800,
+      height: 790,
+      x: 0,
+      y: 10,
+      toJSON: () => ({}),
+    });
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       writable: true,
       value: undefined,
     });
-    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      pendingFrame.current = cb;
-      return 1;
-    }) as typeof window.requestAnimationFrame;
-    window.cancelAnimationFrame = vi.fn() as typeof window.cancelAnimationFrame;
     const rows = Array.from({ length: 120 }, (_, index) => cardRow(`v8${String(index + 1).padStart(4, '0')}`, `Late VN ${index + 1}`));
     installFetchRouter({ collectionItems: rows, total: rows.length });
-    const { unmount } = renderWithProviders(
-      <DisplaySettingsProvider>
-        <LibraryClient mode="full" />
-      </DisplaySettingsProvider>,
+    const { container, unmount } = renderWithProviders(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 420 }}>
+        <DisplaySettingsProvider>
+          <LibraryClient mode="full" />
+        </DisplaySettingsProvider>
+      </VirtuosoMockContext.Provider>,
       { locale: 'en' },
     );
     await screen.findByText('Late VN 1');
-    unmount();
-    const runPendingFrame = pendingFrame.current;
-    if (!runPendingFrame) throw new Error('virtual grid measurement frame was not scheduled');
-    await act(async () => {
-      runPendingFrame(0);
+    await waitFor(() => {
+      expect(container.querySelector('[data-virtualized-library-grid="measured-rows"]')).not.toBeNull();
     });
-    window.requestAnimationFrame = originalRequestAnimationFrame;
-    window.cancelAnimationFrame = originalCancelAnimationFrame;
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    unmount();
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       writable: true,
       value: originalResizeObserver,
     });
+    rectSpy.mockRestore();
   });
 
   it('updates status via the all chip and group-sort selector', async () => {
