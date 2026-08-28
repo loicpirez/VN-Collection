@@ -1,8 +1,8 @@
 /**
  * Library / listing-grid spacing regression. The previous comfortable
  * mode used `gap-5` which felt loose against the rest of the site
- * (every other listing page used `gap-3`). The audit pinned a 3px /
- * 4px scale: comfortable = `gap-3`, dense = `gap-4`.
+ * (every other listing page used `gap-3`). The audit pinned the shared
+ * spacing scale: comfortable = `gap-3`, dense = `gap-4`.
  *
  * RTL / SSR rendering is not wired in the repo, so this test does a
  * static grep over the relevant source files — same approach as
@@ -26,9 +26,10 @@ describe('LibraryClient grid spacing', () => {
 
   it('comfortable mode uses gap-3 (consistent with every other listing grid)', () => {
     // The ternary in `<ListingGrid>` keys on `dense`; the comfortable
-    // branch is the second arm.
+    // branch is the second arm. Both branches must keep row stretching
+    // on the real card roots so their painted borders align in Safari.
     expect(src).toMatch(
-      /dense \? 'grid gap-4' : 'grid gap-3'/,
+      /dense \? 'grid items-stretch gap-4' : 'grid items-stretch gap-3'/,
     );
   });
 
