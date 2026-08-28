@@ -132,6 +132,9 @@ describe('responsive audit matrix', () => {
   it('keeps HTTP and Basic Auth audit diagnostics deterministic', () => {
     expect(RESPONSIVE.match(/if \(result\.status !== 200\) issues\.push/g)).toHaveLength(1);
     expect(RESPONSIVE).toContain("send: 'always'");
+    expect(RESPONSIVE).toContain('response?.status() === 200');
+    expect(RESPONSIVE).toContain('`HTTP 401 ${recoveredNavigationUrl}`');
+    expect(RESPONSIVE).toContain('error === recoveredBasicChallenge');
   });
 
   it('exercises the real two-column compact library state on phone viewports', () => {

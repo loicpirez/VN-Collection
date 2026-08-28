@@ -310,15 +310,18 @@ function collectIssues(result) {
   return issues;
 }
 
-function classifyBrowserErrors(errors, recoveredImageFallbacks) {
+function classifyBrowserErrors(errors, recoveredImageFallbacks, recoveredNavigationUrl) {
   const recoveredUrls = new Set(recoveredImageFallbacks.map((fallback) => fallback.from));
+  const recoveredBasicChallenge = recoveredNavigationUrl
+    ? `HTTP 401 ${recoveredNavigationUrl}`
+    : null;
   const blocking = [];
   const recovered = [];
   for (const error of [...new Set(errors)]) {
     const recoveredUrl = [...recoveredUrls].find((url) => (
       error === `HTTP 404 ${url}` || error.startsWith(`console ${url}:`)
     ));
-    if (recoveredUrl) recovered.push(error);
+    if (recoveredUrl || error === recoveredBasicChallenge) recovered.push(error);
     else blocking.push(error);
   }
   return { blocking, recovered };
@@ -398,7 +401,14 @@ for (const engineName of selectedEngines) {
             recoveredImageFallbacks: [],
             measurementError: error instanceof Error ? error.message : String(error),
           }));
-          const classifiedErrors = classifyBrowserErrors(browserErrors, metrics.recoveredImageFallbacks);
+          const recoveredNavigationUrl = basicUser && basicPassword && response?.status() === 200
+            ? response.url()
+            : null;
+          const classifiedErrors = classifyBrowserErrors(
+            browserErrors,
+            metrics.recoveredImageFallbacks,
+            recoveredNavigationUrl,
+          );
           const result = {
             engine: engineName,
             locale,

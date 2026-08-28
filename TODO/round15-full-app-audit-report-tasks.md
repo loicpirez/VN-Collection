@@ -33,7 +33,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-DOC-002 | LOW | The feature reference defines scaffolded and planned status symbols, but every feature uses only the shipped marker. Remove the unused legend states or accurately classify unfinished features so the catalogue does not imply undocumented work. | `FEATURES.md` | TODO |
 | R15-DOC-003 | LOW | General place-registry and PostgreSQL search fixtures still contain historical Alice/Kobe and real studio wording outside the migration compatibility tests. Replace them with neutral synthetic labels while preserving legacy identifiers only where a migration contract requires them. | `tests/place-registry-page.test.ts`, `tests/postgres-search-parity.test.ts`, `tests/postgres-alicenet-repository.test.ts` | TODO |
 | R15-TEST-002 | LOW | The audit report suggested that the responsive harness appended the same non-200 HTTP issue twice. Current source emits it once; a cardinality regression now prevents the diagnostic from drifting back to duplicate output. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | VERIFIED_EXISTING |
-| R15-TEST-003 | MEDIUM | Firefox exposed the expected initial HTTP Basic challenge as a 401 response before Playwright retried with credentials, so the responsive audit reported one browser error for the first route in every Firefox context despite a successful final navigation. Configured audit credentials are now sent preemptively while real 401 responses remain failures. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | DONE_WITH_DIFF |
+| R15-TEST-003 | MEDIUM | Firefox exposes the expected initial HTTP Basic challenge as a 401 response even when Playwright is configured for preemptive credentials, then completes the same navigation with 200. The audit now recovers only that exact navigation challenge after a verified 200 final response; final, API, and asset 401 responses remain blocking. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | DONE_WITH_DIFF |
 | R15-DOC-004 | MEDIUM | Reconcile README, FEATURES, CLAUDE, operational guides, route and provider inventories, TODO status, test evidence, and production facts against the final shipped implementation. | project Markdown and operational docs | TODO |
 | R15-OPS-001 | CRITICAL | Commit, push, and deploy each independent correction through the immutable release workflow, then prove local, remote, and production revision identity, active service health, zero unexpected restarts, clean journals, loopback listeners, authenticated routing, rollback retention, and current application behavior. | Git remote, release store, systemd, Nginx, production | IN_PROGRESS |
 
@@ -61,9 +61,10 @@ provider behavior, operations, backup, restore, and immutable deployment.
   application styles, and its component regression pins the shared input
   contract.
 - The first production matrix exposed 15 expected Firefox Basic challenge
-  responses as browser errors. `R15-TEST-003` switches authenticated audit
-  contexts to preemptive credentials; `R15-TEST-002` pins exactly one HTTP
-  navigation diagnostic in source.
+  responses as browser errors. `R15-TEST-003` sends audit credentials
+  preemptively and recovers only a challenged navigation that subsequently
+  returns 200; `R15-TEST-002` pins exactly one HTTP navigation diagnostic in
+  source.
 - AliceNet branding remains current in production names. The canonical upstream
   host and append-only compatibility migrations necessarily retain historical
   strings; three unrelated fixtures still need neutralization under
