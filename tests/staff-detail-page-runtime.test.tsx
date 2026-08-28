@@ -282,6 +282,10 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('aria-label="Visual novel v1"');
     expect(html).toContain('/local/thumb.jpg');
     expect(html).toContain('/local/character.jpg');
+    expect(html).toContain('data-staff-character-credit');
+    expect(html).toContain('group/character flex min-h-11 items-start gap-2');
+    expect(html).toContain('relative min-w-0 flex-1 self-stretch');
+    expect(html).not.toContain('min-h-[44px] line-clamp-1 font-semibold text-white/85');
     expect(html).toContain('Original character');
     expect(html).toContain('Voice note');
     expect(html).toContain('8.5');

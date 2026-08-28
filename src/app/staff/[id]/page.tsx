@@ -315,7 +315,11 @@ export default async function StaffPage({
                   */}
                   <ul className="mt-2 space-y-1.5 text-[11px] text-muted">
                     {credit.characters.map((c) => (
-                      <li key={c.id} className="flex items-start gap-2">
+                      <li
+                        key={c.id}
+                        className="group/character flex min-h-11 items-start gap-2"
+                        data-staff-character-credit
+                      >
                         <Link
                           href={`/character/${c.id}`}
                           className="block h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-bg-elev/40 can-hover:sm:h-10 can-hover:sm:w-10"
@@ -328,14 +332,17 @@ export default async function StaffPage({
                             className="h-full w-full"
                           />
                         </Link>
-                        <div className="min-w-0 flex-1">
+                        <div className="relative min-w-0 flex-1 self-stretch">
                           <Link
                             href={`/character/${c.id}`}
-                            title={c.name}
-                            className="min-h-[44px] line-clamp-1 font-semibold text-white/85 hover:text-accent can-hover:sm:min-h-0"
+                            aria-label={c.name}
+                            className="absolute inset-0 z-10 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                           >
-                            {c.name}
+                            <span className="sr-only">{c.name}</span>
                           </Link>
+                          <div title={c.name} className="line-clamp-1 font-semibold text-white/85 group-hover/character:text-accent">
+                            {c.name}
+                          </div>
                           {c.original && c.original !== c.name && (
                             <div title={c.original} className="line-clamp-1 text-[10px] text-muted/70">{c.original}</div>
                           )}
