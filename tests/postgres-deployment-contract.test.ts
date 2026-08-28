@@ -74,4 +74,17 @@ describe('PostgreSQL production deployment contract', () => {
     expect(deploy.indexOf('. "$environment_file"')).toBeLessThan(deploy.indexOf('yarn build'));
     expect(deploy.indexOf('. "$migration_environment_file"')).toBeLessThan(deploy.indexOf('yarn db:postgres:apply'));
   });
+
+  it('keeps immutable releases owned by the service user and makes failed releases retryable', () => {
+    const deploy = read('ops/deploy-release.sh');
+    expect(deploy).toContain('service_user="$(systemctl show "$service_name" --property=User --value)"');
+    expect(deploy).toContain('"$(id -un)" != "$service_user"');
+    expect(deploy).toContain('run as the systemd service user');
+    expect(deploy).toContain('candidate_log="$(mktemp');
+    expect(deploy).toContain('rm -f "$candidate_log"');
+    expect(deploy).toContain('sudo rm -rf -- "$release_dir"');
+    expect(deploy.indexOf('wait_for_health "$live_port" 60')).toBeLessThan(
+      deploy.indexOf('sudo rm -rf -- "$release_dir"'),
+    );
+  });
 });

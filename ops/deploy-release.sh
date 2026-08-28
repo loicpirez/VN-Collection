@@ -5,6 +5,7 @@ service_name="${VN_DEPLOY_SERVICE:-vndb}"
 candidate_port="${VN_DEPLOY_CANDIDATE_PORT:-3001}"
 live_port="${VN_DEPLOY_LIVE_PORT:-3000}"
 candidate_pid=""
+candidate_log=""
 build_dir=""
 switched=0
 
@@ -22,6 +23,9 @@ cleanup() {
   if [[ -n "$build_dir" && -d "$build_dir" ]]; then
     rm -rf "$build_dir"
   fi
+  if [[ -n "$candidate_log" && -f "$candidate_log" ]]; then
+    rm -f "$candidate_log"
+  fi
 }
 
 trap cleanup EXIT
@@ -29,6 +33,7 @@ trap cleanup EXIT
 working_dir="$(systemctl show "$service_name" --property=WorkingDirectory --value)"
 exec_start="$(systemctl show "$service_name" --property=ExecStart --value)"
 environment_files="$(systemctl show "$service_name" --property=EnvironmentFiles --value)"
+service_user="$(systemctl show "$service_name" --property=User --value)"
 
 if [[ -z "$working_dir" || "$working_dir" != /* ]]; then
   printf 'Refusing deployment: systemd WorkingDirectory is not an absolute path.\n' >&2
@@ -63,6 +68,10 @@ fi
 if [[ "$mode" != "deploy" || "$#" -ne 3 ]]; then
   usage >&2
   exit 2
+fi
+if [[ -z "$service_user" || "$(id -un)" != "$service_user" ]]; then
+  printf 'Refusing deployment: run as the systemd service user %s.\n' "${service_user:-<unset>}" >&2
+  exit 1
 fi
 
 bundle_path="$2"
@@ -125,6 +134,7 @@ rollback() {
   sudo systemctl restart "$service_name"
   wait_for_health "$live_port" 60
   switched=0
+  sudo rm -rf -- "$release_dir"
 }
 
 build_dir="$(mktemp -d "${TMPDIR:-/tmp}/vndb-build.${commit_sha}.XXXXXX")"
@@ -151,7 +161,7 @@ yarn build
 cp -R .next/static .next/standalone/.next/static
 cp -R public .next/standalone/public
 
-candidate_log="${TMPDIR:-/tmp}/vndb-candidate-${commit_sha}.log"
+candidate_log="$(mktemp "${TMPDIR:-/tmp}/vndb-candidate.${commit_sha}.XXXXXX.log")"
 HOSTNAME=127.0.0.1 PORT="$candidate_port" node .next/standalone/server.js >"$candidate_log" 2>&1 &
 candidate_pid=$!
 if ! wait_for_health "$candidate_port" 60; then
