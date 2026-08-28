@@ -27,7 +27,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-PERF-001 | HIGH | Recheck bounded queries, indexes, pagination and virtualization, shared-request cancellation, hidden-tab behavior, image loading, polling and SSE lifecycles, background jobs, PostgreSQL pool pressure, provider isolation, browser memory, and production query plans. | application runtime, repositories, jobs, production | IN_PROGRESS |
 | R15-PERF-002 | HIGH | An expired release-detail cache blocked the streamed page while the throttled VNDB client exhausted primary retries and then mirror retries. On the audited workstation the route emitted its shell in about half a second but remained incomplete beyond 45 seconds, while the same production route with a fresh cache completed in 1.2 seconds. Release-by-id reads now serve a structurally valid expired row immediately and coalesce one background revalidation. Corrupt expired rows still wait for a validated upstream response, and cold misses, batch downloads, explicit synchronizations, cancellation, and the general cache policy are unchanged. | `src/lib/vndb-cache.ts`, `src/lib/vndb.ts`, release detail and API routes | DONE_WITH_DIFF |
 | R15-TYPE-001 | HIGH | Recheck strict external decoders, persisted JSON validation, unsafe casts, suppression directives, coverage exclusions, exported contracts, and backend parity. | `src`, `tests`, `scripts` | IN_PROGRESS |
-| R15-DATA-001 | CRITICAL | Recheck the live PostgreSQL migration state, constraints, indexes, pool, integrity, stock freshness, collection and media counts, backup checksums, and isolated restore evidence after the recent large VN update. | production PostgreSQL and backup operations | TODO |
+| R15-DATA-001 | CRITICAL | The live PostgreSQL database is healthy after the large VN update: all 11 manifest migrations are applied; readiness reports an available database and bounded pool; no index is invalid or unready; no constraint is unvalidated; the checked collection, owned-release, series, and place-link relations have no orphan; the seiyuu-credit uniqueness key has no duplicate group; and no active job lock or unfinished provider batch remains. All five linked shops derive freshness from stock written one day ago, so the former 11/12-day stale labels are no longer supported by current data. The latest 223 MB PostgreSQL dump and 1.48 GB storage archive pass their recorded SHA-256 checksums. The latest dump was restored into an isolated temporary database, reproduced all 11 migrations and the live principal row counts with zero invalid indexes, and the temporary database was removed afterward. | production PostgreSQL, backup timers, latest database and storage archives, isolated restore | DONE |
 | R15-PROVIDER-001 | HIGH | Probe every configured stock provider from the current workstation in Japan, classify real response and parser behavior without guessing, preserve cached offers for protected providers, and verify generic stock plus AliceNet shop-only workflows. | stock providers, provider scripts, stock and place pages | TODO |
 | R15-TEST-001 | CRITICAL | Run focused regressions during fixes, then the complete ordinary suite, PostgreSQL integration suite, exact coverage, typecheck, cold production build, QA, interactions, responsive audit, sentinel, provider checks, and production smoke gates. Completion requires exact 100 percent statements, branches, functions, and lines without ignores or threshold workarounds. | all test and QA suites | TODO |
 | R15-DOC-001 | MEDIUM | The developer guide said all 2,406 tests must pass, while the current suite contains more than 10,000 scenarios. It now requires the complete current suite without embedding a count that immediately drifts. | `CLAUDE.md` | DONE_WITH_DIFF |
@@ -77,6 +77,16 @@ provider behavior, operations, backup, restore, and immutable deployment.
   `R15-ACCESS-003` renders at exactly 44 pixels in WebKit using the compiled
   application styles, and its component regression pins the shared input
   contract.
+- `R15-DATA-001` verified the live 518 MB PostgreSQL database after the large
+  update: 11/11 migrations applied, no invalid index, no unvalidated
+  constraint, no checked ownership/place orphan, no duplicate seiyuu-credit
+  key, no live job lock, and no unfinished provider batch. The five linked
+  shops all resolve to stock written one day ago. The latest 223 MB database
+  dump and 1.48 GB storage archive pass SHA-256 verification. Restoring the
+  latest dump into a disposable database reproduced 11 migrations, 3,335 VN,
+  167 collection rows, 98 owned releases, 6,788 offers, and 1,412 AliceNet
+  rows with zero invalid index; the disposable database count returned to
+  zero after cleanup.
 - The first production matrix exposed 15 expected Firefox Basic challenge
   responses as browser errors. `R15-TEST-003` sends audit credentials
   preemptively and recovers only a challenged navigation that subsequently
