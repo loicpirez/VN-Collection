@@ -614,10 +614,12 @@ download status, exports, imports, backups.
 - Game list - plain-text archive list at `GET /api/export/game-list`,
   triggered from `/data` via `ExportGameListButton`.
 
-### JSON / .db import [shipped]
-JSON merges (existing rows updated, new rows added). A `.db` upload
-fully replaces the current database. Drag-and-drop on the `/data` page
-triggers the same flow.
+### JSON / native database import [shipped]
+JSON merges existing rows and adds new rows. SQLite mode accepts a `.db`
+snapshot, while PostgreSQL mode accepts a validated `.vncbackup` logical
+archive. Native restore fully replaces application rows only after explicit
+confirmation and only when the file matches the active backend. Drag-and-drop
+on the `/data` page triggers the same guarded flow.
 
 ### Duplicate detector [shipped]
 Scans the collection for entries that share normalised title prefixes
@@ -629,8 +631,10 @@ Lists VNs whose `fetched_at` is older than the configured threshold,
 plus rows with broken EGS links or missing covers. One-click bulk
 refresh.
 
-### Backup (`.db`) [shipped]
-Raw SQLite dump for cold backup.
+### Database backup [shipped]
+SQLite mode creates an online `.db` snapshot. PostgreSQL mode creates a
+streamed `.vncbackup` logical archive with migration metadata, table counts,
+and a row digest. Media storage is backed up separately in both modes.
 
 ### Cache panel [shipped]
 Inspect the VNDB cache by prefix; purge expired or selective entries.
@@ -1553,8 +1557,9 @@ the full credit graph on first visit.
 
 ### Schema browser `/schema` [shipped]
 Renders the VNDB `/schema` endpoint as a filterable, collapsible
-JSON tree, a separate local SQLite table/column section, and a
-separate mirrored EGS cache-data section. Lookup any code you see in
+JSON tree, a separate active-database table/column section with backend and
+pool metadata where applicable, and a separate mirrored EGS cache-data
+section. Lookup any code you see in
 the API (language tags, platform codes, devstatus, extlink ids).
 Search highlights matches and auto-expands the path to them.
 
@@ -1707,8 +1712,8 @@ its documented range so a malicious PATCH can't store
 display preferences. Test: `tests/shelf-view-prefs.test.ts`.
 
 ### Schema browser local + EGS sections [shipped]
-`/schema` renders the VNDB schema tree, local SQLite tables/columns
-(`<SchemaLocalSection>` + `lib/schema-local.ts`), and a dedicated
+`/schema` renders the VNDB schema tree, active SQLite or PostgreSQL
+tables/columns (`<SchemaLocalSection>` + `lib/schema-local.ts`), and a dedicated
 mirrored EGS data section (`<SchemaEgsSection>` + `lib/schema-egs.ts`).
 The EGS section lists `egs_game`, `vndb_cache` rows scoped to
 `cache_key LIKE 'egs:%'`, `vn_egs_link`, `egs_vn_link`, plus a
