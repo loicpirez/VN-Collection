@@ -107,6 +107,8 @@ describe('LibraryClient virtual grid wiring', () => {
   });
 
   it('marks the live grid when virtualization is active for browser QA', () => {
+    expect(gridBody).toContain('data-library-card-total={items.length}');
+    expect(gridBody).toContain('data-library-card-virtualization-threshold={virtualThreshold}');
     expect(gridBody).toContain('data-virtualized-library-grid');
     expect(gridBody).toContain('data-library-card-grid');
     expect(gridBody).toContain("'grid items-stretch gap-4'");

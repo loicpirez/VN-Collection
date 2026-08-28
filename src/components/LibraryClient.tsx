@@ -1859,7 +1859,13 @@ function Grid({
   ), [items.length, onSelectFor, selectMode, selected]);
 
   return (
-    <div ref={containerRef} className="min-w-0 w-full" data-library-card-grid-host>
+    <div
+      ref={containerRef}
+      className="min-w-0 w-full"
+      data-library-card-grid-host
+      data-library-card-total={items.length}
+      data-library-card-virtualization-threshold={virtualThreshold}
+    >
       {useMeasuredRows ? (
         <Virtuoso
           key={`${columnCount}:${densityPx}:${dense ? 'dense' : 'comfortable'}`}

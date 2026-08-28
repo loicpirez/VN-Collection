@@ -233,17 +233,25 @@ async function assertMobileQuoteDock(page, engineLabel) {
 
 async function readAlignedCardGeometry(grid) {
   return grid.evaluate((element) => {
-    const cards = Array.from(element.querySelectorAll(':scope > [data-vn-card]')).map((card) => {
+    const cells = Array.from(element.querySelectorAll(':scope > [data-library-card-cell]'));
+    const cards = cells.map((cell) => {
+      const card = cell.querySelector(':scope > [data-vn-card]');
+      if (!(card instanceof HTMLElement)) return null;
+      const cellRect = cell.getBoundingClientRect();
       const rect = card.getBoundingClientRect();
+      const cellStyle = getComputedStyle(cell);
       const style = getComputedStyle(card);
       return {
         left: Math.round(rect.left * 100) / 100,
         top: Math.round(rect.top * 100) / 100,
         bottom: Math.round(rect.bottom * 100) / 100,
+        cellTopOffset: Math.abs(cellRect.top - rect.top),
+        cellBottomOffset: Math.abs(cellRect.bottom - rect.bottom),
+        cellAlignSelf: cellStyle.alignSelf,
         alignSelf: style.alignSelf,
         flexGrow: style.flexGrow,
       };
-    });
+    }).filter((card) => card !== null);
     const columnCount = new Set(cards.map((card) => card.left)).size;
     const rows = [];
     for (let index = 0; index < cards.length; index += columnCount) {
@@ -261,12 +269,19 @@ async function readAlignedCardGeometry(grid) {
       documentHeight: document.documentElement.scrollHeight,
       documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
       itemCount: cards.length,
+      cellCount: cells.length,
       columnCount,
       minimumRowGap: rowGaps.length > 0 ? Math.min(...rowGaps) : 0,
       maximumRowGap: rowGaps.length > 0 ? Math.max(...rowGaps) : 0,
       maximumTopOffset: Math.max(...rows.map((row) => row.topOffset)),
       maximumBottomOffset: Math.max(...rows.map((row) => row.bottomOffset)),
-      allCardsFillRows: cards.every((card) => card.alignSelf === 'stretch' && card.flexGrow === '1'),
+      allCardsFillRows: cards.every((card) => (
+        card.cellAlignSelf === 'stretch'
+        && card.alignSelf === 'stretch'
+        && card.flexGrow === '1'
+        && card.cellTopOffset <= 1
+        && card.cellBottomOffset <= 1
+      )),
     };
   });
 }
@@ -275,6 +290,7 @@ function assertAlignedCardGeometry(samples, engineLabel) {
   const geometry = {
     display: samples[0].display,
     itemCount: Math.max(...samples.map((sample) => sample.itemCount)),
+    cellCount: Math.max(...samples.map((sample) => sample.cellCount)),
     columnCount: Math.max(...samples.map((sample) => sample.columnCount)),
     minimumRowGap: Math.min(...samples.map((sample) => sample.minimumRowGap)),
     maximumRowGap: Math.max(...samples.map((sample) => sample.maximumRowGap)),
@@ -287,6 +303,7 @@ function assertAlignedCardGeometry(samples, engineLabel) {
   };
   assert(geometry.display === 'grid', `${engineLabel} library uses ${geometry.display} instead of grid`);
   assert(geometry.itemCount >= 4, `${engineLabel} library rendered only ${geometry.itemCount} cards`);
+  assert(geometry.cellCount === geometry.itemCount, `${engineLabel} library has ${geometry.cellCount} cells for ${geometry.itemCount} cards`);
   assert(geometry.columnCount === 2, `${engineLabel} library rendered ${geometry.columnCount} mobile columns instead of 2`);
   assert(geometry.maximumTopOffset <= 1, `${engineLabel} cards in one row start ${geometry.maximumTopOffset}px apart`);
   assert(geometry.maximumBottomOffset <= 1, `${engineLabel} cards in one row end ${geometry.maximumBottomOffset}px apart`);
@@ -379,11 +396,29 @@ check('Chromium library cards fill aligned intrinsic rows', async (page) => {
 check('Chromium desktop library keeps measured virtual rows aligned', async (page) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await gotoClean(page, '/?density=220');
+  const host = page.locator('[data-library-card-grid-host]').first();
+  await host.waitFor({ state: 'visible', timeout: 10000 });
+  const totalItems = Number(await host.getAttribute('data-library-card-total'));
+  const virtualThreshold = Number(await host.getAttribute('data-library-card-virtualization-threshold'));
+  assert(Number.isFinite(totalItems) && totalItems > 0, 'desktop library does not expose its item count');
+  assert(Number.isFinite(virtualThreshold) && virtualThreshold > 0, 'desktop library does not expose its virtualization threshold');
   const virtualizer = page.locator('[data-library-card-virtualizer]');
+  if (totalItems <= virtualThreshold) {
+    assert(await virtualizer.count() === 0, `desktop library virtualized ${totalItems} cards below its ${virtualThreshold}-item threshold`);
+    const grid = host.locator('[data-library-card-grid]').first();
+    await grid.waitFor({ state: 'visible', timeout: 10000 });
+    const geometry = await readAlignedCardGeometry(grid);
+    assert(geometry.itemCount === totalItems, `desktop native grid rendered ${geometry.itemCount} of ${totalItems} cards`);
+    assert(geometry.cellCount === totalItems, `desktop native grid rendered ${geometry.cellCount} cells for ${totalItems} cards`);
+    assert(geometry.maximumTopOffset <= 1, `desktop native card row tops differ by ${geometry.maximumTopOffset}px`);
+    assert(geometry.maximumBottomOffset <= 1, `desktop native card row bottoms differ by ${geometry.maximumBottomOffset}px`);
+    assert(geometry.allCardsFillRows, 'desktop native library leaves a card shorter than its grid cell');
+    return;
+  }
   await virtualizer.waitFor({ state: 'visible', timeout: 10000 });
   assert(
     await virtualizer.getAttribute('data-virtualized-library-grid') === 'measured-rows',
-    'desktop library did not activate measured-row virtualization',
+    `desktop library did not activate measured-row virtualization for ${totalItems} cards above its ${virtualThreshold}-item threshold`,
   );
 
   const samples = [];
@@ -394,16 +429,28 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
     samples.push(await virtualizer.evaluate((element) => {
       const rows = Array.from(element.querySelectorAll('[data-library-card-row]'));
       let maximumTopOffset = 0;
-      let directCards = true;
+      let explicitCells = true;
       let manualRows = false;
       let cardsFillRows = true;
       for (const row of rows) {
-        const cards = Array.from(row.querySelectorAll(':scope > [data-vn-card]'));
-        directCards = directCards && cards.length === row.querySelectorAll('[data-vn-card]').length;
+        const cells = Array.from(row.querySelectorAll(':scope > [data-library-card-cell]'));
+        const cards = cells
+          .map((cell) => cell.querySelector(':scope > [data-vn-card]'))
+          .filter((card) => card instanceof HTMLElement);
+        explicitCells = explicitCells
+          && cells.length === cards.length
+          && cards.length === row.querySelectorAll('[data-vn-card]').length;
         manualRows = manualRows || cards.some((card) => card.style.gridRowEnd !== '');
-        cardsFillRows = cardsFillRows && cards.every((card) => {
+        cardsFillRows = cardsFillRows && cards.every((card, index) => {
+          const cell = cells[index];
+          const cellRect = cell.getBoundingClientRect();
+          const rect = card.getBoundingClientRect();
           const style = getComputedStyle(card);
-          return style.alignSelf === 'stretch' && style.flexGrow === '1';
+          return getComputedStyle(cell).alignSelf === 'stretch'
+            && style.alignSelf === 'stretch'
+            && style.flexGrow === '1'
+            && Math.abs(cellRect.top - rect.top) <= 1
+            && Math.abs(cellRect.bottom - rect.bottom) <= 1;
         });
         if (cards.length < 2) continue;
         const rects = cards.map((card) => card.getBoundingClientRect());
@@ -414,10 +461,10 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
       }
       return {
         cardCount: element.querySelectorAll('[data-vn-card]').length,
-        totalItems: Number(element.querySelector('[data-vn-card]')?.getAttribute('aria-setsize') ?? 0),
+        totalItems: Number(element.querySelector('[data-library-card-cell]')?.getAttribute('aria-setsize') ?? 0),
         rowCount: rows.length,
         maximumTopOffset,
-        directCards,
+        explicitCells,
         manualRows,
         cardsFillRows,
       };
@@ -425,14 +472,15 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
   }
 
   const maximumMountedCards = Math.max(...samples.map((sample) => sample.cardCount));
-  const totalItems = Math.max(...samples.map((sample) => sample.totalItems));
+  const renderedTotalItems = Math.max(...samples.map((sample) => sample.totalItems));
   const maximumMountedRows = Math.max(...samples.map((sample) => sample.rowCount));
   const maximumTopOffset = Math.max(...samples.map((sample) => sample.maximumTopOffset));
   assert(maximumMountedCards >= 4, `desktop virtualizer mounted only ${maximumMountedCards} cards`);
+  assert(renderedTotalItems === totalItems, `desktop virtualizer reports ${renderedTotalItems} of ${totalItems} cards`);
   assert(totalItems > maximumMountedCards, `desktop virtualizer mounted all ${maximumMountedCards} cards`);
   assert(maximumMountedRows >= 2, `desktop virtualizer mounted only ${maximumMountedRows} rows`);
   assert(maximumTopOffset <= 1, `desktop card row tops differ by ${maximumTopOffset}px`);
-  assert(samples.every((sample) => sample.directCards), 'desktop virtual rows wrap cards in a sizing element');
+  assert(samples.every((sample) => sample.explicitCells), 'desktop virtual rows do not expose one stretching cell per card');
   assert(samples.every((sample) => !sample.manualRows), 'desktop cards still carry manual masonry row spans');
   assert(samples.every((sample) => sample.cardsFillRows), 'desktop library leaves a card shorter than its measured row');
 });

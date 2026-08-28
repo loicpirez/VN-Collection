@@ -19,6 +19,8 @@ describe('VN card grid stretch contract', () => {
     const library = source('src/components/LibraryClient.tsx');
     expect(library).toContain('className="flex min-h-0 min-w-0 items-stretch self-stretch"');
     expect(library).toContain('data-library-card-cell');
+    expect(library).toContain('data-library-card-total={items.length}');
+    expect(library).toContain('data-library-card-virtualization-threshold={virtualThreshold}');
     expect(library).not.toContain('if (!selectable)');
     expect(library).toContain('onSelect={selectable ? handle : undefined}');
   });

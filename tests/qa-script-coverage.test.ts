@@ -96,7 +96,10 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toContain('cards in one row start');
     expect(INTERACTIONS).toContain('cards in one row end');
     expect(INTERACTIONS).toContain('library leaves at least one card shorter than its intrinsic row');
-    expect(INTERACTIONS).toContain('desktop library did not activate measured-row virtualization');
+    expect(INTERACTIONS).toContain('data-library-card-virtualization-threshold');
+    expect(INTERACTIONS).toContain('desktop native library leaves a card shorter than its grid cell');
+    expect(INTERACTIONS).toContain('desktop library did not activate measured-row virtualization for');
+    expect(INTERACTIONS).toContain('desktop virtual rows do not expose one stretching cell per card');
     expect(INTERACTIONS).toContain('desktop card row tops differ by');
   });
 
