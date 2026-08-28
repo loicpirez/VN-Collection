@@ -15,9 +15,9 @@ describe('library filters and grid UX', () => {
     expect(src + moreFilters).toContain("{ key: 'in_list', label: t.nav.lists }");
   });
 
-  it('standardizes search and wishlist card grid gaps to the library rhythm', () => {
-    expect(source('src/components/SearchClient.tsx')).toContain('className="grid gap-3"');
-    expect(source('src/components/WishlistClient.tsx')).toContain('className="grid gap-3"');
+  it('standardizes search and wishlist card grids to the library rhythm', () => {
+    expect(source('src/components/SearchClient.tsx')).toContain('className="grid items-stretch gap-3"');
+    expect(source('src/components/WishlistClient.tsx')).toContain('className="grid items-stretch gap-3"');
   });
 
   it('shows a skeleton instead of an empty-state flash when search opens with a query', () => {
