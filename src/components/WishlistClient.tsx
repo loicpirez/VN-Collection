@@ -957,7 +957,7 @@ export function WishlistClient() {
                   </h2>
                 )}
                 <div
-                  className="grid gap-3"
+                  className="grid items-stretch gap-3"
                   style={wishlistGridStyle}
                 >
                   {g.items.map((it) => (

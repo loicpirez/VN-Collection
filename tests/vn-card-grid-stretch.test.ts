@@ -19,4 +19,19 @@ describe('VN card grid stretch contract', () => {
     expect(source('src/app/series/[id]/page.tsx')).toContain(wrapperClass);
     expect(source('src/components/RelationsSection.tsx')).toContain(wrapperClass);
   });
+
+  it('makes every shared VN card grid explicitly stretch its natural rows', () => {
+    const sources = [
+      'src/components/WishlistClient.tsx',
+      'src/components/SearchClient.tsx',
+      'src/components/SortableGrid.tsx',
+      'src/app/lists/[id]/page.tsx',
+      'src/app/series/[id]/page.tsx',
+      'src/app/tag/[id]/page.tsx',
+      'src/components/RelationsSection.tsx',
+    ];
+    for (const path of sources) {
+      expect(source(path), path).toContain('grid items-stretch gap-');
+    }
+  });
 });

@@ -109,7 +109,7 @@ export function RelationsSection({ relations }: Props) {
             <PaginatedGrid
               ariaLabel={t.relations.paginationLabel.replace('{group}', label)}
               resetKey={`relations:${relation}:${rels.length}:${rels[0].id}:${rels[rels.length - 1].id}`}
-              className="grid gap-4"
+              className="grid items-stretch gap-4"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
               pageSize={12}
             >

@@ -99,7 +99,7 @@ export function SortableGrid({ items, onReorder, dense = false, disabled = false
       <p className="sr-only">{t.lists.reorderKeyboardHint}</p>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
         <div
-          className="grid gap-3"
+          className="grid items-stretch gap-3"
           style={{
             gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${dense ? 0.72 : 1})), 1fr))`,
           }}

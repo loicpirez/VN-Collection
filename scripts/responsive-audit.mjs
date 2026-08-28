@@ -199,14 +199,24 @@ async function measure(page, touch, expectedLocale, routeKey) {
       const rect = element.getBoundingClientRect();
       return rect.left < -1 || rect.right > innerWidth + 1 || rect.top < -1 || rect.bottom > innerHeight + 1;
     }).map(descriptor).slice(0, 50);
-    const cardGrid = routeKey === 'library' ? document.querySelector('[data-library-card-grid]') : null;
+    const cardGrids = new Map();
+    for (const card of document.querySelectorAll('[data-vn-card]')) {
+      let item = card;
+      while (item.parentElement && getComputedStyle(item.parentElement).display !== 'grid') {
+        item = item.parentElement;
+      }
+      const grid = item.parentElement;
+      if (!grid || getComputedStyle(grid).display !== 'grid') continue;
+      const items = cardGrids.get(grid) ?? [];
+      if (!items.includes(item)) items.push(item);
+      cardGrids.set(grid, items);
+    }
     let cardRowOffset = 0;
     let cardVisibleBottomOffset = 0;
     let cardColumnCount = 0;
-    if (cardGrid) {
+    for (const [cardGrid, cards] of cardGrids) {
       const columns = getComputedStyle(cardGrid).gridTemplateColumns.split(' ').filter(Boolean).length;
-      cardColumnCount = columns;
-      const cards = Array.from(cardGrid.querySelectorAll(':scope > [role="listitem"]'));
+      if (cardGrid.matches('[data-library-card-grid]')) cardColumnCount = columns;
       for (let index = 0; index < cards.length; index += Math.max(columns, 1)) {
         const row = cards.slice(index, index + columns);
         if (row.length < 2) continue;
@@ -215,7 +225,7 @@ async function measure(page, touch, expectedLocale, routeKey) {
         const visibleBottoms = row.map((item) => {
           const card = item.matches('[data-vn-card]')
             ? item
-            : item.querySelector(':scope > [data-vn-card]');
+            : item.querySelector('[data-vn-card]');
           return (card ?? item).getBoundingClientRect().bottom;
         });
         cardVisibleBottomOffset = Math.max(cardVisibleBottomOffset, Math.max(...visibleBottoms) - Math.min(...visibleBottoms));
@@ -280,8 +290,8 @@ function collectIssues(result) {
   if (result.smallTargets.length > 0) issues.push(`${result.smallTargets.length} touch targets below 44px`);
   if (result.clippedControls.length > 0) issues.push(`${result.clippedControls.length} clipped controls`);
   if (result.fixedOutOfBounds.length > 0) issues.push(`${result.fixedOutOfBounds.length} fixed elements outside viewport`);
-  if (result.cardRowOffset > 1) issues.push(`library row offset ${result.cardRowOffset}px`);
-  if (result.cardVisibleBottomOffset > 1) issues.push(`library visible card bottom offset ${result.cardVisibleBottomOffset}px`);
+  if (result.cardRowOffset > 1) issues.push(`VN card row offset ${result.cardRowOffset}px`);
+  if (result.cardVisibleBottomOffset > 1) issues.push(`VN card bottom offset ${result.cardVisibleBottomOffset}px`);
   if (result.route === 'library' && result.viewport === 'phone' && result.cardColumnCount < 2) {
     issues.push(`compact library rendered ${result.cardColumnCount} column`);
   }

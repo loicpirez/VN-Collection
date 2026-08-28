@@ -151,9 +151,11 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain("density: { library: 160 }");
     expect(RESPONSIVE).toContain("result.route === 'library' && result.viewport === 'phone'");
     expect(RESPONSIVE).toContain('result.cardColumnCount < 2');
-    expect(RESPONSIVE).toContain('library row offset');
+    expect(RESPONSIVE).toContain('VN card row offset');
     expect(RESPONSIVE).toContain('cardVisibleBottomOffset');
-    expect(RESPONSIVE).toContain('library visible card bottom offset');
+    expect(RESPONSIVE).toContain('VN card bottom offset');
+    expect(RESPONSIVE).toContain("document.querySelectorAll('[data-vn-card]')");
+    expect(RESPONSIVE).toContain("cardGrid.matches('[data-library-card-grid]')");
     expect(RESPONSIVE).toContain("item.matches('[data-vn-card]')");
     expect(RESPONSIVE).not.toContain('card.firstElementChild?.getBoundingClientRect().bottom');
     expect(RESPONSIVE).toContain("issues.push('quote panel is not full-width on touch')");

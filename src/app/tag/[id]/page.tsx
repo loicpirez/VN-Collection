@@ -222,7 +222,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             <p className="text-sm text-muted">{t.tagPage.localEmpty}</p>
           ) : (
             <div
-              className="grid gap-3"
+              className="grid items-stretch gap-3"
               style={{
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))',
@@ -245,7 +245,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             <TagVndbResults tagId={tagId} page={page} result={topVndbCache} t={t} locale={locale} />
           ) : (
             <ul
-              className="grid gap-3"
+              className="grid items-stretch gap-3"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
               aria-busy="true"
             >
@@ -412,7 +412,7 @@ function TagVndbResults({
   return (
     <div className="space-y-4">
       <ul
-        className="grid gap-3"
+        className="grid items-stretch gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 180px)), 1fr))' }}
       >
         {topVndb.map((v) => {

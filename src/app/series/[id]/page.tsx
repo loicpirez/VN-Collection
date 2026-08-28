@@ -115,7 +115,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         <PaginatedGrid
           ariaLabel={series.name}
           resetKey={`series:${series.id}`}
-          className="grid gap-5"
+          className="grid items-stretch gap-5"
           style={{
             gridTemplateColumns:
               'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',

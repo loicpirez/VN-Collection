@@ -54,7 +54,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       }),
     };
   });
-  const gridClassName = 'grid gap-5';
+  const gridClassName = 'grid items-stretch gap-5';
   const gridStyle = {
     gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
   };

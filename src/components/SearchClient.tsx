@@ -926,7 +926,7 @@ function SearchResultsGrid({ results }: { results: VndbSearchHit[] }) {
     [density],
   );
   return (
-    <div className="grid gap-3" style={gridStyle}>
+    <div className="grid items-stretch gap-3" style={gridStyle}>
       {results.map((r) => (
         <VnCard key={r.id} enableAdd data={searchCardData(r)} />
       ))}
