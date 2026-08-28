@@ -40,6 +40,7 @@ describe('stock provider capability contract', () => {
         supportLevel: 'manual_only',
       });
     }
+    expect(getProviderMeta('mandarake')?.supportLevel).toBe('limited');
   });
 
   it('identifies providers whose server-side requests are protection-prone', () => {

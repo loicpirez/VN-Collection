@@ -944,10 +944,17 @@ async function refreshMelonbooks(vnId: string, releases: VndbRelease[], vn: Stoc
   return offers;
 }
 
+const MANDARAKE_HOMEPAGE_REDIRECT = 'mandarake_homepage_redirect';
+
+function isMandarakeHomepageRedirect(html: string): boolean {
+  const title = firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
+  return title === 'MANDARAKE' && !/itemCode|価格|円|在庫|cart|price/i.test(html);
+}
+
 /** Parse one Mandarake product page into a `ParsedOffer`. Mandarake is per-branch (location_branch is populated). */
 export function parseMandarakeDetail(html: string, url: string, target: StockTarget): ParsedOffer | null {
   const blockedTitle = firstMatchText(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (blockedTitle === 'MANDARAKE' && !/itemCode|価格|円|在庫|cart|price/i.test(html)) return null;
+  if (isMandarakeHomepageRedirect(html)) return null;
   const title =
     firstMatchText(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) ??
     firstMatchText(html, /itemprop=["']name["'][^>]*content=["']([^"']+)["']/i) ??
@@ -979,6 +986,7 @@ async function refreshMandarake(vnId: string, releases: VndbRelease[], vn: Stock
   };
   for (const target of allTargetsForProvider(releases, 'mandarake', vn, discovered, aliases).slice(0, 8)) {
     const html = await fetchShopText(target.url, { signal });
+    if (isMandarakeHomepageRedirect(html)) throw new Error(MANDARAKE_HOMEPAGE_REDIRECT);
     const links = [...html.matchAll(/href=["']([^"']*detailPage\/item\?[^"']*itemCode=[^"']+)["']/gi)]
       .map((m) => absUrl(target.url, m[1]!))
       .filter((href) => sourceHost(href) === 'order.mandarake.co.jp');
@@ -2589,8 +2597,10 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       const msg = providerCtrl.signal.aborted
         ? `provider timeout after ${STOCK_PROVIDER_TIMEOUT_MS}ms`
         : (e as Error).message;
+      const isProviderHomepageRedirect = msg === MANDARAKE_HOMEPAGE_REDIRECT;
       const isProtected =
-        msg === 'cloudflare_challenge'
+        isProviderHomepageRedirect
+        || msg === 'cloudflare_challenge'
         || /cloudflare|challenge|protected/i.test(msg)
         || (!!getProviderMeta(provider)?.cloudflare && /^HTTP (?:403|429)\b/i.test(msg));
       const cachedOffers = isProtected
@@ -2600,7 +2610,9 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       await stockRepository.replaceProviderSnapshot(vnId, provider, [], {
         status: isProtected ? 'protected' : 'error',
         message: isProtected
-          ? provider === 'amazon_jp'
+          ? isProviderHomepageRedirect
+            ? 'Mandarake redirected the automated lookup to its storefront homepage.'
+            : provider === 'amazon_jp'
             ? 'Amazon anti-bot challenge blocked the automated lookup.'
             : 'Cloudflare protected — automated access blocked.'
           : msg,

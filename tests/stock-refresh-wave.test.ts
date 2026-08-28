@@ -293,6 +293,35 @@ describe('refreshStockForVn — provider status branches', () => {
     expect(snapshot.offers[0]?.provider_offer_id).toBe('cached-shop-product');
   });
 
+  it('preserves cached Mandarake offers when its retired order endpoint redirects to the homepage', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'mandarake', [{
+      ...cachedAmazonOffer(),
+      provider: 'mandarake',
+      provider_offer_id: 'cached-marketplace-product',
+      url: 'https://order.mandarake.co.jp/order/detailPage/item?itemCode=950018',
+      location_label: 'Mandarake',
+    }], {
+      status: 'ok',
+      message: null,
+      fetched_at: 1,
+      offer_count: 1,
+    });
+    respondWith('<html><head><title>MANDARAKE</title></head><body><a href="/">Storefront</a></body></html>');
+
+    const snapshot = await refreshStockForVn(VN_ID, ['mandarake']);
+
+    expect(statusFor('mandarake')).toMatchObject({
+      status: 'protected',
+      blocked_kind: 'search_page',
+      offer_count: 1,
+      cached_offers_available: 1,
+      message: 'Mandarake redirected the automated lookup to its storefront homepage.',
+    });
+    expect(snapshot.offers).toHaveLength(1);
+    expect(snapshot.offers[0]?.provider_offer_id).toBe('cached-marketplace-product');
+  });
+
   it('writes an error status when the provider fetch returns a non-ok HTTP status', async () => {
     seedVn();
     releasesMock.mockResolvedValue([melonbooksRelease()]);
