@@ -142,6 +142,8 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain("['127.0.0.1', 'localhost', '::1'].includes(auditOrigin.hostname)");
     expect(RESPONSIVE).toContain("request.resourceType() !== 'document'");
     expect(RESPONSIVE).toContain("new URL(request.url()).origin !== auditOrigin.origin");
+    expect(RESPONSIVE).toContain('upstream = await intercepted.fetch()');
+    expect(RESPONSIVE).toContain('await intercepted.continue()');
     expect(RESPONSIVE).toContain("replace(/;?\\s*upgrade-insecure-requests\\s*;?/i, ';')");
   });
 

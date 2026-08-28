@@ -370,7 +370,13 @@ for (const engineName of selectedEngines) {
                 await intercepted.continue();
                 return;
               }
-              const upstream = await intercepted.fetch();
+              let upstream;
+              try {
+                upstream = await intercepted.fetch();
+              } catch {
+                await intercepted.continue();
+                return;
+              }
               const headers = upstream.headers();
               headers['content-security-policy'] = headers['content-security-policy']
                 ?.replace(/;?\s*upgrade-insecure-requests\s*;?/i, ';') ?? '';
