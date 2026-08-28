@@ -478,6 +478,7 @@ describe('route loading skeletons', () => {
   it('matches release inventory identity and owned-action rows', async () => {
     const html = renderToStaticMarkup(await ReleaseLoading());
     expect(html).toContain('data-release-inventory-skeleton');
+    expect(html).toContain('data-vndb-release-list-skeleton');
     expect(html.match(/flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-elev\/30 px-3 py-2/g)).toHaveLength(2);
     expect(html.match(/h-11 w-24 can-hover:sm:h-8/g)).toHaveLength(2);
     expect(html).toContain('h-11 w-20 can-hover:sm:h-8');

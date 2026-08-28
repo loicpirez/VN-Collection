@@ -62,3 +62,11 @@ export const VNDB_VN_ID_RE = /^v\d+$/i;
 export function isVndbVnId(id: string | null | undefined): id is string {
   return typeof id === 'string' && VNDB_VN_ID_RE.test(id);
 }
+
+/** Canonical VNDB release identifier shape. */
+export const VNDB_RELEASE_ID_RE = /^r\d+$/i;
+
+/** Return whether a value is a real VNDB release identifier. */
+export function isVndbReleaseId(id: string | null | undefined): id is string {
+  return typeof id === 'string' && VNDB_RELEASE_ID_RE.test(id);
+}

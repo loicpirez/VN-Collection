@@ -470,8 +470,8 @@ batch threads the distinction through every surface.
 ## Batch H — backlog cleanup (2026-05-15) — shipped ✅
 
 User pushback: "Not implemented (yet)" block in CLAUDE.md was real
-work, not aspirational. This batch closes every item except
-`/rlist` writes (no UI consumer).
+work, not aspirational. Batch H closed the original backlog except
+`/rlist`; H.7 records its later production closure.
 
 ### H.1 Shelf size limit raised + Pokémon-box paging
 
@@ -532,6 +532,20 @@ work, not aspirational. This batch closes every item except
   + download-status pub/sub mutator chain + the drag-id parser.
   Counter is intentionally omitted from this doc — it rolls fast.
   Check the test runner output for the current number.
+
+### H.7 VNDB release-list synchronization
+
+- `fetchUlistEntry` requests `releases{id,title,list_status}` and validates
+  every nested release before it reaches the UI.
+- `PATCH /rlist/[id]` and `DELETE /rlist/[id]` are exposed through the
+  guarded local route `GET/PATCH/DELETE /api/release/[id]/vndb-list`.
+- `<VndbReleaseListPanel>` on `/release/[id]` reads, sets, and removes the
+  remote state explicitly. Local owned-edition inventory is never changed
+  by these operations; local ownership only preselects `Obtained` when the
+  release is absent remotely.
+- The client-safe state contract, loading skeleton, localized errors,
+  permission handling, abort lifecycle, and all mutation races have full
+  branch coverage.
 
 ---
 

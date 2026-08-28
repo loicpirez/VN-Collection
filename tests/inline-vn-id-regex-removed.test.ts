@@ -6,7 +6,14 @@
  * ids) so a sweep can't widen the contract by accident.
  */
 import { describe, expect, it } from 'vitest';
-import { isVndbVnId, isValidVnId, VN_ID_RE, VNDB_VN_ID_RE } from '@/lib/vn-id-shape';
+import {
+  isVndbReleaseId,
+  isVndbVnId,
+  isValidVnId,
+  VN_ID_RE,
+  VNDB_RELEASE_ID_RE,
+  VNDB_VN_ID_RE,
+} from '@/lib/vn-id-shape';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -48,6 +55,22 @@ describe('isVndbVnIdhelper behaviour', () => {
     expect(VNDB_VN_ID_RE.test('v17')).toBe(true);
     expect(VN_ID_RE.test('egs_12345')).toBe(true);
     expect(VNDB_VN_ID_RE.test('egs_12345')).toBe(false);
+  });
+});
+
+describe('VNDB release identifier helpers', () => {
+  it('accepts canonical release ids case-insensitively', () => {
+    expect(isVndbReleaseId('r17')).toBe(true);
+    expect(isVndbReleaseId('R90000')).toBe(true);
+    expect(VNDB_RELEASE_ID_RE.test('r17')).toBe(true);
+  });
+
+  it('rejects malformed and missing release ids', () => {
+    expect(isVndbReleaseId('v17')).toBe(false);
+    expect(isVndbReleaseId('r')).toBe(false);
+    expect(isVndbReleaseId(' r17')).toBe(false);
+    expect(isVndbReleaseId(null)).toBe(false);
+    expect(isVndbReleaseId(undefined)).toBe(false);
   });
 });
 

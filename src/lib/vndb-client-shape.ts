@@ -9,6 +9,7 @@ import type {
   VndbUlistLabel,
   VndbUserInfo,
 } from './vndb';
+import type { VndbUlistRelease } from './vndb-release-list-shape';
 
 type Decoder<T> = (value: unknown) => T | null;
 
@@ -293,6 +294,7 @@ export function decodeVndbUlistEntryRow(value: unknown): VndbUlistEntry | null {
 export function decodeVndbUlistEntryDetailRow(value: unknown): VndbUlistEntryDetail | null {
   const record = asJsonRecord(value);
   const labels = decodeUlistLabels(record?.labels);
+  const releases = decodeUlistReleases(record?.releases);
   if (
     !record ||
     !isString(record.id) ||
@@ -304,7 +306,8 @@ export function decodeVndbUlistEntryDetailRow(value: unknown): VndbUlistEntryDet
     !isNullableString(record.started) ||
     !isNullableString(record.finished) ||
     !isNullableString(record.notes) ||
-    !labels
+    !labels ||
+    !releases
   ) {
     return null;
   }
@@ -318,7 +321,36 @@ export function decodeVndbUlistEntryDetailRow(value: unknown): VndbUlistEntryDet
     finished: record.finished,
     notes: record.notes,
     labels,
+    releases,
   };
+}
+
+function decodeUlistReleases(value: unknown): VndbUlistRelease[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const releases: VndbUlistRelease[] = [];
+  const ids = new Set<string>();
+  for (const rawRelease of value) {
+    const release = asJsonRecord(rawRelease);
+    if (
+      !release ||
+      !isString(release.id) ||
+      !/^r\d+$/i.test(release.id) ||
+      !isString(release.title) ||
+      !isReleaseListStatus(release.list_status)
+    ) {
+      return null;
+    }
+    const id = release.id.toLowerCase();
+    if (ids.has(id)) return null;
+    ids.add(id);
+    releases.push({ id, title: release.title, list_status: release.list_status });
+  }
+  return releases;
+}
+
+function isReleaseListStatus(value: unknown): value is VndbUlistRelease['list_status'] {
+  return value === 0 || value === 1 || value === 2 || value === 3 || value === 4;
 }
 
 /**

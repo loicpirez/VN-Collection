@@ -5,6 +5,7 @@ import {
   decodeVndbUlistLabelsResponse,
 } from './vndb-client-shape';
 import type { VndbUlistEntry, VndbUlistEntryDetail, VndbUlistLabel } from './vndb';
+import { isVndbReleaseListStatus, type VndbReleaseListStatus } from './vndb-release-list-shape';
 import type { WishlistFacets, WishlistPageMetadata, WishlistSummary } from './wishlist-pagination';
 import { decodeNumberedPageMeta } from './server-pagination';
 import { isValidVnId, normalizeVnId } from './vn-id-shape';
@@ -25,6 +26,12 @@ export interface VndbStatusClientState {
   needsAuth: boolean;
   local: LocalVndbUserData | null;
   differences: VndbUserDataDifference[];
+}
+
+/** Local release-list route payload consumed by the release detail page. */
+export interface VndbReleaseListClientState {
+  needsAuth: boolean;
+  status: VndbReleaseListStatus | null;
 }
 
 /** EGS summary attached to a VNDB wishlist row. */
@@ -105,6 +112,22 @@ export function decodeVndbStatusClientState(value: unknown): VndbStatusClientSta
     needsAuth: record.needsAuth === true,
     local,
     differences,
+  };
+}
+
+/** Decode one release-list route response before assigning React state. */
+export function decodeVndbReleaseListClientState(value: unknown): VndbReleaseListClientState | null {
+  const record = asJsonRecord(value);
+  if (
+    !record ||
+    (record.needsAuth !== undefined && typeof record.needsAuth !== 'boolean') ||
+    !(record.status === null || isVndbReleaseListStatus(record.status))
+  ) {
+    return null;
+  }
+  return {
+    needsAuth: record.needsAuth === true,
+    status: record.status,
   };
 }
 

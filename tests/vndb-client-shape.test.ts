@@ -205,7 +205,13 @@ describe('VNDB client payload adapters', () => {
       finished: null,
       notes: null,
       labels: [],
-    })?.id).toBe('v90001');
+      releases: [
+        { id: 'R90001', title: 'Edition', list_status: 2 },
+      ],
+    })).toMatchObject({
+      id: 'v90001',
+      releases: [{ id: 'r90001', title: 'Edition', list_status: 2 }],
+    });
     expect(decodeVndbUlistLabelsResponse({
       labels: [
         { id: 5, label: 'Wishlist', private: false, count: 3 },
@@ -255,6 +261,29 @@ describe('VNDB client payload adapters', () => {
     expect(decodeVndbVaCreditListRow(null)).toBeNull();
     expect(decodeVndbUlistEntryRow({ id: 'v90001', labels: [] })).toBeNull();
     expect(decodeVndbUlistEntryDetailRow({ id: 'v90001', labels: null })).toBeNull();
+    const detail = {
+      id: 'v90001',
+      added: 1,
+      voted: null,
+      lastmod: 2,
+      vote: null,
+      started: null,
+      finished: null,
+      notes: null,
+      labels: [],
+    };
+    expect(decodeVndbUlistEntryDetailRow({ ...detail, releases: null })).toBeNull();
+    expect(decodeVndbUlistEntryDetailRow({ ...detail, releases: [null] })).toBeNull();
+    expect(decodeVndbUlistEntryDetailRow({ ...detail, releases: [{ id: 'x', title: 'Edition', list_status: 2 }] })).toBeNull();
+    expect(decodeVndbUlistEntryDetailRow({ ...detail, releases: [{ id: 'r90001', title: 1, list_status: 2 }] })).toBeNull();
+    expect(decodeVndbUlistEntryDetailRow({ ...detail, releases: [{ id: 'r90001', title: 'Edition', list_status: 5 }] })).toBeNull();
+    expect(decodeVndbUlistEntryDetailRow({
+      ...detail,
+      releases: [
+        { id: 'r90001', title: 'Edition', list_status: 0 },
+        { id: 'R90001', title: 'Duplicate', list_status: 4 },
+      ],
+    })).toBeNull();
     expect(decodeVndbUlistLabelsResponse({ labels: null })).toBeNull();
     expect(decodeVndbStatsGlobal({ chars: -1 })).toBeNull();
     expect(decodeVndbAuthInfo({ id: 'u90001', username: 'operator', permissions: null })).toBeNull();

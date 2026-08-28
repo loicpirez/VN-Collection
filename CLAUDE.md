@@ -319,6 +319,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET | `/api/vn/[id]/quotes` | Quotes of a VN |
 | GET | `/api/character/[id]` | Character detail |
 | GET | `/api/release/[id]` | Single release |
+| GET/PATCH/DELETE | `/api/release/[id]/vndb-list` | Read, set, or remove the authenticated VNDB release-list state without changing local inventory |
 | GET | `/api/staff?q=` | Staff search |
 | GET | `/api/tags?q=&category=` | Tag search/browse |
 | GET | `/api/tags/[id]/hydrate` | Populate one tag page's VNDB snapshots after the cache-only shell paints |
@@ -483,6 +484,7 @@ route file or exported HTTP method changes.
 | /api/refresh/global | POST |
 | /api/refresh/scope | POST |
 | /api/release/[id] | GET |
+| /api/release/[id]/vndb-list | GET, PATCH, DELETE |
 | /api/route/[routeId] | GET, PATCH, DELETE |
 | /api/saved-filters | GET, POST, DELETE, PATCH |
 | /api/search/advanced | POST |
@@ -2158,6 +2160,9 @@ New DB tables introduced by recent batches:
 - VNDB ulist writes (vote / started / finished / notes) — wired through
   the existing `PATCH /api/vn/[id]/vndb-status` route via the new
   `<UlistDetailsEditor>` panel on `/vn/[id]`.
+- VNDB release-list reads and writes through
+  `GET/PATCH/DELETE /api/release/[id]/vndb-list`. The release page keeps
+  this explicit remote state separate from local owned-edition inventory.
 - Schema browser at `/schema` renders the `getSchema()` payload as a
   filterable, collapsible JSON tree.
 - Character search at `/characters` and staff search at `/staff` —
@@ -2170,11 +2175,6 @@ New DB tables introduced by recent batches:
   per-worker temp DB via `tests/setup.ts`, server-only stubbed in
   `tests/stubs/`. Coverage: shelf placement / swap / resize semantics
   + download-status pub/sub.
-
-## Not implemented (yet)
-
-- VNDB `/rlist` (release-level list) writes — `/ulist` is implemented;
-  release-list mutation has no consumer in the app today.
 
 ---
 

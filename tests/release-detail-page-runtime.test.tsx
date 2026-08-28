@@ -80,6 +80,18 @@ vi.mock('@/components/ReleaseOwnedToggle', () => ({
   ),
 }));
 
+vi.mock('@/components/VndbReleaseListPanel', () => ({
+  VndbReleaseListPanel: ({
+    locallyOwned,
+    releaseId,
+    vnId,
+  }: {
+    locallyOwned: boolean;
+    releaseId: string;
+    vnId: string;
+  }) => <div data-testid="vndb-release-list">{releaseId}:{vnId}:{String(locallyOwned)}</div>,
+}));
+
 vi.mock('@/components/SafeImage', () => ({
   SafeImage: ({
     alt,
@@ -249,6 +261,7 @@ describe('release detail page runtime', () => {
     expect(html).toContain('href="/vn/v1"');
     expect(html).toContain('/local/parent.jpg');
     expect(html).toContain('Parent VN cover');
+    expect(html).toContain('r1:v1:false');
     expect(repositoryMocks.upsertResolutionCache).toHaveBeenCalledWith({ releaseId: 'r1', vnId: 'v1', resolution: null });
   });
 
@@ -333,6 +346,7 @@ describe('release detail page runtime', () => {
     expect(html).not.toContain('Unsafe');
     expect(html).toContain('r1:v1:First VN:complete:true:true');
     expect(html).toContain('r1:v2:v2:partial:false:false');
+    expect(html).toContain('r1:v1:true');
     expect(html).toContain('This edition covers multiple VNs.');
     expect(html).toContain('aspect-square');
     expect(html).toContain('aspect-video');

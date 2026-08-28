@@ -46,6 +46,7 @@ vi.mock('@/lib/vndb-throttle', async (importOriginal) => {
 import {
   addToVndbWishlist,
   advancedSearchVn,
+  deleteRlistEntry,
   deleteUlistEntry,
   fetchAuthenticatedWishlist,
   fetchStaffVnList,
@@ -70,6 +71,7 @@ import {
   getTrait,
   getVn,
   lookupUsers,
+  patchRlistEntry,
   patchUlistEntry,
   refreshVn,
   removeFromVndbWishlist,
@@ -853,6 +855,8 @@ describe('ulist read + write', () => {
 
     await expect(fetchUlistEntry('v90901', { fresh: true })).resolves.toMatchObject({ id: 'v90901' });
     expect(providerFetchMock).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(body.fields).toContain('releases{id,title,list_status}');
   });
 
   it('fetchUlistLabels maps the labels list', async () => {
@@ -893,6 +897,54 @@ describe('ulist read + write', () => {
     providerFetchMock.mockResolvedValueOnce(new Response('', { status: 200 }));
     await deleteUlistEntry('v91003');
     expect((providerFetchMock.mock.calls[0][1] as RequestInit).method).toBe('DELETE');
+  });
+
+  it('patchRlistEntry writes an explicit release state', async () => {
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(patchRlistEntry('R91004', 2)).resolves.toEqual({ ok: true });
+    expect(providerFetchMock.mock.calls[0][0]).toBe('https://api.vndb.org/kana/rlist/r91004');
+    const init = providerFetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(String(init.body))).toEqual({ status: 2 });
+  });
+
+  it('deleteRlistEntry removes only the release-list entry', async () => {
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(deleteRlistEntry('R91005')).resolves.toEqual({ ok: true });
+    expect(providerFetchMock.mock.calls[0][0]).toBe('https://api.vndb.org/kana/rlist/r91005');
+    expect((providerFetchMock.mock.calls[0][1] as RequestInit).method).toBe('DELETE');
+  });
+
+  it('release-list helpers reject malformed input before any fetch', async () => {
+    await expect(patchRlistEntry('bad', 2)).rejects.toThrow(/invalid release id/);
+    await expect(patchRlistEntry('r91006', 5)).rejects.toThrow(/invalid release list status/);
+    await expect(deleteRlistEntry('bad')).rejects.toThrow(/invalid release id/);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('release-list helpers return needsAuth without a token', async () => {
+    setAppSetting('vndb_token', null);
+    delete process.env.VNDB_TOKEN;
+    await expect(patchRlistEntry('r91007', 2)).resolves.toEqual({ needsAuth: true });
+    await expect(deleteRlistEntry('r91007')).resolves.toEqual({ needsAuth: true });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+    process.env.VNDB_TOKEN = FAKE_TOKEN;
+  });
+
+  it('release-list helpers surface sanitized upstream errors', async () => {
+    const patchResponse = new Response('line1\nline2', { status: 403 });
+    const deleteResponse = new Response('', { status: 500 });
+    vi.spyOn(deleteResponse, 'text').mockRejectedValue(new Error('unreadable'));
+    providerFetchMock.mockResolvedValueOnce(patchResponse).mockResolvedValueOnce(deleteResponse);
+    await expect(patchRlistEntry('r91008', 3)).rejects.toThrow('VNDB PATCH /rlist/r91008 -> 403: line1 line2');
+    await expect(deleteRlistEntry('r91009')).rejects.toThrow('VNDB DELETE /rlist/r91009 -> 500:');
+  });
+
+  it('patchRlistEntry tolerates an unreadable upstream error body', async () => {
+    const response = new Response('', { status: 500 });
+    vi.spyOn(response, 'text').mockRejectedValue(new Error('unreadable'));
+    providerFetchMock.mockResolvedValueOnce(response);
+    await expect(patchRlistEntry('r91010', 2)).rejects.toThrow('VNDB PATCH /rlist/r91010 -> 500:');
   });
 
   it('write helpers reject a non-VNDB id before any fetch', async () => {

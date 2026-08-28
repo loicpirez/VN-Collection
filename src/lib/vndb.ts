@@ -40,6 +40,11 @@ import type {
   VndbReleaseProducer,
   VndbReleaseVn,
 } from './vndb-types';
+import {
+  isVndbReleaseListStatus,
+  type VndbReleaseListStatus,
+  type VndbUlistRelease,
+} from './vndb-release-list-shape';
 
 export type {
   VndbRelease,
@@ -49,7 +54,10 @@ export type {
   VndbReleaseVn,
 } from './vndb-types';
 
-import { isVndbVnId } from '@/lib/vn-id-shape';
+export { VNDB_RELEASE_LIST_STATUSES, isVndbReleaseListStatus } from './vndb-release-list-shape';
+export type { VndbReleaseListStatus, VndbUlistRelease } from './vndb-release-list-shape';
+
+import { isVndbReleaseId, isVndbVnId } from '@/lib/vn-id-shape';
 
 /**
  * Sanitises an upstream VNDB response body before interpolating it into a
@@ -1640,6 +1648,7 @@ export interface VndbUlistEntryDetail {
   finished: string | null;
   notes: string | null;
   labels: { id: number; label: string }[];
+  releases: VndbUlistRelease[];
 }
 
 export async function fetchUlistEntry(
@@ -1654,7 +1663,7 @@ export async function fetchUlistEntry(
     {
       user: auth.id,
       filters: ['id', '=', vnId.toLowerCase()],
-      fields: 'id, added, voted, lastmod, vote, started, finished, notes, labels{id,label}',
+      fields: 'id, added, voted, lastmod, vote, started, finished, notes, labels{id,label}, releases{id,title,list_status}',
       results: 1,
     },
     // Explicit refreshes bypass both cache reads and stale fallback so the
@@ -1721,8 +1730,51 @@ export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { n
   }
   try {
     await invalidateByPath('POST /ulist');
-  } catch {
-    // ignore
+  } catch {}
+  return { ok: true };
+}
+
+/** Set one release state in the authenticated user's VNDB release list. */
+export async function patchRlistEntry(
+  releaseId: string,
+  status: number,
+): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = await readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!isVndbReleaseId(releaseId)) throw new Error('invalid release id');
+  if (!isVndbReleaseListStatus(status)) throw new Error('invalid release list status');
+  const normalizedId = releaseId.toLowerCase();
+  const res = await throttledFetch(`${VNDB_API}/rlist/${normalizedId}`, {
+    method: 'PATCH',
+    headers: await authHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
+    throw new Error(`VNDB PATCH /rlist/${normalizedId} -> ${res.status}: ${text}`);
   }
+  try {
+    await invalidateByPath('POST /ulist');
+  } catch {}
+  return { ok: true };
+}
+
+/** Remove one release from the authenticated user's VNDB release list. */
+export async function deleteRlistEntry(releaseId: string): Promise<{ ok: true } | { needsAuth: true }> {
+  const token = await readVndbToken();
+  if (!token) return { needsAuth: true };
+  if (!isVndbReleaseId(releaseId)) throw new Error('invalid release id');
+  const normalizedId = releaseId.toLowerCase();
+  const res = await throttledFetch(`${VNDB_API}/rlist/${normalizedId}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+  });
+  if (!res.ok) {
+    const text = safeUpstreamBody(await res.text().catch(() => ''));
+    throw new Error(`VNDB DELETE /rlist/${normalizedId} -> ${res.status}: ${text}`);
+  }
+  try {
+    await invalidateByPath('POST /ulist');
+  } catch {}
   return { ok: true };
 }

@@ -11,6 +11,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import { SafeImage } from '@/components/SafeImage';
 import { LangFlag } from '@/components/LangFlag';
 import { ReleaseOwnedToggle } from '@/components/ReleaseOwnedToggle';
+import { VndbReleaseListPanel } from '@/components/VndbReleaseListPanel';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { safeHref } from '@/lib/safe-href';
 import { platformLabel } from '@/lib/platform-label';
@@ -337,6 +338,14 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             ))}
           </div>
         </section>
+      )}
+
+      {firstVnId && (
+        <VndbReleaseListPanel
+          releaseId={release.id}
+          vnId={firstVnId}
+          locallyOwned={ownedRows.some((row) => row !== null)}
+        />
       )}
 
       <section className="rounded-2xl border border-border bg-bg-card p-4 sm:p-6">

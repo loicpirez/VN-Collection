@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decodeVndbReleaseListClientState,
   decodeVndbStatusClientState,
   decodeWishlistClientState,
 } from '@/lib/vndb-ui-client-shape';
@@ -14,6 +15,7 @@ const DETAIL = {
   finished: null,
   notes: null,
   labels: [{ id: 5, label: 'Wishlist' }],
+  releases: [],
 };
 
 const WISHLIST_ROW = {
@@ -36,6 +38,14 @@ const WISHLIST_ROW = {
 };
 
 describe('VNDB UI client response adapters', () => {
+  it('decodes release-list states and rejects malformed payloads', () => {
+    expect(decodeVndbReleaseListClientState({ status: 2 })).toEqual({ needsAuth: false, status: 2 });
+    expect(decodeVndbReleaseListClientState({ needsAuth: true, status: null })).toEqual({ needsAuth: true, status: null });
+    expect(decodeVndbReleaseListClientState(null)).toBeNull();
+    expect(decodeVndbReleaseListClientState({ needsAuth: 'yes', status: null })).toBeNull();
+    expect(decodeVndbReleaseListClientState({ status: 5 })).toBeNull();
+  });
+
   it('decodes VNDB status responses and normalizes ids', () => {
     expect(decodeVndbStatusClientState({
       entry: DETAIL,
