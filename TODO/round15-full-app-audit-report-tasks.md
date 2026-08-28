@@ -35,6 +35,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-DOC-003 | LOW | General place-registry and PostgreSQL search fixtures contained historical Alice/Kobe and real studio wording outside migration compatibility tests. They now use neutral synthetic labels while legacy identifiers remain only where a migration contract requires them. | `tests/place-registry-page.test.ts`, `tests/postgres-search-parity.test.ts`, `tests/postgres-alicenet-repository.test.ts` | DONE_WITH_DIFF |
 | R15-TEST-002 | LOW | The audit report suggested that the responsive harness appended the same non-200 HTTP issue twice. Current source emits it once; a cardinality regression now prevents the diagnostic from drifting back to duplicate output. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | VERIFIED_EXISTING |
 | R15-TEST-003 | MEDIUM | Firefox exposes the expected initial HTTP Basic challenge as a 401 response even when Playwright is configured for preemptive credentials, then completes the same navigation with 200. The audit now recovers only that exact navigation challenge after a verified 200 final response; final, API, and asset 401 responses remain blocking. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | DONE_WITH_DIFF |
+| R15-TEST-004 | HIGH | The interactive iPhone card check forced a two-column inline grid after navigation, so it could pass even if the public density preference or compiled Grid CSS regressed. It now opens the library through `density=140`, leaves the rendered styles untouched, and measures the actual direct card borders at six virtual-scroll depths in Chromium and WebKit. | `scripts/browser-interactions.mjs`, `tests/qa-script-coverage.test.ts`, production library | DONE_WITH_DIFF |
 | R15-DOC-004 | MEDIUM | Reconcile README, FEATURES, CLAUDE, operational guides, route and provider inventories, TODO status, test evidence, and production facts against the final shipped implementation. | project Markdown and operational docs | TODO |
 | R15-OPS-001 | CRITICAL | Commit, push, and deploy each independent correction through the immutable release workflow, then prove local, remote, and production revision identity, active service health, zero unexpected restarts, clean journals, loopback listeners, authenticated routing, rollback retention, and current application behavior. | Git remote, release store, systemd, Nginx, production | IN_PROGRESS |
 
@@ -68,12 +69,16 @@ provider behavior, operations, backup, restore, and immutable deployment.
   regression-test verified without claiming a live populated-list result.
   Production revision identity, active service, zero restarts, PostgreSQL
   readiness, and pool state were checked after both immutable release switches.
-- The final item-card contract is deployed in release
-  `69a313920cb7d513160a2fbdf66de18b0c38ee69`. WebKit at 390 pixels reports two
+- The final item-card contract is present in the active release
+  `e44a63fb34c8ec96be85451bd140d17ea6b2481a`. WebKit and Chromium at 390 pixels report two
   columns, a 390-pixel document, and zero card top or visible-bottom divergence.
-  A separate production probe sampled 0, 20, 40, 60, 80, and 100 percent of the
+  A separate production probe using the public `density=140` preference sampled
+  0, 25, 50, 75, and 100 percent of the
   virtualized grid; every visible two-card row remained aligned to zero pixels,
-  with all card bounds between 12 and 378 pixels.
+  without rewriting a grid style from the test. The physical screenshot at
+  12:33 predates the structural card corrections committed between 12:49 and
+  14:15 on the same day and is retained as regression evidence, not as evidence
+  of the active release.
 - The complete instrumented suite currently passes 959 files and 10,083 tests
   at exactly 100 percent statements, branches, functions, and lines. The final
   ordinary, PostgreSQL, build, and operational gates remain open until the

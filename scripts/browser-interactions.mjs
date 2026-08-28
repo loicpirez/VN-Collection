@@ -250,14 +250,9 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
   const webkitPage = await webkitContext.newPage();
   webkitPage.setDefaultTimeout(15000);
   try {
-    await gotoClean(webkitPage, '/');
+    await gotoClean(webkitPage, '/?density=140');
     const grid = webkitPage.locator('[data-library-card-grid]').first();
     await grid.waitFor({ state: 'visible', timeout: 10000 });
-    await grid.evaluate((element) => {
-      element.style.setProperty('--card-density-px', '140px');
-      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-      window.dispatchEvent(new Event('resize'));
-    });
     await webkitPage.waitForTimeout(200);
 
     const rowSamples = [];
@@ -266,7 +261,6 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
       await webkitPage.evaluate((scrollY) => window.scrollTo(0, scrollY), Math.round(maximumScroll * fraction));
       await webkitPage.waitForTimeout(180);
       rowSamples.push(await grid.evaluate((element) => {
-        element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
         const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
           const rect = item.getBoundingClientRect();
           const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');
@@ -344,17 +338,11 @@ check('Chromium mobile quote dock stays fixed and toggles reversibly', async () 
 check('Chromium library grid keeps sequential cards on aligned rows', async (page) => {
   await page.setViewportSize({ width: 390, height: 844 });
   try {
-    await gotoClean(page, '/');
+    await gotoClean(page, '/?density=140');
     const grid = page.locator('[data-library-card-grid]').first();
     await grid.waitFor({ state: 'visible', timeout: 10000 });
-    await grid.evaluate((element) => {
-      element.style.setProperty('--card-density-px', '140px');
-      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-      window.dispatchEvent(new Event('resize'));
-    });
     await page.waitForTimeout(200);
     const geometry = await grid.evaluate((element) => {
-      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
         const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');

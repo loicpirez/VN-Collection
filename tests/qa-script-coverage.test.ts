@@ -75,6 +75,12 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toMatch(/page\.(click|evaluate|locator|hover|keyboard|goto)/);
   });
 
+  it('audits compact library cards through the public density preference without rewriting grid CSS', () => {
+    expect(INTERACTIONS.match(/gotoClean\([^,]+, '\/\?density=140'\)/g)).toHaveLength(2);
+    expect(INTERACTIONS).not.toContain("element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))'");
+    expect(INTERACTIONS).not.toContain("element.style.setProperty('--card-density-px', '140px')");
+  });
+
   it('refuses to run without VNCOLL_QA + WRITE_QA_ALLOWED + .qa-rooted DB_PATH', () => {
     expect(INTERACTIONS).toMatch(/WRITE_QA_ALLOWED=1 is required/);
     expect(INTERACTIONS).toMatch(/VNCOLL_QA=1 is required/);
