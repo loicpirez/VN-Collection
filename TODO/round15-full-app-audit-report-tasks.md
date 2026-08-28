@@ -55,7 +55,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-TEST-005 | HIGH | Vitest workers accumulated generated test directories because process-exit cleanup is not guaranteed when workers are force-terminated. The audit found 93,902 abandoned directories consuming about 51 GB. Test setup now performs deterministic suite cleanup with an exit fallback; focused and complete coverage runs leave zero generated test directory behind. | `tests/setup.ts`, complete test and coverage gates | DONE_WITH_DIFF |
 | R15-DOC-004 | MEDIUM | README, FEATURES, CLAUDE, operational guides, route and provider inventories, TODO status, test evidence, and production facts were reconciled against the final shipped implementation. All 52 tracked Markdown files pass the local-link audit. | project Markdown and operational docs | DONE |
 | R15-DOC-005 | MEDIUM | The feature reference still described native restore, database backup, and the local schema browser as SQLite-only after PostgreSQL reached full production parity. Document the backend-specific `.db` and `.vncbackup` flows and the provider-neutral schema surface without rewriting the historical cutover record. | `FEATURES.md` | DONE_WITH_DIFF |
-| R15-OPS-001 | CRITICAL | Commit, push, and deploy each independent correction through the immutable release workflow, then prove local, remote, and production revision identity, active service health, zero unexpected restarts, clean journals, loopback listeners, authenticated routing, rollback retention, and current application behavior. | Git remote, release store, systemd, Nginx, production | IN_PROGRESS |
+| R15-OPS-001 | CRITICAL | Every independent correction was committed, pushed, and deployed through the immutable release workflow. Local HEAD, `origin/main`, and the active release were identical at the operational verification point; the service was active with zero restart, readiness reported PostgreSQL available with no waiting connection, authenticated public routing passed, and the final item-card probe ran against that active release. | Git remote, release store, systemd, Nginx, production | DONE |
 
 ## Evidence collected
 
@@ -173,3 +173,8 @@ provider behavior, operations, backup, restore, and immutable deployment.
   and Neowing remain explicit search leads rather than fabricated structured
   stock. AliceNet remains a shop-owned workflow rather than a global stock
   control surface.
+- The final operational verification matched local HEAD, `origin/main`, and the
+  active immutable release. Systemd reported the application active with zero
+  restart; readiness reported PostgreSQL available with pool max 10, one idle
+  connection, and zero waiting connection. The authenticated iPhone item-card
+  probe was rerun after the release switch and retained all zero-offset results.
