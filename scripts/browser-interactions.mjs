@@ -269,11 +269,13 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
         element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
         const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
           const rect = item.getBoundingClientRect();
-          const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
+          const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');
+          const visibleRect = card?.getBoundingClientRect() ?? rect;
           return {
             top: Math.round(rect.top * 100) / 100,
             visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
             display: getComputedStyle(item).display,
+            directCard: card === item,
             rowEnd: item.style.gridRowEnd,
           };
         });
@@ -288,7 +290,7 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
           itemCount: items.length,
           maxPairOffset: pairOffsets.length > 0 ? Math.max(...pairOffsets) : 0,
           maxVisibleBottomOffset: pairBottomOffsets.length > 0 ? Math.max(...pairBottomOffsets) : 0,
-          wrappersUseFlex: items.every((item) => item.display === 'flex'),
+          cardsAreDirectGridItems: items.every((item) => item.directCard),
           hasManualRows: items.some((item) => item.rowEnd !== ''),
         };
       }));
@@ -298,14 +300,14 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
       itemCount: Math.max(...rowSamples.map((sample) => sample.itemCount)),
       maxPairOffset: Math.max(...rowSamples.map((sample) => sample.maxPairOffset)),
       maxVisibleBottomOffset: Math.max(...rowSamples.map((sample) => sample.maxVisibleBottomOffset)),
-      wrappersUseFlex: rowSamples.every((sample) => sample.wrappersUseFlex),
+      cardsAreDirectGridItems: rowSamples.every((sample) => sample.cardsAreDirectGridItems),
       hasManualRows: rowSamples.some((sample) => sample.hasManualRows),
     };
     assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
     assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
     assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);
     assert(rowGeometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${rowGeometry.maxVisibleBottomOffset}px at their bottom edge`);
-    assert(rowGeometry.wrappersUseFlex, 'library card wrappers do not stretch their visible card child');
+    assert(rowGeometry.cardsAreDirectGridItems, 'library cards still depend on an intermediate sizing wrapper');
     assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
     await assertMobileQuoteDock(webkitPage, 'WebKit');
   } finally {
@@ -355,11 +357,13 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
-        const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
+        const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');
+        const visibleRect = card?.getBoundingClientRect() ?? rect;
         return {
           top: Math.round(rect.top * 100) / 100,
           visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
           display: getComputedStyle(item).display,
+          directCard: card === item,
           rowEnd: item.style.gridRowEnd,
         };
       });
@@ -374,7 +378,7 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
         itemCount: items.length,
         maxPairOffset: Math.max(...pairOffsets),
         maxVisibleBottomOffset: Math.max(...pairBottomOffsets),
-        wrappersUseFlex: items.every((item) => item.display === 'flex'),
+        cardsAreDirectGridItems: items.every((item) => item.directCard),
         hasManualRows: items.some((item) => item.rowEnd !== ''),
       };
     });
@@ -382,7 +386,7 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
     assert(geometry.itemCount >= 4, `library rendered only ${geometry.itemCount} cards`);
     assert(geometry.maxPairOffset <= 1, `paired cards differ by ${geometry.maxPairOffset}px at their top edge`);
     assert(geometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${geometry.maxVisibleBottomOffset}px at their bottom edge`);
-    assert(geometry.wrappersUseFlex, 'library card wrappers do not stretch their visible card child');
+    assert(geometry.cardsAreDirectGridItems, 'library cards still depend on an intermediate sizing wrapper');
     assert(!geometry.hasManualRows, 'library cards still carry measured masonry row spans');
   } finally {
     await page.setViewportSize({ width: 1280, height: 900 });

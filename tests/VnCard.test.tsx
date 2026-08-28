@@ -146,7 +146,7 @@ describe('VnCard', () => {
 
     const selectable = screen.getByRole('button', { name: 'Card title' });
     expect(selectable).toHaveAttribute('aria-pressed', 'true');
-    expect(selectable).toHaveClass('h-full', 'w-full', 'flex-1');
+    expect(selectable).toHaveClass('min-h-0', 'w-full', 'flex-1', 'self-stretch');
     expect(screen.getByAltText('Card title')).toHaveAttribute('data-local', 'custom.jpg');
     expect(screen.getByText('Relation')).toBeInTheDocument();
     expect(screen.getByText(t.library.fanDisc)).toBeInTheDocument();
@@ -173,6 +173,18 @@ describe('VnCard', () => {
     fireEvent.keyDown(selectable, { key: ' ' });
     fireEvent.keyDown(selectable, { key: 'Escape' });
     expect(onSelect).toHaveBeenCalledTimes(3);
+  });
+
+  it('carries list metadata on the card root without an intermediate sizing wrapper', () => {
+    renderWithProviders(
+      <VnCard data={card()} listPosition={4} listSize={20} />,
+      { locale: 'en' },
+    );
+
+    const listItem = screen.getByRole('listitem');
+    expect(listItem).toHaveAttribute('aria-posinset', '4');
+    expect(listItem).toHaveAttribute('aria-setsize', '20');
+    expect(listItem).toHaveClass('self-stretch');
   });
 
   it('keeps remote custom covers remote instead of routing them through local files', () => {

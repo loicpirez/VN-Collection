@@ -23,13 +23,23 @@ vi.mock('@/components/VnCard', () => ({
     selectable,
     selected,
     onSelect,
+    listPosition,
+    listSize,
   }: {
     data: { id: string; title: string };
     selectable?: boolean;
     selected?: boolean;
     onSelect?: () => void;
+    listPosition?: number;
+    listSize?: number;
   }) => (
-    <div data-testid="vncard" data-id={data.id}>
+    <div
+      data-testid="vncard"
+      data-id={data.id}
+      role={listPosition != null ? 'listitem' : undefined}
+      aria-posinset={listPosition}
+      aria-setsize={listSize}
+    >
       <span>{data.title}</span>
       {selectable && (
         <button type="button" aria-pressed={!!selected} onClick={onSelect}>

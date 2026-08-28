@@ -75,6 +75,10 @@ interface VnCardProps {
   onRemoveFromWishlist?: () => void | Promise<void>;
   /** True while this card's wishlist removal is in flight - disables the control and swaps the icon for a spinner. */
   removingFromWishlist?: boolean;
+  /** One-based position when the card is rendered directly inside an ARIA list. */
+  listPosition?: number;
+  /** Total item count for a card rendered directly inside an ARIA list. */
+  listSize?: number;
 }
 
 export const VnCard = memo(VnCardImpl);
@@ -90,7 +94,19 @@ export const VnCard = memo(VnCardImpl);
  * that callsite extracts the build into a stable helper so the prop
  * identity is stable across renders.
  */
-function VnCardImpl({ data, selectable = false, selected = false, onSelect, enableAdd = false, onAdded, badge, onRemoveFromWishlist, removingFromWishlist = false }: VnCardProps) {
+function VnCardImpl({
+  data,
+  selectable = false,
+  selected = false,
+  onSelect,
+  enableAdd = false,
+  onAdded,
+  badge,
+  onRemoveFromWishlist,
+  removingFromWishlist = false,
+  listPosition,
+  listSize,
+}: VnCardProps) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -496,6 +512,7 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
     return (
       <div
         role="button"
+        data-vn-card
         tabIndex={0}
         aria-pressed={!!selected}
         aria-label={data.title}
@@ -518,6 +535,10 @@ function VnCardImpl({ data, selectable = false, selected = false, onSelect, enab
   return (
     <>
       <div
+        data-vn-card
+        role={listPosition != null ? 'listitem' : undefined}
+        aria-posinset={listPosition}
+        aria-setsize={listSize}
         className={className}
         onContextMenu={onContextMenu}
         onPointerDown={onPointerDown}

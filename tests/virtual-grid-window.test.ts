@@ -106,9 +106,14 @@ describe('LibraryClient virtual grid wiring', () => {
   it('marks the live grid when virtualization is active for browser QA', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
     expect(gridBody).toContain('data-library-card-grid');
+    expect(gridBody).toContain("'grid items-stretch gap-4'");
+    expect(memoCardBody).toContain('if (!selectable)');
+    expect(memoCardBody).toContain('listPosition={position}');
+    expect(memoCardBody).toContain('listSize={setSize}');
     expect(memoCardBody).toContain('role="listitem"');
     expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch"');
     expect(cardSource).toContain('min-h-0 w-full flex-1 self-stretch flex-col');
+    expect(cardSource).toContain("role={listPosition != null ? 'listitem' : undefined}");
     expect(cardSource).not.toContain('group relative flex h-full w-full flex-1 flex-col');
     expect(gridBody).not.toContain('data-library-card-lanes');
     expect(memoCardBody).not.toContain('MasonryGridItem');

@@ -17,7 +17,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | --- | --- | --- | --- | --- |
 | R15-AUDIT-001 | CRITICAL | Run a fresh application-wide source, test, browser, database, provider, documentation, and production audit. Record every verified problem below, implement each fix independently, and retain unknowns as open work instead of reusing Round 14 evidence. | whole application | IN_PROGRESS |
 | R15-RESP-001 | CRITICAL | Complete the deterministic 1,800-render production matrix across all 40 page routes, three browser engines, five viewport classes, and three locales. Investigate every HTTP, runtime, overflow, card-row, quote-footer, clipping, image-recovery, touch-target, and localization finding and rerun affected combinations after each fix. | `scripts/responsive-audit.mjs`, all page routes, production | IN_PROGRESS |
-| R15-RESP-002 | CRITICAL | The mobile library grid stretched each semantic list cell to its row height but Safari iOS could still leave the visual `VnCard` at its intrinsic height. The first correction combined a stretched Flex wrapper with `height: 100%` on the card, a WebKit-sensitive percentage-height chain that remained broken on the physical phone. The card now keeps an automatic block size and uses `align-self: stretch`, so the row's resolved cross size reaches the visual border without a percentage-height dependency or a fixed global card height. Browser QA measures visible card bottoms instead of only wrapper cells. | `src/components/VnCard.tsx`, `src/components/LibraryClient.tsx`, responsive production audit | IN_PROGRESS |
+| R15-RESP-002 | CRITICAL | The mobile library grid stretched each semantic list cell to its row height but Safari iOS could still paint the visual `VnCard` at its shorter intrinsic height. The earlier corrections removed percentage-height sizing and strengthened wrappers, but the physical-phone evidence showed that the remaining nested Grid-to-Flex sizing chain was still not reliable. In the normal library view, `VnCard` is now the semantic list item and the direct CSS Grid child, so the grid track stretches the actual painted border. Row height remains content-driven by the richest card in that row; there is no fixed global card height. Select mode retains its semantic interaction wrapper. The same automatic-size contract remains applied to custom sorting, reorderable lists, series, paginated lists, relations, and placeholder cards. Browser QA identifies the real card root and measures its border through multiple scroll positions, preventing a cover-only or wrapper-only false pass. | `src/components/VnCard.tsx`, `src/components/LibraryClient.tsx`, `src/components/SortableGrid.tsx`, `src/components/ListReorderGrid.tsx`, `scripts/browser-interactions.mjs`, card-grid call sites, responsive production audit | DONE_WITH_DIFF |
 | R15-UIUX-001 | HIGH | Recheck complete user workflows, information hierarchy, controls, loading and empty states, card alignment, fixed surfaces, dialogs, navigation, stock and shop integration, VN detail actions, and skeleton-to-content geometry. Add each concrete defect as an independent row before changing behavior. | all user-facing surfaces | IN_PROGRESS |
 | R15-ACCESS-001 | HIGH | Recheck landmarks, accessible names, keyboard and touch operation, focus containment and return, disclosure semantics, color-independent states, reduced motion, 44-pixel touch targets, and overlay ordering in source and compiled browsers. | application shell, components, all page routes | IN_PROGRESS |
 | R15-ACCESS-002 | HIGH | The activity filter toolbar kept three flexible fields plus actions on one wrapping row without a mobile minimum for the kind and entity fields. At 390 pixels those two controls shrank to 43.4 pixels wide. It now uses an explicit responsive field grid that gives every filter a full mobile row and intentional wider breakpoints. | `src/app/activity/page.tsx` | DONE_WITH_DIFF |
@@ -49,12 +49,15 @@ provider behavior, operations, backup, restore, and immutable deployment.
   TypeScript suppression, or coverage-ignore directive.
 - Native image elements remain confined to the three audited image owners:
   `SafeImage`, `LoadingImage`, and `HeroBanner`.
-- `R15-RESP-002` is deployed as commit `57766e0b`. A two-column WebKit mobile
-  run sampled scroll positions from 0 through 12,000 pixels with virtualized
-  rows and measured 0 pixels of top-edge and visible-bottom divergence at
-  every sample. The production release, Git revision, active service, zero
-  restart count, PostgreSQL readiness, and pool state were checked after the
-  immutable release switch.
+- `R15-RESP-002` is deployed through commits `71daf11e` and `ca4b6488`.
+  WebKit mobile sampled 73 positions through the production virtualized
+  library with 0 pixels of top-edge and visible-bottom divergence. Separate
+  production checks compared 415 custom-sort rows, 150 wishlist rows, and 10
+  series rows with the same 0-pixel result. The production database currently
+  contains no custom list items, so the equivalent list wrapper is source and
+  regression-test verified without claiming a live populated-list result.
+  Production revision identity, active service, zero restarts, PostgreSQL
+  readiness, and pool state were checked after both immutable release switches.
 - `R15-ACCESS-002` passed six focused phone renders across Chromium and
   WebKit in French, English, and Japanese with no responsive findings.
   `R15-ACCESS-003` renders at exactly 44 pixels in WebKit using the compiled
@@ -71,5 +74,4 @@ provider behavior, operations, backup, restore, and immutable deployment.
   passed 25 tests.
 - AliceNet branding remains current in production names. The canonical upstream
   host and append-only compatibility migrations necessarily retain historical
-  strings; three unrelated fixtures still need neutralization under
-  `R15-DOC-003`.
+  strings; unrelated general fixtures were neutralized under `R15-DOC-003`.

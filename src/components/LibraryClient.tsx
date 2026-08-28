@@ -1768,7 +1768,7 @@ function Grid({
   // mode). The slider value itself is the floor; the grid auto-fills
   // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
   // so cover size scales with column width.
-  const cls = dense ? 'grid gap-4' : 'grid gap-3';
+  const cls = dense ? 'grid items-stretch gap-4' : 'grid items-stretch gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
   /**
@@ -1906,6 +1906,17 @@ const MemoCard = memo(function MemoCard({
   setSize: number;
 }) {
   const handle = useCallback(() => onSelect(id), [onSelect, id]);
+
+  if (!selectable) {
+    return (
+      <VnCard
+        data={data}
+        listPosition={position}
+        listSize={setSize}
+      />
+    );
+  }
+
   return (
     <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-h-0 min-w-0 items-stretch">
       <VnCard

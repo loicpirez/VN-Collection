@@ -17,8 +17,24 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/components/VnCard', () => ({
-  VnCard: ({ data }: { data: { id: string; title: string } }) => (
-    <div data-testid="vncard" data-id={data.id}><span>{data.title}</span></div>
+  VnCard: ({
+    data,
+    listPosition,
+    listSize,
+  }: {
+    data: { id: string; title: string };
+    listPosition?: number;
+    listSize?: number;
+  }) => (
+    <div
+      data-testid="vncard"
+      data-id={data.id}
+      role={listPosition != null ? 'listitem' : undefined}
+      aria-posinset={listPosition}
+      aria-setsize={listSize}
+    >
+      <span>{data.title}</span>
+    </div>
   ),
 }));
 vi.mock('@/components/BulkActionBar', () => ({
