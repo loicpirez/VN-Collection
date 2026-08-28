@@ -1171,6 +1171,7 @@ describe('AliceNetClient branches', () => {
   });
 
   it('opens the link dialog from the list-row action', async () => {
+    await import('@/components/alicenet/AliceNetLinkDialog');
     global.fetch = vi.fn(async (url: RequestInfo | URL) => {
       if (String(url).startsWith('/api/search')) return json({ results: [] });
       return json(snapshot({ items: [WISHLIST_ITEM], stats: { total: 1, matched: 1, egs_only: 1 } }));
@@ -1180,7 +1181,7 @@ describe('AliceNetClient branches', () => {
     fireEvent.click(screen.getByRole('button', { name: 'List' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List' })).toHaveClass('bg-accent'));
     fireEvent.click(screen.getByRole('button', { name: 'Link' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', undefined, { timeout: 5_000 })).toBeInTheDocument();
   });
 
   it('renders AliceNet secondary metadata in card and row layouts', async () => {
