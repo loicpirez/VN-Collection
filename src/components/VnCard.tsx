@@ -79,6 +79,8 @@ interface VnCardProps {
   listPosition?: number;
   /** Total item count for a card rendered directly inside an ARIA list. */
   listSize?: number;
+  /** Keep the card at its intrinsic height instead of filling a grid row. */
+  naturalHeight?: boolean;
 }
 
 export const VnCard = memo(VnCardImpl);
@@ -106,6 +108,7 @@ function VnCardImpl({
   removingFromWishlist = false,
   listPosition,
   listSize,
+  naturalHeight = false,
 }: VnCardProps) {
   const t = useT();
   const locale = useLocale();
@@ -262,7 +265,7 @@ function VnCardImpl({
     ? customCoverIsRemote ? null : data.customCover
     : data.localPoster || null;
 
-  const className = `group relative flex min-h-0 w-full flex-1 self-stretch flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+  const className = `group relative flex min-h-0 w-full ${naturalHeight ? 'self-start' : 'flex-1 self-stretch'} flex-col overflow-hidden rounded-xl border bg-bg-card transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
     selectable
       ? `cursor-pointer ${selected ? 'border-accent ring-2 ring-accent shadow-card' : 'border-border hover:border-accent focus-visible:border-accent'}`
       : 'border-border can-hover:hover:-translate-y-1 hover:border-accent hover:shadow-card focus-visible:-translate-y-1 focus-visible:border-accent focus-visible:shadow-card'

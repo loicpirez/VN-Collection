@@ -1742,34 +1742,6 @@ interface VirtualCardRow {
 
 const VIRTUAL_GRID_MIN_WIDTH = 640;
 
-interface MobileMasonryCellProps {
-  itemId: string;
-  rowSpan: number | undefined;
-  register: (itemId: string, element: HTMLDivElement | null) => void;
-  children: React.ReactNode;
-}
-
-function MobileMasonryCell({ itemId, rowSpan, register, children }: MobileMasonryCellProps) {
-  const ref = useCallback(
-    (element: HTMLDivElement | null) => register(itemId, element),
-    [itemId, register],
-  );
-
-  return (
-    <div
-      ref={ref}
-      className="min-w-0"
-      style={{
-        gridRowEnd: `span ${rowSpan ?? 1}`,
-        visibility: rowSpan == null ? 'hidden' : 'visible',
-      }}
-      data-library-masonry-cell={itemId}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Grid({
   items,
   selectMode,
@@ -1794,7 +1766,7 @@ function Grid({
   // mode). The slider value itself is the floor; the grid auto-fills
   // remaining space at 1fr. Cards inside use `aspect-[2/3] w-full`
   // so cover size scales with column width.
-  const cls = dense ? 'grid items-stretch gap-4' : 'grid items-stretch gap-3';
+  const cls = dense ? 'grid items-start gap-4' : 'grid items-start gap-3';
   const densityMul = dense ? 0.72 : 1;
   const gapPx = dense ? 16 : 12;
   /**
@@ -1844,64 +1816,6 @@ function Grid({
   const useMeasuredRows = virtualize
     && items.length > virtualThreshold
     && containerWidth >= VIRTUAL_GRID_MIN_WIDTH;
-  const useMobileMasonry = virtualize
-    && containerWidth > 0
-    && containerWidth < VIRTUAL_GRID_MIN_WIDTH
-    && columnCount > 1;
-  const masonryCellsRef = useRef(new Map<string, HTMLDivElement>());
-  const [masonrySpans, setMasonrySpans] = useState<Map<string, number>>(() => new Map());
-  const registerMasonryCell = useCallback((itemId: string, element: HTMLDivElement | null) => {
-    if (element) masonryCellsRef.current.set(itemId, element);
-    else masonryCellsRef.current.delete(itemId);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!useMobileMasonry) return;
-    let frame: number | null = null;
-    const pending = new Map<string, number>();
-
-    const flush = () => {
-      frame = null;
-      const updates = new Map(pending);
-      pending.clear();
-      setMasonrySpans((current) => {
-        let changed = false;
-        const next = new Map(current);
-        for (const [itemId, span] of updates) {
-          if (next.get(itemId) === span) continue;
-          next.set(itemId, span);
-          changed = true;
-        }
-        return changed ? next : current;
-      });
-    };
-
-    const measure = (card: Element) => {
-      const cell = card.parentElement;
-      const itemId = cell?.dataset.libraryMasonryCell;
-      if (!itemId) return;
-      const height = card.getBoundingClientRect().height;
-      if (!Number.isFinite(height) || height <= 0) return;
-      pending.set(itemId, Math.max(1, Math.ceil(height + gapPx)));
-      if (frame === null) frame = window.requestAnimationFrame(flush);
-    };
-
-    const observer = typeof ResizeObserver === 'undefined'
-      ? null
-      : new ResizeObserver((entries) => entries.forEach((entry) => measure(entry.target)));
-    for (const cell of masonryCellsRef.current.values()) {
-      const card = cell.firstElementChild!;
-      measure(card);
-      observer?.observe(card);
-    }
-    window.cancelAnimationFrame(Number(frame));
-    flush();
-
-    return () => {
-      observer?.disconnect();
-      if (frame !== null) window.cancelAnimationFrame(frame);
-    };
-  }, [gapPx, items, useMobileMasonry]);
   // Stash the per-render onToggle in a ref so each `<VnCard>` can get
   // an `onSelect` reference that's stable across renders. Without this
   // the `() => onToggle?.(it.id)` arrow was freshly allocated every
@@ -1968,30 +1882,6 @@ function Grid({
             </div>
           )}
         />
-      ) : useMobileMasonry ? (
-        <div
-          role="list"
-          className="grid items-start"
-          style={{
-            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-            columnGap: gapPx,
-            gridAutoFlow: 'row dense',
-            gridAutoRows: '1px',
-          }}
-          data-library-card-grid
-          data-library-card-masonry="measured"
-        >
-          {items.map((it, index) => (
-            <MobileMasonryCell
-              key={it.id}
-              itemId={it.id}
-              rowSpan={masonrySpans.get(it.id)}
-              register={registerMasonryCell}
-            >
-              {renderCard(it, cardData[index], index + 1)}
-            </MobileMasonryCell>
-          ))}
-        </div>
       ) : (
         <div role="list" className={cls} style={nativeGridStyle} data-library-card-grid>
           {items.map((it, index) => renderCard(it, cardData[index], index + 1))}
@@ -2026,17 +1916,19 @@ const MemoCard = memo(function MemoCard({
         data={data}
         listPosition={position}
         listSize={setSize}
+        naturalHeight
       />
     );
   }
 
   return (
-    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-h-0 min-w-0 items-stretch">
+    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-h-0 min-w-0 items-start">
       <VnCard
         selectable={selectable}
         selected={selected}
         onSelect={handle}
         data={data}
+        naturalHeight
       />
     </div>
   );

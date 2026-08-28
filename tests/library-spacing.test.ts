@@ -26,10 +26,10 @@ describe('LibraryClient grid spacing', () => {
 
   it('comfortable mode uses gap-3 (consistent with every other listing grid)', () => {
     // The ternary in `<ListingGrid>` keys on `dense`; the comfortable
-    // branch is the second arm. Both branches must keep row stretching
-    // on the real card roots so their painted borders align in Safari.
+    // branch is the second arm. Both branches align intrinsic-height
+    // card roots at the start of each shared row.
     expect(src).toMatch(
-      /dense \? 'grid items-stretch gap-4' : 'grid items-stretch gap-3'/,
+      /dense \? 'grid items-start gap-4' : 'grid items-start gap-3'/,
     );
   });
 
