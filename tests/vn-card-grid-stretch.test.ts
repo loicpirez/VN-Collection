@@ -15,6 +15,14 @@ describe('VN card grid stretch contract', () => {
     );
   });
 
+  it('gives every library card an explicit Safari-stable stretching grid cell', () => {
+    const library = source('src/components/LibraryClient.tsx');
+    expect(library).toContain('className="flex min-h-0 min-w-0 items-stretch self-stretch"');
+    expect(library).toContain('data-library-card-cell');
+    expect(library).not.toContain('if (!selectable)');
+    expect(library).toContain('onSelect={selectable ? handle : undefined}');
+  });
+
   it('keeps paginated list, series, and relation wrappers stretchable', () => {
     const wrapperClass = 'flex min-h-0 min-w-0 items-stretch';
     expect(source('src/app/lists/[id]/page.tsx')).toContain(wrapperClass);

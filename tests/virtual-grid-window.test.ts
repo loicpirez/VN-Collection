@@ -110,11 +110,11 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
     expect(gridBody).toContain('data-library-card-grid');
     expect(gridBody).toContain("'grid items-stretch gap-4'");
-    expect(memoCardBody).toContain('if (!selectable)');
-    expect(memoCardBody).toContain('listPosition={position}');
-    expect(memoCardBody).toContain('listSize={setSize}');
     expect(memoCardBody).toContain('role="listitem"');
-    expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch"');
+    expect(memoCardBody).toContain('aria-posinset={position}');
+    expect(memoCardBody).toContain('aria-setsize={setSize}');
+    expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch self-stretch"');
+    expect(memoCardBody).toContain('data-library-card-cell');
     expect(memoCardBody).not.toContain('naturalHeight');
     expect(cardSource).toContain('h-full min-h-0 w-full flex-1 self-stretch flex-col');
     expect(cardSource).toContain("role={listPosition != null ? 'listitem' : undefined}");

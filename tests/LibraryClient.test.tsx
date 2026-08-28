@@ -1898,7 +1898,10 @@ describe('LibraryClient', () => {
     expect(grid).toHaveClass('items-stretch');
     expect(grid?.style.gridTemplateColumns).toContain('auto-fill');
     expect(grid).not.toHaveAttribute('data-library-card-masonry');
-    const cards = grid!.querySelectorAll<HTMLElement>(':scope > [data-vn-card]');
+    const cells = grid!.querySelectorAll<HTMLElement>(':scope > [data-library-card-cell]');
+    expect(cells).toHaveLength(rows.length);
+    expect(cells[0]).toHaveClass('self-stretch', 'items-stretch');
+    const cards = grid!.querySelectorAll<HTMLElement>(':scope > [data-library-card-cell] > [data-vn-card]');
     expect(cards).toHaveLength(rows.length);
     expect(cards[0]).toHaveClass('h-full', 'flex-1', 'self-stretch');
     rectSpy.mockRestore();

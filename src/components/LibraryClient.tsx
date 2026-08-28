@@ -1914,22 +1914,18 @@ const MemoCard = memo(function MemoCard({
 }) {
   const handle = useCallback(() => onSelect(id), [onSelect, id]);
 
-  if (!selectable) {
-    return (
-      <VnCard
-        data={data}
-        listPosition={position}
-        listSize={setSize}
-      />
-    );
-  }
-
   return (
-    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-h-0 min-w-0 items-stretch">
+    <div
+      role="listitem"
+      aria-posinset={position}
+      aria-setsize={setSize}
+      className="flex min-h-0 min-w-0 items-stretch self-stretch"
+      data-library-card-cell
+    >
       <VnCard
         selectable={selectable}
         selected={selected}
-        onSelect={handle}
+        onSelect={selectable ? handle : undefined}
         data={data}
       />
     </div>
