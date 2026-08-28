@@ -6,6 +6,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { VndbStatusPanel } from '@/components/VndbStatusPanel';
 import { EGS_CHANGED_EVENT } from '@/components/EgsPanel';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { formatIsoDateString } from '@/lib/locale-number';
 
 const mocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 
@@ -334,6 +335,10 @@ describe('VndbStatusPanel branches', () => {
 
     expect(await screen.findAllByText(t.vndbStatus.fieldStarted)).not.toHaveLength(0);
     expect(screen.getAllByText(t.vndbStatus.fieldFinished)).not.toHaveLength(0);
+    expect(screen.getByText(formatIsoDateString('2025-01-01', 'en'))).toBeInTheDocument();
+    expect(screen.getByText(formatIsoDateString('2024-01-01', 'en'))).toBeInTheDocument();
+    expect(screen.queryByText('2025-01-01')).not.toBeInTheDocument();
+    expect(screen.queryByText('2024-01-01')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.vndbStatus.useAllRemote }));
 
     await waitFor(() => expect(body).toEqual({

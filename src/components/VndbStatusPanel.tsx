@@ -10,7 +10,7 @@ import { useT, useLocale } from '@/lib/i18n/client';
 import { CollapsibleSummary } from './CollapsibleSummary';
 import { ErrorAlert } from './ErrorAlert';
 import { EGS_CHANGED_EVENT, type EgsChangedDetail } from './EgsPanel';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 
 import { readApiErrorLocalized, type KnownApiErrorCode } from '@/lib/api-error-read';
 import { decodeVndbStatusClientState, type VndbStatusClientState } from '@/lib/vndb-ui-client-shape';
@@ -314,6 +314,9 @@ export function VndbStatusPanel({ vnId }: { vnId: string }) {
     if (value === null) return t.vndbStatus.noValue;
     if (field === 'status') return t.status[value as Status];
     if (field === 'vote') return `${fmtNum((value as number) / 10, locale, 1)}/10`;
+    if (field === 'started' || field === 'finished') {
+      return formatIsoDateString(value as string, locale);
+    }
     return String(value);
   }
 
