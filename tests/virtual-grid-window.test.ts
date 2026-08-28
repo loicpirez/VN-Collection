@@ -106,6 +106,7 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
     expect(gridBody).toContain('data-library-card-grid');
     expect(memoCardBody).toContain('role="listitem"');
+    expect(memoCardBody).toContain('className="flex min-w-0 items-stretch"');
     expect(gridBody).not.toContain('data-library-card-lanes');
     expect(memoCardBody).not.toContain('MasonryGridItem');
     expect(gridBody).toContain('position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}');

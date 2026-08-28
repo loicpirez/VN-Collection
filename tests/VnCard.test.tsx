@@ -146,7 +146,7 @@ describe('VnCard', () => {
 
     const selectable = screen.getByRole('button', { name: 'Card title' });
     expect(selectable).toHaveAttribute('aria-pressed', 'true');
-    expect(selectable).toHaveClass('h-full');
+    expect(selectable).toHaveClass('h-full', 'w-full', 'flex-1');
     expect(screen.getByAltText('Card title')).toHaveAttribute('data-local', 'custom.jpg');
     expect(screen.getByText('Relation')).toBeInTheDocument();
     expect(screen.getByText(t.library.fanDisc)).toBeInTheDocument();

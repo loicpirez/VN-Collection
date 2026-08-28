@@ -264,22 +264,34 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
-        return { top: Math.round(rect.top * 100) / 100, rowEnd: item.style.gridRowEnd };
+        const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
+        return {
+          top: Math.round(rect.top * 100) / 100,
+          visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
+          display: getComputedStyle(item).display,
+          rowEnd: item.style.gridRowEnd,
+        };
       });
       const pairOffsets = [];
+      const pairBottomOffsets = [];
       for (let index = 0; index + 1 < items.length; index += 2) {
         pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
+        pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
       }
       return {
         display: getComputedStyle(element).display,
         itemCount: items.length,
         maxPairOffset: Math.max(...pairOffsets),
+        maxVisibleBottomOffset: Math.max(...pairBottomOffsets),
+        wrappersUseFlex: items.every((item) => item.display === 'flex'),
         hasManualRows: items.some((item) => item.rowEnd !== ''),
       };
     });
     assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
     assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
     assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);
+    assert(rowGeometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${rowGeometry.maxVisibleBottomOffset}px at their bottom edge`);
+    assert(rowGeometry.wrappersUseFlex, 'library card wrappers do not stretch their visible card child');
     assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
     await assertMobileQuoteDock(webkitPage, 'WebKit');
   } finally {
@@ -329,25 +341,34 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
       const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();
+        const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
         return {
           top: Math.round(rect.top * 100) / 100,
+          visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
+          display: getComputedStyle(item).display,
           rowEnd: item.style.gridRowEnd,
         };
       });
       const pairOffsets = [];
+      const pairBottomOffsets = [];
       for (let index = 0; index + 1 < items.length; index += 2) {
         pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
+        pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
       }
       return {
         display: getComputedStyle(element).display,
         itemCount: items.length,
         maxPairOffset: Math.max(...pairOffsets),
+        maxVisibleBottomOffset: Math.max(...pairBottomOffsets),
+        wrappersUseFlex: items.every((item) => item.display === 'flex'),
         hasManualRows: items.some((item) => item.rowEnd !== ''),
       };
     });
     assert(geometry.display === 'grid', `Chromium library uses ${geometry.display} instead of grid`);
     assert(geometry.itemCount >= 4, `library rendered only ${geometry.itemCount} cards`);
     assert(geometry.maxPairOffset <= 1, `paired cards differ by ${geometry.maxPairOffset}px at their top edge`);
+    assert(geometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${geometry.maxVisibleBottomOffset}px at their bottom edge`);
+    assert(geometry.wrappersUseFlex, 'library card wrappers do not stretch their visible card child');
     assert(!geometry.hasManualRows, 'library cards still carry measured masonry row spans');
   } finally {
     await page.setViewportSize({ width: 1280, height: 900 });
