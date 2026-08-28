@@ -36,7 +36,7 @@ vi.mock('@/lib/proxy-config', async (importOriginal) => {
   return { ...actual, isStockProviderProxied: proxiedMock };
 });
 
-import { refreshStockForVn } from '@/lib/stock';
+import { encodeEucJpQuery, refreshStockForVn } from '@/lib/stock';
 import {
   db,
   getCollectionItem,
@@ -295,6 +295,21 @@ describe('refreshStockForVn — provider status branches', () => {
 });
 
 describe('refreshStockForVn — wave chunking + progress', () => {
+  it('sends Japanese Getchu searches as EUC-JP query bytes', async () => {
+    const title = '架空作品';
+    seedVn({ title, alttitle: null });
+    releasesMock.mockResolvedValue([]);
+    respondWith('<html><body>no products</body></html>');
+
+    await refreshStockForVn(VN_ID, ['getchu']);
+
+    const requestedUrls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(requestedUrls).toContain(
+      `https://www.getchu.com/php/nsearch.phtml?search_keyword=${encodeEucJpQuery(title)}&list_count=30&sort=sales&sort2=down`,
+    );
+    expect(requestedUrls.some((url) => url.includes(encodeURIComponent(title)))).toBe(false);
+  });
+
   it('reports progress once per active provider in completion order', async () => {
     seedVn();
     releasesMock.mockResolvedValue([]);
