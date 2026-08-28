@@ -6,9 +6,16 @@ import { QA_IDS } from './qa-ids.mjs';
 
 const baseURL = process.env.RESPONSIVE_BASE_URL ?? 'http://localhost:3101';
 const outputPath = resolve(process.env.RESPONSIVE_OUTPUT ?? '.tmp/responsive-audit-results.json');
+const screenshotMode = process.env.RESPONSIVE_SCREENSHOTS ?? 'findings';
+const screenshotDirectory = resolve(process.env.RESPONSIVE_SCREENSHOT_DIR ?? '.tmp/responsive-audit');
+const screenshotFullPage = process.env.RESPONSIVE_SCREENSHOT_FULL_PAGE === '1';
 const basicUser = process.env.RESPONSIVE_USER;
 const basicPassword = process.env.RESPONSIVE_PASSWORD;
 const expectedPageCount = 40;
+
+if (!['all', 'findings', 'none'].includes(screenshotMode)) {
+  throw new Error(`Unknown screenshot mode: ${screenshotMode}`);
+}
 
 const routes = [
   { key: 'library', path: '/' },
@@ -98,7 +105,6 @@ if (selectedLocales.length === 0) throw new Error('No valid responsive audit loc
 
 const fatalPattern = /Application error|Unhandled Runtime Error|Functions cannot be passed directly|SqliteError|Internal Server Error/i;
 const results = [];
-let screenshotCount = 0;
 let completedCount = 0;
 
 async function waitForPaint(page) {
@@ -192,8 +198,10 @@ async function measure(page, touch, expectedLocale, routeKey) {
     }).map(descriptor).slice(0, 50);
     const cardGrid = routeKey === 'library' ? document.querySelector('[data-library-card-grid]') : null;
     let cardRowOffset = 0;
+    let cardColumnCount = 0;
     if (cardGrid) {
       const columns = getComputedStyle(cardGrid).gridTemplateColumns.split(' ').filter(Boolean).length;
+      cardColumnCount = columns;
       const cards = Array.from(cardGrid.querySelectorAll(':scope > [role="listitem"]'));
       for (let index = 0; index < cards.length; index += Math.max(columns, 1)) {
         const row = cards.slice(index, index + columns);
@@ -239,6 +247,7 @@ async function measure(page, touch, expectedLocale, routeKey) {
       escapedElements,
       fixedOutOfBounds,
       cardRowOffset: Math.round(cardRowOffset * 100) / 100,
+      cardColumnCount,
       quoteGeometry,
       recoveredImageFallbacks,
       touch,
@@ -260,6 +269,9 @@ function collectIssues(result) {
   if (result.clippedControls.length > 0) issues.push(`${result.clippedControls.length} clipped controls`);
   if (result.fixedOutOfBounds.length > 0) issues.push(`${result.fixedOutOfBounds.length} fixed elements outside viewport`);
   if (result.cardRowOffset > 1) issues.push(`library row offset ${result.cardRowOffset}px`);
+  if (result.route === 'library' && result.viewport === 'phone' && result.cardColumnCount < 2) {
+    issues.push(`compact library rendered ${result.cardColumnCount} column`);
+  }
   if (!result.quoteGeometry) {
     issues.push('quote footer missing');
   } else {
@@ -273,6 +285,14 @@ function collectIssues(result) {
       && (result.quoteGeometry.panelLeft < -1 || result.quoteGeometry.panelRight > result.viewportWidth + 1)
     ) {
       issues.push('quote panel exceeds the viewport');
+    }
+    if (
+      result.touch
+      && result.quoteGeometry.panelLeft !== null
+      && result.quoteGeometry.panelRight !== null
+      && (Math.abs(result.quoteGeometry.panelLeft) > 1 || Math.abs(result.quoteGeometry.panelRight - result.viewportWidth) > 1)
+    ) {
+      issues.push('quote panel is not full-width on touch');
     }
     if (Math.abs(result.quoteGeometry.bottom - viewports[result.viewport].height) > 1) {
       issues.push('quote is not anchored to the viewport bottom');
@@ -317,7 +337,12 @@ for (const engineName of selectedEngines) {
         await context.addCookies([{ name: 'locale', value: locale, url: baseURL }]);
         await context.addInitScript(() => {
           localStorage.setItem('vn_tour_completed_v1', '1');
-          localStorage.setItem('vn_map_privacy_dismissed_v1', '1');
+          localStorage.setItem('vncoll.map.privacy-notice-dismissed.v1', 'true');
+          localStorage.setItem('vn_display_settings_v1', JSON.stringify({
+            cardDensityPx: 220,
+            density: { library: 160 },
+          }));
+          localStorage.setItem('vn_display_settings_legacy_library_seeded_v1', '1');
           Reflect.deleteProperty(window, 'EventSource');
         });
         for (const route of selectedRoutes) {
@@ -359,6 +384,7 @@ for (const engineName of selectedEngines) {
             escapedElements: [],
             fixedOutOfBounds: [],
             cardRowOffset: 0,
+            cardColumnCount: 0,
             quoteGeometry: null,
             recoveredImageFallbacks: [],
             measurementError: error instanceof Error ? error.message : String(error),
@@ -384,12 +410,13 @@ for (const engineName of selectedEngines) {
           if (completedCount % 10 === 0) {
             console.log(`Responsive audit progress: ${completedCount}/${selectedEngines.length * selectedLocales.length * selectedViewports.length * selectedRoutes.length}`);
           }
-          if (result.issues.length > 0 && screenshotCount < 80) {
-            const screenshotPath = resolve('.tmp/responsive-audit', `${engineName}-${locale}-${viewportName}-${route.key}.png`);
+          const shouldCaptureScreenshot = screenshotMode === 'all'
+            || (screenshotMode === 'findings' && result.issues.length > 0);
+          if (shouldCaptureScreenshot) {
+            const screenshotPath = resolve(screenshotDirectory, `${engineName}-${locale}-${viewportName}-${route.key}.png`);
             mkdirSync(dirname(screenshotPath), { recursive: true });
-            await page.screenshot({ path: screenshotPath, fullPage: false }).catch(() => {});
+            await page.screenshot({ path: screenshotPath, fullPage: screenshotFullPage }).catch(() => {});
             result.screenshot = screenshotPath;
-            screenshotCount += 1;
           }
           await page.close();
         }

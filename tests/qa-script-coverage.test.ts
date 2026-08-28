@@ -121,6 +121,28 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain('recoveredBrowserErrors: classifiedErrors.recovered');
     expect(RESPONSIVE).toContain('error === `HTTP 404 ${url}`');
   });
+
+  it('supports exhaustive visual capture without weakening finding collection', () => {
+    expect(RESPONSIVE).toContain("RESPONSIVE_SCREENSHOTS ?? 'findings'");
+    expect(RESPONSIVE).toContain("['all', 'findings', 'none'].includes(screenshotMode)");
+    expect(RESPONSIVE).toContain("screenshotMode === 'all'");
+    expect(RESPONSIVE).toContain('fullPage: screenshotFullPage');
+  });
+
+  it('exercises the real two-column compact library state on phone viewports', () => {
+    expect(RESPONSIVE).toContain("density: { library: 160 }");
+    expect(RESPONSIVE).toContain("result.route === 'library' && result.viewport === 'phone'");
+    expect(RESPONSIVE).toContain('result.cardColumnCount < 2');
+    expect(RESPONSIVE).toContain('library row offset');
+    expect(RESPONSIVE).toContain("issues.push('quote panel is not full-width on touch')");
+  });
+
+  it('captures the persisted collapsed map privacy state', () => {
+    expect(RESPONSIVE).toContain(
+      "localStorage.setItem('vncoll.map.privacy-notice-dismissed.v1', 'true')",
+    );
+    expect(RESPONSIVE).not.toContain('vn_map_privacy_dismissed_v1');
+  });
 });
 
 describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface', () => {
@@ -192,6 +214,10 @@ describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface
     {
       row: 'TESTA-007 bounded narrow VN detail and section navigation',
       pattern: /check\('narrow VN detail stays bounded with collapsed sections and touch-safe navigation'/,
+    },
+    {
+      row: 'R14-RESP-005 Chromium quote dock touch behavior',
+      pattern: /check\('Chromium mobile quote dock stays fixed and toggles reversibly'/,
     },
   ];
 

@@ -63,7 +63,7 @@ export function QuoteFooter() {
   return (
     <div
       data-quote-footer-root
-      className={`fixed inset-x-0 bottom-0 z-layer-footer ${expanded ? 'is-open' : ''}`}
+      className={`fixed inset-x-0 bottom-0 z-layer-footer bg-bg/95 can-hover:sm:bg-transparent ${expanded ? 'is-open' : ''}`}
       onPointerEnter={(event) => {
         if (event.pointerType === 'mouse') setPointerPreview(true);
       }}
@@ -72,10 +72,10 @@ export function QuoteFooter() {
       }}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto w-full max-w-7xl can-hover:sm:px-6">
         <div
           data-quote-footer-panel
-          className={`overflow-hidden rounded-t-md border border-b-0 border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out ${
+          className={`overflow-hidden border-t border-border bg-bg/95 backdrop-blur transition-[max-height] duration-300 ease-out can-hover:sm:rounded-t-md can-hover:sm:border-x ${
             expanded ? 'max-h-28' : 'max-h-12 can-hover:sm:max-h-5'
           }`}
         >
@@ -102,8 +102,10 @@ export function QuoteFooter() {
             </button>
             <button
               type="button"
+              data-quote-footer-refresh
               onClick={(event) => {
                 event.preventDefault();
+                setOpen(true);
                 fetchedRef.current = true;
                 load();
               }}

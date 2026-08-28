@@ -298,8 +298,11 @@ describe('responsive tap targets', () => {
     expect(source('src/components/MoreNavMenu.tsx')).toContain('min-h-[44px]');
     const quoteFooter = source('src/components/QuoteFooter.tsx');
     expect(quoteFooter).toContain('fixed inset-x-0 bottom-0 z-layer-footer');
+    expect(quoteFooter).toContain('bg-bg/95 can-hover:sm:bg-transparent');
     expect(quoteFooter).toContain('data-quote-footer-root');
-    expect(quoteFooter).toContain('mx-auto max-w-7xl px-6');
+    expect(quoteFooter).toContain('mx-auto w-full max-w-7xl can-hover:sm:px-6');
+    expect(quoteFooter).toContain('border-t border-border');
+    expect(quoteFooter).toContain('can-hover:sm:rounded-t-md can-hover:sm:border-x');
     expect(quoteFooter).toContain("paddingBottom: 'env(safe-area-inset-bottom)'");
     expect(quoteFooter).toContain('max-h-12');
     expect(quoteFooter).toContain('can-hover:sm:max-h-5');
@@ -366,6 +369,7 @@ describe('responsive tap targets', () => {
     expect(stock).toContain('className="absolute right-1.5 top-1.5 inline-flex h-11 w-11');
     expect(stock).not.toContain('top-1.5 hidden h-6 w-6');
     expect(stock).toContain('min-h-[44px] flex-1 rounded-md');
+    expect(stock).toContain('min-h-[44px] min-w-[44px] rounded-md border px-3');
     expect(stock).toContain('can-hover:sm:min-h-[36px]');
     expect(stock).toContain('can-hover:sm:h-7 can-hover:sm:w-7');
   });

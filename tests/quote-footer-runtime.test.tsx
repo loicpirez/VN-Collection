@@ -42,18 +42,27 @@ describe('QuoteFooter hover loader', () => {
   it('loads only after interaction and renders linked character and VN attribution', async () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;
-    expect(footer).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'z-layer-footer');
-    expect(footer).not.toHaveClass('bg-bg', 'bg-bg/95', 'backdrop-blur');
+    expect(footer).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'z-layer-footer', 'bg-bg/95', 'can-hover:sm:bg-transparent');
+    expect(footer).not.toHaveClass('bg-bg', 'backdrop-blur');
     expect(footer).toHaveAttribute('data-quote-footer-root');
     expect(footer).toHaveStyle({ paddingBottom: 'env(safe-area-inset-bottom)' });
     const frame = footer.querySelector<HTMLElement>('.max-w-7xl');
     const panel = footer.querySelector<HTMLElement>('[data-quote-footer-panel]');
-    expect(frame).toHaveClass('mx-auto', 'max-w-7xl', 'px-6');
-    expect(panel).toHaveClass('bg-bg/95', 'backdrop-blur');
+    expect(frame).toHaveClass('mx-auto', 'w-full', 'max-w-7xl', 'can-hover:sm:px-6');
+    expect(frame).not.toHaveClass('px-6');
+    expect(panel).toHaveClass(
+      'border-t',
+      'border-border',
+      'bg-bg/95',
+      'backdrop-blur',
+      'can-hover:sm:rounded-t-md',
+      'can-hover:sm:border-x',
+    );
     const toggle = screen.getByRole('button', { name: t.quotes.expand });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(toggle).toHaveClass('min-h-[44px]', 'can-hover:sm:min-h-0');
     const refresh = screen.getByRole('button', { name: t.quotes.shuffle });
+    expect(refresh).toHaveAttribute('data-quote-footer-refresh');
     expect(refresh).toHaveClass('min-h-[44px]', 'min-w-[44px]', 'opacity-100');
     expect(refresh).toHaveClass('can-hover:sm:min-h-0', 'can-hover:sm:min-w-0', 'can-hover:sm:opacity-0');
     expect(footer.querySelector('.max-h-12')).toBeInTheDocument();
@@ -94,6 +103,15 @@ describe('QuoteFooter hover loader', () => {
     expect(toggle).toHaveAccessibleName(t.quotes.expand);
     expect(toggle).toHaveFocus();
     expect(document.getElementById('quote-footer-content')).not.toBeVisible();
+  });
+
+  it('opens the collapsed mobile dock when its visible refresh action is used', async () => {
+    const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
+    const footer = container.firstElementChild as HTMLElement;
+    fireEvent.click(screen.getByRole('button', { name: t.quotes.shuffle }));
+    expect(footer).toHaveClass('is-open');
+    expect(screen.getByRole('button', { name: t.quotes.collapse })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByText(/Quoted line/)).toBeVisible();
   });
 
   it('renders the loading skeleton and replaces it with a VN-only attribution', async () => {

@@ -170,6 +170,67 @@ check('WebKit navigation remains bounded and navigable', async () => {
   }
 });
 
+async function assertMobileQuoteDock(page, engineLabel) {
+  const footer = page.locator('[data-quote-footer-root]');
+  await footer.waitFor({ state: 'visible', timeout: 10000 });
+  const initial = await footer.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const panel = element.querySelector('[data-quote-footer-panel]');
+    const panelRect = panel?.getBoundingClientRect();
+    const panelStyle = panel ? getComputedStyle(panel) : null;
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+      leftGap: panelRect?.left ?? Number.NaN,
+      rightGap: window.innerWidth - (panelRect?.right ?? Number.NaN),
+      panelHeight: panelRect?.height ?? Number.NaN,
+      panelBorderLeft: panelStyle?.borderLeftWidth ?? '',
+      panelBorderRight: panelStyle?.borderRightWidth ?? '',
+      panelRadius: panelStyle?.borderTopLeftRadius ?? '',
+      position: getComputedStyle(element).position,
+      rootBackground: getComputedStyle(element).backgroundColor,
+    };
+  });
+  assert(initial.position === 'fixed', `${engineLabel} quote footer uses ${initial.position} instead of fixed positioning`);
+  assert(Math.abs(initial.bottom - initial.viewportHeight) <= 1, `${engineLabel} quote footer ends ${initial.viewportHeight - initial.bottom}px from the viewport bottom`);
+  assert(Math.abs(initial.leftGap) <= 1, `${engineLabel} quote panel starts ${initial.leftGap}px from the mobile viewport edge`);
+  assert(Math.abs(initial.rightGap) <= 1, `${engineLabel} quote panel ends ${initial.rightGap}px from the mobile viewport edge`);
+  assert(Math.abs(initial.panelHeight - 44) <= 1, `${engineLabel} collapsed quote panel is ${initial.panelHeight}px tall instead of 44px`);
+  assert(initial.panelBorderLeft === '0px' && initial.panelBorderRight === '0px', `${engineLabel} quote panel retained mobile side borders`);
+  assert(initial.panelRadius === '0px', `${engineLabel} quote panel retained a mobile corner radius of ${initial.panelRadius}`);
+  assert(initial.rootBackground !== 'rgba(0, 0, 0, 0)', `${engineLabel} quote safe-area surface remained transparent`);
+
+  await page.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
+  await page.waitForTimeout(400);
+  const middleTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
+  assert(Math.abs(middleTop - initial.top) <= 1, `${engineLabel} quote footer moved ${middleTop - initial.top}px while scrolling down`);
+
+  await page.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 6)));
+  await page.waitForTimeout(400);
+  const reverseTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
+  assert(Math.abs(reverseTop - initial.top) <= 1, `${engineLabel} quote footer moved ${reverseTop - initial.top}px while scrolling back up`);
+
+  const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
+  await toggle.tap();
+  assert(await toggle.getAttribute('aria-expanded') === 'true', `${engineLabel} quote footer did not open from a touch click`);
+  await toggle.tap();
+  assert(await toggle.getAttribute('aria-expanded') === 'false', `${engineLabel} quote footer did not close from the second touch`);
+  const closedHeight = await footer.locator('[data-quote-footer-panel]').evaluate((element) => element.getBoundingClientRect().height);
+  assert(Math.abs(closedHeight - initial.panelHeight) <= 1, `${engineLabel} quote footer did not return to its collapsed height`);
+  await toggle.tap();
+  await toggle.focus();
+  await toggle.press('Enter');
+  assert(await toggle.getAttribute('aria-expanded') === 'false', `${engineLabel} quote footer did not close while its toggle retained focus`);
+  assert(await page.evaluate(() => document.activeElement?.getAttribute('aria-controls') === 'quote-footer-content'), `${engineLabel} quote footer toggle lost focus while closing`);
+  assert(await footer.locator('#quote-footer-content').getAttribute('hidden') !== null, `${engineLabel} closed quote content remains exposed`);
+  const refresh = footer.locator('[data-quote-footer-refresh]');
+  await refresh.tap();
+  assert(await toggle.getAttribute('aria-expanded') === 'true', `${engineLabel} quote footer did not open from its refresh action`);
+  await toggle.tap();
+  assert(await toggle.getAttribute('aria-expanded') === 'false', `${engineLabel} quote footer did not close after a refresh`);
+}
+
 check('WebKit mobile quote dock stays fixed and library cards keep aligned rows', async () => {
   const webkitBrowser = await webkit.launch({ headless: true });
   const webkitContext = await webkitBrowser.newContext({
@@ -190,9 +251,7 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
   webkitPage.setDefaultTimeout(15000);
   try {
     await gotoClean(webkitPage, '/');
-    const footer = webkitPage.locator('[data-quote-footer-root]');
     const grid = webkitPage.locator('[data-library-card-grid]').first();
-    await footer.waitFor({ state: 'visible', timeout: 10000 });
     await grid.waitFor({ state: 'visible', timeout: 10000 });
     await grid.evaluate((element) => {
       element.style.setProperty('--card-density-px', '140px');
@@ -200,25 +259,6 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
       window.dispatchEvent(new Event('resize'));
     });
     await webkitPage.waitForTimeout(200);
-
-    const initial = await footer.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      const panel = element.querySelector('[data-quote-footer-panel]');
-      const panelRect = panel?.getBoundingClientRect();
-      return {
-        top: rect.top,
-        bottom: rect.bottom,
-        viewportHeight: window.innerHeight,
-        leftGap: panelRect?.left ?? Number.NaN,
-        rightGap: window.innerWidth - (panelRect?.right ?? Number.NaN),
-        position: getComputedStyle(element).position,
-      };
-    });
-    assert(initial.position === 'fixed', `quote footer uses ${initial.position} instead of fixed positioning`);
-    assert(Math.abs(initial.bottom - initial.viewportHeight) <= 1, `quote footer ends ${initial.viewportHeight - initial.bottom}px from the viewport bottom`);
-    assert(initial.leftGap >= 23, `quote panel lost its mobile side gutter: ${initial.leftGap}px`);
-    assert(Math.abs(initial.leftGap - initial.rightGap) <= 1, `quote panel gutters differ by ${Math.abs(initial.leftGap - initial.rightGap)}px`);
-    assert(await footer.evaluate((element) => getComputedStyle(element).backgroundColor) === 'rgba(0, 0, 0, 0)', 'quote footer gutters are not transparent');
 
     const rowGeometry = await grid.evaluate((element) => {
       element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
@@ -241,31 +281,35 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
     assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
     assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);
     assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
-
-    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 3)));
-    await webkitPage.waitForTimeout(400);
-    const middleTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
-    assert(Math.abs(middleTop - initial.top) <= 1, `quote footer moved ${middleTop - initial.top}px while scrolling down`);
-
-    await webkitPage.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight / 6)));
-    await webkitPage.waitForTimeout(400);
-    const reverseTop = await footer.evaluate((element) => element.getBoundingClientRect().top);
-    assert(Math.abs(reverseTop - initial.top) <= 1, `quote footer moved ${reverseTop - initial.top}px while scrolling back up`);
-
-    const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
-    await toggle.tap();
-    assert(await toggle.getAttribute('aria-expanded') === 'true', 'quote footer did not open from a touch click');
-    await toggle.tap();
-    assert(await toggle.getAttribute('aria-expanded') === 'false', 'quote footer did not close from the second touch');
-    await toggle.tap();
-    await toggle.focus();
-    await toggle.press('Enter');
-    assert(await toggle.getAttribute('aria-expanded') === 'false', 'quote footer did not close while its toggle retained focus');
-    assert(await webkitPage.evaluate(() => document.activeElement?.getAttribute('aria-controls') === 'quote-footer-content'), 'quote footer toggle lost focus while closing');
-    assert(await footer.locator('#quote-footer-content').getAttribute('hidden') !== null, 'closed quote content remains exposed');
+    await assertMobileQuoteDock(webkitPage, 'WebKit');
   } finally {
     await webkitContext.close();
     await webkitBrowser.close();
+  }
+});
+
+check('Chromium mobile quote dock stays fixed and toggles reversibly', async () => {
+  const chromiumContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    hasTouch: true,
+    isMobile: true,
+  });
+  await chromiumContext.addInitScript(() => {
+    window.localStorage.setItem('vn_tour_completed_v1', '1');
+    Reflect.deleteProperty(window, 'EventSource');
+    Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
+      configurable: true,
+      get: () => 5,
+    });
+  });
+  const chromiumPage = await chromiumContext.newPage();
+  chromiumPage.setDefaultTimeout(15000);
+  try {
+    await gotoClean(chromiumPage, '/');
+    await assertMobileQuoteDock(chromiumPage, 'Chromium');
+  } finally {
+    await chromiumContext.close();
   }
 });
 

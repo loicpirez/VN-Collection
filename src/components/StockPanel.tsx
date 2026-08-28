@@ -1401,7 +1401,7 @@ function GroupBtn({
   return (
     <button
       type="button"
-      className={`min-h-[44px] rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`min-h-[44px] min-w-[44px] rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? 'border-accent bg-accent/15 text-accent'
           : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'
