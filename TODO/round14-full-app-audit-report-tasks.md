@@ -185,7 +185,7 @@ operations, providers, deployment, backup, and restore.
 | R14-OPS-002 | CRITICAL | The release script sourced only the application environment for migrations, contradicting the documented least-privilege role split. DML-only migrations happened to work, but migration 0011 correctly failed on `CREATE TABLE`. Load the root-managed migrator environment only inside the migration subprocess and retain the application role for build, candidate health, and runtime. | release deployment script, production migration environment, PostgreSQL operations guide | DONE_WITH_DIFF |
 | R14-OPS-003 | HIGH | EGS loaded from a workstation but timed out from the production data-center address and from the configured commercial proxy exit, while the UI incorrectly suggested checking the user's browser. Route only EGS through a loopback-bound reverse dynamic SSH relay on a supervised trusted egress host, preserve stale-cache fallback, link failures to the integration test, and document setup, security, verification, recovery, and rollback. | EGS provider proxy, top-ranked recovery UI, production network operations | DONE_WITH_DIFF |
 | R14-OPS-004 | CRITICAL | Every production activation waited through the 45-second stop timeout and killed Next.js because its graceful HTTP drain remained blocked by the indefinite download-status SSE connection. Coordinate process shutdown across both database backends, close active SSE streams synchronously on `SIGTERM`, retain bounded PostgreSQL cleanup, and verify a real production restart with an open stream exits without a forced kill. | shutdown coordinator, download-status stream, instrumentation, production service | DONE_WITH_DIFF |
-| R14-OPS-005 | CRITICAL | The responsive regression correction is fully validated on the compiled local candidate, while production intentionally remains on the known rollback release. After explicit remote-write approval, create scoped feature commits, push them, activate one immutable release, then repeat authenticated production geometry, health, PostgreSQL, journal, and rollback checks before closing this row. | Git remote and production deployment | IN_PROGRESS |
+| R14-OPS-005 | CRITICAL | The responsive correction was committed by feature, pushed to `main`, built from a verified complete bundle, and activated as one immutable release after explicit approval. The deployment applied no pending migration, passed candidate and live PostgreSQL health checks, retained the rollback release, and verified the active symlink, commit, process directory, loopback listeners, Nginx, authenticated public route, journal, memory, mobile geometry, quote interaction, and concurrent WebKit VN tabs. | Git remote and production deployment | DONE_WITH_DIFF |
 
 ## Evidence collected
 
@@ -1047,8 +1047,20 @@ operations, providers, deployment, backup, and restore.
   10,016 tests with exactly 45,355 of 45,355 statements, 38,523 of 38,523
   branches, 9,297 of 9,297 functions, and 38,752 of 38,752 lines. No ignore,
   suppression, source exclusion, or threshold workaround was added.
-- Production remains on the verified rollback release. The corrected candidate
-  now has explicit push and activation approval, but it still awaits its fresh
-  complete test and coverage gates, scoped commits, immutable activation, and
-  authenticated production browser verification. The local evidence above does
-  not claim that the public host already serves this candidate.
+- Local `main`, remote `main`, and the active production release resolve to
+  `bf53b4ccc9f9ca406c527fe4a22d6d6a8b698d38`. Candidate and live health checks
+  report PostgreSQL available; after browser load the pool is fully idle with
+  10 total connections and zero waiters. Next and PostgreSQL listen only on
+  loopback, Nginx validation succeeds, unauthenticated HTTPS returns 401,
+  authenticated HTTPS returns 200 with the expected security headers, and the
+  application port is unreachable externally. The service has zero restarts,
+  no warning or error journal entry, and uses about 104 MiB after the production
+  browser run.
+- The authenticated production responsive matrix passes four French Library
+  renders across phone and landscape WebKit and Chromium with zero finding.
+  Visual inspection confirms aligned card rows and a full-width fixed quote
+  dock. A separate touch workflow measures zero row offset and zero overflow,
+  keeps every dock edge at zero through downward and reverse scrolling, and
+  opens and closes both directly and after refresh. Six concurrent authenticated
+  WebKit VN tabs then return HTTP 200 without page error, console error, or
+  overflow in 1.34 to 1.65 seconds each.
