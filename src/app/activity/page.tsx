@@ -233,8 +233,11 @@ export default async function ActivityPage({ searchParams }: PageProps) {
           <Activity className="h-6 w-6 text-accent" aria-hidden /> {t.userActivity.title}
         </h1>
         <p className="mt-1 text-sm text-muted">{t.userActivity.subtitle}</p>
-        <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
-          <label className="min-w-[140px] sm:min-w-[220px] flex-1 text-xs text-muted">
+        <form
+          method="get"
+          className="mt-4 grid grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(220px,2fr)_minmax(160px,1fr)_minmax(160px,1fr)_auto_auto]"
+        >
+          <label className="text-xs text-muted sm:col-span-2 xl:col-span-1">
             <span className="mb-1 inline-flex items-center gap-1">
               <Search className="h-3 w-3" aria-hidden /> {t.userActivity.search}
             </span>
@@ -246,7 +249,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               className="input w-full"
             />
           </label>
-          <label className="sm:min-w-[160px] flex-1 text-xs text-muted">
+          <label className="text-xs text-muted">
             <span className="mb-1 inline-flex items-center gap-1">
               <Filter className="h-3 w-3" aria-hidden /> {t.userActivity.kind}
             </span>
@@ -255,12 +258,12 @@ export default async function ActivityPage({ searchParams }: PageProps) {
               {kinds.map((k) => <option key={k} value={k}>{systemKindLabel(k, t)}</option>)}
             </select>
           </label>
-          <label className="sm:min-w-[160px] flex-1 text-xs text-muted">
+          <label className="text-xs text-muted">
             <span className="mb-1 block">{t.userActivity.entity}</span>
             <input name="entity" defaultValue={entity} className="input w-full" />
           </label>
-          <button type="submit" className="btn btn-primary">{t.search.run}</button>
-          {(q || kind || entity) && <Link href="/activity" className="btn">{t.cardDensity.resetView}</Link>}
+          <button type="submit" className="btn btn-primary w-full justify-center sm:w-auto">{t.search.run}</button>
+          {(q || kind || entity) && <Link href="/activity" className="btn w-full justify-center sm:w-auto">{t.cardDensity.resetView}</Link>}
         </form>
       </header>
 

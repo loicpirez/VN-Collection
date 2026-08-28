@@ -61,6 +61,7 @@ describe('VndbReleaseListPanel', () => {
     expect(await screen.findByText(t.releases.vndbListNotListed)).toBeInTheDocument();
     expect(screen.getByText(t.releases.vndbListLocalOwnedHint)).toBeInTheDocument();
     expect(screen.getByLabelText(t.releases.vndbListStatusLabel)).toHaveValue('2');
+    expect(screen.getByLabelText(t.releases.vndbListStatusLabel)).toHaveClass('input', 'h-11');
     expect(screen.getByRole('button', { name: t.releases.vndbListSave })).toBeEnabled();
   });
 

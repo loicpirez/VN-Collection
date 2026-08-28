@@ -289,7 +289,7 @@ export function VndbReleaseListPanel({ releaseId, vnId, locallyOwned }: Props) {
                   if (option) setSelected(option.value);
                 }}
                 disabled={busy !== null}
-                className="mt-1 min-h-[44px] w-full rounded-md border border-border bg-bg-elev px-3 text-sm text-white outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
+                className="input mt-1 h-11 rounded-md bg-bg-elev text-sm disabled:opacity-50"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

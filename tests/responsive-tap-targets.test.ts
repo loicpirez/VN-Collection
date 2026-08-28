@@ -273,7 +273,10 @@ describe('responsive tap targets', () => {
     const library = source('src/components/LibraryClient.tsx');
     expect(library).toContain('inline-flex min-h-[44px] items-center gap-1.5');
     expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');
-    expect(source('src/app/activity/page.tsx')).toContain('className="input h-11 w-full"');
+    const activity = source('src/app/activity/page.tsx');
+    expect(activity).toContain('className="input h-11 w-full"');
+    expect(activity).toContain('grid grid-cols-1 items-end gap-2 sm:grid-cols-2');
+    expect(activity).toContain('sm:col-span-2 xl:col-span-1');
     expect(source('src/app/characters/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
     expect(source('src/app/staff/(index)/page.tsx')).toContain('className="h-5 w-5 accent-accent"');
     expect(source('src/app/compare/page.tsx')).toContain('min-w-[44px]');
