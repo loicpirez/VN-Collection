@@ -339,7 +339,7 @@ for (const engineName of selectedEngines) {
         };
         if (viewport.touch && engineName !== 'firefox') contextOptions.isMobile = true;
         if (basicUser && basicPassword) {
-          contextOptions.httpCredentials = { username: basicUser, password: basicPassword };
+          contextOptions.httpCredentials = { username: basicUser, password: basicPassword, send: 'always' };
         }
         const context = await browser.newContext(contextOptions);
         await context.addCookies([{ name: 'locale', value: locale, url: baseURL }]);

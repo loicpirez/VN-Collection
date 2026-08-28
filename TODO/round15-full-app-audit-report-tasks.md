@@ -32,8 +32,8 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-DOC-001 | MEDIUM | The developer guide still says all 2,406 tests must pass, while the current suite contains more than 10,000 scenarios. Replace the drifting count with an evidence-safe rule tied to the complete current suite and exact coverage gate. | `CLAUDE.md` | TODO |
 | R15-DOC-002 | LOW | The feature reference defines scaffolded and planned status symbols, but every feature uses only the shipped marker. Remove the unused legend states or accurately classify unfinished features so the catalogue does not imply undocumented work. | `FEATURES.md` | TODO |
 | R15-DOC-003 | LOW | General place-registry and PostgreSQL search fixtures still contain historical Alice/Kobe and real studio wording outside the migration compatibility tests. Replace them with neutral synthetic labels while preserving legacy identifiers only where a migration contract requires them. | `tests/place-registry-page.test.ts`, `tests/postgres-search-parity.test.ts`, `tests/postgres-alicenet-repository.test.ts` | TODO |
-| R15-TEST-002 | LOW | The responsive audit appends the same non-200 HTTP issue twice, making one failure look like two findings. Emit one deterministic diagnostic and add a source regression so audit evidence remains countable. | `scripts/responsive-audit.mjs`, QA script tests | TODO |
-| R15-TEST-003 | MEDIUM | Firefox exposes the expected initial HTTP Basic challenge as a 401 response before Playwright retries with credentials, so the responsive audit reports one browser error for the first route in every Firefox context despite a successful final navigation. Send configured audit credentials preemptively and retain real 401 responses as failures. | `scripts/responsive-audit.mjs`, QA script tests | TODO |
+| R15-TEST-002 | LOW | The audit report suggested that the responsive harness appended the same non-200 HTTP issue twice. Current source emits it once; a cardinality regression now prevents the diagnostic from drifting back to duplicate output. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | VERIFIED_EXISTING |
+| R15-TEST-003 | MEDIUM | Firefox exposed the expected initial HTTP Basic challenge as a 401 response before Playwright retried with credentials, so the responsive audit reported one browser error for the first route in every Firefox context despite a successful final navigation. Configured audit credentials are now sent preemptively while real 401 responses remain failures. | `scripts/responsive-audit.mjs`, `tests/qa-script-coverage.test.ts` | DONE_WITH_DIFF |
 | R15-DOC-004 | MEDIUM | Reconcile README, FEATURES, CLAUDE, operational guides, route and provider inventories, TODO status, test evidence, and production facts against the final shipped implementation. | project Markdown and operational docs | TODO |
 | R15-OPS-001 | CRITICAL | Commit, push, and deploy each independent correction through the immutable release workflow, then prove local, remote, and production revision identity, active service health, zero unexpected restarts, clean journals, loopback listeners, authenticated routing, rollback retention, and current application behavior. | Git remote, release store, systemd, Nginx, production | IN_PROGRESS |
 
@@ -60,6 +60,10 @@ provider behavior, operations, backup, restore, and immutable deployment.
   `R15-ACCESS-003` renders at exactly 44 pixels in WebKit using the compiled
   application styles, and its component regression pins the shared input
   contract.
+- The first production matrix exposed 15 expected Firefox Basic challenge
+  responses as browser errors. `R15-TEST-003` switches authenticated audit
+  contexts to preemptive credentials; `R15-TEST-002` pins exactly one HTTP
+  navigation diagnostic in source.
 - AliceNet branding remains current in production names. The canonical upstream
   host and append-only compatibility migrations necessarily retain historical
   strings; three unrelated fixtures still need neutralization under

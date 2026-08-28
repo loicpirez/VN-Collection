@@ -129,6 +129,11 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain('fullPage: screenshotFullPage');
   });
 
+  it('keeps HTTP and Basic Auth audit diagnostics deterministic', () => {
+    expect(RESPONSIVE.match(/if \(result\.status !== 200\) issues\.push/g)).toHaveLength(1);
+    expect(RESPONSIVE).toContain("send: 'always'");
+  });
+
   it('exercises the real two-column compact library state on phone viewports', () => {
     expect(RESPONSIVE).toContain("density: { library: 160 }");
     expect(RESPONSIVE).toContain("result.route === 'library' && result.viewport === 'phone'");
