@@ -265,6 +265,34 @@ describe('refreshStockForVn — provider status branches', () => {
     expect(snapshot.offers[0]?.provider_offer_id).toBe('cached-product');
   });
 
+  it('preserves cached offers when a protection-prone provider returns HTTP 403', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'getchu', [{
+      ...cachedAmazonOffer(),
+      provider: 'getchu',
+      provider_offer_id: 'cached-shop-product',
+      url: 'https://www.getchu.com/soft.phtml?id=90001',
+      location_label: 'Getchu',
+    }], {
+      status: 'ok',
+      message: null,
+      fetched_at: 1,
+      offer_count: 1,
+    });
+    respondWith('blocked', { status: 403 });
+
+    const snapshot = await refreshStockForVn(VN_ID, ['getchu']);
+
+    expect(statusFor('getchu')).toMatchObject({
+      status: 'protected',
+      blocked_kind: 'search_page',
+      offer_count: 1,
+      cached_offers_available: 1,
+    });
+    expect(snapshot.offers).toHaveLength(1);
+    expect(snapshot.offers[0]?.provider_offer_id).toBe('cached-shop-product');
+  });
+
   it('writes an error status when the provider fetch returns a non-ok HTTP status', async () => {
     seedVn();
     releasesMock.mockResolvedValue([melonbooksRelease()]);

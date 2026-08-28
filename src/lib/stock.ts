@@ -2589,7 +2589,10 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
       const msg = providerCtrl.signal.aborted
         ? `provider timeout after ${STOCK_PROVIDER_TIMEOUT_MS}ms`
         : (e as Error).message;
-      const isProtected = msg === 'cloudflare_challenge' || /cloudflare|challenge|protected/i.test(msg);
+      const isProtected =
+        msg === 'cloudflare_challenge'
+        || /cloudflare|challenge|protected/i.test(msg)
+        || (!!getProviderMeta(provider)?.cloudflare && /^HTTP (?:403|429)\b/i.test(msg));
       const cachedOffers = isProtected
         ? (await stockRepository.listOffers(vnId)).filter((offer) => offer.provider === provider)
         : [];

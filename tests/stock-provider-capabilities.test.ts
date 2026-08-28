@@ -42,6 +42,13 @@ describe('stock provider capability contract', () => {
     }
   });
 
+  it('identifies providers whose server-side requests are protection-prone', () => {
+    for (const id of ['surugaya', 'getchu', 'amiami', 'geo', 'joshin'] as const) {
+      expect(getProviderMeta(id)?.cloudflare, id).toBe(true);
+    }
+    expect(getProviderMeta('melonbooks')?.cloudflare).toBe(false);
+  });
+
   it('allows only canonical provider hosts and safe HTTP URLs', () => {
     expect(isStockProviderHostAllowed('sofmap', 'A.SOFMAP.COM')).toBe(true);
     expect(isStockProviderHostAllowed('sofmap', 'www.amazon.co.jp')).toBe(false);
