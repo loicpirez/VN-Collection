@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   predictReadingMinutes: vi.fn(),
   profile: vi.fn(),
   timeline: vi.fn(),
+  vndbAdvancedSearchCachedRaw: vi.fn(),
   vndbAdvancedSearchRaw: vi.fn(),
 }));
 
@@ -38,6 +39,7 @@ vi.mock('@/lib/reading-speed', () => ({
 }));
 
 vi.mock('@/lib/vndb-recommend', () => ({
+  vndbAdvancedSearchCachedRaw: mocks.vndbAdvancedSearchCachedRaw,
   vndbAdvancedSearchRaw: mocks.vndbAdvancedSearchRaw,
 }));
 
@@ -76,6 +78,7 @@ beforeEach(() => {
     medianMyMinutes: null,
   });
   mocks.timeline.mockReset().mockResolvedValue([]);
+  mocks.vndbAdvancedSearchCachedRaw.mockReset().mockResolvedValue({ hits: [], fresh: false });
   mocks.vndbAdvancedSearchRaw.mockReset().mockResolvedValue([]);
 });
 
@@ -136,15 +139,48 @@ describe('server detail helpers', () => {
     expect(html).toContain('items-start pt-0.5');
   });
 
-  it('renders an anime chip only for matched VNDB results', async () => {
+  it('renders an anime chip only for cached or promptly matched VNDB results', async () => {
     expect(await AnimeChip({ vnId: 'egs_90001' })).toBeNull();
+    expect(mocks.vndbAdvancedSearchCachedRaw).not.toHaveBeenCalled();
     expect(mocks.vndbAdvancedSearchRaw).not.toHaveBeenCalled();
+
     expect(await AnimeChip({ vnId: 'v90001' })).toBeNull();
-    mocks.vndbAdvancedSearchRaw.mockResolvedValueOnce([{ id: 'v90001' }]);
-    const html = renderToStaticMarkup(await AnimeChip({ vnId: 'v90001' }));
+    expect(mocks.vndbAdvancedSearchCachedRaw).toHaveBeenCalledTimes(1);
+
+    mocks.vndbAdvancedSearchCachedRaw.mockResolvedValueOnce({ hits: [{ id: 'v90001' }], fresh: true });
+    let html = renderToStaticMarkup(await AnimeChip({ vnId: 'v90001' }));
     expect(html).toContain(t.animeChip.label);
+
+    mocks.vndbAdvancedSearchCachedRaw.mockResolvedValueOnce({ hits: [{ id: 'v90001' }], fresh: false });
+    mocks.vndbAdvancedSearchRaw.mockRejectedValueOnce(new Error('background refresh offline'));
+    html = renderToStaticMarkup(await AnimeChip({ vnId: 'v90001' }));
+    expect(html).toContain(t.animeChip.label);
+    await Promise.resolve();
+
+    mocks.vndbAdvancedSearchCachedRaw.mockResolvedValueOnce({ hits: [], fresh: false });
+    mocks.vndbAdvancedSearchRaw.mockResolvedValueOnce([{ id: 'v90001' }]);
+    html = renderToStaticMarkup(await AnimeChip({ vnId: 'v90001' }));
+    expect(html).toContain(t.animeChip.label);
+
+    mocks.vndbAdvancedSearchCachedRaw.mockResolvedValueOnce({ hits: [], fresh: false });
     mocks.vndbAdvancedSearchRaw.mockRejectedValueOnce(new Error('offline'));
     expect(await AnimeChip({ vnId: 'v90001' })).toBeNull();
+
+    mocks.vndbAdvancedSearchCachedRaw.mockRejectedValueOnce(new Error('cache offline'));
+    expect(await AnimeChip({ vnId: 'v90001' })).toBeNull();
+  });
+
+  it('does not hold the VN render open when the optional anime probe stalls', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.vndbAdvancedSearchCachedRaw.mockResolvedValueOnce({ hits: [], fresh: false });
+      mocks.vndbAdvancedSearchRaw.mockReturnValueOnce(new Promise(() => {}));
+      const render = AnimeChip({ vnId: 'v90001' });
+      await vi.advanceTimersByTimeAsync(400);
+      expect(await render).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders reading-speed empty, insufficient-sample, VNDB, and EGS prediction states', async () => {
