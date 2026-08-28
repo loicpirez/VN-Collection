@@ -194,6 +194,23 @@ describe('parseTraderChukoSmartphoneList — redirected desktop catalogue', () =
     });
     expect(result[0].url).toContain('/shop/shopdetail.html?brandcode=000000100007');
   });
+
+  it('preserves the list parser identifier when a redirected item has no brand code', () => {
+    const html = `<ul class="innerList clear"><li>
+      <div class="innerBox">
+        <div class="imgWrap"><a href=/shop/sample-detail.html>cover</a></div>
+        <div class="detail">
+          <p class="name"><a href=/shop/sample-detail.html>架空ゲーム 通常版</a></p>
+          <p class="price">1,980円</p>
+          <div class="btnWrap"><a href=/shop/sample-detail.html>カートに入れる</a></div>
+        </div>
+      </div>
+    </li></ul>`;
+    const result = parseTraderChukoSmartphoneList(html, BASE_URL, { ...BLANK_TARGET, query: '架空ゲーム' });
+    expect(result).toHaveLength(1);
+    expect(result[0].provider_offer_id).toBe('www.chuko-tsuhan.com:/shop/sample-detail.html:');
+    expect(result[0].product_id).toBeNull();
+  });
 });
 
 describe('parseTraderChukoSmartphoneList — edition labels', () => {
