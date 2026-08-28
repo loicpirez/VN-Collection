@@ -85,17 +85,28 @@ export function SkeletonBlock({ className, animated = true, ...rest }: BlockProp
   );
 }
 
-/**
- * A single card placeholder that matches the dimensions of <VnCard>. Stacked
- * cover area on top, then two short text lines for title / metadata.
- */
+/** A cover card placeholder with the same information rhythm as `VnCard`. */
 export function SkeletonCard() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card">
-      <SkeletonBlock className="aspect-[2/3] w-full rounded-none" />
-      <div className="space-y-2 p-3">
-        <SkeletonBlock className="h-3 w-3/4" />
-        <SkeletonBlock className="h-2.5 w-1/2" />
+    <div
+      data-vn-card-skeleton
+      className="vn-card-skeleton-context flex self-stretch flex-col overflow-hidden rounded-xl border border-border bg-bg-card"
+    >
+      <SkeletonBlock animated={false} className="aspect-[2/3] w-full rounded-none" />
+      <div className="flex flex-1 flex-col gap-1.5 p-3" data-vn-card-skeleton-details>
+        <SkeletonBlock animated={false} className="h-3.5 w-4/5" />
+        <SkeletonBlock animated={false} className="h-3.5 w-3/5" />
+        <div className="flex gap-1.5">
+          <SkeletonBlock animated={false} className="h-2.5 w-10" />
+          <SkeletonBlock animated={false} className="h-2.5 w-9" />
+          <SkeletonBlock animated={false} className="h-2.5 w-8" />
+        </div>
+        <SkeletonBlock animated={false} className="h-2.5 w-2/3" />
+        <SkeletonBlock animated={false} className="h-2 w-1/2" />
+        <div className="mt-auto flex gap-2 pt-0.5">
+          <SkeletonBlock animated={false} className="h-2.5 min-w-0 flex-1" />
+          <SkeletonBlock animated={false} className="h-2.5 min-w-0 flex-1" />
+        </div>
       </div>
     </div>
   );
@@ -115,20 +126,26 @@ export function SkeletonCard() {
 export function SkeletonCardGrid({
   count = 18,
   label,
+  gapClassName = 'gap-3',
+  densityScale = 1,
 }: {
   count?: number;
   /** Optional visually-hidden label announced to screen readers. */
   label?: string;
+  /** Match the spacing used by the resolved card surface. */
+  gapClassName?: 'gap-3' | 'gap-4' | 'gap-5';
+  /** Match card-grid modes that scale the configured density. */
+  densityScale?: number;
 }) {
   return (
     <div
       aria-busy
       aria-live="polite"
       role="status"
-      className="grid gap-5"
+      className={cx('grid items-stretch', gapClassName)}
       style={{
         gridTemplateColumns:
-          'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+          `repeat(auto-fill, minmax(min(100%, calc(var(--card-density-px, 220px) * ${densityScale})), 1fr))`,
       }}
     >
       {label && <span className="sr-only">{label}</span>}

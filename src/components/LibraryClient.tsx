@@ -1599,7 +1599,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
       {showGrid && (
       <div>
         {loading || !hasLoadedOnce ? (
-        <SkeletonCardGrid count={24} />
+        <SkeletonCardGrid
+          count={24}
+          gapClassName={settings.denseLibrary ? 'gap-4' : 'gap-3'}
+          densityScale={settings.denseLibrary ? 0.72 : 1}
+        />
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.library.empty.title}</h2>

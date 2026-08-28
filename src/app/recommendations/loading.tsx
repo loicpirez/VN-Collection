@@ -29,7 +29,7 @@ export default async function RecommendationsLoading() {
         </div>
         <SkeletonBlock className="mt-3 h-11 w-full" />
       </header>
-      <SkeletonCardGrid count={12} />
+      <SkeletonCardGrid count={12} gapClassName="gap-4" />
     </SkeletonBoundary>
   );
 }

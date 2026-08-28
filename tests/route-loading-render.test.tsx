@@ -174,7 +174,8 @@ describe('route loading skeletons', () => {
       expect(html).toContain('data-home-section-skeleton="library-grid"');
       expect(html).toContain('data-home-library-grid-skeleton');
       expect(html).toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
-      expect(html.match(/flex flex-col overflow-hidden rounded-xl border border-border bg-bg-card/g)).toHaveLength(18);
+      expect(html).toContain('grid items-stretch gap-3');
+      expect(html.match(/data-vn-card-skeleton="true"/g)).toHaveLength(18);
       expect(error.mock.calls.some((args) => args.some((arg) => String(arg).includes('unique "key" prop')))).toBe(false);
     } finally {
       error.mockRestore();
@@ -636,7 +637,7 @@ describe('route loading skeletons', () => {
     expect(html).toContain('data-recommendations-header-skeleton');
     expect(html).toContain('data-recommendation-modes-skeleton');
     expect(html.match(/h-16 w-full/g)).toHaveLength(5);
-    expect(html.match(/flex flex-col overflow-hidden/g)).toHaveLength(12);
+    expect(html.match(/data-vn-card-skeleton="true"/g)).toHaveLength(12);
   });
 
   it('matches the upcoming header controls, tabs, and density-aware horizontal release cards', async () => {
@@ -654,7 +655,7 @@ describe('route loading skeletons', () => {
     expect(html).toContain('data-wishlist-workspace-skeleton');
     expect(html).toContain('data-wishlist-controls-skeleton');
     expect(html).toContain('data-wishlist-filters-skeleton');
-    expect(html.match(/flex flex-col overflow-hidden/g)).toHaveLength(18);
+    expect(html.match(/data-vn-card-skeleton="true"/g)).toHaveLength(18);
     expect(html).toContain('h-7 w-7 shrink-0');
   });
 
@@ -668,7 +669,7 @@ describe('route loading skeletons', () => {
         <SkeletonBoundary>
           <SkeletonCard />
         </SkeletonBoundary>
-        <SkeletonCardGrid count={1} label="Cards" />
+        <SkeletonCardGrid count={1} label="Cards" gapClassName="gap-5" densityScale={0.72} />
         <SkeletonCompactGrid count={1} label="Compact" className="compact" />
         <SkeletonRows count={1} withThumb={false} label="Rows" />
         <SkeletonTabRow count={1} className="tabs" />
@@ -685,6 +686,12 @@ describe('route loading skeletons', () => {
     expect(html).toContain('text');
     expect(html).toContain('Table');
     expect(html).toMatch(/class="skeleton-surface-static rounded-md h-2" data-testid="static-block"/);
+    expect(html).toContain('data-vn-card-skeleton="true"');
+    expect(html).toContain('data-vn-card-skeleton-details="true"');
+    expect(html).toContain('vn-card-skeleton-context');
+    expect(html).toContain('grid items-stretch gap-5');
+    expect(html).toContain('calc(var(--card-density-px, 220px) * 0.72)');
+    expect(html.match(/skeleton-surface-static/g)).toHaveLength(21);
     expect(html).not.toContain('h-20 w-14 shrink-0');
   });
 

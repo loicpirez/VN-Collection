@@ -221,7 +221,7 @@ function LibraryGridSkeleton({ state }: { state: HomeSectionState }) {
       {!state.collapsed && (
         <div
           data-home-library-grid-skeleton
-          className="grid gap-5"
+          className="grid items-stretch gap-3"
           style={{
             gridTemplateColumns:
               'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',

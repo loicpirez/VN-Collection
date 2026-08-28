@@ -268,6 +268,17 @@
   50% { background-color: #222b3e; }
 }
 
+@property --vn-card-skeleton-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #19202e;
+}
+
+@keyframes vn-card-skeleton-pulse {
+  0%, 100% { --vn-card-skeleton-color: #19202e; }
+  50% { --vn-card-skeleton-color: #222b3e; }
+}
+
 @property --vn-hero-skeleton-color {
   syntax: '<color>';
   inherits: true;
@@ -288,6 +299,15 @@
   animation: skeleton-surface-pulse 1.8s ease-in-out infinite;
 }
 
+.vn-card-skeleton-context {
+  animation: vn-card-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+.vn-card-skeleton-context .skeleton-surface-static {
+  animation: none;
+  background-color: var(--vn-card-skeleton-color);
+}
+
 .vn-hero-skeleton-context:has(
   [data-hero-banner-skeleton],
   [data-vn-cover-hero] [data-safe-image-skeleton],
@@ -304,6 +324,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .vn-card-skeleton-context,
   .vn-hero-skeleton-context:has(
     [data-hero-banner-skeleton],
     [data-vn-cover-hero] [data-safe-image-skeleton],

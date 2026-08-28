@@ -246,7 +246,7 @@ export default async function RecommendationsPage({
       ) : (
         <Suspense
           key={fetchKey}
-          fallback={<SkeletonCardGrid count={12} />}
+          fallback={<SkeletonCardGrid count={12} gapClassName="gap-4" />}
         >
           <ResultsPanel
             mode={mode}
@@ -501,7 +501,7 @@ async function ResultsPanel({
       return (
         <>
           {hydration}
-          <SkeletonCardGrid count={12} />
+          <SkeletonCardGrid count={12} gapClassName="gap-4" />
         </>
       );
     }
