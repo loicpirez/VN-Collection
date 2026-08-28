@@ -122,7 +122,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
           }}
         >
           {items.map((it) => (
-            <li key={it.id} className="group relative flex min-h-0 min-w-0 items-stretch">
+            <li key={it.id} className="group relative flex min-h-0 min-w-0 items-stretch self-stretch">
               <SeriesRemoveVn seriesId={series.id} vnId={it.id} />
               <VnCard data={toCardData(it)} />
             </li>

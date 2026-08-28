@@ -114,7 +114,7 @@ export function RelationsSection({ relations }: Props) {
               pageSize={12}
             >
               {rels.map((r) => (
-                <li key={`${r.id}-${r.relation}`} className="flex min-h-0 min-w-0 items-stretch">
+                <li key={`${r.id}-${r.relation}`} className="flex min-h-0 min-w-0 items-stretch self-stretch">
                   <RelationCard
                     r={r}
                     label={label}

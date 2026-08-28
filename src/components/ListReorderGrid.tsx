@@ -180,7 +180,7 @@ function SortableListCard({
       {...listeners}
       aria-roledescription="sortable item"
       title={reorderHint}
-      className={`group relative flex min-h-0 w-full min-w-0 items-stretch touch-none select-none ${
+      className={`group relative flex min-h-0 w-full min-w-0 items-stretch self-stretch touch-none select-none ${
         disabled ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'opacity-40' : ''}`}
       onDragStart={(event) => event.preventDefault()}
