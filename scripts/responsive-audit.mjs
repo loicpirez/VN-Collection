@@ -12,6 +12,9 @@ const screenshotFullPage = process.env.RESPONSIVE_SCREENSHOT_FULL_PAGE === '1';
 const basicUser = process.env.RESPONSIVE_USER;
 const basicPassword = process.env.RESPONSIVE_PASSWORD;
 const expectedPageCount = 40;
+const auditOrigin = new URL(baseURL);
+const usesLoopbackHttp = auditOrigin.protocol === 'http:'
+  && ['127.0.0.1', 'localhost', '::1'].includes(auditOrigin.hostname);
 
 if (!['all', 'findings', 'none'].includes(screenshotMode)) {
   throw new Error(`Unknown screenshot mode: ${screenshotMode}`);
@@ -360,6 +363,20 @@ for (const engineName of selectedEngines) {
         });
         for (const route of selectedRoutes) {
           const page = await context.newPage();
+          if (usesLoopbackHttp) {
+            await page.route('**/*', async (intercepted) => {
+              const request = intercepted.request();
+              if (request.resourceType() !== 'document' || new URL(request.url()).origin !== auditOrigin.origin) {
+                await intercepted.continue();
+                return;
+              }
+              const upstream = await intercepted.fetch();
+              const headers = upstream.headers();
+              headers['content-security-policy'] = headers['content-security-policy']
+                ?.replace(/;?\s*upgrade-insecure-requests\s*;?/i, ';') ?? '';
+              await intercepted.fulfill({ response: upstream, headers });
+            });
+          }
           const browserErrors = [];
           page.on('console', (message) => {
             if (message.type() === 'error') {

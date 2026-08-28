@@ -137,6 +137,14 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain('error === recoveredBasicChallenge');
   });
 
+  it('strips HTTPS upgrades only when the audit uses a loopback HTTP tunnel', () => {
+    expect(RESPONSIVE).toContain("auditOrigin.protocol === 'http:'");
+    expect(RESPONSIVE).toContain("['127.0.0.1', 'localhost', '::1'].includes(auditOrigin.hostname)");
+    expect(RESPONSIVE).toContain("request.resourceType() !== 'document'");
+    expect(RESPONSIVE).toContain("new URL(request.url()).origin !== auditOrigin.origin");
+    expect(RESPONSIVE).toContain("replace(/;?\\s*upgrade-insecure-requests\\s*;?/i, ';')");
+  });
+
   it('exercises the real two-column compact library state on phone viewports', () => {
     expect(RESPONSIVE).toContain("density: { library: 160 }");
     expect(RESPONSIVE).toContain("result.route === 'library' && result.viewport === 'phone'");
