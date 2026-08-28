@@ -201,12 +201,13 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
   }, [sort, group, view]);
 
   useEffect(() => {
+    if (searchInput === search) return;
     const handle = setTimeout(() => {
       setPage(1);
       setSearch(searchInput);
     }, 250);
     return () => clearTimeout(handle);
-  }, [searchInput]);
+  }, [search, searchInput]);
 
   const producers = useMemo(() => {
     if (serverProducers) return serverProducers;
