@@ -1145,7 +1145,22 @@ export function parseTraderChukoSmartphoneList(
     });
   }
 
-  return offers;
+  if (offers.length > 0) return offers;
+
+  return parseMakeshopList('trader', html, baseUrl, target).map((offer) => {
+    let productId: string | null = null;
+    try { productId = new URL(offer.url).searchParams.get('brandcode'); } catch {}
+    return {
+      ...offer,
+      provider_offer_id: productId ?? offer.provider_offer_id,
+      condition: 'used',
+      edition_label: traderEditionLabel(offer.title),
+      location_label: 'Trader Online / 秋葉原トレーダー通販',
+      location_branch: null,
+      product_id: productId,
+      page_kind: 'detail',
+    };
+  });
 }
 
 /**

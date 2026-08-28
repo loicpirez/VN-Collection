@@ -161,6 +161,41 @@ describe('parseTraderChukoSmartphoneList — title filter', () => {
   });
 });
 
+describe('parseTraderChukoSmartphoneList — redirected desktop catalogue', () => {
+  it('parses the current MakeShop catalogue returned by the retired mobile endpoint', () => {
+    const html = `<ul class="innerList clear">
+      <li>
+        <div class="innerBox">
+          <div class="imgWrap"><a href=/shop/shopdetail.html?brandcode=000000100007&search=test&sort=>cover</a></div>
+          <div class="detail">
+            <p class="name"><a href=/shop/shopdetail.html?brandcode=000000100007&search=test&sort=>架空ゲーム 初回版 *開封品</a></p>
+            <p class="price">4,600円</p>
+            <div class="btnWrap"><a href=basket.html?brandcode=000000100007&amount=1>カートに入れる</a></div>
+          </div>
+        </div>
+      </li>
+    </ul>`;
+
+    const result = parseTraderChukoSmartphoneList(html, BASE_URL, { ...BLANK_TARGET, query: '架空ゲーム' });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      provider_offer_id: '000000100007',
+      product_id: '000000100007',
+      title: '架空ゲーム 初回版 *開封品',
+      price: 4600,
+      availability: 'in_stock',
+      availability_label: expect.stringContaining('カートに入れる'),
+      condition: 'used',
+      edition_label: 'first_press',
+      location_label: 'Trader Online / 秋葉原トレーダー通販',
+      location_branch: null,
+      page_kind: 'detail',
+    });
+    expect(result[0].url).toContain('/shop/shopdetail.html?brandcode=000000100007');
+  });
+});
+
 describe('parseTraderChukoSmartphoneList — edition labels', () => {
   it('labels 初回版 with a stable first-press slug', () => {
     const html = makeListHtml(listItem({ id: '1', title: '架空ゲーム 初回版', price: 4000 }));
