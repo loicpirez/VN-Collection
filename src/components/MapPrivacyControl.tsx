@@ -20,6 +20,7 @@ export function MapPrivacyControl({
   const t = useT();
   const [enabled, setEnabled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setDismissed(readMapPrivacyNoticeDismissed());
@@ -32,17 +33,22 @@ export function MapPrivacyControl({
       onChange?.(next);
     };
     sync();
+    setReady(true);
     window.addEventListener(MAP_EXTERNAL_NETWORK_CHANGED_EVENT, sync);
     return () => window.removeEventListener(MAP_EXTERNAL_NETWORK_CHANGED_EVENT, sync);
   }, [onChange]);
 
   if (dismissed) {
     return (
-      <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-2 py-1.5 text-xs text-muted">
+      <div
+        data-map-privacy-ready={String(ready)}
+        className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-elev/35 px-2 py-1.5 text-xs text-muted"
+      >
         <ShieldCheck className="h-4 w-4 shrink-0 text-accent" aria-hidden />
         <span className="min-w-0">{t.map.externalPrivacyHidden}</span>
         <button
           type="button"
+          disabled={!ready}
           onClick={() => {
             writeMapPrivacyNoticeDismissed(false);
             setDismissed(false);
@@ -57,7 +63,10 @@ export function MapPrivacyControl({
   }
 
   return (
-    <div className={`rounded-lg border border-border bg-bg-elev/35 ${compact ? 'p-2.5' : 'p-3'}`}>
+    <div
+      data-map-privacy-ready={String(ready)}
+      className={`rounded-lg border border-border bg-bg-elev/35 ${compact ? 'p-2.5' : 'p-3'}`}
+    >
       <div className="flex items-start gap-2.5">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0 flex-1">
@@ -65,6 +74,7 @@ export function MapPrivacyControl({
             <p className="text-xs font-bold text-white">{t.map.externalPrivacyTitle}</p>
             <button
               type="button"
+              disabled={!ready}
               onClick={() => {
                 writeMapPrivacyNoticeDismissed(true);
                 setDismissed(true);
@@ -79,6 +89,7 @@ export function MapPrivacyControl({
           <p className="mt-1 text-[11px] leading-relaxed text-muted">{t.map.externalPrivacyDesc}</p>
           <button
             type="button"
+            disabled={!ready}
             onClick={() => writeMapExternalNetworkConsent(!enabled)}
             aria-pressed={enabled}
             className="btn mt-2 min-h-[44px] text-xs"

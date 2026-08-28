@@ -196,6 +196,11 @@ describe('responsive audit matrix', () => {
     );
     expect(RESPONSIVE).not.toContain('vn_map_privacy_dismissed_v1');
   });
+
+  it('waits for map privacy hydration before enabling the external map', () => {
+    expect(INTERACTIONS).toContain('[data-map-privacy-ready="true"]');
+    expect(INTERACTIONS).toContain('Block external map');
+  });
 });
 
 describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface', () => {

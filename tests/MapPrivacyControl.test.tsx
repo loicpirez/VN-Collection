@@ -34,7 +34,9 @@ describe('MapPrivacyControl', () => {
     renderWithProviders(<MapPrivacyControl onChange={onChange} />, { locale: 'en' });
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(false));
+    expect(document.querySelector('[data-map-privacy-ready="true"]')).toBeInTheDocument();
     const enable = screen.getByRole('button', { name: t.map.externalPrivacyEnable });
+    expect(enable).toBeEnabled();
     expect(enable).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(enable);
 
@@ -68,6 +70,7 @@ describe('MapPrivacyControl', () => {
     fireEvent.click(dismiss);
 
     await waitFor(() => expect(screen.getByRole('button', { name: t.map.externalPrivacyShow })).toBeInTheDocument());
+    expect(document.querySelector('[data-map-privacy-ready="true"]')).toBeInTheDocument();
     expect(screen.getByText(t.map.externalPrivacyHidden)).toBeInTheDocument();
     expect(readMapPrivacyNoticeDismissed()).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: t.map.externalPrivacyShow }));

@@ -212,7 +212,30 @@ async function assertMobileQuoteDock(page, engineLabel) {
   assert(Math.abs(reverseTop - initial.top) <= 1, `${engineLabel} quote footer moved ${reverseTop - initial.top}px while scrolling back up`);
 
   const toggle = footer.locator('button[aria-controls="quote-footer-content"]');
+  const assertDownloadStatusClearance = async () => {
+    const status = page.locator('[data-download-status-root]');
+    if (await status.count() === 0) return;
+    const geometry = await page.evaluate(() => {
+      const footerElement = document.querySelector('[data-quote-footer-root]');
+      const statusElement = document.querySelector('[data-download-status-root]');
+      if (!(footerElement instanceof HTMLElement) || !(statusElement instanceof HTMLElement)) return null;
+      const footerRect = footerElement.getBoundingClientRect();
+      const statusRect = statusElement.getBoundingClientRect();
+      return {
+        footerTop: footerRect.top,
+        statusBottom: statusRect.bottom,
+      };
+    });
+    assert(geometry !== null, `${engineLabel} download status geometry is unavailable`);
+    assert(
+      geometry.statusBottom <= geometry.footerTop - 7,
+      `${engineLabel} download status overlaps the quote footer by ${Math.round((geometry.statusBottom - geometry.footerTop) * 100) / 100}px`,
+    );
+  };
+  await assertDownloadStatusClearance();
   await toggle.tap();
+  await page.waitForTimeout(350);
+  await assertDownloadStatusClearance();
   assert(await toggle.getAttribute('aria-expanded') === 'true', `${engineLabel} quote footer did not open from a touch click`);
   await toggle.tap();
   assert(await toggle.getAttribute('aria-expanded') === 'false', `${engineLabel} quote footer did not close from the second touch`);
@@ -517,10 +540,16 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
 
 check('map place dialog stays above live Leaflet panes', async (page) => {
   await gotoClean(page, '/map');
+  await page.locator('[data-map-privacy-ready="true"]').waitFor({ state: 'visible', timeout: 10000 });
   const allowExternalMap = page.getByRole('button', {
     name: /Autoriser la carte externe|Allow external map|外部マップを許可/i,
   });
-  if ((await allowExternalMap.count()) > 0) await allowExternalMap.first().click();
+  if ((await allowExternalMap.count()) > 0) {
+    await allowExternalMap.first().click();
+    await page.getByRole('button', {
+      name: /Bloquer la carte externe|Block external map|外部マップをブロック/i,
+    }).waitFor({ state: 'visible', timeout: 10000 });
+  }
   const leafletContainer = page.locator('.leaflet-container').first();
   await leafletContainer.waitFor({ state: 'visible', timeout: 15000 });
 
