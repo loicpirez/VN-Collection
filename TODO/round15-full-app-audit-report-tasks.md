@@ -102,7 +102,12 @@ provider behavior, operations, backup, restore, and immutable deployment.
   and bottom divergence throughout. PostgreSQL readiness, exact revision
   identity, active service state, and zero restarts were verified after the
   immutable release switch.
-- The complete instrumented suite currently passes 959 files and 10,083 tests
+- A post-deployment card-surface matrix completed 198 authenticated production
+  renders across 11 card-heavy routes, Chromium, Firefox, WebKit, phone and
+  desktop viewports, and French, English, and Japanese. It reported zero
+  horizontal overflow, clipped control, undersized touch target, fixed overlay
+  escape, card top offset, or card bottom offset.
+- The complete instrumented suite currently passes 959 files and 10,096 tests
   at exactly 100 percent statements, branches, functions, and lines. The final
   ordinary, PostgreSQL, build, and operational gates remain open until the
   remaining audit corrections are complete.
