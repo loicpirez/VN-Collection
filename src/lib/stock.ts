@@ -1442,7 +1442,10 @@ function parseGetchuList(html: string, url: string, target: StockTarget): Parsed
   for (const m of html.matchAll(/<li>\s*<div class=["']content_block["'][\s\S]*?<\/li>/gi)) {
     const block = m[0];
     const a = /<A\s+HREF=["']?([^"'\s>]+)["']?[^>]*class=["']blueb["'][^>]*>([\s\S]*?)<\/A>/i.exec(block);
-    const price = /特典付き価格[\s\S]*?<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? /<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? '';
+    const salePrice = /特典付き価格[\s\S]*?<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1] ?? /<SPAN class=["']redb["'][^>]*>([\s\S]*?)<\/SPAN>/i.exec(block)?.[1];
+    const taxIncludedListPrice = /定価[：:]?[\s\S]{0,100}?税込\s*[￥¥]?\s*([\d,]+)/i.exec(block)?.[1];
+    const regularListPrice = /定価[：:]?\s*[￥¥]?\s*([\d,]+)/i.exec(block)?.[1];
+    const price = salePrice ?? (taxIncludedListPrice ? `${taxIncludedListPrice}円` : regularListPrice ? `${regularListPrice}円` : '');
     const stock = block.includes('<!--予約-->') ? '予約受付中' : block;
     if (!a?.[1] || !a[2]) continue;
     const offer = offerFromListBlock(url, target, a[1], a[2], price, stock, { location: 'Getchu' });

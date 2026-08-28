@@ -369,6 +369,17 @@ describe('stock provider parsers', () => {
     expect(offers[0]).toMatchObject({ price: 30800, availability: 'in_stock', location_label: 'Getchu' });
   });
 
+  it('uses the tax-included Getchu list price when no promotional price is present', () => {
+    const offers = parseGenericProviderPage(
+      'getchu',
+      `<li><div class="content_block"><A HREF="../soft.phtml?id=1367641" class="blueb">Sample VN Standard Edition</A>
+       <p>定価：￥9,980 (税込￥10,978)</p><!--予約--></div></li>`,
+      'https://www.getchu.com/php/nsearch.phtml?search_keyword=Sample%20VN',
+      { ...target, query: 'Sample VN' },
+    );
+    expect(offers[0]).toMatchObject({ price: 10978, availability: 'in_stock', availability_label: '予約受付中' });
+  });
+
   it('parses Gamers list products', () => {
     const offers = parseGenericProviderPage(
       'gamers',
