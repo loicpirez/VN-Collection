@@ -82,7 +82,8 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS).toContain('compact library still uses estimated-row virtualization');
     expect(INTERACTIONS).toContain('library height drifted by');
     expect(INTERACTIONS).toContain('cards in one row start');
-    expect(INTERACTIONS).toContain('library stretches at least one card to the row height');
+    expect(INTERACTIONS).toContain('cards in one row end');
+    expect(INTERACTIONS).toContain('library leaves at least one card shorter than its intrinsic row');
     expect(INTERACTIONS).toContain('desktop library did not activate measured-row virtualization');
     expect(INTERACTIONS).toContain('desktop card row tops differ by');
   });

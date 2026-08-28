@@ -26,7 +26,6 @@ vi.mock('@/components/VnCard', () => ({
     onSelect,
     listPosition,
     listSize,
-    naturalHeight,
   }: {
     data: { id: string; title: string };
     selectable?: boolean;
@@ -34,7 +33,6 @@ vi.mock('@/components/VnCard', () => ({
     onSelect?: () => void;
     listPosition?: number;
     listSize?: number;
-    naturalHeight?: boolean;
   }) => (
     <div
       data-testid="vncard"
@@ -43,7 +41,7 @@ vi.mock('@/components/VnCard', () => ({
       role={listPosition != null ? 'listitem' : undefined}
       aria-posinset={listPosition}
       aria-setsize={listSize}
-      className={naturalHeight ? 'self-start' : 'self-stretch'}
+      className="flex-1 self-stretch"
     >
       <span>{data.title}</span>
       {selectable && (
@@ -1868,7 +1866,7 @@ describe('LibraryClient', () => {
     rectSpy.mockRestore();
   });
 
-  it('keeps compact mobile cards in aligned rows at their natural height', async () => {
+  it('keeps compact mobile cards stretched within aligned intrinsic rows', async () => {
     localStorage.setItem('vn_display_settings_v1', JSON.stringify({ density: { library: 140 } }));
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 390,
@@ -1897,13 +1895,12 @@ describe('LibraryClient', () => {
     expect(grid).not.toHaveAttribute('data-virtualized-library-grid');
     expect(within(grid!).getAllByRole('listitem')).toHaveLength(rows.length);
     expect(grid!.querySelector('[role="presentation"]')).toBeNull();
-    expect(grid).toHaveClass('items-start');
+    expect(grid).toHaveClass('items-stretch');
     expect(grid?.style.gridTemplateColumns).toContain('auto-fill');
     expect(grid).not.toHaveAttribute('data-library-card-masonry');
     const cards = grid!.querySelectorAll<HTMLElement>(':scope > [data-vn-card]');
     expect(cards).toHaveLength(rows.length);
-    expect(cards[0]).toHaveClass('self-start');
-    expect(cards[0]).not.toHaveClass('self-stretch');
+    expect(cards[0]).toHaveClass('flex-1', 'self-stretch');
     rectSpy.mockRestore();
   });
 

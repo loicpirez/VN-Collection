@@ -175,17 +175,16 @@ describe('VnCard', () => {
     expect(onSelect).toHaveBeenCalledTimes(3);
   });
 
-  it('carries list metadata and supports an intrinsic-height grid root', () => {
+  it('carries list metadata and fills its intrinsic grid row', () => {
     renderWithProviders(
-      <VnCard data={card()} listPosition={4} listSize={20} naturalHeight />,
+      <VnCard data={card()} listPosition={4} listSize={20} />,
       { locale: 'en' },
     );
 
     const listItem = screen.getByRole('listitem');
     expect(listItem).toHaveAttribute('aria-posinset', '4');
     expect(listItem).toHaveAttribute('aria-setsize', '20');
-    expect(listItem).toHaveClass('self-start');
-    expect(listItem).not.toHaveClass('flex-1', 'self-stretch');
+    expect(listItem).toHaveClass('flex-1', 'self-stretch');
   });
 
   it('keeps remote custom covers remote instead of routing them through local files', () => {

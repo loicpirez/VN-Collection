@@ -265,8 +265,8 @@ async function readAlignedCardGeometry(grid) {
       minimumRowGap: rowGaps.length > 0 ? Math.min(...rowGaps) : 0,
       maximumRowGap: rowGaps.length > 0 ? Math.max(...rowGaps) : 0,
       maximumTopOffset: Math.max(...rows.map((row) => row.topOffset)),
-      hasNaturalHeightDifference: rows.some((row) => row.bottomOffset > 1),
-      allCardsNaturalHeight: cards.every((card) => card.alignSelf === 'flex-start' && card.flexGrow === '0'),
+      maximumBottomOffset: Math.max(...rows.map((row) => row.bottomOffset)),
+      allCardsFillRows: cards.every((card) => card.alignSelf === 'stretch' && card.flexGrow === '1'),
     };
   });
 }
@@ -279,8 +279,8 @@ function assertAlignedCardGeometry(samples, engineLabel) {
     minimumRowGap: Math.min(...samples.map((sample) => sample.minimumRowGap)),
     maximumRowGap: Math.max(...samples.map((sample) => sample.maximumRowGap)),
     maximumTopOffset: Math.max(...samples.map((sample) => sample.maximumTopOffset)),
-    hasNaturalHeightDifference: samples.some((sample) => sample.hasNaturalHeightDifference),
-    allCardsNaturalHeight: samples.every((sample) => sample.allCardsNaturalHeight),
+    maximumBottomOffset: Math.max(...samples.map((sample) => sample.maximumBottomOffset)),
+    allCardsFillRows: samples.every((sample) => sample.allCardsFillRows),
     documentHeightDrift: Math.max(...samples.map((sample) => sample.documentHeight))
       - Math.min(...samples.map((sample) => sample.documentHeight)),
     documentOverflow: Math.max(...samples.map((sample) => sample.documentOverflow)),
@@ -289,10 +289,10 @@ function assertAlignedCardGeometry(samples, engineLabel) {
   assert(geometry.itemCount >= 4, `${engineLabel} library rendered only ${geometry.itemCount} cards`);
   assert(geometry.columnCount === 2, `${engineLabel} library rendered ${geometry.columnCount} mobile columns instead of 2`);
   assert(geometry.maximumTopOffset <= 1, `${engineLabel} cards in one row start ${geometry.maximumTopOffset}px apart`);
+  assert(geometry.maximumBottomOffset <= 1, `${engineLabel} cards in one row end ${geometry.maximumBottomOffset}px apart`);
   assert(geometry.minimumRowGap >= 11.9, `${engineLabel} card rows overlap: minimum gap ${geometry.minimumRowGap}px`);
   assert(geometry.maximumRowGap <= 13.1, `${engineLabel} card rows leave an oversized ${geometry.maximumRowGap}px gap after the tallest card`);
-  assert(geometry.hasNaturalHeightDifference, `${engineLabel} card rows do not demonstrate intrinsic card heights`);
-  assert(geometry.allCardsNaturalHeight, `${engineLabel} library stretches at least one card to the row height`);
+  assert(geometry.allCardsFillRows, `${engineLabel} library leaves at least one card shorter than its intrinsic row`);
   assert(geometry.documentHeightDrift <= 1, `${engineLabel} library height drifted by ${geometry.documentHeightDrift}px while scrolling`);
   assert(geometry.documentOverflow <= 1, `${engineLabel} library overflows horizontally by ${geometry.documentOverflow}px`);
 }
@@ -362,7 +362,7 @@ check('Chromium mobile quote dock stays fixed and toggles reversibly', async () 
   }
 });
 
-check('Chromium library card rows stay aligned at natural height', async (page) => {
+check('Chromium library cards fill aligned intrinsic rows', async (page) => {
   await page.setViewportSize({ width: 390, height: 844 });
   try {
     await gotoClean(page, '/?density=140');
@@ -396,14 +396,14 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
       let maximumTopOffset = 0;
       let directCards = true;
       let manualRows = false;
-      let naturalHeightCards = true;
+      let cardsFillRows = true;
       for (const row of rows) {
         const cards = Array.from(row.querySelectorAll(':scope > [data-vn-card]'));
         directCards = directCards && cards.length === row.querySelectorAll('[data-vn-card]').length;
         manualRows = manualRows || cards.some((card) => card.style.gridRowEnd !== '');
-        naturalHeightCards = naturalHeightCards && cards.every((card) => {
+        cardsFillRows = cardsFillRows && cards.every((card) => {
           const style = getComputedStyle(card);
-          return style.alignSelf === 'flex-start' && style.flexGrow === '0';
+          return style.alignSelf === 'stretch' && style.flexGrow === '1';
         });
         if (cards.length < 2) continue;
         const rects = cards.map((card) => card.getBoundingClientRect());
@@ -419,7 +419,7 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
         maximumTopOffset,
         directCards,
         manualRows,
-        naturalHeightCards,
+        cardsFillRows,
       };
     }));
   }
@@ -434,7 +434,7 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
   assert(maximumTopOffset <= 1, `desktop card row tops differ by ${maximumTopOffset}px`);
   assert(samples.every((sample) => sample.directCards), 'desktop virtual rows wrap cards in a sizing element');
   assert(samples.every((sample) => !sample.manualRows), 'desktop cards still carry manual masonry row spans');
-  assert(samples.every((sample) => sample.naturalHeightCards), 'desktop library stretches cards to the row height');
+  assert(samples.every((sample) => sample.cardsFillRows), 'desktop library leaves a card shorter than its measured row');
 });
 
 check('settings modal tabs are reachable and non-empty', async (page) => {
