@@ -198,6 +198,7 @@ async function measure(page, touch, expectedLocale, routeKey) {
     }).map(descriptor).slice(0, 50);
     const cardGrid = routeKey === 'library' ? document.querySelector('[data-library-card-grid]') : null;
     let cardRowOffset = 0;
+    let cardVisibleBottomOffset = 0;
     let cardColumnCount = 0;
     if (cardGrid) {
       const columns = getComputedStyle(cardGrid).gridTemplateColumns.split(' ').filter(Boolean).length;
@@ -208,6 +209,11 @@ async function measure(page, touch, expectedLocale, routeKey) {
         if (row.length < 2) continue;
         const tops = row.map((card) => card.getBoundingClientRect().top);
         cardRowOffset = Math.max(cardRowOffset, Math.max(...tops) - Math.min(...tops));
+        const visibleBottoms = row.map((card) => (
+          card.firstElementChild?.getBoundingClientRect().bottom
+          ?? card.getBoundingClientRect().bottom
+        ));
+        cardVisibleBottomOffset = Math.max(cardVisibleBottomOffset, Math.max(...visibleBottoms) - Math.min(...visibleBottoms));
       }
     }
     const quote = document.querySelector('[data-quote-footer-root]');
@@ -247,6 +253,7 @@ async function measure(page, touch, expectedLocale, routeKey) {
       escapedElements,
       fixedOutOfBounds,
       cardRowOffset: Math.round(cardRowOffset * 100) / 100,
+      cardVisibleBottomOffset: Math.round(cardVisibleBottomOffset * 100) / 100,
       cardColumnCount,
       quoteGeometry,
       recoveredImageFallbacks,
@@ -269,6 +276,7 @@ function collectIssues(result) {
   if (result.clippedControls.length > 0) issues.push(`${result.clippedControls.length} clipped controls`);
   if (result.fixedOutOfBounds.length > 0) issues.push(`${result.fixedOutOfBounds.length} fixed elements outside viewport`);
   if (result.cardRowOffset > 1) issues.push(`library row offset ${result.cardRowOffset}px`);
+  if (result.cardVisibleBottomOffset > 1) issues.push(`library visible card bottom offset ${result.cardVisibleBottomOffset}px`);
   if (result.route === 'library' && result.viewport === 'phone' && result.cardColumnCount < 2) {
     issues.push(`compact library rendered ${result.cardColumnCount} column`);
   }
@@ -384,6 +392,7 @@ for (const engineName of selectedEngines) {
             escapedElements: [],
             fixedOutOfBounds: [],
             cardRowOffset: 0,
+            cardVisibleBottomOffset: 0,
             cardColumnCount: 0,
             quoteGeometry: null,
             recoveredImageFallbacks: [],
