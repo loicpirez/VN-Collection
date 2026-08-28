@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateVirtualGridWindow,
   parseCssPixelValue,
+  supportsEstimatedRowVirtualization,
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 
@@ -88,6 +89,14 @@ describe('virtual grid window calculation', () => {
     expect(parseCssPixelValue('', 220)).toBe(220);
     expect(parseCssPixelValue('-10px', 220)).toBe(220);
   });
+
+  it('keeps variable-height compact rows in native document flow', () => {
+    expect(supportsEstimatedRowVirtualization(0)).toBe(false);
+    expect(supportsEstimatedRowVirtualization(390)).toBe(false);
+    expect(supportsEstimatedRowVirtualization(639)).toBe(false);
+    expect(supportsEstimatedRowVirtualization(640)).toBe(true);
+    expect(supportsEstimatedRowVirtualization(Number.NaN)).toBe(false);
+  });
 });
 
 describe('LibraryClient virtual grid wiring', () => {
@@ -98,6 +107,7 @@ describe('LibraryClient virtual grid wiring', () => {
 
   it('renders only the computed item slice in the normal grid branch', () => {
     expect(gridBody).toContain('calculateVirtualGridWindow');
+    expect(gridBody).toContain('supportsEstimatedRowVirtualization(measurements.width)');
     expect(gridBody).toContain('items.slice(virtual.startIndex, virtual.endIndex)');
     expect(gridBody).toContain('renderedItems.map((it, i)');
     expect(gridBody).not.toContain('items.map((it, i)');

@@ -1772,6 +1772,17 @@ describe('LibraryClient', () => {
     const originalResizeObserver = window.ResizeObserver;
     const originalInnerHeight = window.innerHeight;
     const originalScrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 900,
+      top: 10,
+      left: 0,
+      right: 900,
+      bottom: 800,
+      height: 790,
+      x: 0,
+      y: 10,
+      toJSON: () => ({}),
+    });
     class TestResizeObserver {
       observe = vi.fn();
       unobserve = vi.fn();
@@ -1795,6 +1806,9 @@ describe('LibraryClient', () => {
       { locale: 'en' },
     );
     await screen.findByText('VN 1');
+    await waitFor(() => {
+      expect(container.querySelector('[data-virtualized-library-grid="true"]')).not.toBeNull();
+    });
     const grid = container.querySelector<HTMLElement>('[data-virtualized-library-grid="true"]');
     expect(grid).not.toBeNull();
     let rect = { width: 900, top: 10, left: 0, right: 900, bottom: 800, height: 790, x: 0, y: 10, toJSON: () => ({}) };
@@ -1846,6 +1860,38 @@ describe('LibraryClient', () => {
     });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight });
     if (originalScrollYDescriptor) Object.defineProperty(window, 'scrollY', originalScrollYDescriptor);
+    rectSpy.mockRestore();
+  });
+
+  it('keeps compact mobile card rows in native flow without virtual spacers', async () => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0)) as typeof window.requestAnimationFrame;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      top: 10,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      height: 790,
+      x: 0,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    const rows = Array.from({ length: 120 }, (_, index) => cardRow(`v7${String(index + 1).padStart(4, '0')}`, `Compact VN ${index + 1}`));
+    installFetchRouter({ collectionItems: rows, total: rows.length });
+    const { container } = renderWithProviders(
+      <DisplaySettingsProvider>
+        <LibraryClient mode="full" />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    await screen.findByText('Compact VN 1');
+    const grid = container.querySelector<HTMLElement>('[data-library-card-grid]');
+    expect(grid).not.toHaveAttribute('data-virtualized-library-grid');
+    expect(within(grid!).getAllByRole('listitem')).toHaveLength(rows.length);
+    expect(grid!.querySelector('[role="presentation"]')).toBeNull();
+    rectSpy.mockRestore();
+    window.requestAnimationFrame = originalRequestAnimationFrame;
   });
 
   it('handles virtual grid measurement when ResizeObserver is unavailable and a frame fires after unmount', async () => {

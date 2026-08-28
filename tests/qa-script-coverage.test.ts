@@ -79,6 +79,8 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
     expect(INTERACTIONS.match(/gotoClean\([^,]+, '\/\?density=140'\)/g)).toHaveLength(2);
     expect(INTERACTIONS).not.toContain("element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))'");
     expect(INTERACTIONS).not.toContain("element.style.setProperty('--card-density-px', '140px')");
+    expect(INTERACTIONS).toContain('compact library still uses estimated-row virtualization');
+    expect(INTERACTIONS).toContain('document height drifted by');
   });
 
   it('refuses to run without VNCOLL_QA + WRITE_QA_ALLOWED + .qa-rooted DB_PATH', () => {
@@ -160,6 +162,7 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain('VN card row offset');
     expect(RESPONSIVE).toContain('cardVisibleBottomOffset');
     expect(RESPONSIVE).toContain('VN card bottom offset');
+    expect(RESPONSIVE).toContain('compact library uses unstable estimated-row virtualization');
     expect(RESPONSIVE).toContain("document.querySelectorAll('[data-vn-card]')");
     expect(RESPONSIVE).toContain("cardGrid.matches('[data-library-card-grid]')");
     expect(RESPONSIVE).toContain("item.matches('[data-vn-card]')");

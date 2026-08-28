@@ -254,6 +254,7 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
     const grid = webkitPage.locator('[data-library-card-grid]').first();
     await grid.waitFor({ state: 'visible', timeout: 10000 });
     await webkitPage.waitForTimeout(200);
+    assert(await grid.getAttribute('data-virtualized-library-grid') === null, 'WebKit compact library still uses estimated-row virtualization');
 
     const rowSamples = [];
     const maximumScroll = await webkitPage.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
@@ -281,6 +282,7 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
         }
         return {
           display: getComputedStyle(element).display,
+          documentHeight: document.documentElement.scrollHeight,
           itemCount: items.length,
           maxPairOffset: pairOffsets.length > 0 ? Math.max(...pairOffsets) : 0,
           maxVisibleBottomOffset: pairBottomOffsets.length > 0 ? Math.max(...pairBottomOffsets) : 0,
@@ -296,6 +298,8 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
       maxVisibleBottomOffset: Math.max(...rowSamples.map((sample) => sample.maxVisibleBottomOffset)),
       cardsAreDirectGridItems: rowSamples.every((sample) => sample.cardsAreDirectGridItems),
       hasManualRows: rowSamples.some((sample) => sample.hasManualRows),
+      documentHeightDrift: Math.max(...rowSamples.map((sample) => sample.documentHeight))
+        - Math.min(...rowSamples.map((sample) => sample.documentHeight)),
     };
     assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
     assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
@@ -303,6 +307,7 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
     assert(rowGeometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${rowGeometry.maxVisibleBottomOffset}px at their bottom edge`);
     assert(rowGeometry.cardsAreDirectGridItems, 'library cards still depend on an intermediate sizing wrapper');
     assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
+    assert(rowGeometry.documentHeightDrift <= 1, `library document height drifted by ${rowGeometry.documentHeightDrift}px while scrolling`);
     await assertMobileQuoteDock(webkitPage, 'WebKit');
   } finally {
     await webkitContext.close();
@@ -342,6 +347,7 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
     const grid = page.locator('[data-library-card-grid]').first();
     await grid.waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForTimeout(200);
+    assert(await grid.getAttribute('data-virtualized-library-grid') === null, 'Chromium compact library still uses estimated-row virtualization');
     const geometry = await grid.evaluate((element) => {
       const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
         const rect = item.getBoundingClientRect();

@@ -214,9 +214,13 @@ async function measure(page, touch, expectedLocale, routeKey) {
     let cardRowOffset = 0;
     let cardVisibleBottomOffset = 0;
     let cardColumnCount = 0;
+    let compactLibraryVirtualized = false;
     for (const [cardGrid, cards] of cardGrids) {
       const columns = getComputedStyle(cardGrid).gridTemplateColumns.split(' ').filter(Boolean).length;
-      if (cardGrid.matches('[data-library-card-grid]')) cardColumnCount = columns;
+      if (cardGrid.matches('[data-library-card-grid]')) {
+        cardColumnCount = columns;
+        compactLibraryVirtualized = cardGrid.hasAttribute('data-virtualized-library-grid');
+      }
       for (let index = 0; index < cards.length; index += Math.max(columns, 1)) {
         const row = cards.slice(index, index + columns);
         if (row.length < 2) continue;
@@ -270,6 +274,7 @@ async function measure(page, touch, expectedLocale, routeKey) {
       cardRowOffset: Math.round(cardRowOffset * 100) / 100,
       cardVisibleBottomOffset: Math.round(cardVisibleBottomOffset * 100) / 100,
       cardColumnCount,
+      compactLibraryVirtualized,
       quoteGeometry,
       recoveredImageFallbacks,
       touch,
@@ -294,6 +299,9 @@ function collectIssues(result) {
   if (result.cardVisibleBottomOffset > 1) issues.push(`VN card bottom offset ${result.cardVisibleBottomOffset}px`);
   if (result.route === 'library' && result.viewport === 'phone' && result.cardColumnCount < 2) {
     issues.push(`compact library rendered ${result.cardColumnCount} column`);
+  }
+  if (result.route === 'library' && result.viewport === 'phone' && result.compactLibraryVirtualized) {
+    issues.push('compact library uses unstable estimated-row virtualization');
   }
   if (!result.quoteGeometry) {
     issues.push('quote footer missing');

@@ -46,7 +46,7 @@ import {
   calculateVirtualGridWindow,
   parseCssPixelValue,
   VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
-  VIRTUAL_GRID_DEFAULT_WIDTH,
+  supportsEstimatedRowVirtualization,
   VIRTUAL_GRID_THRESHOLD,
 } from '@/lib/virtual-grid';
 import type { CollectionPage } from '@/lib/collection-api-client';
@@ -1650,7 +1650,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
             ) : (
               <>
                 {items.length > VIRTUAL_GRID_THRESHOLD && (
-                  <p className="mb-2 text-right text-[11px] text-muted">
+                  <p className="mb-2 hidden text-right text-[11px] text-muted sm:block">
                     {t.library.virtualScrollNotice.replace('{n}', fmtNum(items.length, locale))}
                   </p>
                 )}
@@ -1741,7 +1741,7 @@ interface GridMeasurements {
 }
 
 const DEFAULT_GRID_MEASUREMENTS: GridMeasurements = {
-  width: VIRTUAL_GRID_DEFAULT_WIDTH,
+  width: 0,
   scrollY: 0,
   viewportHeight: VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT,
   containerTop: 0,
@@ -1792,6 +1792,9 @@ function Grid({
   const containerRef = useRef<HTMLDivElement>(null);
   const measureFrameRef = useRef<number | null>(null);
   const [measurements, setMeasurements] = useState<GridMeasurements>(DEFAULT_GRID_MEASUREMENTS);
+  const effectiveVirtualThreshold = supportsEstimatedRowVirtualization(measurements.width)
+    ? virtualThreshold
+    : Number.MAX_SAFE_INTEGER;
   const measureGrid = useCallback(() => {
     if (measureFrameRef.current !== null) return;
     measureFrameRef.current = window.requestAnimationFrame(() => {
@@ -1835,9 +1838,9 @@ function Grid({
       densityPx: measurements.densityPx,
       densityMultiplier: densityMul,
       gapPx,
-      threshold: virtualThreshold,
+      threshold: effectiveVirtualThreshold,
     }),
-    [densityMul, gapPx, items.length, measurements, virtualThreshold],
+    [densityMul, effectiveVirtualThreshold, gapPx, items.length, measurements],
   );
   const renderedItems = useMemo(
     () => (virtual.enabled ? items.slice(virtual.startIndex, virtual.endIndex) : items),

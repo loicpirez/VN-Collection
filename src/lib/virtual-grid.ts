@@ -4,6 +4,19 @@ export const VIRTUAL_GRID_DEFAULT_WIDTH = 1200;
 export const VIRTUAL_GRID_DEFAULT_VIEWPORT_HEIGHT = 900;
 export const VIRTUAL_GRID_MIN_ROW_HEIGHT = 320;
 export const VIRTUAL_GRID_CARD_CHROME_PX = 156;
+export const VIRTUAL_GRID_COMPACT_MAX_WIDTH = 639;
+
+/**
+ * Reports whether estimated-row virtualization is appropriate for a viewport.
+ * Compact card grids keep their naturally sized rows in document flow because
+ * title and metadata wrapping makes a fixed row estimate unstable on phones.
+ *
+ * @param width Measured grid width in CSS pixels.
+ * @returns True when the grid is wide enough for estimated-row virtualization.
+ */
+export function supportsEstimatedRowVirtualization(width: number): boolean {
+  return Number.isFinite(width) && width > VIRTUAL_GRID_COMPACT_MAX_WIDTH;
+}
 
 /**
  * Measured state needed to calculate a virtual grid window.
