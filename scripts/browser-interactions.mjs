@@ -425,6 +425,7 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
       }
       return {
         cardCount: element.querySelectorAll('[data-vn-card]').length,
+        totalItems: Number(element.querySelector('[data-vn-card]')?.getAttribute('aria-setsize') ?? 0),
         rowCount: rows.length,
         maximumTopOffset,
         maximumBottomOffset,
@@ -435,11 +436,12 @@ check('Chromium desktop library keeps measured virtual rows aligned', async (pag
   }
 
   const maximumMountedCards = Math.max(...samples.map((sample) => sample.cardCount));
+  const totalItems = Math.max(...samples.map((sample) => sample.totalItems));
   const maximumMountedRows = Math.max(...samples.map((sample) => sample.rowCount));
   const maximumTopOffset = Math.max(...samples.map((sample) => sample.maximumTopOffset));
   const maximumBottomOffset = Math.max(...samples.map((sample) => sample.maximumBottomOffset));
   assert(maximumMountedCards >= 4, `desktop virtualizer mounted only ${maximumMountedCards} cards`);
-  assert(maximumMountedCards < 96, `desktop virtualizer mounted ${maximumMountedCards} cards`);
+  assert(totalItems > maximumMountedCards, `desktop virtualizer mounted all ${maximumMountedCards} cards`);
   assert(maximumMountedRows >= 2, `desktop virtualizer mounted only ${maximumMountedRows} rows`);
   assert(maximumTopOffset <= 1, `desktop card row tops differ by ${maximumTopOffset}px`);
   assert(maximumBottomOffset <= 1, `desktop card row bottoms differ by ${maximumBottomOffset}px`);
