@@ -207,6 +207,7 @@ function ExternalVnCard({
       <Link
         href={`/vn/${vn.id}`}
         prefetch={false}
+        aria-label={vn.title}
         className="block shrink-0 overflow-hidden rounded"
         style={{
           width: 'clamp(72px, calc(var(--card-density-px, 220px) * 0.42), 200px)',

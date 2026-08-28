@@ -116,6 +116,7 @@ describe('StaffExtraCredits', () => {
     expect(markup).toContain('Production credits');
     expect(markup).not.toContain('Voice credits');
     expect(markup).toContain('Scenario / new-role');
+    expect(markup).toContain('aria-label="Production v1"');
     expect(markup).toContain('src="https://example.com/thumb.jpg"');
     expect(markup).toContain('data-reset-key="s1:extra-production"');
   });
