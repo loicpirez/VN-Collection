@@ -143,7 +143,7 @@ describe('PostgreSQL AliceNet repository', () => {
       ...baseQuery,
       limit: 999,
       offset: 99_999_999,
-      producer: 'egs:AliceSoft',
+      producer: 'egs:StudioX',
       yearMin: 1990,
       yearMax: 2030,
       priceMin: 500,

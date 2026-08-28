@@ -7,14 +7,14 @@ import {
 
 describe('PostgreSQL search normalization', () => {
   it('normalizes Latin and Japanese compatibility characters', () => {
-    expect(normalizePostgresSearch('ＡＬＩＣＥ　Soft')).toBe('alice soft');
+    expect(normalizePostgresSearch('ＳＴＵＤＩＯ　X')).toBe('studio x');
     expect(normalizePostgresSearch('夜が来る！')).toBe('夜が来る!');
     expect(normalizePostgresSearch('CAFÉ')).toBe('café');
   });
 
   it('escapes every LIKE metacharacter without changing regular text', () => {
     expect(escapePostgresLike('A%_\\B')).toBe('A\\%\\_\\\\B');
-    expect(escapePostgresLike('Alice')).toBe('Alice');
+    expect(escapePostgresLike('Studio')).toBe('Studio');
   });
 
   it('builds a normalized escaped substring pattern', () => {

@@ -2302,7 +2302,7 @@ for (const candidate of candidates) {
 
 ### Testing
 
-- `yarn test` after **every** code change. All 2406 tests must pass before commit.
+- `yarn test` after **every** code change. The complete current suite must pass before commit.
 - Run test commands verbatim — never filter or redirect output (`| tail`, `| grep`,
   `> /tmp/out`). The user has flagged this repeatedly.
 - Never use `/* istanbul ignore next */` or any coverage-disable directive. Reshape code

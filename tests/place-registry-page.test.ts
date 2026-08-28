@@ -54,13 +54,13 @@ describe('place registry server pagination', () => {
       hideStale: false,
     });
     expect(parsePlaceRegistryQuery(new URLSearchParams(
-      'limit=999&offset=99999999&tab=linked&sort=stock&kind=chain&gps=gps&hide_stale=1&q=%EF%BC%A1%EF%BC%AC%EF%BC%A9%EF%BC%A3%EF%BC%A5',
+      'limit=999&offset=99999999&tab=linked&sort=stock&kind=chain&gps=gps&hide_stale=1&q=%EF%BC%B3%EF%BC%B4%EF%BC%B5%EF%BC%A4%EF%BC%A9%EF%BC%AF',
     ))).toMatchObject({
       limit: 120,
       offset: 10_000_000,
       tab: 'linked',
       sort: 'stock',
-      search: 'alice',
+      search: 'studio',
       kind: 'chain',
       gps: 'gps',
       hideStale: true,
@@ -70,11 +70,11 @@ describe('place registry server pagination', () => {
   it('returns global stats beside a filtered NFKC search window', () => {
     const places = [
       place(1, {
-        name: 'ＡＬＩＣＥ Fresh',
+        name: 'ＳＴＵＤＩＯ Fresh',
         kind: 'chain',
         lat: 35,
         lng: 139,
-        provider_labels: ['Kobe Branch'],
+        provider_labels: ['Central Branch'],
         stock_count: 8,
         stock_updated_at: now,
       }),
@@ -87,7 +87,7 @@ describe('place registry server pagination', () => {
       place(3, { name: 'Unlinked', kind: 'storage', lat: 34, lng: 135 }),
     ];
     const query = parsePlaceRegistryQuery(new URLSearchParams(
-      'tab=linked&kind=chain&gps=gps&hide_stale=1&q=alice&limit=1',
+      'tab=linked&kind=chain&gps=gps&hide_stale=1&q=studio&limit=1',
     ));
     expect(queryPlaceRegistry(places, query, now)).toEqual({
       places: [places[0]],
@@ -172,9 +172,9 @@ describe('place registry server pagination', () => {
 
   it('filters and bounds unassigned branch pages', () => {
     expect(queryUnassignedBranches(
-      ['Alice Kobe', 'Sofmap', 'Alice Tokyo'],
-      new URLSearchParams('q=%EF%BC%A1%EF%BC%AC%EF%BC%A9%EF%BC%A3%EF%BC%A5&offset=1&limit=1'),
-    )).toEqual({ branches: ['Alice Tokyo'], page: { total: 2, limit: 1, offset: 1 } });
+      ['Studio Central', 'Sofmap', 'Studio East'],
+      new URLSearchParams('q=%EF%BC%B3%EF%BC%B4%EF%BC%B5%EF%BC%A4%EF%BC%A9%EF%BC%AF&offset=1&limit=1'),
+    )).toEqual({ branches: ['Studio East'], page: { total: 2, limit: 1, offset: 1 } });
     expect(queryUnassignedBranches(['A'], new URLSearchParams('limit=bad&offset=bad'))).toEqual({
       branches: ['A'],
       page: { total: 1, limit: 60, offset: 0 },

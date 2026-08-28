@@ -10,7 +10,7 @@ Pair with:
 - [CLAUDE.md](CLAUDE.md) — architecture / conventions.
 - [README.md](README.md) — user-facing overview.
 
-> Status legend: ✅ shipped · 🧪 scaffolded (works but minimal) · 🚧 planned.
+> Every feature documented below is shipped unless its section explicitly says otherwise.
 
 > Tip: the in-app guided tour auto-opens on first visit and walks you
 > through every major surface (14 steps: library, search, lists,
@@ -25,7 +25,7 @@ Pair with:
 
 ## Library
 
-### Filters & search ✅
+### Filters & search [shipped]
 Status chips, free-text title search, tag / language / year filters, tri-state
 "more filters" (matched-VNDB, matched-EGS, fan-disc, favourite, has-notes,
 NSFW, nukige…). All state lives in URL params so the back button works.
@@ -39,7 +39,7 @@ shareable): `status`, `q`, `producer` (developer side), `publisher`,
 `<FilterChip>` row so the active state stays visible and one click
 removes it.
 
-### Metadata everywhere is clickable ✅
+### Metadata everywhere is clickable [shipped]
 Every metadata token rendered on a detail page is a discovery
 entry point — clicking a language code, platform code, developer
 chip, publisher chip, physical-location pin, or status slice
@@ -67,7 +67,7 @@ navigates to the appropriate filtered view. Affected surfaces:
 - VN detail dumped chip links to `/?dumped=1` whenever the
   collection-level dumped flag is set.
 
-### Sort + custom drag-reorder ✅
+### Sort + custom drag-reorder [shipped]
 Standard sort dropdown plus an opt-in `sort=custom` mode that unlocks
 drag-to-reorder via @dnd-kit. Reset button reverts to the default sort.
 Whole-card drag surface (no separate handle) — clicks pass through
@@ -75,7 +75,7 @@ to the underlying `<Link>` and the heart / lists overlays because the
 PointerSensor has a 6 px activation distance. Honors the comfortable /
 dense toggle in custom-order mode as well.
 
-### Four-way playtime model ✅
+### Four-way playtime model [shipped]
 Three real playtime sources — VNDB community length, EGS user-review
 median, and the user's own recorded time — used to render as three
 disconnected inline labels with no source-priority story. Now there
@@ -95,35 +95,35 @@ Every `VnCard` shows the **All** combined value as the primary
 playtime chip with the per-source breakdown beneath and a tooltip
 listing each source.
 
-### Quick-actions on cards ✅
+### Quick-actions on cards [shipped]
 Right-click a tile → menu with status change, favourite toggle, "open
 detail page", "open producer", "filter by this producer". All actions hit
 existing `PATCH /api/collection/[id]`.
 
-### Random pick / wheel ✅
+### Random pick / wheel [shipped]
 Dice button next to the bulk-download CTA. Picks uniformly from whatever
 the current filters resolve to and navigates to the chosen VN.
 
-### Saved filter combos ✅
+### Saved filter combos [shipped]
 "Pin" the current filter URL as a named preset. The preset chips appear
 above the filter bar so you can jump between common views ("ja completed
 ≥85", "wishlist fully translated", "nukige to dump") in one click.
 
-### Dense view toggle ✅
+### Dense view toggle [shipped]
 Compact density-responsive layout sharing the same card data, switchable from the
 toolbar. Useful for users with very large libraries.
 
-### Multi-select + comparison ✅
+### Multi-select + comparison [shipped]
 Select mode lets the user check 2–4 entries; the "Compare" CTA opens
 `/compare?ids=…` rendering them side-by-side with shared values
 highlighted.
 
-### Anniversary feed ✅
+### Anniversary feed [shipped]
 Home-page widget surfacing "this VN released N years ago today" for
 entries in your collection — small enough to ignore, sticky enough to
 notice when something notable lines up.
 
-### Wishlist controls ✅
+### Wishlist controls [shipped]
 `/wishlist` mirrors your VNDB "Wishlist" label and adds:
   - **Filter** by free-text query (title / alt / developer).
   - **Sort** by added date (newest/oldest), title, rating, release date,
@@ -137,7 +137,7 @@ notice when something notable lines up.
   - Loading shows a skeleton card grid; the "list is empty" copy only
     appears post-resolve.
 
-### Universal Lists ✅
+### Universal Lists [shipped]
 Free-form user-curated groupings independent of status / series / tags.
 A VN can be in any number of lists. Schema:
 
@@ -170,7 +170,7 @@ UI:
   - `VnListMemberships` chips under the VN detail title — one per list
     membership, colored by the list, click to open the list, X to remove.
 
-### Favorite hover toggle ✅
+### Favorite hover toggle [shipped]
 `FavoriteToggleButton` renders as an overlay heart on every `VnCard`
 (top-left) and as an inline pill in the VN detail action bar. The
 overlay is **always tappable** (no `hidden sm:inline` traps — mobile
@@ -179,7 +179,7 @@ outline otherwise. Auto-adds a search hit to the collection (status =
 planning) before flipping the favorite if the VN isn't already tracked.
 Optimistic update with rollback on error.
 
-### Cover source picker ✅
+### Cover source picker [shipped]
 `CoverSourcePicker` is a modal triggered from the VN detail action bar
 that lets the user pick the cover from three categorical sources:
   1. **VNDB** — `DELETE /api/collection/[id]/cover` (revert to default).
@@ -195,7 +195,7 @@ Custom dialog layouts use the shared body-level `DialogPortal`, matching
 the canonical dialog layer so navigation and page-local stacking contexts
 cannot cover them.
 
-#### Multi-source EGS cover picker ✅
+#### Multi-source EGS cover picker [shipped]
 The EGS tab no longer locks you into the resolver's priority chain.
 It calls `GET /api/egs-cover/<id>/candidates` and renders **every**
 known source side-by-side as clickable tiles:
@@ -219,7 +219,7 @@ priority-fallback default if the user wants the resolver's pick.
 
 ## Per-VN detail page
 
-### Customizable VN section layout ✅
+### Customizable VN section layout [shipped]
 The immutable identity area (title, cover/banner, synopsis, core
 metadata/media/actions) stays fixed. Everything below it is managed by
 `VnDetailLayout` + `lib/vn-detail-layout.ts`:
@@ -233,7 +233,7 @@ Registered sections include notes, routes, activity, relations, VNDB
 status, EGS, characters, cast, staff, tag overlap, similar VNs, My
 editions, releases, quotes, and cover/banner/edit tools.
 
-### Producer / Developer / Publisher — three concepts, end-to-end ✅
+### Producer / Developer / Publisher — three concepts, end-to-end [shipped]
 VNDB models three distinct things and we keep them distinct everywhere:
 - **Producer** — the *entity*: a company / individual / amateur group
   (`POST /producer`, ids like `p123`, type `co` / `in` / `ng`).
@@ -290,19 +290,19 @@ two roles into one bucket.
 - `/stats` shows two ranked bar charts side by side: Top developers
   and Top publishers.
 
-### Sources comparison (VNDB / EGS) ✅
+### Sources comparison (VNDB / EGS) [shipped]
 Synopsis / cover / brand / etc. each surface a tab toggle. Per-field
 "Set as default" pins the user's preferred side, otherwise auto-resolve
 picks VNDB first then falls back to EGS.
 
-### View on VNDB + View on EGS ✅
+### View on VNDB + View on EGS [shipped]
 The action bar on `/vn/[id]` carries a "View on VNDB" external link
 and, when the VN has an EGS row linked, **also** a "View on EGS"
 link — both visible simultaneously so the user can jump to either
 upstream page in one click. EGS-only synthetic entries only show
 the EGS button (no VNDB id to link to).
 
-### Graceful producer page ✅
+### Graceful producer page [shipped]
 `/producer/[id]` no longer hard-404s when the VNDB fetch fails AND
 nothing is cached locally. Falls back to deriving a name from any
 in-collection VN that credits the producer (developer or publisher),
@@ -311,31 +311,31 @@ they navigated from. The global not-found template is now wording-
 generic ("Page not found"), no longer "VN not found", because it
 fires for every notFound() across the app.
 
-### Custom synopsis ✅
+### Custom synopsis [shipped]
 Write your own description. Overrides VNDB / EGS by default with a
 "Show VNDB / EGS" toggle to peek at the originals.
 
-### Reading speed estimator ✅
+### Reading speed estimator [shipped]
 "VNDB: 16h · EGS: 12h · You: ≈14h (×0.88)" line under the VNDB length.
 Multiplier is the median of (personal playtime / community length) over
 your completed entries, activated at 3 samples.
 
-### Tag co-occurrence ✅
+### Tag co-occurrence [shipped]
 Tags from other VNs in the collection that share at least one tag with
 this one. Bars sized by overlap count; hidden when the collection is too
 small to produce signal.
 
-### "Similar to this VN" page ✅
+### "Similar to this VN" page [shipped]
 Reuses the recommendation engine seeded by a single VN's top tags.
 Available via a "More like this" link in the relations area.
 
-### Activity timeline ✅
+### Activity timeline [shipped]
 Per-VN journal of status changes, playtime, rating, started/finished
 dates and manual notes. Manual notes can be deleted; auto entries are
 immutable. Schema: `vn_activity(id, vn_id, kind, payload JSON,
 occurred_at)`.
 
-### App-wide activity page (`/activity`) ✅
+### App-wide activity page (`/activity`) [shipped]
 The site-level audit feed at `/activity` reads from `user_activity`
 (distinct from the per-VN `vn_activity` table). Logs refresh /
 import / mutation events across the whole app — collection add /
@@ -343,11 +343,11 @@ remove, global refresh, EGS sync, list mutations, cache-bust
 operations. Filterable by kind + entity; the strip on the home
 page surfaces the latest few entries.
 
-### Cast (VA) ✅
+### Cast (VA) [shipped]
 Character thumbnails linked to `/character/[id]`; VA name linked to
 `/staff/[id]`. Sourced from `vn_va_credit` populated at upsert time.
 
-### Staff ✅
+### Staff [shipped]
 Production credits grouped by role (scenario, art, music, …). Each name
 links to its staff page. Visiting `/staff/[id]` for the first time
 auto-downloads the full VNDB credit list (every VN + character that
@@ -364,7 +364,7 @@ inline underneath each card. Thumbs come from
 character thumb to jump to `/character/[id]`. Synthetic `egs_*` VN
 cards suppress the VNDB external-link button (no `v` id to link).
 
-### Brand overlap ✅
+### Brand overlap [shipped]
 `/brand-overlap?a=p1&b=p2` answers "which staff / VA worked at both
 of these studios?". Two `<select>` pickers pull from `/api/producers`;
 the resolver narrows candidate sids via the `staff_credit_index`
@@ -373,7 +373,7 @@ body), then sorts crossover rows by `aCredits.length +
 bCredits.length` descending. Roles render via the shared
 `roleLabel` helper so every locale gets translated role names.
 
-### Series auto-detect ✅
+### Series auto-detect [shipped]
 When the VN's VNDB relations include other in-collection entries, the
 detail page surfaces a card proposing "Join series X" or "Create series
 Y" with a name derived from the longest common prefix. The graph is
@@ -382,7 +382,7 @@ walked transitively (BFS over seq / preq / set / fan / alt / orig) so a
 point. Clicking "Join existing" or "Create new" joins every transitively-
 related VN in your collection in one shot.
 
-### Series metadata editor ✅
+### Series metadata editor [shipped]
 `/series/[id]` carries an inline editor for the series name, free-form
 description, cover image, and banner image. Uploads stream through
 `POST /api/series/[id]/image` (multipart, 15 MB cap) and land in
@@ -390,33 +390,33 @@ description, cover image, and banner image. Uploads stream through
 `series.cover_path` / `series.banner_path`. The page header renders the
 banner as a hero strip plus the cover thumbnail.
 
-### Routes ✅
+### Routes [shipped]
 Per-VN ordered list of routes (e.g. "Heroine A → Heroine B → True route")
 with completion tracking and free-form notes. The editor renders 40 routes per
 page while retaining the complete ordered array for reorder operations, so long
 journals remain responsive without changing route semantics.
 
-### Per-route notes ✅
+### Per-route notes [shipped]
 Each route entry has a sticky-note toggle that expands an inline textarea
 (up to 2000 chars). Notes render below the row as italic muted text when
 collapsed, and the row shows a filled accent icon when notes are present.
 Completion dates are stamped automatically the first time a route is
 marked complete.
 
-### Smart status hint ✅
+### Smart status hint [shipped]
 Non-intrusive banner: "you've logged ≥ VNDB length — mark as completed?"
 when `playtime_minutes >= length_minutes` and status is `playing`.
 
-### Banner + custom cover ✅
+### Banner + custom cover [shipped]
 Upload a banner image and position its focal point with a drag pin.
 Custom cover overrides both VNDB and EGS posters.
 
-### Owned editions ✅
+### Owned editions [shipped]
 Track every physical / digital copy: location, edition label, box type,
 condition, price paid, currency, acquired date, **purchase place**
 (store name / URL / second-hand seller — full provenance), photos.
 
-### Pomodoro timer ✅
+### Pomodoro timer [shipped]
 25-minute timer with a one-click "log to playtime". Adds an activity
 entry automatically. Toggles from the playtime row on the detail page.
 
@@ -424,7 +424,7 @@ Now publishes its live elapsed-minute count via the `SessionPanel`
 wrapper so siblings (the Game log) can stamp notes with the running
 session length.
 
-### Game log ✅
+### Game log [shipped]
 Free-form timestamped journal per VN, distinct from the activity log
 (which records state changes). Schema:
 
@@ -445,7 +445,7 @@ Routes: `GET/POST/PATCH/DELETE /api/collection/[id]/game-log`.
 
 ## Discovery
 
-### Recommendations from VNDB tags ✅
+### Recommendations from VNDB tags [shipped]
 `/recommendations` — surfaces VNs you don't own that share tags with your
 highest-rated entries. Weighted by user_rating; tag matches scored and
 ranked. Toggle for including ero tags.
@@ -482,7 +482,7 @@ are pinned. The `?mode=similar-to-vn` flow has a parallel
 Tests: `tests/recommend-modes.test.ts`,
 `tests/recommend-owned-badge.test.ts`.
 
-### Upcoming releases ✅
+### Upcoming releases [shipped]
 `/upcoming` — three tabs to choose your scope of "what's next":
   - **The collection** (default): future releases from producers already in
     the local library, grouped by month. When VNDB returns `vns[].image=null`,
@@ -502,7 +502,7 @@ Tests: `tests/recommend-modes.test.ts`,
 Each tab body streams in via `<Suspense>` with a skeleton placeholder so
 the page header + tab strip paint immediately.
 
-### EGS cover resolver ✅
+### EGS cover resolver [shipped]
 `GET /api/egs-cover/[id]` — tiered resolution chain (first hit wins):
   1. `gamelist.banner_url` (curated EGS banner, trusted-host gate, no probe).
   2. **Linked VNDB cover** via `egs_game.vn_id` → `vn.image_url` (or
@@ -527,7 +527,7 @@ freshly-published banners surface inside the hour. The global
 `POST /api/refresh/global` busts every `egs:cover-resolved:*` row so
 users can force re-resolution.
 
-### Anticipated covers via VNDB direct ✅
+### Anticipated covers via VNDB direct [shipped]
 `/upcoming?tab=anticipated` server-component calls
 `fetchVnCovers(ids)` once after `fetchEgsAnticipated`, batching every
 anticipated row's `vndb_id` into a single VNDB POST. The card then
@@ -535,7 +535,7 @@ renders the high-quality VNDB poster URL inline (with the correct
 `sexual` flag for NSFW gating) instead of bouncing through the EGS
 resolver. EGS-only rows (no `vndb_id`) fall back to `/api/egs-cover/`.
 
-### Top-ranked rankings ✅
+### Top-ranked rankings [shipped]
 `/top-ranked` — two tabs, **VNDB top** and **EGS top**, with a
 per-tab freshness chip (the EGS chip never lies "just now"
 because only VNDB refreshed). Pagination is URL-driven via
@@ -547,13 +547,13 @@ shrinkage (`(count × median + C × prior) / (count + C)` with
 prior = 70 / strength = 30) on top of the threshold, so a
 brand-new title with one perfect score doesn't shoot to #1.
 
-### /similar matched-tags ✅
+### /similar matched-tags [shipped]
 On `/similar?vn=v123`, each result card now lists the seed tags
 that surfaced it as individual `<Link>` chips routing to `/tag/<id>`.
 The reader can pivot from a matched tag to its local collection tab or
 VNDB-wide tab without going back to /similar.
 
-### Cross-VN quotes ✅
+### Cross-VN quotes [shipped]
 `/quotes` — every quote across every VN you've fetched, with character +
 VN attribution and a free-text filter. Random-quote footer pulls from
 this pool too.
@@ -562,37 +562,37 @@ this pool too.
 
 ## Stats & insights
 
-### `/stats` overview ✅
+### `/stats` overview [shipped]
 Total VNs, total playtime, by-status counts, top tags, by-year histogram,
 top languages / platforms / locations / editions.
 
-### Score distribution vs VNDB ✅
+### Score distribution vs VNDB [shipped]
 Histogram of your `user_rating` overlaid on the VNDB community curve for
 the same VNs.
 
-### Best ROI ranking ✅
+### Best ROI ranking [shipped]
 `user_rating / playtime_minutes` sorted descending — your highest-density
 wins. Hidden until you have ≥ 5 completed entries.
 
-### Year in review ✅
+### Year in review [shipped]
 `/year` — yearly bar chart of completions, total hours, top genres, score
 average. Picks the active year from a query param; defaults to the
 current calendar year.
 
-### Activity heatmap ✅
+### Activity heatmap [shipped]
 GitHub-style 12-month calendar of activity entries (any kind), colour
 intensity ≡ daily count. Lives on the year-in-review page.
 
-### Producer completion % ✅
+### Producer completion % [shipped]
 For each developer in your collection, show "you own N/M of their
 releases" via VNDB. Missing entries listed underneath with a one-click
 "Add to collection" affordance.
 
-### Genre evolution ✅
+### Genre evolution [shipped]
 Yearly stack of your top tags by year-you-completed — visualises taste
 drift over time.
 
-### Reading goals ✅
+### Reading goals [shipped]
 "Finish N VNs in 2026" — set a yearly target, see a progress ring on
 `/stats` with projected end date based on your speed multiplier.
 Backed by `GET/POST /api/reading-goal` (year → target) and the
@@ -602,11 +602,11 @@ Backed by `GET/POST /api/reading-goal` (year → target) and the
 
 ## Data management
 
-### `/data` page ✅
+### `/data` page [shipped]
 Hub for everything that touches the file-system: VNDB token, bulk asset
 download status, exports, imports, backups.
 
-### JSON / CSV / ICS / game-list export ✅
+### JSON / CSV / ICS / game-list export [shipped]
 - JSON - round-trippable backup.
 - CSV - one flat row per VN, arrays joined with `; `.
 - ICS - RFC 5545 calendar with a VEVENT per `started_date` and
@@ -614,32 +614,32 @@ download status, exports, imports, backups.
 - Game list - plain-text archive list at `GET /api/export/game-list`,
   triggered from `/data` via `ExportGameListButton`.
 
-### JSON / .db import ✅
+### JSON / .db import [shipped]
 JSON merges (existing rows updated, new rows added). A `.db` upload
 fully replaces the current database. Drag-and-drop on the `/data` page
 triggers the same flow.
 
-### Duplicate detector ✅
+### Duplicate detector [shipped]
 Scans the collection for entries that share normalised title prefixes
 across VNDB and EGS-only synthetic ids, surfacing potential variants to
 merge or remove.
 
-### Stale-data wizard ✅
+### Stale-data wizard [shipped]
 Lists VNs whose `fetched_at` is older than the configured threshold,
 plus rows with broken EGS links or missing covers. One-click bulk
 refresh.
 
-### Backup (`.db`) ✅
+### Backup (`.db`) [shipped]
 Raw SQLite dump for cold backup.
 
-### Cache panel ✅
+### Cache panel [shipped]
 Inspect the VNDB cache by prefix; purge expired or selective entries.
 
 ---
 
 ## Settings
 
-### Content controls hub ✅ (closed-eye icon)
+### Content controls hub [shipped] (closed-eye icon)
 The eye icon in the navbar opens a compact popover that exposes every
 "what shows on screen" preference in one place:
 - **Spoiler level** (0 / 1 / 2 — matches VNDB's site preference,
@@ -657,7 +657,7 @@ The eye icon switches between `Eye` (any non-default gate active) and
 posture at a glance. State is mirrored to localStorage + cookie by
 `DisplaySettingsProvider`.
 
-### Full settings modal ✅ (gear icon)
+### Full settings modal [shipped] (gear icon)
 `SettingsButton` opens a modal portal (escapes the header stacking
 context) with tabbed groups: Display, Content / Spoilers, Library
 defaults, Page layout, Data / accounts, Integrations, Downloads /
@@ -674,7 +674,7 @@ plus:
 - **Prefer local images** (read from `/api/files/` instead of remote
   CDNs when a mirror exists)
 
-### Per-page Refresh button + freshness chip ✅
+### Per-page Refresh button + freshness chip [shipped]
 `RefreshPageButton` renders on the pages whose render genuinely
 depends on a remote cache: **`/upcoming`** and **`/top-ranked`**.
 (`/tags` and `/traits` are local-only and don't use the chip.)
@@ -704,17 +704,17 @@ The button:
   which is why the button felt like a no-op before. Each task is a
   tracked job in the download status bar.
 
-### Time-ago util ✅
+### Time-ago util [shipped]
 `src/lib/time-ago.ts` — single source of truth for "X ago" formatting.
 Tiers: minute (< 1 h) → hour (< 24 h) → day (< 7 d) → week (< 30 d) →
 month (< 365 d) → year. Used by `RefreshPageButton`, `GameLog`, and
 anywhere else relative time is needed. i18n keys in the `timeAgo.*`
 group across all three locales.
 
-### Localisation ✅
+### Localisation [shipped]
 FR / EN / JA. Switch via the language pill in the top nav.
 
-### `VNCOLL_DISABLE_ACTIVITY` ✅
+### `VNCOLL_DISABLE_ACTIVITY` [shipped]
 Set `VNCOLL_DISABLE_ACTIVITY=1` in `.env.local` to disable writing rows to
 the global `user_activity` audit table. The gate honours only the literal
 `1`; any other value (including `true`) is a no-op. Useful for embedded /
@@ -825,7 +825,7 @@ Each `fetchShopText` call has a 15s timeout backed by an
 `AbortController` chained with the user's Stop signal, so a single
 slow shop cannot stall the sequential refresh loop.
 
-### Stock download ✅
+### Stock download [shipped]
 The AliceNet mirror controls live on the linked AliceNet shop place page, not
 inside `/stock`. They list all items currently in stock at AliceNet (a
 specialist second-hand game retailer). Data is fetched **only** on explicit
@@ -846,7 +846,7 @@ The stock page is EUC-JP encoded; `fetchAliceNetHtml()` decodes it via
 The fetch optionally routes through the stock SOCKS5/HTTP proxy path
 (see **Proxy infrastructure** below).
 
-### Title normalization ✅
+### Title normalization [shipped]
 `normalizeTitle(rawTitle)` in `src/lib/alicenet.ts` strips noise before
 sending a query to VNDB/EGS:
 - `【中古品】` / `〔中古〕` / `[中古]` / `(中古)` bracket forms
@@ -861,7 +861,7 @@ sending a query to VNDB/EGS:
 The normalized query is stored as `search_title` so the UI can show a
 "Searched as: …" subtitle when it differs from the raw title.
 
-### VNDB + EGS matching ✅
+### VNDB + EGS matching [shipped]
 `matchNextAliceNetItems(batchSize, retryNone)` in `src/lib/alicenet.ts`:
 - Processes up to 20 items per call (clamped server-side).
 - VNDB: queries via the shared throttle queue (≤ 1 req/s), stores top-3
@@ -874,12 +874,12 @@ The normalized query is stored as `search_title` so the UI can show a
 - `retryNone = true` re-attempts items previously marked `none`.
 - A `last_matched_at` timestamp records when each item was last processed.
 
-### VNDB data download ✅
+### VNDB data download [shipped]
 `POST /api/alicenet/download-vndb` downloads full VNDB metadata for every
 matched alicenet item whose `vn_id` is not yet in the local `vn` table. Uses
 `getVn(vnId)` + `upsertVn(vn)`. Returns `{ processed, remaining }`.
 
-### EGS resolution ✅
+### EGS resolution [shipped]
 `POST /api/alicenet/resolve-egs` resolves EGS links for every alicenet item
 that has a `vn_id` but no `egs_id`. Requires the VN row to be in the local
 DB first (hence always run after download-vndb). Calls
@@ -887,7 +887,7 @@ DB first (hence always run after download-vndb). Calls
 checks release ext-links first (most accurate), falls back to title/alttitle
 search. Returns `{ processed, remaining }`.
 
-### Download All sequence ✅
+### Download All sequence [shipped]
 The "Download all" button in `AliceNetClient` (`runDownloadAll()`) runs a
 six-step sequence:
 1. **Stock** - `POST /api/alicenet/fetch` (fresh inventory + full sync)
@@ -906,23 +906,23 @@ the UI, each backed by its own route: match VNDB from EGS
 (`POST /api/alicenet/retry-vndb-aggressive`), and search EGS for no-VNDB items
 (`POST /api/alicenet/search-egs-no-vndb`).
 
-### Candidate remap ✅
+### Candidate remap [shipped]
 `CandidateChips` renders the top-3 VNDB candidates stored at match time.
 Clicking a chip immediately remaps `vn_id` without re-querying VNDB.
 If none of the chips match, the user can open the manual link dialog which
 pre-fills with the stored `search_title`.
 
-### Manual linking ✅
+### Manual linking [shipped]
 `POST /api/alicenet/[code]/link` accepts `{ vn_id?, egs_id? }` and
 writes the link with `source = 'manual'`. Manual links are sticky — reset
 only clears `source = 'auto'` rows.
 
-### Reset auto-matches ✅
+### Reset auto-matches [shipped]
 `POST /api/alicenet/reset-matches` clears all auto-matched VN links
 (`vn_match_source = 'auto'`). Manual links are preserved. Returns
 `{ cleared }`.
 
-### Filter tabs ✅
+### Filter tabs [shipped]
 `AliceNetClient` exposes eight tabs: **All**, **Matched**, **VNDB**,
 **EGS only**, **Unmatched**, **No VNDB result** (items where VNDB returned
 zero results), **In collection**, and **In my wishlist**.
@@ -937,7 +937,7 @@ sorting, and pagination before enriching the visible window from `collection`
 and `vn`. The route layers `in_wishlist` from the bounded local VNDB wishlist
 cache and reports `wishlist_available: false` when that cache is unavailable.
 
-### VN cover thumbnails ✅
+### VN cover thumbnails [shipped]
 Each matched row renders a small `SafeImage` thumbnail (40 × 56 px) sourced
 from the joined `vn` table. `SafeImage` handles the full content-control
 pipeline: `hideImages` shows the "eye-off" placeholder; `blurR18` blurs
@@ -948,7 +948,7 @@ are fetched or displayed for unmatched items.
 
 ## Proxy infrastructure
 
-### Per-provider outbound proxy ✅
+### Per-provider outbound proxy [shipped]
 `src/lib/proxy-config.ts` + `src/lib/proxy-fetch.ts` provide a
 per-provider proxy layer. Fixed providers: `vndb`, `vndbmirror`, `egs`,
 and the stock shop layer.
@@ -993,11 +993,11 @@ DB key per provider: `egs_proxy_config`, `vndbmirror_proxy_config`,
 
 ## Integrations
 
-### VNDB Kana API v2 ✅
+### VNDB Kana API v2 [shipped]
 Read access for VN / character / staff / producer / tag / trait / quote /
 release / ulist (wishlist). Token authentication for ulist.
 
-### VNDB list write-back ✅
+### VNDB list write-back [shipped]
 Status changes locally also `PATCH /ulist/<id>` against VNDB when a
 token is set. Mapping (planning/playing/completed/on_hold/dropped →
 5/1/2/3/4) is documented in [`src/lib/vndb-sync.ts`](src/lib/vndb-sync.ts).
@@ -1005,7 +1005,7 @@ Gated behind a `vndb_writeback` toggle in Settings — when unchecked,
 local changes stay local. Best-effort: a 4xx / 5xx from VNDB is logged
 but never rolls back the local state.
 
-### VNDB → local status pull ✅
+### VNDB → local status pull [shipped]
 The reverse direction: Settings → "Pull statuses from VNDB" iterates
 every predefined label (planning/playing/completed/on_hold/dropped) on
 your VNDB ulist, picks the precedence-winning local Status per VN, and
@@ -1013,12 +1013,12 @@ applies it via `updateCollection`. Only touches VNs already in the local
 collection — no silent imports. Returns a `{scanned, updated, unchanged,
 skippedNotInCollection}` summary.
 
-### ErogameScape ✅
+### ErogameScape [shipped]
 SQL form scraping for scores, playtime medians, brand, genre, comments.
 Typed `EgsUnreachable` error (network / server / throttled / blocked)
 propagates to the UI so transient outages don't wipe matched rows.
 
-### EGS as first-class peer of Steam ✅
+### EGS as first-class peer of Steam [shipped]
 ErogameScape is wired with the same UX patterns as Steam:
 
 | Surface | Steam | EGS |
@@ -1037,7 +1037,7 @@ and a chevron-out link to the upstream EGS page. Includes the
 same "Open EGS" CTA from `/data` for parity with the Steam settings
 block.
 
-### Steam playtime sync ✅
+### Steam playtime sync [shipped]
 `/steam` pulls your Steam library via the Web API. Three sections:
 
   1. **Suggestions** — VN ↔ Steam pairs (auto + manual) where Steam
@@ -1059,7 +1059,7 @@ Configure in Settings: Steam Web API key + 64-bit SteamID. The
 collection-title search is exposed as `GET /api/collection/find?q=`
 and is reusable elsewhere if needed.
 
-### Anime adaptations ✅
+### Anime adaptations [shipped]
 Surfaces an "Anime adaptation" chip next to the action buttons on
 `/vn/[id]` when VNDB's `has_anime` filter matches. Probed lazily on
 first render and cached.
@@ -1068,10 +1068,10 @@ first render and cached.
 
 ## Quality of life
 
-### Drag-and-drop import ✅
+### Drag-and-drop import [shipped]
 Drop a `.json` or `.db` file anywhere on `/data` to trigger the import.
 
-### Keyboard shortcuts ✅
+### Keyboard shortcuts [shipped]
 Defined in `src/lib/shortcut-registry.ts`. `g` arms for ~1 second and is
 ignored inside text inputs / textareas.
 
@@ -1122,7 +1122,7 @@ Page-scoped (`pageShortcutSections`):
 | Tags | `1` | Library tab |
 | Tags | `2` | VNDB tab |
 
-### Grouped responsive navbar ✅
+### Grouped responsive navbar [shipped]
 The top nav has three always-visible primary links (Library / Wishlist /
 Search) plus three category dropdowns:
   - **Discover** — Upcoming, Top-ranked, For you, Similar, Compare, Quotes, Lists
@@ -1137,13 +1137,13 @@ destination grouped by category. Desktop category menus measure their natural
 height and flip above the trigger when needed; they scroll internally only when
 the menu itself is taller than the usable viewport.
 
-### Tutorial tour ✅
+### Tutorial tour [shipped]
 First-time visitors get a 14-step guided pass over the major surfaces:
 library, search, lists, recommendations, upcoming, quotes, year,
 stats, shelf, shelf layout, steam, EGS, dumped, and the data hub.
 Re-runnable from `/data → Tour`.
 
-### Skeleton loading states ✅
+### Skeleton loading states [shipped]
 Every async section renders a layout-matching skeleton while loading —
 card grids show placeholder covers, row lists show shaded blocks, panels
 show shimmer rectangles. Empty-state copy ("No results", "Nothing yet")
@@ -1155,7 +1155,7 @@ Internals: `src/components/Skeleton.tsx` exports `SkeletonBlock`,
 `SkeletonTable`. Server components with slow async fetches wrap them in
 `<Suspense>` (see `/upcoming` tabs and `/staff/[id]` extra credits).
 
-### Viewport-aware lazy image loading ✅
+### Viewport-aware lazy image loading [shipped]
 `SafeImage` drives loading via `IntersectionObserver` (`rootMargin: 500px
 0px`) instead of relying on native `loading="lazy"`. Native lazy-load
 breaks subtly on grids inside overflow-scroll containers, transformed
@@ -1169,7 +1169,7 @@ previous VN.
 Props: `priority?: boolean` skips the observer entirely for above-the-
 fold imagery (VN detail hero, lightbox).
 
-### Auto-recursive download (fan-out) ✅
+### Auto-recursive download (fan-out) [shipped]
 When a VN is added or re-fetched, the app fans out in the background to
 pull the full profile for every staff member, character, and developer
 it credits (cached 30 days). So `/staff/[id]` / `/character/[id]` /
@@ -1180,7 +1180,7 @@ Toggle in Settings → "Auto-download staff / characters / developers"
 (default ON). When OFF, fan-out helpers exit early and VN downloads stay
 fast.
 
-### Selective full download ✅
+### Selective full download [shipped]
 On `/data`, a checkbox picker lists every VN in your collection with
 **Select all** / **Select none** / **Invert** + a text filter. Tick the
 VNs you want full data for and click "Run (N)" to queue the fan-out
@@ -1188,7 +1188,7 @@ for that subset only. Bypasses the auto-fan-out toggle since the user
 is explicitly opting in. Drains through the global VNDB throttle so
 large selections stay rate-limit-safe.
 
-### VNDB rate limiter + 429 countdown ✅
+### VNDB rate limiter + 429 countdown [shipped]
 `lib/vndb-throttle.ts` enforces 1 req/s globally + 60 s window for soft
 circuit breaking. On 429 the failing request honors `Retry-After`
 (capped at 60 s) and retries up to twice. Other callers stay on the
@@ -1204,12 +1204,12 @@ errors (no more silent failures).
 
 ## Reading enhancement
 
-### Pomodoro timer ✅
+### Pomodoro timer [shipped]
 Detail-page widget — 25 min by default, configurable. On stop, prompt
 to add the elapsed minutes to `playtime_minutes`. Always writes an
 activity entry.
 
-### Reading queue ✅
+### Reading queue [shipped]
 A priority queue distinct from the "Planning" status. Re-orderable via
 drag; each entry shows the predicted reading time using the speed
 estimator. Reflects on the home page above the library grid.
@@ -1218,27 +1218,27 @@ estimator. Reflects on the home page above the library grid.
 
 ## Physical collection
 
-### Box / location tagging ✅
+### Box / location tagging [shipped]
 `physical_location` as a free-form array per VN; each tag is filterable
 on the home page.
 
-### Owned-edition inventory ✅
+### Owned-edition inventory [shipped]
 `owned_release` table — one row per physical copy with condition, price,
 currency, photos, dumped flag.
 
-### QR labels (print view) ✅
+### QR labels (print view) [shipped]
 `/labels?ids=…` prints a sheet of QR codes that point back to the VN's
 detail page. Origin is derived from the incoming request headers so
 labels work whatever port / LAN IP you're browsing. Tape them to your
 boxes for instant lookup.
 
-### QR label sheet ✅
+### QR label sheet [shipped]
 `/labels?ids=v123,v456,egs_789` — Generates a printable A4 sheet of QR codes,
 one per VN id in the `ids` param. Each QR code encodes the absolute URL to
 the VN's detail page (origin derived from request headers so the sheet works
 on any port / LAN IP). Print straight from the browser — no PDF middleware.
 
-### Shelf visualisation ✅
+### Shelf visualisation [shipped]
 `/shelf` lists every owned edition grouped by its first
 `physical_location` tag (rows without a tag fall into "Unsorted").
 Each card shows the cover, edition label, box type, condition,
@@ -1256,7 +1256,7 @@ Three view modes via `?view=release|item|layout`:
   is rendered with `Intl.NumberFormat` so JPY → ¥, EUR → €, USD → $.
 - **Layout** — drag-and-drop 2-D grid editor (see below).
 
-### Drag-and-drop shelf layout ✅
+### Drag-and-drop shelf layout [shipped]
 `/shelf?view=layout` opens a fully interactive 2-D shelf simulator
 backed by `<ShelfLayoutEditor>` (client) +
 `/api/shelves` / `/api/shelves/[id]` /
@@ -1316,7 +1316,7 @@ land back in the Unplaced pool, never silently lost.
 Fullscreen mode uses the same editor state/API but increases tile
 size and places the whole layout in a full-viewport overlay.
 
-### Aspect ratio / resolution tracking ✅
+### Aspect ratio / resolution tracking [shipped]
 VNDB release `resolution` is normalized into
 `release_resolution_cache` with buckets `4:3`, `16:9`, `16:10`,
 `21:9`, `other`, and `unknown`. The cache row now also stores the
@@ -1357,7 +1357,7 @@ you are in the list. Per-axis dim range: `1 ≤ x ≤ 200`. Tests
 in `tests/shelf-layout.test.ts` cover place / swap / resize /
 unplace semantics including the FK cascade.
 
-### Manual EGS ↔ VNDB mapping ✅
+### Manual EGS ↔ VNDB mapping [shipped]
 Two override tables let the user pin a mapping that survives
 cache invalidation and auto-rematch:
 
@@ -1393,7 +1393,7 @@ resolver gets a fresh shot.
 upsert-on-conflict, validation, bulk overlay, and the no-override
 no-op path.
 
-### Card density slider — scoped per page ✅
+### Card density slider — scoped per page [shipped]
 Density is **per-scope**. Each listing surface (`library`,
 `wishlist`, `recommendations`, `topRanked`, `upcoming`,
 `dumped`, `similar`, `egs`, `producerWorks`, `staffWorks`, …)
@@ -1437,7 +1437,7 @@ The Library on `/` keeps its dedicated dense toggle in addition
 to the density slider — the toggle controls `gap` + `padding`
 (comfortable vs dense), distinct from the column-count slider.
 
-### Home page layout: drag-reorder + library section ✅
+### Home page layout: drag-reorder + library section [shipped]
 `home_section_layout_v1` (versioned JSON config) tracks both
 per-section visibility/collapse state AND the render order:
 
@@ -1481,7 +1481,7 @@ fallback, v0/v1 shape detection, append-missing, drop-unknown,
 dedupe, typo-safe visibility, malformed JSON, round-trip, plus
 the `library-controls` / `library-grid` split.
 
-### Custom tag picker for /recommendations and /similar ✅
+### Custom tag picker for /recommendations and /similar [shipped]
 Both pages now expose a shared `<TagPicker>` so the user can
 pin a seed-tag list explicitly. Auto-derivation still kicks in
 when no tags are pinned.
@@ -1500,7 +1500,7 @@ when no tags are pinned.
 - Sibling URL params (`ero=1`, `vn=v123`) are preserved across
   picker writes via the `preserveParams` option.
 
-### Synthetic releases for EGS-only VNs ✅
+### Synthetic releases for EGS-only VNs [shipped]
 VNs missing from VNDB's release index (`v.*` rows with no rows in
 `POST /release`, plus every `egs_*` synthetic VN) can still be
 shelved through a `synthetic:<vnId>` release id. The inventory
@@ -1511,7 +1511,7 @@ a "EGS" / "Main edition" chip in place of the broken
 `/release/[id]` link — every other owned-release field (location,
 condition, price, dumped flag) works the same.
 
-### Dump tracking — `/dumped` ✅
+### Dump tracking — `/dumped` [shipped]
 Dedicated management page that surfaces dump-completion progress
 across the whole collection. Top stats grid:
 
@@ -1530,7 +1530,7 @@ matches. Companion to the per-studio completion view on
 answers "how thoroughly have I read this developer?".
 Helpers: `listDumpStatus()` / `getDumpSummary()` in `lib/db.ts`.
 
-### Insurance / value tracking ✅
+### Insurance / value tracking [shipped]
 Same `/shelf` page — `owned_release.price_paid` + `currency` per row,
 running totals at the section heading + grand total in the page
 header. JSON / CSV export of the whole collection (including these
@@ -1540,18 +1540,18 @@ fields) lives in `/data → Exports`.
 
 ## VNDB-wide search
 
-### Characters `/characters` ✅
+### Characters `/characters` [shipped]
 Free-text + `c123`-id search across every VNDB character profile.
 Renders 60-result cards with cover, original name, top aliases.
 Explicit imagery hidden behind a per-page opt-in checkbox.
 
-### Staff `/staff` ✅
+### Staff `/staff` [shipped]
 Same idea for staff profiles. `ismain=1` filter on by default;
 toggling "Include aliases" surfaces pen-name and stage-name
 entries. Each result links to `/staff/[id]` which auto-fetches
 the full credit graph on first visit.
 
-### Schema browser `/schema` ✅
+### Schema browser `/schema` [shipped]
 Renders the VNDB `/schema` endpoint as a filterable, collapsible
 JSON tree, a separate local SQLite table/column section, and a
 separate mirrored EGS cache-data section. Lookup any code you see in
@@ -1562,7 +1562,7 @@ Search highlights matches and auto-expands the path to them.
 
 ## Realtime + writes
 
-### Live status feed via SSE ✅
+### Live status feed via SSE [shipped]
 The download status bar subscribes to
 `GET /api/download-status/stream` — a Server-Sent Events feed
 driven by a pub/sub bus inside `lib/download-status.ts`. Every
@@ -1573,7 +1573,7 @@ back to the original `/api/download-status` interval poll).
 Visibility-change reconnects on tab focus so a backgrounded tab
 gets a fresh snapshot immediately when the user returns.
 
-### VNDB ulist writeback ✅
+### VNDB ulist writeback [shipped]
 `PATCH /api/vn/[id]/vndb-status` accepts the full ulist surface:
 `labels_set`, `labels_unset`, `vote` (10–100), `started`,
 `finished`, `notes`. Surfaced in the UI via the
@@ -1589,7 +1589,7 @@ The items below are the most recently landed surfaces; they post-
 date the batch A–N history in `PLAN.md`. Each one has a focused
 test file pinning its behaviour (see `docs/test-matrix.md`).
 
-### VNDB tags grouped view ✅
+### VNDB tags grouped view [shipped]
 `<VnTagsGroupedView>` on `/vn/[id]` collapses the flat tag chip
 strip into a categorised accordion. Categories come from the
 VNDB `g.cat` enum (`cont` / `ero` / `tech`), each with its own
@@ -1600,7 +1600,7 @@ weight inline; spoiler-mode tags are wrapped in
 `<SpoilerReveal level={tag.spoiler}>` so the global content
 controls still apply.
 
-### Cover / banner rotation ✅
+### Cover / banner rotation [shipped]
 Per-VN `cover_rotation` and `banner_rotation` columns (0 / 90 /
 180 / 270, normalised via `normalizeRotation()`). Rotate-left /
 rotate-right buttons sit on `HeroBanner` and in the cover source picker.
@@ -1617,7 +1617,7 @@ rotationLabel}`. Tests: `tests/cover-rotation.test.ts`,
 `tests/cover-rotation-ui.test.ts`, `tests/safe-image-rotation.
 test.ts`.
 
-### Cover / banner mutation events ✅
+### Cover / banner mutation events [shipped]
 `src/lib/cover-banner-events.ts` exports the typed
 `VN_COVER_CHANGED_EVENT` / `VN_BANNER_CHANGED_EVENT` constants
 plus `dispatchCoverChanged()` / `dispatchBannerChanged()`
@@ -1629,7 +1629,7 @@ defensive SSR fallback → revert + toast on error. Consumers
 listen with a vn-id scoped guard. Tests:
 `tests/cover-banner-events.test.ts`.
 
-### Non-library VN data refresh ✅
+### Non-library VN data refresh [shipped]
 `/vn/[id]` can refresh VNDB / EGS metadata for a VN that is NOT
 in the local collection. Previously the refresh CTA was gated
 on `inCollection`; now it surfaces for every `v\d+` id, with
@@ -1638,10 +1638,10 @@ row created). EGS-only synthetic `egs_*` rows are still
 gracefully excluded since they have no VNDB-side data to pull.
 Test: `tests/vn-detail-collection-gating.test.ts`.
 
-### Cover / banner rotation playback ✅
+### Cover / banner rotation playback [shipped]
 See "Cover / banner rotation" above.
 
-### SpoilerReveal component ✅
+### SpoilerReveal component [shipped]
 `<SpoilerReveal level={0|1|2} perSectionOverride?>` is the
 single shared gate for every node that may carry spoilers (tag
 chips, character traits, BBCode `[spoiler]…[/spoiler]`, VNDB
@@ -1666,7 +1666,7 @@ hideAll, showMinor, showAll, ariaHidden, ariaShown}`. Tests:
 `tests/spoiler-global-default.test.ts`,
 `tests/character-spoiler-render.test.ts`.
 
-### Series detail layout customisation ✅
+### Series detail layout customisation [shipped]
 `/series/[id]` mirrors the VN-detail layout pattern. Sections
 are `hero` / `works` / `metadata` / `related` / `stats`, each
 wrapped in a drag-reorderable / hideable / collapsible slot.
@@ -1677,22 +1677,22 @@ partial patches so the per-section menu and drag-reorder never
 clobber each other. CustomEvent: `SERIES_DETAIL_LAYOUT_EVENT`.
 Test: `tests/series-detail-layout.test.ts`.
 
-### Character detail layout customisation ✅
+### Character detail layout customisation [shipped]
 `/character/[id]` follows the same drag-reorderable section pattern via
 `src/lib/character-detail-layout.ts`. Persisted as
 `character_detail_section_layout_v1` in `app_setting`.
 
-### Staff detail layout customisation ✅
+### Staff detail layout customisation [shipped]
 `/staff/[id]` follows the same drag-reorderable section pattern via
 `src/lib/staff-detail-layout.ts`. Persisted as
 `staff_detail_section_layout_v1` in `app_setting`.
 
-### Producer detail layout customisation ✅
+### Producer detail layout customisation [shipped]
 `/producer/[id]` follows the same drag-reorderable section pattern via
 `src/lib/producer-detail-layout.ts`. Persisted as
 `producer_detail_section_layout_v1` in `app_setting`.
 
-### Shelf read-only display knobs ✅
+### Shelf read-only display knobs [shipped]
 `<ShelfReadOnlyControls>` exposes a discreet slider trigger that
 opens a popover with four controls — cell size (60–280 px),
 cover scale (0.5–1.5), gap (0–24 px), fit mode (contain /
@@ -1706,7 +1706,7 @@ its documented range so a malicious PATCH can't store
 `shelf_display_slot`) is NEVER touched — these knobs are pure
 display preferences. Test: `tests/shelf-view-prefs.test.ts`.
 
-### Schema browser local + EGS sections ✅
+### Schema browser local + EGS sections [shipped]
 `/schema` renders the VNDB schema tree, local SQLite tables/columns
 (`<SchemaLocalSection>` + `lib/schema-local.ts`), and a dedicated
 mirrored EGS data section (`<SchemaEgsSection>` + `lib/schema-egs.ts`).
@@ -1717,7 +1717,7 @@ itself). A "Stale-while-error" badge appears when any EGS
 cache row carries the flag in its JSON body. Test:
 `tests/schema-egs-section.test.ts`.
 
-### MediaGallery kebab convention ✅
+### MediaGallery kebab convention [shipped]
 Per-tile kebab dropdown in `<MediaGallery>` has a locked sizing
 contract: `min-width: 12rem`, `max-width: 18rem`, constants in
 `src/components/media-menu-helpers.ts`. Every row uses
@@ -1732,7 +1732,7 @@ keyboard focus across `[role="menuitem"]` rows, with
 Enter / Space activating the focused row and Escape returning
 focus to the kebab trigger. Test: `tests/media-menu.test.ts`.
 
-### PortalPopover for card overlays ✅
+### PortalPopover for card overlays [shipped]
 `<PortalPopover>` is the canonical primitive for any popover
 that needs to escape the card / tile clipping context. It
 portals into `document.body`, computes preferred placement,
@@ -1745,7 +1745,7 @@ popover used to clip against `overflow: hidden` parents and the
 "Add to list" panel used to flip on its own internal `z-index`
 stacking context. Test: `tests/portal-popover.test.ts`.
 
-### Platform label mapping ✅
+### Platform label mapping [shipped]
 `src/lib/platform-display.ts` exports `platformLabel(code,
 dict)` which maps VNDB platform codes (`win`, `mac`, `lin`,
 `ios`, `and`, `web`, `swi`, `ps3`, …) to localised display
@@ -1756,7 +1756,7 @@ chip, search-filter chip, and release row uses this helper
 instead of rendering the raw code. Tests:
 `tests/platform-display.test.ts`, `tests/platform-label.test.ts`.
 
-### VNDB BBCode link normalization ✅
+### VNDB BBCode link normalization [shipped]
 `src/lib/vndb-link-normalize.ts` rewrites VNDB-flavoured links
 at render time so internal references jump to the matching App
 Router route instead of dead `/cNNN` paths. Three input shapes:
