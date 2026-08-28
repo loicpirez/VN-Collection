@@ -293,7 +293,7 @@ function parsePriceYen(value: string): number | null {
 
 function availabilityFromText(raw: string): VnStockAvailability {
   const text = normalizeText(raw);
-  if (/売切|品切|在庫なし|完売|販売終了|out\s*of\s*stock/i.test(text)) return 'out_of_stock';
+  if (/売切|品切|在庫(?:なし|無し|無|切れ)|完売|販売終了|out\s*of\s*stock/i.test(text)) return 'out_of_stock';
   if (/数量限定|残りわずか|残少|僅少|あと|1点|limited/i.test(text)) return 'limited';
   if (/在庫あり|在庫有|通常|十分|販売中|予約受付中|予約可能|カートに入れる|InStock/i.test(text)) return 'in_stock';
   return 'unknown';

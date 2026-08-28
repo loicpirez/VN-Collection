@@ -344,6 +344,20 @@ describe('stock provider parsers', () => {
     expect(offers[0]).toMatchObject({ price: 53900, availability: 'in_stock', location_label: 'ebten' });
   });
 
+  it('keeps an ebten price visible without treating an unavailable item as in stock', () => {
+    const offers = parseGenericProviderPage(
+      'ebten',
+      `<dl class="block-thumbnail-t--goods js-enhanced-ecommerce-item">
+       <a href="/shop/g/g7015026091057/" class="js-enhanced-ecommerce-goods-name">Sample VN Standard Edition</a>
+       <span class="stock">在庫無し</span>
+       <div class="block-thumbnail-t--price price js-enhanced-ecommerce-goods-price">8,800<span class="yen">円</span></div>
+       </dl>`,
+      'https://store.kadokawa.co.jp/shop/goods/search.aspx?keyword=Sample%20VN',
+      { ...target, query: 'Sample VN' },
+    );
+    expect(offers[0]).toMatchObject({ price: 8800, availability: 'out_of_stock', availability_label: '在庫無し' });
+  });
+
   it('parses Getchu list cards', () => {
     const offers = parseGenericProviderPage(
       'getchu',
