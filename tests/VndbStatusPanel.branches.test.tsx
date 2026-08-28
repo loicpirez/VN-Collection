@@ -931,6 +931,19 @@ describe('VndbStatusPanel branches', () => {
       expect(patchCalled).toBe(false);
     });
 
+    it('rejects a vote with more than one decimal instead of rounding it', async () => {
+      global.fetch = vi.fn(async () => json(statePayload({ entry: true })));
+      render();
+      const toggle = await screen.findByText(t.vndbStatus.detailsToggle);
+      fireEvent.click(toggle);
+      const voteInput = screen.getByLabelText(t.vndbStatus.fieldVote);
+      fireEvent.change(voteInput, { target: { value: '7.25' } });
+      fireEvent.click(screen.getByRole('button', { name: t.common.save }));
+
+      await waitFor(() => expect(screen.getByText(t.vndbStatus.votePrecision)).toBeInTheDocument());
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('shows a localized toast error when the editor save request fails', async () => {
       global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'PATCH') {

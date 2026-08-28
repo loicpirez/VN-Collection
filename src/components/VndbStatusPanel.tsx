@@ -556,9 +556,14 @@ function UlistDetailsEditor({
       if (trimmed === '') {
         patch.vote = null;
       } else {
-        const n = Math.round(Number(trimmed) * 10);
-        if (!Number.isFinite(n) || n < 10 || n > 100) {
+        const numericVote = Number(trimmed);
+        const n = numericVote * 10;
+        if (!Number.isFinite(numericVote) || numericVote < 1 || numericVote > 10) {
           toast.error(t.vndbStatus.voteRange);
+          return;
+        }
+        if (!Number.isSafeInteger(n)) {
+          toast.error(t.vndbStatus.votePrecision);
           return;
         }
         patch.vote = n;
