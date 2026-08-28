@@ -36,6 +36,7 @@ vi.mock('@/components/VnCard', () => ({
   }) => (
     <div
       data-testid="vncard"
+      data-vn-card
       data-id={data.id}
       role={listPosition != null ? 'listitem' : undefined}
       aria-posinset={listPosition}
@@ -1864,7 +1865,8 @@ describe('LibraryClient', () => {
     rectSpy.mockRestore();
   });
 
-  it('keeps compact mobile card rows in native flow without virtual spacers', async () => {
+  it('packs compact mobile cards by measured natural height without row stretching', async () => {
+    localStorage.setItem('vn_display_settings_v1', JSON.stringify({ density: { library: 140 } }));
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 390,
       top: 10,
@@ -1885,10 +1887,128 @@ describe('LibraryClient', () => {
       { locale: 'en' },
     );
     await screen.findByText('Compact VN 1');
-    const grid = container.querySelector<HTMLElement>('[data-library-card-grid]');
+    await waitFor(() => {
+      expect(container.querySelector('[data-library-card-masonry="measured"]')).not.toBeNull();
+    });
+    const grid = container.querySelector<HTMLElement>('[data-library-card-masonry="measured"]');
     expect(grid).not.toHaveAttribute('data-virtualized-library-grid');
     expect(within(grid!).getAllByRole('listitem')).toHaveLength(rows.length);
     expect(grid!.querySelector('[role="presentation"]')).toBeNull();
+    expect(grid?.style.gridTemplateColumns).toContain('repeat(2,');
+    const cells = grid!.querySelectorAll<HTMLElement>('[data-library-masonry-cell]');
+    expect(cells).toHaveLength(rows.length);
+    expect(cells[0].style.gridRowEnd).toBe('span 802');
+    expect(cells[0].style.visibility).toBe('visible');
+    rectSpy.mockRestore();
+  });
+
+  it('remeasures mobile masonry cards through one observer and cancels a pending resize on unmount', async () => {
+    localStorage.setItem('vn_display_settings_v1', JSON.stringify({ density: { library: 140 } }));
+    const originalResizeObserver = window.ResizeObserver;
+    const observers: TestResizeObserver[] = [];
+    class TestResizeObserver implements ResizeObserver {
+      readonly targets = new Set<Element>();
+      disconnected = false;
+
+      constructor(readonly callback: ResizeObserverCallback) {
+        observers.push(this);
+      }
+
+      observe(target: Element): void {
+        this.targets.add(target);
+      }
+
+      unobserve(target: Element): void {
+        this.targets.delete(target);
+      }
+
+      disconnect(): void {
+        this.disconnected = true;
+      }
+
+      emit(target: Element): void {
+        this.callback([{ target } as ResizeObserverEntry], this);
+      }
+    }
+    Object.defineProperty(window, 'ResizeObserver', {
+      configurable: true,
+      writable: true,
+      value: TestResizeObserver,
+    });
+    let cardHeight = 420;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectForElement(this: HTMLElement) {
+      const width = this.matches('[data-library-card-grid-host]') ? 390 : 189;
+      const height = this.matches('[data-vn-card]') ? cardHeight : 790;
+      return {
+        width,
+        top: 10,
+        left: 0,
+        right: width,
+        bottom: 10 + height,
+        height,
+        x: 0,
+        y: 10,
+        toJSON: () => ({}),
+      };
+    });
+    let nextFrame = 1;
+    const frames = new Map<number, FrameRequestCallback>();
+    const requestFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame++;
+      frames.set(id, callback);
+      return id;
+    });
+    const cancelFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const rows = Array.from({ length: 6 }, (_, index) => cardRow(`v4${String(index + 1).padStart(4, '0')}`, `Observed VN ${index + 1}`));
+    installFetchRouter({ collectionItems: rows, total: rows.length });
+    const { container, unmount } = renderWithProviders(
+      <DisplaySettingsProvider>
+        <LibraryClient mode="full" />
+      </DisplaySettingsProvider>,
+      { locale: 'en' },
+    );
+    await screen.findByText('Observed VN 1');
+    const masonry = await waitFor(() => {
+      const value = container.querySelector<HTMLElement>('[data-library-card-masonry="measured"]');
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    const masonryObserver = observers.find((observer) => (
+      [...observer.targets].some((target) => target.matches('[data-vn-card]'))
+    ));
+    expect(masonryObserver).toBeDefined();
+    const firstCard = masonry.querySelector<HTMLElement>('[data-vn-card]')!;
+    expect(firstCard.parentElement?.style.gridRowEnd).toBe('span 432');
+
+    masonryObserver!.emit(firstCard);
+    const [sameHeightFrameId, sameHeightFrame] = [...frames.entries()][0];
+    frames.delete(sameHeightFrameId);
+    await act(async () => sameHeightFrame(0));
+    expect(firstCard.parentElement?.style.gridRowEnd).toBe('span 432');
+
+    const orphan = document.createElement('div');
+    masonryObserver!.emit(orphan);
+    cardHeight = 0;
+    masonryObserver!.emit(firstCard);
+    expect(frames.size).toBe(0);
+
+    cardHeight = 500;
+    masonryObserver!.emit(firstCard);
+    expect(frames.size).toBe(1);
+    unmount();
+    expect(masonryObserver!.disconnected).toBe(true);
+    expect(cancelFrameSpy).toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+
+    Object.defineProperty(window, 'ResizeObserver', {
+      configurable: true,
+      writable: true,
+      value: originalResizeObserver,
+    });
+    requestFrameSpy.mockRestore();
+    cancelFrameSpy.mockRestore();
     rectSpy.mockRestore();
   });
 
@@ -1939,9 +2059,9 @@ describe('LibraryClient', () => {
   it('ignores a pending resize measurement after the grid has unmounted', async () => {
     const originalResizeObserver = window.ResizeObserver;
     const originalAddEventListener = window.addEventListener;
-    let resizeListener: EventListener | null = null;
+    const resizeListeners: EventListener[] = [];
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
-      if (type === 'resize') resizeListener = listener as EventListener;
+      if (type === 'resize') resizeListeners.push(listener as EventListener);
       originalAddEventListener.call(window, type, listener, options);
     });
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -1971,9 +2091,9 @@ describe('LibraryClient', () => {
       { locale: 'en' },
     );
     await screen.findByText('Unmount VN 1');
-    expect(resizeListener).not.toBeNull();
+    expect(resizeListeners.length).toBeGreaterThan(0);
     unmount();
-    expect(() => resizeListener?.(new Event('resize'))).not.toThrow();
+    expect(() => resizeListeners.forEach((listener) => listener(new Event('resize')))).not.toThrow();
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       writable: true,

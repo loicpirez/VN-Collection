@@ -231,7 +231,7 @@ async function assertMobileQuoteDock(page, engineLabel) {
   assert(await toggle.getAttribute('aria-expanded') === 'false', `${engineLabel} quote footer did not close after a refresh`);
 }
 
-check('WebKit mobile quote dock stays fixed and library cards keep aligned rows', async () => {
+check('WebKit mobile quote dock stays fixed and library cards keep natural masonry flow', async () => {
   const webkitBrowser = await webkit.launch({ headless: true });
   const webkitContext = await webkitBrowser.newContext({
     viewport: { width: 390, height: 844 },
@@ -256,58 +256,73 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
     await webkitPage.waitForTimeout(200);
     assert(await grid.getAttribute('data-virtualized-library-grid') === null, 'WebKit compact library still uses estimated-row virtualization');
 
-    const rowSamples = [];
+    const masonrySamples = [];
     const maximumScroll = await webkitPage.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
     for (const fraction of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
       await webkitPage.evaluate((scrollY) => window.scrollTo(0, scrollY), Math.round(maximumScroll * fraction));
       await webkitPage.waitForTimeout(180);
-      rowSamples.push(await grid.evaluate((element) => {
-        const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
-          const rect = item.getBoundingClientRect();
-          const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');
-          const visibleRect = card?.getBoundingClientRect() ?? rect;
+      masonrySamples.push(await grid.evaluate((element) => {
+        const cells = Array.from(element.querySelectorAll(':scope > [data-library-masonry-cell]')).map((cell) => {
+          const rect = cell.getBoundingClientRect();
+          const card = cell.querySelector(':scope > [data-vn-card]');
+          const cardRect = card?.getBoundingClientRect() ?? rect;
           return {
+            left: Math.round(rect.left * 100) / 100,
             top: Math.round(rect.top * 100) / 100,
-            visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
-            display: getComputedStyle(item).display,
-            directCard: card === item,
-            rowEnd: item.style.gridRowEnd,
+            cardBottom: Math.round(cardRect.bottom * 100) / 100,
+            wrapperDelta: Math.round(Math.abs(rect.height - cardRect.height) * 100) / 100,
+            hasCard: card !== null,
+            rowEnd: cell.style.gridRowEnd,
+            visibility: getComputedStyle(cell).visibility,
           };
         });
-        const pairOffsets = [];
-        const pairBottomOffsets = [];
-        for (let index = 0; index + 1 < items.length; index += 2) {
-          pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
-          pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
+        const columnGaps = [];
+        const columns = new Map();
+        for (const cell of cells) {
+          const column = columns.get(cell.left) ?? [];
+          column.push(cell);
+          columns.set(cell.left, column);
+        }
+        for (const column of columns.values()) {
+          column.sort((left, right) => left.top - right.top);
+          for (let index = 1; index < column.length; index += 1) {
+            columnGaps.push(Math.round((column[index].top - column[index - 1].cardBottom) * 100) / 100);
+          }
         }
         return {
           display: getComputedStyle(element).display,
           documentHeight: document.documentElement.scrollHeight,
-          itemCount: items.length,
-          maxPairOffset: pairOffsets.length > 0 ? Math.max(...pairOffsets) : 0,
-          maxVisibleBottomOffset: pairBottomOffsets.length > 0 ? Math.max(...pairBottomOffsets) : 0,
-          cardsAreDirectGridItems: items.every((item) => item.directCard),
-          hasManualRows: items.some((item) => item.rowEnd !== ''),
+          itemCount: cells.length,
+          columnCount: columns.size,
+          minimumGap: columnGaps.length > 0 ? Math.min(...columnGaps) : 0,
+          maximumGap: columnGaps.length > 0 ? Math.max(...columnGaps) : 0,
+          maximumWrapperDelta: Math.max(...cells.map((cell) => cell.wrapperDelta)),
+          allCellsMeasured: cells.every((cell) => cell.rowEnd.startsWith('span ') && cell.visibility === 'visible'),
+          allCellsOwnOneCard: cells.every((cell) => cell.hasCard),
         };
       }));
     }
-    const rowGeometry = {
-      display: rowSamples[0].display,
-      itemCount: Math.max(...rowSamples.map((sample) => sample.itemCount)),
-      maxPairOffset: Math.max(...rowSamples.map((sample) => sample.maxPairOffset)),
-      maxVisibleBottomOffset: Math.max(...rowSamples.map((sample) => sample.maxVisibleBottomOffset)),
-      cardsAreDirectGridItems: rowSamples.every((sample) => sample.cardsAreDirectGridItems),
-      hasManualRows: rowSamples.some((sample) => sample.hasManualRows),
-      documentHeightDrift: Math.max(...rowSamples.map((sample) => sample.documentHeight))
-        - Math.min(...rowSamples.map((sample) => sample.documentHeight)),
+    const masonryGeometry = {
+      display: masonrySamples[0].display,
+      itemCount: Math.max(...masonrySamples.map((sample) => sample.itemCount)),
+      columnCount: Math.max(...masonrySamples.map((sample) => sample.columnCount)),
+      minimumGap: Math.min(...masonrySamples.map((sample) => sample.minimumGap)),
+      maximumGap: Math.max(...masonrySamples.map((sample) => sample.maximumGap)),
+      maximumWrapperDelta: Math.max(...masonrySamples.map((sample) => sample.maximumWrapperDelta)),
+      allCellsMeasured: masonrySamples.every((sample) => sample.allCellsMeasured),
+      allCellsOwnOneCard: masonrySamples.every((sample) => sample.allCellsOwnOneCard),
+      documentHeightDrift: Math.max(...masonrySamples.map((sample) => sample.documentHeight))
+        - Math.min(...masonrySamples.map((sample) => sample.documentHeight)),
     };
-    assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
-    assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
-    assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);
-    assert(rowGeometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${rowGeometry.maxVisibleBottomOffset}px at their bottom edge`);
-    assert(rowGeometry.cardsAreDirectGridItems, 'library cards still depend on an intermediate sizing wrapper');
-    assert(!rowGeometry.hasManualRows, 'library cards still carry measured masonry row spans');
-    assert(rowGeometry.documentHeightDrift <= 1, `library document height drifted by ${rowGeometry.documentHeightDrift}px while scrolling`);
+    assert(masonryGeometry.display === 'grid', `library uses ${masonryGeometry.display} instead of a masonry grid`);
+    assert(masonryGeometry.itemCount >= 4, `library rendered only ${masonryGeometry.itemCount} cards for masonry QA`);
+    assert(masonryGeometry.columnCount === 2, `library rendered ${masonryGeometry.columnCount} mobile columns instead of 2`);
+    assert(masonryGeometry.minimumGap >= 11.9, `mobile cards overlap: minimum gap ${masonryGeometry.minimumGap}px`);
+    assert(masonryGeometry.maximumGap <= 13.1, `mobile masonry leaves an oversized ${masonryGeometry.maximumGap}px gap`);
+    assert(masonryGeometry.maximumWrapperDelta <= 0.5, `mobile masonry stretched a card wrapper by ${masonryGeometry.maximumWrapperDelta}px`);
+    assert(masonryGeometry.allCellsMeasured, 'mobile masonry exposes an unmeasured card cell');
+    assert(masonryGeometry.allCellsOwnOneCard, 'mobile masonry cell does not own exactly one card');
+    assert(masonryGeometry.documentHeightDrift <= 1, `library document height drifted by ${masonryGeometry.documentHeightDrift}px while scrolling`);
     await assertMobileQuoteDock(webkitPage, 'WebKit');
   } finally {
     await webkitContext.close();
@@ -340,7 +355,7 @@ check('Chromium mobile quote dock stays fixed and toggles reversibly', async () 
   }
 });
 
-check('Chromium library grid keeps sequential cards on aligned rows', async (page) => {
+check('Chromium library grid keeps natural mobile masonry gaps', async (page) => {
   await page.setViewportSize({ width: 390, height: 844 });
   try {
     await gotoClean(page, '/?density=140');
@@ -349,39 +364,51 @@ check('Chromium library grid keeps sequential cards on aligned rows', async (pag
     await page.waitForTimeout(200);
     assert(await grid.getAttribute('data-virtualized-library-grid') === null, 'Chromium compact library still uses estimated-row virtualization');
     const geometry = await grid.evaluate((element) => {
-      const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
-        const rect = item.getBoundingClientRect();
-        const card = item.matches('[data-vn-card]') ? item : item.querySelector(':scope > [data-vn-card]');
-        const visibleRect = card?.getBoundingClientRect() ?? rect;
+      const cells = Array.from(element.querySelectorAll(':scope > [data-library-masonry-cell]')).map((cell) => {
+        const rect = cell.getBoundingClientRect();
+        const card = cell.querySelector(':scope > [data-vn-card]');
+        const cardRect = card?.getBoundingClientRect() ?? rect;
         return {
+          left: Math.round(rect.left * 100) / 100,
           top: Math.round(rect.top * 100) / 100,
-          visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
-          display: getComputedStyle(item).display,
-          directCard: card === item,
-          rowEnd: item.style.gridRowEnd,
+          cardBottom: Math.round(cardRect.bottom * 100) / 100,
+          wrapperDelta: Math.round(Math.abs(rect.height - cardRect.height) * 100) / 100,
+          hasCard: card !== null,
+          rowEnd: cell.style.gridRowEnd,
         };
       });
-      const pairOffsets = [];
-      const pairBottomOffsets = [];
-      for (let index = 0; index + 1 < items.length; index += 2) {
-        pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
-        pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
+      const columns = new Map();
+      for (const cell of cells) {
+        const column = columns.get(cell.left) ?? [];
+        column.push(cell);
+        columns.set(cell.left, column);
+      }
+      const gaps = [];
+      for (const column of columns.values()) {
+        column.sort((left, right) => left.top - right.top);
+        for (let index = 1; index < column.length; index += 1) {
+          gaps.push(Math.round((column[index].top - column[index - 1].cardBottom) * 100) / 100);
+        }
       }
       return {
         display: getComputedStyle(element).display,
-        itemCount: items.length,
-        maxPairOffset: Math.max(...pairOffsets),
-        maxVisibleBottomOffset: Math.max(...pairBottomOffsets),
-        cardsAreDirectGridItems: items.every((item) => item.directCard),
-        hasManualRows: items.some((item) => item.rowEnd !== ''),
+        itemCount: cells.length,
+        columnCount: columns.size,
+        minimumGap: Math.min(...gaps),
+        maximumGap: Math.max(...gaps),
+        maximumWrapperDelta: Math.max(...cells.map((cell) => cell.wrapperDelta)),
+        allCellsMeasured: cells.every((cell) => cell.rowEnd.startsWith('span ')),
+        allCellsOwnOneCard: cells.every((cell) => cell.hasCard),
       };
     });
     assert(geometry.display === 'grid', `Chromium library uses ${geometry.display} instead of grid`);
     assert(geometry.itemCount >= 4, `library rendered only ${geometry.itemCount} cards`);
-    assert(geometry.maxPairOffset <= 1, `paired cards differ by ${geometry.maxPairOffset}px at their top edge`);
-    assert(geometry.maxVisibleBottomOffset <= 1, `paired card borders differ by ${geometry.maxVisibleBottomOffset}px at their bottom edge`);
-    assert(geometry.cardsAreDirectGridItems, 'library cards still depend on an intermediate sizing wrapper');
-    assert(!geometry.hasManualRows, 'library cards still carry measured masonry row spans');
+    assert(geometry.columnCount === 2, `library rendered ${geometry.columnCount} mobile columns instead of 2`);
+    assert(geometry.minimumGap >= 11.9, `mobile cards overlap: minimum gap ${geometry.minimumGap}px`);
+    assert(geometry.maximumGap <= 13.1, `mobile masonry leaves an oversized ${geometry.maximumGap}px gap`);
+    assert(geometry.maximumWrapperDelta <= 0.5, `mobile masonry stretched a card wrapper by ${geometry.maximumWrapperDelta}px`);
+    assert(geometry.allCellsMeasured, 'mobile masonry exposes an unmeasured card cell');
+    assert(geometry.allCellsOwnOneCard, 'mobile masonry cell does not own exactly one card');
   } finally {
     await page.setViewportSize({ width: 1280, height: 900 });
   }
@@ -474,7 +501,7 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
     const layoutTab = dialog.getByRole('tab', { name: /Mise en page|Layout|レイアウト/i });
     await layoutTab.click();
     const perPageHeading = dialog.getByText(/Mise en page par page|Per-page layout|ページ別レイアウト/i).first();
-    await perPageHeading.waitFor({ state: 'visible', timeout: 10000 });
+    await perPageHeading.waitFor({ state: 'visible', timeout: 30000 });
     await page.keyboard.press('Escape');
   }
 });

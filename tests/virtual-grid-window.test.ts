@@ -118,7 +118,9 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(cardSource).toContain('min-h-0 w-full flex-1 self-stretch flex-col');
     expect(cardSource).toContain("role={listPosition != null ? 'listitem' : undefined}");
     expect(cardSource).not.toContain('group relative flex h-full w-full flex-1 flex-col');
-    expect(gridBody).not.toContain('data-library-card-lanes');
+    expect(gridBody).toContain('data-library-card-masonry="measured"');
+    expect(gridBody).toContain("gridAutoFlow: 'row dense'");
+    expect(gridBody).toContain("gridAutoRows: '1px'");
     expect(memoCardBody).not.toContain('MasonryGridItem');
     expect(gridBody).toContain('row.startIndex + index + 1');
     expect(gridBody).toContain('setSize={items.length}');
