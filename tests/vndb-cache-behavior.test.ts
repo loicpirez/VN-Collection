@@ -209,6 +209,67 @@ describe('stale-while-error fallback', () => {
   });
 });
 
+describe('stale-while-revalidate', () => {
+  it('returns a valid expired row immediately and coalesces one background refresh', async () => {
+    const key = cacheKey('POST /vn:swr', 'POST', { s: 4 });
+    const past = Date.now() - 10_000;
+    putCacheRow({
+      cache_key: key,
+      body: JSON.stringify({ ok: 5 }),
+      etag: null,
+      last_modified: null,
+      fetched_at: past,
+      expires_at: past + 1,
+    });
+    let resolveFetch: (response: Response) => void = () => undefined;
+    providerFetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const init = { method: 'POST', body: JSON.stringify({ s: 4 }), __pathTag: 'POST /vn:swr' };
+
+    const first = await cachedFetch(`${PRIMARY}/vn`, init, {
+      ttlMs: TTL.vnDetail,
+      staleWhileRevalidate: true,
+    });
+    const second = await cachedFetch(`${PRIMARY}/vn`, init, {
+      ttlMs: TTL.vnDetail,
+      staleWhileRevalidate: true,
+    });
+
+    expect(first).toMatchObject({ data: { ok: 5 }, fromCache: true, stale: true, status: 0 });
+    expect(second).toMatchObject({ data: { ok: 5 }, fromCache: true, stale: true, status: 0 });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    resolveFetch(jsonResponse({ ok: 6 }));
+    await vi.waitFor(() => expect(JSON.parse(getCacheRow(key)!.body)).toEqual({ ok: 6 }));
+  });
+
+  it('waits for upstream when the expired row cannot be decoded', async () => {
+    const key = cacheKey('POST /vn:swr-corrupt', 'POST', { s: 5 });
+    const past = Date.now() - 10_000;
+    putCacheRow({
+      cache_key: key,
+      body: '{bad',
+      etag: null,
+      last_modified: null,
+      fetched_at: past,
+      expires_at: past + 1,
+    });
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 7 }));
+
+    const result = await cachedFetch(
+      `${PRIMARY}/vn`,
+      { method: 'POST', body: JSON.stringify({ s: 5 }), __pathTag: 'POST /vn:swr-corrupt' },
+      { ttlMs: TTL.vnDetail, staleWhileRevalidate: true },
+    );
+
+    expect(result).toMatchObject({ data: { ok: 7 }, fromCache: false, status: 200 });
+    expect(warning).toHaveBeenCalledOnce();
+    warning.mockRestore();
+  });
+});
+
 describe('in-flight de-dupe', () => {
   it('coalesces two concurrent identical requests into one fetch', async () => {
     let resolveFetch: (r: Response) => void = () => {};

@@ -128,9 +128,12 @@ export type CachePayloadDecoder<T> = (value: unknown) => T | null;
 
 /** Runtime controls for one cached upstream request. */
 export interface CachedFetchOptions<T> {
+  /** Cache lifetime in milliseconds. A value of 0 bypasses cache reads and writes. */
   ttlMs: number;
-  /** When 0, the cache is bypassed entirely (no read, no write). */
+  /** Return a valid expired row when an upstream refresh fails. */
   staleWhileError?: boolean;
+  /** Return a valid expired row immediately while one shared refresh continues in the background. */
+  staleWhileRevalidate?: boolean;
   /** Optional structural decoder applied consistently to cache and upstream payloads. */
   decode?: CachePayloadDecoder<T>;
 }
@@ -189,44 +192,15 @@ function subscribeToInflight<T>(entry: InflightRequest, signal?: AbortSignal | n
   });
 }
 
-export async function cachedFetch<T>(
+function startInflightRequest<T>(
   url: string,
   init: RequestInit & { __pathTag?: string },
-  { ttlMs, staleWhileError = true, decode }: CachedFetchOptions<T>,
-): Promise<FetchResult<T>> {
-  const path = init.__pathTag ?? new URL(url).pathname;
-  const method = (init.method ?? 'GET').toUpperCase();
-  const body = init.body ? safeParse(init.body) : undefined;
-  const key = buildKey(method, path, body);
-  const now = Date.now();
-
-  if (init.signal?.aborted) throw requestAbortReason(init.signal);
-
-  if (ttlMs <= 0) {
-    return doFetch<T>(url, init, key, ttlMs, undefined, decode);
-  }
-
-  const cached = await getCacheRepository().get(key);
-  if (cached && now < cached.expires_at) {
-    let data: T | undefined;
-    try {
-      data = decodePayload(JSON.parse(cached.body), decode);
-    } catch (e) {
-      console.warn(`[vndb-cache] corrupt body for ${key}, treating as miss: ${(e as Error).message}`);
-    }
-    if (data !== undefined) {
-      return {
-        data,
-        fromCache: true,
-        status: 200,
-        cachedAt: cached.fetched_at,
-      };
-    }
-  }
-
-  const existing = inflight.get(key);
-  if (existing) return subscribeToInflight<T>(existing, init.signal);
-
+  key: string,
+  ttlMs: number,
+  cached: CacheRow | null,
+  staleWhileError: boolean,
+  decode?: CachePayloadDecoder<T>,
+): InflightRequest {
   const controller = new AbortController();
   const sharedInit = { ...init, signal: controller.signal };
   const promise = (async (): Promise<FetchResult<T>> => {
@@ -269,6 +243,68 @@ export async function cachedFetch<T>(
       if (inflight.get(key) === entry) inflight.delete(key);
     },
   );
+  return entry;
+}
+
+export async function cachedFetch<T>(
+  url: string,
+  init: RequestInit & { __pathTag?: string },
+  { ttlMs, staleWhileError = true, staleWhileRevalidate = false, decode }: CachedFetchOptions<T>,
+): Promise<FetchResult<T>> {
+  const path = init.__pathTag ?? new URL(url).pathname;
+  const method = (init.method ?? 'GET').toUpperCase();
+  const body = init.body ? safeParse(init.body) : undefined;
+  const key = buildKey(method, path, body);
+  const now = Date.now();
+
+  if (init.signal?.aborted) throw requestAbortReason(init.signal);
+
+  if (ttlMs <= 0) {
+    return doFetch<T>(url, init, key, ttlMs, undefined, decode);
+  }
+
+  const cached = await getCacheRepository().get(key);
+  if (cached && now < cached.expires_at) {
+    let data: T | undefined;
+    try {
+      data = decodePayload(JSON.parse(cached.body), decode);
+    } catch (e) {
+      console.warn(`[vndb-cache] corrupt body for ${key}, treating as miss: ${(e as Error).message}`);
+    }
+    if (data !== undefined) {
+      return {
+        data,
+        fromCache: true,
+        status: 200,
+        cachedAt: cached.fetched_at,
+      };
+    }
+  }
+
+  const existing = inflight.get(key);
+  if (cached && staleWhileRevalidate) {
+    let staleData: T | undefined;
+    try {
+      staleData = decodePayload(JSON.parse(cached.body), decode);
+    } catch (error) {
+      console.warn(`[vndb-cache] corrupt body for ${key}, skipping stale response: ${(error as Error).message}`);
+    }
+    if (staleData !== undefined) {
+      if (!existing) {
+        startInflightRequest(url, init, key, ttlMs, cached, staleWhileError, decode);
+      }
+      return {
+        data: staleData,
+        fromCache: true,
+        status: 0,
+        cachedAt: cached.fetched_at,
+        stale: true,
+      };
+    }
+  }
+  if (existing) return subscribeToInflight<T>(existing, init.signal);
+
+  const entry = startInflightRequest(url, init, key, ttlMs, cached, staleWhileError, decode);
   return subscribeToInflight<T>(entry, init.signal);
 }
 

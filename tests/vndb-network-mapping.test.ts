@@ -13,6 +13,7 @@
  * the auth-bearing helpers run their happy path.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 
 const { providerFetchMock } = vi.hoisted(() => ({ providerFetchMock: vi.fn() }));
 
@@ -81,7 +82,7 @@ import {
   searchTraits,
   searchVn,
 } from '@/lib/vndb';
-import { clearCache, setAppSetting } from '@/lib/db';
+import { clearCache, getCacheRow, putCacheRow, setAppSetting } from '@/lib/db';
 
 const FAKE_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 const ORIGINAL_TOKEN = process.env.VNDB_TOKEN;
@@ -97,6 +98,11 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 /** A VNDB list envelope with one or more synthetic rows. */
 function envelope<T>(results: T[], more = false): { results: T[]; more: boolean } {
   return { results, more };
+}
+
+function requestCacheKey(pathTag: string, method: string, body: unknown): string {
+  const hash = createHash('sha1').update(JSON.stringify(body)).digest('hex').slice(0, 16);
+  return `${pathTag}|${method}|${hash}`;
 }
 
 /** Minimal valid `/vn` detail row the strict decoder accepts. */
@@ -643,6 +649,25 @@ describe('release helpers', () => {
   it('getRelease returns null on empty results', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([])));
     expect(await getRelease('r90404')).toBeNull();
+  });
+
+  it('getRelease serves an expired decoded row while one refresh continues', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([relRow('r90002')])));
+    expect((await getRelease('r90002'))?.id).toBe('r90002');
+    const requestBody = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    const key = requestCacheKey('POST /release', 'POST', requestBody);
+    const cached = getCacheRow(key)!;
+    putCacheRow({ ...cached, expires_at: Date.now() - 1 });
+    let resolveRefresh: (response: Response) => void = () => undefined;
+    providerFetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    }));
+
+    expect((await getRelease('r90002'))?.id).toBe('r90002');
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+
+    resolveRefresh(jsonResponse(envelope([relRow('r90002')])));
+    await vi.waitFor(() => expect(getCacheRow(key)!.expires_at).toBeGreaterThan(Date.now()));
   });
 });
 

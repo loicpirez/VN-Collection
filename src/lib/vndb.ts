@@ -250,6 +250,7 @@ async function vndbPost<T>(
   ttlMs: number,
   decodeRow: CachePayloadDecoder<T>,
   signal?: AbortSignal,
+  cacheBehavior?: { staleWhileRevalidate?: boolean },
 ): Promise<VndbResponse<T>> {
   const decode = createVndbResultsEnvelopeDecoder(decodeRow);
   const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
@@ -258,7 +259,7 @@ async function vndbPost<T>(
     body: JSON.stringify(body),
     signal,
     __pathTag: `POST ${path}`,
-  }, { ttlMs, decode });
+  }, { ttlMs, decode, staleWhileRevalidate: cacheBehavior?.staleWhileRevalidate });
   return r.data;
 }
 
@@ -1281,7 +1282,7 @@ export async function getRelease(id: string): Promise<VndbRelease | null> {
     filters: ['id', '=', id],
     fields: RELEASE_FIELDS,
     results: 1,
-  }, TTL.releaseById, decodeVndbRelease);
+  }, TTL.releaseById, decodeVndbRelease, undefined, { staleWhileRevalidate: true });
   return r.results[0] ?? null;
 }
 

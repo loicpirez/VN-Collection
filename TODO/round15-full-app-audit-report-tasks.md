@@ -25,6 +25,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-I18N-001 | HIGH | Recheck French, English, and Japanese dictionary parity, placeholders, hardcoded copy, platform names, dates, times, numbers, currencies, upstream errors, document language, and responsive overflow caused by localized strings. | i18n dictionaries, formatters, all UI surfaces | IN_PROGRESS |
 | R15-SEC-001 | CRITICAL | Recheck API authorization policy, reverse-proxy trust, CSRF, SSRF and DNS pinning, input and body bounds, safe links, uploads, file paths, credential masking, error sanitization, headers, rate limits, and dependency vulnerabilities. | APIs, proxy, network clients, deployment configuration | IN_PROGRESS |
 | R15-PERF-001 | HIGH | Recheck bounded queries, indexes, pagination and virtualization, shared-request cancellation, hidden-tab behavior, image loading, polling and SSE lifecycles, background jobs, PostgreSQL pool pressure, provider isolation, browser memory, and production query plans. | application runtime, repositories, jobs, production | IN_PROGRESS |
+| R15-PERF-002 | HIGH | An expired release-detail cache blocked the streamed page while the throttled VNDB client exhausted primary retries and then mirror retries. On the audited workstation the route emitted its shell in about half a second but remained incomplete beyond 45 seconds, while the same production route with a fresh cache completed in 1.2 seconds. Release-by-id reads now serve a structurally valid expired row immediately and coalesce one background revalidation. Corrupt expired rows still wait for a validated upstream response, and cold misses, batch downloads, explicit synchronizations, cancellation, and the general cache policy are unchanged. | `src/lib/vndb-cache.ts`, `src/lib/vndb.ts`, release detail and API routes | DONE_WITH_DIFF |
 | R15-TYPE-001 | HIGH | Recheck strict external decoders, persisted JSON validation, unsafe casts, suppression directives, coverage exclusions, exported contracts, and backend parity. | `src`, `tests`, `scripts` | IN_PROGRESS |
 | R15-DATA-001 | CRITICAL | Recheck the live PostgreSQL migration state, constraints, indexes, pool, integrity, stock freshness, collection and media counts, backup checksums, and isolated restore evidence after the recent large VN update. | production PostgreSQL and backup operations | TODO |
 | R15-PROVIDER-001 | HIGH | Probe every configured stock provider from the current workstation in Japan, classify real response and parser behavior without guessing, preserve cached offers for protected providers, and verify generic stock plus AliceNet shop-only workflows. | stock providers, provider scripts, stock and place pages | TODO |
@@ -65,6 +66,12 @@ provider behavior, operations, backup, restore, and immutable deployment.
   regression-test verified without claiming a live populated-list result.
   Production revision identity, active service, zero restarts, PostgreSQL
   readiness, and pool state were checked after both immutable release switches.
+- `R15-PERF-002` was reproduced against an expired release cache: the streamed
+  response remained incomplete after 45 seconds. With the same cache row
+  deliberately expired after the fix, the complete page returned HTTP 200 in
+  0.91 seconds. Two concurrent stale readers share one detached revalidation,
+  and focused cache, decoder, mapping, page, and API tests cover valid,
+  coalesced, corrupt, fresh, cold, and upstream-failure paths.
 - `R15-ACCESS-002` passed six focused phone renders across Chromium and
   WebKit in French, English, and Japanese with no responsive findings.
   `R15-ACCESS-003` renders at exactly 44 pixels in WebKit using the compiled
