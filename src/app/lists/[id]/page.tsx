@@ -113,7 +113,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       ) : (
         <PaginatedGrid ariaLabel={list.name} resetKey={`list:${list.id}`} className={gridClassName} style={gridStyle}>
           {reorderItems.map((it) => (
-            <li key={it.vn_id} className="group relative">
+            <li key={it.vn_id} className="group relative flex min-h-0 min-w-0 items-stretch">
               <ListRemoveVn listId={list.id} vnId={it.vn_id} />
               {it.card ? <VnCard data={it.card} /> : <StubCard vnId={it.vn_id} />}
             </li>

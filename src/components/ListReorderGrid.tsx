@@ -180,7 +180,7 @@ function SortableListCard({
       {...listeners}
       aria-roledescription="sortable item"
       title={reorderHint}
-      className={`group relative block w-full min-w-0 touch-none select-none ${
+      className={`group relative flex min-h-0 w-full min-w-0 items-stretch touch-none select-none ${
         disabled ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'opacity-40' : ''}`}
       onDragStart={(event) => event.preventDefault()}
@@ -196,7 +196,7 @@ export function StubCard({ vnId }: { vnId: string }) {
     <Link
       href={`/vn/${vnId}`}
       prefetch={false}
-      className="group relative flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-bg-elev/30 p-4 text-center text-muted hover:border-accent hover:text-white"
+      className="group relative flex aspect-[2/3] w-full flex-1 self-stretch flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-bg-elev/30 p-4 text-center text-muted hover:border-accent hover:text-white"
     >
       <ListChecks className="h-6 w-6" aria-hidden />
       <span className="font-mono text-xs">{vnId}</span>
