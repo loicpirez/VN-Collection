@@ -105,8 +105,14 @@ async function main() {
       const heap = await page.evaluate(() => {
         // performance.memory is non-standard but present in
         // Chromium — best-effort signal for memory growth.
-        const m = /** @type {any} */ (performance).memory;
-        return m ? Math.round(m.usedJSHeapSize / 1024 / 1024) : null;
+        const memory = Reflect.get(performance, 'memory');
+        if (
+          !memory
+          || typeof memory !== 'object'
+          || !('usedJSHeapSize' in memory)
+          || typeof memory.usedJSHeapSize !== 'number'
+        ) return null;
+        return Math.round(memory.usedJSHeapSize / 1024 / 1024);
       });
       console.log(`  [${String(i + 1).padStart(2)}/${ids.length}] last=${id}  heapMB=${heap ?? '?'}`);
     }

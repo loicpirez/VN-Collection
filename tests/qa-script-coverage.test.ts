@@ -23,6 +23,18 @@ const RESPONSIVE = readFileSync(
   join(ROOT, 'scripts/responsive-audit.mjs'),
   'utf8',
 );
+const VN_PAGE_STABILITY = readFileSync(
+  join(ROOT, 'scripts/r5-204-vn-page-stability.mjs'),
+  'utf8',
+);
+
+describe('VN page stability probe typing', () => {
+  it('reads the optional Chromium heap metric without an untyped escape', () => {
+    expect(VN_PAGE_STABILITY).toContain("const memory = Reflect.get(performance, 'memory')");
+    expect(VN_PAGE_STABILITY).toContain("typeof memory.usedJSHeapSize !== 'number'");
+    expect(VN_PAGE_STABILITY).not.toContain('@type {any}');
+  });
+});
 
 describe('R5-179 — yarn qa is DOM QA gated on .qa', () => {
   it('script defaults to PORT=3100 (the isolated QA server)', () => {
