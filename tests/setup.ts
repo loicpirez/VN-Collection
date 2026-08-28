@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterAll } from 'vitest';
 
 // Vitest runs this BEFORE any test file is imported. We pin BOTH
 // `DB_PATH` (the SQLite file) AND `STORAGE_ROOT` (the binary asset
@@ -19,6 +20,9 @@ const storageTmp = join(tmp, 'storage');
 mkdirSync(storageTmp, { recursive: true });
 process.env.STORAGE_ROOT = storageTmp;
 
-process.on('exit', () => {
+const removeTestDirectory = () => {
   rmSync(tmp, { recursive: true, force: true });
-});
+};
+
+afterAll(removeTestDirectory);
+process.on('exit', removeTestDirectory);
