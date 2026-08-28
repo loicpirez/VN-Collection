@@ -144,6 +144,8 @@ describe('responsive audit matrix', () => {
     expect(RESPONSIVE).toContain('library row offset');
     expect(RESPONSIVE).toContain('cardVisibleBottomOffset');
     expect(RESPONSIVE).toContain('library visible card bottom offset');
+    expect(RESPONSIVE).toContain("item.matches('[data-vn-card]')");
+    expect(RESPONSIVE).not.toContain('card.firstElementChild?.getBoundingClientRect().bottom');
     expect(RESPONSIVE).toContain("issues.push('quote panel is not full-width on touch')");
   });
 

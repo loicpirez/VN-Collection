@@ -209,10 +209,12 @@ async function measure(page, touch, expectedLocale, routeKey) {
         if (row.length < 2) continue;
         const tops = row.map((card) => card.getBoundingClientRect().top);
         cardRowOffset = Math.max(cardRowOffset, Math.max(...tops) - Math.min(...tops));
-        const visibleBottoms = row.map((card) => (
-          card.firstElementChild?.getBoundingClientRect().bottom
-          ?? card.getBoundingClientRect().bottom
-        ));
+        const visibleBottoms = row.map((item) => {
+          const card = item.matches('[data-vn-card]')
+            ? item
+            : item.querySelector(':scope > [data-vn-card]');
+          return (card ?? item).getBoundingClientRect().bottom;
+        });
         cardVisibleBottomOffset = Math.max(cardVisibleBottomOffset, Math.max(...visibleBottoms) - Math.min(...visibleBottoms));
       }
     }

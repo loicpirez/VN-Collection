@@ -49,9 +49,16 @@ provider behavior, operations, backup, restore, and immutable deployment.
   TypeScript suppression, or coverage-ignore directive.
 - Native image elements remain confined to the three audited image owners:
   `SafeImage`, `LoadingImage`, and `HeroBanner`.
-- `R15-RESP-002` is deployed through commits `71daf11e` and `ca4b6488`.
-  WebKit mobile sampled 73 positions through the production virtualized
-  library with 0 pixels of top-edge and visible-bottom divergence. Separate
+- `R15-RESP-002` is deployed through commits `71daf11e`, `ca4b6488`, and
+  `57eaba83`. The final correction makes the normal `VnCard` the direct Grid
+  item and the browser probes identify that exact root. WebKit mobile sampled
+  73 positions through the production virtualized library with 0 pixels of
+  top-edge and visible-bottom divergence; the exact physical-phone regression
+  pair was also reproduced in production with both borders resolving to
+  `810.140625px`. A 45-render production matrix across Chromium, Firefox, and
+  WebKit, five viewport classes, and FR/EN/JA reported zero findings, zero
+  horizontal overflow, zero small touch targets, and zero clipped controls.
+  Separate
   production checks compared 415 custom-sort rows, 150 wishlist rows, and 10
   series rows with the same 0-pixel result. The production database currently
   contains no custom list items, so the equivalent list wrapper is source and
