@@ -346,8 +346,11 @@ export function DownloadStatusBar() {
     // Touch layouts clear the quote footer's 44px interaction surface.
     // Fine-pointer layouts keep the original compact footer spacing.
     <div
-      className="fixed bottom-16 right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 can-hover:sm:bottom-5 sm:right-4 sm:max-w-sm"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      data-download-status-root
+      className="fixed right-2 z-layer-status flex max-w-[calc(100vw-1rem)] flex-col items-end gap-2 sm:right-4 sm:max-w-sm"
+      style={{
+        bottom: 'calc(var(--quote-footer-height, calc(48px + env(safe-area-inset-bottom, 0px))) + 0.5rem)',
+      }}
     >
       {retryingNow && (
         <div className="rounded-md border border-status-on_hold/60 bg-status-on_hold/10 px-3 py-2 text-[11px] text-status-on_hold shadow-card">

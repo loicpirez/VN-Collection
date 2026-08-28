@@ -20,6 +20,26 @@ export function QuoteFooter() {
   const fetchedRef = useRef(false);
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const footer = footerRef.current!;
+    const publishHeight = () => {
+      document.documentElement.style.setProperty(
+        '--quote-footer-height',
+        `${Math.ceil(footer.getBoundingClientRect().height)}px`,
+      );
+    };
+    publishHeight();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publishHeight);
+    observer?.observe(footer);
+    window.addEventListener('resize', publishHeight);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', publishHeight);
+      document.documentElement.style.removeProperty('--quote-footer-height');
+    };
+  }, []);
 
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -62,6 +82,7 @@ export function QuoteFooter() {
 
   return (
     <div
+      ref={footerRef}
       data-quote-footer-root
       className={`fixed inset-x-0 bottom-0 z-layer-footer bg-bg/95 can-hover:sm:bg-transparent ${expanded ? 'is-open' : ''}`}
       onPointerEnter={(event) => {

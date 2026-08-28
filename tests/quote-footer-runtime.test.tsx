@@ -83,6 +83,57 @@ describe('QuoteFooter hover loader', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('publishes its rendered height for fixed status surfaces and clears it on unmount', () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    const observerInstance: ResizeObserver = {
+      disconnect,
+      observe,
+      unobserve: vi.fn(),
+    };
+    let resizeCallback: ResizeObserverCallback | null = null;
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe = observe;
+      disconnect = disconnect;
+    });
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 844,
+      height: 52.2,
+      left: 0,
+      right: 390,
+      top: 791.8,
+      width: 390,
+      x: 0,
+      y: 791.8,
+      toJSON: () => ({}),
+    });
+    const { container, unmount } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
+    const footer = container.firstElementChild as HTMLElement;
+    expect(observe).toHaveBeenCalledWith(footer);
+    expect(document.documentElement.style.getPropertyValue('--quote-footer-height')).toBe('53px');
+    rectSpy.mockReturnValue({
+      bottom: 844,
+      height: 108.1,
+      left: 0,
+      right: 390,
+      top: 735.9,
+      width: 390,
+      x: 0,
+      y: 735.9,
+      toJSON: () => ({}),
+    });
+    act(() => resizeCallback?.([], observerInstance));
+    expect(document.documentElement.style.getPropertyValue('--quote-footer-height')).toBe('109px');
+    window.dispatchEvent(new Event('resize'));
+    expect(document.documentElement.style.getPropertyValue('--quote-footer-height')).toBe('109px');
+    unmount();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.style.getPropertyValue('--quote-footer-height')).toBe('');
+  });
+
   it('ignores touch hover emulation and closes from the focused mobile toggle', () => {
     const { container } = renderWithProviders(<QuoteFooter />, { locale: 'en' });
     const footer = container.firstElementChild as HTMLElement;

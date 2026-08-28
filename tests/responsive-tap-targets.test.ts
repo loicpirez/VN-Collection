@@ -320,9 +320,10 @@ describe('responsive tap targets', () => {
     expect(globals).not.toContain('display: grid-lanes');
     expect(globals).not.toContain('grid-auto-flow: row dense');
     const downloadStatus = source('src/components/DownloadStatusBar.tsx');
-    expect(downloadStatus).toContain('className="fixed bottom-16');
+    expect(downloadStatus).toContain('data-download-status-root');
+    expect(downloadStatus).toContain("bottom: 'calc(var(--quote-footer-height");
     expect(downloadStatus).not.toContain('visual-viewport-anchor-bottom');
-    expect(downloadStatus).toContain('can-hover:sm:bottom-5');
+    expect(downloadStatus).not.toContain('className="fixed bottom-16');
     expect(source('src/components/GameLog.tsx')).toContain('min-h-[44px]');
   });
 
