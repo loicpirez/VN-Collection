@@ -88,7 +88,7 @@ const MemoWishlistCard = memo(function MemoWishlistCard({
   const handleSelect = useCallback(() => onSelect(id), [onSelect, id]);
   const handleRemove = useCallback(() => onRemove(id), [onRemove, id]);
   return (
-    <div className="flex min-h-0 min-w-0 items-stretch self-stretch" data-vn-card-cell>
+    <div className="flex min-h-0 min-w-0 flex-col items-stretch self-stretch" data-vn-card-cell>
       <VnCard
         enableAdd
         selectable={selectable}

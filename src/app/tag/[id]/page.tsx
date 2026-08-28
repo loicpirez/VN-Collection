@@ -229,7 +229,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
               }}
             >
               {localItems.map((it) => (
-                <div key={it.id} className="flex min-h-0 min-w-0 items-stretch self-stretch" data-vn-card-cell>
+                <div key={it.id} className="flex min-h-0 min-w-0 flex-col items-stretch self-stretch" data-vn-card-cell>
                   <VnCard data={toCardData(it)} />
                 </div>
               ))}

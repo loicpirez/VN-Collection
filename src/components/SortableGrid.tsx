@@ -146,7 +146,7 @@ function SortableCard({ item, isDragGhost, disabled }: { item: CollectionCardApi
       {...attributes}
       {...listeners}
       aria-roledescription="sortable item"
-      className={`group/sortable relative flex min-h-0 w-full min-w-0 items-stretch self-stretch touch-none select-none ${
+      className={`group/sortable relative flex min-h-0 w-full min-w-0 flex-col items-stretch self-stretch touch-none select-none ${
         disabled ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'
       } ${
         isDragging ? 'opacity-30 saturate-50' : ''

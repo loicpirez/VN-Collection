@@ -1925,7 +1925,7 @@ const MemoCard = memo(function MemoCard({
       role="listitem"
       aria-posinset={position}
       aria-setsize={setSize}
-      className="flex min-h-0 min-w-0 items-stretch self-stretch"
+      className="flex min-h-0 min-w-0 flex-col items-stretch self-stretch"
       data-library-card-cell
     >
       <VnCard

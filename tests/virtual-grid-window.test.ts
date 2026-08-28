@@ -115,7 +115,7 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(memoCardBody).toContain('role="listitem"');
     expect(memoCardBody).toContain('aria-posinset={position}');
     expect(memoCardBody).toContain('aria-setsize={setSize}');
-    expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch self-stretch"');
+    expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 flex-col items-stretch self-stretch"');
     expect(memoCardBody).toContain('data-library-card-cell');
     expect(memoCardBody).not.toContain('naturalHeight');
     expect(cardSource).toContain('h-full min-h-0 w-full flex-1 self-stretch flex-col');

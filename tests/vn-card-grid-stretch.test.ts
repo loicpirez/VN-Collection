@@ -6,10 +6,10 @@ const source = (path: string): string => readFileSync(path, 'utf8');
 describe('VN card grid stretch contract', () => {
   it('keeps sortable library and list wrappers stretchable', () => {
     expect(source('src/components/SortableGrid.tsx')).toContain(
-      'relative flex min-h-0 w-full min-w-0 items-stretch self-stretch',
+      'relative flex min-h-0 w-full min-w-0 flex-col items-stretch self-stretch',
     );
     const listGrid = source('src/components/ListReorderGrid.tsx');
-    expect(listGrid).toContain('relative flex min-h-0 w-full min-w-0 items-stretch self-stretch');
+    expect(listGrid).toContain('relative flex min-h-0 w-full min-w-0 flex-col items-stretch self-stretch');
     expect(source('src/components/VnCard.tsx')).toContain(
       'h-full min-h-0 w-full flex-1 self-stretch flex-col',
     );
@@ -17,7 +17,7 @@ describe('VN card grid stretch contract', () => {
 
   it('gives every library card an explicit Safari-stable stretching grid cell', () => {
     const library = source('src/components/LibraryClient.tsx');
-    expect(library).toContain('className="flex min-h-0 min-w-0 items-stretch self-stretch"');
+    expect(library).toContain('className="flex min-h-0 min-w-0 flex-col items-stretch self-stretch"');
     expect(library).toContain('data-library-card-cell');
     expect(library).toContain('data-library-card-total={items.length}');
     expect(library).toContain('data-library-card-virtualization-threshold={virtualThreshold}');
@@ -26,7 +26,7 @@ describe('VN card grid stretch contract', () => {
   });
 
   it('keeps paginated list, series, and relation wrappers stretchable', () => {
-    const wrapperClass = 'flex min-h-0 min-w-0 items-stretch self-stretch';
+    const wrapperClass = 'flex min-h-0 min-w-0 flex-col items-stretch self-stretch';
     expect(source('src/app/lists/[id]/page.tsx')).toContain(wrapperClass);
     expect(source('src/app/series/[id]/page.tsx')).toContain(wrapperClass);
     expect(source('src/components/RelationsSection.tsx')).toContain(wrapperClass);
@@ -39,7 +39,7 @@ describe('VN card grid stretch contract', () => {
       'src/app/tag/[id]/page.tsx',
     ]) {
       const body = source(path);
-      expect(body, path).toContain('flex min-h-0 min-w-0 items-stretch self-stretch');
+      expect(body, path).toContain('flex min-h-0 min-w-0 flex-col items-stretch self-stretch');
       expect(body, path).toContain('data-vn-card-cell');
     }
   });
