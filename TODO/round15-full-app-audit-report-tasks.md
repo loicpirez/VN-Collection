@@ -16,7 +16,7 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | ID | Severity | Finding and implementation direction | Location | Status |
 | --- | --- | --- | --- | --- |
 | R15-AUDIT-001 | CRITICAL | Run a fresh application-wide source, test, browser, database, provider, documentation, and production audit. Record every verified problem below, implement each fix independently, and retain unknowns as open work instead of reusing Round 14 evidence. | whole application | IN_PROGRESS |
-| R15-RESP-001 | CRITICAL | Complete the deterministic 1,800-render production matrix across all 40 page routes, three browser engines, five viewport classes, and three locales. Investigate every HTTP, runtime, overflow, card-row, quote-footer, clipping, image-recovery, touch-target, and localization finding and rerun affected combinations after each fix. | `scripts/responsive-audit.mjs`, all page routes, production | IN_PROGRESS |
+| R15-RESP-001 | CRITICAL | The deterministic production matrix completed all 1,800 combinations across 40 routes, three browser engines, five viewport classes, and three locales. Chromium and Firefox completed 600 renders each with no finding. Ten WebKit renders were invalidated by SSL failures from an obsolete loopback tunnel rather than application behavior; every exact locale, viewport, and route combination was rerun against authenticated public HTTPS and completed with no finding. The final library-specific WebKit probe also sampled six virtual-scroll depths in a two-column iPhone grid with zero top-edge or bottom-edge card divergence and no horizontal overflow. | `scripts/responsive-audit.mjs`, all page routes, production | DONE |
 | R15-RESP-002 | CRITICAL | The mobile library grid stretched each semantic list cell to its row height but Safari iOS could still paint the visual `VnCard` at its shorter intrinsic height. The earlier corrections removed percentage-height sizing and strengthened wrappers, but the physical-phone evidence showed that the remaining nested Grid-to-Flex sizing chain was still not reliable. In the normal library view, `VnCard` is now the semantic list item and the direct CSS Grid child, so the grid track stretches the actual painted border. Row height remains content-driven by the richest card in that row; there is no fixed global card height. Select mode retains its semantic interaction wrapper. The same automatic-size contract remains applied to custom sorting, reorderable lists, series, paginated lists, relations, and placeholder cards. Browser QA identifies the real card root and measures its border through multiple scroll positions, preventing a cover-only or wrapper-only false pass. | `src/components/VnCard.tsx`, `src/components/LibraryClient.tsx`, `src/components/SortableGrid.tsx`, `src/components/ListReorderGrid.tsx`, `scripts/browser-interactions.mjs`, card-grid call sites, responsive production audit | DONE_WITH_DIFF |
 | R15-UIUX-001 | HIGH | Recheck complete user workflows, information hierarchy, controls, loading and empty states, card alignment, fixed surfaces, dialogs, navigation, stock and shop integration, VN detail actions, and skeleton-to-content geometry. Add each concrete defect as an independent row before changing behavior. | all user-facing surfaces | IN_PROGRESS |
 | R15-ACCESS-001 | HIGH | Recheck landmarks, accessible names, keyboard and touch operation, focus containment and return, disclosure semantics, color-independent states, reduced motion, 44-pixel touch targets, and overlay ordering in source and compiled browsers. | application shell, components, all page routes | IN_PROGRESS |
@@ -28,8 +28,8 @@ provider behavior, operations, backup, restore, and immutable deployment.
 | R15-PERF-002 | HIGH | An expired release-detail cache blocked the streamed page while the throttled VNDB client exhausted primary retries and then mirror retries. On the audited workstation the route emitted its shell in about half a second but remained incomplete beyond 45 seconds, while the same production route with a fresh cache completed in 1.2 seconds. Release-by-id reads now serve a structurally valid expired row immediately and coalesce one background revalidation. Corrupt expired rows still wait for a validated upstream response, and cold misses, batch downloads, explicit synchronizations, cancellation, and the general cache policy are unchanged. | `src/lib/vndb-cache.ts`, `src/lib/vndb.ts`, release detail and API routes | DONE_WITH_DIFF |
 | R15-TYPE-001 | HIGH | Recheck strict external decoders, persisted JSON validation, unsafe casts, suppression directives, coverage exclusions, exported contracts, and backend parity. | `src`, `tests`, `scripts` | IN_PROGRESS |
 | R15-DATA-001 | CRITICAL | The live PostgreSQL database is healthy after the large VN update: all 11 manifest migrations are applied; readiness reports an available database and bounded pool; no index is invalid or unready; no constraint is unvalidated; the checked collection, owned-release, series, and place-link relations have no orphan; the seiyuu-credit uniqueness key has no duplicate group; and no active job lock or unfinished provider batch remains. All five linked shops derive freshness from stock written one day ago, so the former 11/12-day stale labels are no longer supported by current data. The latest 223 MB PostgreSQL dump and 1.48 GB storage archive pass their recorded SHA-256 checksums. The latest dump was restored into an isolated temporary database, reproduced all 11 migrations and the live principal row counts with zero invalid indexes, and the temporary database was removed afterward. | production PostgreSQL, backup timers, latest database and storage archives, isolated restore | DONE |
-| R15-PROVIDER-001 | HIGH | Probe every configured stock provider from the current workstation in Japan, classify real response and parser behavior without guessing, preserve cached offers for protected providers, and verify generic stock plus AliceNet shop-only workflows. | stock providers, provider scripts, stock and place pages | TODO |
-| R15-TEST-001 | CRITICAL | Run focused regressions during fixes, then the complete ordinary suite, PostgreSQL integration suite, exact coverage, typecheck, cold production build, QA, interactions, responsive audit, sentinel, provider checks, and production smoke gates. Completion requires exact 100 percent statements, branches, functions, and lines without ignores or threshold workarounds. | all test and QA suites | TODO |
+| R15-PROVIDER-001 | HIGH | Probe every configured stock provider from the current workstation in Japan, classify real response and parser behavior without guessing, preserve cached offers for protected providers, and verify generic stock plus AliceNet shop-only workflows. | stock providers, provider scripts, stock and place pages | IN_PROGRESS |
+| R15-TEST-001 | CRITICAL | Run focused regressions during fixes, then the complete ordinary suite, PostgreSQL integration suite, exact coverage, typecheck, cold production build, QA, interactions, responsive audit, sentinel, provider checks, and production smoke gates. Completion requires exact 100 percent statements, branches, functions, and lines without ignores or threshold workarounds. | all test and QA suites | IN_PROGRESS |
 | R15-DOC-001 | MEDIUM | The developer guide said all 2,406 tests must pass, while the current suite contains more than 10,000 scenarios. It now requires the complete current suite without embedding a count that immediately drifts. | `CLAUDE.md` | DONE_WITH_DIFF |
 | R15-DOC-002 | LOW | The feature reference defined scaffolded and planned status symbols, but every feature used only the shipped marker. The unused states and decorative symbols were replaced with a plain shipped convention. | `FEATURES.md` | DONE_WITH_DIFF |
 | R15-DOC-003 | LOW | General place-registry and PostgreSQL search fixtures contained historical Alice/Kobe and real studio wording outside migration compatibility tests. They now use neutral synthetic labels while legacy identifiers remain only where a migration contract requires them. | `tests/place-registry-page.test.ts`, `tests/postgres-search-parity.test.ts`, `tests/postgres-alicenet-repository.test.ts` | DONE_WITH_DIFF |
@@ -40,10 +40,12 @@ provider behavior, operations, backup, restore, and immutable deployment.
 
 ## Evidence collected
 
-- The Round 15 production responsive matrix is running against the immutable
-  deployed release across 1,800 route, engine, viewport, and locale
-  combinations. Its result remains open until all renders complete and every
-  reported combination is investigated.
+- The Round 15 production responsive matrix completed all 1,800 route, engine,
+  viewport, and locale combinations. Chromium and Firefox each completed 600
+  renders with no finding. Ten WebKit renders were invalid because an obsolete
+  loopback tunnel rewrote asset URLs to HTTPS on a plain HTTP listener. Every
+  affected combination was rerun directly against authenticated public HTTPS:
+  all ten completed with no finding.
 - The working tree started clean apart from ignored runtime directories
   `.tmp/` and `data/`. No runtime directory is eligible for staging.
 - A fresh source scan found no production or test TypeScript `any` escape,
@@ -66,6 +68,16 @@ provider behavior, operations, backup, restore, and immutable deployment.
   regression-test verified without claiming a live populated-list result.
   Production revision identity, active service, zero restarts, PostgreSQL
   readiness, and pool state were checked after both immutable release switches.
+- The final item-card contract is deployed in release
+  `69a313920cb7d513160a2fbdf66de18b0c38ee69`. WebKit at 390 pixels reports two
+  columns, a 390-pixel document, and zero card top or visible-bottom divergence.
+  A separate production probe sampled 0, 20, 40, 60, 80, and 100 percent of the
+  virtualized grid; every visible two-card row remained aligned to zero pixels,
+  with all card bounds between 12 and 378 pixels.
+- The complete instrumented suite currently passes 959 files and 10,083 tests
+  at exactly 100 percent statements, branches, functions, and lines. The final
+  ordinary, PostgreSQL, build, and operational gates remain open until the
+  remaining audit corrections are complete.
 - `R15-PERF-002` was reproduced against an expired release cache: the streamed
   response remained incomplete after 45 seconds. With the same cache row
   deliberately expired after the fix, the complete page returned HTTP 200 in
