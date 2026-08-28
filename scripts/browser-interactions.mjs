@@ -260,33 +260,47 @@ check('WebKit mobile quote dock stays fixed and library cards keep aligned rows'
     });
     await webkitPage.waitForTimeout(200);
 
-    const rowGeometry = await grid.evaluate((element) => {
-      element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-      const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
-        const rect = item.getBoundingClientRect();
-        const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
+    const rowSamples = [];
+    const maximumScroll = await webkitPage.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
+    for (const fraction of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
+      await webkitPage.evaluate((scrollY) => window.scrollTo(0, scrollY), Math.round(maximumScroll * fraction));
+      await webkitPage.waitForTimeout(180);
+      rowSamples.push(await grid.evaluate((element) => {
+        element.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        const items = Array.from(element.querySelectorAll(':scope > [role="listitem"]')).map((item) => {
+          const rect = item.getBoundingClientRect();
+          const visibleRect = item.firstElementChild?.getBoundingClientRect() ?? rect;
+          return {
+            top: Math.round(rect.top * 100) / 100,
+            visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
+            display: getComputedStyle(item).display,
+            rowEnd: item.style.gridRowEnd,
+          };
+        });
+        const pairOffsets = [];
+        const pairBottomOffsets = [];
+        for (let index = 0; index + 1 < items.length; index += 2) {
+          pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
+          pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
+        }
         return {
-          top: Math.round(rect.top * 100) / 100,
-          visibleBottom: Math.round(visibleRect.bottom * 100) / 100,
-          display: getComputedStyle(item).display,
-          rowEnd: item.style.gridRowEnd,
+          display: getComputedStyle(element).display,
+          itemCount: items.length,
+          maxPairOffset: pairOffsets.length > 0 ? Math.max(...pairOffsets) : 0,
+          maxVisibleBottomOffset: pairBottomOffsets.length > 0 ? Math.max(...pairBottomOffsets) : 0,
+          wrappersUseFlex: items.every((item) => item.display === 'flex'),
+          hasManualRows: items.some((item) => item.rowEnd !== ''),
         };
-      });
-      const pairOffsets = [];
-      const pairBottomOffsets = [];
-      for (let index = 0; index + 1 < items.length; index += 2) {
-        pairOffsets.push(Math.abs(items[index].top - items[index + 1].top));
-        pairBottomOffsets.push(Math.abs(items[index].visibleBottom - items[index + 1].visibleBottom));
-      }
-      return {
-        display: getComputedStyle(element).display,
-        itemCount: items.length,
-        maxPairOffset: Math.max(...pairOffsets),
-        maxVisibleBottomOffset: Math.max(...pairBottomOffsets),
-        wrappersUseFlex: items.every((item) => item.display === 'flex'),
-        hasManualRows: items.some((item) => item.rowEnd !== ''),
-      };
-    });
+      }));
+    }
+    const rowGeometry = {
+      display: rowSamples[0].display,
+      itemCount: Math.max(...rowSamples.map((sample) => sample.itemCount)),
+      maxPairOffset: Math.max(...rowSamples.map((sample) => sample.maxPairOffset)),
+      maxVisibleBottomOffset: Math.max(...rowSamples.map((sample) => sample.maxVisibleBottomOffset)),
+      wrappersUseFlex: rowSamples.every((sample) => sample.wrappersUseFlex),
+      hasManualRows: rowSamples.some((sample) => sample.hasManualRows),
+    };
     assert(rowGeometry.display === 'grid', `library uses ${rowGeometry.display} instead of a row grid`);
     assert(rowGeometry.itemCount >= 4, `library rendered only ${rowGeometry.itemCount} cards for row QA`);
     assert(rowGeometry.maxPairOffset <= 1, `paired cards differ by ${rowGeometry.maxPairOffset}px at their top edge`);

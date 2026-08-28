@@ -92,6 +92,7 @@ describe('virtual grid window calculation', () => {
 
 describe('LibraryClient virtual grid wiring', () => {
   const source = readFileSync(join(__dirname, '..', 'src/components/LibraryClient.tsx'), 'utf8');
+  const cardSource = readFileSync(join(__dirname, '..', 'src/components/VnCard.tsx'), 'utf8');
   const gridBody = source.split('function Grid({')[1]?.split('\nconst MemoCard')[0] ?? '';
   const memoCardBody = source.split('const MemoCard')[1]?.split('\ninterface Group')[0] ?? '';
 
@@ -106,7 +107,9 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(gridBody).toContain('data-virtualized-library-grid');
     expect(gridBody).toContain('data-library-card-grid');
     expect(memoCardBody).toContain('role="listitem"');
-    expect(memoCardBody).toContain('className="flex min-w-0 items-stretch"');
+    expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch"');
+    expect(cardSource).toContain('min-h-0 w-full flex-1 self-stretch flex-col');
+    expect(cardSource).not.toContain('group relative flex h-full w-full flex-1 flex-col');
     expect(gridBody).not.toContain('data-library-card-lanes');
     expect(memoCardBody).not.toContain('MasonryGridItem');
     expect(gridBody).toContain('position={(virtual.enabled ? virtual.startIndex : 0) + i + 1}');

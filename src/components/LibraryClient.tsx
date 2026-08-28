@@ -1907,7 +1907,7 @@ const MemoCard = memo(function MemoCard({
 }) {
   const handle = useCallback(() => onSelect(id), [onSelect, id]);
   return (
-    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-w-0 items-stretch">
+    <div role="listitem" aria-posinset={position} aria-setsize={setSize} className="flex min-h-0 min-w-0 items-stretch">
       <VnCard
         selectable={selectable}
         selected={selected}
