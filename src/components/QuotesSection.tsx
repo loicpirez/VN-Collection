@@ -11,13 +11,16 @@ import type { VndbQuote } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeQuotesResponse } from '@/lib/quote-client-shape';
+import { useNearViewport } from '@/lib/use-near-viewport';
 export function QuotesSection({ vnId }: { vnId: string }) {
   const t = useT();
   const [quotes, setQuotes] = useState<VndbQuote[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activation = useNearViewport<HTMLDivElement>();
 
   useEffect(() => {
+    if (!activation.active) return;
     const ac = new AbortController();
     setQuotes(null);
     setLoading(true);
@@ -40,13 +43,13 @@ export function QuotesSection({ vnId }: { vnId: string }) {
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [vnId, t.common.error]);
+  }, [activation.active, vnId, t.common.error]);
 
   useSectionCount(quotes ? quotes.length : null);
 
   return (
-    <div className="px-6 py-5" aria-busy={loading || undefined}>
-        {loading && (
+    <div ref={activation.ref} className="px-6 py-5" aria-busy={!activation.active || loading || undefined}>
+        {(!activation.active || loading) && (
           <QuoteRowsSkeleton />
         )}
         {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}

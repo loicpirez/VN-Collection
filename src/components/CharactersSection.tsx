@@ -10,6 +10,7 @@ import { useDisplaySettings } from '@/lib/settings/client';
 import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import type { VndbCharacter } from '@/lib/vndb-types';
 import { fetchVnCharacters, type VnCharacterRow } from '@/lib/vn-characters-cache';
+import { useNearViewport } from '@/lib/use-near-viewport';
 
 const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appears: 3 };
 
@@ -122,8 +123,10 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fetchedForRef = useRef<string | null>(null);
+  const activation = useNearViewport<HTMLDivElement>();
 
   useEffect(() => {
+    if (!activation.active) return;
     fetchedForRef.current = vnId;
     // AbortController instead of an `alive` flag - cancels the
     // pending fetch when the user navigates away mid-load instead of
@@ -151,7 +154,7 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
       ac.abort();
       if (!settled) fetchedForRef.current = null;
     };
-  }, [vnId, t.common.error]);
+  }, [activation.active, vnId, t.common.error]);
 
   const sorted = useMemo(
     () =>
@@ -166,8 +169,8 @@ export function CharactersSection({ vnId, spoilOverride }: { vnId: string; spoil
   useSectionCount(chars ? chars.length : null);
 
   return (
-    <div className="px-6 py-5" aria-busy={loading || undefined}>
-      {loading && <CharacterCardsSkeleton />}
+    <div ref={activation.ref} className="px-6 py-5" aria-busy={!activation.active || loading || undefined}>
+      {(!activation.active || loading) && <CharacterCardsSkeleton />}
       {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {!loading && chars && chars.length === 0 && <p className="text-sm text-muted">{t.characters.empty}</p>}
       {sorted.length > 0 && (

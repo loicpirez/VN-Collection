@@ -28,7 +28,8 @@ describe('reusable read-island lifecycle', () => {
   it('reloads quotes for every VN identity and uses ASCII presentation tokens', () => {
     expect(QUOTES).toContain('setQuotes(null)');
     expect(QUOTES).not.toContain('if (quotes !== null) return');
-    expect(QUOTES).toContain("}, [vnId, t.common.error]);");
+    expect(QUOTES).toContain("}, [activation.active, vnId, t.common.error]);");
+    expect(QUOTES).toContain('useNearViewport<HTMLDivElement>()');
     expect(QUOTES).not.toContain(' · ');
     expect(QUOTES).not.toContain('—');
     expect(QUOTES).not.toContain('“');

@@ -29,6 +29,7 @@ import { safeHref } from '@/lib/safe-href';
 import { readApiError } from '@/lib/api-error-read';
 import { decodeOwnedEditionsResponse, decodeVnDetailReleasesResponse } from '@/lib/vn-detail-client-shape';
 import { PaginatedGrid } from './PaginatedGrid';
+import { useNearViewport } from '@/lib/use-near-viewport';
 const VOICED_KEY: Record<number, 'voiced1' | 'voiced2' | 'voiced3' | 'voiced4'> = {
   1: 'voiced1',
   2: 'voiced2',
@@ -274,6 +275,7 @@ export function ReleasesSection({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
+  const activation = useNearViewport<HTMLDivElement>();
 
   useEffect(() => {
     identityRef.current = vnId;
@@ -289,6 +291,7 @@ export function ReleasesSection({
   }, [vnId]);
 
   useEffect(() => {
+    if (!activation.active) return;
     const ac = new AbortController();
     setReleases(null);
     setLoading(true);
@@ -311,7 +314,7 @@ export function ReleasesSection({
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [vnId, t.common.error]);
+  }, [activation.active, vnId, t.common.error]);
 
   const refreshOwned = useCallback(async (signal?: AbortSignal) => {
     const ownerVnId = vnId;
@@ -394,8 +397,8 @@ export function ReleasesSection({
   useSectionCount(releases ? releases.length : null);
 
   return (
-    <div className="px-6 py-5" aria-busy={loading || undefined}>
-      {loading && <ReleaseRowsSkeleton label={t.common.loading} />}
+    <div ref={activation.ref} className="px-6 py-5" aria-busy={!activation.active || loading || undefined}>
+      {(!activation.active || loading) && <ReleaseRowsSkeleton label={t.common.loading} />}
       {error && <ErrorAlert title={t.common.error}>{error}</ErrorAlert>}
       {!loading && releases && releases.length === 0 && <p className="text-sm text-muted">{t.releases.empty}</p>}
       {releases && releases.length > 0 && (
