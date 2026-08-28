@@ -116,9 +116,8 @@ describe('LibraryClient virtual grid wiring', () => {
     expect(memoCardBody).toContain('role="listitem"');
     expect(memoCardBody).toContain('className="flex min-h-0 min-w-0 items-stretch"');
     expect(memoCardBody).not.toContain('naturalHeight');
-    expect(cardSource).toContain('w-full flex-1 self-stretch flex-col');
+    expect(cardSource).toContain('h-full min-h-0 w-full flex-1 self-stretch flex-col');
     expect(cardSource).toContain("role={listPosition != null ? 'listitem' : undefined}");
-    expect(cardSource).not.toContain('group relative flex h-full w-full flex-1 flex-col');
     expect(gridBody).not.toContain('data-library-card-masonry');
     expect(gridBody).not.toContain("gridAutoFlow: 'row dense'");
     expect(gridBody).not.toContain("gridAutoRows: '1px'");

@@ -10,7 +10,9 @@ describe('VN card grid stretch contract', () => {
     );
     const listGrid = source('src/components/ListReorderGrid.tsx');
     expect(listGrid).toContain('relative flex min-h-0 w-full min-w-0 items-stretch');
-    expect(listGrid).toContain('w-full flex-1 self-stretch flex-col');
+    expect(source('src/components/VnCard.tsx')).toContain(
+      'h-full min-h-0 w-full flex-1 self-stretch flex-col',
+    );
   });
 
   it('keeps paginated list, series, and relation wrappers stretchable', () => {

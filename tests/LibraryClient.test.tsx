@@ -41,7 +41,7 @@ vi.mock('@/components/VnCard', () => ({
       role={listPosition != null ? 'listitem' : undefined}
       aria-posinset={listPosition}
       aria-setsize={listSize}
-      className="flex-1 self-stretch"
+      className="h-full flex-1 self-stretch"
     >
       <span>{data.title}</span>
       {selectable && (
@@ -1900,7 +1900,7 @@ describe('LibraryClient', () => {
     expect(grid).not.toHaveAttribute('data-library-card-masonry');
     const cards = grid!.querySelectorAll<HTMLElement>(':scope > [data-vn-card]');
     expect(cards).toHaveLength(rows.length);
-    expect(cards[0]).toHaveClass('flex-1', 'self-stretch');
+    expect(cards[0]).toHaveClass('h-full', 'flex-1', 'self-stretch');
     rectSpy.mockRestore();
   });
 
