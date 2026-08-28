@@ -1796,8 +1796,7 @@ function Grid({
   }, []);
   useEffect(() => {
     if (!virtualize || items.length <= virtualThreshold) return;
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef.current!;
     measureGrid();
     window.addEventListener('resize', measureGrid);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureGrid);
@@ -1833,7 +1832,7 @@ function Grid({
     const next: VirtualCardRow[] = [];
     for (let startIndex = 0; startIndex < items.length; startIndex += columnCount) {
       next.push({
-        key: `${columnCount}:${items[startIndex]?.id ?? startIndex}`,
+        key: `${columnCount}:${items[startIndex].id}`,
         startIndex,
         items: items.slice(startIndex, startIndex + columnCount),
         data: cardData.slice(startIndex, startIndex + columnCount),

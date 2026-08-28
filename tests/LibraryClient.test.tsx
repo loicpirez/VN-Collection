@@ -1829,6 +1829,41 @@ describe('LibraryClient', () => {
     rectSpy.mockRestore();
   });
 
+  it('renders every measured row boundary in dense mode without adding space after the last row', async () => {
+    localStorage.setItem('vn_display_settings_v1', JSON.stringify({ denseLibrary: true }));
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 900,
+      top: 10,
+      left: 0,
+      right: 900,
+      bottom: 20_000,
+      height: 19_990,
+      x: 0,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    const rows = Array.from({ length: 120 }, (_, index) => cardRow(`v6${String(index + 1).padStart(4, '0')}`, `Dense VN ${index + 1}`));
+    installFetchRouter({ collectionItems: rows, total: rows.length });
+    const { container } = renderWithProviders(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 20_000, itemHeight: 420 }}>
+        <DisplaySettingsProvider>
+          <LibraryClient mode="full" />
+        </DisplaySettingsProvider>
+      </VirtuosoMockContext.Provider>,
+      { locale: 'en' },
+    );
+    await screen.findByText('Dense VN 1');
+    await waitFor(() => {
+      expect(container.querySelector('[data-virtualized-library-grid="measured-rows"]')).not.toBeNull();
+    });
+    const measuredRows = container.querySelectorAll<HTMLElement>('[data-library-card-row]');
+    expect(measuredRows.length).toBeGreaterThan(1);
+    expect(measuredRows[0].style.paddingBottom).toBe('16px');
+    expect(measuredRows[measuredRows.length - 1].style.paddingBottom).toBe('0px');
+    expect(measuredRows[0].style.gridTemplateColumns).toContain('repeat(5,');
+    rectSpy.mockRestore();
+  });
+
   it('keeps compact mobile card rows in native flow without virtual spacers', async () => {
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 390,
@@ -1898,6 +1933,53 @@ describe('LibraryClient', () => {
       writable: true,
       value: originalResizeObserver,
     });
+    rectSpy.mockRestore();
+  });
+
+  it('ignores a pending resize measurement after the grid has unmounted', async () => {
+    const originalResizeObserver = window.ResizeObserver;
+    const originalAddEventListener = window.addEventListener;
+    let resizeListener: EventListener | null = null;
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'resize') resizeListener = listener as EventListener;
+      originalAddEventListener.call(window, type, listener, options);
+    });
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 900,
+      top: 10,
+      left: 0,
+      right: 900,
+      bottom: 800,
+      height: 790,
+      x: 0,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(window, 'ResizeObserver', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+    const rows = Array.from({ length: 120 }, (_, index) => cardRow(`v5${String(index + 1).padStart(4, '0')}`, `Unmount VN ${index + 1}`));
+    installFetchRouter({ collectionItems: rows, total: rows.length });
+    const { unmount } = renderWithProviders(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 420 }}>
+        <DisplaySettingsProvider>
+          <LibraryClient mode="full" />
+        </DisplaySettingsProvider>
+      </VirtuosoMockContext.Provider>,
+      { locale: 'en' },
+    );
+    await screen.findByText('Unmount VN 1');
+    expect(resizeListener).not.toBeNull();
+    unmount();
+    expect(() => resizeListener?.(new Event('resize'))).not.toThrow();
+    Object.defineProperty(window, 'ResizeObserver', {
+      configurable: true,
+      writable: true,
+      value: originalResizeObserver,
+    });
+    addEventListenerSpy.mockRestore();
     rectSpy.mockRestore();
   });
 
