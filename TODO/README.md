@@ -4,12 +4,13 @@ This folder separates active audit work from historical reports.
 
 ## Active reports
 
-No report is currently open. Start the next independent audit in a new round so
-completed evidence is not silently reused as proof of current behavior.
+| Report | Purpose | Task format |
+| --- | --- | --- |
+| `round14-full-app-audit-report-tasks.md` | Responsive regression correction and pending immutable production activation evidence. | `ID`, `Severity`, `Finding and implementation direction`, `Location`, `Status` |
 
 ## Completed reports
 
-Rounds 8 through 14 are completed evidence sets retained in this folder because
+Rounds 8 through 13 are completed evidence sets retained in this folder because
 the current audit links to their implementation and production verification:
 
 - `round8-full-app-audit-report-tasks.md`
@@ -19,7 +20,6 @@ the current audit links to their implementation and production verification:
 - `round11-vndb-integration-report-tasks.md`
 - `round12-full-app-audit-report-tasks.md`
 - `round13-full-app-audit-report-tasks.md`
-- `round14-full-app-audit-report-tasks.md`
 
 ## Historical reports
 

@@ -43,14 +43,27 @@ function splitMarkdownRow(line: string): string[] {
   return cells;
 }
 
-const closedRows = REPORT
+const taskRows = REPORT
   .split('\n')
-  .filter((line) => /^\| R14-[A-Z]+-\d+ /.test(line) && /\| DONE_WITH_DIFF \|$/.test(line))
+  .filter((line) => /^\| R14-[A-Z]+-\d+ /.test(line))
   .map(splitMarkdownRow);
+const closedRows = taskRows.filter((cells) => cells[5] === 'DONE_WITH_DIFF');
 
 describe('active audit report closure evidence', () => {
   it('contains a meaningful set of closed findings', () => {
     expect(closedRows.length).toBeGreaterThan(100);
+  });
+
+  it('assigns one unique identifier to every finding', () => {
+    const seen = new Set<string>();
+    const duplicates = taskRows
+      .map((cells) => cells[1])
+      .filter((id) => {
+        if (seen.has(id)) return true;
+        seen.add(id);
+        return false;
+      });
+    expect(duplicates).toEqual([]);
   });
 
   it('gives every closed finding a substantive problem and resolution statement', () => {
