@@ -73,6 +73,7 @@ describe('resolvePageSpaceScope', () => {
     ['/vn/v1', 'vn'],
     ['/release/r1', 'release'],
     ['/staff/s1', 'staff'],
+    ['/seiyuu', 'staff'],
     ['/characters', 'character'],
     ['/character/ch1', 'character'],
     ['/producers', 'producer'],

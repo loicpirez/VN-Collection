@@ -23,6 +23,7 @@ No cloud account. No telemetry. No bundled games. No bundled copyrighted media.
 - Organize owned editions in a visual shelf layout, including fullscreen read-only browsing and drag-and-drop layout editing.
 - Cache and compare metadata from VNDB and ErogameScape.
 - Search locally and remotely across VNs, releases, producers, staff, characters, tags, traits, and EGS entries.
+- Browse a dedicated local seiyuu index at `/seiyuu`, with collection scope, alias/language search, credit and character rankings, career spans, representative roles, and server pagination.
 - Browse discovery pages such as upcoming releases, top-ranked VNs, recommendations, dumped status, and statistics.
 - Customize layouts, density, filters, spoiler visibility, and content display.
 - Export, import, and back up the configured SQLite or PostgreSQL database.
@@ -101,7 +102,7 @@ changing the opt-in state.
 ### Search and discovery
 
 - Global search across local data, VNDB, and EGS.
-- Character and staff search with local/VNDB modes where supported.
+- Character and staff search with local/VNDB modes where supported, plus a fully local, ranked seiyuu browser backed by materialized voice credits.
 - Tag and trait exploration with local collection and VNDB result modes.
 - Recommendations based on tags, ratings, ownership state, and discovery mode.
 - Top-ranked pages with vote thresholds and weighted ranking.

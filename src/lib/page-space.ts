@@ -190,7 +190,7 @@ export function resolvePageSpaceScope(pathname: string): PageSpaceScope {
   if (pathname.startsWith('/search')) return 'search';
   if (pathname.startsWith('/vn/')) return 'vn';
   if (pathname.startsWith('/release/')) return 'release';
-  if (pathname.startsWith('/staff')) return 'staff';
+  if (pathname.startsWith('/staff') || pathname.startsWith('/seiyuu')) return 'staff';
   if (pathname.startsWith('/character') || pathname.startsWith('/characters')) return 'character';
   if (pathname.startsWith('/producer') || pathname.startsWith('/producers')) return 'producer';
   if (pathname.startsWith('/series')) return 'series';

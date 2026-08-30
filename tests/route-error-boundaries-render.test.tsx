@@ -26,6 +26,7 @@ import RecommendationsError from '@/app/recommendations/error';
 import ReleaseError from '@/app/release/[id]/error';
 import SchemaError from '@/app/schema/error';
 import SearchError from '@/app/search/error';
+import SeiyuuError from '@/app/seiyuu/error';
 import SeriesError from '@/app/series/(index)/error';
 import SeriesDetailError from '@/app/series/[id]/error';
 import ShelfError from '@/app/shelf/error';
@@ -74,6 +75,7 @@ const boundaries: Array<[string, ComponentType<BoundaryProps>, string, string]> 
   ['release detail', ReleaseError, '/', 'Release detail error'],
   ['schema', SchemaError, '/', 'Schema page error'],
   ['search', SearchError, '/', 'Search page error'],
+  ['seiyuu', SeiyuuError, '/', 'Seiyuu page error'],
   ['series', SeriesError, '/', 'Series page error'],
   ['series detail', SeriesDetailError, '/series', 'Series detail error'],
   ['shelf', ShelfError, '/', 'Shelf page error'],

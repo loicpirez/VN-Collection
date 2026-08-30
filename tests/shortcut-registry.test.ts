@@ -53,6 +53,7 @@ describe('shortcut-registry — routeForShortcutKey', () => {
     expect(routeForShortcutKey('s', YEAR)).toBe('/search');
     expect(routeForShortcutKey('w', YEAR)).toBe('/wishlist');
     expect(routeForShortcutKey('l', YEAR)).toBe('/lists');
+    expect(routeForShortcutKey('j', YEAR)).toBe('/seiyuu');
   });
 
   it('substitutes the current year into the dynamic /year href', () => {

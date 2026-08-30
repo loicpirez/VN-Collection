@@ -22,6 +22,7 @@ import RecommendationsLoading from '@/app/recommendations/loading';
 import ReleaseLoading from '@/app/release/[id]/loading';
 import SchemaLoading from '@/app/schema/loading';
 import SearchLoading from '@/app/search/loading';
+import SeiyuuLoading from '@/app/seiyuu/loading';
 import SeriesLoading from '@/app/series/(index)/loading';
 import SeriesDetailLoading from '@/app/series/[id]/loading';
 import ShelfLoading from '@/app/shelf/loading';
@@ -98,6 +99,7 @@ const routeLoaders = [
   ReleaseLoading,
   SchemaLoading,
   SearchLoading,
+  SeiyuuLoading,
   SeriesLoading,
   SeriesDetailLoading,
   ShelfLoading,
@@ -125,6 +127,16 @@ describe('route loading skeletons', () => {
       expect(html).toContain('role="status"');
       expect(html).toContain('animate-pulse');
     }
+  });
+
+  it('matches the seiyuu index statistics, filters, result media, and profile geometry', async () => {
+    const html = renderToStaticMarkup(await SeiyuuLoading());
+    expect(html).toContain('data-seiyuu-results-skeleton');
+    expect(html).toContain('grid-cols-2');
+    expect(html).toContain('sm:grid-cols-3');
+    expect(html).toContain('xl:grid-cols-6');
+    expect(html).toContain('aspect-square');
+    expect(html).toContain('h-11');
   });
 
   it('matches the VN detail hero, cover overlap, metadata, media, and section geometry', async () => {

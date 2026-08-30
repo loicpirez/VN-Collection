@@ -17,6 +17,7 @@ export type NavigationRouteId =
   | 'traits'
   | 'characters'
   | 'staff'
+  | 'seiyuu'
   | 'brandOverlap'
   | 'stats'
   | 'shelf'
@@ -56,6 +57,7 @@ const STATIC_HREFS: Record<Exclude<NavigationRouteId, 'year'>, string> = {
   traits: '/traits',
   characters: '/characters',
   staff: '/staff',
+  seiyuu: '/seiyuu',
   brandOverlap: '/brand-overlap',
   stats: '/stats',
   shelf: '/shelf',
@@ -88,6 +90,7 @@ const NAVIGATION_DEFINITIONS: ReadonlyArray<Omit<NavigationRoute, 'href'>> = [
   { id: 'traits', group: 'browse' },
   { id: 'characters', group: 'browse' },
   { id: 'staff', group: 'browse' },
+  { id: 'seiyuu', group: 'browse' },
   { id: 'brandOverlap', group: 'insights' },
   { id: 'stats', group: 'insights' },
   { id: 'shelf', group: 'insights' },

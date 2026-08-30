@@ -38,6 +38,7 @@ export const ROUTE_SHORTCUTS: RouteShortcut[] = [
   { key: 'i', href: '/traits', label: (t) => t.nav.traits },
   { key: 'k', href: '/characters', label: (t) => t.nav.characters },
   { key: 'f', href: '/staff', label: (t) => t.nav.staff },
+  { key: 'j', href: '/seiyuu', label: (t) => t.nav.seiyuu },
   { key: 'e', href: '/shelf', label: (t) => t.nav.shelf },
   { key: 'b', href: '/dumped', label: (t) => t.nav.dumped },
   { key: 'a', href: '/activity', label: (t) => t.nav.activity },

@@ -691,7 +691,12 @@ vn_staff_credit  no formal PK; indexed on (vn_id, sid)
 vn_va_credit     no formal PK; indexed on (vn_id, sid)
                   vn_id, sid, aid, c_id, c_name, c_original, c_image_url,
                   va_name, va_original, va_lang, note
-                  — Joins vn ↔ staff ↔ character for the seiyuu page
+                  — Joins vn ↔ staff ↔ character for `/seiyuu`; the dedicated
+                  local index ranks distinct actors by VN, collection overlap,
+                  character count, recent credited year, or normalized name.
+                  Search covers ids, credited names, and aliases. Results are
+                  server-paginated and representative characters are fetched
+                  in one batched query, never one query per card.
 
 saved_filter     PK id (auto)
                   name, params, position, created_at
@@ -2167,6 +2172,10 @@ New DB tables introduced by recent batches:
   filterable, collapsible JSON tree.
 - Character search at `/characters` and staff search at `/staff` —
   full VNDB-wide query, idle hint + skeleton-free zero-state copy.
+- Dedicated seiyuu browser at `/seiyuu` — local-only aggregate index over
+  `vn_va_credit`, with all-data/collection scopes, language and minimum-VN
+  filters, deterministic alias-aware names, representative character media,
+  responsive cards, loading/error boundaries, and canonical URL state.
 - Live invalidation: `/api/download-status/stream` is a Server-Sent
   Events feed driven by the pub/sub in `lib/download-status.ts`. The
   status bar subscribes and falls back to polling on EventSource
