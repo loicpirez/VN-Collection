@@ -33,17 +33,24 @@ export async function ProducerVnsSections({
   let data: ProducerAssociations;
   try {
     data = await fetchProducerAssociations(producerId, { cacheOnly: true });
+    if (data.upstreamFailed || data.stale) {
+      data = await fetchProducerAssociations(producerId);
+    }
   } catch {
-    data = {
-      name: null,
-      developerVns: [],
-      publisherVns: [],
-      totalUnique: 0,
-      ownedUnique: 0,
-      fromCache: false,
-      upstreamFailed: true,
-      stale: false,
-    };
+    try {
+      data = await fetchProducerAssociations(producerId);
+    } catch {
+      data = {
+        name: null,
+        developerVns: [],
+        publisherVns: [],
+        totalUnique: 0,
+        ownedUnique: 0,
+        fromCache: false,
+        upstreamFailed: true,
+        stale: false,
+      };
+    }
   }
 
   const developerVns = scope === 'collection' ? data.developerVns.filter((v) => v.owned) : data.developerVns;

@@ -79,18 +79,52 @@ beforeEach(() => {
 });
 
 describe('ProducerVnsSections', () => {
-  it('keeps the page usable when the upstream association fetch fails', async () => {
-    vi.mocked(fetchProducerAssociations).mockRejectedValueOnce(new Error('offline'));
+  it('keeps the page usable when both cache and upstream association fetches fail', async () => {
+    vi.mocked(fetchProducerAssociations).mockRejectedValue(new Error('offline'));
     const html = renderToStaticMarkup(await ProducerVnsSections({ producerId: 'p90001' }));
     expect(html).toContain(dictionaries.en.producerVns.heading);
     expect(html).toContain('refresh p90001');
     expect(html).toContain('href="/producer/p90001"');
     expect(html).not.toContain(dictionaries.en.producerVns.developerCredits);
-    expect(fetchProducerAssociations).toHaveBeenCalledWith('p90001', { cacheOnly: true });
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001', { cacheOnly: true });
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(2, 'p90001');
+  });
+
+  it('hydrates an uncached producer automatically instead of rendering a false zero', async () => {
+    vi.mocked(fetchProducerAssociations)
+      .mockResolvedValueOnce(associations({ upstreamFailed: true, fromCache: true }))
+      .mockResolvedValueOnce(associations({
+        developerVns: [ownedDev, missingDev],
+        totalUnique: 2,
+        ownedUnique: 1,
+      }));
+
+    const html = renderToStaticMarkup(await ProducerVnsSections({ producerId: 'p90001' }));
+
+    expect(html).toContain('Owned developer VN');
+    expect(html).toContain('Missing developer VN');
+    expect(html).toContain('1/2 owned');
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001', { cacheOnly: true });
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(2, 'p90001');
+  });
+
+  it('falls back to a live association read when the cache lookup itself fails', async () => {
+    vi.mocked(fetchProducerAssociations)
+      .mockRejectedValueOnce(new Error('cache unavailable'))
+      .mockResolvedValueOnce(associations({
+        publisherVns: [publisher],
+        totalUnique: 1,
+      }));
+
+    const html = renderToStaticMarkup(await ProducerVnsSections({ producerId: 'p90001' }));
+
+    expect(html).toContain('Publisher VN');
+    expect(html).toContain(dictionaries.en.producerVns.publisherCredits);
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(2, 'p90001');
   });
 
   it('renders developer and publisher cards, stale state, owned chips, and add affordances', async () => {
-    vi.mocked(fetchProducerAssociations).mockResolvedValueOnce(associations({
+    vi.mocked(fetchProducerAssociations).mockResolvedValue(associations({
       developerVns: [ownedDev, missingDev],
       publisherVns: [publisher],
       totalUnique: 3,
