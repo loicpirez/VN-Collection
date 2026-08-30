@@ -23,6 +23,10 @@ const RESPONSIVE = readFileSync(
   join(ROOT, 'scripts/responsive-audit.mjs'),
   'utf8',
 );
+const SENTINEL = readFileSync(
+  join(ROOT, 'scripts/frontend-regression-sentinel.mjs'),
+  'utf8',
+);
 const VN_PAGE_STABILITY = readFileSync(
   join(ROOT, 'scripts/r5-204-vn-page-stability.mjs'),
   'utf8',
@@ -135,13 +139,19 @@ describe('R5-180 — yarn qa:interactions is real Playwright', () => {
 
 describe('responsive audit matrix', () => {
   it('covers the full route inventory across all three browser engines and five viewport classes', () => {
-    expect(RESPONSIVE).toContain('const expectedPageCount = 40');
+    expect(RESPONSIVE).toContain('const expectedPageCount = 41');
+    expect(RESPONSIVE).toContain("{ key: 'seiyuu', path: '/seiyuu' }");
     expect(RESPONSIVE).toContain('chromium,');
     expect(RESPONSIVE).toContain('firefox,');
     expect(RESPONSIVE).toContain('webkit,');
     for (const viewport of ['narrow', 'phone', 'landscape', 'tablet', 'desktop']) {
       expect(RESPONSIVE).toContain(`${viewport}: {`);
     }
+  });
+
+  it('keeps the seiyuu route in the fast regression sentinel', () => {
+    expect(SENTINEL).toContain("const route = '/seiyuu'");
+    expect(SENTINEL).toContain('await checkSeiyuu()');
   });
 
   it('keeps recovered local-image failures visible without treating them as blocking errors', () => {

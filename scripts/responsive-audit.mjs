@@ -11,7 +11,7 @@ const screenshotDirectory = resolve(process.env.RESPONSIVE_SCREENSHOT_DIR ?? '.t
 const screenshotFullPage = process.env.RESPONSIVE_SCREENSHOT_FULL_PAGE === '1';
 const basicUser = process.env.RESPONSIVE_USER;
 const basicPassword = process.env.RESPONSIVE_PASSWORD;
-const expectedPageCount = 40;
+const expectedPageCount = 41;
 const auditOrigin = new URL(baseURL);
 const usesLoopbackHttp = auditOrigin.protocol === 'http:'
   && ['127.0.0.1', 'localhost', '::1'].includes(auditOrigin.hostname);
@@ -37,6 +37,7 @@ const routes = [
   { key: 'traits', path: '/traits' },
   { key: 'characters', path: '/characters' },
   { key: 'staff', path: '/staff' },
+  { key: 'seiyuu', path: '/seiyuu' },
   { key: 'brand-overlap', path: '/brand-overlap' },
   { key: 'stats', path: '/stats' },
   { key: 'shelf', path: '/shelf' },

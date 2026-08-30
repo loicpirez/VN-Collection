@@ -192,6 +192,26 @@ async function checkStaff() {
   assert(route, 'search input present', contains(html, 'type="search"'));
 }
 
+async function checkSeiyuu() {
+  const route = '/seiyuu';
+  const html = await fetchHtml(route).catch((e) => {
+    assert(route, 'route reachable', false, e.message);
+    return '';
+  });
+  if (!html) return;
+  assert(route, 'page not blank', html.length > 4000, `body bytes=${html.length}`);
+  assert(
+    route,
+    'local index scope present',
+    matchesAny(html, ['Tout l’index local', 'Full local index', 'ローカル全件']),
+  );
+  assert(
+    route,
+    'collection scope present',
+    matchesAny(html, ['Présents dans la collection', 'Present in the collection', 'コレクションに登場']),
+  );
+}
+
 async function checkRecommendations() {
   const route = '/recommendations';
   const html = await fetchHtml(route).catch((e) => {
@@ -260,6 +280,7 @@ async function main() {
   await checkUpcoming();
   await checkCharacters();
   await checkStaff();
+  await checkSeiyuu();
   await checkRecommendations();
   await checkShelf();
   await checkEgs();
