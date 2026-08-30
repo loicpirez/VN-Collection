@@ -24,6 +24,7 @@ import { fmtNum } from '@/lib/locale-number';
 import type { HomeSectionLayoutV1 } from '@/lib/home-section-layout';
 import type { VnDetailLayoutV1 } from '@/lib/vn-detail-layout';
 import { CollapsibleSummary } from './CollapsibleSummary';
+import { VndbLocalImportPanel } from './VndbLocalImportPanel';
 import type { CharacterDetailLayoutV1 } from '@/lib/character-detail-layout';
 import type { StaffDetailLayoutV1 } from '@/lib/staff-detail-layout';
 import type { ProducerDetailLayoutV1 } from '@/lib/producer-detail-layout';
@@ -761,6 +762,8 @@ export function SettingsButton() {
                       )}
                     </div>
                   )}
+
+                  {server?.vndb_token.hasToken && <VndbLocalImportPanel />}
 
                   <label className="mt-4 flex items-start gap-2 rounded-md border border-border bg-bg-elev/30 p-3 text-xs">
                     <input

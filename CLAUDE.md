@@ -338,6 +338,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET | `/api/vndb/quote/random` | Random quote (TTL = 0, never cached) |
 | GET | `/api/vndb/cache` | Cache stats |
 | DELETE | `/api/vndb/cache` (`?mode=expired|prefix&prefix=…`) | Invalidate cache |
+| POST | `/api/vndb/import-local-library` | Preview local games and owned editions missing from VNDB user lists, then apply only explicitly selected and revalidated rows |
 | GET/PATCH | `/api/settings` | Read / update app settings. SAFE_KEYS include `vndb_token`, `random_quote_source`, `default_sort`, `default_order`, `default_group`, `home_section_layout_v1`, `vn_detail_section_layout_v1`, `vndb_writeback`, `vndb_backup_url`, `vndb_backup_enabled`, `steam_api_key`, `steam_id`, `egs_username`, `vndb_fanout`. Sensitive keys (token / Steam key / backup URL) leave a tail in `app_setting_audit`. |
 | GET | `/api/wishlist` | Authenticated wishlist (ulist label 5) + in_collection + EGS hint |
 | POST/DELETE | `/api/wishlist/[id]` | Add or remove a VN from the VNDB wishlist label |
@@ -528,6 +529,7 @@ route file or exported HTTP method changes.
 | /api/vn/[id]/vndb-status | GET, POST, PATCH, DELETE |
 | /api/vndb/auth | GET |
 | /api/vndb/cache | GET, DELETE |
+| /api/vndb/import-local-library | POST |
 | /api/vndb/pull-statuses | POST |
 | /api/vndb/quote/random | GET |
 | /api/vndb/stats | GET |

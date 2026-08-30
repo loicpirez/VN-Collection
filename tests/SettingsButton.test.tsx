@@ -216,6 +216,7 @@ describe('SettingsButton', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('tab', { name: t.settings.tabs.account as string }));
     await waitFor(() => expect(screen.getByText('abc...')).toBeTruthy());
+    expect(within(dialog).getByText(t.settings.vndbImportTitle as string)).toBeTruthy();
 
     const tokenInput = within(dialog).getByLabelText(t.settings.vndbTokenPlaceholder as string);
     expect((within(dialog).getByRole('button', { name: t.common.save as string }) as HTMLButtonElement).disabled).toBe(true);

@@ -89,6 +89,9 @@ changing the opt-in state.
 - VN, release, producer, staff, character, tag, trait, quote, schema, stats, and user-list endpoints.
 - Token support for private list/status read and writeback.
 - Wishlist and VNDB list label management.
+- Reviewed local-to-VNDB library import for missing user-list games and locally
+  owned editions. The preview supports explicit selection, paginated review,
+  apply-time conflict checks, and retryable per-item failures.
 - Global request throttling and retry handling.
 - Selective and full metadata download.
 
@@ -202,6 +205,12 @@ VNDB_TOKEN=xxxx-xxxxx-xxxxx-xxxx-xxxxx-xxxxx-xxxx
 ```
 
 When both are present, the locally saved setting takes priority.
+
+The Account settings tab can compare the local library with the authenticated
+VNDB user lists. Games that are missing remotely can be added with their local
+status, and real VNDB release ids can be marked as obtained. Synthetic EGS-only
+games and synthetic editions remain local until they are mapped to VNDB. The
+preview requires `listread`; applying selected rows also requires `listwrite`.
 
 Never commit `.env.local`.
 

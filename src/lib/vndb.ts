@@ -1676,6 +1676,39 @@ export async function fetchUlistEntry(
   return r.results[0] ?? null;
 }
 
+/**
+ * Fetch fresh authenticated ulist entries for at most 100 VN identifiers.
+ * This follows VNDB's bulk-identifier recommendation and includes nested
+ * release-list states so callers can compare local physical ownership.
+ */
+export async function fetchUlistEntriesByIds(
+  userId: string,
+  vnIds: readonly string[],
+  options: { fresh?: boolean; signal?: AbortSignal } = {},
+): Promise<VndbUlistEntryDetail[]> {
+  const ids = [...new Set(vnIds.map((id) => id.toLowerCase()))];
+  if (ids.length === 0) return [];
+  if (ids.length > 100 || ids.some((id) => !isVndbVnId(id))) {
+    throw new Error('invalid VNDB ulist id batch');
+  }
+  const filters = ids.length === 1
+    ? ['id', '=', ids[0]]
+    : ['or', ...ids.map((id) => ['id', '=', id])];
+  const response = await vndbPost<VndbUlistEntryDetail>(
+    '/ulist',
+    {
+      user: userId,
+      filters,
+      fields: 'id, added, voted, lastmod, vote, started, finished, notes, labels{id,label}, releases{id,title,list_status}',
+      results: ids.length,
+    },
+    options.fresh ? 0 : 5 * 60 * 1000,
+    decodeVndbUlistEntryDetailRow,
+    options.signal,
+  );
+  return response.results;
+}
+
 export interface UlistPatch {
   vote?: number | null;
   notes?: string | null;

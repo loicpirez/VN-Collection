@@ -37,6 +37,7 @@ import {
   deleteUlistEntry,
   fetchTopVnsByTag,
   fetchUlistEntry,
+  fetchUlistEntriesByIds,
   fetchUlistLabels,
   getCharactersForTrait,
   getCharactersForTraitInVns,
@@ -98,6 +99,21 @@ function searchRow(id: string): Record<string, unknown> {
     languages: ['ja'],
     platforms: ['win'],
     developers: [],
+  };
+}
+
+function ulistDetailRow(id: string): Record<string, unknown> {
+  return {
+    id,
+    added: 1,
+    voted: null,
+    lastmod: 2,
+    vote: null,
+    started: null,
+    finished: null,
+    notes: null,
+    labels: [],
+    releases: [],
   };
 }
 
@@ -273,5 +289,39 @@ describe('ulist write helpers — surfaced upstream errors', () => {
   it('deleteUlistEntry throws on a non-OK response', async () => {
     providerFetchMock.mockResolvedValueOnce(new Response('gone', { status: 500 }));
     await expect(deleteUlistEntry('v90061')).rejects.toThrow(/500/);
+  });
+});
+
+describe('bulk ulist entry lookup', () => {
+  it('returns an empty list without a network call for an empty id batch', async () => {
+    expect(await fetchUlistEntriesByIds('u9001', [])).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('normalizes and deduplicates ids in a fresh bulk lookup', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([
+      ulistDetailRow('v90070'),
+      ulistDetailRow('v90071'),
+    ])));
+    const rows = await fetchUlistEntriesByIds('u9001', ['V90070', 'v90070', 'v90071'], { fresh: true });
+    expect(rows.map((row) => row.id)).toEqual(['v90070', 'v90071']);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body).toMatchObject({
+      user: 'u9001',
+      filters: ['or', ['id', '=', 'v90070'], ['id', '=', 'v90071']],
+      results: 2,
+    });
+  });
+
+  it('uses the single-id filter and rejects malformed or oversized batches', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([ulistDetailRow('v90072')])));
+    await fetchUlistEntriesByIds('u9001', ['v90072']);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.filters).toEqual(['id', '=', 'v90072']);
+    await expect(fetchUlistEntriesByIds('u9001', ['bad'])).rejects.toThrow('invalid VNDB ulist id batch');
+    await expect(fetchUlistEntriesByIds(
+      'u9001',
+      Array.from({ length: 101 }, (_, index) => `v${93000 + index}`),
+    )).rejects.toThrow('invalid VNDB ulist id batch');
   });
 });
