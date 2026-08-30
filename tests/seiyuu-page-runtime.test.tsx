@@ -178,6 +178,7 @@ describe('dedicated seiyuu page', () => {
     expect(html).toContain('href="/seiyuu?q=Voice&amp;lang=ja&amp;scope=collection&amp;sort=characters&amp;direction=asc&amp;minimum=10"');
     expect(html).toContain('page=3');
     expect(html).toContain('href="/staff/s990101"');
+    expect(html).toContain('class="tap-target mt-0.5 flex items-center');
     expect(html).toContain('href="/character/c990101"');
     expect(html).not.toContain('>Same-year Voice</p>');
   });

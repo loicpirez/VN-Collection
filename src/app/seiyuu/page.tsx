@@ -212,7 +212,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                     </span>
                     <Link
                       href={`/staff/${actor.id}`}
-                      className="mt-0.5 block truncate text-base font-bold hover:text-accent"
+                      className="tap-target mt-0.5 flex items-center truncate text-base font-bold hover:text-accent"
                       title={actor.name}
                     >
                       {actor.name}
