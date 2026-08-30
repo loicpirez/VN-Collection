@@ -133,11 +133,11 @@ function sqliteOrder(options: VoiceActorBrowseOptions): string {
 
 function postgresOrder(options: VoiceActorBrowseOptions): string {
   const direction = options.direction === 'asc' ? 'ASC' : 'DESC';
-  if (options.sort === 'name') return `app_search_normalize(primary_name) COLLATE "C" ${direction}, a.sid COLLATE "C" ASC`;
-  if (options.sort === 'collection') return `a.collection_vn_count ${direction}, a.vn_count DESC, app_search_normalize(primary_name) COLLATE "C" ASC`;
-  if (options.sort === 'characters') return `a.character_count ${direction}, a.vn_count DESC, app_search_normalize(primary_name) COLLATE "C" ASC`;
-  if (options.sort === 'recent') return `a.last_year ${direction} NULLS LAST, a.vn_count DESC, app_search_normalize(primary_name) COLLATE "C" ASC`;
-  return `a.vn_count ${direction}, a.character_count DESC, app_search_normalize(primary_name) COLLATE "C" ASC`;
+  if (options.sort === 'name') return `app_search_normalize(n.va_name) COLLATE "C" ${direction}, a.sid COLLATE "C" ASC`;
+  if (options.sort === 'collection') return `a.collection_vn_count ${direction}, a.vn_count DESC, app_search_normalize(n.va_name) COLLATE "C" ASC`;
+  if (options.sort === 'characters') return `a.character_count ${direction}, a.vn_count DESC, app_search_normalize(n.va_name) COLLATE "C" ASC`;
+  if (options.sort === 'recent') return `a.last_year ${direction} NULLS LAST, a.vn_count DESC, app_search_normalize(n.va_name) COLLATE "C" ASC`;
+  return `a.vn_count ${direction}, a.character_count DESC, app_search_normalize(n.va_name) COLLATE "C" ASC`;
 }
 
 function mapStats(row: StatsRow | undefined): VoiceActorBrowseStats {

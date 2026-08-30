@@ -53,6 +53,7 @@ import { createPostgresQuoteRepository } from '@/lib/db/repositories/quote';
 import { createPostgresEgsOverviewRepository } from '@/lib/db/repositories/egs-overview';
 import { createPostgresAnalyticsRepository } from '@/lib/db/repositories/analytics';
 import { createPostgresProducerRepository } from '@/lib/db/repositories/producer';
+import { createPostgresVoiceActorRepository } from '@/lib/db/repositories/voice-actors';
 import { createPostgresSavedFilterRepository } from '@/lib/db/repositories/saved-filter';
 import { createPostgresVnRouteRepository } from '@/lib/db/repositories/vn-route';
 import { createPostgresRecommendationReadRepository } from '@/lib/db/repositories/recommendation-read';
@@ -253,6 +254,67 @@ describe('real PostgreSQL migration runtime', () => {
         WHERE table_schema = current_schema() AND table_name = 'postgres_json_quarantine'
       `);
       expect(quarantineColumns.rows[0]?.count).toBe(7);
+    });
+  });
+
+  it('executes the local seiyuu ranking against migrated PostgreSQL tables', async () => {
+    await withIsolatedSchema(async (pool, schema) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query(`
+        INSERT INTO vn (id, title, released, fetched_at) VALUES
+          ('v997101', 'First voice fixture', '2001-01-01', 1),
+          ('v997102', 'Second voice fixture', '2004-01-01', 1)
+      `);
+      await pool.query(`
+        INSERT INTO collection (vn_id, status, added_at, updated_at)
+        VALUES ('v997101', 'completed', 1, 1)
+      `);
+      await pool.query(`
+        INSERT INTO vn_va_credit
+          (vn_id, sid, c_id, c_name, va_name, va_original, va_lang)
+        VALUES
+          ('v997101', 's997101', 'c997101', 'First role', 'Primary Voice', '声優名', 'ja'),
+          ('v997102', 's997101', 'c997102', 'Second role', 'Primary Voice', '声優名', 'ja')
+      `);
+
+      const priorBackend = process.env.DATABASE_BACKEND;
+      const priorUrl = process.env.DATABASE_URL;
+      const priorApplicationName = process.env.DATABASE_APPLICATION_NAME;
+      const applicationUrl = new URL(requiredTestUrl());
+      applicationUrl.searchParams.set('options', `-c search_path=${schema}`);
+      process.env.DATABASE_BACKEND = 'postgres';
+      process.env.DATABASE_URL = applicationUrl.toString();
+      process.env.DATABASE_APPLICATION_NAME = 'vndb-seiyuu-contract';
+      try {
+        const result = await createPostgresVoiceActorRepository().browse({
+          query: 'Primary',
+          language: 'ja',
+          scope: 'all',
+          sort: 'name',
+          direction: 'asc',
+          minimumVns: 1,
+          page: 1,
+          pageSize: 48,
+        });
+        expect(result.total).toBe(1);
+        expect(result.rows).toEqual([
+          expect.objectContaining({
+            id: 's997101',
+            name: 'Primary Voice',
+            vnCount: 2,
+            collectionVnCount: 1,
+            characterCount: 2,
+          }),
+        ]);
+      } finally {
+        await closePostgresPool();
+        if (priorBackend === undefined) delete process.env.DATABASE_BACKEND;
+        else process.env.DATABASE_BACKEND = priorBackend;
+        if (priorUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = priorUrl;
+        if (priorApplicationName === undefined) delete process.env.DATABASE_APPLICATION_NAME;
+        else process.env.DATABASE_APPLICATION_NAME = priorApplicationName;
+      }
     });
   });
 

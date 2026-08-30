@@ -120,7 +120,7 @@ describe('PostgreSQL local seiyuu repository', () => {
       collection: 'a.collection_vn_count',
       characters: 'a.character_count',
       recent: 'a.last_year',
-      name: 'app_search_normalize(primary_name)',
+      name: 'app_search_normalize(n.va_name)',
     };
     for (const sort of Object.keys(expectedOrder) as VoiceActorSort[]) {
       for (const direction of ['asc', 'desc'] as const) {
