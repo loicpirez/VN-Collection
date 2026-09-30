@@ -12,7 +12,7 @@ UMask=0077
 Environment=VNDB_RCLONE_CONFIG=/etc/vndb/rclone.conf
 Environment=VNDB_OFFSITE_REMOTE=vndb-offsite:vndb-production
 ExecStart=/usr/local/sbin/vndb-offsite-restore-drill
-NoNewPrivileges=true
+NoNewPrivileges=false
 PrivateDevices=true
 PrivateTmp=false
 ProtectClock=true

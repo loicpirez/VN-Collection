@@ -73,6 +73,10 @@ fi
 download_pair postgres "$postgres_file"
 download_pair storage "$storage_file"
 pg_restore --list "$work_dir/$postgres_file" >/dev/null
+chgrp postgres "$work_dir"
+chmod 0710 "$work_dir"
+chown postgres:postgres "$work_dir/$postgres_file"
+chmod 0400 "$work_dir/$postgres_file"
 
 drill_database="vndb_restore_drill_$(date -u +%Y%m%d%H%M%S)_$$"
 runuser -u postgres -- createdb --template=template0 --encoding=UTF8 "$drill_database"

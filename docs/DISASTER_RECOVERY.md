@@ -71,6 +71,13 @@ sudo systemctl enable --now \
 
 Replication runs after the daily database and weekly storage backups. The restore drill runs each Monday after replication. The drill downloads the newest encrypted PostgreSQL and storage pairs, verifies their SHA-256 sidecars, restores PostgreSQL to a temporary isolated database, checks migration rows, invalid indexes, VN rows, and cache rows, safely extracts the storage archive, confirms it contains files, then deletes all drill data.
 
+The restore unit runs as root so it can read the root-only rclone credential and
+uses `runuser` for PostgreSQL commands. It therefore leaves
+`NoNewPrivileges=false`; the remaining filesystem, kernel, device, and temporary
+directory restrictions stay enabled. The temporary directory grants the
+`postgres` group traversal only, and only the verified database dump is handed
+to the `postgres` user as a read-only file.
+
 ## Routine verification
 
 ```bash

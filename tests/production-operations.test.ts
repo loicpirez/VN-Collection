@@ -151,12 +151,15 @@ describe('production operations', () => {
     expect(replication).toContain('VNDB_OFFSITE_RETENTION_DAYS:-95');
     expect(restore).toContain('pg_restore --list');
     expect(restore).toContain('--exit-on-error');
+    expect(restore).toContain('chown postgres:postgres "$work_dir/$postgres_file"');
+    expect(restore).toContain('chmod 0400 "$work_dir/$postgres_file"');
     expect(restore).toContain('COUNT(*) FROM pg_index WHERE NOT indisvalid');
     expect(restore).toContain('tar -xzf');
     expect(cache).toContain('LIMIT :\'batch_size\'::BIGINT');
     expect(cache).toContain('FOR UPDATE SKIP LOCKED');
     expect(replicationService).toContain('ProtectSystem=strict');
     expect(restoreService).toContain('ReadWritePaths=/var/tmp /var/lib/postgresql /var/run/postgresql');
+    expect(restoreService).toContain('NoNewPrivileges=false');
     expect(cacheService).toContain('EnvironmentFile=/etc/vndb/vndb.env');
     expect(http2).toContain('listen[[:space:]]\\+443');
     expect(http2).toContain('VNDB_NGINX_SITE:-/etc/nginx/sites-enabled/vndb');
