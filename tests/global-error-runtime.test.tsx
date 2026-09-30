@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import GlobalError from '@/app/global-error';
+import GlobalError, { GlobalErrorContent } from '@/app/global-error';
 
 function clearLocaleCookie() {
   document.cookie = 'locale=; Max-Age=0; path=/';
@@ -15,6 +15,14 @@ afterEach(() => {
 });
 
 describe('global root-layout error boundary', () => {
+  it('renders the reusable boundary content used by the QA probe', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const reset = vi.fn();
+    render(<GlobalErrorContent error={new Error('probe')} reset={reset} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(reset).toHaveBeenCalledOnce();
+  });
+
   it('renders the initial English fallback, exposes a digest, and retries', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const reset = vi.fn();

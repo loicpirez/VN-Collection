@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { downloadFullStaffForVn } from '@/lib/staff-full';
-import { downloadFullCharForVn } from '@/lib/character-full';
-import { downloadFullProducerForVn } from '@/lib/producer-full';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { readJsonObject } from '@/lib/api-body';
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { getFullDownloadQueueStore } from '@/lib/db/repositories/full-download-queue';
+import { wakeFullDownloadWorkers } from '@/lib/full-download-worker';
+import { sanitizeUnknownError } from '@/lib/error-sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,10 +18,9 @@ const VN_IDS_MAX = 200;
  * for each VN in the supplied list, bypassing the global `vndb_fanout`
  * toggle (the user is explicitly opting in for these ids).
  *
- * Returns 202 with `{ queued: N }` and runs the actual fan-outs in the
- * background. The DownloadStatusBar surfaces per-job progress and the
- * existing throttle (1 req/s, per-request Retry-After, soft circuit on
- * 3+ 429s) keeps the rate sane no matter how many VNs were picked.
+ * Returns 202 with `{ queued: N }` after durable insertion. Active VN rows are
+ * deduplicated and expired worker leases resume from their last completed
+ * phase after restart.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const deny = requireLocalhostOrToken(req);
@@ -44,24 +43,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ queued: 0 });
   }
 
-  for (const vnId of ids) {
-    void downloadFullStaffForVn(vnId, { force: true }).catch((e) => {
-      console.error(`[full-download:${vnId}] staff:`, (e as Error).message);
-    });
-    void downloadFullCharForVn(vnId, { force: true }).catch((e) => {
-      console.error(`[full-download:${vnId}] characters:`, (e as Error).message);
-    });
-    void downloadFullProducerForVn(vnId, { force: true }).catch((e) => {
-      console.error(`[full-download:${vnId}] producers:`, (e as Error).message);
-    });
+  let queued: number;
+  try {
+    queued = await getFullDownloadQueueStore().enqueue(ids, Date.now());
+  } catch (error) {
+    console.error('[full-download] durable enqueue failed:', sanitizeUnknownError(error));
+    return NextResponse.json(
+      { error: 'full download queue unavailable', code: 'queue_unavailable' },
+      { status: 503 },
+    );
   }
   await recordActivity({
     kind: 'download.full',
     entity: 'collection',
     entityId: 'selected',
     label: 'Full data download',
-    payload: { count: ids.length, vn_ids: ids },
+    payload: { count: queued, vn_ids: ids },
   });
+  wakeFullDownloadWorkers();
 
-  return NextResponse.json({ ok: true, queued: ids.length }, { status: 202 });
+  return NextResponse.json({ ok: true, queued }, { status: 202 });
 }

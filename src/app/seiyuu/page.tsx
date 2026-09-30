@@ -17,7 +17,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { getVoiceActorRepository, type VoiceActorBrowseOptions } from '@/lib/db/repositories/voice-actors';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { languageDisplayName } from '@/lib/language-names';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatCount } from '@/lib/locale-number';
 import {
   parseVoiceActorBrowseParams,
   VOICE_ACTOR_MINIMUMS,
@@ -177,7 +177,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted">
-          {t.seiyuuBrowse.results.replace('{count}', fmtNum(result.total, locale))}
+          {formatCount(result.total, locale, t.seiyuuBrowse.results)}
         </p>
         {pageCount > 1 && (
           <p className="text-xs tabular-nums text-muted">
@@ -229,10 +229,10 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                  <span className="font-semibold">{t.seiyuuBrowse.vnCount.replace('{count}', fmtNum(actor.vnCount, locale))}</span>
-                  <span className="font-semibold">{t.seiyuuBrowse.characterCount.replace('{count}', fmtNum(actor.characterCount, locale))}</span>
+                  <span className="font-semibold">{formatCount(actor.vnCount, locale, t.seiyuuBrowse.vnCount)}</span>
+                  <span className="font-semibold">{formatCount(actor.characterCount, locale, t.seiyuuBrowse.characterCount)}</span>
                   <span className="text-muted">{t.seiyuuBrowse.collectionCount.replace('{count}', fmtNum(actor.collectionVnCount, locale))}</span>
-                  <span className="text-muted">{t.seiyuuBrowse.creditCount.replace('{count}', fmtNum(actor.creditCount, locale))}</span>
+                  <span className="text-muted">{formatCount(actor.creditCount, locale, t.seiyuuBrowse.creditCount)}</span>
                 </div>
                 <div
                   className="mt-2 h-1.5 overflow-hidden rounded-sm bg-bg-deep"
@@ -268,7 +268,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                           key={character.id}
                           href={`/character/${character.id}`}
                           className="group min-w-0 flex-1"
-                          title={`${character.name} - ${t.seiyuuBrowse.characterVnCount.replace('{count}', fmtNum(character.vnCount, locale))}`}
+                          title={`${character.name} - ${formatCount(character.vnCount, locale, t.seiyuuBrowse.characterVnCount)}`}
                         >
                           <SafeImage
                             src={character.imageUrl}

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$script_dir/vndb-rclone-common.sh"
+
+readonly rclone_config="${VNDB_RCLONE_CONFIG:-/etc/vndb/rclone.conf}"
+readonly offsite_remote="${VNDB_OFFSITE_REMOTE:-vndb-offsite:vndb-production}"
+readonly backup_root="${VNDB_BACKUP_ROOT:-/var/backups/vndb}"
+readonly retention_days="${VNDB_OFFSITE_RETENTION_DAYS:-95}"
+
+vndb_require_root
+vndb_require_uint VNDB_OFFSITE_RETENTION_DAYS "$retention_days"
+vndb_require_rclone_crypt "$rclone_config" "$offsite_remote"
+
+replicate_set() {
+  local directory="$1"
+  local data_pattern="$2"
+  local source="$backup_root/$directory"
+  local destination="${offsite_remote%/}/$directory"
+  local sidecar
+  local data_file
+
+  if [[ ! -d "$source" ]]; then
+    printf 'Backup source is missing: %s\n' "$source" >&2
+    return 1
+  fi
+
+  while IFS= read -r -d '' sidecar; do
+    data_file="${sidecar%.sha256}"
+    if [[ ! -f "$data_file" ]]; then
+      printf 'Checksum sidecar has no backup file: %s\n' "$sidecar" >&2
+      return 1
+    fi
+    vndb_verify_checksum_sidecar "$sidecar" "$data_file"
+  done < <(find "$source" -maxdepth 1 -type f -name "$data_pattern.sha256" -print0)
+
+  rclone copy "$source" "$destination" \
+    --config "$rclone_config" \
+    --include "$data_pattern" \
+    --include "$data_pattern.sha256" \
+    --min-age 2m \
+    --immutable \
+    --check-first \
+    --transfers 2 \
+    --checkers 4
+
+  rclone check "$source" "$destination" \
+    --config "$rclone_config" \
+    --include "$data_pattern" \
+    --include "$data_pattern.sha256" \
+    --min-age 2m \
+    --one-way
+
+  rclone delete "$destination" \
+    --config "$rclone_config" \
+    --include "$data_pattern" \
+    --include "$data_pattern.sha256" \
+    --min-age "${retention_days}d"
+}
+
+replicate_set postgres 'vndb_collection-*.dump'
+replicate_set storage 'storage-*.tar.gz'
+printf 'Encrypted off-site replication and verification completed.\n'

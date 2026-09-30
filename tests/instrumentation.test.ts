@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   assertPostgresRuntimeReady: vi.fn(),
   installPostgresShutdownHooks: vi.fn(),
   installServerShutdownHooks: vi.fn(),
+  startFullDownloadWorkers: vi.fn(),
 }));
 
 vi.mock('@/lib/db/postgres-config', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/lib/db/postgres', () => ({
 
 vi.mock('@/lib/server-shutdown', () => ({
   installServerShutdownHooks: mocks.installServerShutdownHooks,
+}));
+
+vi.mock('@/lib/full-download-worker', () => ({
+  startFullDownloadWorkers: mocks.startFullDownloadWorkers,
 }));
 
 import { register } from '@/instrumentation';
@@ -51,6 +56,7 @@ describe('Next.js database instrumentation', () => {
     expect(mocks.installServerShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.readDatabaseConfig).toHaveBeenCalledOnce();
     expect(mocks.assertPostgresRuntimeReady).not.toHaveBeenCalled();
+    expect(mocks.startFullDownloadWorkers).toHaveBeenCalledOnce();
   });
 
   it('blocks PostgreSQL startup until the migration version is current', async () => {
@@ -73,5 +79,26 @@ describe('Next.js database instrumentation', () => {
     expect(mocks.installServerShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.installPostgresShutdownHooks).toHaveBeenCalledOnce();
     expect(mocks.assertPostgresRuntimeReady).toHaveBeenCalledOnce();
+    expect(mocks.startFullDownloadWorkers).not.toHaveBeenCalled();
+  });
+
+  it('starts workers only after PostgreSQL readiness succeeds', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    mocks.config.value = {
+      backend: 'postgres',
+      url: 'postgresql://localhost/test',
+      poolMax: 8,
+      idleTimeoutMs: 30_000,
+      connectionTimeoutMs: 5_000,
+      statementTimeoutMs: 30_000,
+      lockTimeoutMs: 5_000,
+      sslMode: 'disable',
+      applicationName: 'test-app',
+    };
+    await register();
+    expect(mocks.assertPostgresRuntimeReady).toHaveBeenCalledOnce();
+    expect(mocks.startFullDownloadWorkers).toHaveBeenCalledOnce();
+    expect(mocks.assertPostgresRuntimeReady.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.startFullDownloadWorkers.mock.invocationCallOrder[0]);
   });
 });

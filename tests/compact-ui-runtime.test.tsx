@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { NotesSectionToggle } from '@/components/NotesSectionToggle';
 import { LangFlag, LangList } from '@/components/LangFlag';
@@ -10,6 +10,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { NavTabStrip } from '@/components/NavTabStrip';
 import { QuoteAvatar } from '@/components/QuoteAvatar';
 import { setLocale } from '@/lib/i18n/actions';
+import { DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -64,10 +65,33 @@ describe('compact UI primitives', () => {
     expect(screen.getByText('XX')).toBeInTheDocument();
   });
 
-  it('changes locale through the server action', () => {
+  it('shows autonyms and an optimistic busy state while the locale action runs', async () => {
+    let resolveLocale!: () => void;
+    vi.mocked(setLocale).mockReturnValue(new Promise<void>((resolve) => {
+      resolveLocale = resolve;
+    }));
     renderWithProviders(<LanguageSwitcher />);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
+    const select = screen.getByRole('combobox');
+    expect(screen.getByRole('option', { name: 'Français' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '日本語' })).toBeInTheDocument();
+    fireEvent.change(select, { target: { value: 'ja' } });
     expect(setLocale).toHaveBeenCalledWith('ja');
+    expect(select).toHaveValue('ja');
+    expect(select.parentElement).toHaveAttribute('aria-busy', 'true');
+    await act(async () => {
+      resolveLocale();
+    });
+    await waitFor(() => expect(select.parentElement).not.toHaveAttribute('aria-busy'));
+  });
+
+  it('rolls the optimistic locale back when the server action fails', async () => {
+    vi.mocked(setLocale).mockRejectedValueOnce(new Error('locale unavailable'));
+    renderWithProviders(<LanguageSwitcher />);
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'ja' } });
+    expect(select).toHaveValue('ja');
+    await waitFor(() => expect(select).toHaveValue(DEFAULT_LOCALE));
   });
 
   it('pushes navigation tab hrefs and marks the active page', () => {

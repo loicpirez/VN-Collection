@@ -20,7 +20,7 @@ import {
 import { SafeImage } from './SafeImage';
 import { SkeletonBlock } from './Skeleton';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { currencyFormatter, fmtNum, formatVndbDateString } from '@/lib/locale-number';
+import { currencyFormatter, fmtNum, formatCount, formatVndbDateString } from '@/lib/locale-number';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
 import type { PlaceOfferRow, PlaceVnRow } from '@/lib/db';
@@ -521,7 +521,9 @@ export function PlaceVnBrowser({ placeId, placeName: _placeName }: { placeId: nu
               <div className="text-2xl font-bold text-status-dropped">{apiStats.out_of_stock}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">{t.places.statsOffers as string}</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">
+                {formatCount(apiStats.offer_count, locale, t.places.statsOffers)}
+              </div>
               <div className="text-2xl font-bold">{apiStats.offer_count}</div>
             </div>
             <div className="rounded-xl border border-border bg-bg-card p-4 text-center">

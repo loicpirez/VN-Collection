@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { Library } from 'lucide-react';
 import './globals.css';
@@ -82,6 +82,7 @@ async function readInitialDisplaySettings(): Promise<Partial<DisplaySettings> | 
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   const locale = await getLocale();
   const dict = await getDict();
   const initialSettings = await readInitialDisplaySettings();
@@ -103,7 +104,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       style={rootStyle}
     >
       <body className="min-h-screen bg-bg text-white">
-        <script dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }} />
         <I18nProvider locale={locale} dict={dict}>
           <DisplaySettingsProvider initial={initialSettings}>
             <CardDensityVarSetter />

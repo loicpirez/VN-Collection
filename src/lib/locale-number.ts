@@ -11,6 +11,26 @@ export const BCP47: Record<Locale, string> = {
   ja: 'ja-JP',
 };
 
+/** Localized singular and plural templates for a counted label. */
+export interface CountForms {
+  one: string;
+  other: string;
+}
+
+/**
+ * Select a locale-aware singular or plural template and inject the formatted count.
+ *
+ * @param count Numeric value used for plural selection and display.
+ * @param locale Active application locale.
+ * @param forms Localized singular and plural templates containing `{count}`.
+ * @returns The selected template with a locale-formatted count.
+ */
+export function formatCount(count: number, locale: Locale, forms: CountForms): string {
+  const category = new Intl.PluralRules(BCP47[locale]).select(count);
+  const template = category === 'one' ? forms.one : forms.other;
+  return template.replace('{count}', fmtNum(count, locale));
+}
+
 /** Return the calendar year used for current-year navigation routes. */
 export function currentCalendarYear(now: Date = new Date()): number {
   return now.getFullYear();

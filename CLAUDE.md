@@ -566,6 +566,7 @@ the exhaustive check against schema drift.
 | collection_place_index | Materialized collection physical-location index |
 | egs_game | Resolved ErogameScape metadata |
 | egs_vn_link | Manual EGS-to-VNDB mapping overrides |
+| full_download_queue | Durable per-VN full-download work queue |
 | owned_release | Owned edition inventory |
 | owned_release_aspect_override | Per-edition aspect-ratio overrides |
 | physical_bundle | User-managed physical multi-release packages |
@@ -686,7 +687,7 @@ vn_quote         PK quote_id
                   vn_id, quote, score, character_id, character_name, fetched_at
                   — Mirrors VNDB's `/quote` payload per VN.
 
-vn_staff_credit  no formal PK; indexed on (vn_id, sid)
+vn_staff_credit  SQLite UNIQUE (vn_id, sid, role); PostgreSQL PK (vn_id, sid, role)
                   vn_id, sid, aid, eid, role, note, name, original, lang
                   — Materialized from vn.staff JSON for fast aggregate queries
 

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { requireLocalhostOrToken } from './auth-gate';
 
 /**
@@ -50,12 +51,19 @@ export function publicReadsAreProtected(raw = process.env.VN_PUBLIC_READ_AUTH): 
   return publicReadAuthMode(raw) !== 'open';
 }
 
-/** Enforce token authentication for safe API reads when that mode is enabled. */
+/** Enforce token authentication across every application request in token mode. */
 export function requireOptionalPublicReadAuth(req: Request): ReturnType<typeof requireLocalhostOrToken> {
-  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
   if (new URL(req.url).pathname === '/api/health') return null;
   if (publicReadAuthMode() !== 'token') return null;
-  return requireLocalhostOrToken(req);
+  const denied = requireLocalhostOrToken(req);
+  if (!denied || new URL(req.url).pathname.startsWith('/api/')) return denied;
+  return new NextResponse(null, {
+    status: 401,
+    headers: {
+      'Cache-Control': 'no-store',
+      'WWW-Authenticate': 'Basic realm="VN Collection", charset="UTF-8"',
+    },
+  });
 }
 
 /**

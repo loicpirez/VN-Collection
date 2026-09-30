@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly retention_days="${VNDB_CACHE_EXPIRED_RETENTION_DAYS:-30}"
+readonly batch_size="${VNDB_CACHE_PRUNE_BATCH_SIZE:-5000}"
+
+require_positive_integer() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s must be a positive integer.\n' "$name" >&2
+    return 1
+  fi
+}
+
+require_positive_integer VNDB_CACHE_EXPIRED_RETENTION_DAYS "$retention_days"
+require_positive_integer VNDB_CACHE_PRUNE_BATCH_SIZE "$batch_size"
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  printf 'DATABASE_URL is required.\n' >&2
+  exit 1
+fi
+
+before="$(psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F $'\t' <<'SQL'
+SELECT
+  COUNT(*),
+  COALESCE(SUM(pg_column_size(body)), 0),
+  pg_total_relation_size('vndb_cache'),
+  COALESCE((SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'vndb_cache'), 0)
+FROM vndb_cache;
+SQL
+)"
+IFS=$'\t' read -r before_rows before_body_bytes relation_bytes before_dead_rows <<<"$before"
+
+deleted="$(psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F $'\t' \
+  -v retention_days="$retention_days" -v batch_size="$batch_size" <<'SQL'
+WITH candidates AS MATERIALIZED (
+  SELECT cache_key, pg_column_size(body)::BIGINT AS body_bytes
+  FROM vndb_cache
+  WHERE expires_at < (
+    EXTRACT(EPOCH FROM clock_timestamp() - (:'retention_days' || ' days')::INTERVAL) * 1000
+  )::BIGINT
+  ORDER BY expires_at, cache_key
+  LIMIT :'batch_size'::BIGINT
+  FOR UPDATE SKIP LOCKED
+), deleted AS (
+  DELETE FROM vndb_cache AS cache
+  USING candidates
+  WHERE cache.cache_key = candidates.cache_key
+  RETURNING candidates.body_bytes
+)
+SELECT COUNT(*), COALESCE(SUM(body_bytes), 0) FROM deleted;
+SQL
+)"
+IFS=$'\t' read -r deleted_rows deleted_body_bytes <<<"$deleted"
+
+after="$(psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F $'\t' <<'SQL'
+SELECT
+  COUNT(*),
+  COALESCE(SUM(pg_column_size(body)), 0),
+  COALESCE((SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'vndb_cache'), 0)
+FROM vndb_cache;
+SQL
+)"
+IFS=$'\t' read -r after_rows after_body_bytes after_dead_rows <<<"$after"
+
+printf 'vndb_cache maintenance retention_days=%s batch_size=%s before_rows=%s before_body_bytes=%s relation_bytes=%s before_dead_rows=%s deleted_rows=%s deleted_body_bytes=%s after_rows=%s after_body_bytes=%s after_dead_rows=%s\n' \
+  "$retention_days" "$batch_size" "$before_rows" "$before_body_bytes" "$relation_bytes" \
+  "$before_dead_rows" "$deleted_rows" "$deleted_body_bytes" "$after_rows" "$after_body_bytes" "$after_dead_rows"

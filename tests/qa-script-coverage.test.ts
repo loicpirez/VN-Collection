@@ -284,6 +284,22 @@ describe('R5-181..R5-190 + R5-047 — interactions.mjs covers each cited surface
       pattern: /check\('narrow VN detail stays bounded with collapsed sections and touch-safe navigation'/,
     },
     {
+      row: 'stateful physical bundle modal geometry',
+      pattern: /check\('physical bundle modal stays bounded through its loaded state'/,
+    },
+    {
+      row: 'stateful mixed-stock tab geometry',
+      pattern: /check\('mixed-stock tabs remain bounded and switch panels on narrow screens'/,
+    },
+    {
+      row: 'stateful VNDB import conflict geometry',
+      pattern: /check\('VNDB import conflicts remain readable inside the narrow settings dialog'/,
+    },
+    {
+      row: 'stateful global-error geometry',
+      pattern: /check\('global error boundary stays bounded and resets on a narrow viewport'/,
+    },
+    {
       row: 'R14-RESP-005 Chromium quote dock touch behavior',
       pattern: /check\('Chromium mobile quote dock stays fixed and toggles reversibly'/,
     },

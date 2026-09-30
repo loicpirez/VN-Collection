@@ -24,6 +24,19 @@ function timingSafeStrEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
+function hasBasicAdminToken(req: Request, adminToken: string): boolean {
+  const encoded = req.headers.get('authorization')?.match(/^Basic\s+([A-Za-z0-9+/]+={0,2})$/i)?.[1];
+  if (!encoded) return false;
+  const unpadded = encoded.replace(/=+$/, '');
+  const decoded = Buffer.from(encoded, 'base64');
+  if (decoded.toString('base64').replace(/=+$/, '') !== unpadded) return false;
+  const separator = decoded.indexOf(0x3a);
+  if (separator < 1) return false;
+  const username = decoded.subarray(0, separator).toString('utf8');
+  const password = decoded.subarray(separator + 1).toString('utf8');
+  return username === 'vndb' && timingSafeStrEqual(password, adminToken);
+}
+
 /**
  * Self-hosted single-user app gate. The destructive / sensitive
  * routes (backup download, DB restore, export, import, settings,
@@ -44,9 +57,10 @@ function timingSafeStrEqual(a: string, b: string): boolean {
  *      requests require ALLOW_TRUSTED_PROXY=1 and a matching private proof.
  *   2. Optional shared secret. When `VN_ADMIN_TOKEN` is configured,
  *      requests that include `Authorization: Bearer <token>` OR the
- *      `x-admin-token` header equal to the secret are also allowed —
- *      lets the user reach these routes from another device they
- *      control without exposing them to the LAN.
+ *      `x-admin-token` header equal to the secret are also allowed. Browser
+ *      navigation can use HTTP Basic authentication with username `vndb` and
+ *      the admin token as its password so documents, RSC, assets, and API
+ *      requests share one origin-bound credential context.
  *
  * The default (no env vars) is "direct loopback only". This matches the
  * self-hosted single-user posture and breaks nothing for the local
@@ -65,6 +79,7 @@ export function requireLocalhostOrToken(req: Request): NextResponse | null {
     const header = req.headers.get('x-admin-token')?.trim();
     if (bearer && timingSafeStrEqual(bearer, adminToken)) return null;
     if (header && timingSafeStrEqual(header, adminToken)) return null;
+    if (hasBasicAdminToken(req, adminToken)) return null;
   }
 
   // Next.js synthesizes forwarding metadata even for direct connections, so

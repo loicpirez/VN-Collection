@@ -1,0 +1,28 @@
+[Unit]
+Description=Replicate verified VNDB backups to encrypted off-site storage
+Wants=network-online.target
+After=network-online.target vndb-postgres-backup.service vndb-storage-backup.service
+RequiresMountsFor=/var/backups/vndb
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=VNDB_RCLONE_CONFIG=/etc/vndb/rclone.conf
+Environment=VNDB_OFFSITE_REMOTE=vndb-offsite:vndb-production
+ExecStart=/usr/local/sbin/vndb-offsite-replicate
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/var/backups/vndb /etc/vndb/rclone.conf
+
+[Install]
+WantedBy=multi-user.target

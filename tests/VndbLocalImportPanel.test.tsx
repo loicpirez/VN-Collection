@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { VndbLocalImportPanel } from '@/components/VndbLocalImportPanel';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { formatCount } from '@/lib/locale-number';
 import { renderWithProviders } from './helpers/render-component';
 
 const t = dictionaries.en;
@@ -88,18 +89,18 @@ describe('VndbLocalImportPanel', () => {
       name: t.settings.vndbImportSelectItem.replace('{title}', 'Title 26'),
     });
     fireEvent.click(lastCheckbox);
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '1'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(1, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     fireEvent.click(lastCheckbox);
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '0'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(0, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.common.prev }));
     expect(await screen.findByText('Title 1')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportSelectAll }));
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '26'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(26, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportClear }));
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '0'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(0, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(t.settings.vndbImportIneligible.replace('{count}', '2')));
+    fireEvent.click(screen.getByText(formatCount(2, 'en', t.settings.vndbImportIneligible)));
     expect(screen.getByText(t.settings.vndbImportUnmapped)).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportSyntheticRelease)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -156,10 +157,10 @@ describe('VndbLocalImportPanel', () => {
     const dialog = await screen.findByRole('alertdialog');
     fireEvent.click(within(dialog).getByRole('button', { name: t.common.confirm }));
 
-    expect(await screen.findByText(t.settings.vndbImportIssues.replace('{count}', '2'))).toBeInTheDocument();
+    expect(await screen.findByText(formatCount(2, 'en', t.settings.vndbImportIssues))).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportConflictLocalChanged)).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportWriteFailed)).toBeInTheDocument();
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '2'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(2, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     const applyBodies = bodies.filter((body) => body.action === 'apply');
     expect((applyBodies[0].selections as unknown[])).toHaveLength(25);
     expect((applyBodies[1].selections as unknown[])).toHaveLength(1);
@@ -294,7 +295,7 @@ describe('VndbLocalImportPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportApply }));
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
 
-    expect(await screen.findByText(t.settings.vndbImportIssues.replace('{count}', '3'))).toBeInTheDocument();
+    expect(await screen.findByText(formatCount(3, 'en', t.settings.vndbImportIssues))).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportConflictLocalMissing)).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportConflictRemoteChanged)).toBeInTheDocument();
     expect(screen.getByText(t.apiErrors.vndbTokenRequired)).toBeInTheDocument();
@@ -339,7 +340,7 @@ describe('VndbLocalImportPanel', () => {
       .replace('{remaining}', '2');
     expect(await screen.findByText(feedback)).toBeInTheDocument();
     expect(screen.getByText(t.settings.vndbImportConflictLocalChanged)).toBeInTheDocument();
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '2'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(2, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Title 1' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Title 26' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Title 2' })).toBeNull();
@@ -381,7 +382,7 @@ describe('VndbLocalImportPanel', () => {
       .replace('{applied}', '25')
       .replace('{remaining}', '1');
     expect(await screen.findByText(feedback)).toBeInTheDocument();
-    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '1'))).toBeInTheDocument();
+    expect(screen.getByText(formatCount(1, 'en', t.settings.vndbImportSelected))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Title 26' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Title 1' })).toBeNull();
     expect(previewCalls).toBe(2);

@@ -9,7 +9,7 @@ import {
 describe('PostgreSQL migration manifest', () => {
   it('contains each application table once and keeps parent tables before children', () => {
     expect(new Set(POSTGRES_TABLE_ORDER).size).toBe(POSTGRES_TABLE_ORDER.length);
-    expect(POSTGRES_TABLE_ORDER.length).toBe(54);
+    expect(POSTGRES_TABLE_ORDER.length).toBe(55);
     expect(POSTGRES_TABLE_ORDER.indexOf('vn')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('collection'));
     expect(POSTGRES_TABLE_ORDER.indexOf('series')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('series_vn'));
     expect(POSTGRES_TABLE_ORDER.indexOf('shelf_unit')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('shelf_slot'));
@@ -17,6 +17,7 @@ describe('PostgreSQL migration manifest', () => {
     expect(POSTGRES_TABLE_ORDER.indexOf('physical_bundle')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('physical_bundle_member'));
     expect(POSTGRES_TABLE_ORDER.indexOf('place_registry')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('place_provider_link'));
     expect(POSTGRES_TABLE_ORDER.indexOf('stock_batch_job')).toBeLessThan(POSTGRES_TABLE_ORDER.indexOf('stock_provider_batch_run'));
+    expect(POSTGRES_TABLE_ORDER).toContain('full_download_queue');
   });
 
   it('quotes safe identifiers and rejects non-manifest-shaped input', () => {
@@ -32,5 +33,6 @@ describe('PostgreSQL migration manifest', () => {
     }
     expect(POSTGRES_JSON_TEXT_POLICY).toEqual({ storage: 'text', empty: 'preserve', malformed: 'quarantine' });
     expect(POSTGRES_JSON_COLUMNS.stock_batch_job).toContain('providers_json');
+    expect(POSTGRES_JSON_COLUMNS.full_download_queue).toEqual(['errors_json']);
   });
 });

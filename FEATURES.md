@@ -1192,6 +1192,16 @@ for that subset only. Bypasses the auto-fan-out toggle since the user
 is explicitly opting in. Drains through the global VNDB throttle so
 large selections stay rate-limit-safe.
 
+The route persists one `full_download_queue` row per VN before returning
+HTTP 202. Active rows deduplicate repeated submissions. Two cluster-wide
+`app_job_lock` slots bound concurrency across every application instance,
+while each queue row carries an owner-bound expiry lease and the index of its
+last completed staff, character, or producer phase. Startup instrumentation
+wakes the workers, and expired rows resume at the next phase after a process
+restart. Phase errors are retained on the durable row, later phases still run,
+and queued, running, completed, and failed rows remain visible in the global
+download status feed.
+
 ### VNDB rate limiter + 429 countdown [shipped]
 `lib/vndb-throttle.ts` enforces 1 req/s globally + 60 s window for soft
 circuit breaking. On 429 the failing request honors `Retry-After`
@@ -1830,6 +1840,7 @@ filled.
 | `saved_filter` | Saved filter combos | id, name, params, position |
 | `reading_goal` | Yearly goals | year, target |
 | `reading_queue` | Priority queue separate from Planning | vn_id PK, position, added_at |
+| `full_download_queue` | Durable selective full-download work | vn_id unique; state, completed phase index, attempts, bounded phase errors, timestamps, and owner-bound lease expiry |
 | `steam_link` | VN ↔ Steam appid map | vn_id, appid, steam_name, source, last_synced_minutes |
 | `alicenet_stock` | AliceNet second-hand shop inventory | code PK (`###-######-###`), title, jan, release_date, list_price, sale_price, vn_id (matched VN), vn_match_source (`auto`/`manual`/`none`), vn_candidates TEXT (JSON top-3 AliceNetCandidate[]), search_title (normalized query), last_matched_at, egs_id, egs_match_source, fetched_at, updated_at |
 

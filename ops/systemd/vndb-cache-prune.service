@@ -1,0 +1,25 @@
+[Unit]
+Description=Prune bounded batches of old expired VNDB cache rows
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/etc/vndb/vndb.env
+Environment=VNDB_CACHE_EXPIRED_RETENTION_DAYS=30
+Environment=VNDB_CACHE_PRUNE_BATCH_SIZE=5000
+ExecStart=/usr/local/sbin/vndb-cache-prune
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

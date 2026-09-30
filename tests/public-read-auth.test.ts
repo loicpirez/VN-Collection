@@ -63,9 +63,14 @@ describe('optional public read authentication', () => {
     }))).toBeNull();
   });
 
-  it('does not apply the read policy to mutations', () => {
+  it('requires the token for mutations at the global proxy boundary', () => {
     process.env.VN_PUBLIC_READ_AUTH = 'token';
-    expect(requireOptionalPublicReadAuth(request('/api/collection', { method: 'POST' }))).toBeNull();
+    process.env.VN_ADMIN_TOKEN = 'read-test-secret';
+    expect(requireOptionalPublicReadAuth(request('/api/collection', { method: 'POST' }))?.status).toBe(403);
+    expect(requireOptionalPublicReadAuth(request('/api/collection', {
+      method: 'POST',
+      headers: { authorization: 'Bearer read-test-secret' },
+    }))).toBeNull();
   });
 
   it('keeps the health endpoint available to deployment probes', () => {
@@ -85,6 +90,66 @@ describe('optional public read authentication', () => {
       headers: { 'x-admin-token': 'read-test-secret' },
     }));
     expect(allowed.headers.get('x-middleware-next')).toBe('1');
+  });
+
+  it('challenges HTML, RSC, and static requests while keeping health open', async () => {
+    process.env.VN_PUBLIC_READ_AUTH = 'token';
+    process.env.VN_ADMIN_TOKEN = 'read-test-secret';
+    for (const candidate of [
+      request('/'),
+      request('/vn/v90001', { headers: { rsc: '1' } }),
+      request('/_next/static/chunks/app.js'),
+    ]) {
+      const denied = proxy(candidate);
+      expect(denied.status).toBe(401);
+      expect(await denied.text()).toBe('');
+      expect(denied.headers.get('www-authenticate')).toBe('Basic realm="VN Collection", charset="UTF-8"');
+      expect(denied.headers.get('cache-control')).toBe('no-store');
+    }
+    const health = proxy(request('/api/health?check=ready'));
+    expect(health.status).toBe(200);
+    expect(health.headers.get('x-middleware-next')).toBe('1');
+  });
+
+  it('uses one HTTP Basic credential for HTML, RSC, static, and API requests', () => {
+    process.env.VN_PUBLIC_READ_AUTH = 'token';
+    process.env.VN_ADMIN_TOKEN = 'read-test-secret';
+    const authorization = `Basic ${Buffer.from('vndb:read-test-secret').toString('base64')}`;
+    for (const path of ['/', '/vn/v90001', '/_next/static/chunks/app.js', '/api/collection']) {
+      const allowed = proxy(request(path, { headers: { authorization } }));
+      expect(allowed.status).toBe(200);
+      expect(allowed.headers.get('x-middleware-next')).toBe('1');
+    }
+    expect(proxy(request('/', {
+      headers: { authorization: `Basic ${Buffer.from('other:read-test-secret').toString('base64')}` },
+    })).status).toBe(401);
+    expect(proxy(request('/', {
+      headers: { authorization: `Basic ${Buffer.from('vndb:wrong').toString('base64')}` },
+    })).status).toBe(401);
+    expect(proxy(request('/', { headers: { authorization: 'Basic a' } })).status).toBe(401);
+    expect(proxy(request('/', {
+      headers: { authorization: `Basic ${Buffer.from('vndb').toString('base64')}` },
+    })).status).toBe(401);
+  });
+
+  it('preserves direct localhost page access in token mode', () => {
+    process.env.VN_PUBLIC_READ_AUTH = 'token';
+    process.env.VN_ADMIN_TOKEN = 'read-test-secret';
+    for (const path of ['/', '/_next/static/chunks/app.js', '/api/collection']) {
+      const allowed = proxy(new NextRequest(`http://127.0.0.1:3000${path}`));
+      expect(allowed.status).toBe(200);
+      expect(allowed.headers.get('x-middleware-next')).toBe('1');
+    }
+  });
+
+  it('leaves HTML and RSC authentication to the reverse proxy in upstream mode', () => {
+    process.env.VN_PUBLIC_READ_AUTH = 'upstream';
+    const page = proxy(request('/'));
+    const rsc = proxy(request('/vn/v90001', { headers: { rsc: '1' } }));
+    expect(page.status).toBe(200);
+    expect(page.headers.get('x-middleware-next')).toBe('1');
+    expect(rsc.status).toBe(200);
+    expect(rsc.headers.get('x-middleware-next')).toBe('1');
   });
 
   it('protects provider-map and unassigned route handlers in token mode', async () => {

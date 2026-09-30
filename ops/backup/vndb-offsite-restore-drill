@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+. "$script_dir/vndb-rclone-common.sh"
+
+readonly rclone_config="${VNDB_RCLONE_CONFIG:-/etc/vndb/rclone.conf}"
+readonly offsite_remote="${VNDB_OFFSITE_REMOTE:-vndb-offsite:vndb-production}"
+readonly minimum_free_bytes="${VNDB_RESTORE_DRILL_MIN_FREE_BYTES:-8589934592}"
+readonly work_parent="${VNDB_RESTORE_DRILL_WORKDIR:-/var/tmp}"
+work_dir=""
+drill_database=""
+
+cleanup() {
+  if [[ -n "$drill_database" ]]; then
+    runuser -u postgres -- dropdb --if-exists "$drill_database" || true
+  fi
+  if [[ -n "$work_dir" && -d "$work_dir" ]]; then
+    rm -rf --one-file-system -- "$work_dir"
+  fi
+}
+trap cleanup EXIT
+
+vndb_require_root
+vndb_require_uint VNDB_RESTORE_DRILL_MIN_FREE_BYTES "$minimum_free_bytes"
+vndb_require_rclone_crypt "$rclone_config" "$offsite_remote"
+
+available_bytes="$(df -PB1 "$work_parent" | awk 'NR == 2 { print $4 }')"
+vndb_require_uint available_bytes "$available_bytes"
+if ((available_bytes < minimum_free_bytes)); then
+  printf 'Restore drill requires at least %s free bytes; %s are available.\n' \
+    "$minimum_free_bytes" "$available_bytes" >&2
+  exit 1
+fi
+
+work_dir="$(mktemp -d "$work_parent/vndb-restore-drill.XXXXXX")"
+
+latest_remote_file() {
+  local directory="$1"
+  local pattern="$2"
+  local candidate
+
+  candidate="$(rclone lsf "${offsite_remote%/}/$directory" \
+    --config "$rclone_config" --files-only --include "$pattern" | LC_ALL=C sort | tail -n 1)"
+  if [[ -z "$candidate" || "$candidate" == */* ]]; then
+    printf 'No safe off-site backup matched %s/%s.\n' "$directory" "$pattern" >&2
+    return 1
+  fi
+  printf '%s\n' "$candidate"
+}
+
+download_pair() {
+  local directory="$1"
+  local file="$2"
+
+  rclone copyto "${offsite_remote%/}/$directory/$file" "$work_dir/$file" --config "$rclone_config"
+  rclone copyto "${offsite_remote%/}/$directory/$file.sha256" "$work_dir/$file.sha256" --config "$rclone_config"
+  vndb_verify_checksum_sidecar "$work_dir/$file.sha256" "$work_dir/$file"
+}
+
+postgres_file="$(latest_remote_file postgres 'vndb_collection-*.dump')"
+storage_file="$(latest_remote_file storage 'storage-*.tar.gz')"
+if [[ ! "$postgres_file" =~ ^vndb_collection-[0-9]{8}T[0-9]{6}Z\.dump$ ]]; then
+  printf 'Unexpected PostgreSQL backup name: %s\n' "$postgres_file" >&2
+  exit 1
+fi
+if [[ ! "$storage_file" =~ ^storage-[0-9]{8}T[0-9]{6}Z\.tar\.gz$ ]]; then
+  printf 'Unexpected storage backup name: %s\n' "$storage_file" >&2
+  exit 1
+fi
+
+download_pair postgres "$postgres_file"
+download_pair storage "$storage_file"
+pg_restore --list "$work_dir/$postgres_file" >/dev/null
+
+drill_database="vndb_restore_drill_$(date -u +%Y%m%d%H%M%S)_$$"
+runuser -u postgres -- createdb --template=template0 --encoding=UTF8 "$drill_database"
+runuser -u postgres -- pg_restore \
+  --exit-on-error \
+  --no-owner \
+  --no-privileges \
+  --dbname "$drill_database" \
+  "$work_dir/$postgres_file"
+
+database_result="$(runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -At -d "$drill_database" <<'SQL'
+SELECT
+  (SELECT COUNT(*) FROM schema_migration)::TEXT || E'\t' ||
+  (SELECT COUNT(*) FROM pg_index WHERE NOT indisvalid)::TEXT || E'\t' ||
+  (SELECT COUNT(*) FROM vn)::TEXT || E'\t' ||
+  (SELECT COUNT(*) FROM vndb_cache)::TEXT;
+SQL
+)"
+IFS=$'\t' read -r migration_count invalid_index_count vn_count cache_count <<<"$database_result"
+for value in "$migration_count" "$invalid_index_count" "$vn_count" "$cache_count"; do
+  vndb_require_uint restored_database_metric "$value"
+done
+if ((migration_count == 0 || invalid_index_count != 0 || vn_count == 0)); then
+  printf 'Restored database validation failed: migrations=%s invalid_indexes=%s vn=%s.\n' \
+    "$migration_count" "$invalid_index_count" "$vn_count" >&2
+  exit 1
+fi
+
+if tar -tzf "$work_dir/$storage_file" | awk '
+  /^\// { bad = 1 }
+  /(^|\/)\.\.($|\/)/ { bad = 1 }
+  END { exit(bad ? 0 : 1) }
+'; then
+  printf 'Storage backup contains an unsafe path.\n' >&2
+  exit 1
+fi
+tar -xzf "$work_dir/$storage_file" -C "$work_dir"
+storage_file_count="$(find "$work_dir/storage" -type f | wc -l | tr -d ' ')"
+vndb_require_uint restored_storage_files "$storage_file_count"
+if ((storage_file_count == 0)); then
+  printf 'Restored storage archive contains no files.\n' >&2
+  exit 1
+fi
+
+printf 'Off-site restore drill passed: database=%s migrations=%s invalid_indexes=%s vn=%s cache=%s storage_files=%s.\n' \
+  "$postgres_file" "$migration_count" "$invalid_index_count" "$vn_count" "$cache_count" "$storage_file_count"

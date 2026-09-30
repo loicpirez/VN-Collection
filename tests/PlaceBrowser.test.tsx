@@ -172,6 +172,21 @@ describe('PlaceBrowser', () => {
     vi.restoreAllMocks();
   });
 
+  it('labels storage places in list view', async () => {
+    localStorage.setItem('vncoll.places.prefs.v1', JSON.stringify({ view: 'list' }));
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === '/api/places') {
+        return json({
+          places: [place({ id: 3, name: 'Archive', kind: 'storage', provider_labels: [] })],
+          known_places: [],
+        });
+      }
+      return json({ branches: [] });
+    });
+    renderBrowser();
+    expect(await screen.findByText(t.places.kindStorage as string)).toBeTruthy();
+  });
+
   it('preserves card, list, and unassigned-row anatomy while places load', async () => {
     const cardPlaces = deferredResponse();
     const cardBranches = deferredResponse();

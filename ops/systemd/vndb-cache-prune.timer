@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily bounded VNDB cache maintenance schedule
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=20m
+Persistent=true
+Unit=vndb-cache-prune.service
+
+[Install]
+WantedBy=timers.target

@@ -1,116 +1,130 @@
 # VN Collection full application audit
 
-Audit date: 2026-09-30
+Audit date: 2026-10-01
 
-This report combines a source review, repository history review, three-locale
-browser inspection, responsive checks, automated tests, and a read-only audit
-of the active production service and PostgreSQL database. Secrets, environment
-files, and authentication files were not opened.
+This report combines a source and repository review, a three-engine browser
+inspection, responsive and stateful interaction checks, the complete automated
+test suite, and a read-only inspection of the active production host and
+PostgreSQL database. Secrets, environment files, authentication files, and the
+archived `data.old` tree were not opened.
 
 ## Executive assessment
 
-The application is mature and generally healthy. The production origin is fast,
-the service is stable, PostgreSQL is healthy, the reverse proxy protects the
-personal collection, and the codebase has unusually broad automated coverage.
-The audit did find one immediate operational risk, two high-impact workflow
-defects, and several smaller accessibility, internationalization, and durability
-gaps.
+The application was healthy and fast, but ten gaps remained after the previous
+release: full-download work was not durable, application token authentication
+did not cover browser documents, backups were local-only, the script policy
+allowed inline JavaScript, several locale and stateful responsive paths were
+unfinished, one safe credit identity was not enforced, cache retention was
+undefined, HTTP/2 was disabled, and the host required security maintenance.
 
-The release that contains this report fixes the immediate release-storage risk,
-hardens database migration rollback compatibility, reconciles partially applied
-VNDB imports, restores deep activity pagination, completes keyboard semantics
-for mixed stock tabs, and increases physical-bundle touch targets.
+This release closes the application and operational parts of that backlog. It
+adds a persisted two-slot queue with leases and restart recovery, applies one
+authentication boundary to documents, RSC, static assets, and APIs, replaces
+script `unsafe-inline` with per-request nonces, completes plural and language
+feedback, expands stateful browser coverage, enforces the verified staff-credit
+identity, and provides tested automation for encrypted off-host backups,
+restore drills, cache pruning, HTTP/2, and host maintenance.
 
-## Production evidence
+## Production evidence before delivery
 
 | Area | Observed state |
 | --- | --- |
-| Service | systemd service active since 2026-09-11, zero restarts, no warning-or-higher journal entries in the preceding seven days |
-| Runtime | Next.js 16.3.2 on Node.js 22.22.2 before this delivery |
-| Origin performance | warm home-page TTFB 30.8 to 41.7 ms, total 44.6 to 55.1 ms, gzip enabled |
-| Database | PostgreSQL 16.15, 585 MB, checksums enabled, 58 tables, 153 indexes, zero invalid indexes, zero deadlocks |
-| Network | application and PostgreSQL bound to loopback; firewall default deny; only SSH, HTTP, and HTTPS exposed |
-| HTTP security | HTTPS redirect, Basic authentication, HSTS, CSP, frame restrictions, no-sniff, referrer and permissions policies |
-| Backups | verified daily PostgreSQL custom dumps and weekly storage archives with SHA-256 sidecars and 35-day retention |
-| Capacity before this delivery | root filesystem at 93 percent, 33 GB free, 290 full immutable releases averaging about 1.1 to 1.2 GB |
+| Active release | Immutable release `6f3783dc810ef037b636d49e8d22cf5dbfa60f8e` |
+| Services | `vndb`, PostgreSQL, and nginx active; application restart count zero |
+| Runtime | Next.js 16.3.2 on Node.js 22.22.2 |
+| Database | PostgreSQL 16.15, 58 tables, 153 indexes, zero invalid indexes and zero deadlocks |
+| Network | Application and PostgreSQL bound to loopback; firewall default deny; only SSH, HTTP, and HTTPS exposed |
+| HTTP security | HTTPS redirect, reverse-proxy Basic authentication, HSTS, CSP, frame restrictions, no-sniff, referrer policy, and permissions policy |
+| Local backups | Daily PostgreSQL custom dumps and weekly storage archives with SHA-256 sidecars and 35-day retention |
+| Capacity | Root filesystem 16 percent used with 349 GB free after immutable-release pruning |
+| Maintenance | Kernel 6.8.0-117, reboot required, and approximately 50 package updates pending |
 
 ## Findings and actions
 
-### Operations, security, and rollback safety
+### Security and access control
 
-| Severity | Finding | Action in this release |
+| Severity | Finding | Action |
 | --- | --- | --- |
-| Critical | Successful releases were never pruned. The release store contained 290 full dependency and build trees and plausibly consumed more than 300 GB. | Added byte and inode preflight checks, strict release-path validation, protected active and rollback targets, configurable retention, and post-activation pruning. |
-| Critical | The deployment script applied migrations before building the candidate. A build failure could advance the schema while leaving the old application active. | Build and package now complete before migration credentials are loaded or migrations run. |
-| Critical | Older releases rejected every migration unknown to their own source tree, so application rollback could fail after an expand-only migration. | Schema readiness now accepts only a complete required prefix followed by a well-formed contiguous future suffix. Missing, malformed, duplicated, inserted, or gapped versions still fail closed. |
-| High | Application token mode protects API routes but does not protect server-rendered HTML or RSC responses that query personal data directly. | Production reverse-proxy Basic authentication was verified as the actual boundary. Token mode remains unsuitable as the sole protection for a public browser deployment. |
-| Medium | Production CSP still permits inline scripts. | Retained for compatibility in this release. Move the URL-scrubbing script to a hashed or nonce-authorized path before removing `unsafe-inline`. |
-| Medium | The host has pending operating-system updates and requires a reboot. | Schedule a maintenance window after this application release. |
+| High | Token mode protected API routes while server-rendered HTML and RSC could read personal data directly. | The global proxy now challenges every application path when public-read authentication is enabled. Bearer and explicit token clients remain compatible, and browser Basic authentication uses the same constant-time token check. The production reverse-proxy boundary remains in place. |
+| Medium | `script-src` allowed `unsafe-inline`. | CSP now uses an unpredictable per-request nonce, forwards it to the root layout for Next.js-generated scripts, and keeps `unsafe-eval` limited to development. Script `unsafe-inline` is absent. |
+| Medium | The bootstrap URL scrubber had to operate without leaking its token into history. | The nonce-authorized scrubber still removes sensitive query parameters before hydration; the proxy and Basic browser flow remove the need to carry a token in routine navigation. |
 
-### UI, UX, responsive behavior, and accessibility
+### Durable full-download work
 
-| Severity | Finding | Action in this release |
+| Severity | Finding | Action |
 | --- | --- | --- |
-| High | If a VNDB import succeeded in one batch and a later batch failed, the review UI kept confirmed writes selected and displayed stale candidates. | Added best-effort server reconciliation, conservative local fallback, applied and remaining counts, retryable selection preservation, abort safety, and localized feedback. |
-| High | Mixed AliceNet and branch-stock controls declared tab semantics but kept both tabs in the Tab order and did not support Arrow, Home, or End keys. | Added roving `tabIndex`, Arrow, Home, and End activation with focus transfer, plus 44 px touch sizing. |
-| High | Physical-bundle controls included 16, 36, and 40 px practical touch targets. | Enlarged the manager trigger, dialog close control, search field, paging buttons, checkbox labels, and anchor labels to the 44 px coarse-pointer contract while preserving compact fine-pointer layouts. |
-| Medium | Route-level responsive checks did not mount every conditional modal and mixed-stock state. | Added focused component regressions and ran the changed routes across three locales, five viewport classes, and Chromium, Firefox, and WebKit. Stateful modal geometry should remain part of future interaction QA. |
-| Low | Several count strings still use fixed English or French plural forms. | Kept as a follow-up. Introduce one/other dictionary forms or an `Intl.PluralRules` helper for Seiyuu, import, and offer counts. |
-| Low | The language switcher exposes locale codes and gives limited pending feedback. | Kept as a follow-up. Add autonyms, optimistic selection, and an `aria-busy` state. |
+| High | One request could start hundreds of detached workflows with no persisted state, deduplication, lease, concurrency bound, or restart recovery. | SQLite and PostgreSQL now persist one row per VN. Enqueue is idempotent while work is active, two cluster-wide leases bound concurrency, item leases are renewed during long phases, each phase checkpoint and bounded error list is durable, expired work is reclaimed, startup wakes the worker, and shutdown stops new polling. |
+| Medium | Users could not distinguish accepted work from process-local work. | The API returns queued counts, and the existing status surface reads durable queue rows including phase progress, errors, start, and finish times. |
 
-### Features, data access, and speed
+### UI, UX, responsive behavior, accessibility, and i18n
 
-| Severity | Finding | Action in this release |
+| Severity | Finding | Action |
 | --- | --- | --- |
-| High | Full-download accepts up to 200 titles and starts as many as 600 detached workflows without a durable queue, lease, deduplication, or restart recovery. | Kept as a larger follow-up. Replace it with a persisted batch job and bounded leased workers. |
-| Medium | Activity pages fetched every preceding row and sliced in memory. A repository cap made rows after 500 inaccessible. | Added bounded repository offsets for SQLite and PostgreSQL. Each page now fetches only 51 rows at its own stable offset. |
-| Medium | Local backups are stored on the same filesystem as the application and database. | Keep local fast recovery, then add encrypted off-host replication and scheduled restore drills. |
-| Medium | Public nginx currently negotiates HTTP/1.1. | Enable and verify HTTP/2 during a separate proxy configuration change. |
-| Low | Two credit tables have no primary key and the cache table accounts for most database size. | Review composite uniqueness for credit rows and define cache retention from observed access patterns. |
+| Medium | Count strings embedded fixed singular or plural wording. | Added localized `one` and `other` forms and locale-aware count formatting for affected Seiyuu, stock, place, producer, and import surfaces. |
+| Medium | The language switcher exposed locale codes and gave weak transition feedback. | Added French, English, and Japanese autonyms, optimistic selection, disabled pending actions, and `aria-busy` semantics. |
+| Medium | Conditional modals and error states were underrepresented in browser geometry checks. | Added deterministic QA routes and live interactions for the physical-bundle loaded state, mixed-stock tabs, VNDB import conflicts, the global error boundary, narrow detail navigation, and settings and recommendation states. |
+| Low | Some data-heavy pages performed work before the visible branch needed it. | Producer detail rendering now reuses cached server data and avoids duplicate fetch work while preserving pagination and locale behavior. |
 
-## Validation contract
+### Data integrity, cache, backup, and host operations
 
-The release is acceptable only when all of the following evidence is green:
+| Severity | Finding | Action |
+| --- | --- | --- |
+| Medium | Credit tables lacked formal primary keys. | Production data and indexes were audited. `(vn_id, sid, role)` is unique for `vn_staff_credit` and is promoted to the PostgreSQL primary key by a guarded migration. The voice-credit candidates are not unique, so no unsafe constraint is added; the evidence and future normalization path are documented. |
+| Medium | The VNDB cache dominated database growth without a measured retention policy. | Added a bounded batch-prune command, dry-run and apply modes, a systemd service and timer, retention documentation, and tests. The policy retains recently used rows and prunes in small transactions. |
+| High | Local backups shared the host failure domain. | Added encrypted rclone replication, strict configuration permissions, SHA-256 verification, a scheduled restore drill into an isolated temporary PostgreSQL database and storage directory, freshness checks, systemd services and timers, and a disaster-recovery runbook. |
+| Medium | Public nginx negotiated HTTP/1.1 only. | Added an idempotent nginx configuration helper that validates configuration, reloads nginx, and verifies external HTTP/2 negotiation. |
+| Medium | The host had pending security updates and required reboot. | Added a maintenance runbook with backup, download, controlled upgrade, reboot, and post-boot application/database/proxy verification gates. |
 
-- complete Vitest suite;
-- PostgreSQL integration coverage through the project container;
-- exact 100 percent statements, branches, functions, and lines;
-- TypeScript typecheck;
-- optimized Next.js production build;
-- browser structural QA and regression sentinel;
-- isolated write-capable interaction QA in Chromium and WebKit;
-- responsive inspection of changed surfaces in French, English, and Japanese;
-- production backup freshness before deployment;
-- immutable release activation with commit, symlink, process-directory, service,
-  health, database, and authenticated browser verification after deployment.
+## Validation completed before release packaging
 
-Validation completed before release packaging:
+- TypeScript typecheck passed.
+- The optimized Next.js standalone production build passed.
+- Complete repository suite: 974 files and 10,122 tests passed.
+- Instrumented suite with PostgreSQL integration: 976 files and 10,227 tests
+  passed.
+- Coverage is exactly 100 percent for 46,543 statements, 39,435 branches,
+  9,526 functions, and 39,772 lines.
+- Browser structural QA: 29 passed and 0 failed.
+- Frontend regression sentinel: 32 passed and 0 failed.
+- Isolated write-capable interaction QA: 33 passed and 0 failed across Chromium
+  and WebKit behavior.
+- Full responsive audit: 615 renders across 41 routes, five viewport classes,
+  and Chromium, Firefox, and WebKit. Every document returned successfully with
+  the correct locale and main landmark; no navigation, fatal-runtime, overflow,
+  touch-target, clipping, escaping, or fixed-position geometry defect occurred.
+- Changed-route i18n audit: 180 renders across French, English, Japanese, five
+  viewports, and all three engines, with zero locale or geometry defects.
+- The responsive runner reported media-only findings in the isolated snapshot:
+  local files intentionally absent from `.qa/storage` returned 404, and some
+  external `t.vndb.org` images were unavailable. These did not affect document
+  rendering, layout, localization, or the clean 33-scenario interaction run.
+- Repository operations scripts, systemd units, migrations, CSP, authentication,
+  queue lifecycle, and stateful QA routes have dedicated regression tests.
 
-- complete repository suite: 969 files and 10,085 tests passed;
-- instrumented suite with PostgreSQL integration: 970 files and 10,181 tests
-  passed;
-- coverage: 100 percent statements, 100 percent branches, 100 percent
-  functions, and 100 percent lines;
-- typecheck and optimized Next.js build passed;
-- browser structural QA: 29 passed, 0 failed;
-- frontend regression sentinel: 32 passed, 0 failed;
-- isolated write-capable interaction QA: 29 passed, 0 failed across Chromium
-  and WebKit surfaces;
-- responsive matrix: 180 renders across Chromium, Firefox, WebKit, French,
-  English, Japanese, and five viewport classes. Every render had correct locale,
-  zero horizontal overflow, zero clipped controls, zero undersized touch targets,
-  and zero fatal errors. The script reported only expected HTTP 404 console
-  entries for media intentionally absent from the isolated storage snapshot.
+## Deployment and production acceptance gates
 
-## Remaining prioritized backlog
+The delivery is complete only after all of these live checks pass:
 
-1. Replace full-download fan-out with a durable leased job queue.
-2. Add an application browser-session authentication mode if reverse-proxy
-   authentication is ever removed.
-3. Replicate encrypted backups off-host and automate restore drills.
-4. Remove CSP `unsafe-inline` through nonces or hashes.
-5. Complete count pluralization and language-switcher feedback.
-6. Add stateful browser geometry checks for the physical-bundle dialog, mixed
-   stock tabs, import conflicts, and the global error boundary.
-7. Enable HTTP/2, patch and reboot the host, then remeasure authenticated
-   traffic.
+1. push the reviewed commit to `origin/main`;
+2. create fresh local PostgreSQL and storage backups;
+3. activate one immutable release and verify commit, symlink, process working
+   directory, service health, database migrations, and authenticated HTML;
+4. install the operational units, replicate encrypted backups off host, and
+   complete a restore drill from the remote copy;
+5. enable HTTP/2 and confirm authenticated and unauthenticated boundaries;
+6. prune the cache in bounded mode and verify database/index health;
+7. install operating-system updates, reboot, and repeat application, database,
+   nginx, backup-timer, kernel, and HTTP/2 checks;
+8. record the live evidence and final release hash in the personal wiki.
+
+## Residual decisions
+
+- Reverse-proxy Basic authentication remains the preferred production browser
+  boundary. The application-wide token boundary is defense in depth and supports
+  deployments where the proxy is changed later.
+- Voice-credit data needs a normalized upstream identity before a primary key can
+  be enforced safely. The audit deliberately avoids destructive deduplication or
+  a synthetic uniqueness claim.
+- Cache retention should be reviewed against actual hit rate and database growth
+  after the first scheduled interval; the batch and age parameters are adjustable
+  without a schema change.

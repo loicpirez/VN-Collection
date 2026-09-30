@@ -4,6 +4,7 @@ import {
   currentCalendarYear,
   fmtDate,
   fmtNum,
+  formatCount,
   formatCurrency,
   formatIsoDateString,
   formatMinutes,
@@ -51,6 +52,12 @@ describe('locale date formatting', () => {
     expect(fmtNum(1234567.5, 'en', 1)).toBe('1,234,567.5');
     expect(fmtNum(1234567.5, 'fr', 1)).toContain('1');
     expect(fmtNum(1234567.5, 'ja', 1)).toBe('1,234,567.5');
+  });
+
+  it('selects singular and plural count templates', () => {
+    expect(formatCount(1, 'en', { one: '{count} offer', other: '{count} offers' })).toBe('1 offer');
+    expect(formatCount(0, 'en', { one: '{count} offer', other: '{count} offers' })).toBe('0 offers');
+    expect(formatCount(2, 'fr', { one: '{count} offre', other: '{count} offres' })).toBe('2 offres');
   });
 
   it('formats currency with the active locale', () => {

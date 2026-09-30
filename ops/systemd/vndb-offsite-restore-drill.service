@@ -1,0 +1,29 @@
+[Unit]
+Description=Restore and validate the latest encrypted VNDB off-site backups
+Wants=network-online.target
+After=network-online.target postgresql.service vndb-offsite-replicate.service
+RequiresMountsFor=/var/tmp
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=VNDB_RCLONE_CONFIG=/etc/vndb/rclone.conf
+Environment=VNDB_OFFSITE_REMOTE=vndb-offsite:vndb-production
+ExecStart=/usr/local/sbin/vndb-offsite-restore-drill
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=false
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/vndb/rclone.conf
+ReadWritePaths=/var/tmp /var/lib/postgresql /var/run/postgresql
+
+[Install]
+WantedBy=multi-user.target

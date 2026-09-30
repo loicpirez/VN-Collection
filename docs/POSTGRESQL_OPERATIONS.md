@@ -226,11 +226,14 @@ window with application background jobs stopped.
 
 ## Distributed background-job ownership
 
-AliceNet, global refresh, and bulk stock refresh acquire owner-bound rows in
+AliceNet, global refresh, bulk stock refresh, and selective full-download workers acquire owner-bound rows in
 `app_job_lock` before doing work. AliceNet and global refresh each have one
 cluster-wide slot; stock refresh has two named slots, so the documented queue
 capacity is shared by all web and worker instances instead of being multiplied
-per process. Acquisition uses one atomic `INSERT ... ON CONFLICT ... WHERE`
+per process. Selective full-download also has two cluster-wide slots. Its
+`full_download_queue` row stores a second, item-specific owner and expiry so a
+replacement worker can resume at the next incomplete phase after the old lease
+expires. Acquisition uses one atomic `INSERT ... ON CONFLICT ... WHERE`
 statement. Renewal and release both require the same random owner token.
 
 Workers renew before and after bounded phases. A failed renewal is treated as

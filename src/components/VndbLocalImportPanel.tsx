@@ -15,7 +15,7 @@ import {
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastProvider';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { fmtNum } from '@/lib/locale-number';
+import { fmtNum, formatCount } from '@/lib/locale-number';
 import {
   decodeVndbLocalImportResponse,
   type VndbLocalImportApplyClient,
@@ -123,7 +123,7 @@ export function VndbLocalImportPanel() {
       setPreview(result);
       setSelectedKeys(new Set());
       setPage(1);
-      toast.success(t.settings.vndbImportPreviewReady.replace('{count}', fmtNum(result.candidates.length, locale)));
+      toast.success(formatCount(result.candidates.length, locale, t.settings.vndbImportPreviewReady));
     } catch (error) {
       if (!isAbortError(error) && mountedRef.current) {
         toast.error(error instanceof Error ? error.message : t.common.error);
@@ -148,7 +148,7 @@ export function VndbLocalImportPanel() {
   async function applySelected(currentPreview: VndbLocalImportPreviewClient): Promise<void> {
     const selected = currentPreview.candidates.filter((candidate) => selectedKeys.has(candidate.key));
     const approved = await confirm({
-      message: t.settings.vndbImportConfirm.replace('{count}', fmtNum(selected.length, locale)),
+      message: formatCount(selected.length, locale, t.settings.vndbImportConfirm),
       tone: 'danger',
     });
     if (!approved || !mountedRef.current) return;
@@ -330,7 +330,7 @@ export function VndbLocalImportPanel() {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[10px] text-muted">
-                  {t.settings.vndbImportSelected.replace('{count}', fmtNum(selectedKeys.size, locale))}
+                  {formatCount(selectedKeys.size, locale, t.settings.vndbImportSelected)}
                 </span>
                 <div className="flex flex-wrap gap-1">
                   <button
@@ -409,7 +409,7 @@ export function VndbLocalImportPanel() {
           {preview.ineligible.length > 0 && (
             <details className="rounded-md border border-border/60 p-2 text-[10px] text-muted">
               <summary className="min-h-[44px] cursor-pointer py-3 font-semibold text-fg">
-                {t.settings.vndbImportIneligible.replace('{count}', fmtNum(preview.ineligible.length, locale))}
+                {formatCount(preview.ineligible.length, locale, t.settings.vndbImportIneligible)}
               </summary>
               <ul className="space-y-1 border-t border-border/50 pt-2">
                 {preview.ineligible.map((entry) => (
@@ -428,8 +428,8 @@ export function VndbLocalImportPanel() {
 
       {issues.length > 0 && (
         <details open className="mt-3 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-2 text-[10px]">
-          <summary className="min-h-[44px] cursor-pointer py-3 font-semibold text-status-on_hold">
-            {t.settings.vndbImportIssues.replace('{count}', fmtNum(issues.length, locale))}
+          <summary className="min-h-[44px] cursor-pointer py-3 font-semibold text-fg">
+            {formatCount(issues.length, locale, t.settings.vndbImportIssues)}
           </summary>
           <ul className="space-y-1 border-t border-status-on_hold/20 pt-2">
             {issues.map((issue) => (

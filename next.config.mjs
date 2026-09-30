@@ -1,23 +1,3 @@
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isInteractionQa = process.env.VNCOLL_QA === '1';
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  `connect-src 'self'${isDevelopment ? ' ws:' : ''} https://nominatim.openstreetmap.org`,
-  "media-src 'self' blob: https:",
-  "worker-src 'self' blob:",
-  "manifest-src 'self'",
-  "object-src 'none'",
-  "frame-src 'none'",
-  "frame-ancestors 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  ...(isDevelopment || isInteractionQa ? [] : ['upgrade-insecure-requests']),
-].join('; ');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -47,7 +27,6 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },

@@ -39,6 +39,7 @@ const failures = [];
 async function fetchHtml(path) {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'accept': 'text/html', 'accept-language': 'fr-FR' },
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}`);
   return res.text();

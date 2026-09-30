@@ -87,6 +87,18 @@ async function waitForEnabled(locator, timeout = 10000) {
   throw new Error('control did not become enabled');
 }
 
+async function waitForReactHydration(locator, timeout = 15000) {
+  await locator.waitFor({ state: 'visible', timeout });
+  await locator.evaluate(async (element, deadlineMs) => {
+    const started = performance.now();
+    while (performance.now() - started < deadlineMs) {
+      if (Object.keys(element).some((key) => key.startsWith('__reactProps$'))) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('control did not hydrate');
+  }, timeout);
+}
+
 async function assertResponsiveNavigation(page) {
   await page.setViewportSize({ width: 1366, height: 768 });
   await gotoClean(page, '/');
@@ -516,9 +528,15 @@ check('settings modal tabs are reachable and non-empty', async (page) => {
         'button[aria-haspopup="dialog"][aria-label="Affichage"], button[aria-haspopup="dialog"][aria-label="Display"], button[aria-haspopup="dialog"][aria-label="表示"]',
       )
       .first();
+    await waitForEnabled(trigger);
+    await waitForReactHydration(trigger);
     await trigger.click();
     const dialog = page.getByRole('dialog');
-    await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    await dialog.waitFor({ state: 'visible', timeout: 3000 }).catch(async () => {
+      await waitForEnabled(trigger);
+      await trigger.click();
+      await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    });
     const labels = await dialog.getByRole('tab').allInnerTexts();
     assert(labels.length >= 7, `settings in ${url} exposes too few tabs`);
     assert(new Set(labels).size === labels.length, `settings in ${url} has duplicate tab labels`);
@@ -831,9 +849,31 @@ check('recommendation seed picker updates URL and explanation exists', async (pa
       : null;
   });
   assert(seed, 'recommendation QA requires at least one collection VN');
+  await page.route('**/api/collection/find**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        matches: [{
+          id: seed.id,
+          title: seed.title,
+          alttitle: null,
+          image_url: null,
+          image_thumb: null,
+          local_image: null,
+          local_image_thumb: null,
+          image_sexual: null,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/search**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) });
+  });
   const input = page.locator('[data-testid="vn-seed-picker"] input[role="combobox"]').first();
+  await waitForReactHydration(input);
   await input.fill(seed.title);
-  const seedOption = page.locator(`[role="option"] button[title="${seed.id}"]`).first();
+  const seedOption = page.getByRole('option').getByTitle(seed.id, { exact: true }).first();
   await seedOption.waitFor({ state: 'visible', timeout: 15000 });
   await seedOption.click();
   await page.waitForURL((url) => url.searchParams.get('seed') === seed.id, { timeout: 15000 }).catch(() => undefined);
@@ -1004,6 +1044,13 @@ check('/tags?mode=vndb shows Theme/Character/Style/Plot/Setting groups', async (
 
 check('/tag/[id]?tab=vndb pagination controls visible and change URL', async (page) => {
   // g578 is a mid-level tag that has enough VNs for pagination
+  await page.route('**/api/tags/g578/hydrate**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, complete: true }),
+    });
+  });
   await gotoClean(page, '/tag/g578?tab=vndb');
   // Wait for the VNDB results section to settle
   await page.waitForSelector('[role="navigation"]', { timeout: 20000 }).catch(() => undefined);
@@ -1013,13 +1060,16 @@ check('/tag/[id]?tab=vndb pagination controls visible and change URL', async (pa
     assert(href && /page=\d+/.test(href), 'Next page link does not include page param');
     await next.click({ force: true });
     await page.waitForURL(/page=\d+/, { timeout: 15000 });
+    await waitForPagePaint(page);
     assert(/page=\d+/.test(page.url()), 'URL did not update after clicking next page');
   }
   // Prev link should also appear on page 2 (if we navigated)
   if (/page=2/.test(page.url())) {
     const prev = page.getByRole('link', { name: /Précédent|Prev|前/i }).first();
+    await prev.waitFor({ state: 'visible', timeout: 20000 });
     assert(await prev.count() > 0, 'Previous page link missing on page 2');
   }
+  await page.unroute('**/api/tags/g578/hydrate**');
 });
 
 check('/vn/v26180 toolbar buttons have consistent height', async (page) => {
@@ -1152,6 +1202,193 @@ check('narrow tutorial panel stays inside viewport with touch-safe actions', asy
   }
 });
 
+check('physical bundle modal stays bounded through its loaded state', async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/physical-bundles', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bundles: [] }) });
+      return;
+    }
+    await route.continue();
+  });
+  await gotoClean(page, '/qa/stateful-surfaces');
+  const trigger = page.getByRole('button', { name: 'Open physical bundle QA' });
+  await waitForReactHydration(trigger);
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: /Gérer les coffrets|Manage bundles|ボックスセット管理/i });
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+  await dialog.getByText(/Aucun coffret physique|No physical bundles|物理ボックスはありません/i).waitFor({ state: 'visible', timeout: 10000 });
+  const geometry = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const visibleButtons = Array.from(element.querySelectorAll('button')).filter((button) => {
+      const box = button.getBoundingClientRect();
+      return box.width > 0 && box.height > 0;
+    });
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      internalOverflow: element.scrollWidth - element.clientWidth,
+      minButtonHeight: Math.min(...visibleButtons.map((button) => button.getBoundingClientRect().height)),
+    };
+  });
+  assert(geometry.left >= 0 && geometry.right <= geometry.viewportWidth, 'physical bundle modal exceeds the narrow viewport horizontally');
+  assert(geometry.top >= 0 && geometry.bottom <= geometry.viewportHeight, 'physical bundle modal exceeds the narrow viewport vertically');
+  assert(geometry.documentOverflow <= 2, `physical bundle modal creates ${geometry.documentOverflow}px page overflow`);
+  assert(geometry.internalOverflow <= 2, `physical bundle modal creates ${geometry.internalOverflow}px internal horizontal overflow`);
+  assert(geometry.minButtonHeight >= 44, `physical bundle modal has a ${geometry.minButtonHeight}px touch target`);
+});
+
+check('mixed-stock tabs remain bounded and switch panels on narrow screens', async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route(/\/api\/alicenet(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [],
+        stats: { total: 0, matched: 0, vndb_matched: 0, egs_only: 0, unmatched: 0, unprocessed: 0, none_found: 0, in_collection: 0, in_wishlist: 0 },
+        pending: { vndb_pending: 0, egs_pending: 0 },
+        last_fetch: 0,
+      }),
+    });
+  });
+  await page.route('**/api/places/90001/stock?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        vns: [],
+        stats: { total: 0, in_stock: 0, out_of_stock: 0, offer_count: 0, in_collection: 0, branch_count: 0, in_wishlist: 0 },
+      }),
+    });
+  });
+  await gotoClean(page, '/qa/stateful-surfaces');
+  const tabList = page.getByRole('tablist', { name: /Sources du stock|Stock sources|在庫ソース/i });
+  await tabList.waitFor({ state: 'visible', timeout: 10000 });
+  const tabs = tabList.getByRole('tab');
+  assert(await tabs.count() === 2, 'mixed-stock tab list does not expose both stock sources');
+  const geometry = await tabList.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const heights = Array.from(element.querySelectorAll('[role="tab"]')).map((tab) => tab.getBoundingClientRect().height);
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      minTabHeight: Math.min(...heights),
+    };
+  });
+  assert(geometry.left >= 0 && geometry.right <= geometry.viewportWidth, 'mixed-stock tab list exceeds the narrow viewport');
+  assert(geometry.documentOverflow <= 2, `mixed-stock tabs create ${geometry.documentOverflow}px page overflow`);
+  assert(geometry.minTabHeight >= 44, `mixed-stock tab touch target is only ${geometry.minTabHeight}px high`);
+  const secondTab = tabs.nth(1);
+  await waitForReactHydration(secondTab);
+  await secondTab.click();
+  await page.waitForFunction(
+    (element) => element.getAttribute('aria-selected') === 'true',
+    await secondTab.elementHandle(),
+    { timeout: 10000 },
+  );
+  assert(await secondTab.getAttribute('aria-selected') === 'true', 'mixed-stock tab did not become selected');
+  const panel = page.getByRole('tabpanel');
+  await panel.waitFor({ state: 'visible', timeout: 10000 });
+  assert(await panel.getAttribute('aria-labelledby') === await secondTab.getAttribute('id'), 'mixed-stock panel is not labelled by the selected tab');
+});
+
+check('VNDB import conflicts remain readable inside the narrow settings dialog', async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/vndb/import-local-library', async (route) => {
+    const request = route.request();
+    const body = request.postDataJSON();
+    const response = body.action === 'preview'
+      ? {
+          ok: true,
+          action: 'preview',
+          needsAuth: false,
+          canApply: true,
+          candidates: [{ kind: 'vn', key: 'vn:v90001', vn_id: 'v90001', title: 'QA conflict title', local_status: 'planning' }],
+          ineligible: [],
+          summary: { scanned_vns: 1, scanned_releases: 0, already_in_vndb: 0, already_obtained: 0, ineligible: 0 },
+        }
+      : {
+          ok: true,
+          action: 'apply',
+          needsAuth: false,
+          applied: [],
+          conflicts: [{ key: 'vn:v90001', reason: 'remote_changed' }],
+          failures: [],
+        };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(response) });
+  });
+  await gotoClean(page, '/qa/stateful-surfaces');
+  const importPanel = page.getByRole('region', { name: 'VNDB import QA' });
+  const compare = importPanel.getByRole('button', { name: /Créer l’aperçu|Create preview|プレビューを作成/i });
+  await waitForReactHydration(compare);
+  await compare.click();
+  const candidate = importPanel.getByRole('checkbox', { name: /QA conflict title/ });
+  await candidate.waitFor({ state: 'visible', timeout: 10000 });
+  await candidate.check();
+  await importPanel.getByRole('button', { name: /Importer dans VNDB|Import into VNDB|VNDB にインポート/i }).click();
+  const confirmation = page.getByRole('alertdialog');
+  await confirmation.waitFor({ state: 'visible', timeout: 10000 });
+  await confirmation.getByRole('button', { name: /Confirmer|Confirm|確認/i }).click();
+  const conflict = importPanel.getByText(/élément non importé|item was not imported|インポートできませんでした/i).first();
+  await conflict.waitFor({ state: 'visible', timeout: 10000 });
+  const geometry = await importPanel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const openDetails = element.querySelector('details[open]');
+    const detailsRect = openDetails?.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: window.innerWidth,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      internalOverflow: element.scrollWidth - element.clientWidth,
+      conflictLeft: detailsRect?.left ?? -1,
+      conflictRight: detailsRect?.right ?? Number.POSITIVE_INFINITY,
+    };
+  });
+  assert(geometry.left >= 0 && geometry.right <= geometry.viewportWidth, 'import panel exceeds the narrow viewport');
+  assert(geometry.conflictLeft >= geometry.left && geometry.conflictRight <= geometry.right, 'import conflict panel escapes its container');
+  assert(geometry.documentOverflow <= 2, `import conflict state creates ${geometry.documentOverflow}px page overflow`);
+  assert(geometry.internalOverflow <= 2, `import conflict state creates ${geometry.internalOverflow}px internal horizontal overflow`);
+});
+
+check('global error boundary stays bounded and resets on a narrow viewport', async (page) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await gotoClean(page, '/qa/error-boundary');
+  const content = page.locator('[data-global-error-content]');
+  await content.waitFor({ state: 'visible', timeout: 10000 });
+  const geometry = await content.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const button = element.querySelector('button');
+    return {
+      left: rect.left,
+      right: rect.right,
+      bottom: rect.bottom,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      buttonHeight: button?.getBoundingClientRect().height ?? 0,
+    };
+  });
+  assert(geometry.left >= 0 && geometry.right <= geometry.viewportWidth, 'global error content exceeds the narrow viewport horizontally');
+  assert(geometry.bottom <= geometry.viewportHeight, 'global error content exceeds the narrow viewport vertically');
+  assert(geometry.documentOverflow <= 2, `global error content creates ${geometry.documentOverflow}px page overflow`);
+  assert(geometry.buttonHeight >= 44, `global error retry target is only ${geometry.buttonHeight}px high`);
+  const retry = content.getByRole('button');
+  await waitForReactHydration(retry);
+  await retry.click({ force: true });
+  const resetStatus = page.getByText('Global error reset completed');
+  await resetStatus.waitFor({ state: 'visible', timeout: 5000 });
+  assert((await resetStatus.innerText()).includes('reset completed'), 'global error retry did not reset the probe state');
+});
+
 check('narrow VN detail stays bounded with collapsed sections and touch-safe navigation', async (page) => {
   await page.setViewportSize({ width: 390, height: 844 });
   try {
@@ -1199,7 +1436,13 @@ console.log(`  WRITE_QA_ALLOWED = ${process.env.WRITE_QA_ALLOWED}`);
 console.log(`  VNCOLL_QA        = ${process.env.VNCOLL_QA}`);
 console.log('');
 
-for (const { name, fn } of checks) {
+const checkPattern = process.env.QA_CHECK_PATTERN
+  ? new RegExp(process.env.QA_CHECK_PATTERN, 'i')
+  : null;
+const selectedChecks = checkPattern ? checks.filter(({ name }) => checkPattern.test(name)) : checks;
+if (selectedChecks.length === 0) die(`QA_CHECK_PATTERN=${process.env.QA_CHECK_PATTERN} matched no interaction checks.`);
+
+for (const { name, fn } of selectedChecks) {
   const checkContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await checkContext.addInitScript(() => {
     window.localStorage.setItem('vn_tour_completed_v1', '1');

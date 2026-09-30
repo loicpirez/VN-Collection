@@ -10,6 +10,7 @@ describe('root Basic Auth URL scrub', () => {
     expect(layout).toContain("current.username = ''");
     expect(layout).toContain("current.password = ''");
     expect(layout).toContain("window.history.replaceState(null, '', current.href)");
-    expect(layout).toContain('dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }}');
+    expect(layout).toContain("const nonce = (await headers()).get('x-nonce') ?? undefined");
+    expect(layout).toContain('nonce={nonce} dangerouslySetInnerHTML={{ __html: BASIC_AUTH_URL_SCRUB_SCRIPT }}');
   });
 });

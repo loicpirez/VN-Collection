@@ -5,12 +5,16 @@ const mocks = vi.hoisted(() => ({
   mergeDurableStockBatchJobs: vi.fn(),
   enrichJobs: vi.fn(),
   getVndbThrottleStats: vi.fn(),
+  listFullDownloadJobs: vi.fn(),
 }));
 
 vi.mock('@/lib/download-status', () => ({ listJobs: mocks.listJobs }));
 vi.mock('@/lib/stock-batch-store', () => ({ mergeDurableStockBatchJobs: mocks.mergeDurableStockBatchJobs }));
 vi.mock('@/lib/download-status-names', () => ({ enrichJobs: mocks.enrichJobs }));
 vi.mock('@/lib/vndb-throttle', () => ({ getVndbThrottleStats: mocks.getVndbThrottleStats }));
+vi.mock('@/lib/db/repositories/full-download-queue', () => ({
+  getFullDownloadQueueStore: () => ({ listJobs: mocks.listFullDownloadJobs }),
+}));
 
 describe('download status payload', () => {
   beforeEach(() => {
@@ -19,6 +23,25 @@ describe('download status payload', () => {
     mocks.mergeDurableStockBatchJobs.mockReset();
     mocks.enrichJobs.mockReset().mockImplementation(async (jobs) => jobs);
     mocks.getVndbThrottleStats.mockReset().mockReturnValue({ active: 0, queued: 0, retryAfterMs: 0 });
+    mocks.listFullDownloadJobs.mockReset().mockResolvedValue([]);
+  });
+
+  it('merges durable full-download rows and tolerates their status store failing', async () => {
+    const stock = [{ id: 'stock', started_at: 10 }];
+    const full = [{ id: 'full', started_at: 20 }];
+    mocks.mergeDurableStockBatchJobs.mockResolvedValue(stock);
+    mocks.listFullDownloadJobs.mockResolvedValueOnce(full).mockRejectedValueOnce(new Error('queue unavailable'));
+    mocks.enrichJobs.mockImplementation(async (jobs) => jobs);
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { buildDownloadStatusSnapshot } = await import('@/lib/download-status-payload');
+
+    await expect(buildDownloadStatusSnapshot()).resolves.toMatchObject({ jobs: [full[0], stock[0]] });
+    await expect(buildDownloadStatusSnapshot()).resolves.toMatchObject({ jobs: stock });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[download-status] durable full-download jobs unavailable',
+      expect.objectContaining({ message: 'queue unavailable' }),
+    );
+    consoleSpy.mockRestore();
   });
 
   it('coalesces concurrent consumers and rebuilds after the shared snapshot settles', async () => {

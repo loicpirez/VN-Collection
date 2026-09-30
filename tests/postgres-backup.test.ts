@@ -31,6 +31,8 @@ const MIGRATIONS = [
   '0009_drop_legacy_alicenet_indexes',
   '0010_decode_legacy_html_entities',
   '0011_stock_provider_batch_runs',
+  '0012_full_download_queue',
+  '0013_vn_staff_credit_primary_key',
 ];
 
 function result<Row extends QueryResultRow>(rows: Row[]): QueryResult<Row> {

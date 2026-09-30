@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly VNDB off-site restore-drill schedule
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+Unit=vndb-offsite-restore-drill.service
+
+[Install]
+WantedBy=timers.target

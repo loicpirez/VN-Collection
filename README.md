@@ -442,14 +442,17 @@ either Compose port on a public interface.
 | `DB_PATH` | `./data/collection.db` | Override the SQLite file location in `sqlite` or `sqlite-readonly` mode |
 | `STORAGE_ROOT` | `./data/storage/` | Override media/image storage directory |
 | `VN_ADMIN_TOKEN` | unset | Admin bearer token (alternative to localhost-only auth) |
-| `VN_PUBLIC_READ_AUTH` | unset | Public API read policy: `token` enforces `VN_ADMIN_TOKEN`; `upstream` declares that the reverse proxy already authenticates every request |
+| `VN_PUBLIC_READ_AUTH` | unset | Application access policy: `token` enforces `VN_ADMIN_TOKEN` across pages, RSC, assets, and API routes; `upstream` declares that the reverse proxy already authenticates every request |
 | `ALLOW_TRUSTED_PROXY` | unset | Set to `1` only when the reverse proxy injects the private proof header |
 | `TRUSTED_PROXY_SECRET` | unset | Random secret shared with the trusted proxy and stored outside the repository |
 | `VNCOLL_DISABLE_ACTIVITY` | unset | Set to `1` to disable the global `user_activity` audit log (only the literal `1` is honoured; other values are a no-op) |
 
 Leave `VN_PUBLIC_READ_AUTH` unset for the historical localhost or trusted-LAN
-deployment. Use `token` only when the client or reverse proxy supplies
-`Authorization: Bearer <VN_ADMIN_TOKEN>` or `x-admin-token` on API requests.
+deployment. Use `token` when programmatic clients supply
+`Authorization: Bearer <VN_ADMIN_TOKEN>` or `x-admin-token`. Browsers use HTTP
+Basic authentication with username `vndb` and `VN_ADMIN_TOKEN` as the password;
+the origin credential context covers pages, RSC navigation, assets, and API
+requests. The application leaves `/api/health` open for local deployment probes.
 Use `upstream` only when the reverse proxy already blocks unauthenticated page
 and API access; this mode suppresses the deployment warning but deliberately
 does not duplicate the upstream authentication check.

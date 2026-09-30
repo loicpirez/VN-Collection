@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   downloadFullCharForVn: vi.fn(),
   downloadFullProducerForVn: vi.fn(),
   downloadFullStaffForVn: vi.fn(),
+  enqueueFullDownloads: vi.fn(),
   getCharacterImages: vi.fn(),
   getQuotesForVn: vi.fn(),
   getReleasesForVn: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   requireLocalhostOrToken: vi.fn(),
   searchCollectionByTitle: vi.fn(),
   upsertReleaseResolutionCache: vi.fn(),
+  wakeFullDownloadWorkers: vi.fn(),
 }));
 
 vi.mock('@/lib/auth-gate', () => ({
@@ -63,6 +65,14 @@ vi.mock('@/lib/character-full', () => ({
 
 vi.mock('@/lib/producer-full', () => ({
   downloadFullProducerForVn: mocks.downloadFullProducerForVn,
+}));
+
+vi.mock('@/lib/db/repositories/full-download-queue', () => ({
+  getFullDownloadQueueStore: () => ({ enqueue: mocks.enqueueFullDownloads }),
+}));
+
+vi.mock('@/lib/full-download-worker', () => ({
+  wakeFullDownloadWorkers: mocks.wakeFullDownloadWorkers,
 }));
 
 vi.mock('@/lib/activity', () => ({
@@ -116,6 +126,7 @@ beforeEach(() => {
   mocks.downloadFullStaffForVn.mockResolvedValue(undefined);
   mocks.downloadFullCharForVn.mockResolvedValue(undefined);
   mocks.downloadFullProducerForVn.mockResolvedValue(undefined);
+  mocks.enqueueFullDownloads.mockResolvedValue(2);
   mocks.readBodyWithLimit.mockImplementation(async (request: Request) => Buffer.from(await request.arrayBuffer()));
 });
 
@@ -272,19 +283,13 @@ describe('POST /api/collection/full-download', () => {
     expect(mocks.recordActivity).not.toHaveBeenCalled();
   });
 
-  it('deduplicates ids, queues fan-outs, records activity, and logs async fan-out failures', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.downloadFullStaffForVn.mockRejectedValue(new Error('staff failed'));
-    mocks.downloadFullCharForVn.mockRejectedValue(new Error('character failed'));
-    mocks.downloadFullProducerForVn.mockRejectedValue(new Error('producer failed'));
+  it('deduplicates ids, durably queues work, records activity, and wakes workers', async () => {
     const response = await fullDownloadPOST(req('/api/collection/full-download', 'POST', {
       vn_ids: [VN_ID.toUpperCase(), VN_ID, 'v992002'],
     }));
     expect(response.status).toBe(202);
     await expect(response.json()).resolves.toEqual({ ok: true, queued: 2 });
-    expect(mocks.downloadFullStaffForVn).toHaveBeenCalledWith(VN_ID, { force: true });
-    expect(mocks.downloadFullCharForVn).toHaveBeenCalledWith(VN_ID, { force: true });
-    expect(mocks.downloadFullProducerForVn).toHaveBeenCalledWith(VN_ID, { force: true });
+    expect(mocks.enqueueFullDownloads).toHaveBeenCalledWith([VN_ID, 'v992002'], expect.any(Number));
     expect(mocks.recordActivity).toHaveBeenCalledWith({
       kind: 'download.full',
       entity: 'collection',
@@ -292,11 +297,20 @@ describe('POST /api/collection/full-download', () => {
       label: 'Full data download',
       payload: { count: 2, vn_ids: [VN_ID, 'v992002'] },
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(consoleSpy).toHaveBeenCalledWith(`[full-download:${VN_ID}] staff:`, 'staff failed');
-    expect(consoleSpy).toHaveBeenCalledWith(`[full-download:${VN_ID}] characters:`, 'character failed');
-    expect(consoleSpy).toHaveBeenCalledWith(`[full-download:${VN_ID}] producers:`, 'producer failed');
+    expect(mocks.wakeFullDownloadWorkers).toHaveBeenCalledOnce();
+  });
+
+  it('returns a stable service error when durable enqueue fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.enqueueFullDownloads.mockRejectedValueOnce(new Error('database unavailable'));
+    const response = await fullDownloadPOST(req('/api/collection/full-download', 'POST', { vn_ids: [VN_ID] }));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'full download queue unavailable',
+      code: 'queue_unavailable',
+    });
+    expect(mocks.recordActivity).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith('[full-download] durable enqueue failed:', 'database unavailable');
     consoleSpy.mockRestore();
   });
 });

@@ -33,24 +33,17 @@ export async function ProducerVnsSections({
   let data: ProducerAssociations;
   try {
     data = await fetchProducerAssociations(producerId, { cacheOnly: true });
-    if (data.upstreamFailed || data.stale) {
-      data = await fetchProducerAssociations(producerId);
-    }
   } catch {
-    try {
-      data = await fetchProducerAssociations(producerId);
-    } catch {
-      data = {
-        name: null,
-        developerVns: [],
-        publisherVns: [],
-        totalUnique: 0,
-        ownedUnique: 0,
-        fromCache: false,
-        upstreamFailed: true,
-        stale: false,
-      };
-    }
+    data = {
+      name: null,
+      developerVns: [],
+      publisherVns: [],
+      totalUnique: 0,
+      ownedUnique: 0,
+      fromCache: false,
+      upstreamFailed: true,
+      stale: false,
+    };
   }
 
   const developerVns = scope === 'collection' ? data.developerVns.filter((v) => v.owned) : data.developerVns;
@@ -80,7 +73,7 @@ export async function ProducerVnsSections({
             below is the user's only recourse - clicking it busts
             the cache and re-tries upstream.
           */}
-          {data.stale && (
+          {(data.stale || data.upstreamFailed) && (
             <span
               className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-status-on_hold/50 bg-status-on_hold/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-on_hold"
               title={t.producerVns.staleSuffix}

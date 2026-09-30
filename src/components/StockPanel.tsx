@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionaries';
-import { currencyFormatter, fmtDate } from '@/lib/locale-number';
+import { currencyFormatter, fmtDate, formatCount } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
 import { safeHref } from '@/lib/safe-href';
 import { timeAgo } from '@/lib/time-ago';
@@ -2068,9 +2068,8 @@ function OfferGroup({
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted" id={`${panelId}-label`}>{label}</h3>
         <span
           className="rounded bg-bg-elev px-1.5 py-0.5 text-[10px] text-muted"
-          aria-label={(t.stock.groupOfferCount as string)
-            .replace('{group}', label)
-            .replace('{count}', String(offers.length))}
+          aria-label={formatCount(offers.length, locale, t.stock.groupOfferCount)
+            .replace('{group}', label)}
         >
           {offers.length}
         </span>
@@ -2080,9 +2079,11 @@ function OfferGroup({
           className="min-h-[44px] rounded px-1.5 py-0.5 text-[10px] text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-0"
           aria-expanded={!collapsed}
           aria-controls={panelId}
-          aria-label={(collapsed ? t.stock.groupExpandLabel : t.stock.groupCollapseLabel)
-            .replace('{group}', label)
-            .replace('{count}', String(offers.length))}
+          aria-label={formatCount(
+            offers.length,
+            locale,
+            collapsed ? t.stock.groupExpandLabel : t.stock.groupCollapseLabel,
+          ).replace('{group}', label)}
         >
           {collapsed
             ? (t.stock.groupExpand as string).replace('{count}', String(offers.length))
@@ -2186,7 +2187,7 @@ function OffersGrouped({
     <div>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted">
-          {t.stock.offersTitle.replace('{count}', String(offers.length))}
+          {formatCount(offers.length, locale, t.stock.offersTitle)}
         </h3>
         {best != null && (
           <span className="text-xs font-semibold text-accent">

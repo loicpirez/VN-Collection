@@ -51,26 +51,8 @@ const STRINGS: Record<SupportedLocale, { title: string; body: string; retry: str
   },
 };
 
-/**
- * Top-level error boundary for crashes in the root layout itself.
- * `app/error.tsx` only catches errors INSIDE the layout - but the
- * layout can also throw (font loading, i18n provider, cookie
- * parsing). When that happens, this is the last line of defense
- * before Next.js shows its default error page.
- *
- * Renders its own <html>/<body> per Next 15's contract for
- * global-error.tsx. Uses the locale cookie when available so
- * the lang attribute reflects the user's actual language setting.
- */
-export default function GlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+function useErrorLocale(error: Error): SupportedLocale {
   const [lang, setLang] = useState<SupportedLocale>('en');
-
   useEffect(() => {
     console.error('Global error:', error);
     const fromCookie = readLocaleCookie();
@@ -81,13 +63,26 @@ export default function GlobalError({
     const fromNav = readLocaleFromNavigator();
     if (fromNav) setLang(fromNav);
   }, [error]);
+  return lang;
+}
 
+function ErrorContent({
+  error,
+  lang,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  lang: SupportedLocale;
+  reset: () => void;
+}) {
   const s = STRINGS[lang];
-
   return (
-    <html lang={lang}>
-      <body style={{ fontFamily: 'system-ui, sans-serif', padding: 40, background: '#0b1220', color: '#fff' }}>
-        <div role="alert" style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
+    <div
+      role="alert"
+      data-global-error-content
+      lang={lang}
+      style={{ width: '100%', maxWidth: 480, margin: 'clamp(24px, 8vh, 60px) auto', textAlign: 'center' }}
+    >
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
             {s.title}
           </h1>
@@ -110,11 +105,44 @@ export default function GlobalError({
               border: 'none',
               cursor: 'pointer',
               fontWeight: 600,
+              minHeight: 44,
             }}
           >
             {s.retry}
           </button>
-        </div>
+    </div>
+  );
+}
+
+/** Render the interactive, localized content shared by the global boundary and QA probe. */
+export function GlobalErrorContent(props: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  const lang = useErrorLocale(props.error);
+  return <ErrorContent {...props} lang={lang} />;
+}
+
+/** Render the top-level Next.js error boundary document with its own responsive shell. */
+export default function GlobalError(props: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  const lang = useErrorLocale(props.error);
+  return (
+    <html lang={lang}>
+      <body
+        style={{
+          minHeight: '100vh',
+          margin: 0,
+          padding: 'clamp(16px, 5vw, 40px)',
+          background: '#0b1220',
+          color: '#fff',
+          fontFamily: 'system-ui, sans-serif',
+          boxSizing: 'border-box',
+        }}
+      >
+        <ErrorContent {...props} lang={lang} />
       </body>
     </html>
   );

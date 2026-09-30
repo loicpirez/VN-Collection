@@ -11,8 +11,11 @@ export async function register(): Promise<void> {
   const { installServerShutdownHooks } = await import('@/lib/server-shutdown');
   installServerShutdownHooks();
   const config = readDatabaseConfig();
-  if (config.backend !== 'postgres') return;
-  const { assertPostgresRuntimeReady, installPostgresShutdownHooks } = await import('@/lib/db/postgres');
-  installPostgresShutdownHooks();
-  await assertPostgresRuntimeReady();
+  if (config.backend === 'postgres') {
+    const { assertPostgresRuntimeReady, installPostgresShutdownHooks } = await import('@/lib/db/postgres');
+    installPostgresShutdownHooks();
+    await assertPostgresRuntimeReady();
+  }
+  const { startFullDownloadWorkers } = await import('@/lib/full-download-worker');
+  startFullDownloadWorkers();
 }

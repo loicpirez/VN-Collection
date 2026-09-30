@@ -53,6 +53,7 @@ export const POSTGRES_TABLE_ORDER = [
   'place_provider_link',
   'stock_batch_job',
   'stock_provider_batch_run',
+  'full_download_queue',
   'app_job_lock',
 ] as const;
 
@@ -70,6 +71,7 @@ export const POSTGRES_JSON_COLUMNS: Readonly<Partial<Record<PostgresMigrationTab
   vn_stock_offer: ['match_warnings_json'],
   vn_stock_provider_status: ['extras_json'],
   stock_batch_job: ['current_item_params_json', 'errors_json', 'label_params_json', 'providers_json'],
+  full_download_queue: ['errors_json'],
 };
 
 /** Storage and malformed-value policy shared by every contractual JSON column. */

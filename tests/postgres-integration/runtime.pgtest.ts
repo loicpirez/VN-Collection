@@ -243,7 +243,7 @@ describe('real PostgreSQL migration runtime', () => {
         ORDER BY table_name
       `);
       expect(activeSchema.rows[0]?.schema).toBe(schema);
-      expect(tables.rows[0]?.count).toBe(58);
+      expect(tables.rows[0]?.count).toBe(59);
       expect(normalizedIndexTables.rows).toEqual([
         { table_name: 'release_platform_index' },
         { table_name: 'vn_relation_index' },

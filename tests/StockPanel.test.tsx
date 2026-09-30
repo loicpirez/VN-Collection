@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { StockPanel } from '@/components/StockPanel';
+import { formatCount } from '@/lib/locale-number';
 import type { StockOfferDto, StockProviderDto, StockSnapshotDto, StockSourceDto, StockStatusDto } from '@/lib/stock-api-types';
 import { dictionaries, DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
 
@@ -1031,7 +1032,7 @@ describe('StockPanel', () => {
     renderWithProviders(<StockPanel vnId="v90001" initialSnapshot={snap} placeMap={{ 'Branch Alpha': 42 }} />);
 
     const gameExpand = screen.getByRole('button', {
-      name: (t.stock.groupExpandLabel as string).replace('{group}', t.stock.groupGame as string).replace('{count}', '3'),
+      name: formatCount(3, 'en', t.stock.groupExpandLabel).replace('{group}', t.stock.groupGame as string),
     });
     fireEvent.click(gameExpand);
     expect(screen.getByText('Game offer')).toBeTruthy();
@@ -1056,7 +1057,7 @@ describe('StockPanel', () => {
     ]);
     for (const [group, count] of groupCounts) {
       fireEvent.click(screen.getByRole('button', {
-        name: (t.stock.groupExpandLabel as string).replace('{group}', group).replace('{count}', count),
+        name: formatCount(Number(count), 'en', t.stock.groupExpandLabel).replace('{group}', group),
       }));
     }
     expect(screen.getByText('Needs review offer')).toBeTruthy();

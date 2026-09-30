@@ -47,8 +47,9 @@ export function loadPrefs(): { sort?: SortKey; view?: ViewMode } {
 }
 
 function kindLabel(t: ReturnType<typeof useT>, kind: PlaceWithLinks['kind']): string {
-  const key = `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
-  return (t.places as Record<string, string>)[key];
+  if (kind === 'chain') return t.places.kindChain;
+  if (kind === 'storage') return t.places.kindStorage;
+  return t.places.kindShop;
 }
 
 function linkedBranchesLabel(t: ReturnType<typeof useT>, count: number): string {
