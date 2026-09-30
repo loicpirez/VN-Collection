@@ -13,7 +13,7 @@ The repo-managed design uses a root-owned rclone `crypt` remote backed by the re
 Run these commands from a reviewed release checkout. They are intentionally not part of application deployment because they install root services and reuse an operator-owned cloud destination.
 
 ```bash
-sudo install -d -o root -g root -m 0700 /etc/vndb
+sudo install -d -o root -g root -m 0755 /etc/vndb
 sudo install -o root -g root -m 0600 \
   /home/ubuntu/.config/rclone/rclone.conf \
   /etc/vndb/rclone.conf
@@ -35,6 +35,11 @@ Do not reuse an application password or place cleartext passwords in a unit file
 sudo test "$(stat -c '%a' /etc/vndb/rclone.conf)" = 600
 sudo rclone lsd --config /etc/vndb/rclone.conf vndb-offsite:
 ```
+
+The shared `/etc/vndb` directory must remain traversable by the application and
+deployment user because it also contains their existing environment files. The
+rclone credential itself remains root-owned and mode `0600`; directory mode
+`0755` does not make that file readable.
 
 Copy the completed root configuration to an approved credential escrow that is independent of this server and Google Drive. That escrow is required to recover the crypt passwords after total host loss. Keep both server copies mode `0600`; rclone's stored obscured values are reversible and must be treated as credentials.
 
