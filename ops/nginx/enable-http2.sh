@@ -18,9 +18,35 @@ if [[ ! -f "$site" ]]; then
   exit 1
 fi
 
-ipv4_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+443[[:space:]]+ssl;([[:space:]]*#.*)?$' "$site")"
-ipv6_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+\[::\]:443[[:space:]]+ssl[[:space:]]+ipv6only=on;([[:space:]]*#.*)?$' "$site")"
-if [[ "$ipv4_count" -ne 1 || "$ipv6_count" -ne 1 ]]; then
+plain_ipv4_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+443[[:space:]]+ssl;([[:space:]]*#.*)?$' "$site" || true)"
+plain_ipv6_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+\[::\]:443[[:space:]]+ssl[[:space:]]+ipv6only=on;([[:space:]]*#.*)?$' "$site" || true)"
+http2_ipv4_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+443[[:space:]]+ssl[[:space:]]+http2;([[:space:]]*#.*)?$' "$site" || true)"
+http2_ipv6_count="$(grep -Ec '^[[:space:]]*listen[[:space:]]+\[::\]:443[[:space:]]+ssl[[:space:]]+http2[[:space:]]+ipv6only=on;([[:space:]]*#.*)?$' "$site" || true)"
+
+verify_http2() {
+  local attempt
+  local protocol=""
+  for attempt in {1..10}; do
+    protocol="$(curl --silent --show-error --http2 -o /dev/null -w '%{http_version}' \
+      --resolve 'ns503173.ip-192-99-7.net:443:127.0.0.1' \
+      'https://ns503173.ip-192-99-7.net/api/health?check=live' 2>/dev/null || true)"
+    if [[ "$protocol" == "2" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  printf 'Nginx negotiated HTTP/%s instead of HTTP/2 after reload.\n' "${protocol:-unavailable}" >&2
+  return 1
+}
+
+if [[ "$http2_ipv4_count" -eq 1 && "$http2_ipv6_count" -eq 1 &&
+      "$plain_ipv4_count" -eq 0 && "$plain_ipv6_count" -eq 0 ]]; then
+  verify_http2
+  printf 'HTTP/2 was already enabled and is verified.\n'
+  exit 0
+fi
+if [[ "$plain_ipv4_count" -ne 1 || "$plain_ipv6_count" -ne 1 ||
+      "$http2_ipv4_count" -ne 0 || "$http2_ipv6_count" -ne 0 ]]; then
   printf 'Refusing HTTP/2 edit because the expected TLS listen directives were not found exactly once.\n' >&2
   exit 1
 fi
@@ -46,14 +72,10 @@ if ! nginx -t; then
 fi
 
 systemctl reload nginx
-negotiated_protocol="$(curl --silent --show-error --http2 -o /dev/null -w '%{http_version}' \
-  --resolve 'ns503173.ip-192-99-7.net:443:127.0.0.1' \
-  'https://ns503173.ip-192-99-7.net/api/health?check=live')"
-if [[ "$negotiated_protocol" != "2" ]]; then
+if ! verify_http2; then
   cp --preserve=mode,ownership,timestamps "$backup" "$site"
   nginx -t
   systemctl reload nginx
-  printf 'Nginx reloaded but negotiated HTTP/%s instead of HTTP/2.\n' "$negotiated_protocol" >&2
   exit 1
 fi
 printf 'HTTP/2 enabled and verified. Backup: %s\n' "$backup"

@@ -23,8 +23,9 @@ creates a timestamped copy under root-only `/var/backups/vndb/nginx`, adds the
 nginx 1.24 HTTP/2 parameters, runs `nginx -t`, reloads nginx, and verifies
 loopback TLS negotiation. Keeping the backup outside `sites-enabled` prevents
 nginx's wildcard include from loading it as a second virtual host. The operation
-restores the previous file and reloads nginx if syntax validation or protocol
-verification fails. This resolution also handles hosts where
+waits for replacement workers to negotiate HTTP/2 after reload, accepts an
+already-enabled and verified configuration, and restores the previous file if
+syntax validation or protocol verification fails. This resolution also handles hosts where
 `sites-enabled/vndb` is a regular deployment-managed copy instead of a symlink
 to `sites-available`.
 
