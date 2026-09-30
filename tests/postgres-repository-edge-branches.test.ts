@@ -48,7 +48,7 @@ describe('PostgreSQL repository edge branches', () => {
       });
 
     await expect(repository.listUser()).resolves.toEqual([]);
-    expect(postgresQueryMock.mock.calls[0]?.[1]).toEqual([100]);
+    expect(postgresQueryMock.mock.calls[0]?.[1]).toEqual([100, 0]);
     await expect(repository.listForVn('v90001', Number.NaN)).resolves.toEqual([
       expect.objectContaining({ id: 1, payload: null }),
       expect.objectContaining({ id: 2, payload: null }),
@@ -59,6 +59,7 @@ describe('PostgreSQL repository edge branches', () => {
     await expect(repository.listRecent()).resolves.toEqual([
       expect.objectContaining({ vn_id: 'v90002', title: 'v90002' }),
     ]);
+    expect(postgresQueryMock.mock.calls[2]?.[1]).toEqual([10, 0]);
   });
 
   it('fails closed on absent dump and EGS summary rows', async () => {

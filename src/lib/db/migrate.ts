@@ -4,6 +4,7 @@ import type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import type { PostgresParameter } from './postgres';
 
 const MIGRATION_NAME = /^(\d{4})_([a-z0-9_]+)\.sql$/;
+const MIGRATION_VERSION = /^(\d{4})_[a-z0-9_]+$/;
 const MIGRATION_LOCK_NAME = 'vndb-collection:postgres-migrations';
 
 /** One ordered PostgreSQL migration loaded from disk. */
@@ -87,8 +88,37 @@ async function appliedVersions(database: MigrationQueryable): Promise<Set<string
 }
 
 /**
- * Fail closed when the connected PostgreSQL schema does not exactly match the
- * ordered migrations shipped with this application build.
+ * Report whether versions unknown to this release form the next contiguous
+ * numeric suffix after its final shipped migration.
+ *
+ * Older releases must tolerate a newer release's expand-only migrations so an
+ * application rollback remains possible. Malformed names, duplicate numbers,
+ * inserted versions, and gaps still fail closed.
+ *
+ * @param expected Ordered migrations shipped with the running release.
+ * @param future Versions present in the database but absent from this release.
+ * @returns True only for an empty suffix or the exact next numeric sequence.
+ */
+function isSequentialFutureSuffix(
+  expected: readonly PostgresMigrationFile[],
+  future: readonly string[],
+): boolean {
+  if (future.length === 0) return true;
+  const finalExpected = expected.at(-1)?.version;
+  const finalMatch = finalExpected ? MIGRATION_VERSION.exec(finalExpected) : null;
+  if (!finalMatch) return false;
+  let nextNumber = Number(finalMatch[1]) + 1;
+  for (const version of future) {
+    const match = MIGRATION_VERSION.exec(version);
+    if (!match || Number(match[1]) !== nextNumber) return false;
+    nextNumber += 1;
+  }
+  return true;
+}
+
+/**
+ * Fail closed unless the connected PostgreSQL schema contains every migration
+ * shipped with this build plus, optionally, a contiguous future suffix.
  *
  * @param database Pool or transaction-capable query interface.
  * @param migrations Optional preloaded migration list for tests or tooling.
@@ -106,7 +136,8 @@ export async function assertPostgresSchemaCurrent(
   const expectedVersions = new Set(expected.map((migration) => migration.version));
   const missing = expected.filter((migration) => !applied.has(migration.version)).map((migration) => migration.version);
   const unexpected = Array.from(applied).filter((version) => !expectedVersions.has(version)).sort();
-  if (missing.length > 0 || unexpected.length > 0) {
+  const invalidFutureSuffix = !isSequentialFutureSuffix(expected, unexpected);
+  if (missing.length > 0 || invalidFutureSuffix) {
     const details = [
       missing.length > 0 ? `missing=${missing.join(',')}` : '',
       unexpected.length > 0 ? `unexpected=${unexpected.join(',')}` : '',

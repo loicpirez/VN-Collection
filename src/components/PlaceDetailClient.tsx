@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -45,6 +46,10 @@ export function PlaceDetailClient({ place }: Props) {
   const [showAssign, setShowAssign] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [stockSourceTab, setStockSourceTab] = useState<StockSourceTab>('alicenet');
+  const stockTabRefs = useRef<Record<StockSourceTab, HTMLButtonElement | null>>({
+    alicenet: null,
+    branches: null,
+  });
   const placeIdentityRef = useRef<number | null>(place.id);
   const deleteInFlightRef = useRef(false);
   const deleteAbortRef = useRef<AbortController | null>(null);
@@ -104,6 +109,21 @@ export function PlaceDetailClient({ place }: Props) {
     setShowEdit(false);
     setShowAssign(false);
     router.refresh();
+  }
+
+  function handleStockTabKeyDown(event: KeyboardEvent<HTMLButtonElement>): void {
+    let nextTab: StockSourceTab | null = null;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      nextTab = stockSourceTab === 'alicenet' ? 'branches' : 'alicenet';
+    } else if (event.key === 'Home') {
+      nextTab = 'alicenet';
+    } else if (event.key === 'End') {
+      nextTab = 'branches';
+    }
+    if (!nextTab) return;
+    event.preventDefault();
+    setStockSourceTab(nextTab);
+    stockTabRefs.current[nextTab]?.focus();
   }
 
   return (
@@ -226,8 +246,11 @@ export function PlaceDetailClient({ place }: Props) {
               aria-selected={stockSourceTab === 'alicenet'}
               aria-controls={`place-stock-panel-${place.id}`}
               id={`place-stock-alicenet-${place.id}`}
+              ref={(node) => { stockTabRefs.current.alicenet = node; }}
+              tabIndex={stockSourceTab === 'alicenet' ? 0 : -1}
               onClick={() => setStockSourceTab('alicenet')}
-              className={`min-h-10 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${stockSourceTab === 'alicenet' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+              onKeyDown={handleStockTabKeyDown}
+              className={`min-h-11 whitespace-nowrap rounded-md px-3 text-sm font-semibold can-hover:sm:min-h-10 ${stockSourceTab === 'alicenet' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
             >
               {t.places.stockSourceAliceNet as string}
             </button>
@@ -237,8 +260,11 @@ export function PlaceDetailClient({ place }: Props) {
               aria-selected={stockSourceTab === 'branches'}
               aria-controls={`place-stock-panel-${place.id}`}
               id={`place-stock-branches-${place.id}`}
+              ref={(node) => { stockTabRefs.current.branches = node; }}
+              tabIndex={stockSourceTab === 'branches' ? 0 : -1}
               onClick={() => setStockSourceTab('branches')}
-              className={`min-h-10 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${stockSourceTab === 'branches' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
+              onKeyDown={handleStockTabKeyDown}
+              className={`min-h-11 whitespace-nowrap rounded-md px-3 text-sm font-semibold can-hover:sm:min-h-10 ${stockSourceTab === 'branches' ? 'bg-accent text-bg' : 'text-muted hover:text-white'}`}
             >
               {t.places.stockSourceOther as string}
             </button>

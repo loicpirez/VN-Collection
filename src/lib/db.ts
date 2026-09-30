@@ -3615,17 +3615,21 @@ export interface RecentActivityEntry extends ActivityEntry {
  * Last N activity rows across every VN — feeds the dashboard "what have I
  * been doing lately" tile. Joins on `vn.title` so the UI can render the VN
  * name without a second lookup per row.
+ *
+ * @param limit Maximum number of rows to return.
+ * @param offset Number of rows to skip after stable ordering.
+ * @returns Recent activity entries in reverse chronological order.
  */
-export function listRecentActivity(limit = 10): RecentActivityEntry[] {
+export function listRecentActivity(limit = 10, offset = 0): RecentActivityEntry[] {
   const rows = db
     .prepare(`
       SELECT a.id, a.vn_id, a.kind, a.payload, a.occurred_at, v.title
       FROM vn_activity a
       LEFT JOIN vn v ON v.id = a.vn_id
       ORDER BY a.occurred_at DESC, a.id DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `)
-    .all(limit) as Array<{
+    .all(limit, offset) as Array<{
       id: number; vn_id: string; kind: string; payload: string | null; occurred_at: number; title: string | null;
     }>;
   return rows.map((r) => ({

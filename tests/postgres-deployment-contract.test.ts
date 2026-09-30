@@ -71,8 +71,22 @@ describe('PostgreSQL production deployment contract', () => {
     expect(deploy).toContain('VN_DEPLOY_MIGRATION_ENV_FILE');
     expect(deploy).toContain('/migration.env');
     expect(deploy).toMatch(/\(\s*set -a\s*\. "\$migration_environment_file"\s*set \+a\s*yarn db:postgres:apply\s*\)/s);
-    expect(deploy.indexOf('. "$environment_file"')).toBeLessThan(deploy.indexOf('yarn build'));
+    expect(deploy.indexOf('yarn build')).toBeLessThan(deploy.indexOf('yarn db:postgres:apply'));
+    expect(deploy.indexOf('yarn db:postgres:apply')).toBeLessThan(deploy.indexOf('. "$environment_file"'));
+    expect(deploy.indexOf('. "$environment_file"')).toBeLessThan(deploy.indexOf('node .next/standalone/server.js'));
     expect(deploy.indexOf('. "$migration_environment_file"')).toBeLessThan(deploy.indexOf('yarn db:postgres:apply'));
+  });
+
+  it('keeps production credentials and schema changes out of dependency installation and build', () => {
+    const deploy = read('ops/deploy-release.sh');
+    const install = deploy.indexOf('yarn install --frozen-lockfile');
+    const build = deploy.indexOf('yarn build');
+    const migrate = deploy.indexOf('yarn db:postgres:apply');
+    const applicationEnvironment = deploy.indexOf('. "$environment_file"');
+    expect(install).toBeGreaterThan(-1);
+    expect(install).toBeLessThan(build);
+    expect(build).toBeLessThan(migrate);
+    expect(migrate).toBeLessThan(applicationEnvironment);
   });
 
   it('keeps immutable releases owned by the service user and makes failed releases retryable', () => {

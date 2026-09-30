@@ -307,16 +307,34 @@ describe('PlaceDetailClient branches', () => {
     const aliceNetTab = screen.getByRole('tab', { name: t.places.stockSourceAliceNet as string });
     const branchesTab = screen.getByRole('tab', { name: t.places.stockSourceOther as string });
     expect(aliceNetTab).toHaveAttribute('aria-selected', 'true');
+    expect(aliceNetTab).toHaveAttribute('tabindex', '0');
+    expect(branchesTab).toHaveAttribute('tabindex', '-1');
     expect(screen.getByTestId('alicenet-client')).toBeInTheDocument();
     expect(screen.queryByTestId('vn-browser')).toBeNull();
 
-    await user.click(branchesTab);
+    aliceNetTab.focus();
+    await user.keyboard('{Escape}');
+    expect(aliceNetTab).toHaveFocus();
+    await user.keyboard('{ArrowRight}');
     expect(branchesTab).toHaveAttribute('aria-selected', 'true');
+    expect(branchesTab).toHaveAttribute('tabindex', '0');
+    expect(branchesTab).toHaveFocus();
     expect(screen.getByTestId('vn-browser')).toHaveTextContent('22');
     expect(screen.queryByTestId('alicenet-client')).toBeNull();
 
-    await user.click(aliceNetTab);
+    await user.keyboard('{Home}');
+    expect(aliceNetTab).toHaveFocus();
     expect(screen.getByTestId('alicenet-client')).toHaveAttribute('data-base-path', '/places/22');
+
+    await user.keyboard('{End}');
+    expect(branchesTab).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    expect(aliceNetTab).toHaveFocus();
+
+    await user.click(branchesTab);
+    expect(branchesTab).toHaveAttribute('aria-selected', 'true');
+    await user.click(aliceNetTab);
+    expect(aliceNetTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('falls back to the raw kind when no localized label exists', async () => {

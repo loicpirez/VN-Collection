@@ -317,6 +317,7 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
 
   it('decompresses zstd when the runtime supports it and passes zstd bytes through otherwise', async () => {
     const compress = zlib.zstdCompressSync;
+    const original = zlib.zstdDecompressSync;
     if (typeof compress === 'function') {
       responseQueue.push({
         statusCode: 200,
@@ -326,8 +327,16 @@ describe('nodeAgentFetch — body decoding and method handling', () => {
       const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
       const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
       expect(await res.text()).toBe('hello-zstd');
+    } else {
+      Object.defineProperty(zlib, 'zstdDecompressSync', {
+        configurable: true,
+        value: (raw: Uint8Array) => Buffer.from(raw),
+      });
+      responseQueue.push({ statusCode: 200, headers: { 'content-encoding': 'zstd' }, body: Buffer.from('mock-zstd') });
+      const { nodeAgentFetch, createProxyHopResolver } = await import('@/lib/proxy-fetch');
+      const res = await nodeAgentFetch('https://api.vndb.org/x', {}, undefined, createProxyHopResolver(new Agent()));
+      expect(await res.text()).toBe('mock-zstd');
     }
-    const original = zlib.zstdDecompressSync;
     Object.defineProperty(zlib, 'zstdDecompressSync', { configurable: true, value: undefined });
     try {
       responseQueue.push({ statusCode: 200, headers: { 'content-encoding': 'zstd' }, body: Buffer.from('plain-zstd') });

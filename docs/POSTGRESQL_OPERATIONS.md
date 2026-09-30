@@ -38,13 +38,21 @@ and verify both `Result=success` and `NRestarts=0`.
 
 ## Deployment contract
 
-- Apply reviewed migrations with `yarn db:postgres:apply` as a separate
-  pre-deployment job. Application startup validates versions but never changes
-  schema.
+- Build and package the candidate before applying reviewed migrations. A build
+  failure must leave the live database unchanged. Apply migrations with
+  `yarn db:postgres:apply` as a separate pre-activation job; application startup
+  validates versions but never changes schema.
 - Keep the application environment in `/etc/vndb/vndb.env` and the dedicated
   migrator connection in `/etc/vndb/migration.env`, both outside every release.
-  `ops/deploy-release.sh` loads the latter only in the migration subprocess and
-  then builds and probes the candidate with the application identity.
+  `ops/deploy-release.sh` builds without either production environment, loads
+  the latter only in the migration subprocess, and loads the application
+  environment only to probe and activate the built candidate.
+- Every migration deployed during the rollback window must be expand-only and
+  backward-compatible with the previous release. An older release accepts only
+  a well-formed, contiguous migration suffix after all of its required versions;
+  missing, malformed, inserted, duplicate-numbered, or gapped versions fail
+  readiness. Defer destructive contract migrations until the older release is
+  no longer a rollback target.
 - Supply `DATABASE_URL` through the deployment secret manager. Never bake it
   into an image, Compose file, health URL, log, or generated report.
 - Use `DATABASE_SSL_MODE=verify-full` for remote production databases with a
@@ -54,6 +62,23 @@ and verify both `Result=success` and `NRestarts=0`.
 - Keep `DATABASE_STATEMENT_TIMEOUT_MS` and `DATABASE_LOCK_TIMEOUT_MS` bounded.
   Increase them only from observed query plans, never as the first response to
   slow or blocked SQL.
+
+Before cloning or installing a release, the deployment script requires at
+least 10 GiB and 250,000 inodes to remain free on the release filesystem. Set
+`VN_DEPLOY_MIN_FREE_BYTES` or `VN_DEPLOY_MIN_FREE_INODES` to non-negative
+integer values when the host has a reviewed capacity policy with different
+reserves. A failed capacity check stops before dependency installation, build,
+migration, service restart, or symlink mutation.
+
+After the new process passes live health, commit, process-directory, and
+systemd activation checks, the deployment script prunes older immutable
+releases. It always protects the active target, the newly created target, and
+the preceding rollback target. In addition, it keeps the three newest
+unprotected releases by default; set `VN_DEPLOY_RELEASE_RETENTION` to a
+non-negative integer to change that count. Pruning accepts only real direct
+children of the release store whose names are full lowercase commit SHAs. It
+skips symlinks, nested paths, and unrecognized entries, stays on the release
+filesystem, and never runs after a failed activation.
 
 The production image is multi-stage and digest-pinned. It runs as UID/GID 10001,
 contains no `.env*` or local database, and writes only to `/app/data` for media
@@ -75,8 +100,8 @@ GET /api/health?check=ready
 or the database. Use it only to decide whether a stuck process should restart.
 
 `ready` executes a minimal query against the selected backend. PostgreSQL also
-passes through the exact schema-version gate and returns only bounded pool
-counters. Use it to admit traffic. A failure returns HTTP 503 with
+passes through the required-prefix and contiguous-future-suffix schema gate and
+returns only bounded pool counters. Use it to admit traffic. A failure returns HTTP 503 with
 `database_unavailable`; it never returns connection strings, SQL, table names,
 constraints, or driver messages.
 

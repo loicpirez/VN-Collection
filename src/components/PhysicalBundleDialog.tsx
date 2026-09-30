@@ -164,7 +164,7 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
       disableEscape={busy}
       disableBackdropClose={busy}
     >
-      <button type="button" onClick={onClose} disabled={busy} className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white" aria-label={t.shelfLayout.cancel}>
+      <button type="button" onClick={onClose} disabled={busy} className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:bg-bg-elev hover:text-white can-hover:sm:h-9 can-hover:sm:w-9" aria-label={t.shelfLayout.cancel}>
         <X className="h-4 w-4" aria-hidden />
       </button>
 
@@ -181,8 +181,8 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
           </div>
           <label className="relative block min-w-52">
             <span className="sr-only">{t.search.placeholder}</span>
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted" aria-hidden />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search.placeholder} className="h-9 w-full rounded-md border border-border bg-bg pl-8 pr-2 text-xs" />
+            <Search className="pointer-events-none absolute left-2.5 top-3.5 h-4 w-4 text-muted can-hover:sm:top-2.5" aria-hidden />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search.placeholder} className="h-11 w-full rounded-md border border-border bg-bg pl-8 pr-2 text-xs can-hover:sm:h-9" />
           </label>
         </div>
 
@@ -192,8 +192,10 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
             const key = identity(entry);
             const checked = selected.has(key);
             return (
-              <div key={key} className="grid grid-cols-[auto_2.5rem_minmax(0,1fr)_auto] items-center gap-2 bg-bg-elev/20 px-2 py-2">
-                <input type="checkbox" checked={checked} onChange={() => toggle(entry)} aria-label={`${t.shelfLayout.bundleMembers}: ${entry.vn_title}`} className="h-4 w-4 accent-accent" />
+              <div key={key} className="grid grid-cols-[2.75rem_2.5rem_minmax(0,1fr)_auto] items-center gap-2 bg-bg-elev/20 px-2 py-2">
+                <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+                  <input type="checkbox" checked={checked} onChange={() => toggle(entry)} aria-label={`${t.shelfLayout.bundleMembers}: ${entry.vn_title}`} className="h-4 w-4 accent-accent" />
+                </label>
                 <div className="h-12 w-8 overflow-hidden rounded-sm bg-bg">
                   <SafeImage src={entry.rel_image_thumb || entry.vn_image_thumb || entry.vn_image_url} localSrc={entry.rel_local_image_thumb || entry.vn_local_image_thumb} sexual={entry.rel_image_sexual ?? entry.vn_image_sexual} alt="" className="h-full w-full" />
                 </div>
@@ -201,7 +203,7 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
                   <p className="truncate text-xs font-bold">{entry.vn_title}</p>
                   <p className="truncate text-[11px] text-muted">{entry.edition_label || entry.rel_title || entry.release_id}</p>
                 </div>
-                <label className="inline-flex items-center gap-1 text-[11px] text-muted">
+                <label className="inline-flex min-h-11 cursor-pointer items-center gap-1 px-2 text-[11px] text-muted can-hover:sm:min-h-9">
                   <input type="radio" name="physical-bundle-anchor" checked={anchorKey === key} disabled={!checked} onChange={() => setAnchorKey(key)} className="h-4 w-4 accent-accent" />
                   {t.shelfLayout.bundleAnchor}
                 </label>
@@ -213,9 +215,9 @@ export function PhysicalBundleDialog({ open, onClose, candidates, onChanged }: P
 
         {pageCount > 1 && (
           <nav className="mt-2 flex items-center justify-end gap-2" aria-label={t.shelfLayout.bundleMembers}>
-            <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border disabled:opacity-40" aria-label={t.common.back}><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+            <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border disabled:opacity-40 can-hover:sm:h-9 can-hover:sm:w-9" aria-label={t.common.back}><ChevronLeft className="h-4 w-4" aria-hidden /></button>
             <span className="text-xs tabular-nums text-muted">{page} / {pageCount}</span>
-            <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page === pageCount} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border disabled:opacity-40" aria-label={t.common.next}><ChevronRight className="h-4 w-4" aria-hidden /></button>
+            <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page === pageCount} className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border disabled:opacity-40 can-hover:sm:h-9 can-hover:sm:w-9" aria-label={t.common.next}><ChevronRight className="h-4 w-4" aria-hidden /></button>
           </nav>
         )}
 

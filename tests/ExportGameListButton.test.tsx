@@ -62,7 +62,8 @@ describe('ExportGameListButton', () => {
 
     await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
     expect(fetch).toHaveBeenCalledWith('/api/export/game-list', expect.objectContaining({ cache: 'no-store' }));
-    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    const exportedBlob = vi.mocked(URL.createObjectURL).mock.calls[0]?.[0];
+    expect(Object.prototype.toString.call(exportedBlob)).toBe('[object Blob]');
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:export');
   });
 

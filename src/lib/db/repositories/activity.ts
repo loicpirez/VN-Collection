@@ -18,11 +18,19 @@ export interface UserActivity {
 
 /** Filters accepted by the global audit feed. */
 export interface UserActivityListOptions {
+  /** Maximum number of rows to return. */
   limit?: number;
+  /** Number of matching rows to skip after stable ordering. */
+  offset?: number;
+  /** Activity kind filter. */
   kind?: string | null;
+  /** Entity type filter. */
   entity?: string | null;
+  /** Case-insensitive free-text filter. */
   q?: string | null;
+  /** Inclusive earliest occurrence timestamp. */
   from?: number | null;
+  /** Inclusive latest occurrence timestamp. */
   to?: number | null;
 }
 
@@ -47,8 +55,8 @@ export interface ActivityRepository {
   listKinds(): Promise<string[]>;
   /** List recent activity for one VN. */
   listForVn(vnId: string, limit?: number): Promise<ActivityEntry[]>;
-  /** List recent activity across all VNs. */
-  listRecent(limit?: number): Promise<RecentActivityEntry[]>;
+  /** List recent activity across all VNs with bounded offset pagination. */
+  listRecent(limit?: number, offset?: number): Promise<RecentActivityEntry[]>;
   /** Delete one activity row only when it belongs to the requested VN. */
   deleteForVn(id: number, vnId: string): Promise<boolean>;
   /** Count per-VN activity by UTC calendar day for one year. */
@@ -82,6 +90,11 @@ function boundedLimit(limit: number | undefined, fallback: number, maximum = 500
   const value = limit ?? fallback;
   if (!Number.isFinite(value)) return fallback;
   return Math.max(1, Math.min(maximum, Math.floor(value)));
+}
+
+function boundedOffset(offset: number | undefined, maximum = 1_000_000): number {
+  if (offset === undefined || !Number.isFinite(offset)) return 0;
+  return Math.max(0, Math.min(maximum, Math.floor(offset)));
 }
 
 function parsePayload(payload: string | null): Record<string, unknown> | null {
@@ -143,12 +156,13 @@ export function createPostgresActivityRepository(): ActivityRepository {
       if (options.from != null) where.push(`occurred_at >= ${parameter(options.from)}`);
       if (options.to != null) where.push(`occurred_at <= ${parameter(options.to)}`);
       const limit = parameter(boundedLimit(options.limit, 100));
+      const offset = parameter(boundedOffset(options.offset));
       const result = await postgresQuery<UserActivityRow>(`
         SELECT id, occurred_at, kind, entity, entity_id, label, payload, actor
         FROM user_activity
         ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
         ORDER BY occurred_at DESC, id DESC
-        LIMIT ${limit}
+        LIMIT ${limit} OFFSET ${offset}
       `, values);
       return result.rows;
     },
@@ -169,15 +183,15 @@ export function createPostgresActivityRepository(): ActivityRepository {
       `, [vnId, boundedLimit(limit, 50)]);
       return result.rows.map(activityFromRow);
     },
-    async listRecent(limit) {
+    async listRecent(limit, offset) {
       const result = await postgresQuery<RecentActivityRow>(`
         SELECT activity.id, activity.vn_id, activity.kind, activity.payload,
           activity.occurred_at, vn.title
         FROM vn_activity activity
         LEFT JOIN vn ON vn.id = activity.vn_id
         ORDER BY activity.occurred_at DESC, activity.id DESC
-        LIMIT $1
-      `, [boundedLimit(limit, 10)]);
+        LIMIT $1 OFFSET $2
+      `, [boundedLimit(limit, 10), boundedOffset(offset)]);
       return result.rows.map((row) => ({
         ...activityFromRow(row),
         title: row.title ?? row.vn_id,
@@ -224,7 +238,7 @@ const sqliteRepository: ActivityRepository = {
       input.actor,
     );
   },
-  async listUser({ limit = 100, kind, entity, q, from, to } = {}) {
+  async listUser({ limit = 100, offset, kind, entity, q, from, to } = {}) {
     const where: string[] = [];
     const args: Array<string | number> = [];
     if (kind) {
@@ -249,14 +263,14 @@ const sqliteRepository: ActivityRepository = {
       where.push('occurred_at <= ?');
       args.push(to);
     }
-    args.push(boundedLimit(limit, 100));
+    args.push(boundedLimit(limit, 100), boundedOffset(offset));
     const { db } = await import('@/lib/db');
     return db.prepare(`
       SELECT id, occurred_at, kind, entity, entity_id, label, payload, actor
       FROM user_activity
       ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY occurred_at DESC, id DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `).all(...args) as UserActivity[];
   },
   async listKinds() {
@@ -269,8 +283,8 @@ const sqliteRepository: ActivityRepository = {
   async listForVn(vnId, limit) {
     return (await import('@/lib/db')).listActivityForVn(vnId, limit);
   },
-  async listRecent(limit) {
-    return (await import('@/lib/db')).listRecentActivity(limit);
+  async listRecent(limit, offset) {
+    return (await import('@/lib/db')).listRecentActivity(limit, offset);
   },
   async deleteForVn(id, vnId) {
     return (await import('@/lib/db')).deleteActivityForVn(id, vnId);

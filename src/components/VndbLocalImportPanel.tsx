@@ -35,6 +35,12 @@ interface ImportIssue {
   detail: string;
 }
 
+interface PartialImportFeedback {
+  applied: number;
+  remaining: number;
+  refreshFailed: boolean;
+}
+
 function selectionFor(candidate: VndbLocalImportCandidateClient): Record<string, unknown> {
   return candidate.kind === 'vn'
     ? { kind: 'vn', vn_id: candidate.vn_id, local_status: candidate.local_status }
@@ -64,6 +70,7 @@ export function VndbLocalImportPanel() {
   const [page, setPage] = useState(1);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [issues, setIssues] = useState<ImportIssue[]>([]);
+  const [partialFeedback, setPartialFeedback] = useState<PartialImportFeedback | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -108,6 +115,7 @@ export function VndbLocalImportPanel() {
     abortRef.current = controller;
     setBusy(true);
     setIssues([]);
+    setPartialFeedback(null);
     try {
       const result = await request({ action: 'preview' }, controller);
       if (result.action !== 'preview') throw new Error(t.common.error);
@@ -149,6 +157,7 @@ export function VndbLocalImportPanel() {
     abortRef.current = controller;
     setBusy(true);
     setIssues([]);
+    setPartialFeedback(null);
     setProgress({ done: 0, total: selected.length });
     const appliedKeys = new Set<string>();
     const nextIssues: ImportIssue[] = [];
@@ -193,6 +202,53 @@ export function VndbLocalImportPanel() {
       if (!isAbortError(error) && mountedRef.current) {
         toast.error(error instanceof Error ? error.message : t.common.error);
         setIssues(nextIssues);
+        if (appliedKeys.size > 0) {
+          const retryableKeys = new Set(
+            selected
+              .filter((candidate) => !appliedKeys.has(candidate.key))
+              .map((candidate) => candidate.key),
+          );
+          try {
+            const refreshedResult = await request({ action: 'preview' }, controller);
+            if (refreshedResult.action !== 'preview') throw new Error(t.common.error);
+            if (controller.signal.aborted || !mountedRef.current) return;
+            const refreshed = {
+              ...refreshedResult,
+              candidates: refreshedResult.candidates.filter((candidate) => !appliedKeys.has(candidate.key)),
+            };
+            const reconciledSelection = new Set(
+              refreshed.candidates
+                .filter((candidate) => retryableKeys.has(candidate.key))
+                .map((candidate) => candidate.key),
+            );
+            setPreview(refreshed);
+            setSelectedKeys(reconciledSelection);
+            setPage(1);
+            setPartialFeedback({
+              applied: appliedKeys.size,
+              remaining: reconciledSelection.size,
+              refreshFailed: false,
+            });
+          } catch (refreshError) {
+            if (isAbortError(refreshError) || controller.signal.aborted || !mountedRef.current) return;
+            const reconciledCandidates = currentPreview.candidates.filter(
+              (candidate) => !appliedKeys.has(candidate.key),
+            );
+            const reconciledSelection = new Set(
+              reconciledCandidates
+                .filter((candidate) => retryableKeys.has(candidate.key))
+                .map((candidate) => candidate.key),
+            );
+            setPreview({ ...currentPreview, candidates: reconciledCandidates });
+            setSelectedKeys(reconciledSelection);
+            setPage(1);
+            setPartialFeedback({
+              applied: appliedKeys.size,
+              remaining: reconciledSelection.size,
+              refreshFailed: true,
+            });
+          }
+        }
       }
     } finally {
       abortRef.current = null;
@@ -206,6 +262,13 @@ export function VndbLocalImportPanel() {
   const progressPercent = progress
     ? Math.round((progress.done / progress.total) * 100)
     : 0;
+  const partialFeedbackText = partialFeedback
+    ? (partialFeedback.refreshFailed
+        ? t.settings.vndbImportPartialRefreshFailed
+        : t.settings.vndbImportPartial)
+      .replace('{applied}', fmtNum(partialFeedback.applied, locale))
+      .replace('{remaining}', fmtNum(partialFeedback.remaining, locale))
+    : null;
 
   return (
     <section className="mt-3 rounded-md border border-border bg-bg-elev/30 p-3 text-xs" aria-labelledby="vndb-local-import-title">
@@ -232,6 +295,17 @@ export function VndbLocalImportPanel() {
         </div>
       )}
 
+      {partialFeedbackText && (
+        <div
+          className="mt-3 flex items-start gap-2 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-2 text-status-on_hold"
+          role={partialFeedback?.refreshFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>{partialFeedbackText}</span>
+        </div>
+      )}
+
       {preview && (
         <div className="mt-3 space-y-3 border-t border-border pt-3">
           <p className="text-[10px] text-muted">
@@ -244,7 +318,7 @@ export function VndbLocalImportPanel() {
           </p>
 
           {!preview.canApply && (
-            <div className="flex items-start gap-2 rounded-md border border-status-on-hold/40 bg-status-on-hold/10 p-2 text-status-on-hold">
+            <div className="flex items-start gap-2 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-2 text-status-on_hold">
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>{t.settings.vndbImportWritePermission}</span>
             </div>
@@ -353,11 +427,11 @@ export function VndbLocalImportPanel() {
       )}
 
       {issues.length > 0 && (
-        <details open className="mt-3 rounded-md border border-status-on-hold/40 bg-status-on-hold/10 p-2 text-[10px]">
-          <summary className="min-h-[44px] cursor-pointer py-3 font-semibold text-status-on-hold">
+        <details open className="mt-3 rounded-md border border-status-on_hold/40 bg-status-on_hold/10 p-2 text-[10px]">
+          <summary className="min-h-[44px] cursor-pointer py-3 font-semibold text-status-on_hold">
             {t.settings.vndbImportIssues.replace('{count}', fmtNum(issues.length, locale))}
           </summary>
-          <ul className="space-y-1 border-t border-status-on-hold/20 pt-2">
+          <ul className="space-y-1 border-t border-status-on_hold/20 pt-2">
             {issues.map((issue) => (
               <li key={`${issue.kind}:${issue.key}`} className="flex flex-wrap justify-between gap-2">
                 <span>{issue.label}</span>

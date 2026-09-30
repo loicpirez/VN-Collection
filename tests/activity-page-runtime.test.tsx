@@ -86,8 +86,9 @@ describe('activity page runtime', () => {
       kind: null,
       entity: null,
       limit: 51,
+      offset: 0,
     });
-    expect(listRecentActivity).toHaveBeenCalledWith(51);
+    expect(listRecentActivity).toHaveBeenCalledWith(51, 0);
   });
 
   it('renders every VN summary, system entity link shape, and first-page next links', async () => {
@@ -138,10 +139,10 @@ describe('activity page runtime', () => {
 
   it('preserves filters across later pages and hides VN changes for a selected system kind', async () => {
     vi.mocked(listUserActivity).mockReturnValue(
-      Array.from({ length: 102 }, (_, index) => userActivity(index + 1, { entity: 'trait', entity_id: 'i1' })),
+      Array.from({ length: 51 }, (_, index) => userActivity(index + 51, { entity: 'trait', entity_id: 'i1' })),
     );
     vi.mocked(listRecentActivity).mockReturnValue(
-      Array.from({ length: 102 }, (_, index) => vnActivity(index + 1, 'manual', { text: `Log ${index + 1}` })),
+      Array.from({ length: 51 }, (_, index) => vnActivity(index + 51, 'manual', { text: `Log ${index + 51}` })),
     );
 
     const html = await renderPage({
@@ -156,12 +157,13 @@ describe('activity page runtime', () => {
     expect(html).toContain('href="/activity?q=needle&amp;kind=collection.add&amp;entity=trait&amp;vnPage=1"');
     expect(html).toContain('href="/activity?q=needle&amp;kind=collection.add&amp;entity=trait&amp;vnPage=1&amp;sysPage=2"');
     expect(html).toContain('href="/trait/i1"');
-    expect(listRecentActivity).toHaveBeenCalledWith(101);
+    expect(listRecentActivity).toHaveBeenCalledWith(51, 50);
     expect(listUserActivity).toHaveBeenCalledWith({
       q: 'needle',
       kind: 'collection.add',
       entity: 'trait',
-      limit: 101,
+      limit: 51,
+      offset: 50,
     });
   });
 

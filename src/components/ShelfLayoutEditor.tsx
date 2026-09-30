@@ -1160,7 +1160,7 @@ export function ShelfLayoutEditor({ initialShelves, initialUnplaced }: Props) {
               {unplaced.length}
             </span>
           </h3>
-          <button type="button" onClick={() => setShowBundleManager(true)} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 text-xs font-bold text-muted hover:border-accent hover:text-white disabled:opacity-40">
+          <button type="button" onClick={() => setShowBundleManager(true)} disabled={busy} className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border bg-bg-elev/40 px-2.5 text-xs font-bold text-muted hover:border-accent hover:text-white disabled:opacity-40 can-hover:sm:min-h-9">
             <Box className="h-3.5 w-3.5" aria-hidden /> {t.shelfLayout.bundleManage}
           </button>
         </div>

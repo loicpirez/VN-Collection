@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+release_storage_helpers="$script_dir/release-storage.sh"
+if [[ ! -r "$release_storage_helpers" ]]; then
+  printf 'Refusing deployment: release-storage helpers are not readable.\n' >&2
+  exit 1
+fi
+. "$release_storage_helpers"
+
 service_name="${VN_DEPLOY_SERVICE:-vndb}"
 candidate_port="${VN_DEPLOY_CANDIDATE_PORT:-3001}"
 live_port="${VN_DEPLOY_LIVE_PORT:-3000}"
+release_retention="${VN_DEPLOY_RELEASE_RETENTION:-3}"
+minimum_free_bytes="${VN_DEPLOY_MIN_FREE_BYTES:-10737418240}"
+minimum_free_inodes="${VN_DEPLOY_MIN_FREE_INODES:-250000}"
 candidate_pid=""
 candidate_log=""
 build_dir=""
@@ -51,7 +62,7 @@ fi
 
 old_target="$(readlink -f "$working_dir")"
 release_store="$(dirname "$old_target")"
-if [[ ! -d "$release_store" || "$old_target" != "$release_store"/* ]]; then
+if ! release_storage_is_release_directory "$release_store" "$old_target"; then
   printf 'Refusing deployment: the active release target is invalid.\n' >&2
   exit 1
 fi
@@ -90,6 +101,11 @@ if [[ -e "$release_dir" ]]; then
   printf 'Refusing deployment: immutable release already exists: %s\n' "$release_dir" >&2
   exit 1
 fi
+if ! release_storage_is_uint "$release_retention"; then
+  printf 'Refusing deployment: VN_DEPLOY_RELEASE_RETENTION must be a non-negative integer.\n' >&2
+  exit 1
+fi
+release_storage_preflight "$release_store" "$minimum_free_bytes" "$minimum_free_inodes"
 
 environment_file="${VN_DEPLOY_ENV_FILE:-${environment_files%% *}}"
 if [[ -z "$environment_file" || ! -r "$environment_file" ]]; then
@@ -137,6 +153,35 @@ rollback() {
   sudo rm -rf -- "$release_dir"
 }
 
+prune_old_releases() {
+  local active_release="$1"
+  local rollback_release="$2"
+  local new_release="$3"
+  local candidate
+  local failed=0
+
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    if ! release_storage_is_release_directory "$release_store" "$candidate" ||
+      release_storage_is_protected "$candidate" "$active_release" "$rollback_release" "$new_release"
+    then
+      printf 'Refusing to prune unvalidated or protected release: %s\n' "$candidate" >&2
+      failed=1
+      continue
+    fi
+    printf 'Pruning inactive release: %s\n' "$candidate"
+    if ! sudo rm -rf --one-file-system -- "$candidate"; then
+      printf 'Unable to prune inactive release: %s\n' "$candidate" >&2
+      failed=1
+    fi
+  done < <(
+    release_storage_list_prunable \
+      "$release_store" "$release_retention" "$active_release" "$rollback_release" "$new_release"
+  )
+
+  return "$failed"
+}
+
 build_dir="$(mktemp -d "${TMPDIR:-/tmp}/vndb-build.${commit_sha}.XXXXXX")"
 git clone "$bundle_path" "$build_dir"
 git -C "$build_dir" checkout "$commit_sha"
@@ -147,19 +192,24 @@ if [[ "$resolved_sha" != "$commit_sha" ]]; then
 fi
 
 cd "$build_dir"
-set -a
-. "$environment_file"
-set +a
 yarn install --frozen-lockfile
+yarn build
+cp -R .next/static .next/standalone/.next/static
+cp -R public .next/standalone/public
+
+# Build before touching the live schema. A dependency or compilation failure
+# must leave both the running release and its database contract unchanged.
+# The build also runs without production application or migration credentials.
 (
   set -a
   . "$migration_environment_file"
   set +a
   yarn db:postgres:apply
 )
-yarn build
-cp -R .next/static .next/standalone/.next/static
-cp -R public .next/standalone/public
+
+set -a
+. "$environment_file"
+set +a
 
 candidate_log="$(mktemp "${TMPDIR:-/tmp}/vndb-candidate.${commit_sha}.XXXXXX.log")"
 HOSTNAME=127.0.0.1 PORT="$candidate_port" node .next/standalone/server.js >"$candidate_log" 2>&1 &
@@ -199,7 +249,10 @@ if [[ "$active_target" != "$release_dir" || "$active_sha" != "$commit_sha" || "$
 fi
 
 systemctl is-active "$service_name"
+switched=0
+if ! prune_old_releases "$active_target" "$old_target" "$release_dir"; then
+  printf 'Deployment is active, but release retention did not complete.\n' >&2
+fi
 printf 'Activated release: %s\n' "$active_target"
 printf 'Running commit: %s\n' "$active_sha"
 printf 'Service restarts: %s\n' "$(systemctl show "$service_name" --property=NRestarts --value)"
-switched=0

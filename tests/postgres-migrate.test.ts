@@ -103,7 +103,7 @@ describe('PostgreSQL ordered migrations', () => {
     await expect(listPostgresMigrations(emptyBody)).rejects.toThrow('is empty');
   });
 
-  it('validates an exact schema version set and rejects absent or mismatched schemas', async () => {
+  it('accepts a complete schema and a contiguous future suffix while rejecting missing or gapped versions', async () => {
     const expected = [migration('0001_baseline'), migration('0002_index')];
     mocks.poolQuery
       .mockResolvedValueOnce({ rows: [{ relation: null }], rowCount: 1 });
@@ -126,8 +126,65 @@ describe('PostgreSQL ordered migrations', () => {
 
     mocks.poolQuery
       .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ version: '0001_baseline' }, { version: '0003_future' }], rowCount: 2 });
-    await expect(assertPostgresSchemaCurrent(new Pool(), [expected[0]!])).rejects.toThrow('unexpected=0003_future');
+      .mockResolvedValueOnce({
+        rows: [
+          { version: '0001_baseline' },
+          { version: '0002_index' },
+          { version: '0003_future' },
+          { version: '0004_later' },
+        ],
+        rowCount: 4,
+      });
+    await expect(assertPostgresSchemaCurrent(new Pool(), expected)).resolves.toBeUndefined();
+
+    mocks.poolQuery
+      .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          { version: '0001_baseline' },
+          { version: '0002_index' },
+          { version: '0004_gap' },
+        ],
+        rowCount: 3,
+      });
+    await expect(assertPostgresSchemaCurrent(new Pool(), expected)).rejects.toThrow('unexpected=0004_gap');
+
+    mocks.poolQuery
+      .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          { version: '0001_baseline' },
+          { version: '0002_index' },
+          { version: 'future_without_number' },
+        ],
+        rowCount: 3,
+      });
+    await expect(assertPostgresSchemaCurrent(new Pool(), expected)).rejects.toThrow('unexpected=future_without_number');
+
+    mocks.poolQuery
+      .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          { version: '0001_baseline' },
+          { version: '0002_index' },
+          { version: '0003_future' },
+          { version: '0003_duplicate_number' },
+        ],
+        rowCount: 4,
+      });
+    await expect(assertPostgresSchemaCurrent(new Pool(), expected)).rejects.toThrow(
+      'unexpected=0003_duplicate_number,0003_future',
+    );
+
+    mocks.poolQuery
+      .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ version: '0001_future' }], rowCount: 1 });
+    await expect(assertPostgresSchemaCurrent(new Pool(), [])).rejects.toThrow('unexpected=0001_future');
+
+    mocks.poolQuery
+      .mockResolvedValueOnce({ rows: [{ relation: 'schema_migration' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ version: 'bad' }, { version: '0001_future' }], rowCount: 2 });
+    await expect(assertPostgresSchemaCurrent(new Pool(), [migration('bad')])).rejects.toThrow('unexpected=0001_future');
 
     mocks.poolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(assertPostgresSchemaCurrent(new Pool(), expected)).rejects.toThrow('schema is not initialized');

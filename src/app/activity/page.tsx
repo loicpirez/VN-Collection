@@ -188,13 +188,13 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   try {
     const activity = getActivityRepository();
     kinds = await activity.listKinds();
-    const sysRowsAll = await activity.listUser({ q: q || null, kind: kind || null, entity: entity || null, limit: sysOffset + PAGE_SIZE + 1 });
-    sysRows = sysRowsAll.slice(sysOffset, sysOffset + PAGE_SIZE);
-    sysHasMore = sysRowsAll.length > sysOffset + PAGE_SIZE;
+    const sysRowsPage = await activity.listUser({ q: q || null, kind: kind || null, entity: entity || null, limit: PAGE_SIZE + 1, offset: sysOffset });
+    sysRows = sysRowsPage.slice(0, PAGE_SIZE);
+    sysHasMore = sysRowsPage.length > PAGE_SIZE;
 
-    const vnRowsAll = await activity.listRecent(vnOffset + PAGE_SIZE + 1);
-    vnRows = vnRowsAll.slice(vnOffset, vnOffset + PAGE_SIZE);
-    vnHasMore = vnRowsAll.length > vnOffset + PAGE_SIZE;
+    const vnRowsPage = await activity.listRecent(PAGE_SIZE + 1, vnOffset);
+    vnRows = vnRowsPage.slice(0, PAGE_SIZE);
+    vnHasMore = vnRowsPage.length > PAGE_SIZE;
   } catch (err) {
     console.error('[activity page] DB error:', (err as Error).message);
   }

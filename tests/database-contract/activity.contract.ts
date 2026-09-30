@@ -49,6 +49,16 @@ export function registerActivityRepositoryContract(
         await expect(repository.listUser({ limit: 1 })).resolves.toMatchObject([
           { occurred_at: 200, kind: 'alpha.action' },
         ]);
+        await expect(repository.listUser({ limit: 1, offset: 1 })).resolves.toMatchObject([
+          { occurred_at: 100, kind: 'zeta.action' },
+        ]);
+        await expect(repository.listUser({ limit: 1, offset: -1 })).resolves.toMatchObject([
+          { occurred_at: 200, kind: 'alpha.action' },
+        ]);
+        await expect(repository.listUser({ limit: 1, offset: Number.POSITIVE_INFINITY })).resolves.toMatchObject([
+          { occurred_at: 200, kind: 'alpha.action' },
+        ]);
+        await expect(repository.listUser({ limit: 1, offset: 1_000_001 })).resolves.toEqual([]);
         await expect(repository.listUser({
           kind: 'alpha.action',
           entity: 'vn',
@@ -86,6 +96,11 @@ export function registerActivityRepositoryContract(
         await expect(repository.listRecent(1)).resolves.toMatchObject([{
           vn_id: ACTIVITY_CONTRACT_FIXTURE.secondVn,
           title: 'Activity Contract Two',
+          occurred_at: ACTIVITY_CONTRACT_FIXTURE.secondDay,
+        }]);
+        await expect(repository.listRecent(1, 1)).resolves.toMatchObject([{
+          vn_id: ACTIVITY_CONTRACT_FIXTURE.firstVn,
+          title: 'Activity Contract One',
           occurred_at: ACTIVITY_CONTRACT_FIXTURE.secondDay,
         }]);
       });

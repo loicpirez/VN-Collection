@@ -149,9 +149,9 @@ describe('activity page branches', () => {
   });
 
   it('drops empty params on the VN prev link when no filters and no sysPage are set', async () => {
-    vi.mocked(listRecentActivity).mockReturnValue(
-      Array.from({ length: 51 }, (_, index) => vnActivity(index + 1, 'manual', { text: `Log ${index + 1}` })),
-    );
+    vi.mocked(listRecentActivity).mockReturnValue([
+      vnActivity(51, 'manual', { text: 'Log 51' }),
+    ]);
 
     const html = await renderPage({ vnPage: '1' });
 
@@ -165,6 +165,6 @@ describe('activity page branches', () => {
 
     expect(html).toContain('name="q"');
     expect(html).not.toContain(dictionaries.en.cardDensity.resetView);
-    expect(listUserActivity).toHaveBeenCalledWith({ q: null, kind: null, entity: null, limit: 51 });
+    expect(listUserActivity).toHaveBeenCalledWith({ q: null, kind: null, entity: null, limit: 51, offset: 0 });
   });
 });

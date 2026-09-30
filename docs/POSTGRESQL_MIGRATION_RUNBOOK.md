@@ -40,7 +40,8 @@ change record.
 
 1. Confirm the planned build passed typecheck, full tests, exact
    100/100/100/100 coverage, build, and browser QA.
-2. Confirm every file in `db/postgres/migrations/` was reviewed and uses a
+2. Confirm every file in `db/postgres/migrations/` was reviewed, is expand-only
+   and backward-compatible with the current rollback release, and uses a
    sequential `0001_name.sql` filename with one outer `BEGIN`/`COMMIT` wrapper.
 3. Confirm PostgreSQL version, free disk, connection limits, TLS policy,
    statement timeout, lock timeout, and backup retention meet the deployment
@@ -189,7 +190,9 @@ public traffic yet:
 PORT=3001 yarn start
 ```
 
-The Next.js Node bootstrap must pass the exact `schema_migration` version check.
+The Next.js Node bootstrap must contain every migration shipped with the build.
+It may also contain only a well-formed, contiguous suffix written by a newer
+expand-only release so the current release remains a valid rollback target.
 Validate at minimum:
 
 - library load, filters, grouping, pagination, and collection writes;

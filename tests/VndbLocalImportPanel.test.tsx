@@ -303,6 +303,166 @@ describe('VndbLocalImportPanel', () => {
     expect(screen.getByText(t.common.error)).toBeInTheDocument();
   });
 
+  it('refreshes after partial success and keeps unresolved selections retryable', async () => {
+    const initial = Array.from({ length: 26 }, (_, index) => candidate(index + 1));
+    const retryable = [initial[0], initial[25]];
+    let previewCalls = 0;
+    let applyCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { action: string };
+      if (body.action === 'preview') {
+        previewCalls += 1;
+        return json(preview(previewCalls === 1 ? initial : retryable));
+      }
+      applyCalls += 1;
+      if (applyCalls === 1) {
+        return json({
+          ok: true,
+          action: 'apply',
+          needsAuth: false,
+          applied: initial.slice(1, 25).map((entry) => entry.key),
+          conflicts: [{ key: initial[0].key, reason: 'local_changed' }],
+          failures: [],
+        });
+      }
+      throw new Error('second batch failed');
+    }));
+    renderWithProviders(<VndbLocalImportPanel />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportCompare }));
+    await screen.findByText('Title 1');
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportSelectAll }));
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportApply }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+
+    const feedback = t.settings.vndbImportPartial
+      .replace('{applied}', '24')
+      .replace('{remaining}', '2');
+    expect(await screen.findByText(feedback)).toBeInTheDocument();
+    expect(screen.getByText(t.settings.vndbImportConflictLocalChanged)).toBeInTheDocument();
+    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '2'))).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Title 1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Title 26' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Title 2' })).toBeNull();
+    expect(previewCalls).toBe(2);
+  });
+
+  it('falls back to the local preview when partial-success reconciliation fails', async () => {
+    const initial = Array.from({ length: 26 }, (_, index) => candidate(index + 1));
+    let previewCalls = 0;
+    let applyCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { action: string };
+      if (body.action === 'preview') {
+        previewCalls += 1;
+        if (previewCalls === 1) return json(preview(initial));
+        throw new Error('refresh failed');
+      }
+      applyCalls += 1;
+      if (applyCalls === 1) {
+        return json({
+          ok: true,
+          action: 'apply',
+          needsAuth: false,
+          applied: initial.slice(0, 25).map((entry) => entry.key),
+          conflicts: [],
+          failures: [],
+        });
+      }
+      throw new Error('second batch failed');
+    }));
+    renderWithProviders(<VndbLocalImportPanel />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportCompare }));
+    await screen.findByText('Title 1');
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportSelectAll }));
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportApply }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+
+    const feedback = t.settings.vndbImportPartialRefreshFailed
+      .replace('{applied}', '25')
+      .replace('{remaining}', '1');
+    expect(await screen.findByText(feedback)).toBeInTheDocument();
+    expect(screen.getByText(t.settings.vndbImportSelected.replace('{count}', '1'))).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Title 26' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Title 1' })).toBeNull();
+    expect(previewCalls).toBe(2);
+  });
+
+  it('ignores a partial-success reconciliation response after unmount', async () => {
+    const initial = Array.from({ length: 26 }, (_, index) => candidate(index + 1));
+    const reconciliation = deferred<Response>();
+    let call = 0;
+    let capturedSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      call += 1;
+      if (call === 1) return Promise.resolve(json(preview(initial)));
+      if (call === 2) {
+        return Promise.resolve(json({
+          ok: true,
+          action: 'apply',
+          needsAuth: false,
+          applied: initial.slice(0, 25).map((entry) => entry.key),
+          conflicts: [],
+          failures: [],
+        }));
+      }
+      if (call === 3) return Promise.reject(new Error('second batch failed'));
+      capturedSignal = init?.signal ?? undefined;
+      return reconciliation.promise;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderWithProviders(<VndbLocalImportPanel />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportCompare }));
+    await screen.findByText('Title 1');
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportSelectAll }));
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportApply }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+
+    view.unmount();
+    await act(async () => {
+      reconciliation.resolve(json(preview([initial[25]])));
+    });
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it('ignores a partial-success reconciliation failure after abort', async () => {
+    const initial = Array.from({ length: 26 }, (_, index) => candidate(index + 1));
+    const reconciliation = deferred<Response>();
+    let call = 0;
+    let capturedSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      call += 1;
+      if (call === 1) return Promise.resolve(json(preview(initial)));
+      if (call === 2) {
+        return Promise.resolve(json({
+          ok: true,
+          action: 'apply',
+          needsAuth: false,
+          applied: initial.slice(0, 25).map((entry) => entry.key),
+          conflicts: [],
+          failures: [],
+        }));
+      }
+      if (call === 3) return Promise.reject(new Error('second batch failed'));
+      capturedSignal = init?.signal ?? undefined;
+      return reconciliation.promise;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderWithProviders(<VndbLocalImportPanel />, { locale: 'en' });
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportCompare }));
+    await screen.findByText('Title 1');
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportSelectAll }));
+    fireEvent.click(screen.getByRole('button', { name: t.settings.vndbImportApply }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t.common.confirm }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+
+    view.unmount();
+    await act(async () => {
+      reconciliation.reject(new Error('refresh failed after abort'));
+    });
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
   it('uses the generic message for a non-Error preview rejection', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject('offline')));
     renderWithProviders(<VndbLocalImportPanel />, { locale: 'en' });

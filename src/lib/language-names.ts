@@ -78,19 +78,25 @@ const LANGUAGE_NAMES: Record<string, string> = {
  * Uses `Intl.DisplayNames` when available (locale-aware) with the static
  * map as a fallback for environments where Intl is not available or the
  * code is unrecognised by the runtime.
+ *
+ * @param code VNDB language code to format.
+ * @param locale Preferred locale for the display name.
+ * @returns A localized name, a known static name, or the uppercase raw code.
  */
 export function languageDisplayName(
   code: string | null | undefined,
   locale = 'en',
 ): string {
   if (!code) return '';
+  const lower = code.toLowerCase();
   try {
     const dn = new Intl.DisplayNames([locale, 'en'], { type: 'language' });
     const name = dn.of(code);
-    if (name && name !== code) return name;
+    const baseCode = lower.split('-')[0];
+    const baseName = dn.of(baseCode);
+    if (name && name.toLowerCase() !== lower && baseName?.toLowerCase() !== baseCode) return name;
   } catch {
     // Fall through to static map.
   }
-  const lower = code.toLowerCase();
   return LANGUAGE_NAMES[lower] ?? code.toUpperCase();
 }
