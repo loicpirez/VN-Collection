@@ -159,6 +159,8 @@ describe('production operations', () => {
     expect(restoreService).toContain('ReadWritePaths=/var/tmp /var/lib/postgresql /var/run/postgresql');
     expect(cacheService).toContain('EnvironmentFile=/etc/vndb/vndb.env');
     expect(http2).toContain('listen[[:space:]]\\+443');
+    expect(http2).toContain('VNDB_NGINX_SITE:-/etc/nginx/sites-enabled/vndb');
+    expect(http2).toContain('readlink -f -- "$site_entry"');
     expect(http2).toContain('nginx -t');
     expect(http2).toContain("negotiated_protocol");
     expect(http2).toContain('cp --preserve=mode,ownership,timestamps "$backup" "$site"');

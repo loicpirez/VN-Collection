@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly site="${VNDB_NGINX_SITE:-/etc/nginx/sites-available/vndb}"
+readonly site_entry="${VNDB_NGINX_SITE:-/etc/nginx/sites-enabled/vndb}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   printf 'Run this operation as root.\n' >&2
   exit 1
 fi
-if [[ ! -f "$site" || -L "$site" ]]; then
-  printf 'Expected a regular nginx site file: %s\n' "$site" >&2
+if [[ ! -e "$site_entry" ]]; then
+  printf 'Expected an enabled nginx site entry: %s\n' "$site_entry" >&2
+  exit 1
+fi
+readonly site="$(readlink -f -- "$site_entry")"
+if [[ ! -f "$site" ]]; then
+  printf 'Expected the enabled nginx site to resolve to a regular file: %s\n' "$site_entry" >&2
   exit 1
 fi
 

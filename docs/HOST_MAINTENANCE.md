@@ -17,7 +17,14 @@ sudo install -o root -g root -m 0755 \
 sudo /usr/local/sbin/vndb-enable-http2
 ```
 
-The operation requires each expected TLS listen directive exactly once, creates a timestamped copy beside the site file, adds the nginx 1.24 HTTP/2 parameters, runs `nginx -t`, reloads nginx, and verifies loopback TLS negotiation. It restores the previous file and reloads nginx if syntax validation or protocol verification fails.
+The operation resolves the enabled `/etc/nginx/sites-enabled/vndb` entry to its
+active regular file, requires each expected TLS listen directive exactly once,
+creates a timestamped copy beside that file, adds the nginx 1.24 HTTP/2
+parameters, runs `nginx -t`, reloads nginx, and verifies loopback TLS
+negotiation. It restores the previous file and reloads nginx if syntax
+validation or protocol verification fails. This resolution also handles hosts
+where `sites-enabled/vndb` is a regular deployment-managed copy instead of a
+symlink to `sites-available`.
 
 Recheck the public endpoint from a second machine:
 
