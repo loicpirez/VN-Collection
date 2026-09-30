@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 readonly site_entry="${VNDB_NGINX_SITE:-/etc/nginx/sites-enabled/vndb}"
+readonly backup_directory="${VNDB_NGINX_BACKUP_DIR:-/var/backups/vndb/nginx}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   printf 'Run this operation as root.\n' >&2
@@ -24,7 +25,8 @@ if [[ "$ipv4_count" -ne 1 || "$ipv6_count" -ne 1 ]]; then
   exit 1
 fi
 
-backup="${site}.pre-http2.$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -o root -g root -m 0700 "$backup_directory"
+backup="${backup_directory%/}/vndb.pre-http2.$(date -u +%Y%m%dT%H%M%SZ)"
 temporary="$(mktemp "${site}.http2.XXXXXX")"
 trap 'rm -f "$temporary"' EXIT
 cp --preserve=mode,ownership,timestamps "$site" "$backup"
