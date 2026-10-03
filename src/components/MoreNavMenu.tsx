@@ -217,7 +217,7 @@ export function GroupedNav() {
       </nav>
       <button
         type="button"
-        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white md:hidden"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center justify-self-end rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-bg-card hover:text-white md:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label={t.nav.openMenu}
         aria-expanded={mobileOpen}

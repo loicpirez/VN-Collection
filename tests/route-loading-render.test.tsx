@@ -182,8 +182,7 @@ describe('route loading skeletons', () => {
       expect(html).toContain('data-home-section-skeleton="recently-viewed"');
       expect(html).toContain('data-home-section-skeleton="reading-queue"');
       expect(html).toContain('data-home-section-skeleton="anniversary"');
-      expect(html).toContain('data-home-section-skeleton="library-controls"');
-      expect(html).toContain('data-home-section-skeleton="library-grid"');
+      expect(html).toContain('data-home-section-skeleton="library"');
       expect(html).toContain('data-home-library-grid-skeleton');
       expect(html).toContain('min(40vw, calc(var(--card-density-px, 180px) * 0.55))');
       expect(html).toContain('grid items-stretch gap-3');
@@ -205,26 +204,25 @@ describe('route loading skeletons', () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('Loading queue');
     expect(html).toContain('data-home-section-skeleton="reading-queue"');
-    expect(html).not.toContain('data-home-section-skeleton="library-grid"');
+    expect(html).not.toContain('data-home-section-skeleton="library"');
   });
 
   it('keeps the home skeleton in saved order and honours hidden and collapsed sections', async () => {
     const repository = getAppSettingRepository();
     const previous = await repository.get('home_section_layout_v1');
     const layout = structuredClone(DEFAULT_HOME_LAYOUT);
-    layout.order = ['library-grid', 'anniversary', 'recently-viewed', 'reading-queue', 'library-controls'];
+    layout.order = ['library', 'anniversary', 'recently-viewed', 'reading-queue'];
     layout.sections.anniversary.visible = false;
     layout.sections['recently-viewed'].collapsed = true;
-    layout.sections['library-controls'].collapsed = true;
-    layout.sections['library-grid'].collapsed = true;
+    layout.sections.library.collapsed = true;
     await repository.set('home_section_layout_v1', JSON.stringify(layout));
     try {
       const html = renderToStaticMarkup(await HomeLoading());
-      const gridIndex = html.indexOf('data-home-section-skeleton="library-grid"');
+      const libraryIndex = html.indexOf('data-home-section-skeleton="library"');
       const recentIndex = html.indexOf('data-home-section-skeleton="recently-viewed"');
       const queueIndex = html.indexOf('data-home-section-skeleton="reading-queue"');
-      expect(gridIndex).toBeGreaterThan(0);
-      expect(recentIndex).toBeGreaterThan(gridIndex);
+      expect(libraryIndex).toBeGreaterThan(0);
+      expect(recentIndex).toBeGreaterThan(libraryIndex);
       expect(queueIndex).toBeGreaterThan(recentIndex);
       expect(html).not.toContain('data-home-section-skeleton="anniversary"');
       expect(html).not.toContain('data-home-library-grid-skeleton');

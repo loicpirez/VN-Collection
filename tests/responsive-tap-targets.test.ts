@@ -269,7 +269,7 @@ describe('responsive tap targets', () => {
   });
 
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
-    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0');
+    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] min-w-0 items-center gap-2 can-hover:sm:min-h-0');
     const library = source('src/components/LibraryClient.tsx');
     expect(library).toContain('inline-flex min-h-[44px] items-center gap-1.5');
     expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');

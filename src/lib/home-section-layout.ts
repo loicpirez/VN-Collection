@@ -12,27 +12,17 @@
  * subscribers can update without a full router.refresh().
  */
 
-/**
- * Strip ids registered on the home page, in the canonical render order.
- *
- * 'library' was a single block that bundled the Library toolbar
- * (chips/search/filters/sort/group/density/actions) with the Library
- * grid. The split now lets operators hide/reorder/collapse those two parts
- * independently — see the migration logic in `validateHomeSectionLayoutV1`
- * below which rewrites legacy 'library' into the split pair.
- */
+/** Strip ids registered on the home page, in the canonical render order. */
 export const HOME_SECTION_IDS = [
   'recently-viewed',
   'reading-queue',
   'anniversary',
-  'library-controls',
-  'library-grid',
+  'library',
 ] as const;
 
 export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
 
-/** Legacy id retained ONLY for migration from older stored layouts. */
-type LegacyHomeSectionId = 'library';
+type SplitLibrarySectionId = 'library-controls' | 'library-grid';
 
 export interface HomeSectionState {
   /** false hides the entire strip (no header, no body). Restorable via Settings. */
@@ -53,15 +43,13 @@ export const DEFAULT_HOME_LAYOUT: HomeSectionLayoutV1 = {
     'recently-viewed': { visible: true, collapsed: false },
     'reading-queue': { visible: true, collapsed: false },
     anniversary: { visible: true, collapsed: false },
-    'library-controls': { visible: true, collapsed: false },
-    'library-grid': { visible: true, collapsed: false },
+    library: { visible: true, collapsed: false },
   },
   order: [
     'recently-viewed',
     'reading-queue',
     'anniversary',
-    'library-controls',
-    'library-grid',
+    'library',
   ],
 };
 
@@ -97,19 +85,16 @@ export function validateHomeSectionLayoutV1(input: unknown): HomeSectionLayoutV1
     ? (obj.sections as Record<string, unknown>)
     : obj;
 
-  // Migration: rewrite the legacy 'library' single-section state to the
-  // split pair so users on a pre-split stored layout get a deterministic
-  // upgrade without losing their hidden/collapsed preferences. Both new
-  // ids inherit the legacy state.
-  const legacyLibrary = sectionsBlob['library' satisfies LegacyHomeSectionId];
-  if (legacyLibrary && typeof legacyLibrary === 'object' && !Array.isArray(legacyLibrary)) {
-    const s = legacyLibrary as Record<string, unknown>;
-    const migrated: HomeSectionState = {
-      visible: s.visible !== false,
-      collapsed: s.collapsed === true,
+  const splitStates = (['library-controls', 'library-grid'] as const)
+    .map((id) => sectionsBlob[id])
+    .filter((value): value is Record<string, unknown> => (
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+    ));
+  if (splitStates.length > 0) {
+    out.sections.library = {
+      visible: splitStates.some((state) => state.visible !== false),
+      collapsed: splitStates.every((state) => state.collapsed === true),
     };
-    out.sections['library-controls'] = { ...migrated };
-    out.sections['library-grid'] = { ...migrated };
   }
 
   for (const id of HOME_SECTION_IDS) {
@@ -122,27 +107,19 @@ export function validateHomeSectionLayoutV1(input: unknown): HomeSectionLayoutV1
     };
   }
 
-  // Order: keep known ids, dedupe, then rewrite legacy 'library' →
-  // ['library-controls', 'library-grid'] inline, then append any
-  // remaining canonical ids that didn't appear. Unknown ids are
-  // silently dropped (same forward-compat rule as before).
+  // Order: keep known ids, dedupe, rewrite either split-library id to
+  // the unified library position, then append missing canonical ids.
   if (Array.isArray(obj.order)) {
     const seen = new Set<HomeSectionId>();
     const cleaned: HomeSectionId[] = [];
     for (const candidate of obj.order) {
       if (typeof candidate !== 'string') continue;
-      if (candidate === 'library') {
-        // Insert the split pair in place of the legacy id.
-        for (const id of ['library-controls', 'library-grid'] as const) {
-          if (!seen.has(id)) {
-            seen.add(id);
-            cleaned.push(id);
-          }
-        }
-        continue;
-      }
-      if (!(HOME_SECTION_IDS as readonly string[]).includes(candidate)) continue;
-      const id = candidate as HomeSectionId;
+      const normalized = (['library-controls', 'library-grid'] as readonly SplitLibrarySectionId[])
+        .includes(candidate as SplitLibrarySectionId)
+        ? 'library'
+        : candidate;
+      if (!(HOME_SECTION_IDS as readonly string[]).includes(normalized)) continue;
+      const id = normalized as HomeSectionId;
       if (seen.has(id)) continue;
       seen.add(id);
       cleaned.push(id);

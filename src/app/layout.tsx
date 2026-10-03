@@ -138,13 +138,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   style={{ paddingTop: 'env(safe-area-inset-top)' }}
                   aria-label={dict.app.title}
                 >
-                  <HeaderSpaceFrame className="nav-width-container flex flex-wrap items-center gap-2 py-3 sm:gap-4">
-                    <Link href="/" className="flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0">
+                  <HeaderSpaceFrame className="nav-width-container grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2 sm:flex sm:flex-nowrap sm:gap-3 sm:py-3 lg:gap-4">
+                    <Link href="/" className="flex min-h-[44px] min-w-0 items-center gap-2 can-hover:sm:min-h-0">
                       <Library className="h-6 w-6 text-accent" aria-hidden />
-                      <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
+                      <span className="truncate text-base font-bold tracking-wide">{dict.app.title}</span>
                     </Link>
                     <GroupedNav />
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="col-span-2 flex w-full items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-start">
                       <SpoilerToggle />
                       <SettingsButton />
                       <LanguageSwitcher />

@@ -3,7 +3,7 @@ import { Fragment, Suspense } from 'react';
 import { RecentlyViewedStrip } from '@/components/RecentlyViewedStrip';
 import { AnniversaryFeed } from '@/components/AnniversaryFeed';
 import { ReadingQueueStrip } from '@/components/ReadingQueueStrip';
-import { HomeLibraryControlsSection, HomeLibraryGridSection } from '@/components/HomeLibrarySection';
+import { HomeLibrarySection } from '@/components/HomeLibrarySection';
 import { HomeLayoutEditorTrigger } from '@/components/HomeLayoutEditorTrigger';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { parseHomeSectionLayoutV1, type HomeSectionId } from '@/lib/home-section-layout';
@@ -63,11 +63,8 @@ export default async function HomePage() {
         <AnniversaryFeed initialState={layout.sections.anniversary} />
       </Suspense>
     ) : null,
-    'library-controls': layout.sections['library-controls'].visible ? (
-      <HomeLibraryControlsSection initialState={layout.sections['library-controls']} />
-    ) : null,
-    'library-grid': layout.sections['library-grid'].visible ? (
-      <HomeLibraryGridSection initialState={layout.sections['library-grid']} />
+    library: layout.sections.library.visible ? (
+      <HomeLibrarySection initialState={layout.sections.library} />
     ) : null,
   };
   return (

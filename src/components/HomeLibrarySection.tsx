@@ -5,47 +5,21 @@ import { useT } from '@/lib/i18n/client';
 import type { HomeSectionState } from '@/lib/home-section-layout';
 
 /**
- * Library is split across the home page into two independently
- * reorderable / hideable / collapsible sections:
- *   - `library-controls` - chips/search/filters/sort/group/density/actions
- *   - `library-grid`     - the actual VN cards
- *
- * Each section owns its own `HomeSectionControls` chevron + menu so
- * the user can hide one without losing the other. URL state
- * (filters, sort, group, density) is shared because both halves
- * derive from useSearchParams - changing a filter in the controls
- * section immediately updates the grid section.
- *
- * The two LibraryClient instances coalesce identical collection
- * requests while they are in flight. This keeps the split sections
- * independently configurable without duplicating the no-store API
- * request on first paint.
+ * Home library surface with one section owner for its heading, controls,
+ * and card grid.
  */
-export function HomeLibraryControlsSection({
-  initialState,
-}: {
-  initialState?: HomeSectionState;
-}) {
+export function HomeLibrarySection({ initialState }: { initialState?: HomeSectionState }) {
   const t = useT();
   const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
-    'library-controls',
+    'library',
     initialState,
   );
   if (isHidden) return null;
   return (
-    <section aria-labelledby="home-library-controls-heading">
+    <section aria-labelledby="home-library-heading">
       <header className="mb-3 flex items-center justify-between gap-2">
-        {/*
-          Promoted from text-xs/uppercase/muted to a proper section
-          heading. The earlier "uppercase eyebrow" weight was
-          indistinguishable from the strip headings above (Reading
-          queue, Anniversary) and made the page look like a
-          uniform stack of equally-weighted blocks. Use the canonical
-          Library title and an Ma bibliothèque framing to anchor the
-          page.
-        */}
         <h2
-          id="home-library-controls-heading"
+          id="home-library-heading"
           className="text-base font-bold text-white"
         >
           {t.homeSections.libraryTitle}
@@ -55,71 +29,10 @@ export function HomeLibraryControlsSection({
           busy={busy}
           onCollapseToggle={toggleCollapsed}
           onHide={hide}
-          sectionLabel={t.homeLayout.sectionLabels['library-controls']}
+          sectionLabel={t.homeLayout.sectionLabels.library}
         />
       </header>
-      {!isCollapsed && <LibraryClient mode="controls-only" />}
-    </section>
-  );
-}
-
-export function HomeLibraryGridSection({
-  initialState,
-}: {
-  initialState?: HomeSectionState;
-}) {
-  const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
-    'library-grid',
-    initialState,
-  );
-  if (isHidden) return null;
-  return (
-    // mt-3 (was mt-4) - sits directly under the controls section,
-    // forming a visually-cohesive Library block. The eyebrow h2 +
-    // duplicate chevron+menu have been removed so the toolbar and
-    // grid look like one product surface. The grid still gets its
-    // own chevron + menu (collapsed by default = false from the
-    // versioned layout config) so a power user can hide only the
-    // grid when working through filter combinations.
-    <GridSectionInner
-      state={state}
-      busy={busy}
-      isCollapsed={isCollapsed}
-      toggleCollapsed={toggleCollapsed}
-      hide={hide}
-    />
-  );
-}
-
-function GridSectionInner({
-  state,
-  busy,
-  isCollapsed,
-  toggleCollapsed,
-  hide,
-}: {
-  state: HomeSectionState;
-  busy: boolean;
-  isCollapsed: boolean;
-  toggleCollapsed: () => void;
-  hide: () => void;
-}) {
-  const t = useT();
-  return (
-    <section aria-label={t.homeLayout.sectionLabels['library-grid']}>
-      {/* Discrete inline controls - top-right, dim by default,
-          full opacity on hover. No banner heading: the controls-
-          section heading above already says "Ma bibliothèque". */}
-      <div className="mb-2 flex items-center justify-end opacity-60 transition-opacity hover:opacity-100">
-        <HomeSectionControls
-          state={state}
-          busy={busy}
-          onCollapseToggle={toggleCollapsed}
-          onHide={hide}
-          sectionLabel={t.homeLayout.sectionLabels['library-grid']}
-        />
-      </div>
-      {!isCollapsed && <LibraryClient mode="grid-only" />}
+      {!isCollapsed && <LibraryClient />}
     </section>
   );
 }

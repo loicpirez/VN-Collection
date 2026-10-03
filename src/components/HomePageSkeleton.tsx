@@ -39,14 +39,7 @@ export function HomePageSkeleton({ layout, label }: HomePageSkeletonProps) {
       layout.sections['reading-queue'],
     ),
     anniversary: renderHomeSectionSkeleton('anniversary', layout.sections.anniversary),
-    'library-controls': renderHomeSectionSkeleton(
-      'library-controls',
-      layout.sections['library-controls'],
-    ),
-    'library-grid': renderHomeSectionSkeleton(
-      'library-grid',
-      layout.sections['library-grid'],
-    ),
+    library: renderHomeSectionSkeleton('library', layout.sections.library),
   };
 
   return (
@@ -90,8 +83,7 @@ function renderHomeSectionSkeleton(
   id: HomeSectionId,
   state: HomeSectionState,
 ): React.ReactNode {
-  if (id === 'library-controls') return <LibraryControlsSkeleton state={state} />;
-  if (id === 'library-grid') return <LibraryGridSkeleton state={state} />;
+  if (id === 'library') return <LibrarySkeleton state={state} />;
   return <HomeStripSkeleton kind={id} state={state} />;
 }
 
@@ -176,10 +168,10 @@ function CompactItemsSkeleton({ anniversary }: { anniversary: boolean }) {
   );
 }
 
-function LibraryControlsSkeleton({ state }: { state: HomeSectionState }) {
+function LibrarySkeleton({ state }: { state: HomeSectionState }) {
   if (!state.visible) return null;
   return (
-    <section data-home-section-skeleton="library-controls">
+    <section data-home-section-skeleton="library">
       <SectionHeaderSkeleton />
       {!state.collapsed && (
         <div>
@@ -204,32 +196,18 @@ function LibraryControlsSkeleton({ state }: { state: HomeSectionState }) {
             <SkeletonBlock className="h-10 min-w-48 flex-1" />
           </div>
           <SkeletonBlock className="h-11 w-full sm:hidden" />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function LibraryGridSkeleton({ state }: { state: HomeSectionState }) {
-  if (!state.visible) return null;
-  return (
-    <section data-home-section-skeleton="library-grid">
-      <div className="mb-2 flex items-center justify-end gap-1 opacity-60">
-        <SkeletonBlock className="h-7 w-7" />
-        <SkeletonBlock className="h-7 w-7" />
-      </div>
-      {!state.collapsed && (
-        <div
-          data-home-library-grid-skeleton
-          className="grid items-stretch gap-3"
-          style={{
-            gridTemplateColumns:
-              'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
-          }}
-        >
-          {Array.from({ length: 18 }).map((_, index) => (
-            <SkeletonCard key={index} />
-          ))}
+          <div
+            data-home-library-grid-skeleton
+            className="grid items-stretch gap-3"
+            style={{
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))',
+            }}
+          >
+            {Array.from({ length: 18 }).map((_, index) => (
+              <SkeletonCard key={index} />
+            ))}
+          </div>
         </div>
       )}
     </section>

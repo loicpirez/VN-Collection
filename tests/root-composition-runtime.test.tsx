@@ -59,8 +59,7 @@ vi.mock('@/components/RecentlyViewedStrip', () => ({ RecentlyViewedStrip: () => 
 vi.mock('@/components/ReadingQueueStrip', () => ({ ReadingQueueStrip: () => <div>queue</div> }));
 vi.mock('@/components/AnniversaryFeed', () => ({ AnniversaryFeed: () => <div>anniversary</div> }));
 vi.mock('@/components/HomeLibrarySection', () => ({
-  HomeLibraryControlsSection: () => <div>controls</div>,
-  HomeLibraryGridSection: () => <div>grid</div>,
+  HomeLibrarySection: () => <div data-testid="home-library">library</div>,
 }));
 vi.mock('@/components/HomeLayoutEditorTrigger', () => ({ HomeLayoutEditorTrigger: () => <div>editor</div> }));
 
@@ -124,11 +123,11 @@ describe('home page composition', () => {
   it('renders localized metadata and the persisted section order', async () => {
     vi.mocked(getAppSetting).mockReturnValue(JSON.stringify({
       sections: {},
-      order: ['library-grid', 'recently-viewed', 'reading-queue', 'anniversary', 'library-controls'],
+      order: ['library', 'recently-viewed', 'reading-queue', 'anniversary'],
     }));
     expect(await generateHomeMetadata()).toEqual({ title: dictionaries.en.nav.library });
     const html = renderToStaticMarkup(await HomePage());
-    expect(html.indexOf('grid')).toBeLessThan(html.indexOf('recent'));
+    expect(html.indexOf('data-testid="home-library"')).toBeLessThan(html.indexOf('recent'));
     expect(html).toContain(dictionaries.en.nav.library);
   });
 
@@ -147,16 +146,14 @@ describe('home page composition', () => {
         'recently-viewed': { visible: false, collapsed: false },
         'reading-queue': { visible: false, collapsed: false },
         anniversary: { visible: false, collapsed: false },
-        'library-controls': { visible: false, collapsed: false },
-        'library-grid': { visible: false, collapsed: false },
+        library: { visible: false, collapsed: false },
       },
     }));
     const html = renderToStaticMarkup(await HomePage());
     expect(html).not.toContain('recent');
     expect(html).not.toContain('queue');
     expect(html).not.toContain('anniversary');
-    expect(html).not.toContain('controls');
-    expect(html).not.toContain('grid');
+    expect(html).not.toContain('data-testid="home-library"');
     expect(html).toContain('editor');
   });
 });

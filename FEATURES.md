@@ -1461,11 +1461,10 @@ per-section visibility/collapse state AND the render order:
     'recently-viewed':   { visible: true, collapsed: false },
     'reading-queue':     { visible: true, collapsed: false },
     anniversary:         { visible: true, collapsed: false },
-    'library-controls':  { visible: true, collapsed: false },
-    'library-grid':      { visible: true, collapsed: false }
+    library:             { visible: true, collapsed: false }
   },
   order: ['recently-viewed', 'reading-queue', 'anniversary',
-          'library-controls', 'library-grid']
+          'library']
 }
 ```
 
@@ -1476,24 +1475,21 @@ per-section visibility/collapse state AND the render order:
   fires `vn:home-layout-changed` so live strips re-sync.
 - `<HomeLibrarySection />` wraps `<LibraryClient />` in the
   same hide / collapse / reorder shell as the other home
-  strips. The Library is split across two slots —
-  `library-controls` (search / filters / sort toolbar) and
-  `library-grid` (the cover wall). Either or both can be hidden
-  / collapsed / reordered like every other section, so the
-  operator can keep the toolbar visible above a hidden grid
-  for fast in-page navigation, or vice versa.
+  strips. The toolbar and cover grid remain one coherent section,
+  so the page never renders an unlabelled second set of section
+  controls between the toolbar and cards.
 - The validator accepts both the new shape AND the legacy v0
-  flat shape for backward compatibility — older payloads
-  upgrade transparently. Unknown ids are dropped from `order`,
-  missing ids appended to the tail.
+  flat shape for backward compatibility. Saved layouts from the
+  temporary `library-controls` / `library-grid` model merge back
+  into the unified `library` section. Unknown ids are dropped from
+  `order`, and missing ids are appended to the tail.
 - Reset (in Settings → Home tab OR in the home-page editor
   dialog) sends `PATCH /api/settings { home_section_layout_v1:
   null }` to drop the override and fall back to defaults.
 
-10 cases in `tests/home-section-layout.test.ts` cover default
-fallback, v0/v1 shape detection, append-missing, drop-unknown,
-dedupe, typo-safe visibility, malformed JSON, round-trip, plus
-the `library-controls` / `library-grid` split.
+The validator tests cover default fallback, v0/v1 shape detection,
+append-missing, drop-unknown, dedupe, typo-safe visibility, malformed
+JSON, round-trip, and split-layout migration.
 
 ### Custom tag picker for /recommendations and /similar [shipped]
 Both pages now expose a shared `<TagPicker>` so the user can
