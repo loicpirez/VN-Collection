@@ -1,10 +1,9 @@
 import 'server-only';
-import { cachedFetch, readCachedJsonEntry, TTL, type CachePayloadDecoder } from './vndb-cache';
+import { cachedFetch, invalidateByPatterns, readCachedJsonEntry, TTL, type CachePayloadDecoder } from './vndb-cache';
 import {
   decodeProducerAssociationReleasePage,
   decodeProducerAssociationVnPage,
 } from './vndb-feed-cache-shape';
-import { getCacheRepository } from './db/repositories/cache';
 import { getCollectionCoreRepository } from './db/repositories/collection-core';
 
 const VNDB_API = 'https://api.vndb.org/kana';
@@ -317,7 +316,7 @@ export async function fetchProducerAssociations(
  */
 export async function invalidateProducerAssociations(producerId: string): Promise<void> {
   if (!/^p\d+$/i.test(producerId)) return;
-  await getCacheRepository().deleteByPatterns([
+  await invalidateByPatterns([
     `POST /vn:producer:${producerId}|%`,
     `POST /release:producer:${producerId}|%`,
   ]);

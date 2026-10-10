@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { invalidateByPatterns } from '@/lib/vndb-cache';
 import { readJsonObject } from '@/lib/api-body';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Bust each pattern inside a transaction so partial failures
   // don't leave the cache in a half-busted state.
-  const deleted = await getCacheRepository().deleteByPatterns(patterns);
+  const deleted = await invalidateByPatterns(patterns);
 
   try {
     await recordActivity({

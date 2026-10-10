@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { getAppSettingRepository } from './db/repositories/app-setting';
 import { getCacheRepository, type CacheRow } from './db/repositories/cache';
+import { readDatabaseConfig } from './db/postgres-config';
 import type { ProviderId } from './proxy-config';
 import { throttledFetch } from './vndb-throttle';
 import { assertNoPrivateIpRebind, isAllowedHttpTarget } from './url-allowlist';
@@ -145,15 +146,67 @@ export interface CachedFetchOptions<T> {
   decode?: CachePayloadDecoder<T>;
 }
 
+interface CacheWriteState {
+  invalidated: boolean;
+}
+
 interface InflightRequest {
   key: string;
   promise: Promise<FetchResult<unknown>>;
   controller: AbortController;
   subscribers: Set<symbol>;
   settled: boolean;
+  writeState: CacheWriteState;
 }
 
 const inflight = new Map<string, InflightRequest>();
+let cacheMutations: Promise<void> = Promise.resolve();
+let invalidationEpoch = 0;
+
+function mutateCache<T>(operation: () => Promise<T>): Promise<T> {
+  const result = cacheMutations.then(operation);
+  cacheMutations = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function readStableCacheRow(key: string): Promise<CacheRow | null> {
+  let epoch: number;
+  let row: CacheRow | null;
+  do {
+    epoch = invalidationEpoch;
+    await cacheMutations;
+    row = await getCacheRepository().get(key);
+  } while (epoch !== invalidationEpoch);
+  return row;
+}
+
+function invalidateRequests(matches: (key: string) => boolean): void {
+  invalidationEpoch += 1;
+  for (const [key, entry] of inflight) {
+    if (!matches(key)) continue;
+    entry.writeState.invalidated = true;
+    inflight.delete(key);
+  }
+}
+
+function cachePatternExpression(pattern: string, postgres: boolean): RegExp {
+  const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let expression = '';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (postgres && character === '\\' && index + 1 < pattern.length) {
+      expression += escape(pattern[index + 1]);
+      index += 1;
+    } else if (character === '%') {
+      expression += '.*';
+    } else if (character === '_') {
+      expression += '.';
+    } else {
+      expression += escape(character);
+    }
+  }
+  return new RegExp(`^${expression}$`, postgres ? 's' : 'is');
+}
 
 function requestAbortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error
@@ -177,7 +230,8 @@ function subscribeToInflight<T>(entry: InflightRequest, signal?: AbortSignal | n
       signal?.removeEventListener('abort', onAbort);
       entry.subscribers.delete(subscriber);
       if (!entry.settled && entry.subscribers.size === 0) {
-        inflight.delete(entry.key);
+        if (inflight.get(entry.key) === entry) inflight.delete(entry.key);
+        entry.writeState.invalidated = true;
         entry.controller.abort();
       }
     };
@@ -209,10 +263,11 @@ function startInflightRequest<T>(
   decode?: CachePayloadDecoder<T>,
 ): InflightRequest {
   const controller = new AbortController();
+  const writeState: CacheWriteState = { invalidated: false };
   const sharedInit = { ...init, signal: controller.signal };
   const promise = (async (): Promise<FetchResult<T>> => {
     try {
-      return await doFetch<T>(url, sharedInit, key, ttlMs, cached, decode);
+      return await doFetch<T>(url, sharedInit, key, ttlMs, writeState, cached, decode);
     } catch (err) {
       if (cached && staleWhileError && !isAbortFailure(err)) {
         let staleData: T;
@@ -238,6 +293,7 @@ function startInflightRequest<T>(
     controller,
     subscribers: new Set(),
     settled: false,
+    writeState,
   };
   inflight.set(key, entry);
   void promise.then(
@@ -267,10 +323,10 @@ export async function cachedFetch<T>(
   if (init.signal?.aborted) throw requestAbortReason(init.signal);
 
   if (ttlMs <= 0) {
-    return doFetch<T>(url, init, key, ttlMs, undefined, decode);
+    return doFetch<T>(url, init, key, ttlMs, { invalidated: false }, undefined, decode);
   }
 
-  const cached = await getCacheRepository().get(key);
+  const cached = await readStableCacheRow(key);
   if (cached && !forceRefresh && now < cached.expires_at) {
     let data: T | undefined;
     try {
@@ -320,6 +376,7 @@ async function doFetch<T>(
   init: RequestInit,
   key: string,
   ttlMs: number,
+  writeState: CacheWriteState,
   cached?: CacheRow | null,
   decode?: CachePayloadDecoder<T>,
 ): Promise<FetchResult<T>> {
@@ -344,14 +401,14 @@ async function doFetch<T>(
   }
 
   try {
-    return await fetchOnce<T>(url, init, key, ttlMs, cached, decode);
+    return await fetchOnce<T>(url, init, key, ttlMs, writeState, cached, decode);
   } catch (err) {
     if (!mirror) throw err;
     // Try the mirror exactly once. If it also fails we surface the original
     // error so the user sees the real reason (and so cached fallback still
     // works inside cachedFetch's outer catch).
     try {
-      return await fetchOnce<T>(mirror, init, key, ttlMs, cached, decode);
+      return await fetchOnce<T>(mirror, init, key, ttlMs, writeState, cached, decode);
     } catch {
       throw err;
     }
@@ -363,6 +420,7 @@ async function fetchOnce<T>(
   init: RequestInit,
   key: string,
   ttlMs: number,
+  writeState: CacheWriteState,
   cached?: CacheRow | null,
   decode?: CachePayloadDecoder<T>,
 ): Promise<FetchResult<T>> {
@@ -388,7 +446,9 @@ async function fetchOnce<T>(
     } catch {
       throw new Error(`vndb-cache: corrupt cache body for key ${key} (304 path)`);
     }
-    await getCacheRepository().touch(key, now, now + ttlMs);
+    await mutateCache(async () => {
+      if (!writeState.invalidated) await getCacheRepository().touch(key, now, now + ttlMs);
+    });
     return {
       data: cachedData,
       fromCache: true,
@@ -422,13 +482,16 @@ async function fetchOnce<T>(
   const data = decodePayload(parsed, decode);
 
   if (ttlMs > 0) {
-    await getCacheRepository().put({
-      cache_key: key,
-      body: text,
-      etag: res.headers.get('etag'),
-      last_modified: res.headers.get('last-modified'),
-      fetched_at: now,
-      expires_at: now + ttlMs,
+    await mutateCache(async () => {
+      if (writeState.invalidated) return;
+      await getCacheRepository().put({
+        cache_key: key,
+        body: text,
+        etag: res.headers.get('etag'),
+        last_modified: res.headers.get('last-modified'),
+        fetched_at: now,
+        expires_at: now + ttlMs,
+      });
     });
   }
 
@@ -457,7 +520,12 @@ function safeParse(body: BodyInit): unknown {
  * deleted-row count.
  */
 export async function invalidateByPath(pathPrefix: string): Promise<number> {
-  return getCacheRepository().deleteByPathPrefix(pathPrefix);
+  if (/[%_\\]/.test(pathPrefix)) {
+    throw new Error('deleteCacheByPathPrefix: pathPrefix must not contain LIKE metacharacters');
+  }
+  const expression = cachePatternExpression(`${pathPrefix}|%`, readDatabaseConfig().backend === 'postgres');
+  invalidateRequests((key) => expression.test(key));
+  return mutateCache(() => getCacheRepository().deleteByPathPrefix(pathPrefix));
 }
 
 /**
@@ -465,7 +533,23 @@ export async function invalidateByPath(pathPrefix: string): Promise<number> {
  * request goes upstream. Mirrors the exact key shape used by `cachedFetch`.
  */
 export async function invalidateKey(method: string, path: string, body?: unknown): Promise<void> {
-  await getCacheRepository().deleteKey(buildCacheKey(method.toUpperCase(), path, body));
+  const key = buildCacheKey(method.toUpperCase(), path, body);
+  invalidateRequests((candidate) => candidate === key);
+  await mutateCache(() => getCacheRepository().deleteKey(key));
+}
+
+/** Pending responses must not refill rows removed by a scoped refresh. */
+export async function invalidateByPatterns(patterns: readonly string[]): Promise<number> {
+  const postgres = readDatabaseConfig().backend === 'postgres';
+  const expressions = patterns.map((pattern) => cachePatternExpression(pattern, postgres));
+  invalidateRequests((key) => expressions.some((expression) => expression.test(key)));
+  return mutateCache(() => getCacheRepository().deleteByPatterns(patterns));
+}
+
+/** A wipe also detaches pending requests so their responses cannot undo it. */
+export async function invalidateAllCache(): Promise<number> {
+  invalidateRequests(() => true);
+  return mutateCache(() => getCacheRepository().clear());
 }
 
 /** A validated cache payload with the timestamps needed for freshness UI. */

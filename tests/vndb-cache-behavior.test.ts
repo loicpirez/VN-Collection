@@ -47,7 +47,9 @@ vi.mock('@/lib/vndb-throttle', async (importOriginal) => {
 import { createHash } from 'node:crypto';
 import {
   cachedFetch,
+  invalidateAllCache,
   invalidateByPath,
+  invalidateByPatterns,
   invalidateKey,
   readCachedJson,
   readCachedJsonEntry,
@@ -57,6 +59,8 @@ import {
 } from '@/lib/vndb-cache';
 import { clearCache, getCacheRow, putCacheRow, setAppSetting } from '@/lib/db';
 import { getCacheRepository } from '@/lib/db/repositories/cache';
+import * as cacheRepositoryModule from '@/lib/db/repositories/cache';
+import * as databaseConfigModule from '@/lib/db/postgres-config';
 
 const PRIMARY = 'https://api.vndb.org/kana';
 
@@ -330,6 +334,200 @@ describe('stale-while-revalidate', () => {
 });
 
 describe('in-flight de-dupe', () => {
+  it('starts a new request after invalidation and does not persist the older response', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    const body = { id: 'invalidation-race' };
+    const init = { method: 'POST', body: JSON.stringify(body), __pathTag: 'POST /vn' };
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    await invalidateKey('POST', 'POST /vn', body);
+    const newRequest = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await expect(newRequest).resolves.toMatchObject({ data: { ok: 2 } });
+    resolveOld(jsonResponse({ ok: 1 }));
+
+    await expect(oldRequest).resolves.toMatchObject({ data: { ok: 1 } });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+    expect(await readCachedJson('POST', 'POST /vn', body, passthrough)).toEqual({ ok: 2 });
+  });
+
+  it.each(['path', 'patterns', 'all'] as const)('detaches pending requests on %s invalidation', async (kind) => {
+    let resolveOld: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    const path = 'POST /vn:producer:p90001';
+    const init = { method: 'POST', __pathTag: path };
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+
+    if (kind === 'path') await invalidateByPath(path);
+    else if (kind === 'patterns') await invalidateByPatterns(['POST /vn:producer:p9000_|%']);
+    else await invalidateAllCache();
+
+    await expect(cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ data: { ok: 2 } });
+    resolveOld(jsonResponse({ ok: 1 }));
+    await oldRequest;
+    expect(await readCachedJson('POST', path, undefined, passthrough)).toEqual({ ok: 2 });
+  });
+
+  it('preserves pending requests outside the invalidated pattern, including regex characters', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    providerFetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }));
+    const path = 'POST /vn:producer:p90002[?]';
+    const init = { method: 'POST', __pathTag: path };
+    const active = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    await invalidateByPatterns(['POST /vn:producer:p90001[?]|%', 'POST /other%']);
+    await invalidateByPatterns([]);
+    resolveOld(jsonResponse({ ok: 2 }));
+    await active;
+    expect(await readCachedJson('POST', path, undefined, passthrough)).toEqual({ ok: 2 });
+  });
+
+  it('uses the SQLite literal-prefix case matching for pending requests', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    const path = 'POST /VN:prefix-case';
+    const init = { method: 'POST', __pathTag: path };
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    await invalidateByPath('POST /vn:prefix-case');
+    await expect(cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ data: { ok: 2 } });
+    resolveOld(jsonResponse({ ok: 1 }));
+    await oldRequest;
+    expect(await readCachedJson('POST', path, undefined, passthrough)).toEqual({ ok: 2 });
+  });
+
+  it('uses PostgreSQL case-sensitive and escaped LIKE matching for pending requests', async () => {
+    let resolveFirst: (response: Response) => void = () => {};
+    let resolveSecond: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveSecond = resolve; }));
+    const firstPath = 'POST /VN:literal_';
+    const secondPath = 'POST /vn:literalx';
+    const first = cachedFetch(`${PRIMARY}/vn`, { method: 'POST', __pathTag: firstPath }, { ttlMs: TTL.vnDetail });
+    const second = cachedFetch(`${PRIMARY}/vn`, { method: 'POST', __pathTag: secondPath }, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledTimes(2));
+    const repository = getCacheRepository();
+    const configuration = databaseConfigModule.readDatabaseConfig({
+      DATABASE_BACKEND: 'postgres', DATABASE_URL: 'postgresql://127.0.0.1/cache-test',
+    });
+    const configSpy = vi.spyOn(databaseConfigModule, 'readDatabaseConfig').mockReturnValue(configuration);
+    const repoSpy = vi.spyOn(cacheRepositoryModule, 'getCacheRepository').mockReturnValue(repository);
+    const deleteSpy = vi.spyOn(repository, 'deleteByPatterns').mockResolvedValue(0);
+    try {
+      await invalidateByPatterns(['POST /vn:literal\\_|%']);
+      await invalidateByPatterns(['POST /VN:literal\\_|%']);
+      await invalidateByPatterns(['POST /missing\\']);
+    } finally {
+      deleteSpy.mockRestore();
+      repoSpy.mockRestore();
+      configSpy.mockRestore();
+    }
+    resolveFirst(jsonResponse({ ok: 1 }));
+    resolveSecond(jsonResponse({ ok: 2 }));
+    await Promise.all([first, second]);
+    expect(await readCachedJson('POST', firstPath, undefined, passthrough)).toBeNull();
+    expect(await readCachedJson('POST', secondPath, undefined, passthrough)).toEqual({ ok: 2 });
+  });
+
+  it('does not let a late 304 touch a replacement snapshot', async () => {
+    const path = 'POST /vn:late-304';
+    const key = cacheKey(path, 'POST');
+    putCacheRow({ cache_key: key, body: '{"ok":1}', etag: 'old', last_modified: null, fetched_at: 1, expires_at: 2 });
+    let resolveOld: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    const init = { method: 'POST', __pathTag: path };
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    await invalidateKey('POST', path);
+    await cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    const replacement = getCacheRow(key);
+    resolveOld(new Response(null, { status: 304 }));
+    await expect(oldRequest).resolves.toMatchObject({ data: { ok: 1 }, status: 304 });
+    expect(getCacheRow(key)).toEqual(replacement);
+  });
+
+  it('keeps the replacement shared when an invalidated subscriber aborts', async () => {
+    let resolveOld: (response: Response) => void = () => {};
+    let resolveNew: (response: Response) => void = () => {};
+    providerFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveNew = resolve; }));
+    const controller = new AbortController();
+    const init = { method: 'POST', __pathTag: 'POST /vn:invalidated-abort' };
+    const oldRequest = cachedFetch(`${PRIMARY}/vn`, { ...init, signal: controller.signal }, { ttlMs: TTL.vnDetail });
+    const settlement = expect(oldRequest).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledOnce());
+    await invalidateKey('POST', init.__pathTag);
+    const replacement = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(providerFetchMock).toHaveBeenCalledTimes(2));
+    controller.abort();
+    await settlement;
+    const sharedReplacement = cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    resolveOld(jsonResponse({ ok: 1 }));
+    resolveNew(jsonResponse({ ok: 2 }));
+    await expect(replacement).resolves.toMatchObject({ data: { ok: 2 } });
+    await expect(sharedReplacement).resolves.toMatchObject({ data: { ok: 2 } });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a cache lookup invalidated while the database read is running', async () => {
+    const path = 'POST /vn:lookup-invalidation';
+    const key = cacheKey(path, 'POST');
+    putCacheRow({ cache_key: key, body: '{"ok":1}', etag: null, last_modified: null, fetched_at: 1, expires_at: Date.now() + 10000 });
+    const repository = getCacheRepository();
+    const oldRow = getCacheRow(key);
+    const getSpy = vi.spyOn(repository, 'get').mockImplementationOnce(async () => {
+      await invalidateKey('POST', path);
+      return oldRow;
+    });
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    try {
+      await expect(cachedFetch(`${PRIMARY}/vn`, { method: 'POST', __pathTag: path }, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ data: { ok: 2 }, fromCache: false });
+      expect(getSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      getSpy.mockRestore();
+    }
+  });
+
+  it('orders invalidation after an asynchronous cache write already in progress', async () => {
+    const repository = getCacheRepository();
+    const originalPut = repository.put.bind(repository);
+    let completePut: () => void = () => {};
+    const putSpy = vi.spyOn(repository, 'put').mockImplementationOnce(async (row) => {
+      await new Promise<void>((resolve) => { completePut = resolve; });
+      await originalPut(row);
+    });
+    const path = 'POST /vn:put-invalidation';
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 1 }));
+    const request = cachedFetch(`${PRIMARY}/vn`, { method: 'POST', __pathTag: path }, { ttlMs: TTL.vnDetail });
+    await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+    const invalidation = invalidateKey('POST', path);
+    completePut();
+    await Promise.all([request, invalidation]);
+    putSpy.mockRestore();
+    expect(getCacheRow(cacheKey(path, 'POST'))).toBeNull();
+  });
+
+  it('recovers the mutation queue after an invalidation fails', async () => {
+    const repository = getCacheRepository();
+    const deleteSpy = vi.spyOn(repository, 'deleteKey').mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(invalidateKey('POST', 'POST /vn:queue-failure')).rejects.toThrow('database unavailable');
+    deleteSpy.mockRestore();
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+    await expect(cachedFetch(`${PRIMARY}/vn`, { method: 'POST', __pathTag: 'POST /vn:queue-failure' }, { ttlMs: TTL.vnDetail })).resolves.toMatchObject({ data: { ok: 2 } });
+  });
+
   it('coalesces two concurrent identical requests into one fetch', async () => {
     let resolveFetch: (r: Response) => void = () => {};
     providerFetchMock.mockImplementationOnce(
@@ -668,6 +866,9 @@ describe('cache key defaults and body parsing', () => {
 });
 
 describe('direct cache helpers', () => {
+  it('rejects wildcard path prefixes before invalidating requests', async () => {
+    await expect(invalidateByPath('POST /v%')).rejects.toThrow('LIKE metacharacters');
+  });
   it('invalidateKey deletes a row written with the matching shape', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 1 }));
     const body = { z: 1 };

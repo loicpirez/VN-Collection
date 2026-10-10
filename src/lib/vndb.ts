@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   buildCacheKey,
   cachedFetch,
+  invalidateByPatterns,
   invalidateByPath,
   invalidateKey,
   readCachedJson,
@@ -286,7 +287,7 @@ async function invalidateUlistSnapshots(): Promise<void> {
   invalidateVndbWishlistCache();
   await Promise.all([
     invalidateByPath('POST /ulist'),
-    getCacheRepository().deleteByPatterns(['GET /ulist_labels?%']),
+    invalidateByPatterns(['GET /ulist_labels?%']),
   ]);
 }
 

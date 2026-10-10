@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { invalidateByPatterns } from '@/lib/vndb-cache';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-metadata';
 import { jobCurrentItem, jobLabel, startJob, tickJob, finishJob, recordError, setJobCurrent, type JobCurrentItemCode, type JobTextParams } from '@/lib/download-status';
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .filter((id) => isVndbVnId(id));
   // Each task has a stable `name` plus the existing run() closure.
   const tasks: Array<{ name: string; code: JobCurrentItemCode; params?: JobTextParams; run: () => Promise<unknown> }> = [
-    { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: () => getCacheRepository().deleteByPatterns(BUST_PATTERNS) },
+    { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: () => invalidateByPatterns(BUST_PATTERNS) },
     { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100, { force: true }) },
     { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100, undefined, { force: true }) },
     { name: 'VNDB top-ranked (top 100)', code: 'refresh_vndb_top_ranked', params: { count: 100 }, run: () => fetchVndbTopRanked(100) },

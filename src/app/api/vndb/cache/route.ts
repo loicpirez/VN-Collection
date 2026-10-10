@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCacheRepository } from '@/lib/db/repositories/cache';
+import { invalidateAllCache, invalidateByPath } from '@/lib/vndb-cache';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { recordActivity } from '@/lib/activity';
 
@@ -55,11 +56,11 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    const removed = await getCacheRepository().deleteByPathPrefix(prefix);
+    const removed = await invalidateByPath(prefix);
     await logCacheInvalidate({ mode, prefix, removed });
     return NextResponse.json({ ok: true, removed, mode, prefix });
   }
-  const removed = await getCacheRepository().clear();
+  const removed = await invalidateAllCache();
   await logCacheInvalidate({ mode: 'all', removed });
   return NextResponse.json({ ok: true, removed, mode: 'all' });
 }
