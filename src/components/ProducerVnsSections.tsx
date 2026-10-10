@@ -32,7 +32,7 @@ export async function ProducerVnsSections({
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let data: ProducerAssociations;
   try {
-    data = await fetchProducerAssociations(producerId, { cacheOnly: true });
+    data = await fetchProducerAssociations(producerId);
   } catch {
     data = {
       name: null,

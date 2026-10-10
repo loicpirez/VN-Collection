@@ -91,6 +91,52 @@ afterEach(() => {
 });
 
 describe('fetchProducerAssociations', () => {
+  it('fills both cold role caches and reuses them on repeated page visits', async () => {
+    routeBy({
+      vn: () => jsonResponse({ results: [devVn('v90080')], more: false }),
+      release: () => releasePage('r90080', ['v90081'], 'p90080', true, 'Studio X'),
+    });
+    const first = await fetchProducerAssociations('p90080');
+    expect(first.totalUnique).toBe(2);
+    expect(throttledFetchMock).toHaveBeenCalledTimes(2);
+    throttledFetchMock.mockClear();
+    for (let visit = 0; visit < 3; visit++) {
+      expect(await fetchProducerAssociations('p90080')).toEqual(first);
+    }
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fills a missing role without dropping the other cached role', async () => {
+    routeBy({
+      vn: () => jsonResponse({ results: [devVn('v90082')], more: false }),
+      release: () => releasePage('r90082', ['v90083'], 'p90082', true, 'Studio X'),
+    });
+    await fetchProducerAssociations('p90082');
+    db.prepare("DELETE FROM vndb_cache WHERE cache_key LIKE 'POST /release:producer:p90082|%'").run();
+    throttledFetchMock.mockClear();
+    const result = await fetchProducerAssociations('p90082');
+    expect(result.totalUnique).toBe(2);
+    expect(throttledFetchMock).toHaveBeenCalledTimes(1);
+    expect(throttledFetchMock.mock.calls[0][0]).toContain('/release');
+  });
+
+  it('revalidates expired role pages and reuses the refreshed snapshots', async () => {
+    routeBy({
+      vn: () => jsonResponse({ results: [devVn('v90084')], more: false }),
+      release: () => releasePage('r90084', ['v90085'], 'p90084', true, 'Studio X'),
+    });
+    await fetchProducerAssociations('p90084');
+    db.prepare("UPDATE vndb_cache SET expires_at = 1 WHERE cache_key LIKE '%producer:p90084|%'").run();
+    throttledFetchMock.mockClear();
+    const fresh = await fetchProducerAssociations('p90084');
+    expect(fresh.stale).toBe(false);
+    expect(fresh.totalUnique).toBe(2);
+    expect(throttledFetchMock).toHaveBeenCalledTimes(2);
+    throttledFetchMock.mockClear();
+    expect(await fetchProducerAssociations('p90084')).toEqual(fresh);
+    expect(throttledFetchMock).not.toHaveBeenCalled();
+  });
+
   it('short-circuits on a malformed producer id without any upstream call', async () => {
     const r = await fetchProducerAssociations('not-a-producer');
     expect(r).toEqual({

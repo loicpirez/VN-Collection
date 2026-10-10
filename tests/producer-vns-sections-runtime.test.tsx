@@ -86,25 +86,25 @@ describe('ProducerVnsSections', () => {
     expect(html).toContain('refresh p90001');
     expect(html).toContain('href="/producer/p90001"');
     expect(html).not.toContain(dictionaries.en.producerVns.developerCredits);
-    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001', { cacheOnly: true });
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001');
     expect(fetchProducerAssociations).toHaveBeenCalledTimes(1);
     expect(html).toContain(dictionaries.en.producerVns.staleBadge);
   });
 
-  it('keeps an uncached producer non-blocking and exposes the refresh affordance', async () => {
+  it('loads producer credits through the read-through cache without a manual refresh', async () => {
     vi.mocked(fetchProducerAssociations)
-      .mockResolvedValueOnce(associations({ upstreamFailed: true, fromCache: true }));
+      .mockResolvedValueOnce(associations({ developerVns: [ownedDev], totalUnique: 1, ownedUnique: 1 }));
 
     const html = renderToStaticMarkup(await ProducerVnsSections({ producerId: 'p90001' }));
 
-    expect(html).not.toContain('Owned developer VN');
+    expect(html).toContain('Owned developer VN');
     expect(html).toContain('refresh p90001');
-    expect(html).toContain(dictionaries.en.producerVns.staleBadge);
-    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001', { cacheOnly: true });
+    expect(html).not.toContain(dictionaries.en.producerVns.staleBadge);
+    expect(fetchProducerAssociations).toHaveBeenNthCalledWith(1, 'p90001');
     expect(fetchProducerAssociations).toHaveBeenCalledTimes(1);
   });
 
-  it('does not block page rendering on a live association read when cache lookup fails', async () => {
+  it('shows a retryable stale state when read-through loading fails', async () => {
     vi.mocked(fetchProducerAssociations)
       .mockRejectedValueOnce(new Error('cache unavailable'));
 
