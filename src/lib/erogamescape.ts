@@ -102,6 +102,18 @@ async function readCache<T>(key: string, decode: (value: unknown) => T | null): 
   }
 }
 
+async function readCachedEgsGame(key: string): Promise<{ game: EgsGame | null } | null> {
+  const row = await getCacheRepository().get(key);
+  if (!row || row.expires_at <= Date.now()) return null;
+  if (row.body.trim() === 'null') return { game: null };
+  try {
+    const game = decodeEgsGame(JSON.parse(row.body));
+    return game ? { game } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read the cache regardless of expiry. Returns `null` only when no row
  * exists or the body is unparseable. Used by the page-style EGS
@@ -369,8 +381,8 @@ export async function fetchEgsGame(id: number, opts: { force?: boolean; signal?:
   assertSqlInt(id, 'gamelist.id');
   const cacheK = cacheKey('game', String(id));
   if (!opts.force) {
-    const cached = await readCache(cacheK, decodeEgsGame);
-    if (cached !== null) return cached;
+    const cached = await readCachedEgsGame(cacheK);
+    if (cached !== null) return cached.game;
   }
 
   // `g.*` pulls every gamelist column (creater, comike, hanbaisuu, gyutto_id,
@@ -731,8 +743,8 @@ export async function searchEgsByName(query: string, opts: { force?: boolean; si
   if (!trimmed) return null;
   const cacheK = cacheKey('search', trimmed.toLowerCase());
   if (!opts.force) {
-    const cached = await readCache(cacheK, decodeEgsGame);
-    if (cached !== null) return cached;
+    const cached = await readCachedEgsGame(cacheK);
+    if (cached !== null) return cached.game;
   }
   // The query is interpolated directly into a Postgres ILIKE clause
   // on the remote SQL form, so the sanitizer has to be aggressive:

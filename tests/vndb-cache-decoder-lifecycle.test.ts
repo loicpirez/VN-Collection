@@ -65,12 +65,16 @@ describe('VNDB cache decoder lifecycle', () => {
 
   it('treats malformed fresh cache as a miss and validates the refetched body', async () => {
     const body = { id: 2 };
-    seed('TEST /decoder:refetch', body, { results: {} }, Date.now() + 60_000);
+    seed('TEST /decoder:refetch', body, { results: {} }, Date.now() + 60_000, 'invalid-etag');
     throttledFetchMock.mockResolvedValue(new Response(JSON.stringify({ results: ['LIVE'] })));
     await expect(run('TEST /decoder:refetch', body)).resolves.toMatchObject({
       data: { results: ['live'] },
       fromCache: false,
     });
+    const headers = new Headers(throttledFetchMock.mock.calls[0][1].headers);
+    expect(headers.has('If-None-Match')).toBe(false);
+    await expect(run('TEST /decoder:refetch', body)).resolves.toMatchObject({ fromCache: true });
+    expect(throttledFetchMock).toHaveBeenCalledOnce();
   });
 
   it('validates stale fallback after an upstream failure', async () => {

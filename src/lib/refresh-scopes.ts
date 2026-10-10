@@ -1,4 +1,5 @@
 import 'server-only';
+import { getTagPageCacheKeys } from './vndb';
 
 /**
  * R5-058 / R5-106 / R5-215 — central registry of "scoped refresh"
@@ -35,7 +36,7 @@ export interface RefreshScope {
 export const REFRESH_SCOPES: Readonly<Record<string, RefreshScope>> = {
   // /tags  — search-result + tag-detail caches (no /vn, no /release).
   'tags-list': {
-    patterns: ['% /tag|%', 'tag_full:%'],
+    patterns: ['% /tag|%', 'tag_full:%', 'vndb-tag-web:%', 'scrape:/g%'],
     i18nKey: 'tagsList',
   },
   // /traits — search-result + trait-detail caches.
@@ -45,7 +46,7 @@ export const REFRESH_SCOPES: Readonly<Record<string, RefreshScope>> = {
   },
   // /tag/[id] — single tag's web detail + scraped DAG.
   'tag-detail': {
-    patterns: ['tag_full:{gid}', 'scrape_tag:{gid}'],
+    patterns: ['tag_full:{gid}', 'scrape_tag:{gid}', 'vndb-tag-web:detail:{gid}', 'scrape:/{gid}'],
     i18nKey: 'tagDetail',
   },
   // /upcoming?tab=anticipated — EGS anticipated only.
@@ -90,7 +91,7 @@ export function resolveScopePatterns(
 ): string[] {
   const scope = REFRESH_SCOPES[scopeId];
   if (!scope) throw new Error(`unknown refresh scope: ${scopeId}`);
-  return scope.patterns.map((tpl) => {
+  const patterns = scope.patterns.map((tpl) => {
     return tpl.replace(/\{(\w+)\}/g, (_match, key) => {
       const v = params[key];
       if (typeof v !== 'string' || v.length === 0) {
@@ -105,7 +106,13 @@ export function resolveScopePatterns(
       if (!/^[A-Za-z0-9-]+$/.test(v)) {
         throw new Error(`refresh scope ${scopeId}: unsafe param value`);
       }
-      return v;
+      return v.toLowerCase();
     });
   });
+  if (scopeId !== 'tag-detail') return patterns;
+  const page = params.page === undefined ? 1 : Number(params.page);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 1000) {
+    throw new Error(`refresh scope ${scopeId}: unsafe param value`);
+  }
+  return [...patterns, ...getTagPageCacheKeys(params.gid, page)];
 }

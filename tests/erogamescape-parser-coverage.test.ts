@@ -212,6 +212,37 @@ describe('fetchEgsGame', () => {
       .prepare(`SELECT body FROM vndb_cache WHERE cache_key = 'egs:game:99999'`)
       .get() as { body: string } | undefined;
     expect(row?.body).toBe('null');
+    for (let visit = 0; visit < 3; visit++) await expect(fetchEgsGame(99999)).resolves.toBeNull();
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
+  });
+
+  it('reuses negative search results and revalidates them after expiry or an explicit force', async () => {
+    for (const query of ['Synthetic missing A', 'Synthetic missing B', 'Synthetic missing C']) {
+      queueFetches(ok(tableHtml([['id']])));
+      await expect(searchEgsByName(query)).resolves.toBeNull();
+      const requests = mockProviderFetch.mock.calls.length;
+      await expect(searchEgsByName(query)).resolves.toBeNull();
+      expect(mockProviderFetch).toHaveBeenCalledTimes(requests);
+    }
+    queueFetches(ok(tableHtml([['id']])));
+    await expect(searchEgsByName('Synthetic missing A', { force: true })).resolves.toBeNull();
+    expect(mockProviderFetch).toHaveBeenCalledTimes(4);
+    db.prepare('UPDATE vndb_cache SET expires_at = ? WHERE cache_key = ?')
+      .run(Date.now() - 1, 'egs:search:synthetic missing b');
+    queueFetches(ok(tableHtml([['id']])));
+    await expect(searchEgsByName('Synthetic missing B')).resolves.toBeNull();
+    expect(mockProviderFetch).toHaveBeenCalledTimes(5);
+  });
+
+  it('refills corrupt and structurally invalid EGS game entries', async () => {
+    for (const [id, body] of [[99996, '{broken'], [99997, '{}']] as const) {
+      db.prepare('INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)')
+        .run(`egs:game:${id}`, body, Date.now(), Date.now() + 60_000);
+      queueFetches(ok(tableHtml([['gamename']])));
+      await expect(fetchEgsGame(id)).resolves.toBeNull();
+      await expect(fetchEgsGame(id)).resolves.toBeNull();
+    }
+    expect(mockProviderFetch).toHaveBeenCalledTimes(2);
   });
 
   it('propagates EgsUnreachable on a 429 and does not cache', async () => {
@@ -1331,6 +1362,15 @@ describe('resolveEgsForVn additional branches', () => {
 });
 
 describe('bulk + page cache-hit short-circuits', () => {
+  it('refills malformed cached bulk data instead of treating it as a valid empty result', async () => {
+    db.prepare('INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)')
+      .run('egs:candidates:20:synthetic malformed', '{broken', Date.now(), Date.now() + 60_000);
+    queueFetches(ok(tableHtml([['id']])));
+    await expect(searchEgsCandidates('Synthetic malformed')).resolves.toEqual([]);
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
+    await expect(searchEgsCandidates('Synthetic malformed')).resolves.toEqual([]);
+    expect(mockProviderFetch).toHaveBeenCalledOnce();
+  });
   it('serves a non-empty top-ranked cache hit without fetching', async () => {
     queueFetches(ok(tableHtml([
       ['id', 'gamename', 'furigana', 'brand_id', 'brand_name', 'median', 'median2', 'average2', 'count2', 'sellday', 'banner_url', 'okazu', 'erogame', 'vndb'],

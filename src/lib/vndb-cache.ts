@@ -96,8 +96,13 @@ export const TTL = {
  * `POST /vn` / `GET /trait` convention; bespoke pathTags (e.g.
  * `staff_full:<sid>`) need to keep the pipe-separator shape or the
  * freshness chip on the consumer page will silently render blank.
+ *
+ * @param method HTTP method represented by the cache entry.
+ * @param path Stable request path tag, including any endpoint-specific scope.
+ * @param body Request body whose serialized hash distinguishes query variants.
+ * @returns The exact persisted key shared by reads, writes, and invalidation.
  */
-function buildKey(method: string, path: string, body?: unknown): string {
+export function buildCacheKey(method: string, path: string, body?: unknown): string {
   if (!body) return `${path}|${method}|`;
   const hash = createHash('sha1').update(JSON.stringify(body)).digest('hex').slice(0, 16);
   return `${path}|${method}|${hash}`;
@@ -134,6 +139,8 @@ export interface CachedFetchOptions<T> {
   staleWhileError?: boolean;
   /** Return a valid expired row immediately while one shared refresh continues in the background. */
   staleWhileRevalidate?: boolean;
+  /** Revalidate upstream even before expiry, retaining valid cached data on failure. */
+  forceRefresh?: boolean;
   /** Optional structural decoder applied consistently to cache and upstream payloads. */
   decode?: CachePayloadDecoder<T>;
 }
@@ -249,12 +256,12 @@ function startInflightRequest<T>(
 export async function cachedFetch<T>(
   url: string,
   init: RequestInit & { __pathTag?: string },
-  { ttlMs, staleWhileError = true, staleWhileRevalidate = false, decode }: CachedFetchOptions<T>,
+  { ttlMs, staleWhileError = true, staleWhileRevalidate = false, forceRefresh = false, decode }: CachedFetchOptions<T>,
 ): Promise<FetchResult<T>> {
   const path = init.__pathTag ?? new URL(url).pathname;
   const method = (init.method ?? 'GET').toUpperCase();
   const body = init.body ? safeParse(init.body) : undefined;
-  const key = buildKey(method, path, body);
+  const key = buildCacheKey(method, path, body);
   const now = Date.now();
 
   if (init.signal?.aborted) throw requestAbortReason(init.signal);
@@ -264,7 +271,7 @@ export async function cachedFetch<T>(
   }
 
   const cached = await getCacheRepository().get(key);
-  if (cached && now < cached.expires_at) {
+  if (cached && !forceRefresh && now < cached.expires_at) {
     let data: T | undefined;
     try {
       data = decodePayload(JSON.parse(cached.body), decode);
@@ -282,7 +289,7 @@ export async function cachedFetch<T>(
   }
 
   const existing = inflight.get(key);
-  if (cached && staleWhileRevalidate) {
+  if (cached && staleWhileRevalidate && !forceRefresh) {
     let staleData: T | undefined;
     try {
       staleData = decodePayload(JSON.parse(cached.body), decode);
@@ -359,6 +366,13 @@ async function fetchOnce<T>(
   cached?: CacheRow | null,
   decode?: CachePayloadDecoder<T>,
 ): Promise<FetchResult<T>> {
+  if (cached) {
+    try {
+      decodePayload(JSON.parse(cached.body), decode);
+    } catch {
+      cached = null;
+    }
+  }
   const headers = new Headers(init.headers);
   if (cached?.etag) headers.set('If-None-Match', cached.etag);
   if (cached?.last_modified) headers.set('If-Modified-Since', cached.last_modified);
@@ -368,18 +382,18 @@ async function fetchOnce<T>(
   const now = Date.now();
 
   if (res.status === 304 && cached) {
-    await getCacheRepository().touch(key, now, now + ttlMs);
     let cachedData: T;
     try {
       cachedData = decodePayload(JSON.parse(cached.body), decode);
     } catch {
       throw new Error(`vndb-cache: corrupt cache body for key ${key} (304 path)`);
     }
+    await getCacheRepository().touch(key, now, now + ttlMs);
     return {
       data: cachedData,
       fromCache: true,
       status: 304,
-      cachedAt: cached.fetched_at,
+      cachedAt: now,
     };
   }
 
@@ -451,7 +465,7 @@ export async function invalidateByPath(pathPrefix: string): Promise<number> {
  * request goes upstream. Mirrors the exact key shape used by `cachedFetch`.
  */
 export async function invalidateKey(method: string, path: string, body?: unknown): Promise<void> {
-  await getCacheRepository().deleteKey(buildKey(method.toUpperCase(), path, body));
+  await getCacheRepository().deleteKey(buildCacheKey(method.toUpperCase(), path, body));
 }
 
 /** A validated cache payload with the timestamps needed for freshness UI. */
@@ -480,7 +494,7 @@ export async function readCachedJsonEntry<T>(
   body: unknown,
   decode: (value: unknown) => T | null,
 ): Promise<CachedJsonEntry<T> | null> {
-  const key = buildKey(method.toUpperCase(), pathTag, body);
+  const key = buildCacheKey(method.toUpperCase(), pathTag, body);
   const row = await getCacheRepository().get(key);
   if (!row) return null;
   try {
@@ -530,7 +544,7 @@ export async function readCachedJsonMany<T>(
   reads: readonly CachedJsonRead[],
   decode: (value: unknown) => T | null,
 ): Promise<Map<string, T>> {
-  const keys = reads.map((read) => buildKey(read.method.toUpperCase(), read.pathTag, read.body));
+  const keys = reads.map((read) => buildCacheKey(read.method.toUpperCase(), read.pathTag, read.body));
   const rowsByKey = await getCacheRepository().getMany(keys);
   const out = new Map<string, T>();
   reads.forEach((read, index) => {

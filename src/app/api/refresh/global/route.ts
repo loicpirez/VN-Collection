@@ -5,7 +5,7 @@ import { getReleaseMetadataRepository } from '@/lib/db/repositories/release-meta
 import { jobCurrentItem, jobLabel, startJob, tickJob, finishJob, recordError, setJobCurrent, type JobCurrentItemCode, type JobTextParams } from '@/lib/download-status';
 import { sanitizeUnknownError } from '@/lib/error-sanitize';
 import { fetchEgsAnticipated, fetchEgsTopRanked } from '@/lib/erogamescape';
-import { getGlobalStats, getAuthInfo, getSchema, searchTags, searchTraits } from '@/lib/vndb';
+import { getGlobalStats, getAuthInfo, getSchema, getReleasesForVn, searchTags, searchTraits } from '@/lib/vndb';
 import { fetchVndbTopRanked } from '@/lib/top-ranked';
 import { fetchAllUpcomingFromVndb, fetchUpcomingForCollection } from '@/lib/upcoming';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
@@ -84,25 +84,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // on the next visit, which is what a "global refresh" should
   // not do.
   const BUST_PATTERNS: ReadonlyArray<string> = [
-    'egs:cover-resolved:%',
     '% /stats|%',
     '% /schema|%',
     '% /authinfo|%',
-    '% /release|%',
+    '% /authinfo:auth:%',
     '% /release:upcoming|%',
     '% /release:upcoming-all|%',
-    '% /producer|%',
     '% /tag|%',
     '% /trait|%',
     '% /vn:top-ranked:%',
   ];
-  // Wipe the materialised per-release metadata too. The shelf
-  // popover / owned-editions surfaces read from `release_meta_cache`
-  // (not the raw `POST /release` JSON), so without this step the
-  // global refresh would re-fetch every release payload AND the
-  // surfaces would keep rendering the stale platforms / languages
-  // until the per-VN `materializeReleaseMetaForVn` ran. We bust
-  // here and re-materialize per-VN below.
   // VN ids in the collection — every one gets its own materialize
   // job so the operator can see progress per-VN in the global
   // download status panel. Restricted to real `vNNN` ids; synthetic
@@ -112,11 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Each task has a stable `name` plus the existing run() closure.
   const tasks: Array<{ name: string; code: JobCurrentItemCode; params?: JobTextParams; run: () => Promise<unknown> }> = [
     { name: 'Cache rows (bust)', code: 'refresh_cache_rows', run: () => getCacheRepository().deleteByPatterns(BUST_PATTERNS) },
-    {
-      name: 'Release metadata cache (bust)',
-      code: 'refresh_release_metadata_cache',
-      run: () => getReleaseMetadataRepository().clear(),
-    },
     { name: 'EGS anticipated (top 100)', code: 'refresh_egs_anticipated', params: { count: 100 }, run: () => fetchEgsAnticipated(100, { force: true }) },
     { name: 'EGS top-ranked (top 100)', code: 'refresh_egs_top_ranked', params: { count: 100 }, run: () => fetchEgsTopRanked(100, undefined, { force: true }) },
     { name: 'VNDB top-ranked (top 100)', code: 'refresh_vndb_top_ranked', params: { count: 100 }, run: () => fetchVndbTopRanked(100) },
@@ -130,11 +116,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // hanging on the now-deleted older value.
     { name: 'Tags · default search', code: 'refresh_tags_default', run: () => searchTags('', { results: 60 }) },
     { name: 'Traits · default search', code: 'refresh_traits_default', run: () => searchTraits('', { results: 60 }) },
-    {
-      name: 'Release metadata · all collection VNs',
+    ...collectionVnIds.map((vnId) => ({
+      name: `Release metadata · ${vnId}`,
       code: 'refresh_release_metadata_collection',
-      run: () => getReleaseMetadataRepository().materializeForVns(collectionVnIds),
-    },
+      run: async (): Promise<void> => {
+        await getReleasesForVn(vnId, 100, undefined, { forceRefresh: true });
+        await getReleaseMetadataRepository().materializeForVns([vnId]);
+      },
+    } satisfies { name: string; code: JobCurrentItemCode; run: () => Promise<void> })),
   ];
 
   // Tagged `cache-refresh` (not `vndb-pull`) because this fan-out also

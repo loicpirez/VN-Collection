@@ -35,7 +35,7 @@ const ROLE_ORDER: Record<string, number> = { main: 0, primary: 1, side: 2, appea
 const loadCharacter = cache(async (id: string): Promise<VndbCharacter | null> => {
   try {
     const cached = await readCharacterFullCache(id).catch(() => null);
-    return cached ? cached.profile : await getCharacter(id);
+    return cached?.profile ?? await getCharacter(id);
   } catch {
     return null;
   }

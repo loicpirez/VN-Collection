@@ -560,9 +560,11 @@ interface RecommendationMembership {
 async function loadRecommendationMembership(
   repository: RecommendationReadRepository,
 ): Promise<RecommendationMembership> {
+  const { getCachedWishlistRequestKeys } = await import('@/lib/vndb');
+  const requestKeys = await getCachedWishlistRequestKeys();
   const [ownedIds, wishlistBodies] = await Promise.all([
     repository.collectionIds(),
-    repository.wishlistCacheBodies(),
+    repository.wishlistCacheBodies(requestKeys),
   ]);
   return {
     owned: new Set(ownedIds),

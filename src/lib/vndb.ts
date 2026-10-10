@@ -1,5 +1,7 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import {
+  buildCacheKey,
   cachedFetch,
   invalidateByPath,
   invalidateKey,
@@ -9,6 +11,7 @@ import {
   TTL,
 } from './vndb-cache';
 import { getAppSettingRepository } from './db/repositories/app-setting';
+import { getCacheRepository } from './db/repositories/cache';
 import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 import { decodeVndbCharacterCacheResponse } from './vn-character-row';
@@ -250,7 +253,7 @@ async function vndbPost<T>(
   ttlMs: number,
   decodeRow: CachePayloadDecoder<T>,
   signal?: AbortSignal,
-  cacheBehavior?: { staleWhileRevalidate?: boolean },
+  cacheBehavior?: { staleWhileRevalidate?: boolean; forceRefresh?: boolean },
 ): Promise<VndbResponse<T>> {
   const decode = createVndbResultsEnvelopeDecoder(decodeRow);
   const r = await cachedFetch<VndbResponse<T>>(`${VNDB_API}${path}`, {
@@ -259,18 +262,32 @@ async function vndbPost<T>(
     body: JSON.stringify(body),
     signal,
     __pathTag: `POST ${path}`,
-  }, { ttlMs, decode, staleWhileRevalidate: cacheBehavior?.staleWhileRevalidate });
+  }, { ttlMs, decode, staleWhileRevalidate: cacheBehavior?.staleWhileRevalidate, forceRefresh: cacheBehavior?.forceRefresh });
   return r.data;
 }
 
 async function vndbGet<T>(path: string, ttlMs: number, decode?: CachePayloadDecoder<T>, signal?: AbortSignal): Promise<T> {
+  const headers = await authHeaders();
+  const accountScoped = path === '/authinfo' || path.startsWith('/ulist_labels?');
+  const pathTag = accountScoped
+    ? `GET ${path}:auth:${createHash('sha256').update(new Headers(headers).get('Authorization') ?? '').digest('hex')}`
+    : `GET ${path}`;
   const r = await cachedFetch<T>(`${VNDB_API}${path}`, {
     method: 'GET',
-    headers: await authHeaders(),
+    headers,
     signal,
-    __pathTag: `GET ${path}`,
+    __pathTag: pathTag,
   }, { ttlMs, decode });
   return r.data;
+}
+
+async function invalidateUlistSnapshots(): Promise<void> {
+  const { invalidateVndbWishlistCache } = await import('./vndb-wishlist-cache');
+  invalidateVndbWishlistCache();
+  await Promise.all([
+    invalidateByPath('POST /ulist'),
+    getCacheRepository().deleteByPatterns(['GET /ulist_labels?%']),
+  ]);
 }
 
 type VndbResponse<T> = VndbResultsEnvelope<T>;
@@ -540,7 +557,7 @@ export async function getVn(id: string): Promise<VndbVn | null> {
  * call reaches upstream. Used right before a forced refresh.
  */
 export async function invalidateVnCache(id: string): Promise<void> {
-  await invalidateKey('POST', '/vn', {
+  await invalidateKey('POST', 'POST /vn', {
     filters: ['id', '=', id],
     fields: VN_DETAIL_FIELDS,
     results: 1,
@@ -1089,6 +1106,25 @@ export async function readCachedTag(id: string): Promise<CachedVndbTag | null> {
 }
 
 /**
+ * Resolve the existing cache keys consumed by one VNDB-mode tag page.
+ *
+ * @param tagId VNDB tag identifier for the metadata and ranked result query.
+ * @param page Ranked result page to refresh, defaulting to the first page.
+ * @returns Exact persisted keys without widening invalidation to unrelated tags or searches.
+ */
+export function getTagPageCacheKeys(tagId: string, page = 1): string[] {
+  return [
+    buildCacheKey('POST', 'POST /tag', tagByIdBody(tagId)),
+    buildCacheKey('POST', 'POST /vn', topVnsByTagBody(tagId, {
+      results: 24,
+      page,
+      lieThreshold: 1.2,
+      spoiler: 1,
+    })),
+  ];
+}
+
+/**
  * Top VNs (by rating descending) that carry a given tag. Cached through
  * the regular `cachedFetch` so repeated visits to a tag detail page are
  * served from the local SQLite cache.
@@ -1260,16 +1296,22 @@ export async function searchTraits(query: string, { results = 50 } = {}): Promis
 
 /**
  * Fetch up to `max` releases of one VN, ordered by release date. Returns
- * an empty array for synthetic `egs_*` ids — VNDB doesn't know them.
+ * an empty array for synthetic `egs_*` ids, which VNDB does not know.
+ *
+ * @param vnId VNDB visual-novel identifier.
+ * @param max Maximum number of releases, capped at 100.
+ * @param signal Optional cancellation signal for the upstream request.
+ * @param options Cache revalidation controls for an explicit refresh.
+ * @returns Validated releases, retaining cached data if upstream refresh fails.
  */
-export async function getReleasesForVn(vnId: string, max = 50, signal?: AbortSignal): Promise<VndbRelease[]> {
+export async function getReleasesForVn(vnId: string, max = 50, signal?: AbortSignal, options: { forceRefresh?: boolean } = {}): Promise<VndbRelease[]> {
   if (!vnId.startsWith('v')) return [];
   const r = await vndbPost<VndbRelease>('/release', {
     filters: ['vn', '=', ['id', '=', vnId]],
     fields: RELEASE_FIELDS,
     sort: 'released',
     results: Math.min(max, 100),
-  }, TTL.releases, decodeVndbRelease, signal);
+  }, TTL.releases, decodeVndbRelease, signal, options);
   return r.results;
 }
 
@@ -1526,18 +1568,48 @@ export async function fetchUlistByLabel(
 ): Promise<VndbResponse<VndbUlistEntry>> {
   return vndbPost<VndbUlistEntry>(
     '/ulist',
-    {
-      user: userId,
-      filters: ['label', '=', labelId],
-      fields: ULIST_FIELDS,
-      sort: 'added',
-      reverse: true,
-      results,
-      page,
-    },
+    buildUlistByLabelBody(userId, labelId, results, page),
     TTL.user,
     decodeVndbUlistEntryRow,
   );
+}
+
+function buildUlistByLabelBody(userId: string, labelId: number, results: number, page: number) {
+  return {
+    user: userId,
+    filters: ['label', '=', labelId],
+    fields: ULIST_FIELDS,
+    sort: 'added',
+    reverse: true,
+    results,
+    page,
+  };
+}
+
+/**
+ * Identify the active account's cached wishlist pages without contacting VNDB.
+ * An expired authentication snapshot still identifies its unchanged token owner;
+ * missing or invalid snapshots must not select another account's wishlist.
+ *
+ * @returns The exact persisted keys for the ten supported wishlist pages, or
+ * an empty list when the configured account has no usable local identity.
+ */
+export async function getCachedWishlistRequestKeys(): Promise<string[]> {
+  const token = await readVndbToken();
+  if (!token) return [];
+  const digest = createHash('sha256').update(`Token ${token}`).digest('hex');
+  const key = buildCacheKey('GET', `GET /authinfo:auth:${digest}`);
+  const row = await getCacheRepository().get(key);
+  if (!row) return [];
+  try {
+    const auth = decodeVndbAuthInfo(JSON.parse(row.body));
+    if (!auth) return [];
+    return Array.from({ length: 10 }, (_, index) =>
+      buildCacheKey('POST', 'POST /ulist', buildUlistByLabelBody(auth.id, 5, 100, index + 1)),
+    );
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -1582,7 +1654,7 @@ export async function addToVndbWishlist(vnId: string): Promise<{ ok: true } | { 
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {
     // ignore — cache invalidation failures are non-fatal
   }
@@ -1613,7 +1685,7 @@ export async function removeFromVndbWishlist(vnId: string): Promise<{ ok: true }
     throw new Error(`VNDB PATCH /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {
     // ignore — cache invalidation failures are non-fatal
   }
@@ -1738,7 +1810,7 @@ export async function patchUlistEntry(vnId: string, patch: UlistPatch): Promise<
   }
   // Invalidate our small ulist cache so subsequent reads reflect the new state.
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {
     // ignore — invalidator failures are non-fatal
   }
@@ -1763,7 +1835,7 @@ export async function deleteUlistEntry(vnId: string): Promise<{ ok: true } | { n
     throw new Error(`VNDB DELETE /ulist/${vnId} -> ${res.status}: ${text}`);
   }
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {}
   return { ok: true };
 }
@@ -1788,7 +1860,7 @@ export async function patchRlistEntry(
     throw new Error(`VNDB PATCH /rlist/${normalizedId} -> ${res.status}: ${text}`);
   }
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {}
   return { ok: true };
 }
@@ -1808,7 +1880,7 @@ export async function deleteRlistEntry(releaseId: string): Promise<{ ok: true } 
     throw new Error(`VNDB DELETE /rlist/${normalizedId} -> ${res.status}: ${text}`);
   }
   try {
-    await invalidateByPath('POST /ulist');
+    await invalidateUlistSnapshots();
   } catch {}
   return { ok: true };
 }

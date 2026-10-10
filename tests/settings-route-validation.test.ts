@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, PATCH } from '@/app/api/settings/route';
 import { getAppSetting, setAppSetting } from '@/lib/db';
+import * as wishlistCache from '@/lib/vndb-wishlist-cache';
 
 function request(body: unknown): NextRequest {
   return new NextRequest('http://127.0.0.1/api/settings', {
@@ -35,6 +36,20 @@ describe('settings credential validation', () => {
     expect((await PATCH(request({ vndb_token: 'contains whitespace' }))).status).toBe(400);
     expect((await PATCH(request({ vndb_token: 'tok-abc.def' }))).status).toBe(200);
     expect(getAppSetting('vndb_token')).toBe('tok-abc.def');
+  });
+
+  it('invalidates the process wishlist cache only after a successful token update', async () => {
+    const invalidation = vi.spyOn(wishlistCache, 'invalidateVndbWishlistCache');
+    try {
+      expect((await PATCH(request({ vndb_token: 'contains whitespace' }))).status).toBe(400);
+      expect(invalidation).not.toHaveBeenCalled();
+      expect((await PATCH(request({ vndb_token: 'synthetic-cache-token' }))).status).toBe(200);
+      expect(invalidation).toHaveBeenCalledOnce();
+      expect((await PATCH(request({ default_order: 'asc' }))).status).toBe(200);
+      expect(invalidation).toHaveBeenCalledOnce();
+    } finally {
+      invalidation.mockRestore();
+    }
   });
 
   it('deduplicates disabled stock-provider ids before persistence', async () => {

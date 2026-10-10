@@ -418,6 +418,32 @@ describe('refreshStockForVn — surugaya card shaping', () => {
     expect(statusFor('surugaya')).toMatchObject({ status: 'protected', offer_count: 1, cached_offers_available: 1 });
   });
 
+  it('preserves the last successful offers after an ordinary upstream error', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'surugaya', [cachedSurugayaOffer()], {
+      status: 'ok', message: null, fetched_at: 1, offer_count: 1,
+    });
+    fetchMock.mockResolvedValue(new Response('unavailable', { status: 503 }));
+
+    const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
+
+    expect(snapshot.offers.find((offer) => offer.provider_offer_id === 'cached')).toMatchObject({ price: 3000, fetched_at: 1 });
+    expect(statusFor('surugaya')).toMatchObject({ status: 'error', offer_count: 1, cached_offers_available: 1, fresh_offers_found: 0 });
+  });
+
+  it('replaces retained offers after a later successful empty result', async () => {
+    seedVn();
+    replaceVnStockProviderSnapshot(VN_ID, 'surugaya', [cachedSurugayaOffer()], {
+      status: 'ok', message: null, fetched_at: 1, offer_count: 1,
+    });
+    fetchMock.mockImplementation(() => htmlResponse('<html><body>No matching products</body></html>'));
+
+    const snapshot = await refreshStockForVn(VN_ID, ['surugaya']);
+
+    expect(snapshot.offers).toEqual([]);
+    expect(statusFor('surugaya')).toMatchObject({ status: 'no_results', offer_count: 0, cached_offers_available: 0 });
+  });
+
   it('ignores a protected Suruga-ya follow-up page while keeping page-one cards', async () => {
     seedVn();
     const firstPage = `<p class="search_count">1-24件 / 50件</p>

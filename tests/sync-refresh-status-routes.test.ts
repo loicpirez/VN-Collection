@@ -25,6 +25,7 @@ const {
   getSchemaMock,
   searchTagsMock,
   searchTraitsMock,
+  getReleasesForVnMock,
   fetchEgsAnticipatedMock,
   fetchEgsTopRankedMock,
   fetchVndbTopRankedMock,
@@ -39,6 +40,7 @@ const {
   getSchemaMock: vi.fn(async () => ({})),
   searchTagsMock: vi.fn(async () => []),
   searchTraitsMock: vi.fn(async () => []),
+  getReleasesForVnMock: vi.fn<typeof import('@/lib/vndb').getReleasesForVn>().mockResolvedValue([]),
   fetchEgsAnticipatedMock: vi.fn(async () => []),
   fetchEgsTopRankedMock: vi.fn(async () => []),
   fetchVndbTopRankedMock: vi.fn(async () => []),
@@ -79,6 +81,7 @@ vi.mock('@/lib/vndb', async (importOriginal) => {
     getSchema: getSchemaMock,
     searchTags: searchTagsMock,
     searchTraits: searchTraitsMock,
+    getReleasesForVn: getReleasesForVnMock,
   };
 });
 
@@ -135,6 +138,7 @@ beforeEach(() => {
   searchTagsMock.mockResolvedValue([]);
   searchTraitsMock.mockReset();
   searchTraitsMock.mockResolvedValue([]);
+  getReleasesForVnMock.mockReset().mockResolvedValue([]);
   fetchEgsAnticipatedMock.mockReset();
   fetchEgsAnticipatedMock.mockResolvedValue([]);
   fetchEgsTopRankedMock.mockReset();
@@ -362,6 +366,7 @@ describe('POST /api/refresh/global', () => {
     expect(getGlobalStatsMock).toHaveBeenCalled();
     expect(fetchEgsAnticipatedMock).toHaveBeenCalledWith(100, { force: true });
     expect(fetchEgsTopRankedMock).toHaveBeenCalledWith(100, undefined, { force: true });
+    expect(getReleasesForVnMock).toHaveBeenCalledExactlyOnceWith('v90301', 100, undefined, { forceRefresh: true });
     expect(db.prepare("SELECT 1 FROM vndb_cache WHERE cache_key = 'egs:anticipated:100'").get()).toBeDefined();
   });
 

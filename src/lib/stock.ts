@@ -2621,10 +2621,8 @@ export async function refreshStockForVn(vnId: string, providers: StockProviderId
         || msg === 'cloudflare_challenge'
         || /cloudflare|challenge|protected/i.test(msg)
         || (!!getProviderMeta(provider)?.cloudflare && /^HTTP (?:403|429)\b/i.test(msg));
-      const cachedOffers = isProtected
-        ? (await stockRepository.listOffers(vnId)).filter((offer) => offer.provider === provider)
-        : [];
-      const preserveExistingOffers = isProtected && cachedOffers.length > 0;
+      const cachedOffers = (await stockRepository.listOffers(vnId)).filter((offer) => offer.provider === provider);
+      const preserveExistingOffers = cachedOffers.length > 0;
       await stockRepository.replaceProviderSnapshot(vnId, provider, [], {
         status: isProtected ? 'protected' : 'error',
         message: isProtected

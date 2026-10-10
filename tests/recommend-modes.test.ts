@@ -9,6 +9,7 @@
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { seedRecommendationWishlistAccount } from './helpers/recommendation-wishlist-cache';
 
 interface FakeHit {
   id: string;
@@ -63,7 +64,7 @@ function clearAll(): void {
   db.exec(`
     DELETE FROM collection WHERE vn_id LIKE 'v9%';
     DELETE FROM vn WHERE id LIKE 'v9%';
-    DELETE FROM vndb_cache WHERE cache_key LIKE '%g9%';
+    DELETE FROM vndb_cache WHERE cache_key LIKE '%g9%' OR cache_key LIKE 'POST /ulist|%';
   `);
   POOL.clear();
   upstreamMinVotes = 0;
@@ -215,7 +216,7 @@ describe('recommendVns() — modes', () => {
       // The recommender reads the wishlist from the locally cached VNDB
       // ulist payload. Seed a cache row that mirrors what the live
       // `/ulist` POST would have persisted (label = 5 = Wishlist).
-      const cacheKey = 'POST /ulist|POST|fakehashabcdef';
+      const [cacheKey] = await seedRecommendationWishlistAccount();
       const payload = JSON.stringify({
         results: [{ id: 'v90700', labels: [5] }],
       });

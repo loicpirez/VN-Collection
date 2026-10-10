@@ -22,6 +22,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { REFRESH_SCOPES, resolveScopePatterns } from '@/lib/refresh-scopes';
+import { getTagPageCacheKeys } from '@/lib/vndb';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -29,7 +30,7 @@ const ROOT = join(__dirname, '..');
 
 describe('resolveScopePatterns — R5-058 behaviour', () => {
   it('returns the registered patterns for a known scope', () => {
-    expect(resolveScopePatterns('tags-list')).toEqual(['% /tag|%', 'tag_full:%']);
+    expect(resolveScopePatterns('tags-list')).toEqual(['% /tag|%', 'tag_full:%', 'vndb-tag-web:%', 'scrape:/g%']);
     expect(resolveScopePatterns('traits-list')).toEqual(['% /trait|%', 'trait_full:%']);
     expect(resolveScopePatterns('upcoming-anticipated')).toEqual(['egs:anticipated:%']);
     expect(resolveScopePatterns('upcoming-collection')).toEqual(['% /release:upcoming|%']);
@@ -42,7 +43,22 @@ describe('resolveScopePatterns — R5-058 behaviour', () => {
     expect(resolveScopePatterns('tag-detail', { gid: 'g73' })).toEqual([
       'tag_full:g73',
       'scrape_tag:g73',
+      'vndb-tag-web:detail:g73',
+      'scrape:/g73',
+      ...getTagPageCacheKeys('g73'),
     ]);
+  });
+
+  it('targets the selected tag result page and rejects invalid page parameters', () => {
+    expect(resolveScopePatterns('tag-detail', { gid: 'g73', page: '2' }).slice(-2)).toEqual(getTagPageCacheKeys('g73', 2));
+    for (const page of ['0', '-1', '1001', 'nan', '1.5']) {
+      expect(() => resolveScopePatterns('tag-detail', { gid: 'g73', page })).toThrowError(/unsafe param value/);
+    }
+  });
+
+  it('normalizes uppercase tag identifiers for every persisted cache layer', () => {
+    expect(resolveScopePatterns('tag-detail', { gid: 'G73', page: '2' }))
+      .toEqual(resolveScopePatterns('tag-detail', { gid: 'g73', page: '2' }));
   });
 
   it('throws on unknown scope id', () => {

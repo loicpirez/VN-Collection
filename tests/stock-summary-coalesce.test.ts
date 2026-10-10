@@ -12,6 +12,7 @@ import {
   _resetStockSummaryClient,
   decodeStockSummaryResponse,
   subscribeStockSummary,
+  type StockSummaryEntry,
 } from '@/lib/stock-summary-client';
 
 const COALESCE_MS = 60;
@@ -29,6 +30,7 @@ beforeEach(() => {
 afterEach(() => {
   _resetStockSummaryClient();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -71,6 +73,51 @@ describe('decodeStockSummaryResponse', () => {
 });
 
 describe('subscribeStockSummary cache lifecycle', () => {
+  it.each(['http', 'shape', 'network'] as const)('does not cache a cold %s failure as an empty summary', async (failure) => {
+    const fetchMock = vi.fn<typeof fetch>();
+    if (failure === 'network') fetchMock.mockRejectedValueOnce(new Error('network down'));
+    else fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ summary: 'broken' }), { status: failure === 'http' ? 503 : 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ summary: { v1: { available: 1, best_price: 100 } } })));
+    vi.stubGlobal('fetch', fetchMock);
+    const first = vi.fn<(entry: StockSummaryEntry | null) => void>();
+    const unsubscribe = subscribeStockSummary('v1', first);
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+    expect(first).toHaveBeenCalledWith(null);
+    unsubscribe();
+
+    const second = vi.fn<(entry: StockSummaryEntry | null) => void>();
+    subscribeStockSummary('v1', second);
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(second).toHaveBeenCalledWith({ available: 1, best_price: 100 });
+  });
+
+  it.each(['http', 'shape', 'network'] as const)('retains an expired valid summary on a %s failure and retries on the next visit', async (failure) => {
+    const original = { available: 2, best_price: 200 };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({ summary: { v1: original } })));
+    vi.stubGlobal('fetch', fetchMock);
+    const unsubscribe = subscribeStockSummary('v1', () => {});
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+    unsubscribe();
+    await vi.advanceTimersByTimeAsync(CACHE_TTL_MS + 1);
+    if (failure === 'network') fetchMock.mockRejectedValueOnce(new Error('network down'));
+    else fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ summary: 'broken' }), { status: failure === 'http' ? 503 : 200 }));
+    const listener = vi.fn<(entry: StockSummaryEntry | null) => void>();
+    const unsubscribeFailed = subscribeStockSummary('v1', listener);
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+    expect(listener).toHaveBeenCalledWith(original);
+    unsubscribeFailed();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ summary: { v1: { available: 3, best_price: 300 } } })));
+
+    const recovered = vi.fn<(entry: StockSummaryEntry | null) => void>();
+    subscribeStockSummary('v1', recovered);
+    await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(recovered).toHaveBeenCalledWith({ available: 3, best_price: 300 });
+  });
+
   it('re-fetches after the cache TTL expires rather than serving stale data', async () => {
     const fetchMock = okFetch({ v1: { available: 1, best_price: 100 } });
     (globalThis as { fetch: unknown }).fetch = fetchMock;

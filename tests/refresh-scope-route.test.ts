@@ -17,6 +17,7 @@ import { db } from '@/lib/db';
 import { POST } from '@/app/api/refresh/scope/route';
 import type { NextRequest } from 'next/server';
 import * as activityModule from '@/lib/activity';
+import { getTagPageCacheKeys } from '@/lib/vndb';
 
 // Force lib/db bootstrap so vndb_cache exists.
 db.prepare('SELECT 1').get();
@@ -62,6 +63,10 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
   it('busts only rows matching the scope patterns (tags-list)', async () => {
     seed('POST /tag|POST|abc');
     seed('tag_full:g73');
+    seed('vndb-tag-web:home');
+    seed('vndb-tag-web:detail:g73');
+    seed('scrape:/g');
+    seed('scrape:/g73');
     seed('POST /vn|POST|xyz'); // NOT in scope — should survive
     seed('egs:anticipated:1'); // NOT in scope — should survive
 
@@ -69,7 +74,7 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.deleted).toBe(2);
+    expect(json.deleted).toBe(6);
 
     // Surviving rows confirm the bust didn't widen.
     const survivors = rawDb
@@ -86,19 +91,26 @@ describe('POST /api/refresh/scope — R5-058 behaviour', () => {
     seed('tag_full:g100');
     seed('scrape_tag:g73');
     seed('scrape_tag:g100');
+    seed('vndb-tag-web:detail:g73');
+    seed('scrape:/g73');
+    seed('vndb-tag-web:detail:g100');
+    seed('scrape:/g100');
+    for (const key of getTagPageCacheKeys('g73', 2)) seed(key);
+    for (const key of getTagPageCacheKeys('g100', 2)) seed(key);
+    seed(getTagPageCacheKeys('g73', 1)[1]);
 
-    const res = await POST(postScope({ scope: 'tag-detail', params: { gid: 'g73' } }));
+    const res = await POST(postScope({ scope: 'tag-detail', params: { gid: 'g73', page: '2' } }));
     const json = await res.json();
     expect(res.status).toBe(200);
-    expect(json.deleted).toBe(2);
+    expect(json.deleted).toBe(6);
 
     const survivors = rawDb
       .prepare('SELECT cache_key FROM vndb_cache ORDER BY cache_key')
       .all() as Array<{ cache_key: string }>;
-    expect(survivors.map((r) => r.cache_key)).toEqual([
-      'scrape_tag:g100',
-      'tag_full:g100',
-    ]);
+    expect(new Set(survivors.map((r) => r.cache_key))).toEqual(new Set([
+      'scrape_tag:g100', 'tag_full:g100', 'vndb-tag-web:detail:g100', 'scrape:/g100',
+      ...getTagPageCacheKeys('g100', 2), getTagPageCacheKeys('g73', 1)[1],
+    ]));
   });
 
   it('busts the upcoming-anticipated scope ONLY (not all EGS keys)', async () => {

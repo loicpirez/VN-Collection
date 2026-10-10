@@ -83,19 +83,28 @@ function cacheGet(vnId: string): CacheRecord | undefined {
   const record = cache.get(vnId);
   if (record === undefined) return undefined;
   if (Date.now() - record.at > CACHE_TTL_MS) {
-    cache.delete(vnId);
     return undefined;
   }
   return record;
 }
 
-function notify(vnId: string, entry: StockSummaryEntry | null) {
-  cachePut(vnId, entry);
+function notify(vnId: string, entry: StockSummaryEntry | null, persist = true): void {
+  if (persist) cachePut(vnId, entry);
   const set = listeners.get(vnId);
   if (!set) return;
   for (const cb of set) {
     try { cb(entry); } catch { /* listener errors must not break the loop */ }
   }
+}
+
+/**
+ * Notify listeners after a failed request without caching a false empty result.
+ *
+ * @param vnId VN whose summary could not be refreshed.
+ * @returns Nothing; a previous valid summary remains available for display.
+ */
+function notifyFailure(vnId: string): void {
+  notify(vnId, cache.get(vnId)?.entry ?? null, false);
 }
 
 async function flushQueue() {
@@ -107,17 +116,17 @@ async function flushQueue() {
     params.set('ids', ids.join(','));
     const res = await fetch(`/api/stock/summary?${params.toString()}`, { cache: 'no-store' });
     if (!res.ok) {
-      for (const id of ids) notify(id, null);
+      for (const id of ids) notifyFailure(id);
       return;
     }
     const summary = decodeStockSummaryResponse(await res.json());
     if (!summary) {
-      for (const id of ids) notify(id, null);
+      for (const id of ids) notifyFailure(id);
       return;
     }
     for (const id of ids) notify(id, summary[id] ?? null);
   } catch {
-    for (const id of ids) notify(id, null);
+    for (const id of ids) notifyFailure(id);
   }
 }
 

@@ -46,6 +46,7 @@ import {
 } from '@/lib/proxy-config';
 import { STOCK_PROVIDER_IDS } from '@/lib/stock-provider-constants';
 import { validateTokenShape } from '@/lib/input-validators';
+import { invalidateVndbWishlistCache } from '@/lib/vndb-wishlist-cache';
 
 import { readJsonObject } from '@/lib/api-body';
 
@@ -634,6 +635,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     writes.push(prepared.update);
   }
     await settings.setMany(writes);
+    if ('vndb_token' in body) invalidateVndbWishlistCache();
     if (changedKeys.length > 0) {
       await recordActivity({
         kind: 'settings.update',

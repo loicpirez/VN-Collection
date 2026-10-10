@@ -57,6 +57,7 @@ import {
   fetchVaVnList,
   fetchVnCovers,
   getAuthInfo,
+  getCachedWishlistRequestKeys,
   getCharacter,
   getCharactersForTraitPage,
   getCharactersForVn,
@@ -83,6 +84,7 @@ import {
   searchVn,
 } from '@/lib/vndb';
 import { clearCache, getCacheRow, putCacheRow, setAppSetting } from '@/lib/db';
+import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 
 const FAKE_TOKEN = 'fake-test-token-not-a-real-vndb-credential';
 const ORIGINAL_TOKEN = process.env.VNDB_TOKEN;
@@ -277,6 +279,9 @@ describe('getVn / refreshVn', () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
     const refreshed = await refreshVn('v90005');
     expect(refreshed?.id).toBe('v90005');
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+    await getVn('v90005');
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -743,9 +748,69 @@ describe('stats + auth + user', () => {
     expect(auth?.username).toBe('tester');
   });
 
+  it('partitions cached authentication and labels across three configured tokens', async () => {
+    for (const account of [1, 2, 3]) {
+      setAppSetting('vndb_token', `synthetic-cache-account-${account}`);
+      providerFetchMock
+        .mockResolvedValueOnce(jsonResponse({ id: `u900${account}`, username: `synthetic-${account}`, permissions: ['listread'] }))
+        .mockResolvedValueOnce(jsonResponse({ labels: [{ id: 5, label: 'Wishlist', private: false, count: account }] }));
+      await expect(getAuthInfo()).resolves.toMatchObject({ id: `u900${account}` });
+      await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: account }]);
+      await expect(getAuthInfo()).resolves.toMatchObject({ id: `u900${account}` });
+      await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: account }]);
+      expect(providerFetchMock).toHaveBeenCalledTimes(account * 2);
+    }
+    setAppSetting('vndb_token', 'synthetic-cache-account-1');
+    await expect(getAuthInfo()).resolves.toMatchObject({ id: 'u9001' });
+    await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: 1 }]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(6);
+  });
+
   it('getAuthInfo swallows an upstream error and returns null', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse({ error: 'boom' }, 500));
     expect(await getAuthInfo()).toBeNull();
+  });
+
+  it('does not reuse an authenticated labels cache if the token is removed during the read', async () => {
+    delete process.env.VNDB_TOKEN;
+    const readSetting = vi.spyOn(getAppSettingRepository(), 'get').mockResolvedValueOnce(FAKE_TOKEN);
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ error: 'authentication required' }, 401));
+    try {
+      await expect(fetchUlistLabels()).rejects.toThrow('401');
+      expect(new Headers((providerFetchMock.mock.calls[0][1] as RequestInit).headers).has('Authorization')).toBe(false);
+    } finally {
+      readSetting.mockRestore();
+      process.env.VNDB_TOKEN = FAKE_TOKEN;
+    }
+  });
+
+  it('reads only locally cached account identities for offline wishlist request keys', async () => {
+    await expect(getCachedWishlistRequestKeys()).resolves.toEqual([]);
+    const digest = createHash('sha256').update(`Token ${FAKE_TOKEN}`).digest('hex');
+    const key = `GET /authinfo:auth:${digest}|GET|`;
+    for (const body of ['{broken', '{}']) {
+      putCacheRow({ cache_key: key, body, etag: null, last_modified: null, fetched_at: 1, expires_at: 2 });
+      await expect(getCachedWishlistRequestKeys()).resolves.toEqual([]);
+    }
+    putCacheRow({
+      cache_key: key,
+      body: JSON.stringify({ id: 'u9001', username: 'Synthetic account', permissions: ['listread'] }),
+      etag: null, last_modified: null, fetched_at: 1, expires_at: 2,
+    });
+    const keys = await getCachedWishlistRequestKeys();
+    expect(keys).toHaveLength(10);
+    expect(new Set(keys).size).toBe(10);
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([])));
+    await fetchUlistByLabel('u9001', 5);
+    expect(getCacheRow(keys[0])).toBeDefined();
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+    delete process.env.VNDB_TOKEN;
+    try {
+      await expect(getCachedWishlistRequestKeys()).resolves.toEqual([]);
+      await expect(fetchUlistLabels()).resolves.toEqual({ needsAuth: true });
+    } finally {
+      process.env.VNDB_TOKEN = FAKE_TOKEN;
+    }
   });
 
   it('lookupUsers builds repeated q params and maps null misses', async () => {
@@ -899,6 +964,19 @@ describe('ulist read + write', () => {
     const init = providerFetchMock.mock.calls[0][1] as RequestInit;
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(String(init.body))).toEqual({ labels_set: [5] });
+  });
+
+  it('refills cached label counts after a successful list mutation', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ labels: [{ id: 5, label: 'Wishlist', private: false, count: 3 }] }));
+    await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: 3 }]);
+    await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: 3 }]);
+    expect(providerFetchMock).toHaveBeenCalledOnce();
+    providerFetchMock.mockResolvedValueOnce(new Response('', { status: 200 }));
+    await addToVndbWishlist('v91000');
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ labels: [{ id: 5, label: 'Wishlist', private: false, count: 4 }] }));
+    await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: 4 }]);
+    await expect(fetchUlistLabels()).resolves.toMatchObject([{ count: 4 }]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('removeFromVndbWishlist PATCHes labels_unset', async () => {

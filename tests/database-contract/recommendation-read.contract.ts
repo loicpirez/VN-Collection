@@ -71,7 +71,9 @@ export function registerRecommendationReadRepositoryContract(
         ]);
         await expect(repository.vnMetadata([])).resolves.toEqual([]);
         await expect(repository.collectionIds()).resolves.toEqual([ids.first, ids.second, ids.third]);
-        await expect(repository.wishlistCacheBodies()).resolves.toEqual(['{"results":[]}']);
+        await expect(repository.wishlistCacheBodies([ids.wishlistCache])).resolves.toEqual(['{"results":[]}']);
+        await expect(repository.wishlistCacheBodies([])).resolves.toEqual([]);
+        await expect(repository.wishlistCacheBodies(['POST /ulist|other-account'])).resolves.toEqual([]);
         await expect(repository.tagCacheBodies()).resolves.toEqual(['{"results":[]}']);
       });
     });

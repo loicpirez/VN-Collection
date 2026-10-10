@@ -203,10 +203,19 @@ describe('character detail page runtime', () => {
     expect(getCharacter).not.toHaveBeenCalled();
   });
 
-  it('honours a cached not-found profile and falls back when the cache read fails', async () => {
+  it('rechecks a cached null profile through the normal persistent VNDB cache', async () => {
     vi.mocked(readCharacterFullCache).mockResolvedValueOnce({ profile: null, fetched_at: 1 });
+    vi.mocked(getCharacter).mockResolvedValueOnce(character({ name: 'Recovered character' }));
+    const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));
+    expect(html).toContain('Recovered character');
+    expect(getCharacter).toHaveBeenCalledWith('c1');
+  });
+
+  it('retains the not-found response after an upstream null and falls back when the cache read fails', async () => {
+    vi.mocked(readCharacterFullCache).mockResolvedValueOnce({ profile: null, fetched_at: 1 });
+    vi.mocked(getCharacter).mockResolvedValueOnce(null);
     await expect(CharacterPage({ params: Promise.resolve({ id: 'c404' }) })).rejects.toThrow('not-found');
-    expect(getCharacter).not.toHaveBeenCalled();
+    expect(getCharacter).toHaveBeenCalledWith('c404');
 
     vi.mocked(readCharacterFullCache).mockRejectedValueOnce(new Error('cache unavailable'));
     const html = renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: 'c1' }) }));

@@ -1,25 +1,9 @@
 /**
- * Pin the global-refresh rebuild of `release_meta_cache`.
+ * Pin the `release_meta_cache` materialization primitives.
  *
- * Before this change, `POST /api/refresh/global` busted every
- * page-level cache (`% /release|%`, `% /producer|%`, etc.) but
- * never touched the materialised `release_meta_cache` table. The
- * shelf popover / owned-editions surfaces read FROM that table —
- * so a global refresh re-fetched the upstream payloads but left
- * the user-facing values stale until each VN was individually
- * touched.
- *
- * The new flow:
- *   1. Bust `release_meta_cache` in the same sweep.
- *   2. Re-fetch upstream cache rows (existing behavior).
- *   3. Iterate every collection VN and call
- *      `materializeReleaseMetaForVn` so the table is rebuilt
- *      with the fresh cached release payloads.
- *
- * This test exercises the underlying DB sequence rather than the
- * HTTP route — the route already wraps each step in `startJob/
- * tickJob`. The route-level integration is covered indirectly by
- * `release-meta-materializer.test.ts` for the materializer itself.
+ * These tests only exercise local materialization, not the global-refresh
+ * HTTP handler. The actual cold-fill, forced-refresh, and upstream-failure
+ * lifecycle is covered by `global-refresh-release-runtime.test.ts`.
  *
  * Synthetic VN / release ids only — never reference real titles.
  */
@@ -64,7 +48,7 @@ function seedReleasePayload(releases: VndbReleaseFixtureInput[]): void {
 beforeAll(() => clear());
 beforeEach(() => clear());
 
-describe('global refresh rebuilds release_meta_cache', () => {
+describe('release metadata materialization', () => {
   it('busts stale rows and re-materializes from cached release payloads', () => {
     seedVn('v90600');
     addToCollection('v90600', {});
@@ -85,10 +69,6 @@ describe('global refresh rebuilds release_meta_cache', () => {
       1, // ancient timestamp
     );
 
-    // Mirror the route's bust sweep: wipe release_meta_cache. Then
-    // seed a FRESH `POST /release` cache row that lists more
-    // platforms for the same release id, and re-run the
-    // materializer (route does this per-VN).
     appDb.prepare('DELETE FROM release_meta_cache').run();
     seedReleasePayload([
       {
@@ -149,7 +129,6 @@ describe('global refresh rebuilds release_meta_cache', () => {
       },
     ]);
     appDb.prepare('DELETE FROM release_meta_cache').run();
-    // Route iterates every collection VN. Mirror that here.
     for (const id of ['v90601', 'v90602']) {
       materializeReleaseMetaForVn(id);
     }

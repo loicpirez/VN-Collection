@@ -77,8 +77,12 @@ export interface RecommendationReadRepository {
   vnMetadata(vnIds: readonly string[]): Promise<RecommendationVnMetadata[]>;
   /** Return every VN id currently present in the collection. */
   collectionIds(): Promise<string[]>;
-  /** Return bounded cached VNDB wishlist response bodies. */
-  wishlistCacheBodies(): Promise<string[]>;
+  /**
+   * Return only the supplied account-specific wishlist response bodies.
+   * @param requestKeys Exact persisted wishlist keys for the active account.
+   * @returns Cached bodies in deterministic freshness order.
+   */
+  wishlistCacheBodies(requestKeys: readonly string[]): Promise<string[]>;
   /** Return bounded cached VNDB tag response bodies. */
   tagCacheBodies(): Promise<string[]>;
 }
@@ -167,13 +171,14 @@ export function createPostgresRecommendationReadRepository(): RecommendationRead
       );
       return result.rows.map((row) => row.vn_id);
     },
-    async wishlistCacheBodies() {
+    async wishlistCacheBodies(requestKeys) {
+      if (requestKeys.length === 0) return [];
       const result = await postgresQuery<CacheBodyRow>(`
         SELECT body FROM vndb_cache
-        WHERE cache_key LIKE '% /ulist|%'
+        WHERE cache_key = ANY($1::text[])
         ORDER BY fetched_at DESC, cache_key COLLATE "C"
         LIMIT 50
-      `);
+      `, [requestKeys]);
       return result.rows.map((row) => row.body);
     },
     async tagCacheBodies() {
@@ -246,14 +251,15 @@ const sqliteRepository: RecommendationReadRepository = {
     return (db.prepare('SELECT vn_id FROM collection ORDER BY vn_id').all() as Array<{ vn_id: string }>)
       .map((row) => row.vn_id);
   },
-  async wishlistCacheBodies() {
+  async wishlistCacheBodies(requestKeys) {
+    if (requestKeys.length === 0) return [];
     const { db } = await import('@/lib/db');
     return (db.prepare(`
       SELECT body FROM vndb_cache
-      WHERE cache_key LIKE '% /ulist|%'
+      WHERE cache_key IN (${requestKeys.map(() => '?').join(',')})
       ORDER BY fetched_at DESC, cache_key
       LIMIT 50
-    `).all() as CacheBodyRow[]).map((row) => row.body);
+    `).all(...requestKeys) as CacheBodyRow[]).map((row) => row.body);
   },
   async tagCacheBodies() {
     const { db } = await import('@/lib/db');

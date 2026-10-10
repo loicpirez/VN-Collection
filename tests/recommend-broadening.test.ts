@@ -10,6 +10,7 @@
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { seedRecommendationWishlistAccount } from './helpers/recommendation-wishlist-cache';
 
 interface FakeHit {
   id: string;
@@ -162,7 +163,7 @@ describe('recommendVns() — broadening + generic-tag penalty', () => {
     // only signal. The recommender must still produce a tag seed when
     // useWishlist is on, and must NOT when it's off.
     seedVn('v990300', [{ id: 'gWish', name: 'wish-tag', rating: 2.0 }]);
-    const cacheKey = 'POST /ulist|POST|fakehashwishtest';
+    const [cacheKey] = await seedRecommendationWishlistAccount();
     const payload = JSON.stringify({ results: [{ id: 'v990300', labels: [5] }] });
     db.prepare(
       `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
@@ -185,17 +186,36 @@ describe('recommendVns() — broadening + generic-tag penalty', () => {
 
   it('skips malformed wishlist cache rows without discarding later valid rows', async () => {
     seedVn('v990301', [{ id: 'gWishSafe', name: 'wish-safe-tag', rating: 2.0 }]);
+    const [malformedKey, validKey] = await seedRecommendationWishlistAccount();
     db.prepare(
       `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
-    ).run('POST /ulist|POST|aaa-malformed', JSON.stringify({ results: {} }), Date.now(), Date.now() + 60_000);
+    ).run(malformedKey, JSON.stringify({ results: {} }), Date.now(), Date.now() + 60_000);
     db.prepare(
       `INSERT OR REPLACE INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
-    ).run('POST /ulist|POST|zzz-valid', JSON.stringify({ results: [{ id: 'v990301', labels: [5] }] }), Date.now(), Date.now() + 60_000);
+    ).run(validKey, JSON.stringify({ results: [{ id: 'v990301', labels: [5] }] }), Date.now(), Date.now() + 60_000);
     POOL.set('gWishSafe', [{ id: 'v999WS', title: 'W', rating: 80, votecount: 300 }]);
 
     const result = await recommendVns({ mode: 'because-you-liked', useWishlist: true });
     expect(result.signalCounts!.wishlist).toBeGreaterThanOrEqual(1);
     expect(result.seeds.map((seed) => seed.tagId)).toContain('gWishSafe');
+  });
+
+  it('keeps three cached accounts isolated when switching the active wishlist identity', async () => {
+    for (const account of [1, 2, 3]) {
+      const vnId = `v99031${account}`;
+      seedVn(vnId, [{ id: `gWishAccount${account}`, name: 'Account-specific tag', rating: 2 }]);
+      const [key] = await seedRecommendationWishlistAccount(account);
+      db.prepare('INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)')
+        .run(key, JSON.stringify({ results: [{ id: vnId, labels: [5] }] }), Date.now(), Date.now() + 60_000);
+    }
+    for (const account of [1, 2, 3, 1]) {
+      await seedRecommendationWishlistAccount(account);
+      const result = await recommendVns({ useWishlist: true });
+      expect(result.signalCounts?.wishlist).toBe(1);
+      expect(result.seeds.map((seed) => seed.tagId)).toEqual([`gWishAccount${account}`]);
+    }
+    expect(db.prepare("SELECT COUNT(*) AS count FROM vndb_cache WHERE cache_key LIKE 'POST /ulist|%'").get())
+      .toEqual({ count: 3 });
   });
 
   it('skips malformed tag cache rows while recovering later custom-tag names', async () => {

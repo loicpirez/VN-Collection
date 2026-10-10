@@ -53,6 +53,7 @@ import {
   readCachedJsonEntry,
   readCachedJsonMany,
   TTL,
+  type CachedFetchOptions,
 } from '@/lib/vndb-cache';
 import { clearCache, getCacheRow, putCacheRow, setAppSetting } from '@/lib/db';
 import { getCacheRepository } from '@/lib/db/repositories/cache';
@@ -108,6 +109,38 @@ describe('cache miss → write → hit', () => {
   });
 });
 
+describe('forced refresh retains valid cached data', () => {
+  it('revalidates a fresh row instead of serving it through stale-while-revalidate', async () => {
+    const init = { method: 'POST', body: JSON.stringify({ forced: 1 }), __pathTag: 'POST /vn' };
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 1 }, 200, { etag: 'valid' }));
+    await cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 2 }));
+
+    const refreshed = await cachedFetch(`${PRIMARY}/vn`, init, {
+      ttlMs: TTL.vnDetail, forceRefresh: true, staleWhileRevalidate: true,
+    });
+
+    expect(refreshed).toMatchObject({ data: { ok: 2 }, fromCache: false, status: 200 });
+    expect(new Headers(providerFetchMock.mock.calls[1][1].headers).get('If-None-Match')).toBe('valid');
+    expect(await cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail })).toMatchObject({ data: { ok: 2 }, fromCache: true });
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a fresh snapshot and its timestamps if forced refresh fails', async () => {
+    const init = { method: 'POST', body: JSON.stringify({ forced: 2 }), __pathTag: 'POST /vn' };
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 3 }));
+    const original = await cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail });
+    const key = cacheKey('POST /vn', 'POST', { forced: 2 });
+    const row = getCacheRow(key);
+    providerFetchMock.mockRejectedValueOnce(new Error('upstream unavailable'));
+
+    expect(await cachedFetch(`${PRIMARY}/vn`, init, { ttlMs: TTL.vnDetail, forceRefresh: true })).toMatchObject({
+      data: { ok: 3 }, fromCache: true, stale: true, cachedAt: original.cachedAt,
+    });
+    expect(getCacheRow(key)).toEqual(row);
+  });
+});
+
 describe('TTL <= 0 bypass', () => {
   it('never reads or writes the cache when ttlMs is 0', async () => {
     providerFetchMock.mockImplementation(async () => jsonResponse({ ok: 2 }));
@@ -145,7 +178,7 @@ describe('expired cache + 304 revalidation', () => {
     expect(getCacheRow(key)!.expires_at).toBeGreaterThan(Date.now());
   });
 
-  it('sends If-Modified-Since and rejects a corrupt cached body on the 304 path', async () => {
+  it('refetches a corrupt cached body without conditional validators', async () => {
     const key = cacheKey('POST /vn', 'POST', { k: 8 });
     const past = Date.now() - 10_000;
     putCacheRow({
@@ -156,12 +189,38 @@ describe('expired cache + 304 revalidation', () => {
       fetched_at: past,
       expires_at: past + 1,
     });
-    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 304 }));
+    providerFetchMock.mockResolvedValueOnce(jsonResponse({ ok: 8 }));
     await expect(
       cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: JSON.stringify({ k: 8 }), __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail }),
-    ).rejects.toThrow(/corrupt cache body/);
+    ).resolves.toMatchObject({ data: { ok: 8 }, fromCache: false });
     const sentHeaders = new Headers((providerFetchMock.mock.calls[0][1] as RequestInit).headers);
-    expect(sentHeaders.get('If-Modified-Since')).toBe('Wed, 01 Jan 2025 00:00:00 GMT');
+    expect(sentHeaders.has('If-Modified-Since')).toBe(false);
+    expect(JSON.parse(getCacheRow(key)!.body)).toEqual({ ok: 8 });
+  });
+
+  it('preserves timestamps when a revalidated body no longer passes its decoder', async () => {
+    const key = cacheKey('POST /vn', 'POST', { k: 9 });
+    const past = Date.now() - 10_000;
+    putCacheRow({ cache_key: key, body: '{"ok":9}', etag: 'etag', last_modified: null, fetched_at: past, expires_at: past + 1 });
+    const decoder = vi.fn<NonNullable<CachedFetchOptions<{ ok: number }>['decode']>>()
+      .mockReturnValueOnce({ ok: 9 }).mockReturnValueOnce(null).mockReturnValueOnce(null);
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 304 }));
+    await expect(cachedFetch(`${PRIMARY}/vn`, {
+      method: 'POST', body: JSON.stringify({ k: 9 }), __pathTag: 'POST /vn',
+    }, { ttlMs: TTL.vnDetail, decode: decoder, staleWhileError: false })).rejects.toThrow(/corrupt cache body/);
+    expect(getCacheRow(key)?.fetched_at).toBe(past);
+    expect(getCacheRow(key)?.expires_at).toBe(past + 1);
+  });
+
+  it('revalidates a usable Last-Modified response and reports the new cache timestamp', async () => {
+    const key = cacheKey('POST /vn', 'POST', { k: 10 });
+    const past = Date.now() - 10_000;
+    putCacheRow({ cache_key: key, body: '{"ok":10}', etag: null, last_modified: 'Wed, 01 Jan 2025 00:00:00 GMT', fetched_at: past, expires_at: past + 1 });
+    providerFetchMock.mockResolvedValueOnce(new Response(null, { status: 304 }));
+    const result = await cachedFetch(`${PRIMARY}/vn`, { method: 'POST', body: JSON.stringify({ k: 10 }), __pathTag: 'POST /vn' }, { ttlMs: TTL.vnDetail });
+    expect(new Headers(providerFetchMock.mock.calls[0][1].headers).get('If-Modified-Since')).toBe('Wed, 01 Jan 2025 00:00:00 GMT');
+    expect(result.cachedAt).toBe(getCacheRow(key)?.fetched_at);
+    expect(result.cachedAt).toBeGreaterThan(past);
   });
 });
 

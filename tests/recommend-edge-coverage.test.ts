@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { seedRecommendationWishlistAccount } from './helpers/recommendation-wishlist-cache';
 
 interface FakeHit {
   id: string;
@@ -66,7 +67,7 @@ beforeEach(() => {
     DELETE FROM collection WHERE vn_id LIKE 'v98%';
     DELETE FROM reading_queue WHERE vn_id LIKE 'v98%';
     DELETE FROM vn WHERE id LIKE 'v98%';
-    DELETE FROM vndb_cache WHERE cache_key LIKE '%edge%';
+    DELETE FROM vndb_cache WHERE cache_key LIKE '%edge%' OR cache_key LIKE 'POST /ulist|%';
   `);
   POOL.clear();
   vi.mocked(vndbAdvancedSearchRaw).mockClear();
@@ -197,10 +198,11 @@ describe('recommendVns edge contracts', () => {
 
   it('decodes malformed wishlist entries and both supported label encodings', async () => {
     insertVn('v980020', [{ id: 'gEdgeWish', name: 'wish' }]);
+    const [key] = await seedRecommendationWishlistAccount();
     db.prepare(
       `INSERT INTO vndb_cache (cache_key, body, fetched_at, expires_at) VALUES (?, ?, ?, ?)`,
     ).run(
-      'POST /ulist|edge-wishlist',
+      key,
       JSON.stringify({
         results: [
           null,
