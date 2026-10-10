@@ -8,6 +8,7 @@ import type {
   StaffWorkCredit,
 } from '@/lib/db';
 import { readStaffFullCache, type StaffFullPayload } from '@/lib/staff-full';
+import { getStaff } from '@/lib/vndb';
 import type { DetailSection } from '@/components/DetailReorderLayout';
 
 const navigationMocks = vi.hoisted(() => ({
@@ -33,6 +34,10 @@ vi.mock('@/lib/db/repositories/people', () => ({
 
 vi.mock('@/lib/staff-full', () => ({
   readStaffFullCache: vi.fn(),
+}));
+
+vi.mock('@/lib/vndb', () => ({
+  getStaff: vi.fn(),
 }));
 
 vi.mock('@/lib/i18n/server', () => ({
@@ -169,6 +174,7 @@ beforeEach(() => {
   peopleMocks.productionCredits.mockReset().mockResolvedValue([]);
   peopleMocks.voiceCredits.mockReset().mockResolvedValue([]);
   vi.mocked(readStaffFullCache).mockReset().mockResolvedValue(null);
+  vi.mocked(getStaff).mockReset().mockResolvedValue(null);
 });
 
 describe('staff detail page runtime', () => {
@@ -293,6 +299,61 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('href="https://vndb.org/v1"');
     expect(html).not.toContain('href="https://vndb.org/egs_2"');
     expect(html).toContain('data-testid="extra-credits">s1:2:1');
+    expect(getStaff).not.toHaveBeenCalled();
+  });
+
+  it('loads rich profile fields on the first uncached visit without a manual refresh', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.voiceCredits.mockResolvedValue([voice('v1')]);
+    vi.mocked(getStaff).mockResolvedValue(fullProfile({
+      gender: 'f',
+      description: 'Profile description',
+      aliases: [{ aid: 2, name: 'Alias', latin: 'Latin alias', ismain: false }],
+      extlinks: [{ url: 'https://example.test/staff', label: 'Website', name: 'website' }],
+    }).profile);
+
+    const html = renderToStaticMarkup(await StaffPage({
+      params: Promise.resolve({ id: 's1' }),
+      searchParams: Promise.resolve({}),
+    }));
+
+    expect(html).toContain('Profile description');
+    expect(html).toContain('Gender: F');
+    expect(html).toContain('Latin alias');
+    expect(html).toContain('href="https://example.test/staff"');
+    expect(html).toContain('Visual novel v1');
+    expect(getStaff).toHaveBeenCalledExactlyOnceWith('s1');
+  });
+
+  it('recovers profile fields when the full-credit snapshot has a null profile', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.voiceCredits.mockResolvedValue([voice('v1')]);
+    vi.mocked(readStaffFullCache).mockResolvedValue({ ...fullProfile(), profile: null });
+    vi.mocked(getStaff).mockResolvedValue(fullProfile({ description: 'Recovered description' }).profile);
+
+    const html = renderToStaticMarkup(await StaffPage({
+      params: Promise.resolve({ id: 's1' }),
+      searchParams: Promise.resolve({}),
+    }));
+
+    expect(html).toContain('Recovered description');
+    expect(getStaff).toHaveBeenCalledExactlyOnceWith('s1');
+  });
+
+  it('keeps local staff credits available when the automatic profile read fails', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.voiceCredits.mockResolvedValue([voice('v1')]);
+    vi.mocked(getStaff).mockRejectedValue(new Error('upstream unavailable'));
+
+    const html = renderToStaticMarkup(await StaffPage({
+      params: Promise.resolve({ id: 's1' }),
+      searchParams: Promise.resolve({}),
+    }));
+
+    expect(html).toContain('Staff member');
+    expect(html).toContain('Visual novel v1');
+    expect(html).not.toContain('data-testid="markup"');
+    expect(getStaff).toHaveBeenCalledExactlyOnceWith('s1');
   });
 
   it('filters collection scope while retaining all-credit toggle counters', async () => {

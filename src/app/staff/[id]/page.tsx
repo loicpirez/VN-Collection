@@ -16,6 +16,7 @@ import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
+import { getStaff } from '@/lib/vndb';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { languageDisplayName } from '@/lib/language-names';
 import { safeHref } from '@/lib/safe-href';
@@ -37,6 +38,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return profile?.name ? { title: profile.name } : {};
 }
 
+/**
+ * Render locally known staff credits with cached or read-through profile fields.
+ *
+ * @param params Promise containing the staff identity from the dynamic route.
+ * @param searchParams Promise containing the requested credit scope.
+ * @returns Staff detail content with automatic profile and extra-credit loading.
+ */
 export default async function StaffPage({
   params,
   searchParams,
@@ -75,16 +83,10 @@ export default async function StaffPage({
     allVoice.filter((c) => c.vn.in_collection),
   );
 
-  // Locally-known credits paint immediately. The full VNDB download streams
-  // in via <Suspense> in <StaffExtraCredits> below - that lets the user see
-  // what we already have without waiting on the network roundtrip.
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
 
-  // Pull richer profile fields (aliases, description, extlinks, gender)
-  // from the staff_full cache - `getStaffProfileFromCredits` only knows
-  // about credits and gives us a single canonical name.
-  const fullProfile = (await readStaffFullCache(id))?.profile ?? null;
+  const fullProfile = (await readStaffFullCache(id))?.profile ?? await getStaff(id).catch(() => null);
   const aliases = (fullProfile?.aliases ?? []).filter((a) => !a.ismain);
   const extlinks = fullProfile?.extlinks ?? [];
   const description = fullProfile?.description ?? null;
