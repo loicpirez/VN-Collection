@@ -5,12 +5,11 @@ import { setLocale } from '@/lib/i18n/actions';
 import { LOCALES, type Locale } from '@/lib/i18n/dictionaries';
 import { useLocale, useT } from '@/lib/i18n/client';
 
-const LOCALE_AUTONYMS: Record<Locale, string> = {
-  fr: 'Français',
-  en: 'English',
-  ja: '日本語',
-};
-
+/**
+ * Render the compact locale selector without widening the phone navbar.
+ *
+ * @returns A touch-sized selector with optimistic locale changes and rollback.
+ */
 export function LanguageSwitcher() {
   const t = useT();
   const current = useLocale();
@@ -22,7 +21,7 @@ export function LanguageSwitcher() {
   }, [current]);
   return (
     <div className="flex items-center gap-1.5 text-sm text-muted" aria-busy={pending || undefined}>
-      <Globe className="h-4 w-4" aria-hidden />
+      <Globe className="hidden h-4 w-4 md:block" aria-hidden />
       <label className="sr-only" htmlFor="locale-select">
         {t.nav.languageLabel}
       </label>
@@ -49,7 +48,7 @@ export function LanguageSwitcher() {
       >
         {LOCALES.map((l) => (
           <option key={l} value={l}>
-            {LOCALE_AUTONYMS[l]}
+            {l.toUpperCase()}
           </option>
         ))}
       </select>

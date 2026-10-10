@@ -269,7 +269,9 @@ describe('responsive tap targets', () => {
   });
 
   it('keeps the mobile header, library toolbar, and dense entity links touch-safe', () => {
-    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0');
+    expect(source('src/app/layout.tsx')).toContain('flex min-h-[44px] min-w-0 items-center gap-2 can-hover:sm:min-h-0');
+    expect(source('src/components/SpoilerToggle.tsx')).toContain('className="sr-only md:not-sr-only"');
+    expect(source('src/components/LanguageSwitcher.tsx')).toContain('className="hidden h-4 w-4 md:block"');
     const library = source('src/components/LibraryClient.tsx');
     expect(library).toContain('inline-flex min-h-[44px] items-center gap-1.5');
     expect(library).toContain('inline-flex min-h-[44px] w-full items-center justify-between');

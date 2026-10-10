@@ -14,6 +14,7 @@ import { DEFAULT_LOCALE } from '@/lib/i18n/dictionaries';
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
+  imports: new Set<Promise<ComponentType<{ source: string }>>>(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -22,7 +23,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/dynamic', () => ({
   default: (loader: () => Promise<ComponentType<{ source: string }>>) => {
-    void loader();
+    navigationMocks.imports.add(loader());
     return ({ source }: { source: string }) => <div data-testid="markdown">{source}</div>;
   },
 }));
@@ -44,7 +45,10 @@ afterEach(() => {
 });
 
 describe('compact UI primitives', () => {
-  it('renders notes markdown or the explicit empty label', () => {
+  it('renders notes markdown or the explicit empty label', async () => {
+    await act(async () => {
+      await Promise.all(navigationMocks.imports);
+    });
     const { rerender } = render(<NotesSectionToggle notes="body" emptyLabel="No notes" />);
     expect(screen.getByTestId('markdown')).toHaveTextContent('body');
     rerender(<NotesSectionToggle notes={null} emptyLabel="No notes" />);
@@ -65,16 +69,16 @@ describe('compact UI primitives', () => {
     expect(screen.getByText('XX')).toBeInTheDocument();
   });
 
-  it('shows autonyms and an optimistic busy state while the locale action runs', async () => {
+  it('keeps compact locale codes and an optimistic busy state while the locale action runs', async () => {
     let resolveLocale!: () => void;
     vi.mocked(setLocale).mockReturnValue(new Promise<void>((resolve) => {
       resolveLocale = resolve;
     }));
     renderWithProviders(<LanguageSwitcher />);
     const select = screen.getByRole('combobox');
-    expect(screen.getByRole('option', { name: 'Français' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: '日本語' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'FR' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'EN' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'JA' })).toBeInTheDocument();
     fireEvent.change(select, { target: { value: 'ja' } });
     expect(setLocale).toHaveBeenCalledWith('ja');
     expect(select).toHaveValue('ja');

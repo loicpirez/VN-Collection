@@ -40,7 +40,9 @@ describe('desktop grouped navigation portal', () => {
   });
 
   it('reveals navigation labels by real header width and priority', () => {
-    expect(layoutSource).toContain('nav-width-container flex flex-wrap');
+    expect(layoutSource).toContain('nav-width-container flex flex-nowrap');
+    expect(layoutSource).toContain('md:flex-wrap md:gap-4');
+    expect(layoutSource).toContain('ml-auto flex shrink-0 items-center gap-1 md:gap-2');
     expect(source).toContain('className="nav-primary-label"');
     expect(source).toContain('className="nav-group-label"');
     expect(source).not.toContain('hidden 2xl:inline');

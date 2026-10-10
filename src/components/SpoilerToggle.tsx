@@ -134,7 +134,7 @@ export function SpoilerToggle() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="tap-target inline-flex h-11 items-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"
+        className="tap-target inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border bg-bg-card px-2 text-xs font-semibold text-muted hover:text-white"
         title={t.contentControls.title}
         aria-haspopup="true"
         aria-expanded={open}
@@ -142,7 +142,7 @@ export function SpoilerToggle() {
         aria-label={t.contentControls.title}
       >
         {lit ? <Eye className="h-3.5 w-3.5" aria-hidden /> : <EyeOff className="h-3.5 w-3.5" aria-hidden />}
-        <span>{labelByLevel[settings.spoilerLevel]}</span>
+        <span className="sr-only md:not-sr-only">{labelByLevel[settings.spoilerLevel]}</span>
       </button>
       {open && panelPosition && createPortal(
         <div

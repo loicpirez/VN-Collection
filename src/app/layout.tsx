@@ -81,6 +81,12 @@ async function readInitialDisplaySettings(): Promise<Partial<DisplaySettings> | 
   return undefined;
 }
 
+/**
+ * Render shared providers, navigation, and the current route content.
+ *
+ * @param children - Content supplied by the active route.
+ * @returns The localized document with touch-safe responsive navigation.
+ */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined;
   const locale = await getLocale();
@@ -138,13 +144,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   style={{ paddingTop: 'env(safe-area-inset-top)' }}
                   aria-label={dict.app.title}
                 >
-                  <HeaderSpaceFrame className="nav-width-container flex flex-wrap items-center gap-2 py-3 sm:gap-4">
-                    <Link href="/" className="flex min-h-[44px] items-center gap-2 can-hover:sm:min-h-0">
-                      <Library className="h-6 w-6 text-accent" aria-hidden />
-                      <span className="text-base font-bold tracking-wide">{dict.app.title}</span>
+                  <HeaderSpaceFrame className="nav-width-container flex flex-nowrap items-center gap-1 py-3 md:flex-wrap md:gap-4">
+                    <Link href="/" className="flex min-h-[44px] min-w-0 items-center gap-2 can-hover:sm:min-h-0">
+                      <Library className="h-6 w-6 shrink-0 text-accent" aria-hidden />
+                      <span className="truncate text-base font-bold tracking-wide">{dict.app.title}</span>
                     </Link>
                     <GroupedNav />
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
                       <SpoilerToggle />
                       <SettingsButton />
                       <LanguageSwitcher />
