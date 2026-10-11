@@ -16,6 +16,7 @@ import type { AspectKey } from '@/lib/aspect-ratio';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
 export interface CardData {
   id: string;
@@ -201,6 +202,7 @@ function VnCardImpl({
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
+      dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: true });
       toast.success(t.toast.added);
       setAddedLocal(true);
       onAdded?.(ownerVnId);

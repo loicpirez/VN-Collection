@@ -5,6 +5,7 @@ import { act, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { renderWithProviders } from './helpers/render-component';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { acknowledgeVnCollectionState } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -72,6 +73,10 @@ function delayedJsonResponse() {
 
 describe('CoverQuickActions branches', () => {
   afterEach(() => {
+    for (const id of ['v90001', 'v90002']) {
+      acknowledgeVnCollectionState(id, true);
+      acknowledgeVnCollectionState(id, false);
+    }
     vi.restoreAllMocks();
   });
 

@@ -5,7 +5,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { CoverHero } from '@/components/CoverHero';
 import { dispatchCoverChanged } from '@/lib/cover-banner-events';
-import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -24,6 +24,8 @@ describe('CoverHero', () => {
     global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
   });
   afterEach(() => {
+    acknowledgeVnCollectionState('v90001', true);
+    acknowledgeVnCollectionState('v90001', false);
     vi.restoreAllMocks();
   });
 

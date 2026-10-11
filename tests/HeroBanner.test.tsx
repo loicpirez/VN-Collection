@@ -5,7 +5,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { HeroBanner } from '@/components/HeroBanner';
 import { dispatchBannerChanged, dispatchBannerEdit } from '@/lib/cover-banner-events';
-import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 vi.mock('next/navigation', () => ({
@@ -27,6 +27,8 @@ describe('HeroBanner', () => {
     global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
   });
   afterEach(() => {
+    acknowledgeVnCollectionState('v90001', true);
+    acknowledgeVnCollectionState('v90001', false);
     vi.restoreAllMocks();
   });
 

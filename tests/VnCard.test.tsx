@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VnCard, type CardData } from '@/components/VnCard';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import { renderWithProviders } from './helpers/render-component';
+import { acknowledgeVnCollectionState, getPendingVnCollectionState } from '@/lib/vn-collection-events';
 
 const routerMocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -103,6 +104,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  acknowledgeVnCollectionState('v90001', true);
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -300,6 +302,7 @@ describe('VnCard', () => {
 
     await waitFor(() => expect(toastMocks.success).toHaveBeenCalledWith(t.toast.added));
     expect(onAdded).toHaveBeenCalledWith('v90001');
+    expect(getPendingVnCollectionState('v90001')).toBe(true);
     expect(routerMocks.refresh).toHaveBeenCalled();
     expect(screen.getByText(t.search.inCollection)).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith('/api/collection/v90001', expect.objectContaining({ method: 'POST' }));
@@ -333,6 +336,7 @@ describe('VnCard', () => {
     await act(async () => pending.resolve(new Response('{}', { status: 200 })));
 
     expect(toastMocks.success).not.toHaveBeenCalled();
+    expect(getPendingVnCollectionState('v90001')).toBeUndefined();
   });
 
   it('ignores stale rejected responses after identity changes', async () => {

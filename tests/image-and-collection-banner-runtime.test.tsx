@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LoadingImage } from '@/components/LoadingImage';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { acknowledgeVnCollectionState } from '@/lib/vn-collection-events';
 import { renderWithProviders } from './helpers/render-component';
 
 const navigationMocks = vi.hoisted(() => ({
@@ -32,6 +33,10 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  for (const id of ['v90001', 'v90002']) {
+    acknowledgeVnCollectionState(id, true);
+    acknowledgeVnCollectionState(id, false);
+  }
   vi.useRealTimers();
   vi.restoreAllMocks();
   if (originalDecodeDescriptor) {

@@ -2,10 +2,16 @@
 import { act, cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { VnCollectionVisibility } from '@/components/VnCollectionVisibility';
-import { dispatchVnCollectionChanged, VN_COLLECTION_CHANGED_EVENT } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged, VN_COLLECTION_CHANGED_EVENT } from '@/lib/vn-collection-events';
 import { renderWithProviders } from './helpers/render-component';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  for (const id of ['v90001', 'v99999']) {
+    acknowledgeVnCollectionState(id, true);
+    acknowledgeVnCollectionState(id, false);
+  }
+});
 
 describe('VnCollectionVisibility', () => {
   it('tracks scoped add and remove events for positive and inverse surfaces', () => {

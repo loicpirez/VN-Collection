@@ -6,7 +6,7 @@ import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { HeroBanner } from '@/components/HeroBanner';
 import { dispatchBannerChanged, VN_BANNER_CHANGED_EVENT } from '@/lib/cover-banner-events';
-import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 
 if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
@@ -36,6 +36,8 @@ describe('HeroBanner branches', () => {
     global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
   });
   afterEach(() => {
+    acknowledgeVnCollectionState('v90055', true);
+    acknowledgeVnCollectionState('v90055', false);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     localStorage.clear();

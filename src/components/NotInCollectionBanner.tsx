@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, PackagePlus } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { readApiError } from '@/lib/api-error-read';
-import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged, getPendingVnCollectionState } from '@/lib/vn-collection-events';
 import { useVnCollectionState } from '@/lib/use-vn-collection-state';
 
 /**
@@ -34,6 +34,15 @@ export function NotInCollectionBanner({ vnId, initialInCollection = false }: { v
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
   const inCollection = useVnCollectionState(vnId, initialInCollection);
+  useEffect(() => {
+    const membership = getPendingVnCollectionState(vnId);
+    if (membership === undefined) return;
+    if (membership === initialInCollection) {
+      acknowledgeVnCollectionState(vnId, initialInCollection);
+    } else {
+      router.refresh();
+    }
+  }, [vnId, initialInCollection, router.refresh]);
   useEffect(() => {
     identityRef.current = vnId;
     mutationAbortRef.current?.abort();

@@ -4,6 +4,7 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CoverQuickActions } from '@/components/CoverQuickActions';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { acknowledgeVnCollectionState } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -39,6 +40,8 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe('CoverQuickActions', () => {
   afterEach(() => {
+    acknowledgeVnCollectionState('v90001', true);
+    acknowledgeVnCollectionState('v90001', false);
     vi.restoreAllMocks();
   });
 

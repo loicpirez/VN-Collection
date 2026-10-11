@@ -2,15 +2,16 @@
 import { useEffect, useState } from 'react';
 import {
   VN_COLLECTION_CHANGED_EVENT,
+  getPendingVnCollectionState,
   type VnCollectionChangedDetail,
 } from './vn-collection-events';
 
 /** Track one VN's membership from server props plus local mutation events. */
 export function useVnCollectionState(vnId: string, initialInCollection: boolean): boolean {
-  const [inCollection, setInCollection] = useState(initialInCollection);
+  const [inCollection, setInCollection] = useState(() => getPendingVnCollectionState(vnId) ?? initialInCollection);
 
   useEffect(() => {
-    setInCollection(initialInCollection);
+    setInCollection(getPendingVnCollectionState(vnId) ?? initialInCollection);
     function onChanged(e: Event) {
       const detail = (e as CustomEvent<VnCollectionChangedDetail>).detail;
       if (!detail || detail.vnId !== vnId) return;

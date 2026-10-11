@@ -11,7 +11,7 @@ import {
   type VnCoverChangedDetail,
 } from '@/lib/cover-banner-events';
 import { dictionaries } from '@/lib/i18n/dictionaries';
-import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { acknowledgeVnCollectionState, dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -28,6 +28,10 @@ describe('CoverRotationButtons', () => {
     global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
   });
   afterEach(() => {
+    for (const id of ['v90001', 'v99999']) {
+      acknowledgeVnCollectionState(id, true);
+      acknowledgeVnCollectionState(id, false);
+    }
     vi.restoreAllMocks();
   });
 
