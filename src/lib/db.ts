@@ -1,5 +1,6 @@
 import 'server-only';
 import { normalizeOptionalCoordinate } from '@/lib/place-coordinates';
+import { COMBINED_PLAYTIME_SORT_SQL } from '@/lib/db/collection-sort';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
@@ -1116,6 +1117,13 @@ function open(): Database.Database {
   ensureColumn(db, 'collection', 'download_url', 'TEXT');
   ensureColumn(db, 'collection', 'dumped', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'collection', 'dumped_ignored', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'collection', 'ai_playtime_minutes', 'INTEGER');
+  ensureColumn(db, 'collection', 'ai_playtime_lower_minutes', 'INTEGER');
+  ensureColumn(db, 'collection', 'ai_playtime_upper_minutes', 'INTEGER');
+  ensureColumn(db, 'collection', 'ai_playtime_confidence', 'REAL');
+  ensureColumn(db, 'collection', 'ai_playtime_model', 'TEXT');
+  ensureColumn(db, 'collection', 'ai_playtime_rationale', 'TEXT');
+  ensureColumn(db, 'collection', 'ai_playtime_generated_at', 'INTEGER');
   // User-authored synopsis — overrides VNDB / EGS when non-null. Persists
   // VNDB BBCode / Markdown verbatim; the renderer strips formatting.
   ensureColumn(db, 'collection', 'custom_description', 'TEXT');
@@ -3234,7 +3242,7 @@ export function setSourcePref(vnId: string, prefs: SourcePrefMap): void {
   // Drop "auto" keys to keep the JSON tidy — "auto" is the implicit default.
   const cleaned: SourcePrefMap = {};
   for (const [k, v] of Object.entries(prefs)) {
-    if (v && v !== 'auto') cleaned[k as SourceField] = v;
+    if (v && v !== 'auto' && (v !== 'ai' || k === 'playtime')) cleaned[k as SourceField] = v;
   }
   const payload = Object.keys(cleaned).length === 0 ? null : JSON.stringify(cleaned);
   db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?').run(payload, vnId);
@@ -3943,8 +3951,12 @@ function isStringArray(value: unknown): value is string[] {
 function isSourcePrefMap(value: unknown): value is SourcePrefMap {
   if (!isJsonRecord(value)) return false;
   const fields = new Set<SourceField>(['title', 'description', 'image', 'brand', 'rating', 'playtime']);
-  const choices = new Set<SourceChoice>(['auto', 'vndb', 'egs', 'custom']);
-  return Object.entries(value).every(([field, choice]) => fields.has(field as SourceField) && choices.has(choice as SourceChoice));
+  const choices = new Set<SourceChoice>(['auto', 'vndb', 'egs', 'custom', 'ai']);
+  return Object.entries(value).every(([field, choice]) =>
+    fields.has(field as SourceField) &&
+    choices.has(choice as SourceChoice) &&
+    (choice !== 'ai' || field === 'playtime')
+  );
 }
 
 function isReleaseCacheBody(value: unknown): value is { results?: unknown[] } {
@@ -4161,13 +4173,7 @@ export function listCollection({
     // Example: VNDB=95, EGS=90, Mine=93 → (95+90+93)/3 = 92.67
     //          VNDB=null, EGS=100         → 100/1 = 100
     //          VNDB=71, EGS=24, Mine=0    → (71+24)/2 = 47.5
-    combined_playtime:
-      '(COALESCE(v.length_minutes, 0) + COALESCE(e.playtime_median_minutes, 0) + COALESCE(NULLIF(c.playtime_minutes, 0), 0)) ' +
-      ' / NULLIF(' +
-      '   (CASE WHEN v.length_minutes IS NULL OR v.length_minutes = 0 THEN 0 ELSE 1 END) + ' +
-      '   (CASE WHEN e.playtime_median_minutes IS NULL OR e.playtime_median_minutes = 0 THEN 0 ELSE 1 END) + ' +
-      '   (CASE WHEN c.playtime_minutes IS NULL OR c.playtime_minutes = 0 THEN 0 ELSE 1 END)' +
-      ' , 0)',
+    combined_playtime: COMBINED_PLAYTIME_SORT_SQL,
     released: 'v.released',
     // First-by-name across all entries: a VN's publisher array is
     // ordered by release-iteration order in setVnPublishers (which
@@ -4445,6 +4451,9 @@ export function listCollection({
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
              c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
+             , c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
+             c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale,
+             c.ai_playtime_generated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${join}
       ${whereSql}

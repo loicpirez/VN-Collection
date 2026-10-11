@@ -52,6 +52,8 @@ export interface CardData {
   egs_median?: number | null;
   /** ErogameScape median user playtime in minutes, when available. */
   egs_playtime_minutes?: number | null;
+  /** AI-generated estimate, stored independently from actual playtime. */
+  ai_playtime_minutes?: number | null;
   /**
    * True when the VN has a `relation === 'orig'` entry - VNDB's way of saying
    * "X is my original game", which only ever appears on fan discs.
@@ -224,6 +226,7 @@ function VnCardImpl({
   const myPlaytimeMin = data.playtime_minutes ?? null;
   const vndbLengthMin = data.length_minutes ?? null;
   const egsPlaytimeMin = data.egs_playtime_minutes ?? null;
+  const aiPlaytimeMin = data.ai_playtime_minutes ?? null;
   // "All playtime" = average of every populated source (matches the
   // library's combined_playtime sort + the PlaytimeCompare component).
   let allSum = 0;
@@ -231,6 +234,7 @@ function VnCardImpl({
   if (myPlaytimeMin && myPlaytimeMin > 0) { allSum += myPlaytimeMin; allCount++; }
   if (vndbLengthMin && vndbLengthMin > 0) { allSum += vndbLengthMin; allCount++; }
   if (egsPlaytimeMin && egsPlaytimeMin > 0) { allSum += egsPlaytimeMin; allCount++; }
+  if (aiPlaytimeMin && aiPlaytimeMin > 0) { allSum += aiPlaytimeMin; allCount++; }
   const allPlaytimeMin = allCount > 0 ? Math.round(allSum / allCount) : null;
   const myPlaytime = fmtMinutes(myPlaytimeMin, locale, t.year);
   const vndbLength = fmtMinutes(vndbLengthMin, locale, t.year);

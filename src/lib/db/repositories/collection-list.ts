@@ -1,4 +1,5 @@
 import type { PoolClient, QueryResultRow } from 'pg';
+import { COMBINED_PLAYTIME_SORT_SQL } from '../collection-sort';
 import { aspectKeyForResolution, isAspectKey, parseResolutionValue, type AspectKey } from '@/lib/aspect-ratio';
 import type { CollectionTagAggregate, ListOptions } from '@/lib/db';
 import type { CollectionCardItem, CollectionItem, EgsLite, SeriesLite, Stats, Status } from '@/lib/types';
@@ -92,11 +93,7 @@ function sortExpression(sort: NonNullable<ListOptions['sort']>): string {
     playtime: 'NULLIF(c.playtime_minutes, 0)',
     length_minutes: 'v.length_minutes',
     egs_playtime: 'e.playtime_median_minutes',
-    combined_playtime:
-      '(COALESCE(v.length_minutes, 0) + COALESCE(e.playtime_median_minutes, 0) + COALESCE(NULLIF(c.playtime_minutes, 0), 0)) ' +
-      '/ NULLIF((CASE WHEN v.length_minutes IS NULL OR v.length_minutes = 0 THEN 0 ELSE 1 END) + ' +
-      '(CASE WHEN e.playtime_median_minutes IS NULL OR e.playtime_median_minutes = 0 THEN 0 ELSE 1 END) + ' +
-      '(CASE WHEN c.playtime_minutes IS NULL OR c.playtime_minutes = 0 THEN 0 ELSE 1 END), 0)',
+    combined_playtime: COMBINED_PLAYTIME_SORT_SQL,
     released: 'v.released',
     producer: 'app_search_normalize(developer_sort.name) COLLATE "C"',
     publisher: 'app_search_normalize(publisher_sort.name) COLLATE "C"',
@@ -304,6 +301,9 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
         c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
         c.edition_label, c.physical_location, c.box_type, c.download_url,
         c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
+        , c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
+        c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale,
+        c.ai_playtime_generated_at
       FROM collection c JOIN vn v ON v.id = c.vn_id
       ${joins}
       ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}

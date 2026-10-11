@@ -599,6 +599,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       vndb={vn.length_minutes ?? null}
                       egs={egsRow?.playtime_median_minutes ?? null}
                       mine={vn.playtime_minutes ?? null}
+                      ai={vn.ai_playtime ?? null}
                     />
                   ) : (
                     <>

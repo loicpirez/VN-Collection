@@ -180,6 +180,17 @@ export interface CollectionFields {
   updated_at: number;
 }
 
+/** Structured AI playtime estimate, kept separate from actual recorded playtime. */
+export interface AiPlaytimeEstimate {
+  minutes: number;
+  lower_minutes: number;
+  upper_minutes: number;
+  confidence: number | null;
+  model: string;
+  rationale: string | null;
+  generated_at: number;
+}
+
 /** Local user fields protected by optimistic conflict checks during VNDB synchronization. */
 export type CollectionUserDataSnapshot = Pick<
   CollectionFields,
@@ -203,6 +214,7 @@ export interface EgsLite {
 
 export type CollectionItem = VnRow &
   Partial<CollectionFields> & {
+    ai_playtime?: AiPlaytimeEstimate | null;
     series?: SeriesLite[];
     egs?: EgsLite | null;
     /** Release/game resolution aspect buckets from owned editions. */
@@ -243,6 +255,7 @@ type CollectionCardVnFields = Pick<
 /** Exact database projection used by lightweight collection card listings. */
 export type CollectionCardItem = CollectionCardVnFields &
   Partial<CollectionFields> & {
+    ai_playtime?: AiPlaytimeEstimate | null;
     series?: SeriesLite[];
     egs?: EgsLite | null;
     /** Release/game resolution aspect buckets from owned editions. */

@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 void PUBLIC_READ_ROUTE;
 
 const VALID_FIELDS: SourceField[] = ['title', 'description', 'image', 'brand', 'rating', 'playtime'];
-const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom'];
+const VALID_CHOICES: SourceChoice[] = ['auto', 'vndb', 'egs', 'custom', 'ai'];
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id: rawId } = await ctx.params;
@@ -46,6 +46,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const value = body[key];
     if (!(typeof value === 'string') || !(VALID_CHOICES as string[]).includes(value)) {
       return NextResponse.json({ error: `invalid value for ${key}` }, { status: 400 });
+    }
+    if (value === 'ai' && key !== 'playtime') {
+      return NextResponse.json({ error: 'ai is only valid for playtime' }, { status: 400 });
     }
     next[key as SourceField] = value as SourceChoice;
   }

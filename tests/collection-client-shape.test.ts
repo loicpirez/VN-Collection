@@ -84,6 +84,16 @@ const egs = {
   erogame: true,
 };
 
+const aiPlaytime = {
+  minutes: 720,
+  lower_minutes: 600,
+  upper_minutes: 840,
+  confidence: 0.8,
+  model: 'local-estimator-v1',
+  rationale: 'Metadata-based estimate.',
+  generated_at: 1_700_000_000_000,
+};
+
 function withoutKeys(source: Record<string, unknown>, keys: string[]): Record<string, unknown> {
   return Object.fromEntries(Object.entries(source).filter(([key]) => !keys.includes(key)));
 }
@@ -263,6 +273,22 @@ describe('collection client response adapters', () => {
     ];
     for (const malformed of malformedEgs) {
       expect(decodeCollectionCardItem({ ...card, egs: malformed })).toBeNull();
+    }
+  });
+
+  it('decodes a bounded AI estimate independently and rejects malformed provenance', () => {
+    expect(decodeCollectionCardItem({ ...card, ai_playtime: aiPlaytime })?.ai_playtime).toEqual(aiPlaytime);
+    expect(decodeCollectionCardItem({ ...card, ai_playtime: null })?.ai_playtime).toBeNull();
+    for (const malformed of [
+      { ...aiPlaytime, minutes: 0 },
+      { ...aiPlaytime, lower_minutes: 721 },
+      { ...aiPlaytime, upper_minutes: 719 },
+      { ...aiPlaytime, confidence: 1.1 },
+      { ...aiPlaytime, model: '' },
+      { ...aiPlaytime, rationale: 3 },
+      { ...aiPlaytime, generated_at: -1 },
+    ]) {
+      expect(decodeCollectionCardItem({ ...card, ai_playtime: malformed })).toBeNull();
     }
   });
 

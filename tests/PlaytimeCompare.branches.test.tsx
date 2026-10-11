@@ -30,13 +30,24 @@ afterEach(() => {
 });
 
 describe('PlaytimeCompare branches', () => {
-  it('shows a single source with no compare button when only one source is populated', () => {
+  const aiEstimate = {
+    minutes: 720,
+    lower_minutes: 600,
+    upper_minutes: 840,
+    confidence: 0.8,
+    model: 'local-estimator-v1',
+    rationale: 'Metadata-based estimate.',
+    generated_at: 1_700_000_000_000,
+  };
+
+  it('keeps the comparison and AI editor reachable when only one source is populated', () => {
     renderWithProviders(
       <PlaytimeCompare vnId="v90001" current="auto" vndb={600} egs={null} mine={null} />,
       { locale: 'en' },
     );
-    // Only VNDB has a value -> populated < 2 and no combined+mine pairing.
-    expect(screen.queryByRole('button', { name: t.compare.compareBtn })).toBeNull();
+    expect(screen.getByRole('button', { name: t.compare.compareBtn })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    expect(screen.getByText(t.playtime.aiEstimateTitle)).toBeInTheDocument();
   });
 
   it('resolves the combined column by default when several sources exist', () => {
@@ -177,6 +188,55 @@ describe('PlaytimeCompare branches', () => {
     await waitFor(() => {
       const call = fetchMock.mock.calls.find((c) => String(c[0]) === '/api/collection/v90001/source-pref');
       expect(JSON.parse(call![1].body)).toEqual({ playtime: 'custom' });
+    });
+  });
+
+  it('includes AI in the positive-source average and persists AI as a distinct preference', async () => {
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    renderWithProviders(
+      <PlaytimeCompare vnId="v90001" current="auto" vndb={600} egs={900} mine={300} ai={aiEstimate} />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    expect(screen.getByText('10h 30min')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: t.playtime.useAi }));
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]) === '/api/collection/v90001/source-pref');
+      expect(JSON.parse(call![1].body)).toEqual({ playtime: 'ai' });
+    });
+  });
+
+  it('saves a bounded AI estimate without writing the personal playtime field', async () => {
+    const saved = { ...aiEstimate, generated_at: 1_700_000_000_001 };
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ estimate: saved }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    renderWithProviders(
+      <PlaytimeCompare vnId="v90001" current="auto" vndb={600} egs={900} mine={300} />,
+      { locale: 'en' },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t.compare.compareBtn }));
+    fireEvent.change(screen.getByLabelText(t.playtime.aiHours), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText(t.playtime.aiLowerHours), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText(t.playtime.aiUpperHours), { target: { value: '14' } });
+    fireEvent.change(screen.getByLabelText(t.playtime.aiConfidence), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText(t.playtime.aiModel), { target: { value: 'local-estimator-v1' } });
+    fireEvent.change(screen.getByLabelText(t.playtime.aiRationale), { target: { value: 'Metadata-based estimate.' } });
+    fireEvent.click(screen.getByRole('button', { name: t.playtime.aiSave }));
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]) === '/api/collection/v90001/ai-playtime');
+      expect(call![1].method).toBe('PUT');
+      expect(JSON.parse(call![1].body)).toEqual({
+        minutes: 720,
+        lower_minutes: 600,
+        upper_minutes: 840,
+        confidence: 0.8,
+        model: 'local-estimator-v1',
+        rationale: 'Metadata-based estimate.',
+      });
+      expect(JSON.parse(call![1].body)).not.toHaveProperty('playtime_minutes');
     });
   });
 

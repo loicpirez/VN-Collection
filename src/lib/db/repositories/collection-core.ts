@@ -10,7 +10,7 @@ export type CollectionCorePatch = Partial<Omit<CollectionFields, 'added_at' | 'u
 /** Metadata fields that can select a preferred upstream source. */
 export type CollectionSourceField = 'title' | 'description' | 'image' | 'brand' | 'rating' | 'playtime';
 /** Supported source-selection values. */
-export type CollectionSourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
+export type CollectionSourceChoice = 'auto' | 'vndb' | 'egs' | 'custom' | 'ai';
 /** Sparse per-field source-selection map. */
 export type CollectionSourcePreferences = Partial<Record<CollectionSourceField, CollectionSourceChoice>>;
 
@@ -76,7 +76,7 @@ export interface CollectionCoreRepository {
 }
 
 const SOURCE_FIELDS = new Set<CollectionSourceField>(['title', 'description', 'image', 'brand', 'rating', 'playtime']);
-const SOURCE_CHOICES = new Set<CollectionSourceChoice>(['auto', 'vndb', 'egs', 'custom']);
+const SOURCE_CHOICES = new Set<CollectionSourceChoice>(['auto', 'vndb', 'egs', 'custom', 'ai']);
 
 function decodeSourcePreferences(raw: string | null): CollectionSourcePreferences {
   if (!raw) return {};
@@ -85,7 +85,7 @@ function decodeSourcePreferences(raw: string | null): CollectionSourcePreference
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     const result: CollectionSourcePreferences = {};
     for (const [field, choice] of Object.entries(value as Record<string, unknown>)) {
-      if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice)) {
+      if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice) && (choice !== 'ai' || field === 'playtime')) {
         result[field as CollectionSourceField] = choice as CollectionSourceChoice;
       }
     }
@@ -98,7 +98,7 @@ function decodeSourcePreferences(raw: string | null): CollectionSourcePreference
 function encodeSourcePreferences(preferences: CollectionSourcePreferences): string | null {
   const normalized: CollectionSourcePreferences = {};
   for (const [field, choice] of Object.entries(preferences)) {
-    if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice) && choice !== 'auto') {
+    if (SOURCE_FIELDS.has(field as CollectionSourceField) && SOURCE_CHOICES.has(choice as CollectionSourceChoice) && choice !== 'auto' && (choice !== 'ai' || field === 'playtime')) {
       normalized[field as CollectionSourceField] = choice as CollectionSourceChoice;
     }
   }

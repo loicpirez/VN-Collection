@@ -11,7 +11,7 @@
  * yields the other side. Used for description, image, brand, etc.
  */
 
-export type SourceChoice = 'auto' | 'vndb' | 'egs' | 'custom';
+export type SourceChoice = 'auto' | 'vndb' | 'egs' | 'custom' | 'ai';
 
 export interface ResolvedField<T> {
   value: T | null;

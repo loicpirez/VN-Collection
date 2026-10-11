@@ -94,6 +94,9 @@ export function createPostgresVnReadRepository(): VnReadRepository {
           c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
           c.edition_label, c.physical_location, c.box_type, c.download_url,
           c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
+          , c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
+          c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale,
+          c.ai_playtime_generated_at
         FROM vn v LEFT JOIN collection c ON c.vn_id = v.id
         WHERE v.id = $1
       `, [vnId]);

@@ -80,6 +80,13 @@ export interface CollectionItemDatabaseRow {
   custom_description?: string | null;
   added_at?: number;
   updated_at?: number;
+  ai_playtime_minutes?: number | null;
+  ai_playtime_lower_minutes?: number | null;
+  ai_playtime_upper_minutes?: number | null;
+  ai_playtime_confidence?: number | null;
+  ai_playtime_model?: string | null;
+  ai_playtime_rationale?: string | null;
+  ai_playtime_generated_at?: number | null;
 }
 
 function parseJson<T>(
@@ -206,5 +213,21 @@ export function mapCollectionItemRow(row: CollectionItemDatabaseRow | undefined)
   item.custom_description = row.custom_description ?? null;
   item.added_at = row.added_at;
   item.updated_at = row.updated_at;
+  item.ai_playtime =
+    row.ai_playtime_minutes != null &&
+    row.ai_playtime_lower_minutes != null &&
+    row.ai_playtime_upper_minutes != null &&
+    row.ai_playtime_model != null &&
+    row.ai_playtime_generated_at != null
+      ? {
+          minutes: row.ai_playtime_minutes,
+          lower_minutes: row.ai_playtime_lower_minutes,
+          upper_minutes: row.ai_playtime_upper_minutes,
+          confidence: row.ai_playtime_confidence ?? null,
+          model: row.ai_playtime_model,
+          rationale: row.ai_playtime_rationale ?? null,
+          generated_at: row.ai_playtime_generated_at,
+        }
+      : null;
   return item;
 }
