@@ -1,5 +1,5 @@
 import type { CardData } from './VnCard';
-import type { CollectionCardItem, Status } from '@/lib/types';
+import type { CollectionCardApiItem, CollectionCardItem, Status } from '@/lib/types';
 
 /**
  * Project a card-listing row down
@@ -15,9 +15,11 @@ import type { CollectionCardItem, Status } from '@/lib/types';
  * change can wrap the call in `useMemo(() => items.map(toCardData),
  * [items])`.
  */
-const cardDataCache = new WeakMap<CollectionCardItem, CardData>();
+type CardDataSource = CollectionCardItem | CollectionCardApiItem;
 
-export function toCardData(it: CollectionCardItem): CardData {
+const cardDataCache = new WeakMap<CardDataSource, CardData>();
+
+export function toCardData(it: CardDataSource): CardData {
   const cached = cardDataCache.get(it);
   if (cached) return cached;
   const data: CardData = {
@@ -31,7 +33,9 @@ export function toCardData(it: CollectionCardItem): CardData {
     released: it.released,
     egs_median: it.egs?.median ?? null,
     egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
-    ai_playtime_minutes: it.ai_playtime?.minutes ?? null,
+    ai_playtime_minutes: 'ai_playtime_minutes' in it
+      ? it.ai_playtime_minutes
+      : it.ai_playtime?.minutes ?? null,
     rating: it.rating,
     user_rating: it.user_rating,
     playtime_minutes: it.playtime_minutes,

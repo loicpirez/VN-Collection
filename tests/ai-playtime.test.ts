@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 
@@ -146,7 +147,7 @@ describe('AI playtime collection integration', () => {
     expect(mapCollectionItemRow({ ...row, ai_playtime_model: null })?.ai_playtime).toBeNull();
   });
 
-  it('executes the shared four-source SQL and sorts by the positive-source average', () => {
+  it('executes the shared four-source SQL, preserves fractions, and sorts by the positive-source average', () => {
     const db = new DatabaseSync(':memory:');
     db.exec(`
       CREATE TABLE vn (id TEXT PRIMARY KEY, length_minutes INTEGER);
@@ -174,5 +175,24 @@ describe('AI playtime collection integration', () => {
       { id: 'zeros', combined: 900 },
     ]);
     db.close();
+  });
+
+  it('projects all AI provenance columns from the SQLite detail read', () => {
+    const source = readFileSync('src/lib/db.ts', 'utf8');
+    const detailRead = source.slice(
+      source.indexOf('export function getCollectionItem(vnId: string)'),
+      source.indexOf('export function getStats()', source.indexOf('export function getCollectionItem(vnId: string)')),
+    );
+    for (const column of [
+      'ai_playtime_minutes',
+      'ai_playtime_lower_minutes',
+      'ai_playtime_upper_minutes',
+      'ai_playtime_confidence',
+      'ai_playtime_model',
+      'ai_playtime_rationale',
+      'ai_playtime_generated_at',
+    ]) {
+      expect(detailRead).toContain(`c.${column}`);
+    }
   });
 });

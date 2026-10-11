@@ -235,10 +235,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         box_type,
         download_url,
         custom_description,
+        ai_playtime,
         ...libraryItem
       } = it;
       return {
         ...libraryItem,
+        ai_playtime_minutes: ai_playtime?.minutes ?? null,
         has_notes: !!notes?.trim(),
         list_count: listCounts.get(it.id) ?? 0,
         in_reading_queue: queueIds.has(it.id),

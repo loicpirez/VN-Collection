@@ -274,10 +274,13 @@ type PrivateCollectionCardField =
   | 'edition_label'
   | 'box_type'
   | 'download_url'
-  | 'custom_description';
+  | 'custom_description'
+  | 'ai_playtime';
 
 /** Public card-listing payload returned by `GET /api/collection`. */
 export type CollectionCardApiItem = Omit<CollectionCardItem, PrivateCollectionCardField> & {
+  /** Central AI estimate needed by cards; full provenance stays on detail APIs. */
+  ai_playtime_minutes: number | null;
   /** Whether a personal note exists without returning the note body. */
   has_notes: boolean;
   /** Number of personal lists containing this VN. */

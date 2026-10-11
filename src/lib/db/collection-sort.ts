@@ -5,10 +5,10 @@
  * silently rank the same collection differently.
  */
 export const COMBINED_PLAYTIME_SORT_SQL =
-  '((CASE WHEN v.length_minutes > 0 THEN v.length_minutes ELSE 0 END) + ' +
+  '(1.0 * ((CASE WHEN v.length_minutes > 0 THEN v.length_minutes ELSE 0 END) + ' +
   '  (CASE WHEN e.playtime_median_minutes > 0 THEN e.playtime_median_minutes ELSE 0 END) + ' +
   '  (CASE WHEN c.playtime_minutes > 0 THEN c.playtime_minutes ELSE 0 END) + ' +
-  '  (CASE WHEN c.ai_playtime_minutes > 0 THEN c.ai_playtime_minutes ELSE 0 END)) * 1.0 ' +
+  '  (CASE WHEN c.ai_playtime_minutes > 0 THEN c.ai_playtime_minutes ELSE 0 END))) ' +
   '/ NULLIF(' +
   '  (CASE WHEN v.length_minutes > 0 THEN 1 ELSE 0 END) + ' +
   '  (CASE WHEN e.playtime_median_minutes > 0 THEN 1 ELSE 0 END) + ' +

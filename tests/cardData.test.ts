@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toCardData } from '@/components/cardData';
-import type { CollectionCardItem } from '@/lib/types';
+import type { CollectionCardApiItem, CollectionCardItem } from '@/lib/types';
 
 function makeRow(overrides: Partial<CollectionCardItem> = {}): CollectionCardItem {
   return {
@@ -53,6 +53,18 @@ describe('toCardData', () => {
     const row = makeRow();
 
     expect(toCardData(row)).toBe(toCardData(row));
+  });
+
+  it('projects the public card-safe AI minute summary', () => {
+    const row = {
+      ...makeRow(),
+      ai_playtime_minutes: 480,
+      has_notes: false,
+      list_count: 0,
+      in_reading_queue: false,
+    } as CollectionCardApiItem;
+
+    expect(toCardData(row).ai_playtime_minutes).toBe(480);
   });
 
   it('handles rows without relation metadata', () => {

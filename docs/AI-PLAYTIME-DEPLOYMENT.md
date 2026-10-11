@@ -73,12 +73,12 @@ The authenticated production snapshot contains 172 entries marked dumped. Agains
 The non-matched set is not equivalent to “missing from the PC”:
 
 - seven are explicit historical no-executable exclusions: `v1270`, `v2059`, `v177`, `v8533`, `v2398`, `egs_894`, and `v116`;
-- `v99` (Suika) is independently confirmed installed by the canonical Windows/ASV evidence, including its executable and save evidence;
+- `v99` (Suika) is independently confirmed installed outside the launch-target snapshot: the sanitized canonical record `work/vn-length-audit/inventory.json` has `id=v99`, `origin=reconciled-path-live-verified`, `exeExists=true`, and `rootExists=true`; `wiki/apps/legacy-windows-vn-ninkyo-suika.md` independently records the verified Windows reconstruction and executable;
 - eight still require identity/path requalification: `v458`, `v21170`, `v86`, `v2515`, `v6385`, `v2301`, `v2654`, and `v16151`.
 
 Therefore the evidence currently proves 157 of 172 dumped records present on the PC, identifies seven intentional exclusions, and leaves eight unresolved. It does **not** prove that those eight are absent.
 
-`V:\DUMP\Done` was inspected read-only. It contains 24 files representing 20 logical media/archive sets (two `.mds` sidecars and the three-file BALDR FORCE set account for the difference). That folder is a media subset, not the complete installed-game inventory, so filename absence there cannot classify an installed title as missing. Nothing on V: was modified, renamed, extracted, or deleted.
+`V:\DUMP\Done` was inspected read-only. It contains 24 files representing 20 logical media/archive sets: two `.mds` sidecars reduce the logical count by two, and the three BALDR FORCE files form one set, reducing it by two more (`24 - 2 - 2 = 20`). That folder is a media subset, not the complete installed-game inventory, so filename absence there cannot classify an installed title as missing. Nothing on V: was modified, renamed, extracted, or deleted.
 
 ## Rollback
 

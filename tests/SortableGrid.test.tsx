@@ -102,6 +102,7 @@ function card(id: string, title: string): CollectionCardApiItem {
     cover_rotation: 0,
     banner_rotation: 0,
     fetched_at: 0,
+    ai_playtime_minutes: null,
     has_notes: false,
     list_count: 0,
     in_reading_queue: false,

@@ -4,7 +4,6 @@ import {
   EDITION_TYPES,
   STATUSES,
   type CollectionCardApiItem,
-  type AiPlaytimeEstimate,
   type EditionType,
   type EgsLite,
   type Stats,
@@ -244,30 +243,6 @@ function decodeEgs(value: unknown): EgsLite | null {
   };
 }
 
-function decodeAiPlaytime(value: unknown): AiPlaytimeEstimate | null {
-  const row = asJsonRecord(value);
-  if (
-    !row ||
-    !isNonNegativeInteger(row.minutes) || row.minutes < 1 ||
-    !isNonNegativeInteger(row.lower_minutes) || row.lower_minutes < 1 ||
-    !isNonNegativeInteger(row.upper_minutes) || row.upper_minutes < 1 ||
-    row.lower_minutes > row.minutes || row.minutes > row.upper_minutes ||
-    !(row.confidence === null || (isFiniteNumber(row.confidence) && row.confidence >= 0 && row.confidence <= 1)) ||
-    !isString(row.model) || row.model.length < 1 || row.model.length > 200 ||
-    !(row.rationale === null || (isString(row.rationale) && row.rationale.length <= 2000)) ||
-    !isNonNegativeInteger(row.generated_at)
-  ) return null;
-  return {
-    minutes: row.minutes,
-    lower_minutes: row.lower_minutes,
-    upper_minutes: row.upper_minutes,
-    confidence: row.confidence,
-    model: row.model,
-    rationale: row.rationale,
-    generated_at: row.generated_at,
-  };
-}
-
 function decodeOptional<T>(value: unknown, decode: (row: unknown) => T | null): T | undefined | null {
   if (value === undefined) return undefined;
   return decode(value);
@@ -312,7 +287,6 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
   const physicalLocation = decodeOptional(row?.physical_location, decodeStringArray);
   const series = decodeOptional(row?.series, (value) => decodeArray(value, decodeSeries));
   const egs = row?.egs === null ? null : decodeOptional(row?.egs, decodeEgs);
-  const aiPlaytime = row?.ai_playtime === null ? null : decodeOptional(row?.ai_playtime, decodeAiPlaytime);
   const aspectKeys = decodeOptional(row?.aspect_keys, (value) =>
     decodeArray(value, (key) => (isAspectKey(key) ? key : null)),
   );
@@ -343,6 +317,7 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     !isOptionalStatus(row.status) ||
     !isOptionalNullableFiniteNumber(row.user_rating) ||
     !isOptionalFiniteNumber(row.playtime_minutes) ||
+    !isNullableFiniteNumber(row.ai_playtime_minutes) ||
     !isOptionalBoolean(row.favorite) ||
     !isOptionalEditionType(row.edition_type) ||
     physicalLocation === null ||
@@ -352,7 +327,6 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     !isOptionalFiniteNumber(row.updated_at) ||
     series === null ||
     egs === null && row.egs !== null ||
-    aiPlaytime === null && row.ai_playtime !== null ||
     aspectKeys === null ||
     typeof row.has_notes !== 'boolean' ||
     !isNonNegativeInteger(row.list_count) ||
@@ -385,6 +359,7 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     ...(row.status == null ? {} : { status: row.status }),
     ...(row.user_rating === undefined ? {} : { user_rating: row.user_rating }),
     ...(row.playtime_minutes == null ? {} : { playtime_minutes: row.playtime_minutes }),
+    ai_playtime_minutes: row.ai_playtime_minutes,
     ...(row.favorite == null ? {} : { favorite: row.favorite }),
     ...(row.edition_type == null ? {} : { edition_type: row.edition_type }),
     ...(physicalLocation === undefined ? {} : { physical_location: physicalLocation }),
@@ -394,7 +369,6 @@ export function decodeCollectionCardItem(value: unknown): CollectionCardApiItem 
     ...(row.updated_at == null ? {} : { updated_at: row.updated_at }),
     ...(series === undefined ? {} : { series }),
     ...(egs === undefined ? {} : { egs }),
-    ...(aiPlaytime === undefined ? {} : { ai_playtime: aiPlaytime }),
     ...(aspectKeys === undefined ? {} : { aspect_keys: aspectKeys as AspectKey[] }),
     has_notes: row.has_notes,
     list_count: row.list_count,

@@ -425,6 +425,23 @@ describe('VnCard', () => {
     expect(screen.queryByTitle(`${t.detail.publishers}: Shared studio`)).toBeNull();
   });
 
+  it('names the AI estimate in the combined tooltip and per-source breakdown', () => {
+    renderWithProviders(
+      <VnCard data={card({
+        playtime_minutes: 60,
+        length_minutes: 120,
+        egs_playtime_minutes: 180,
+        ai_playtime_minutes: 240,
+      })} />,
+      { locale: 'en' },
+    );
+
+    expect(screen.getByTitle('My time: 1h / VNDB: 2h / EGS: 3h / AI: 4h')).toBeInTheDocument();
+    const aiContributor = screen.getByTitle(t.playtime.ai);
+    expect(aiContributor).toHaveTextContent('4h');
+    expect(screen.getByText('2h 30min')).toBeInTheDocument();
+  });
+
   it('prioritizes a concrete aspect ratio over the generic other bucket', () => {
     renderWithProviders(
       <VnCard data={card({ aspectKeys: ['other', '4:3'] })} />,

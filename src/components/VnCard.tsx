@@ -239,6 +239,7 @@ function VnCardImpl({
   const myPlaytime = fmtMinutes(myPlaytimeMin, locale, t.year);
   const vndbLength = fmtMinutes(vndbLengthMin, locale, t.year);
   const egsPlaytime = fmtMinutes(egsPlaytimeMin, locale, t.year);
+  const aiPlaytime = fmtMinutes(aiPlaytimeMin, locale, t.year);
   const allPlaytime = fmtMinutes(allPlaytimeMin, locale, t.year);
   const egsScore = data.egs_median != null ? Math.round(data.egs_median) : null;
   const titlePair = useResolvedTitle(data.title, data.alttitle ?? null);
@@ -330,6 +331,7 @@ function VnCardImpl({
                 myPlaytime ? `${t.playtime.mine}: ${myPlaytime}` : null,
                 vndbLength ? `${t.playtime.vndb}: ${vndbLength}` : null,
                 egsPlaytime ? `${t.playtime.egs}: ${egsPlaytime}` : null,
+                aiPlaytime ? `${t.playtime.ai}: ${aiPlaytime}` : null,
               ].filter(Boolean).join(' / ')}
             >
               <Clock className="h-3 w-3" aria-hidden />
@@ -355,6 +357,12 @@ function VnCardImpl({
                 <span className="inline-flex items-center gap-0.5" title={t.playtime.egs}>
                   <Sparkles className="h-2.5 w-2.5" aria-hidden />
                   {egsPlaytime}
+                </span>
+              )}
+              {aiPlaytime && (
+                <span className="inline-flex items-center gap-0.5" title={t.playtime.ai}>
+                  <Sparkles className="h-2.5 w-2.5" aria-hidden />
+                  {aiPlaytime}
                 </span>
               )}
             </div>

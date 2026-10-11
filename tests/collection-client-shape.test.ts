@@ -47,6 +47,7 @@ const card = {
   updated_at: 1,
   series: [],
   egs: null,
+  ai_playtime_minutes: null,
   aspect_keys: [],
   has_notes: false,
   list_count: 0,
@@ -82,16 +83,6 @@ const egs = {
   source: 'manual',
   okazu: false,
   erogame: true,
-};
-
-const aiPlaytime = {
-  minutes: 720,
-  lower_minutes: 600,
-  upper_minutes: 840,
-  confidence: 0.8,
-  model: 'local-estimator-v1',
-  rationale: 'Metadata-based estimate.',
-  generated_at: 1_700_000_000_000,
 };
 
 function withoutKeys(source: Record<string, unknown>, keys: string[]): Record<string, unknown> {
@@ -276,20 +267,19 @@ describe('collection client response adapters', () => {
     }
   });
 
-  it('decodes a bounded AI estimate independently and rejects malformed provenance', () => {
-    expect(decodeCollectionCardItem({ ...card, ai_playtime: aiPlaytime })?.ai_playtime).toEqual(aiPlaytime);
-    expect(decodeCollectionCardItem({ ...card, ai_playtime: null })?.ai_playtime).toBeNull();
-    for (const malformed of [
-      { ...aiPlaytime, minutes: 0 },
-      { ...aiPlaytime, lower_minutes: 721 },
-      { ...aiPlaytime, upper_minutes: 719 },
-      { ...aiPlaytime, confidence: 1.1 },
-      { ...aiPlaytime, model: '' },
-      { ...aiPlaytime, rationale: 3 },
-      { ...aiPlaytime, generated_at: -1 },
-    ]) {
-      expect(decodeCollectionCardItem({ ...card, ai_playtime: malformed })).toBeNull();
-    }
+  it('decodes only the card-safe AI minute summary', () => {
+    const decoded = decodeCollectionCardItem({
+      ...card,
+      ai_playtime_minutes: 720,
+      ai_playtime: {
+        minutes: 720,
+        model: 'must-not-enter-card-shape',
+        rationale: 'private provenance',
+      },
+    });
+    expect(decoded?.ai_playtime_minutes).toBe(720);
+    expect(decoded).not.toHaveProperty('ai_playtime');
+    expect(decodeCollectionCardItem({ ...card, ai_playtime_minutes: Number.NaN })).toBeNull();
   });
 
   it('rejects malformed scalar card fields at each boundary', () => {

@@ -183,7 +183,7 @@ function filterPlaytimeHours(it: CollectionCardApiItem): number | null {
     it.playtime_minutes && it.playtime_minutes > 0 ? it.playtime_minutes
     : it.egs?.playtime_median_minutes && it.egs.playtime_median_minutes > 0 ? it.egs.playtime_median_minutes
     : it.length_minutes && it.length_minutes > 0 ? it.length_minutes
-    : it.ai_playtime?.minutes && it.ai_playtime.minutes > 0 ? it.ai_playtime.minutes
+    : it.ai_playtime_minutes && it.ai_playtime_minutes > 0 ? it.ai_playtime_minutes
     : null;
   return minutes == null ? null : Math.round(minutes / 60);
 }
