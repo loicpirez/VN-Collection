@@ -41,6 +41,12 @@ function query(value = '') {
 }
 
 describe('wishlist server pagination', () => {
+  it('orders by the same four-source median as cards instead of a single-source priority', () => {
+    const outlier = item('v90001', 'Outlier', { playtime_minutes: 600, ai_playtime_minutes: 2400 });
+    const longer = item('v90002', 'Longer', { vn: { ...item('v90002', 'Longer').vn, length_minutes: 900 }, egs: null });
+    const aiOnly = item('v90003', 'AI only', { vn: { ...item('v90003', 'AI only').vn, length_minutes: null }, egs: null, ai_playtime_minutes: 1200 });
+    expect(paginateWishlist([outlier, longer, aiOnly], query('hideOwned=0&sort=length_desc')).items.map((row) => row.id)).toEqual(['v90003', 'v90002', 'v90001']);
+  });
   it('parses defaults, valid values, and bounded malformed values', () => {
     expect(query()).toMatchObject({
       q: '', language: '', platform: '', rating_min: null, rating_max: null,

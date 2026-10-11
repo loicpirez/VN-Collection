@@ -19,6 +19,7 @@ import { HOME_LAYOUT_OPEN_EVENT } from './HomeLayoutEditorTrigger';
 import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { formatMinutes } from '@/lib/format';
+import { medianPlaytime } from '@/lib/playtime';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { BCP47, fmtNum } from '@/lib/locale-number';
 import { useToast } from './ToastProvider';
@@ -179,13 +180,8 @@ function filterScore(it: CollectionCardApiItem): number | null {
 }
 
 function filterPlaytimeHours(it: CollectionCardApiItem): number | null {
-  const minutes =
-    it.playtime_minutes && it.playtime_minutes > 0 ? it.playtime_minutes
-    : it.egs?.playtime_median_minutes && it.egs.playtime_median_minutes > 0 ? it.egs.playtime_median_minutes
-    : it.length_minutes && it.length_minutes > 0 ? it.length_minutes
-    : it.ai_playtime_minutes && it.ai_playtime_minutes > 0 ? it.ai_playtime_minutes
-    : null;
-  return minutes == null ? null : Math.round(minutes / 60);
+  const minutes = medianPlaytime(it.playtime_minutes, it.egs?.playtime_median_minutes, it.length_minutes, it.ai_playtime_minutes);
+  return minutes == null ? null : minutes / 60;
 }
 
 /**

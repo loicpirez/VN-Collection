@@ -101,6 +101,53 @@ describe('AI playtime estimate API', () => {
     expect(await response.json()).toEqual({ ok: true, estimate: null });
   });
 
+  it.each([GET, PUT, DELETE])('rejects invalid and absent collection identifiers before persistence', async (handler) => {
+    const invalid = await handler(request('PUT', estimate, 'invalid'), context('invalid'));
+    expect(invalid.status).toBe(400);
+    collection.contains.mockResolvedValueOnce(false);
+    const missing = await handler(request('PUT', estimate), context());
+    expect(missing.status).toBe(404);
+    expect(repository.set).not.toHaveBeenCalled();
+    expect(repository.clear).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['minutes', null], ['minutes', 0], ['minutes', -1], ['minutes', 1.5], ['minutes', 10_000_001], ['minutes', Number.MAX_SAFE_INTEGER + 1], ['minutes', '900'],
+    ['lower_minutes', null], ['lower_minutes', 0], ['lower_minutes', 1.5], ['lower_minutes', 10_000_001], ['lower_minutes', 901],
+    ['upper_minutes', null], ['upper_minutes', 0], ['upper_minutes', 1.5], ['upper_minutes', 10_000_001], ['upper_minutes', 899],
+    ['confidence', -0.01], ['confidence', 1.01], ['confidence', '0.5'],
+    ['model', null], ['model', ''], ['model', '  '], ['model', 'x'.repeat(201)],
+    ['rationale', 1], ['rationale', 'x'.repeat(2001)],
+    ['generated_at', null], ['generated_at', -1], ['generated_at', 0.5], ['generated_at', NOW + 600_000],
+  ])('rejects invalid %s value %s without persisting an estimate', async (field, value) => {
+    const response = await PUT(request('PUT', { ...estimate, [String(field)]: value }), context());
+    expect(response.status).toBe(400);
+    expect(repository.set).not.toHaveBeenCalled();
+  });
+
+  it.each([null, undefined, '', '  ', ' Synthetic evidence. '])('normalizes optional rationale %s and defaults the generation timestamp', async (rationale) => {
+    const response = await PUT(request('PUT', { ...estimate, model: ' synthetic ', confidence: null, rationale, generated_at: undefined }, 'V991901'), context('V991901'));
+    expect(response.status).toBe(200);
+    expect(repository.set).toHaveBeenCalledWith(VN_ID, expect.objectContaining({
+      model: 'synthetic', confidence: null, rationale: rationale?.trim() || null, generated_at: expect.any(Number),
+    }));
+  });
+
+  it('clears AI while preserving a non-AI preference', async () => {
+    collection.getSourcePreferences.mockResolvedValueOnce({ playtime: 'egs', title: 'vndb' });
+    const response = await DELETE(request('DELETE'), context());
+    expect(response.status).toBe(200);
+    expect(collection.setSourcePreferences).not.toHaveBeenCalled();
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ payload: { cleared: true, source_preference_reset: false } }));
+  });
+
+  it('protects DELETE with the same authentication policy as PUT', async () => {
+    const external = new Request(`http://collection.example/api/collection/${VN_ID}/ai-playtime`, { method: 'DELETE' }) as NextRequest;
+    const response = await DELETE(external, context());
+    expect(response.status).toBe(403);
+    expect(repository.clear).not.toHaveBeenCalled();
+  });
+
   it('keeps public reads open while protecting external writes with the existing auth gate', async () => {
     const external = new Request(`http://collection.example/api/collection/${VN_ID}/ai-playtime`, {
       method: 'PUT',
@@ -147,7 +194,7 @@ describe('AI playtime collection integration', () => {
     expect(mapCollectionItemRow({ ...row, ai_playtime_model: null })?.ai_playtime).toBeNull();
   });
 
-  it('executes the shared four-source SQL, preserves fractions, and sorts by the positive-source average', () => {
+  it('executes the shared four-source SQL and sorts by the positive-source median', () => {
     const db = new DatabaseSync(':memory:');
     db.exec(`
       CREATE TABLE vn (id TEXT PRIMARY KEY, length_minutes INTEGER);
@@ -170,9 +217,9 @@ describe('AI playtime collection integration', () => {
     `).all() as Array<{ id: string; combined: number }>;
     expect(rows).toEqual([
       { id: 'negative', combined: 1200 },
-      { id: 'four', combined: 1050.5 },
       { id: 'single', combined: 1000 },
       { id: 'zeros', combined: 900 },
+      { id: 'four', combined: 600 },
     ]);
     db.close();
   });

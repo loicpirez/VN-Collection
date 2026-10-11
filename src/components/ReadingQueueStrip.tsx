@@ -2,6 +2,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import { getReadingSpeedProfile, predictReadingMinutes } from '@/lib/reading-speed';
 import { getHomeFeedRepository } from '@/lib/db/repositories/home-feed';
 import type { HomeSectionState } from '@/lib/home-section-layout';
+import { medianPlaytime } from '@/lib/playtime';
 import { ReadingQueueStripView, type ReadingQueueEntry } from './ReadingQueueStripView';
 
 /**
@@ -28,6 +29,7 @@ export async function ReadingQueueStrip({ initialState }: { initialState?: HomeS
     local_image_thumb: row.local_image_thumb,
     image_sexual: row.image_sexual,
     predictedMinutes: predictReadingMinutes(row.length_minutes, row.egs_minutes, profile),
+    medianMinutes: medianPlaytime(row.length_minutes, row.egs_minutes, row.playtime_minutes, row.ai_playtime_minutes),
   }));
 
   return (
@@ -40,6 +42,7 @@ export async function ReadingQueueStrip({ initialState }: { initialState?: HomeS
       reorderHint={t.lists.reorderHint}
       reorderKeyboardHint={t.lists.reorderKeyboardHint}
       youLabel={t.readingSpeed.you}
+      medianLabel={t.playtime.combined}
       errorLabel={t.common.error}
     />
   );

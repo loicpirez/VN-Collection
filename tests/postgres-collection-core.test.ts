@@ -331,5 +331,9 @@ describe('PostgreSQL collection core repository', () => {
     await repository.setSourcePreferences('v90040', { title: 'auto' });
     expect(postgresQueryMock.mock.calls.at(-2)?.[1]?.[0]).toBe('{"rating":"egs"}');
     expect(postgresQueryMock.mock.calls.at(-1)?.[1]?.[0]).toBeNull();
+    postgresQueryMock.mockResolvedValueOnce({ rows: [{ source_pref: '{"title":"ai","playtime":"ai"}' }] });
+    await expect(repository.getSourcePreferences('v90040')).resolves.toEqual({ playtime: 'ai' });
+    await repository.setSourcePreferences('v90040', { title: 'ai', playtime: 'ai' });
+    expect(postgresQueryMock.mock.calls.at(-1)?.[1]?.[0]).toBe('{"playtime":"ai"}');
   });
 });

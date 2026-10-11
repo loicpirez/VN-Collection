@@ -216,7 +216,7 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
       (CASE WHEN e.median IS NULL THEN 0 ELSE 1 END), 0))`;
   if (typeof options.ratingMin === 'number') where.push(`${score} >= ${bindings.add(options.ratingMin)}`);
   if (typeof options.ratingMax === 'number') where.push(`${score} <= ${bindings.add(options.ratingMax)}`);
-  const hours = `ROUND(COALESCE(NULLIF(c.playtime_minutes, 0), NULLIF(e.playtime_median_minutes, 0), NULLIF(v.length_minutes, 0)) / 60.0)`;
+  const hours = `(${COMBINED_PLAYTIME_SORT_SQL} / 60.0)`;
   if (typeof options.playtimeMinHours === 'number') where.push(`${hours} >= ${bindings.add(options.playtimeMinHours)}`);
   if (typeof options.playtimeMaxHours === 'number') where.push(`${hours} <= ${bindings.add(options.playtimeMaxHours)}`);
   if (typeof options.dumped === 'boolean') where.push(`c.dumped = ${bindings.add(options.dumped ? 1 : 0)}`);

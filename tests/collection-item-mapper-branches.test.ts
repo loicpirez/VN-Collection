@@ -51,6 +51,24 @@ function row(overrides: Partial<CollectionItemDatabaseRow> = {}): CollectionItem
 }
 
 describe('collection item mapper branch behavior', () => {
+  it('preserves an AI estimate with absent optional confidence and rationale', () => {
+    expect(mapCollectionItemRow(row({
+      ai_playtime_minutes: 600,
+      ai_playtime_lower_minutes: 480,
+      ai_playtime_upper_minutes: 720,
+      ai_playtime_model: 'synthetic-estimator',
+      ai_playtime_generated_at: 1,
+    }))?.ai_playtime).toEqual({
+      minutes: 600,
+      lower_minutes: 480,
+      upper_minutes: 720,
+      confidence: null,
+      rationale: null,
+      model: 'synthetic-estimator',
+      generated_at: 1,
+    });
+  });
+
   it('returns null when the joined VN row is absent', () => {
     expect(mapCollectionItemRow(undefined)).toBeNull();
   });

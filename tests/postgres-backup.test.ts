@@ -33,6 +33,8 @@ const MIGRATIONS = [
   '0011_stock_provider_batch_runs',
   '0012_full_download_queue',
   '0013_vn_staff_credit_primary_key',
+  '0014_ai_playtime_estimate',
+  '0015_ai_playtime_required_fields',
 ];
 
 function result<Row extends QueryResultRow>(rows: Row[]): QueryResult<Row> {

@@ -12,6 +12,7 @@ import { ScoreSourceLegend } from './ScoreSourceLegend';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fmtNum, formatIsoDateString } from '@/lib/locale-number';
 import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
+import { medianPlaytime } from '@/lib/playtime';
 import { yearHref } from '@/lib/egs-links';
 import { safeHref } from '@/lib/safe-href';
 
@@ -71,6 +72,8 @@ interface Props {
   vndbLengthMinutes: number | null;
   /** User-recorded playtime in minutes. */
   myPlaytimeMinutes: number;
+  /** Independent AI estimate included automatically in the duration median. */
+  aiPlaytimeMinutes?: number | null;
   /** Title to seed the manual search dialog with. */
   searchSeed?: string | null;
   /**
@@ -95,6 +98,7 @@ export function EgsPanel({
   vndbVoteCount,
   vndbLengthMinutes,
   myPlaytimeMinutes,
+  aiPlaytimeMinutes = null,
   searchSeed,
   initialGame = null,
   initialSource = null,
@@ -318,10 +322,11 @@ export function EgsPanel({
 
   // ----- Matched branch -----
   const combined = combinedScore(vndbRating, game.median);
-  const totalPlaytime = (myPlaytimeMinutes || 0) + (game.playtime_median_minutes ?? 0);
+  const totalPlaytime = medianPlaytime(myPlaytimeMinutes, game.playtime_median_minutes, vndbLengthMinutes, aiPlaytimeMinutes);
   const myPt = fmtMinutes(myPlaytimeMinutes || null, locale, t.year);
   const egsPt = fmtMinutes(game.playtime_median_minutes, locale, t.year);
   const vndbPt = fmtMinutes(vndbLengthMinutes, locale, t.year);
+  const aiPt = fmtMinutes(aiPlaytimeMinutes, locale, t.year);
   const sumPt = fmtMinutes(totalPlaytime || null, locale, t.year);
   const gameHref = safeHref(game.url);
   const brandName = game.brand_name?.trim() || null;
@@ -481,9 +486,10 @@ export function EgsPanel({
               {vndbPt && <span><b className="text-white">{vndbPt}</b> <span className="text-muted">{t.egs.playtimeVndb}</span></span>}
               {egsPt && <span><b className="text-white">{egsPt}</b> <span className="text-muted">{t.egs.playtimeEgs}</span></span>}
               {myPt && <span><b className="text-white">{myPt}</b> <span className="text-muted">{t.egs.playtimeMine}</span></span>}
+              {aiPt && <span><b className="text-white">{aiPt}</b> <span className="text-muted">{t.playtime.ai}</span></span>}
               {sumPt && (
                 <span className="rounded-md bg-accent/15 px-2 py-0.5 text-accent">
-                  {t.egs.playtimeSum}: <b>{sumPt}</b>
+                  {t.playtime.combined}: <b>{sumPt}</b>
                 </span>
               )}
             </div>

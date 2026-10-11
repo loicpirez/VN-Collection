@@ -7,6 +7,7 @@ import { ArrowLeft, Box, ChevronRight, Disc3, ExternalLink, HardDriveDownload, H
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getActivityRepository } from '@/lib/db/repositories/activity';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getCollectionPlaytimeSources } from '@/lib/db/repositories/collection-playtime';
 import { getVnReadRepository } from '@/lib/db/repositories/vn-read';
 import { getVnWriteRepository } from '@/lib/db/repositories/vn-write';
 import { getVnDetailRepository } from '@/lib/db/repositories/vn-detail';
@@ -31,6 +32,7 @@ import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
 import { resolveVnDisplayTitles } from '@/lib/vn-display-title';
 
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
+import { medianPlaytime } from '@/lib/playtime';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
@@ -270,6 +272,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     allSeries,
     listsForThisVn,
     relationOwnedSet,
+    relationPlaytimeSources,
     seriesSuggestion,
     egsRow,
     sourcePref,
@@ -285,6 +288,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     seriesRepository.list(),
     getUserListRepository().listForVn(id),
     collectionRepository.containsMany(vn.relations.map((relation) => relation.id)),
+    getCollectionPlaytimeSources(vn.relations.map((relation) => relation.id)),
     inCol ? seriesRepository.suggest(id) : Promise.resolve(null),
     detailRepository.egs(vn.id),
     detailRepository.sourcePreference(vn.id),
@@ -590,7 +594,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 </div>
               )}
               <div className="col-span-2 sm:col-span-3">
-                <dt className="label">{t.detail.lengthVndb}</dt>
+                <dt className="label">{t.egs.playtimeTitle}</dt>
                 <dd className="font-semibold">
                   {inCol ? (
                     <PlaytimeCompare
@@ -602,14 +606,18 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                       ai={vn.ai_playtime ?? null}
                     />
                   ) : (
-                    <>
-                      {fmtMinutes(vn.length_minutes, locale, t)}
-                      {vn.length_votes != null && vn.length_votes > 0 && (
-                        <span className="ml-2 text-xs font-normal text-muted">
-                          / {vn.length_votes} {t.detail.lengthVotes}
+                    <div>
+                      {t.playtime.combined}: {fmtMinutes(medianPlaytime(vn.length_minutes, egsRow?.playtime_median_minutes), locale, t)}
+                      <div className="mt-1 flex flex-wrap gap-x-3 text-xs font-normal text-muted">
+                        <span>
+                          {t.playtime.vndb}: {fmtMinutes(vn.length_minutes, locale, t)}
+                          {vn.length_votes != null && vn.length_votes > 0 && (
+                            <span className="ml-2">/ {vn.length_votes} {t.detail.lengthVotes}</span>
+                          )}
                         </span>
-                      )}
-                    </>
+                        <span>{t.playtime.egs}: {fmtMinutes(egsRow?.playtime_median_minutes, locale, t)}</span>
+                      </div>
+                    </div>
                   )}
                 </dd>
                 {inCol && (
@@ -873,6 +881,8 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
                 status={status}
                 playtimeMinutes={vn.playtime_minutes}
                 vndbLengthMinutes={vn.length_minutes}
+                egsLengthMinutes={egsRow?.playtime_median_minutes ?? null}
+                aiPlaytimeMinutes={vn.ai_playtime?.minutes ?? null}
               />
             )}
           </div>
@@ -967,7 +977,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // round-trips per VN page render.
           sectionNodes['relations'] = (
             <RelationsSection
-              relations={vn.relations.map((r) => ({ ...r, in_collection: relationOwnedSet.has(r.id) }))}
+              relations={vn.relations.map((r) => ({
+                ...r,
+                ...relationPlaytimeSources.get(r.id),
+                in_collection: relationOwnedSet.has(r.id),
+              }))}
             />
           );
         }
@@ -981,6 +995,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             vndbVoteCount={vn.votecount ?? null}
             vndbLengthMinutes={vn.length_minutes ?? null}
             myPlaytimeMinutes={vn.playtime_minutes ?? 0}
+            aiPlaytimeMinutes={vn.ai_playtime?.minutes ?? null}
             searchSeed={vn.alttitle?.trim() || vn.title}
             initialGame={
               egsRow?.egs_id

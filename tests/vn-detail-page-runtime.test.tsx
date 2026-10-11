@@ -26,7 +26,8 @@ import type { SeriesSuggestion } from '@/lib/series-detect';
 import { isCacheFresh } from '@/lib/cache-age';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { VnSectionId } from '@/lib/vn-detail-layout';
-import type { CollectionItem } from '@/lib/types';
+import type { CollectionItem, LocalPlaytimeSources } from '@/lib/types';
+import { getCollectionPlaytimeSources } from '@/lib/db/repositories/collection-playtime';
 
 const dynamicMocks = vi.hoisted(() => ({
   loads: [] as Array<Promise<object>>,
@@ -34,6 +35,10 @@ const dynamicMocks = vi.hoisted(() => ({
 
 const seriesRepositoryMocks = vi.hoisted(() => ({
   suggest: vi.fn(),
+}));
+
+vi.mock('@/lib/db/repositories/collection-playtime', () => ({
+  getCollectionPlaytimeSources: vi.fn(),
 }));
 
 vi.mock('next/dynamic', () => ({
@@ -224,8 +229,8 @@ vi.mock('@/components/LangFlag', () => ({
 }));
 
 vi.mock('@/components/RelationsSection', () => ({
-  RelationsSection: ({ relations }: { relations: Array<{ id: string; in_collection: boolean }> }) => (
-    <div>{`relations:${relations.map((relation) => `${relation.id}-${relation.in_collection}`).join(',')}`}</div>
+  RelationsSection: ({ relations }: { relations: Array<LocalPlaytimeSources & { id: string; in_collection: boolean }> }) => (
+    <div data-sources={JSON.stringify(relations)}>{`relations:${relations.map((relation) => `${relation.id}-${relation.in_collection}`).join(',')}`}</div>
   ),
 }));
 
@@ -416,6 +421,7 @@ async function renderPage(id: string, searchParams: Record<string, string | stri
 }
 
 beforeEach(() => {
+  vi.mocked(getCollectionPlaytimeSources).mockReset().mockResolvedValue(new Map());
   vi.mocked(deriveVnAspectDisplay).mockReset().mockReturnValue({
     aspect: 'unknown',
     aspects: [],
@@ -444,6 +450,15 @@ beforeEach(() => {
 });
 
 describe('VN detail page runtime', () => {
+  it('uses the available-source median on a non-collection detail page and preserves raw source values', async () => {
+    vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90026', { length_minutes: 600 }));
+    vi.mocked(getEgsForVn).mockReturnValue(egsRow('v90026', { playtime_median_minutes: 2400 }));
+    const html = (await renderPage('v90026')).replaceAll('<!-- -->', '');
+    expect(html).toContain('Median: 25h');
+    expect(html).toContain('VNDB: 10h');
+    expect(html).toContain('EGS: 40h');
+  });
+
   it('returns raw metadata for malformed ids and rejects malformed page ids', async () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: 'bad%20id' }) })).toEqual({ title: 'bad id' });
     await expect(renderPage('bad%20id')).rejects.toThrow('NOT_FOUND');
@@ -605,6 +620,9 @@ describe('VN detail page runtime', () => {
     });
     vi.mocked(getCollectionItem).mockReturnValue(item);
     vi.mocked(isInCollectionMany).mockReturnValue(new Set(['v2']));
+    vi.mocked(getCollectionPlaytimeSources).mockResolvedValue(new Map([['v2', {
+      playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400,
+    }]]));
     vi.mocked(deriveVnAspectDisplay).mockReturnValue({
       aspect: '16:9',
       aspects: ['16:9', '4:3'],
@@ -621,6 +639,10 @@ describe('VN detail page runtime', () => {
     expect(html).toContain('tags:1:2');
     expect(html).toContain('field-compare:v90008:false');
     expect(html).toContain('relations:v2-true');
+    expect(getCollectionPlaytimeSources).toHaveBeenCalledWith(['v2']);
+    expect(html).toContain('&quot;playtime_minutes&quot;:600');
+    expect(html).toContain('&quot;egs_playtime_minutes&quot;:600');
+    expect(html).toContain('&quot;ai_playtime_minutes&quot;:2400');
     expect(html).toContain('data-character-cards-skeleton');
     expect(html).toContain('data-release-rows-skeleton');
     expect(html).toContain('data-quote-rows-skeleton');

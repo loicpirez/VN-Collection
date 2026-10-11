@@ -142,6 +142,7 @@ function renderQueue(entries: ReadingQueueEntry[] = [entry()]) {
       reorderHint="Drag to reorder"
       reorderKeyboardHint="Use arrow keys to reorder"
       youLabel="You"
+      medianLabel="Median"
       errorLabel="Error"
     />,
     { locale: 'en' },
@@ -171,6 +172,11 @@ afterEach(() => {
 });
 
 describe('ReadingQueueStripView', () => {
+  it('shows the canonical median separately from the personal speed prediction', () => {
+    renderQueue([entry({ medianMinutes: 600, predictedMinutes: 95 })]);
+    expect(screen.getByText('Median 10h')).toBeInTheDocument();
+    expect(screen.getByText('You ≈ 1h 35m')).toBeInTheDocument();
+  });
   it('renders nothing when the section is hidden', () => {
     sectionMocks.state.isHidden = true;
     const { container } = renderQueue();

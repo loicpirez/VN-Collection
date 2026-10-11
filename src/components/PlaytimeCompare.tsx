@@ -5,13 +5,14 @@ import { BrainCircuit, Check, Clock, GitCompareArrows, Hourglass, Loader2, Save,
 import { useToast } from './ToastProvider';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { formatMinutes } from '@/lib/format';
+import { medianPlaytime } from '@/lib/playtime';
 import type { SourceChoice } from '@/lib/source-resolve';
 import type { AiPlaytimeEstimate } from '@/lib/types';
 
 import { readApiError } from '@/lib/api-error-read';
 interface Props {
   vnId: string;
-  /** Currently persisted preference for `image`-style playtime resolution. */
+  /** Persisted raw-source preference; auto uses the four-source median. */
   current: SourceChoice;
   /** VNDB community average length, minutes. */
   vndb: number | null;
@@ -29,15 +30,14 @@ type Tab = 'vndb' | 'egs' | 'mine' | 'ai' | 'combined';
  * Numeric variant of FieldCompare for playtime. Four independent
  * sources (VNDB community length / EGS user-review median / user's
  * own recorded time / bounded AI estimate) and a derived "Combined"
- * column equal to the average of every populated positive source.
+ * column equal to the median of every populated positive source.
  * The user can pin any raw source, or the combined value, as canonical
  * via `source_pref.playtime`.
  *
  * The active column drives the inline display on the detail page (see
- * /vn/[id]/page.tsx). When unset / `auto` we fall back to: combined →
- * VNDB → EGS → user - community values rank first because the user
- * usually wants "how long does this VN take" rather than their own
- * personal log.
+ * /vn/[id]/page.tsx). Auto uses every populated positive source, including
+ * AI without a separate activation action. A raw-source preference does
+ * not change the derived median used throughout lists and filters.
  */
 export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: Props) {
   const t = useT();
@@ -56,11 +56,14 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
   const identityRef = useRef<string | null>(vnId);
   const mutationAbortRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const estimateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mutationAbortRef.current?.abort();
     mutationAbortRef.current = null;
     mutationInFlightRef.current = false;
+    estimateAbortRef.current?.abort();
+    estimateAbortRef.current = null;
     identityRef.current = vnId;
     setCompareOpen(false);
     setOptimistic(current);
@@ -73,6 +76,8 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
       mutationAbortRef.current = null;
       mutationInFlightRef.current = false;
       identityRef.current = null;
+      estimateAbortRef.current?.abort();
+      estimateAbortRef.current = null;
     };
   }, [vnId, current, ai]);
 
@@ -80,19 +85,9 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
   const egsHas = egs != null && egs > 0;
   const mineHas = mine != null && mine > 0;
   const aiHas = estimate != null && estimate.minutes > 0;
-  // "Combined" is the average of every populated source - VNDB, EGS,
-  // Mine, and AI. Matches the `combined_playtime` SQL on the library sort.
-  // Example: 95 / 90 / 93 / 100 → (95+90+93+100)/4 = 94.5.
-  const combinedHas = vndbHas || egsHas || mineHas || aiHas;
-  let combinedSum = 0;
-  let combinedCount = 0;
-  if (vndbHas) { combinedSum += vndb as number; combinedCount++; }
-  if (egsHas) { combinedSum += egs as number; combinedCount++; }
-  if (mineHas) { combinedSum += mine as number; combinedCount++; }
-  if (aiHas) { combinedSum += estimate.minutes; combinedCount++; }
-  const combinedValue = combinedCount > 0 ? Math.round(combinedSum / combinedCount) : null;
+  const combinedValue = medianPlaytime(vndb, egs, mine, estimate?.minutes);
+  const combinedHas = combinedValue != null;
 
-  // Resolution priority: explicit pref > combined > vndb > egs > mine.
   function pickColumn(pref: SourceChoice): Tab {
     if (pref === 'custom' && mineHas) return 'mine';
     if (pref === 'vndb' && vndbHas) return 'vndb';
@@ -102,19 +97,17 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
     return 'mine';
   }
   const activeTab: Tab = pickColumn(optimistic);
-  const headlineValue =
-    activeTab === 'combined'
-      ? combinedValue
-      : activeTab === 'egs'
-        ? egs
-        : activeTab === 'vndb'
-          ? vndb
-          : activeTab === 'ai'
-            ? estimate?.minutes ?? null
-          : mine;
+  const headlineValues: Record<Tab, number | null> = {
+    combined: combinedValue,
+    egs,
+    vndb,
+    ai: estimate?.minutes ?? null,
+    mine,
+  };
+  const headlineValue = headlineValues[activeTab];
 
   async function saveEstimate() {
-    if (estimateSaving) return;
+    if (estimateAbortRef.current) return;
     const minutes = hoursToMinutes(estimateForm.hours);
     const lower = hoursToMinutes(estimateForm.lowerHours);
     const upper = hoursToMinutes(estimateForm.upperHours);
@@ -128,10 +121,14 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
       toast.error(t.playtime.aiInvalid);
       return;
     }
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    estimateAbortRef.current = controller;
     setEstimateSaving(true);
     try {
       const response = await fetch(`/api/collection/${vnId}/ai-playtime`, {
         method: 'PUT',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           minutes,
@@ -145,32 +142,45 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
       if (!response.ok) throw new Error(await readApiError(response, t.common.error));
       const payload = await response.json() as { estimate?: AiPlaytimeEstimate };
       if (!payload.estimate) throw new Error(t.common.error);
+      if (identityRef.current !== ownerVnId || estimateAbortRef.current !== controller || controller.signal.aborted) return;
       setEstimate(payload.estimate);
       setEstimateForm(estimateFormFrom(payload.estimate));
       toast.success(t.toast.saved);
       startTransition(() => router.refresh());
     } catch (error) {
+      if (identityRef.current !== ownerVnId || estimateAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((error as Error).message);
     } finally {
-      setEstimateSaving(false);
+      if (identityRef.current === ownerVnId && estimateAbortRef.current === controller) {
+        estimateAbortRef.current = null;
+        setEstimateSaving(false);
+      }
     }
   }
 
   async function clearEstimate() {
-    if (estimateSaving || !estimate) return;
+    if (estimateAbortRef.current || !estimate) return;
+    const ownerVnId = vnId;
+    const controller = new AbortController();
+    estimateAbortRef.current = controller;
     setEstimateSaving(true);
     try {
-      const response = await fetch(`/api/collection/${vnId}/ai-playtime`, { method: 'DELETE' });
+      const response = await fetch(`/api/collection/${vnId}/ai-playtime`, { method: 'DELETE', signal: controller.signal });
       if (!response.ok) throw new Error(await readApiError(response, t.common.error));
+      if (identityRef.current !== ownerVnId || estimateAbortRef.current !== controller || controller.signal.aborted) return;
       setEstimate(null);
       setEstimateForm(estimateFormFrom(null));
       if (optimistic === 'ai') setOptimistic('auto');
-      toast.success(t.toast.removed);
+      toast.success(t.playtime.aiCleared);
       startTransition(() => router.refresh());
     } catch (error) {
+      if (identityRef.current !== ownerVnId || estimateAbortRef.current !== controller || controller.signal.aborted) return;
       toast.error((error as Error).message);
     } finally {
-      setEstimateSaving(false);
+      if (identityRef.current === ownerVnId && estimateAbortRef.current === controller) {
+        estimateAbortRef.current = null;
+        setEstimateSaving(false);
+      }
     }
   }
 
@@ -211,7 +221,8 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
     const IconForTab =
       activeTab === 'mine' ? UserIcon : activeTab === 'ai' ? BrainCircuit : activeTab === 'combined' ? Sparkles : activeTab === 'egs' ? Sparkles : Hourglass;
     return (
-      <div className="inline-flex items-center gap-2 text-[11px] text-muted">
+      <div className="space-y-2 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1">
           <IconForTab className="h-3 w-3" aria-hidden />
           <span className="font-bold uppercase tracking-wider">{t.playtime[activeTab]}</span>
@@ -221,11 +232,30 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
           type="button"
           onClick={() => setCompareOpen(true)}
           className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 text-[10px] text-muted hover:border-accent hover:text-accent can-hover:sm:min-h-0"
-          title={t.compare.compareTitle}
+          title={t.playtime.aiIncludedHint}
         >
           <GitCompareArrows className="h-3 w-3" aria-hidden />
           {t.compare.compareBtn}
         </button>
+        <button type="button" onClick={() => setCompareOpen(true)} className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 text-[10px] text-purple-300">
+          <BrainCircuit className="h-3 w-3" aria-hidden />
+          {t.playtime.aiEstimateTitle}
+        </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={t.playtime.combined}>
+          {[
+            { label: t.playtime.vndb, value: vndb },
+            { label: t.playtime.egs, value: egs },
+            { label: t.playtime.mine, value: mine },
+            { label: t.playtime.ai, value: estimate?.minutes ?? null },
+          ].map((source) => (
+            <div key={source.label} className="rounded-md border border-border bg-bg-card p-2">
+              <span className="font-semibold">{source.label}</span>
+              <span className="ml-2 font-mono text-white/85">{fmt(source.value)}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] font-normal">{t.playtime.aiIncludedHint}</p>
       </div>
     );
   }
@@ -235,19 +265,19 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
     icon: typeof UserIcon;
     label: string;
     value: number | null;
-    onUse: () => void;
-    useLabel: string;
+    onUse?: () => void;
+    useLabel?: string;
   }> = [
     { key: 'vndb', icon: Hourglass, label: 'VNDB', value: vndb, onUse: () => persist('vndb'), useLabel: t.compare.useVndb },
     { key: 'egs', icon: Sparkles, label: 'EGS', value: egs, onUse: () => persist('egs'), useLabel: t.compare.useEgs },
-    { key: 'ai', icon: BrainCircuit, label: t.playtime.ai, value: estimate?.minutes ?? null, onUse: () => persist('ai'), useLabel: t.playtime.useAi },
+    { key: 'ai', icon: BrainCircuit, label: t.playtime.ai, value: estimate?.minutes ?? null },
     {
       key: 'combined',
       icon: Sparkles,
       label: t.playtime.combined,
       value: combinedValue,
       onUse: () => persist('auto'),
-      useLabel: t.compare.useAuto,
+      useLabel: t.playtime.useMedian,
     },
     { key: 'mine', icon: Clock, label: t.playtime.mine, value: mine, onUse: () => persist('custom'), useLabel: t.compare.useCustom },
   ];
@@ -275,7 +305,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
               <div className={`text-sm font-mono ${empty ? 'text-muted/60' : 'text-white/90'}`}>
                 {fmt(c.value)}
               </div>
-              <button
+              {c.onUse && <button
                 type="button"
                 onClick={c.onUse}
                 disabled={saving || empty || (active && optimistic !== 'auto')}
@@ -291,7 +321,7 @@ export function PlaytimeCompare({ vnId, current, vndb, egs, mine, ai = null }: P
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 )}
                 {c.useLabel}
-              </button>
+              </button>}
             </div>
           );
         })}
@@ -373,14 +403,14 @@ function hoursToMinutes(value: string): number | null {
   const hours = Number(value);
   if (!Number.isFinite(hours) || hours <= 0) return null;
   const minutes = Math.round(hours * 60);
-  return Number.isSafeInteger(minutes) && minutes <= 10_000_000 ? minutes : null;
+  return Number.isSafeInteger(minutes) && minutes > 0 && minutes <= 10_000_000 ? minutes : null;
 }
 
 function EstimateInput({ label, value, onChange, max }: { label: string; value: string; onChange: (value: string) => void; max?: string }) {
   return (
     <label className="block text-[11px] text-muted">
       <span className="mb-1 block">{label}</span>
-      <input type="number" min="0" max={max} step="0.25" className="input w-full" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type="number" inputMode="decimal" min="0" max={max} step={max ? '1' : 'any'} className="input w-full" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

@@ -13,6 +13,10 @@ export interface ReadingQueueVn {
   image_sexual: number | null;
   length_minutes: number | null;
   egs_minutes: number | null;
+  /** Personal recorded time included in the canonical duration median. */
+  playtime_minutes?: number | null;
+  /** Independent AI estimate included in the canonical duration median. */
+  ai_playtime_minutes?: number | null;
 }
 
 /** One completed-title sample used to estimate the operator's reading speed. */
@@ -79,9 +83,10 @@ export function createPostgresHomeFeedRepository(): HomeFeedRepository {
       const result = await postgresQuery<ReadingQueueVn & QueryResultRow>(`
         SELECT q.vn_id, q.position, v.title, v.image_thumb, v.image_url,
           v.local_image_thumb, v.image_sexual, v.length_minutes,
-          e.playtime_median_minutes AS egs_minutes
+          e.playtime_median_minutes AS egs_minutes, c.playtime_minutes, c.ai_playtime_minutes
         FROM reading_queue q
         JOIN vn v ON v.id = q.vn_id
+        LEFT JOIN collection c ON c.vn_id = v.id
         LEFT JOIN egs_game e ON e.vn_id = v.id
         ORDER BY q.position ASC, q.added_at ASC
         LIMIT 1000
@@ -122,9 +127,10 @@ const sqliteRepository: HomeFeedRepository = {
     return db.prepare(`
       SELECT q.vn_id, q.position, v.title, v.image_thumb, v.image_url,
         v.local_image_thumb, v.image_sexual, v.length_minutes,
-        e.playtime_median_minutes AS egs_minutes
+        e.playtime_median_minutes AS egs_minutes, c.playtime_minutes, c.ai_playtime_minutes
       FROM reading_queue q
       JOIN vn v ON v.id = q.vn_id
+      LEFT JOIN collection c ON c.vn_id = v.id
       LEFT JOIN egs_game e ON e.vn_id = v.id
       ORDER BY q.position ASC, q.added_at ASC
       LIMIT 1000

@@ -4267,7 +4267,7 @@ export function listCollection({
     params.push(ratingMax);
   }
   const playtimeHoursExpression =
-    'ROUND(COALESCE(NULLIF(c.playtime_minutes, 0), NULLIF(e.playtime_median_minutes, 0), NULLIF(v.length_minutes, 0)) / 60.0)';
+    `(${COMBINED_PLAYTIME_SORT_SQL} / 60.0)`;
   if (typeof playtimeMinHours === 'number') {
     where.push(`${playtimeHoursExpression} >= ?`);
     params.push(playtimeMinHours);
@@ -5260,6 +5260,8 @@ export function getStats(): Stats {
 }
 
 export interface AggregateStats {
+  /** Sum of each collected VN's four-source duration median, not actual played time. */
+  median_playtime_minutes?: number;
   ratingDistribution: { bucket: number; count: number }[]; // 1..10
   finishedByMonth: { month: string; count: number; minutes: number }[];
   byLanguage: { lang: string; count: number }[];
@@ -5376,11 +5378,13 @@ function computeAggregateStats(): AggregateStats {
         COUNT(CASE WHEN e.egs_id IS NOT NULL THEN 1 END) AS matched,
         COUNT(CASE WHEN e.vn_id IS NULL OR e.egs_id IS NULL THEN 1 END) AS unmatched,
         AVG(CASE WHEN e.median IS NOT NULL THEN e.median END) AS avg_median,
-        COALESCE(SUM(CASE WHEN e.playtime_median_minutes IS NOT NULL THEN e.playtime_median_minutes END), 0) AS sum_playtime
+        COALESCE(SUM(CASE WHEN e.playtime_median_minutes IS NOT NULL THEN e.playtime_median_minutes END), 0) AS sum_playtime,
+        COALESCE(SUM(${COMBINED_PLAYTIME_SORT_SQL}), 0) AS median_playtime
       FROM collection c
+      JOIN vn v ON v.id = c.vn_id
       LEFT JOIN egs_game e ON e.vn_id = c.vn_id
     `)
-    .get() as { matched: number; unmatched: number; avg_median: number | null; sum_playtime: number };
+    .get() as { matched: number; unmatched: number; avg_median: number | null; sum_playtime: number; median_playtime: number };
 
   return {
     ratingDistribution,
@@ -5391,6 +5395,7 @@ function computeAggregateStats(): AggregateStats {
     byEdition,
     topTags: topTags.map((t) => ({ id: t.tag_id, name: t.tag_name, count: t.count })),
     byYear,
+    median_playtime_minutes: egsAgg.median_playtime,
     egs: {
       matched: egsAgg.matched,
       unmatched: egsAgg.unmatched,
@@ -9510,6 +9515,22 @@ export interface CollectionExportPayload {
     status: string;
     user_rating: number | null;
     playtime_minutes?: number | null;
+    /** Independent AI central duration; absent in older backups. */
+    ai_playtime_minutes?: number | null;
+    /** Lower bound of the AI duration in minutes. */
+    ai_playtime_lower_minutes?: number | null;
+    /** Upper bound of the AI duration in minutes. */
+    ai_playtime_upper_minutes?: number | null;
+    /** Optional confidence from zero to one. */
+    ai_playtime_confidence?: number | null;
+    /** Model that produced the estimate. */
+    ai_playtime_model?: string | null;
+    /** Optional explanation of the estimate. */
+    ai_playtime_rationale?: string | null;
+    /** Estimate generation timestamp in Unix milliseconds. */
+    ai_playtime_generated_at?: number | null;
+    /** Serialized per-field source preferences; absent in older backups. */
+    source_pref?: string | null;
     started_date: string | null;
     finished_date: string | null;
     notes: string | null;
@@ -9535,7 +9556,9 @@ export function exportData(): CollectionExportPayload {
     .all() as { id: string; title: string; raw: string | null; fetched_at: number }[];
   const collection = db
     .prepare(`SELECT vn_id, status, user_rating, playtime_minutes, started_date, finished_date, notes,
-                     favorite, location, edition_type, edition_label, physical_location, added_at, updated_at
+                     favorite, location, edition_type, edition_label, physical_location, added_at, updated_at,
+                     ai_playtime_minutes, ai_playtime_lower_minutes, ai_playtime_upper_minutes,
+                     ai_playtime_confidence, ai_playtime_model, ai_playtime_rationale, ai_playtime_generated_at, source_pref
               FROM collection`)
     .all() as CollectionExportPayload['collection'];
   const series = listSeries();
@@ -9624,6 +9647,18 @@ export function importData(payload: CollectionExportPayload | Partial<Collection
             c.edition_label, c.physical_location, c.added_at ?? Date.now(), c.updated_at ?? Date.now(),
           );
           rebuildVnPlaceIndex(c.vn_id);
+        }
+        if (c.ai_playtime_minutes !== undefined) {
+          db.prepare(`UPDATE collection SET
+            ai_playtime_minutes = ?, ai_playtime_lower_minutes = ?, ai_playtime_upper_minutes = ?,
+            ai_playtime_confidence = ?, ai_playtime_model = ?, ai_playtime_rationale = ?, ai_playtime_generated_at = ?
+            WHERE vn_id = ?`).run(
+            c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
+            c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale, c.ai_playtime_generated_at, c.vn_id,
+          );
+        }
+        if (c.source_pref !== undefined) {
+          db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?').run(c.source_pref, c.vn_id);
         }
         summary.collection_upserted++;
       } catch (e) {

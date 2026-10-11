@@ -427,6 +427,7 @@ route file or exported HTTP method changes.
 | /api/backup | GET |
 | /api/character/[id] | GET |
 | /api/collection/[id]/activity | GET, POST, DELETE |
+| /api/collection/[id]/ai-playtime | GET, PUT, DELETE |
 | /api/collection/[id]/assets | POST |
 | /api/collection/[id]/banner | POST, PATCH, DELETE |
 | /api/collection/[id]/cover | POST, DELETE, PATCH |
@@ -514,6 +515,8 @@ route file or exported HTTP method changes.
 | /api/tags/[id]/hydrate | GET |
 | /api/tags/web-tree | GET |
 | /api/traits | GET |
+| /api/translation-glossary/[id] | GET |
+| /api/translation-glossary/games | GET |
 | /api/vn/[id]/aspect | GET, PATCH, DELETE |
 | /api/vn/[id]/characters | GET |
 | /api/vn/[id]/erogamescape | GET, POST, DELETE |
@@ -1567,15 +1570,30 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
 ### Playtime model
 - Four sort keys + a virtual "All" column: `playtime` (user only,
   no fallback), `length_minutes` (VNDB length), `egs_playtime` (EGS
-  user-review median), `combined_playtime` (avg of every populated
-  source — VNDB / EGS / Mine — divided by count of populated, so a
-  single-source value ranks at its own magnitude).
-- `PlaytimeCompare` on `/vn/[id]` is the canonical UI; writes
-  `source_pref.playtime`.
+  user-review median), `combined_playtime` (mathematical median of
+  every positive VNDB / EGS / personal / AI duration). Null, zero
+  and negative durations are absent; even samples average the two
+  middle values without rounding before sorting or filtering.
+- `PlaytimeCompare` on `/vn/[id]` shows the four sources immediately,
+  including an empty AI source and its editor action. AI participates
+  automatically; no Use AI action is needed. Existing raw-source
+  preferences remain compatible but do not change the combined median.
 - `VnCard` shows the **All** value as primary chip + the per-source
-  breakdown beneath. When adding a new playtime surface, average the
-  three sources (not just two) — single-source fallback was the bug
-  earlier.
+  breakdown beneath with explicit source labels, including AI on touch
+  screens. New combined-duration surfaces use `medianPlaytime`; database
+  sorts and duration filters use `COMBINED_PLAYTIME_SORT_SQL` in both
+  SQLite and PostgreSQL. Actual played-time totals remain personal logs.
+- Comparison, EGS, reading-queue and wishlist duration surfaces use the
+  same four-source median. Stats sum these medians separately from actual
+  personal hours played. AI writes invalidate the SQLite aggregate cache.
+- Quick and advanced search and relation cards batch-load local personal,
+  EGS and AI values for owned VNs before projecting the shared card. Detail
+  pages outside the collection display the median of available VNDB/EGS
+  values while retaining their raw source values separately.
+- JSON transfer includes the complete bounded AI record and source map;
+  legacy imports preserve omitted AI data. CSV appends EGS / AI / median
+  columns while retaining the personal-playtime column unchanged. Migration
+  0015 requires complete AI core fields or an all-null cleared record.
 
 ### Publishers — release-level role, persisted on the VN row
 - VNDB's `/vn` endpoint exposes `developers{...}` but NOT publishers.

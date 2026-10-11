@@ -123,6 +123,27 @@ describe('GET /api/export/csv — formula-injection defense (TESTA-012)', () => 
     expect(row).toContain(',1,2024-05-07,2024-05-08,jp,physical,First press,dvd_case,Box 2; Main shelf,nas://visual-novels/rfc,1,');
   });
 
+  it('appends EGS, AI, and the shared median while preserving actual logged minutes', async () => {
+    const seeded = dbModule.listCollection({ sort: 'title', _projection: 'full-no-raw' }).find((item) => item.id === RFC_ID);
+    if (!seeded) throw new Error('expected seeded CSV row');
+    const row: CollectionItem = {
+      ...seeded, length_minutes: 600, playtime_minutes: 600,
+      egs: { egs_id: 90001, source: 'manual', median: null, average: null, count: null, playtime_median_minutes: 600, okazu: null, erogame: null },
+      ai_playtime: { minutes: 2400, lower_minutes: 2400, upper_minutes: 2400, confidence: null, model: 'synthetic-estimator', rationale: null, generated_at: 1000 },
+    };
+    const listSpy = vi.spyOn(dbModule, 'listCollection').mockReturnValueOnce([row]);
+    try {
+      const response = await GET(new NextRequest('http://127.0.0.1/api/export/csv'));
+      expect(response.status).toBe(200);
+      const rows = splitCsvRows(await response.text());
+      expect(rows[0]).toMatch(/updated_at,egs_playtime_minutes,ai_playtime_minutes,median_playtime_minutes$/);
+      expect(rows[1]).toMatch(/,600,2400,600$/);
+      expect(rows[1]).toContain(',600,600,');
+    } finally {
+      listSpy.mockRestore();
+    }
+  });
+
   it('exports an empty physical-location cell when an older row shape omits the field', async () => {
     const seeded = dbModule
       .listCollection({ sort: 'title', _projection: 'full-no-raw' })

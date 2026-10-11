@@ -72,7 +72,9 @@ async function exportPostgresCollection(client: PoolClient): Promise<CollectionE
   `);
   const collectionResult = await client.query<CollectionExportPayload['collection'][number] & QueryResultRow>(`
     SELECT vn_id, status, user_rating, playtime_minutes, started_date, finished_date, notes,
-           favorite, location, edition_type, edition_label, physical_location, added_at, updated_at
+           favorite, location, edition_type, edition_label, physical_location, added_at, updated_at,
+           ai_playtime_minutes, ai_playtime_lower_minutes, ai_playtime_upper_minutes,
+           ai_playtime_confidence, ai_playtime_model, ai_playtime_rationale, ai_playtime_generated_at, source_pref
     FROM collection ORDER BY vn_id
   `);
   const seriesResult = await client.query<CollectionExportPayload['series'][number] & QueryResultRow>(`
@@ -157,6 +159,18 @@ async function importPostgresCollection(
         entry.updated_at ?? Date.now(),
       ]);
       await rebuildPostgresCollectionPlaceIndex(client, entry.vn_id);
+      if (entry.ai_playtime_minutes !== undefined) {
+        await client.query(`UPDATE collection SET
+          ai_playtime_minutes = $1, ai_playtime_lower_minutes = $2, ai_playtime_upper_minutes = $3,
+          ai_playtime_confidence = $4, ai_playtime_model = $5, ai_playtime_rationale = $6, ai_playtime_generated_at = $7
+          WHERE vn_id = $8`, [
+          entry.ai_playtime_minutes, entry.ai_playtime_lower_minutes, entry.ai_playtime_upper_minutes,
+          entry.ai_playtime_confidence, entry.ai_playtime_model, entry.ai_playtime_rationale, entry.ai_playtime_generated_at, entry.vn_id,
+        ]);
+      }
+      if (entry.source_pref !== undefined) {
+        await client.query('UPDATE collection SET source_pref = $1 WHERE vn_id = $2', [entry.source_pref, entry.vn_id]);
+      }
       summary.collection_upserted += 1;
     }, () => {
       summary.errors.push(`collection ${entry.vn_id}: import failed`);

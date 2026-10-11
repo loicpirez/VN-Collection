@@ -289,7 +289,18 @@ export type CollectionCardApiItem = Omit<CollectionCardItem, PrivateCollectionCa
   in_reading_queue: boolean;
 };
 
-export interface VndbSearchHit {
+/** Local duration sources attached to external card rows without exposing AI provenance. */
+export interface LocalPlaytimeSources {
+  /** Actual recorded minutes, absent when the VN is outside the collection. */
+  playtime_minutes?: number;
+  /** EGS central duration in minutes, or null when unavailable. */
+  egs_playtime_minutes?: number | null;
+  /** AI central duration in minutes, or null when unavailable. */
+  ai_playtime_minutes?: number | null;
+}
+
+/** VNDB search row enriched with collection membership and local duration sources. */
+export interface VndbSearchHit extends LocalPlaytimeSources {
   id: string;
   title: string;
   alttitle: string | null;

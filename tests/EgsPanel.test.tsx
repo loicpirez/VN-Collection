@@ -102,7 +102,7 @@ describe('EgsPanel', () => {
     expect(screen.getByText('Sample EGS Game')).toBeTruthy();
     expect(screen.getByText(t.egs.fuzzyMatch as string)).toBeTruthy();
     expect(screen.getAllByText('80 / 100').length).toBeGreaterThan(0);
-    expect(screen.getByText(t.egs.playtimeSum as string, { exact: false })).toBeTruthy();
+    expect(screen.getByText(`${t.playtime.combined}:`)).toBeTruthy();
 
     const refreshButton = document.querySelector(`button[title="${t.egs.refresh}"]`);
     expect(refreshButton).toBeTruthy();

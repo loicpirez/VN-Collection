@@ -44,6 +44,10 @@ export interface WishlistEgsSummary {
 export interface WishlistClientItem extends VndbUlistEntry {
   in_collection: boolean;
   egs: WishlistEgsSummary | null;
+  /** Local personal duration when the wishlist title is owned. */
+  playtime_minutes?: number | null;
+  /** Independent local AI estimate, included automatically in the median. */
+  ai_playtime_minutes?: number | null;
 }
 
 /** Local wishlist route payload consumed by the wishlist page. */
@@ -214,7 +218,12 @@ export function decodeWishlistClientState(value: unknown): WishlistClientState |
     if (!row || !entry || typeof row.in_collection !== 'boolean' || egs === undefined) {
       return null;
     }
-    items.push({ ...entry, in_collection: row.in_collection, egs });
+    if ((row.playtime_minutes !== undefined && !isNullableFiniteNumber(row.playtime_minutes))
+      || (row.ai_playtime_minutes !== undefined && !isNullableFiniteNumber(row.ai_playtime_minutes))) return null;
+    items.push({ ...entry, in_collection: row.in_collection, egs,
+      ...(row.playtime_minutes !== undefined ? { playtime_minutes: row.playtime_minutes } : {}),
+      ...(row.ai_playtime_minutes !== undefined ? { ai_playtime_minutes: row.ai_playtime_minutes } : {}),
+    });
   }
   const base: WishlistClientState = {
     needsAuth: record.needsAuth === true,

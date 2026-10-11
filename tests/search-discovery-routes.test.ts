@@ -23,6 +23,7 @@ import { GET as egsSearchGET } from '@/app/api/egs/search/route';
 import { GET as duplicatesGET } from '@/app/api/maintenance/duplicates/route';
 import { GET as staleGET } from '@/app/api/maintenance/stale/route';
 import { addToCollection, db } from '@/lib/db';
+import { getAiPlaytimeRepository } from '@/lib/db/repositories/ai-playtime';
 import { loopbackForwardingHeaders } from './helpers/loopback-forwarding';
 
 const {
@@ -165,6 +166,32 @@ describe('POST /api/search/advanced', () => {
     const body = await res.json();
     expect(body.results[0].in_collection).toBe(true);
     expect(body.more).toBe(true);
+  });
+});
+
+describe.each(['quick', 'advanced'] as const)('%s search duration enrichment', (kind) => {
+  it('returns the three local sources alongside the unchanged VNDB duration', async () => {
+    db.prepare('INSERT INTO vn (id, title, length_minutes, fetched_at) VALUES (?, ?, ?, ?)').run(VN_ID, 'Synthetic four', 600, 1);
+    addToCollection(VN_ID, { status: 'playing', playtime_minutes: 600 });
+    db.prepare('INSERT INTO egs_game (vn_id, playtime_median_minutes, fetched_at) VALUES (?, ?, ?)').run(VN_ID, 600, 1);
+    await getAiPlaytimeRepository().set(VN_ID, {
+      minutes: 2400, lower_minutes: 1800, upper_minutes: 3000,
+      confidence: null, model: 'synthetic-test', rationale: null, generated_at: 1,
+    });
+    const results = [
+      { id: VN_ID, title: 'Synthetic four', length_minutes: 600 },
+      { id: 'v90503', title: 'Synthetic unowned', length_minutes: 900 },
+    ];
+    searchVnMock.mockResolvedValue({ results, more: false });
+    advancedSearchVnMock.mockResolvedValue({ results, more: false });
+    const response = kind === 'quick'
+      ? await searchGET(loopback('/api/search?q=synthetic', '10.11.1.1'))
+      : await advancedPOST(loopbackPost('/api/search/advanced', '10.11.1.2', { q: 'synthetic' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ results: [
+      { ...results[0], in_collection: true, playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400 },
+      { ...results[1], in_collection: false },
+    ], more: false });
   });
 });
 

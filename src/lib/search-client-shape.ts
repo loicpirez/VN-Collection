@@ -1,7 +1,7 @@
 import { decodeEgsCandidates, decodeEgsGame } from './egs-cache-shape';
 import type { EgsCandidate, EgsGame } from './erogamescape';
 import { asJsonRecord } from './json-shape';
-import type { VndbSearchHit } from './types';
+import type { LocalPlaytimeSources, VndbSearchHit } from './types';
 import { isValidVnId, isVndbVnId, normalizeVnId } from './vn-id-shape';
 import { decodeVndbSearchRow } from './vndb-search-row-shape';
 
@@ -62,8 +62,20 @@ function decodeSearchHit(value: unknown): VndbSearchHit | null {
   const record = asJsonRecord(value);
   const row = decodeVndbSearchRow(value);
   if (!record || !row || typeof record.in_collection !== 'boolean') return null;
+  const sources: LocalPlaytimeSources = {};
+  if ('playtime_minutes' in record) {
+    if (typeof record.playtime_minutes !== 'number' || !Number.isFinite(record.playtime_minutes)) return null;
+    sources.playtime_minutes = record.playtime_minutes;
+  }
+  for (const key of ['egs_playtime_minutes', 'ai_playtime_minutes'] as const) {
+    if (!(key in record)) continue;
+    const minutes = record[key];
+    if (minutes !== null && (typeof minutes !== 'number' || !Number.isFinite(minutes))) return null;
+    sources[key] = minutes;
+  }
   return {
     ...row,
+    ...sources,
     in_collection: record.in_collection,
   };
 }

@@ -14,6 +14,7 @@ import {
   type PostgresMigrationFile,
 } from '@/lib/db/migrate';
 import { closePostgresPool } from '@/lib/db/postgres';
+import { COMBINED_PLAYTIME_SORT_SQL } from '@/lib/db/collection-sort';
 import { createPostgresGeneratedIdRepository } from '@/lib/db/repositories/generated-id';
 import { createPostgresTextSearchRepository } from '@/lib/db/repositories/text-search';
 import { createPostgresVnReadRepository } from '@/lib/db/repositories/vn-read';
@@ -216,6 +217,61 @@ async function withIsolatedSchema(
 }
 
 describe('real PostgreSQL migration runtime', () => {
+  it('rejects every missing required AI field and allows an explicitly cleared estimate', async () => {
+    await withIsolatedSchema(async (pool) => {
+      await applyPostgresMigrations(pool, await listPostgresMigrations());
+      await pool.query("INSERT INTO vn (id, title, fetched_at) VALUES ('v90090', 'AI constraint fixture', 1)");
+      await pool.query(`INSERT INTO collection (vn_id, status, added_at, updated_at,
+        ai_playtime_minutes, ai_playtime_lower_minutes, ai_playtime_upper_minutes,
+        ai_playtime_confidence, ai_playtime_model, ai_playtime_generated_at)
+        VALUES ('v90090', 'planning', 1, 1, 900, 720, 1080, 0.8, 'synthetic-estimator', 1)`);
+      for (const field of ['ai_playtime_minutes', 'ai_playtime_lower_minutes', 'ai_playtime_upper_minutes',
+        'ai_playtime_model', 'ai_playtime_generated_at']) {
+        await expect(pool.query(`UPDATE collection SET ${field} = NULL WHERE vn_id = 'v90090'`))
+          .rejects.toThrow('collection_ai_playtime_consistency');
+      }
+      await pool.query(`UPDATE collection SET ai_playtime_minutes = NULL,
+        ai_playtime_lower_minutes = NULL, ai_playtime_upper_minutes = NULL,
+        ai_playtime_confidence = NULL, ai_playtime_model = NULL, ai_playtime_generated_at = NULL
+        WHERE vn_id = 'v90090'`);
+      const result = await pool.query('SELECT ai_playtime_minutes FROM collection WHERE vn_id = $1', ['v90090']);
+      expect(result.rows).toEqual([{ ai_playtime_minutes: null }]);
+    });
+  });
+
+  it('fails the corrective migration loudly for historical incomplete estimates without rewriting data', async () => {
+    await withIsolatedSchema(async (pool) => {
+      const migrations = await listPostgresMigrations();
+      await applyPostgresMigrations(pool, migrations.slice(0, 14));
+      await pool.query("INSERT INTO vn (id, title, fetched_at) VALUES ('v90091', 'Historical AI fixture', 1)");
+      await pool.query(`INSERT INTO collection (vn_id, status, added_at, updated_at, ai_playtime_minutes)
+        VALUES ('v90091', 'planning', 1, 1, 900)`);
+      await expect(applyPostgresMigrations(pool, migrations)).rejects.toThrow('collection_ai_playtime_consistency');
+      const result = await pool.query('SELECT ai_playtime_minutes FROM collection WHERE vn_id = $1', ['v90091']);
+      expect(result.rows).toEqual([{ ai_playtime_minutes: 900 }]);
+    });
+  });
+
+  it('executes the shared duration median with fractions and absent sources in PostgreSQL', async () => {
+    await withIsolatedSchema(async (pool) => {
+      await pool.query(`
+        CREATE TABLE vn (id TEXT PRIMARY KEY, length_minutes BIGINT);
+        CREATE TABLE egs_game (vn_id TEXT PRIMARY KEY, playtime_median_minutes BIGINT);
+        CREATE TABLE collection (vn_id TEXT PRIMARY KEY, playtime_minutes BIGINT, ai_playtime_minutes BIGINT);
+        INSERT INTO vn VALUES ('outlier', 600), ('fraction', 600), ('only-ai', NULL), ('none', NULL);
+        INSERT INTO egs_game VALUES ('outlier', 600), ('fraction', 901), ('only-ai', 0), ('none', NULL);
+        INSERT INTO collection VALUES ('outlier', 600, 2400), ('fraction', 1200, 2400), ('only-ai', 0, 900), ('none', -1, 0);
+      `);
+      const result = await pool.query(`SELECT c.vn_id AS id, (${COMBINED_PLAYTIME_SORT_SQL})::double precision AS minutes
+        FROM collection c JOIN vn v ON v.id = c.vn_id LEFT JOIN egs_game e ON e.vn_id = c.vn_id
+        ORDER BY ${COMBINED_PLAYTIME_SORT_SQL} DESC NULLS LAST`);
+      expect(result.rows).toEqual([
+        { id: 'fraction', minutes: 1050.5 }, { id: 'only-ai', minutes: 900 },
+        { id: 'outlier', minutes: 600 }, { id: 'none', minutes: null },
+      ]);
+    });
+  });
+
   it('applies the shipped baseline once inside an isolated schema', async () => {
     await withIsolatedSchema(async (pool, schema) => {
       const migrations = await listPostgresMigrations();

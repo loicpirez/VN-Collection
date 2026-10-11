@@ -367,6 +367,8 @@ describe('db exported image, EGS, activity, and enum helpers', () => {
     expect(getSourcePref('v90030')).toEqual({ description: 'egs', rating: 'custom' });
     setSourcePref('v90030', { title: 'auto' });
     expect(getSourcePref('v90030')).toEqual({});
+    setSourcePref('v90030', { title: 'ai', playtime: 'ai' });
+    expect(getSourcePref('v90030')).toEqual({ playtime: 'ai' });
   });
 });
 

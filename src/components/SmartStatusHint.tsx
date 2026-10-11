@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, Loader2, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { isoCalendarDay } from '@/lib/locale-number';
+import { medianPlaytime } from '@/lib/playtime';
 import { useToast } from './ToastProvider';
 
 import { readApiError } from '@/lib/api-error-read';
@@ -12,6 +13,10 @@ interface Props {
   status: string | null | undefined;
   playtimeMinutes: number | null | undefined;
   vndbLengthMinutes: number | null | undefined;
+  /** EGS duration participating in the combined median. */
+  egsLengthMinutes?: number | null;
+  /** Independent AI duration participating in the combined median. */
+  aiPlaytimeMinutes?: number | null;
 }
 
 /**
@@ -20,7 +25,7 @@ interface Props {
  * at or above the community length estimate. Dismiss is session-local so
  * a refresh re-surfaces it; auto-hides once the user confirms.
  */
-export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinutes }: Props) {
+export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinutes, egsLengthMinutes, aiPlaytimeMinutes }: Props) {
   const t = useT();
   const locale = useLocale();
   const toast = useToast();
@@ -47,7 +52,7 @@ export function SmartStatusHint({ vnId, status, playtimeMinutes, vndbLengthMinut
   }, [vnId]);
 
   const playtime = playtimeMinutes ?? 0;
-  const estimatedLength = vndbLengthMinutes ?? 0;
+  const estimatedLength = medianPlaytime(vndbLengthMinutes, egsLengthMinutes, aiPlaytimeMinutes) ?? 0;
   const shouldShow = status === 'playing'
     && playtime > 0
     && estimatedLength > 0

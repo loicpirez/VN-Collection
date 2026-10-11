@@ -139,6 +139,7 @@ function cardRow(id: string, title: string, extra: Record<string, unknown> = {})
     image_sexual: null,
     released: null,
     length_minutes: null,
+    ai_playtime_minutes: null,
     rating: null,
     developers: [],
     publishers: [],

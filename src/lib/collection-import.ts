@@ -263,6 +263,60 @@ function decodeCollectionRow(value: unknown, index: number): ValidationResult<Co
   const updatedAt = row.updated_at ?? Date.now();
   if (!isSafeTimestamp(addedAt)) return fail(`collection[${index}].added_at must be a non-negative safe integer`);
   if (!isSafeTimestamp(updatedAt)) return fail(`collection[${index}].updated_at must be a non-negative safe integer`);
+  const aiFields: Partial<CollectionExportPayload['collection'][number]> = {};
+  const aiKeys = ['ai_playtime_minutes', 'ai_playtime_lower_minutes', 'ai_playtime_upper_minutes',
+    'ai_playtime_confidence', 'ai_playtime_model', 'ai_playtime_rationale', 'ai_playtime_generated_at'];
+  if (aiKeys.some((key) => key in row)) {
+    if (!aiKeys.every((key) => key in row)) return fail(`collection[${index}].ai_playtime is incomplete`);
+    if (aiKeys.every((key) => row[key] === null)) {
+      aiFields.ai_playtime_minutes = null;
+      aiFields.ai_playtime_lower_minutes = null;
+      aiFields.ai_playtime_upper_minutes = null;
+      aiFields.ai_playtime_confidence = null;
+      aiFields.ai_playtime_model = null;
+      aiFields.ai_playtime_rationale = null;
+      aiFields.ai_playtime_generated_at = null;
+    } else {
+      const minutes = row.ai_playtime_minutes;
+      const lower = row.ai_playtime_lower_minutes;
+      const upper = row.ai_playtime_upper_minutes;
+      const confidence = row.ai_playtime_confidence;
+      const model = row.ai_playtime_model;
+      const rationale = row.ai_playtime_rationale;
+      const generatedAt = row.ai_playtime_generated_at;
+      if (typeof minutes !== 'number' || !Number.isSafeInteger(minutes) || minutes <= 0 || minutes > 10_000_000
+        || typeof lower !== 'number' || !Number.isSafeInteger(lower) || lower <= 0 || lower > minutes
+        || typeof upper !== 'number' || !Number.isSafeInteger(upper) || upper < minutes || upper > 10_000_000
+        || !isNullableFiniteNumber(confidence) || (confidence !== null && (confidence < 0 || confidence > 1))
+        || typeof model !== 'string' || model.trim().length === 0 || model.length > 200
+        || !isNullableString(rationale, 2000) || !isSafeTimestamp(generatedAt)) {
+        return fail(`collection[${index}].ai_playtime is invalid`);
+      }
+      aiFields.ai_playtime_minutes = minutes;
+      aiFields.ai_playtime_lower_minutes = lower;
+      aiFields.ai_playtime_upper_minutes = upper;
+      aiFields.ai_playtime_confidence = confidence;
+      aiFields.ai_playtime_model = model;
+      aiFields.ai_playtime_rationale = rationale;
+      aiFields.ai_playtime_generated_at = generatedAt;
+    }
+  }
+  if (row.source_pref !== undefined) {
+    if (!isNullableString(row.source_pref, 2000)) return fail(`collection[${index}].source_pref is invalid`);
+    if (row.source_pref !== null) {
+      try {
+        const preferences = asJsonRecord(JSON.parse(row.source_pref));
+        if (!preferences || !Object.entries(preferences).every(([field, choice]) =>
+          ['title', 'description', 'image', 'brand', 'rating', 'playtime'].includes(field)
+          && (choice === 'auto' || choice === 'vndb' || choice === 'egs' || choice === 'custom' || (field === 'playtime' && choice === 'ai')))) {
+          return fail(`collection[${index}].source_pref is invalid`);
+        }
+      } catch {
+        return fail(`collection[${index}].source_pref is invalid`);
+      }
+    }
+    aiFields.source_pref = row.source_pref;
+  }
   return {
     ok: true,
     value: {
@@ -270,6 +324,7 @@ function decodeCollectionRow(value: unknown, index: number): ValidationResult<Co
       status: row.status,
       user_rating: userRating,
       playtime_minutes: playtime,
+      ...aiFields,
       started_date: startedDate,
       finished_date: finishedDate,
       notes,

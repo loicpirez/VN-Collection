@@ -96,6 +96,16 @@ describe('VN-detail repository', () => {
     expect(mocks.postgresQuery.mock.calls.map((call) => call[1]?.[1])).toEqual([200, 200, 1, 500]);
   });
 
+  it('preserves AI playtime and sibling preferences while rejecting AI for other fields', async () => {
+    const repository = createPostgresVnDetailRepository();
+    mocks.postgresQuery.mockResolvedValueOnce({ rows: [{ source_pref: '{"playtime":"ai","title":"vndb","image":"custom"}' }] });
+    await expect(repository.sourcePreference('v90001')).resolves.toEqual({ playtime: 'ai', title: 'vndb', image: 'custom' });
+    for (const field of ['title', 'description', 'image', 'brand', 'rating']) {
+      mocks.postgresQuery.mockResolvedValueOnce({ rows: [{ source_pref: JSON.stringify({ [field]: 'ai' }) }] });
+      await expect(repository.sourcePreference('v90001')).resolves.toEqual({});
+    }
+  });
+
   it('updates game logs through every normalization branch', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(500);

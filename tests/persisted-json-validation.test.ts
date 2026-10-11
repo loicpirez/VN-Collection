@@ -40,6 +40,9 @@ describe('persisted JSON validation', () => {
     db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?')
       .run(JSON.stringify({ title: 'egs', rating: 'custom' }), VN_ID);
     expect(getSourcePref(VN_ID)).toEqual({ title: 'egs', rating: 'custom' });
+    db.prepare('UPDATE collection SET source_pref = ? WHERE vn_id = ?')
+      .run(JSON.stringify({ title: 'ai', playtime: 'ai' }), VN_ID);
+    expect(getSourcePref(VN_ID)).toEqual({});
   });
 
   it('accepts only string arrays for disabled stock providers', () => {

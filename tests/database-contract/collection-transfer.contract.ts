@@ -44,6 +44,14 @@ function payload(): CollectionExportPayload {
         status: 'completed',
         user_rating: 88,
         playtime_minutes: 240,
+        ai_playtime_minutes: 900,
+        ai_playtime_lower_minutes: 720,
+        ai_playtime_upper_minutes: 1080,
+        ai_playtime_confidence: 0.8,
+        ai_playtime_model: 'synthetic-estimator',
+        ai_playtime_rationale: 'Synthetic estimate.',
+        ai_playtime_generated_at: 1_700_000_000_000,
+        source_pref: '{"playtime":"ai","title":"vndb"}',
         started_date: '2026-01-01',
         finished_date: '2026-01-03',
         notes: 'Imported note',
@@ -126,6 +134,14 @@ export function registerCollectionTransferRepositoryContract(
           user_rating: 88,
           favorite: 1,
           physical_location: '["Shelf A","Drawer B"]',
+          ai_playtime_minutes: 900,
+          ai_playtime_lower_minutes: 720,
+          ai_playtime_upper_minutes: 1080,
+          ai_playtime_confidence: 0.8,
+          ai_playtime_model: 'synthetic-estimator',
+          ai_playtime_rationale: 'Synthetic estimate.',
+          ai_playtime_generated_at: 1_700_000_000_000,
+          source_pref: '{"playtime":"ai","title":"vndb"}',
         });
         const series = exported.series.find((entry) => entry.name === COLLECTION_TRANSFER_CONTRACT.seriesName);
         expect(series).toMatchObject({
@@ -147,6 +163,23 @@ export function registerCollectionTransferRepositoryContract(
           series_links: 1,
         });
         expect(second.errors).toHaveLength(2);
+        const legacy = payload();
+        for (const entry of legacy.collection) {
+          delete entry.ai_playtime_minutes;
+          delete entry.ai_playtime_lower_minutes;
+          delete entry.ai_playtime_upper_minutes;
+          delete entry.ai_playtime_confidence;
+          delete entry.ai_playtime_model;
+          delete entry.ai_playtime_rationale;
+          delete entry.ai_playtime_generated_at;
+          delete entry.source_pref;
+        }
+        await repository.importData(legacy);
+        const afterLegacy = await repository.exportData();
+        expect(afterLegacy.collection.find((entry) => entry.vn_id === COLLECTION_TRANSFER_CONTRACT.vnId)).toMatchObject({
+          ai_playtime_minutes: 900,
+          source_pref: '{"playtime":"ai","title":"vndb"}',
+        });
       });
     });
   });

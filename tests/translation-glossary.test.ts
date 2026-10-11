@@ -61,6 +61,19 @@ beforeEach(() => {
 });
 
 describe('translation glossary shape', () => {
+  it('chooses the strongest appearance, defaults missing roles, and orders equal originals by romaji', () => {
+    const value = buildTranslationGlossary('V1', [
+      character({ id: 'c90001', name: 'Zulu', original: '共通', vns: [{ id: 'v1', role: 'side', spoiler: 0 }, { id: 'V1', role: 'main', spoiler: 0 }] }),
+      character({ id: 'c90002', name: 'Alpha', original: '共通', vns: [{ id: 'v1', role: 'main', spoiler: 0 }] }),
+      character({ id: 'c90003', name: 'Beta', original: '別', vns: [] }),
+    ]);
+    expect(value.characters.map(({ id, role }) => ({ id, role }))).toEqual([
+      { id: 'c90002', role: 'main' },
+      { id: 'c90001', role: 'main' },
+      { id: 'c90003', role: 'appears' },
+    ]);
+  });
+
   it('keeps only useful original-to-romaji mappings and orders roles', () => {
     const value = buildTranslationGlossary('V1', [
       character({ id: 'c2', name: 'Kyon', original: 'キョン', vns: [{ id: 'v1', role: 'main', spoiler: 0 }] }),
@@ -81,6 +94,23 @@ describe('translation glossary shape', () => {
 });
 
 describe('translation glossary routes', () => {
+  it('denies unauthorized character exports before fetching upstream data', async () => {
+    mocks.requireLocalhostOrToken.mockReturnValueOnce(NextResponse.json({ error: 'forbidden' }, { status: 403 }));
+    const response = await glossaryGET(req('/api/translation-glossary/v90001'), { params: Promise.resolve({ id: 'v90001' }) });
+    expect(response.status).toBe(403);
+    expect(mocks.getAllCharactersForVn).not.toHaveBeenCalled();
+  });
+
+  it('returns explicit errors when either repository or character export fails', async () => {
+    mocks.listCards.mockRejectedValueOnce(new Error('synthetic storage failure'));
+    const games = await gamesGET(req('/api/translation-glossary/games'));
+    expect(games.status).toBe(500);
+    await expect(games.json()).resolves.toMatchObject({ error: 'internal error', code: 'translation_glossary_games_unavailable' });
+    mocks.getAllCharactersForVn.mockRejectedValueOnce(new Error('synthetic upstream failure'));
+    const glossary = await glossaryGET(req('/api/translation-glossary/v90001'), { params: Promise.resolve({ id: 'v90001' }) });
+    expect(glossary.status).toBe(502);
+  });
+
   it('requires authorization and validates ids and pagination', async () => {
     const denied = NextResponse.json({ error: 'forbidden' }, { status: 403 });
     mocks.requireLocalhostOrToken.mockReturnValueOnce(denied);

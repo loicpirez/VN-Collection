@@ -47,6 +47,23 @@ const egsGame = {
 };
 
 describe('search client response adapters', () => {
+  it('preserves all three local duration sources without inventing legacy values', () => {
+    const sources = { playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400 };
+    expect(decodeVndbSearchResults({ results: [{ ...vndbRow, ...sources }] })?.[0]).toMatchObject(sources);
+    expect(decodeVndbSearchResults({ results: [{ ...vndbRow, playtime_minutes: 0, egs_playtime_minutes: null, ai_playtime_minutes: null }] })?.[0]).toMatchObject({
+      playtime_minutes: 0, egs_playtime_minutes: null, ai_playtime_minutes: null,
+    });
+    expect(decodeVndbSearchResults({ results: [vndbRow] })?.[0]).not.toHaveProperty('ai_playtime_minutes');
+    expect(decodeVndbSearchResults({ results: [{ ...vndbRow, egs_playtime_minutes: -1 }] })?.[0]?.egs_playtime_minutes).toBe(-1);
+  });
+
+  it.each(['playtime_minutes', 'egs_playtime_minutes', 'ai_playtime_minutes'] as const)('rejects malformed optional %s', (key) => {
+    for (const value of ['600', undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(decodeVndbSearchResults({ results: [{ ...vndbRow, [key]: value }] })).toBeNull();
+    }
+    expect(decodeVndbSearchResults({ results: [{ ...vndbRow, playtime_minutes: null }] })).toBeNull();
+  });
+
   it('decodes rich VNDB search rows and compact picker projections', () => {
     expect(decodeVndbSearchResults({ results: [vndbRow] })?.[0]?.id).toBe('v90001');
     expect(decodeVndbPickerResults({ results: [vndbRow] })?.[0]).toEqual({

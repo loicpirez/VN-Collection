@@ -18,6 +18,7 @@ import { BulkDownloadButton } from './BulkDownloadButton';
 import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
 import { BCP47, yearOnly } from '@/lib/locale-number';
+import { medianPlaytime } from '@/lib/playtime';
 import { decodeWishlistClientState, type WishlistClientItem, type WishlistClientState } from '@/lib/vndb-ui-client-shape';
 import { parseOptionalQueryInteger, parseQueryEnum } from '@/lib/query-params';
 
@@ -155,6 +156,8 @@ function wishlistCardData(it: WishlistClientItem): CardData {
     inCollectionBadge: it.in_collection,
     egs_median: it.egs?.median ?? null,
     egs_playtime_minutes: it.egs?.playtime_median_minutes ?? null,
+    playtime_minutes: it.playtime_minutes,
+    ai_playtime_minutes: it.ai_playtime_minutes,
   };
   wishlistCache.set(it, data);
   return data;
@@ -594,7 +597,8 @@ export function WishlistClient() {
         case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
-        case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
+        case 'length_desc': return (medianPlaytime(b.vn.length_minutes, b.egs?.playtime_median_minutes, b.playtime_minutes, b.ai_playtime_minutes) ?? 0)
+          - (medianPlaytime(a.vn.length_minutes, a.egs?.playtime_median_minutes, a.playtime_minutes, a.ai_playtime_minutes) ?? 0);
         case 'egs_rating_desc': return (b.egs?.median ?? 0) - (a.egs?.median ?? 0);
       }
     });

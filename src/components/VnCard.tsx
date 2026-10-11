@@ -2,7 +2,7 @@
 import { memo, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, BookMarked, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
+import { Star, BookMarked, BrainCircuit, CheckCheck, Clock, Hourglass, Building2, Check, Disc3, Loader2, MoreVertical, Package, Plus, Sparkles, X } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { SafeImage } from './SafeImage';
 import { useToast } from './ToastProvider';
@@ -17,6 +17,7 @@ import { formatMinutesOrNull as fmtMinutes } from '@/lib/format';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { readApiError } from '@/lib/api-error-read';
 import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
+import { medianPlaytime } from '@/lib/playtime';
 
 export interface CardData {
   id: string;
@@ -227,15 +228,7 @@ function VnCardImpl({
   const vndbLengthMin = data.length_minutes ?? null;
   const egsPlaytimeMin = data.egs_playtime_minutes ?? null;
   const aiPlaytimeMin = data.ai_playtime_minutes ?? null;
-  // "All playtime" = average of every populated source (matches the
-  // library's combined_playtime sort + the PlaytimeCompare component).
-  let allSum = 0;
-  let allCount = 0;
-  if (myPlaytimeMin && myPlaytimeMin > 0) { allSum += myPlaytimeMin; allCount++; }
-  if (vndbLengthMin && vndbLengthMin > 0) { allSum += vndbLengthMin; allCount++; }
-  if (egsPlaytimeMin && egsPlaytimeMin > 0) { allSum += egsPlaytimeMin; allCount++; }
-  if (aiPlaytimeMin && aiPlaytimeMin > 0) { allSum += aiPlaytimeMin; allCount++; }
-  const allPlaytimeMin = allCount > 0 ? Math.round(allSum / allCount) : null;
+  const allPlaytimeMin = medianPlaytime(myPlaytimeMin, vndbLengthMin, egsPlaytimeMin, aiPlaytimeMin);
   const myPlaytime = fmtMinutes(myPlaytimeMin, locale, t.year);
   const vndbLength = fmtMinutes(vndbLengthMin, locale, t.year);
   const egsPlaytime = fmtMinutes(egsPlaytimeMin, locale, t.year);
@@ -344,24 +337,28 @@ function VnCardImpl({
               {myPlaytime && (
                 <span className="inline-flex items-center gap-0.5" title={t.playtime.mine}>
                   <Clock className="h-2.5 w-2.5" aria-hidden />
+                  {t.playtime.mine}
                   {myPlaytime}
                 </span>
               )}
               {vndbLength && (
                 <span className="inline-flex items-center gap-0.5" title={t.playtime.vndb}>
                   <Hourglass className="h-2.5 w-2.5" aria-hidden />
+                  {t.playtime.vndb}
                   {vndbLength}
                 </span>
               )}
               {egsPlaytime && (
                 <span className="inline-flex items-center gap-0.5" title={t.playtime.egs}>
                   <Sparkles className="h-2.5 w-2.5" aria-hidden />
+                  {t.playtime.egs}
                   {egsPlaytime}
                 </span>
               )}
               {aiPlaytime && (
                 <span className="inline-flex items-center gap-0.5" title={t.playtime.ai}>
-                  <Sparkles className="h-2.5 w-2.5" aria-hidden />
+                  <BrainCircuit className="h-2.5 w-2.5" aria-hidden />
+                  {t.playtime.ai}
                   {aiPlaytime}
                 </span>
               )}

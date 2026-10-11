@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { internalError } from '@/lib/api-error';
+import { medianPlaytime } from '@/lib/playtime';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +33,9 @@ const COLUMNS = [
   'dumped',
   'added_at',
   'updated_at',
+  'egs_playtime_minutes',
+  'ai_playtime_minutes',
+  'median_playtime_minutes',
 ] as const;
 
 /**
@@ -96,6 +100,9 @@ export async function GET(req: Request): Promise<NextResponse> {
         it.dumped ? 1 : 0,
         it.added_at,
         it.updated_at,
+        it.egs?.playtime_median_minutes ?? '',
+        it.ai_playtime?.minutes ?? '',
+        medianPlaytime(it.playtime_minutes, it.length_minutes, it.egs?.playtime_median_minutes, it.ai_playtime?.minutes) ?? '',
       ];
       lines.push(row.map(csvEscape).join(','));
     }

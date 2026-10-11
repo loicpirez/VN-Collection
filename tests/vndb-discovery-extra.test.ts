@@ -39,6 +39,7 @@ import {
   fetchUlistEntry,
   fetchUlistEntriesByIds,
   fetchUlistLabels,
+  getAllCharactersForVn,
   getCharactersForTrait,
   getCharactersForTraitInVns,
   getCharactersForVn,
@@ -170,6 +171,22 @@ describe('fetchTopVnsByTag', () => {
 });
 
 describe('trait → character helpers', () => {
+  it('does not request a complete cast for an EGS-only identity', async () => {
+    await expect(getAllCharactersForVn('egs_90001')).resolves.toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('exports every cast page with the caller signal and deduplicates characters', async () => {
+    const controller = new AbortController();
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([charRow('c90001')], true)))
+      .mockResolvedValueOnce(jsonResponse(envelope([charRow('c90001'), charRow('c90002')])));
+    const characters = await getAllCharactersForVn('v90001', controller.signal);
+    expect(characters.map(({ id }) => id)).toEqual(['c90001', 'c90002']);
+    expect(providerFetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).page)).toEqual([1, 2]);
+    expect(providerFetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: expect.any(AbortSignal) });
+  });
+
   it('getCharactersForTrait applies the [traitId, maxSpoiler] tuple by default', async () => {
     providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([charRow('c90001')])));
     const out = await getCharactersForTrait('i9001');

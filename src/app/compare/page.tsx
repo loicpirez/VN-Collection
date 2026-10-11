@@ -9,6 +9,7 @@ import type { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import type { CollectionItem } from '@/lib/types';
 import { fmtNum, formatVndbDateString } from '@/lib/locale-number';
 import { formatMinutesWithDash as fmtMinutes } from '@/lib/format';
+import { medianPlaytime } from '@/lib/playtime';
 import { roleLabel } from '@/lib/staff-roles';
 import { platformLabel } from '@/lib/platform-label';
 import { languageDisplayName } from '@/lib/language-names';
@@ -274,7 +275,7 @@ export default async function ComparePage({
                     {formatVndbDateString(it.released, locale)}
                   </MobileCompareRow>
                   <MobileCompareRow label={t.compareView.row.length}>
-                    {fmtMinutes(it.length_minutes, locale, t)}
+                    <ComparedPlaytime item={it} locale={locale} t={t} />
                   </MobileCompareRow>
                   <MobileCompareRow label={t.compareView.row.languages}>
                     <LangList langs={it.languages} locale={locale} />
@@ -357,7 +358,7 @@ export default async function ComparePage({
 
             <CellHead label={t.compareView.row.length} />
             {items.map((it) => (
-              <div key={`len-${it.id}`} className="bg-bg-card p-3 text-sm">{fmtMinutes(it.length_minutes, locale, t)}</div>
+              <div key={`len-${it.id}`} className="bg-bg-card p-3 text-sm"><ComparedPlaytime item={it} locale={locale} t={t} /></div>
             ))}
 
             <CellHead label={t.compareView.row.languages} />
@@ -426,6 +427,24 @@ function MobileCompareRow({ label, children }: { label: string; children: React.
     <div className="grid grid-cols-[minmax(6.5rem,0.7fr)_minmax(0,1.3fr)] gap-3 px-4 py-3 text-xs">
       <dt className="font-bold text-muted">{label}</dt>
       <dd className="min-w-0">{children}</dd>
+    </div>
+  );
+}
+
+function ComparedPlaytime({ item, locale, t }: { item: CollectionItem; locale: Locale; t: Dictionary }) {
+  const sources = [
+    { label: t.playtime.vndb, minutes: item.length_minutes },
+    { label: t.playtime.egs, minutes: item.egs?.playtime_median_minutes },
+    { label: t.playtime.mine, minutes: item.playtime_minutes },
+    { label: t.playtime.ai, minutes: item.ai_playtime?.minutes },
+  ];
+  const median = medianPlaytime(...sources.map((source) => source.minutes));
+  return (
+    <div className="space-y-1">
+      <div>{t.playtime.combined}: {fmtMinutes(median, locale, t)}</div>
+      <div className="flex flex-wrap gap-x-2 text-[10px] text-muted">
+        {sources.map((source) => <span key={source.label}>{source.label}: {fmtMinutes(source.minutes, locale, t)}</span>)}
+      </div>
     </div>
   );
 }

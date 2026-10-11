@@ -26,6 +26,7 @@ export const deployedRegressionFixture = {
       status: 'planning',
       user_rating: null,
       playtime_minutes: 0,
+      ai_playtime_minutes: null,
       favorite: false,
       edition_type: 'physical',
       physical_location: ['Synthetic shelf'],

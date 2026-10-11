@@ -139,6 +139,9 @@ function searchCardData(r: VndbSearchHit): CardData {
     released: r.released,
     rating: r.rating,
     length_minutes: r.length_minutes,
+    playtime_minutes: r.playtime_minutes,
+    egs_playtime_minutes: r.egs_playtime_minutes,
+    ai_playtime_minutes: r.ai_playtime_minutes,
     inCollectionBadge: r.in_collection,
     developers: r.developers,
   };

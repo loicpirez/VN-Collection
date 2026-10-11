@@ -1,6 +1,6 @@
 # AI playtime estimate deployment handoff
 
-Status: source prepared and tested, then pushed to `main`; production deployment is intentionally left to the deployment agent.
+Status: the automatic four-source median correction has passed the complete release gates. Publication and immutable deployment are authorized; their exact revision and live evidence are recorded in the personal Wiki receipt after activation. The production activation described below is historical and remains a separate release.
 
 Deployment update, 11 October 2026: the exact application commit `533ed152697085aad0f20f55fe8c203d3a700921` is active with migration 0014. See the [sanitized deployment receipt](AI-PLAYTIME-DEPLOYMENT-RECEIPT-20261011.md) for fresh runtime evidence, preserved data, rollback and the known defects/red gates retained in that exact SHA. The original handoff verification below is historical, not a claim that the whole-project test suite passes.
 
@@ -13,9 +13,13 @@ The AI estimate is a fourth playtime source, separate from the user's actual `pl
 - personal recorded playtime;
 - bounded AI estimate.
 
-The AI record stores a central value, lower and upper bounds, optional confidence, model identifier, optional rationale, and generation timestamp. Selecting AI changes only `source_pref.playtime`. It never overwrites personal playtime.
+The AI record stores a central value, lower and upper bounds, optional confidence, model identifier, optional rationale, and generation timestamp. A populated positive AI estimate participates automatically. There is no separate "Use AI" activation button. Legacy raw-source preferences remain compatible and change only the detail headline, not the shared median. An AI estimate never overwrites personal playtime.
 
-`combined_playtime` is the arithmetic mean of every populated positive source. Null and zero values are ignored. The same shared SQL expression drives SQLite and PostgreSQL library sorting, while the detail comparison and cards apply the same four-source rule.
+`combined_playtime` is the mathematical median of every finite positive source. Null, zero and negative values are ignored. For an even sample, it averages the two middle values without intermediate rounding. For example, 600, 600, 600 and 2400 minutes produce 600 minutes, not 1050 minutes.
+
+The shared rule applies to the detail comparison, cards, EGS panel, comparison page, reading queue, wishlist duration ordering, library filtering/sorting and CSV median column. Quick/advanced search and relation cards batch-load personal, EGS and AI sources for owned VNs. A detail page outside the collection uses its available VNDB/EGS median and retains those raw values separately. SQLite and PostgreSQL execute the same median SQL expression. Stats sum per-VN medians into a separately labelled collection-duration total. Personal hours played, annual activity and reader-speed calibration retain actual recorded playtime. Completion hints compare the recorded time against the median of external VNDB/EGS/AI sources, excluding the recorded time from its own reference.
+
+JSON exports include all seven AI fields and the source-preference map. Importing an old backup that omits these fields preserves existing estimates; an explicit all-null record clears them. Invalid or partial estimates are rejected. CSV retains the existing personal-playtime column and appends EGS, AI and median duration columns.
 
 ## API and validation
 
@@ -92,7 +96,7 @@ never describe a request as persisted until its post-write GET matches.
 
 ## Schema and deployment
 
-Migration `0014_ai_playtime_estimate.sql` adds seven nullable columns plus a consistency constraint. It is expand-only.
+Migration `0014_ai_playtime_estimate.sql` adds seven nullable columns plus a consistency constraint. Migration `0015_ai_playtime_required_fields.sql` strengthens consistency: an estimate needs its central value, both bounds, model and timestamp, or all seven fields must be null. Optional confidence and rationale may remain null. The original migration is unchanged.
 
 1. Pull the latest `origin/main` on the VNCollection host.
 2. Preserve existing environment files, nginx Basic-auth configuration, proxy secret, PostgreSQL data, and storage volumes.
@@ -104,14 +108,29 @@ Migration `0014_ai_playtime_estimate.sql` adds seven nullable columns plus a con
    - malformed bounds return HTTP 400;
    - an authenticated `PUT` persists all provenance fields;
    - `source-pref` accepts `{"playtime":"ai"}` and rejects AI for every other field;
-   - selecting combined uses the four positive sources without changing personal playtime;
+   - saving AI immediately recalculates the four-source median, without a "Use AI" action or personal-playtime mutation;
    - sorting the library by total duration uses the same combined order;
+   - duration filtering, comparison, wishlist and reading queue use that median; stats distinguish collection-duration medians from personal hours played;
+   - JSON export/import preserves the complete AI record and legacy backup compatibility; CSV personal time remains unchanged;
    - `DELETE` clears the AI estimate and removes a now-stale AI source preference, without changing personal playtime.
 7. Record the deployed commit, migration version, and endpoint checks in the canonical wiki.
 
 Do not copy the nginx address, login, password, browser cookie, or proxy secret into a command transcript, commit, release note, or wiki page.
 
-## Verification before handoff
+## Current correction verification
+
+Fresh gates after the final source/test edit:
+
+- `yarn typecheck`: exit 0.
+- `yarn build`: exit 0; compiled, TypeScript passed and 5/5 static pages generated.
+- `yarn test`: exit 0; 985 files and 10,358 tests passed.
+- `yarn test:cov`: exit 0; 986 files and 10,457 tests passed, including PostgreSQL. Statements 47001/47001, branches 39800/39800, functions 9626/9626 and lines 40161/40161, all 100%.
+
+Local browser acceptance uses a separate SQLite database with only synthetic collection entries, not production data. An AI-only source participates after save/reload and disappears after clear. Four sources 10/10/10/40 h consistently show 10 h in the detail, cards, EGS, comparison and queue. A minimum filter of 14 h retains the AI-only 15 h entry. Stats show 25 h of medians separately from 10 h actually played. The optimized local build also renders the four-source detail automatically with no "Use AI" control.
+
+Widths of 390, 1024 and 1440 px were inspected; mobile comparison has no document overflow at 390 px. These are Chrome viewport checks, not physical iPhone/Safari acceptance. No new production activation is implied by this guide.
+
+## Historical verification before the original handoff
 
 - Production build: passed (`next build`, including TypeScript and route generation).
 - Focused tests: 52 tests passed across the AI route/form, executed four-source SQL sort, source preference, collection decoding, cards, route policy, and migration manifest.
@@ -125,9 +144,9 @@ The authenticated production snapshot contains 172 entries marked dumped. Agains
 
 The non-matched set is not equivalent to “missing from the PC”:
 
-- seven are explicit historical no-executable exclusions: `v1270`, `v2059`, `v177`, `v8533`, `v2398`, `egs_894`, and `v116`;
-- `v99` (Suika) is independently confirmed installed outside the launch-target snapshot: the sanitized canonical record `work/vn-length-audit/inventory.json` has `id=v99`, `origin=reconciled-path-live-verified`, `exeExists=true`, and `rootExists=true`; `wiki/apps/legacy-windows-vn-ninkyo-suika.md` independently records the verified Windows reconstruction and executable;
-- eight still require identity/path requalification: `v458`, `v21170`, `v86`, `v2515`, `v6385`, `v2301`, `v2654`, and `v16151`.
+- seven are explicit historical no-executable exclusions;
+- one is independently confirmed installed outside the launch-target snapshot by the canonical private installation inventory and reconstruction record;
+- eight still require identity/path requalification. Per-title identifiers and installation evidence remain in the personal Wiki rather than this public deployment guide.
 
 Therefore the evidence currently proves 157 of 172 dumped records present on the PC, identifies seven intentional exclusions, and leaves eight unresolved. It does **not** prove that those eight are absent.
 
@@ -135,4 +154,4 @@ Therefore the evidence currently proves 157 of 172 dumped records present on the
 
 ## Rollback
 
-Roll back the application commit and rebuild/restart the service. Because migration 0014 is nullable and expand-only, its columns may safely remain during an application rollback. Do not drop them during an incident; removal would be a later reviewed contract migration after backups and data-retention review.
+Roll back the application release and restart the service while preserving older immutable releases. Migration 0014 columns and the strengthened 0015 constraint can remain during application rollback: the previous valid writer satisfies the new constraint. Do not drop AI columns during an incident; removal would be a later reviewed contract migration after backups and data-retention review. Back up before migration, inspect any incompatible existing records read-only, and stop for explicit repair if migration rejects them rather than silently discarding estimates.

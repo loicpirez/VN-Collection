@@ -130,8 +130,8 @@ export default async function StatsPage() {
               locale={locale}
             />
             <Stat
-              label={t.stats.egsTotalPlaytime}
-              value={formatMinutes(my.playtime_minutes + agg.egs.sum_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '-' })}
+              label={t.stats.medianTotalPlaytime}
+              value={formatMinutes(agg.median_playtime_minutes, locale, t.year, { emptyValue: 'allow_zero', fallback: '-' })}
               locale={locale}
             />
           </div>

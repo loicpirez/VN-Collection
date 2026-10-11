@@ -174,6 +174,7 @@ describe('stats page runtime', () => {
     });
     mocks.aggregate.mockResolvedValue(aggregate({
       ratingDistribution: [{ bucket: 8, count: 2 }, { bucket: 9, count: 0 }],
+      median_playtime_minutes: 600,
       finishedByMonth: [{ month, count: 1, minutes: 150 }],
       byLanguage: [{ lang: 'ja', count: 3 }],
       byPlatform: [{ platform: 'win', count: 3 }],
@@ -196,6 +197,9 @@ describe('stats page runtime', () => {
 
     expect(html).toContain(dictionaries.en.stats.mySubtitle);
     expect(html).toContain(dictionaries.en.stats.egsTitle);
+    expect(html).toContain(dictionaries.en.stats.medianTotalPlaytime);
+    expect(html).not.toContain(dictionaries.en.stats.egsTotalPlaytime);
+    expect(html).toContain('10h');
     expect(html).toContain(dictionaries.en.charts.finishedByMonth);
     expect(html).toContain(dictionaries.en.charts.ratingDistribution);
     expect(html).toContain(dictionaries.en.charts.topTags);

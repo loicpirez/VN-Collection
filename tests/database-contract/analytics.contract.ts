@@ -36,6 +36,7 @@ export function registerAnalyticsRepositoryContract(
           ],
         });
         const aggregate = await repository.aggregate();
+        expect(aggregate.median_playtime_minutes).toBe(200);
         expect(aggregate.ratingDistribution.filter((row) => row.count > 0)).toEqual([
           { bucket: 6, count: 1 },
           { bucket: 8, count: 1 },

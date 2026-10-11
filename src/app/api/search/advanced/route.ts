@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api-error';
 import { advancedSearchVn, type AdvancedSearchOptions } from '@/lib/vndb';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getCollectionPlaytimeSources } from '@/lib/db/repositories/collection-playtime';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { PayloadTooLargeError, readBodyWithLimit } from '@/lib/read-limited-body';
 import {
@@ -107,8 +108,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const data = await advancedSearchVn(parsed.opts);
     // Single IN(...) lookup instead of one SELECT per result.
-    const ownedIds = await getCollectionCoreRepository().containsMany(data.results.map((v) => v.id));
-    const results = data.results.map((v) => ({ ...v, in_collection: ownedIds.has(v.id) }));
+    const ids = data.results.map((v) => v.id);
+    const [ownedIds, playtimeSources] = await Promise.all([
+      getCollectionCoreRepository().containsMany(ids),
+      getCollectionPlaytimeSources(ids),
+    ]);
+    const results = data.results.map((v) => ({
+      ...v,
+      ...playtimeSources.get(v.id),
+      in_collection: ownedIds.has(v.id),
+    }));
     return NextResponse.json({ results, more: data.more });
   } catch (err) {
     return upstreamError('search/advanced', err);

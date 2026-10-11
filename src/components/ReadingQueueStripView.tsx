@@ -37,6 +37,8 @@ export interface ReadingQueueEntry {
   local_image_thumb: string | null;
   image_sexual: number | null;
   predictedMinutes: number | null;
+  /** Canonical median of all populated duration sources, distinct from speed prediction. */
+  medianMinutes?: number | null;
 }
 
 interface Props {
@@ -48,6 +50,8 @@ interface Props {
   reorderHint: string;
   reorderKeyboardHint: string;
   youLabel: string;
+  /** Localized label for the canonical duration median. */
+  medianLabel?: string;
   errorLabel: string;
 }
 
@@ -73,6 +77,7 @@ export function ReadingQueueStripView({
   reorderHint,
   reorderKeyboardHint,
   youLabel,
+  medianLabel,
   errorLabel,
 }: Props) {
   const { state, busy, isHidden, isCollapsed, toggleCollapsed, hide } = useHomeSection(
@@ -174,6 +179,7 @@ export function ReadingQueueStripView({
                     locale={locale}
                     units={units}
                     youLabel={youLabel}
+                    medianLabel={medianLabel}
                     reorderHint={reorderHint}
                     disabled={saving}
                   />
@@ -193,6 +199,7 @@ function QueueChip({
   locale,
   units,
   youLabel,
+  medianLabel,
   reorderHint,
   disabled,
 }: {
@@ -201,6 +208,7 @@ function QueueChip({
   locale: Locale;
   units: { hoursUnit: string; minutesUnit: string };
   youLabel: string;
+  medianLabel?: string;
   reorderHint: string;
   disabled: boolean;
 }) {
@@ -214,6 +222,7 @@ function QueueChip({
     WebkitUserDrag: 'none' as const,
   };
   const predicted = formatMinutes(entry.predictedMinutes, locale, units, { fallback: '' });
+  const median = formatMinutes(entry.medianMinutes, locale, units, { fallback: '' });
   return (
     <li
       ref={setNodeRef}
@@ -245,6 +254,12 @@ function QueueChip({
         <span title={entry.title} className="line-clamp-1 max-w-[200px] font-semibold transition-colors can-hover:group-hover:text-accent">
           {entry.title}
         </span>
+        {median && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-bg-card/70 px-1.5 py-0.5 font-mono text-[10px] text-accent">
+            <Clock className="h-3 w-3" aria-hidden />
+            {medianLabel} {median}
+          </span>
+        )}
         {predicted && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded bg-bg-card/70 px-1.5 py-0.5 font-mono text-[10px] text-accent">
             <Clock className="h-3 w-3" aria-hidden />

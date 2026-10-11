@@ -25,6 +25,7 @@ vi.mock('@/lib/i18n/server', () => ({
     lists: { reorderHint: 'Reorder', reorderKeyboardHint: 'Keyboard reorder' },
     readingQueue: { title: 'Reading queue' },
     readingSpeed: { you: 'You' },
+    playtime: { combined: 'Median' },
     year: { hoursUnit: 'h', minutesUnit: 'm' },
   })),
   getLocale: vi.fn(async () => 'en'),

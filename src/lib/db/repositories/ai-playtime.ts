@@ -3,13 +3,21 @@ import type { AiPlaytimeEstimate } from '@/lib/types';
 import { readDatabaseConfig } from '../postgres-config';
 import { postgresQuery } from '../postgres';
 
+/** Validated estimate and provenance persisted independently of the personal play log. */
 export interface AiPlaytimeEstimateInput {
+  /** Central estimated duration in positive integer minutes. */
   minutes: number;
+  /** Positive lower bound, no greater than the central duration. */
   lower_minutes: number;
+  /** Positive upper bound, no smaller than the central duration. */
   upper_minutes: number;
+  /** Optional confidence in the inclusive zero-to-one range. */
   confidence: number | null;
+  /** Nonempty identifier of the estimator that produced the duration. */
   model: string;
+  /** Optional explanation of the estimate's evidence and uncertainty. */
   rationale: string | null;
+  /** Generation timestamp in Unix epoch milliseconds. */
   generated_at: number;
 }
 
@@ -23,9 +31,26 @@ interface AiPlaytimeRow extends QueryResultRow {
   ai_playtime_generated_at: number | null;
 }
 
+/** Backend-independent persistence contract for a collected VN's AI duration. */
 export interface AiPlaytimeRepository {
+  /**
+   * Reads a complete estimate, excluding absent or incomplete stored values.
+   * @param vnId - Canonical VN identifier.
+   * @returns Estimate and provenance, or null when unavailable.
+   */
   get(vnId: string): Promise<AiPlaytimeEstimate | null>;
+  /**
+   * Replaces the AI estimate without modifying personally logged minutes.
+   * @param vnId - Canonical identifier of an existing collected VN.
+   * @param estimate - Validated complete estimate.
+   * @returns Resolution after persistence succeeds.
+   */
   set(vnId: string, estimate: AiPlaytimeEstimateInput): Promise<void>;
+  /**
+   * Clears every AI provenance field while retaining other collection data.
+   * @param vnId - Canonical identifier of an existing collected VN.
+   * @returns Resolution after persistence succeeds.
+   */
   clear(vnId: string): Promise<void>;
 }
 
@@ -111,7 +136,7 @@ const sqliteRepository: AiPlaytimeRepository = {
     return mapEstimate(db.prepare(`SELECT ${SELECT_COLUMNS} FROM collection WHERE vn_id = ?`).get(vnId) as AiPlaytimeRow | undefined);
   },
   async set(vnId, estimate) {
-    const { db } = await import('@/lib/db');
+    const { db, invalidateAggregateStats } = await import('@/lib/db');
     db.prepare(`
       UPDATE collection SET
         ai_playtime_minutes = ?,
@@ -134,9 +159,10 @@ const sqliteRepository: AiPlaytimeRepository = {
       Date.now(),
       vnId,
     );
+    invalidateAggregateStats();
   },
   async clear(vnId) {
-    const { db } = await import('@/lib/db');
+    const { db, invalidateAggregateStats } = await import('@/lib/db');
     db.prepare(`
       UPDATE collection SET
         ai_playtime_minutes = NULL,
@@ -149,11 +175,16 @@ const sqliteRepository: AiPlaytimeRepository = {
         updated_at = ?
       WHERE vn_id = ?
     `).run(Date.now(), vnId);
+    invalidateAggregateStats();
   },
 };
 
 let postgresRepository: AiPlaytimeRepository | null = null;
 
+/**
+ * Resolves the configured database adapter, reusing the PostgreSQL instance.
+ * @returns Repository for the active database backend.
+ */
 export function getAiPlaytimeRepository(): AiPlaytimeRepository {
   if (readDatabaseConfig().backend !== 'postgres') return sqliteRepository;
   postgresRepository ??= createPostgresRepository();

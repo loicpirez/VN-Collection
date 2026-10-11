@@ -110,6 +110,17 @@ describe('VNDB UI client response adapters', () => {
     });
   });
 
+  it('preserves optional personal and AI duration sources while rejecting malformed numbers', () => {
+    for (const value of [null, 0, 720]) {
+      expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, playtime_minutes: value, ai_playtime_minutes: value }] })?.items[0]).toMatchObject({ playtime_minutes: value, ai_playtime_minutes: value });
+    }
+    expect(decodeWishlistClientState({ items: [WISHLIST_ROW] })?.items[0]).not.toHaveProperty('ai_playtime_minutes');
+    for (const field of ['playtime_minutes', 'ai_playtime_minutes']) {
+      expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, [field]: '720' }] })).toBeNull();
+      expect(decodeWishlistClientState({ items: [{ ...WISHLIST_ROW, [field]: Number.NaN }] })).toBeNull();
+    }
+  });
+
   it('rejects malformed local payloads', () => {
     expect(decodeVndbStatusClientState({ entry: null, labels: null })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: { id: 'bad' }, labels: [] })).toBeNull();

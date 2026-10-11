@@ -4,6 +4,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationsSection, type EnrichedRelation } from '@/components/RelationsSection';
 import { renderWithProviders } from './helpers/render-component';
+import type { CardData } from '@/components/VnCard';
 
 const sectionMocks = vi.hoisted(() => ({
   count: vi.fn(),
@@ -16,12 +17,8 @@ vi.mock('@/components/vn-detail/DetailSectionFrame', () => ({
 vi.mock('@/components/VnCard', () => ({
   VnCard: ({ badge, data }: {
     badge: { label: string; tone: string };
-    data: {
-      id: string;
-      poster: string | null;
-      publishers: Array<{ name: string }>;
-    };
-  }) => <div>{`${data.id}:${data.poster ?? 'none'}:${data.publishers.length}:${badge.label}:${badge.tone}`}</div>,
+    data: CardData;
+  }) => <div data-testid="relation-card" data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>{`${data.id}:${data.poster ?? 'none'}:${data.publishers?.length ?? 0}:${badge.label}:${badge.tone}`}</div>,
 }));
 
 function relation(overrides: Partial<EnrichedRelation> = {}): EnrichedRelation {
@@ -52,6 +49,17 @@ afterEach(() => {
 });
 
 describe('RelationsSection', () => {
+  it('projects local sources so related collection cards use the same four-source median', () => {
+    renderWithProviders(<RelationsSection relations={[relation({
+      in_collection: true, length_minutes: 600,
+      playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400,
+    })]} />, { locale: 'en' });
+    const card = screen.getByTestId('relation-card');
+    expect(card).toHaveAttribute('data-personal', '600');
+    expect(card).toHaveAttribute('data-egs', '600');
+    expect(card).toHaveAttribute('data-ai', '2400');
+  });
+
   it('renders nothing and clears the section count when no relations exist', () => {
     const { container } = renderWithProviders(<RelationsSection relations={[]} />, { locale: 'en' });
     expect(container).toBeEmptyDOMElement();

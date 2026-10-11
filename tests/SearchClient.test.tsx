@@ -8,6 +8,7 @@ import { SearchClient } from '@/components/SearchClient';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import type { EgsCandidate } from '@/lib/erogamescape';
 import type { VndbSearchHit } from '@/lib/types';
+import type { CardData } from '@/components/VnCard';
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -42,8 +43,8 @@ vi.mock('next/dynamic', () => ({
 }));
 
 vi.mock('@/components/VnCard', () => ({
-  VnCard: ({ data, enableAdd }: { data: { id: string; title: string }; enableAdd?: boolean }) => (
-    <article data-add={enableAdd ? '1' : '0'} data-testid="search-card">
+  VnCard: ({ data, enableAdd }: { data: CardData; enableAdd?: boolean }) => (
+    <article data-add={enableAdd ? '1' : '0'} data-testid="search-card" data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>
       <h2>{data.title}</h2>
       <span>{data.id}</span>
     </article>
@@ -122,6 +123,19 @@ afterEach(() => {
 });
 
 describe('SearchClient', () => {
+  it.each(['quick', 'advanced'] as const)('projects all local duration sources into %s cards', async (kind) => {
+    installFetch(() => json({ results: [hit({
+      in_collection: true, playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400,
+    })] }));
+    if (kind === 'advanced') nav.searchParams = new URLSearchParams('langs=ja');
+    const { user } = renderSearchClient();
+    if (kind === 'quick') await user.type(screen.getByRole('searchbox', { name: /VNDB/ }), 'sources');
+    await screen.findByText('Search Result One');
+    expect(screen.getByTestId('search-card')).toHaveAttribute('data-personal', '600');
+    expect(screen.getByTestId('search-card')).toHaveAttribute('data-egs', '600');
+    expect(screen.getByTestId('search-card')).toHaveAttribute('data-ai', '2400');
+  });
+
   it('focuses the empty VNDB search, runs quick search, and renders VN cards', async () => {
     const { user } = renderSearchClient();
 

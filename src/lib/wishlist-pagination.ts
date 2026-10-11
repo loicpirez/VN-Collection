@@ -3,6 +3,7 @@ import { BCP47, yearOnly } from '@/lib/locale-number';
 import type { WishlistClientItem } from '@/lib/vndb-ui-client-shape';
 import { parseOptionalQueryInteger, parseOptionalQueryNumber, parseQueryEnum } from '@/lib/query-params';
 import { createNumberedPageMeta, type NumberedPageMeta } from '@/lib/server-pagination';
+import { medianPlaytime } from './playtime';
 
 /** Default number of wishlist entries requested per server page. */
 export const WISHLIST_SERVER_PAGE_SIZE = 60;
@@ -190,7 +191,8 @@ export function paginateWishlist(source: WishlistClientItem[], query: WishlistSe
       case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
       case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
       case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
-      case 'length_desc': return (b.vn.length_minutes ?? 0) - (a.vn.length_minutes ?? 0);
+      case 'length_desc': return (medianPlaytime(b.vn.length_minutes, b.egs?.playtime_median_minutes, b.playtime_minutes, b.ai_playtime_minutes) ?? 0)
+        - (medianPlaytime(a.vn.length_minutes, a.egs?.playtime_median_minutes, a.playtime_minutes, a.ai_playtime_minutes) ?? 0);
       case 'egs_rating_desc': return (b.egs?.median ?? 0) - (a.egs?.median ?? 0);
     }
   });

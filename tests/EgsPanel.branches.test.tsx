@@ -274,10 +274,11 @@ describe('EgsPanel branches', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('renders the playtime breakdown rows for VNDB / EGS / mine and the sum chip', () => {
+  it('renders the four-source playtime breakdown and its median', () => {
     renderPanel({
       vndbLengthMinutes: 720,
       myPlaytimeMinutes: 180,
+      aiPlaytimeMinutes: 2400,
       initialGame: panelGame({ playtime_median_minutes: 600 }),
     });
     const playtimeSection = screen.getByText(t.egs.playtimeTitle).parentElement;
@@ -285,8 +286,8 @@ describe('EgsPanel branches', () => {
     expect(within(playtimeSection).getByText(t.egs.playtimeVndb)).toBeInTheDocument();
     expect(within(playtimeSection).getByText(t.egs.playtimeEgs)).toBeInTheDocument();
     expect(within(playtimeSection).getByText(t.egs.playtimeMine)).toBeInTheDocument();
-    // myPlaytime + egs both > 0 -> the accent sum chip renders.
-    expect(screen.getByText(t.egs.playtimeSum, { exact: false })).toBeInTheDocument();
+    expect(within(playtimeSection).getByText(t.playtime.ai)).toBeInTheDocument();
+    expect(screen.getByText(`${t.playtime.combined}:`)).toHaveTextContent('11h');
   });
 
   it('trims whitespace-only EGS brand metadata instead of rendering an empty chip', () => {
@@ -300,7 +301,7 @@ describe('EgsPanel branches', () => {
       myPlaytimeMinutes: 0,
       initialGame: panelGame({ playtime_median_minutes: 600 }),
     });
-    expect(screen.getByText(t.egs.playtimeSum, { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(`${t.playtime.combined}:`)).toHaveTextContent('10h');
   });
 
   it('uses an empty picker query when no empty-state search seed is provided', async () => {

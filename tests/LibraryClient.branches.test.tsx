@@ -61,7 +61,7 @@ import { LibraryClient } from '@/components/LibraryClient';
 function cardRow(id: string, title: string, extra: Record<string, unknown> = {}) {
   return {
     id, title, alttitle: null, image_url: null, image_thumb: null, image_sexual: null, released: null,
-    length_minutes: null, rating: null, developers: [], publishers: [], tags: [], relations: [],
+    length_minutes: null, ai_playtime_minutes: null, rating: null, developers: [], publishers: [], tags: [], relations: [],
     local_image: null, local_image_thumb: null, custom_cover: null, banner_image: null, banner_position: null,
     cover_rotation: 0, banner_rotation: 0, fetched_at: 1000, has_notes: false, list_count: 0, in_reading_queue: false,
     ...extra,

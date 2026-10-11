@@ -452,6 +452,16 @@ describe('WishlistClient', () => {
     expect(screen.getByText('No EGS Two')).toBeInTheDocument();
   });
 
+  it('orders AI-only durations before missing durations without treating missing sources as estimates', async () => {
+    nav.searchParams = new URLSearchParams('hideOwned=0&sort=length_desc');
+    const empty = item('v90040', 'No duration', { egs: null, vn: { ...item('v90040', 'No duration').vn, length_minutes: null } });
+    const aiOnly = item('v90041', 'AI duration', { egs: null, ai_playtime_minutes: 900, vn: { ...item('v90041', 'AI duration').vn, length_minutes: null } });
+    installFetch(state([empty, aiOnly, { ...empty, id: 'v90042', vn: { ...empty.vn, id: 'v90042', title: 'Also empty' } }]));
+    renderWishlist();
+    await screen.findByText('AI duration');
+    expect(screen.getAllByRole('article').map((article) => within(article).getByRole('heading').textContent)).toEqual(['AI duration', 'No duration', 'Also empty']);
+  });
+
   it('shows empty, error, and no-match states after resolved fetches', async () => {
     installFetch(state([]));
     const first = renderWishlist();

@@ -5,7 +5,7 @@ import { VnCard, type CardData } from './VnCard';
 import { useT } from '@/lib/i18n/client';
 import { useSectionCount } from './vn-detail/DetailSectionFrame';
 import { PaginatedGrid } from './PaginatedGrid';
-import type { VnRelation } from '@/lib/types';
+import type { LocalPlaytimeSources, VnRelation } from '@/lib/types';
 
 const RELATION_ORDER: Record<string, number> = {
   seq: 0,
@@ -20,7 +20,8 @@ const RELATION_ORDER: Record<string, number> = {
   orig: 9,
 };
 
-export interface EnrichedRelation extends VnRelation {
+/** Related VN card with membership and local sources for the automatic duration median. */
+export interface EnrichedRelation extends VnRelation, LocalPlaytimeSources {
   in_collection: boolean;
 }
 
@@ -40,6 +41,9 @@ function relationCardData(r: EnrichedRelation): CardData {
     released: r.released,
     rating: r.rating,
     length_minutes: r.length_minutes,
+    playtime_minutes: r.playtime_minutes,
+    egs_playtime_minutes: r.egs_playtime_minutes,
+    ai_playtime_minutes: r.ai_playtime_minutes,
     developers: r.developers,
     publishers: r.publishers ?? [],
     inCollectionBadge: r.in_collection,

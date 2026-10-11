@@ -42,14 +42,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // reads `it.vn.id` keeps working without a coordinated rename.
     //
     const ids = result.map((e) => e.id);
-    const [ownedSet, egsMap] = await Promise.all([
+    const [ownedSet, egsMap, localCards] = await Promise.all([
       getCollectionCoreRepository().containsMany(ids),
       getCollectionListRepository().egsSummaries(ids),
+      getCollectionListRepository().listCards({ vnIds: ids }),
     ]);
+    const localById = new Map(localCards.map((card) => [card.id, card]));
     const items: WishlistClientItem[] = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },
       in_collection: ownedSet.has(e.id),
+      ...(localById.has(e.id) ? {
+        playtime_minutes: localById.get(e.id)?.playtime_minutes,
+        ai_playtime_minutes: localById.get(e.id)?.ai_playtime?.minutes ?? null,
+      } : {}),
       egs: egsMap.get(e.id)
         ? {
             median: egsMap.get(e.id)!.median,

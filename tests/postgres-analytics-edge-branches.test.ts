@@ -26,6 +26,7 @@ describe('PostgreSQL analytics edge branches', () => {
       byStatus: [],
     });
     await expect(repository.aggregate()).resolves.toMatchObject({
+      median_playtime_minutes: 0,
       egs: {
         matched: 0,
         unmatched: 0,
@@ -47,12 +48,13 @@ describe('PostgreSQL analytics edge branches', () => {
     const repository = createPostgresAnalyticsRepository();
     mocks.postgresQuery.mockImplementation(async (sql: string) => ({
       rows: sql.includes('AS matched')
-        ? [{ matched: 2, unmatched: 3, avg_median: 78.26, sum_playtime: 900 }]
+        ? [{ matched: 2, unmatched: 3, avg_median: 78.26, sum_playtime: 900, median_playtime: 1200.5 }]
         : [],
       rowCount: 0,
     }));
 
     await expect(repository.aggregate()).resolves.toMatchObject({
+      median_playtime_minutes: 1200.5,
       egs: {
         matched: 2,
         unmatched: 3,

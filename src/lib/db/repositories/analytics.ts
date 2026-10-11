@@ -10,6 +10,7 @@ import type {
 import type { Stats } from '@/lib/types';
 import { readDatabaseConfig } from '../postgres-config';
 import { postgresQuery } from '../postgres';
+import { COMBINED_PLAYTIME_SORT_SQL } from '../collection-sort';
 
 /** Personal headline statistics rendered at the top of the stats page. */
 export interface PersonalStats extends Stats {
@@ -64,6 +65,7 @@ interface EgsAggregateRow extends QueryResultRow {
   unmatched: number;
   avg_median: number | null;
   sum_playtime: number;
+  median_playtime: number;
 }
 
 interface YearBaseRow extends QueryResultRow {
@@ -189,7 +191,10 @@ export function createPostgresAnalyticsRepository(): AnalyticsRepository {
             COUNT(*) FILTER (WHERE egs.vn_id IS NULL OR egs.egs_id IS NULL)::int AS unmatched,
             AVG(egs.median) FILTER (WHERE egs.median IS NOT NULL) AS avg_median,
             COALESCE(SUM(egs.playtime_median_minutes)
-              FILTER (WHERE egs.playtime_median_minutes IS NOT NULL), 0)::bigint AS sum_playtime
+              FILTER (WHERE egs.playtime_median_minutes IS NOT NULL), 0)::bigint AS sum_playtime,
+            (SELECT COALESCE(SUM(${COMBINED_PLAYTIME_SORT_SQL}), 0)::double precision
+              FROM collection c JOIN vn v ON v.id = c.vn_id
+              LEFT JOIN egs_game e ON e.vn_id = c.vn_id) AS median_playtime
           FROM collection coll LEFT JOIN egs_game egs ON egs.vn_id = coll.vn_id
         `),
       ]);
@@ -206,6 +211,7 @@ export function createPostgresAnalyticsRepository(): AnalyticsRepository {
         unmatched: 0,
         avg_median: null,
         sum_playtime: 0,
+        median_playtime: 0,
       };
       return {
         ratingDistribution,
@@ -216,6 +222,7 @@ export function createPostgresAnalyticsRepository(): AnalyticsRepository {
         byEdition: byEdition.rows,
         topTags: topTags.rows.map((tag) => ({ id: tag.tag_id, name: tag.tag_name, count: tag.count })),
         byYear: byYear.rows,
+        median_playtime_minutes: egsRow.median_playtime,
         egs: {
           matched: egsRow.matched,
           unmatched: egsRow.unmatched,

@@ -15,6 +15,7 @@ const { getEgsSummariesMock, isInCollectionManyMock } = vi.hoisted(() => ({
 const { recordActivityMock } = vi.hoisted(() => ({
   recordActivityMock: vi.fn(),
 }));
+const { listCardsMock } = vi.hoisted(() => ({ listCardsMock: vi.fn() }));
 
 const { invalidateWishlistCacheMock } = vi.hoisted(() => ({
   invalidateWishlistCacheMock: vi.fn(),
@@ -29,6 +30,14 @@ vi.mock('@/lib/vndb', () => ({
 vi.mock('@/lib/db', () => ({
   getEgsSummariesForVns: getEgsSummariesMock,
   isInCollectionMany: isInCollectionManyMock,
+  listCollectionForCards: listCardsMock,
+}));
+
+vi.mock('@/lib/db/repositories/collection-list', () => ({
+  getCollectionListRepository: () => ({
+    egsSummaries: getEgsSummariesMock,
+    listCards: listCardsMock,
+  }),
 }));
 
 vi.mock('@/lib/activity', () => ({
@@ -52,6 +61,7 @@ function ctx(id: string): { params: Promise<{ id: string }> } {
 
 describe('wishlist route branches', () => {
   beforeEach(() => {
+    listCardsMock.mockReset().mockReturnValue([]);
     for (const mock of [
       fetchWishlistMock,
       addWishlistMock,
@@ -88,6 +98,29 @@ describe('wishlist route branches', () => {
       { id: 'v90001', vn: { title: 'Wishlist One', id: 'v90001' }, in_collection: false, egs: { median: 82, playtime_median_minutes: 420 } },
       { id: 'v90002', vn: { title: 'Wishlist Two', id: 'v90002' }, in_collection: true, egs: null },
     ]);
+  });
+
+  it('includes local personal and AI duration sources without changing VNDB metadata', async () => {
+    fetchWishlistMock.mockResolvedValue([{ id: 'v90001', vn: { title: 'Synthetic', length_minutes: 600 } }]);
+    isInCollectionManyMock.mockReturnValue(new Set(['v90001']));
+    getEgsSummariesMock.mockReturnValue(new Map());
+    listCardsMock.mockReturnValue([{ id: 'v90001', playtime_minutes: 720, ai_playtime: { minutes: 2400 } }]);
+    const response = await wishlistGET(req('/api/wishlist'));
+    expect(response.status).toBe(200);
+    expect(listCardsMock).toHaveBeenCalledWith({ vnIds: ['v90001'] });
+    expect(await response.json()).toMatchObject({ items: [{
+      id: 'v90001', vn: { length_minutes: 600 }, playtime_minutes: 720, ai_playtime_minutes: 2400,
+    }] });
+  });
+
+  it('retains null AI duration for a collected wishlist entry without an estimate', async () => {
+    fetchWishlistMock.mockResolvedValue([{ id: 'v90001', vn: { title: 'Synthetic' } }]);
+    isInCollectionManyMock.mockReturnValue(new Set(['v90001']));
+    getEgsSummariesMock.mockReturnValue(new Map());
+    listCardsMock.mockReturnValue([{ id: 'v90001', playtime_minutes: 0, ai_playtime: null }]);
+    const response = await wishlistGET(req('/api/wishlist'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ items: [{ playtime_minutes: 0, ai_playtime_minutes: null }] });
   });
 
   it('returns a filtered server page while preserving the legacy response without page params', async () => {

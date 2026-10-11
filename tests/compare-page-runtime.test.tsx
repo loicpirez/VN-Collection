@@ -116,6 +116,20 @@ beforeEach(() => {
 });
 
 describe('compare page runtime', () => {
+  it('shows the four-source median and its AI source in both mobile and desktop comparisons', async () => {
+    repositoryMocks.getCollectionItem.mockImplementation(async (id: string) => collectionItem(id, {
+      length_minutes: 600,
+      playtime_minutes: 600,
+      egs: { egs_id: 90001, median: null, average: null, count: null, playtime_median_minutes: 600, source: 'manual', okazu: null, erogame: null },
+      ai_playtime: { minutes: 2400, lower_minutes: 2400, upper_minutes: 2400, confidence: null, model: 'synthetic-estimator', rationale: null, generated_at: 1 },
+    }));
+    const html = renderToStaticMarkup(await ComparePage({ searchParams: Promise.resolve({ ids: 'v90001,v90002' }) }));
+    expect(html.match(/Median: 10h/g)).toHaveLength(4);
+    expect(html.match(/AI: 40h/g)).toHaveLength(4);
+    expect(html).toContain('Playtime (median)');
+    expect(html).not.toContain('VNDB length');
+  });
+
   it('renders metadata and an empty picker without querying shared characters', async () => {
     expect(await generateMetadata()).toEqual({ title: dictionaries.en.compareView.pageTitle });
     await import('@/components/CompareVnPicker');

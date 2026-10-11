@@ -421,7 +421,8 @@ describe('VnCard', () => {
     );
 
     expect(screen.getByText('4:3')).toBeInTheDocument();
-    expect(screen.getAllByText('30min')).toHaveLength(2);
+    expect(screen.getByText('30min')).toBeInTheDocument();
+    expect(screen.getByTitle(t.playtime.mine)).toHaveTextContent('My time30min');
     expect(screen.queryByTitle(`${t.detail.publishers}: Shared studio`)).toBeNull();
   });
 

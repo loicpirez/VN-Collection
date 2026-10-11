@@ -79,7 +79,8 @@ function sourcePreference(raw: string | null): SourcePrefMap {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     const entries = Object.entries(parsed);
-    if (!entries.every(([field, choice]) => SOURCE_FIELDS.has(field) && SOURCE_CHOICES.has(String(choice)))) return {};
+    if (!entries.every(([field, choice]) => SOURCE_FIELDS.has(field) &&
+      (SOURCE_CHOICES.has(String(choice)) || (field === 'playtime' && choice === 'ai')))) return {};
     return parsed as SourcePrefMap;
   } catch {
     return {};
