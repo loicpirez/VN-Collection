@@ -2,6 +2,8 @@
 
 Status: source prepared and tested, then pushed to `main`; production deployment is intentionally left to the deployment agent.
 
+Deployment update, 11 October 2026: the exact application commit `533ed152697085aad0f20f55fe8c203d3a700921` is active with migration 0014. See the [sanitized deployment receipt](AI-PLAYTIME-DEPLOYMENT-RECEIPT-20261011.md) for fresh runtime evidence, preserved data, rollback and the known defects/red gates retained in that exact SHA. The original handoff verification below is historical, not a claim that the whole-project test suite passes.
+
 ## Product contract
 
 The AI estimate is a fourth playtime source, separate from the user's actual `playtime_minutes`:
