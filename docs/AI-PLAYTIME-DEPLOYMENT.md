@@ -37,6 +37,57 @@ The AI record stores a central value, lower and upper bounds, optional confidenc
 
 The endpoint is producer-neutral: a trusted local or authenticated estimator may generate values, then persist them through `PUT`. No model vendor credential or production Basic-auth credential belongs in this repository, logs, or wiki.
 
+## Guide for an estimation agent
+
+Use the AI field only for a researched estimate. Never copy an estimate into
+`playtime_minutes`, which is the user's real recorded playtime, and do not
+change `source_pref.playtime` unless the user explicitly asks for AI to become
+the preferred display source.
+
+For each collection VN:
+
+1. Read `GET /api/collection/{vnId}/ai-playtime` before doing any write. A VN
+   outside the collection returns 404 and must be skipped.
+2. Research a central completion time and a defensible lower/upper range.
+   Keep the consulted public URLs, page titles, access date and calculation in
+   the agent's working evidence. Do not invent precision when sources disagree.
+3. Convert hours to positive integer minutes with `round(hours * 60)` and
+   enforce `lower_minutes <= minutes <= upper_minutes`.
+4. Use a confidence from 0 to 1 only when it reflects source quality and
+   agreement; otherwise use `null`. Identify both the estimating model and the
+   prompt/method revision in `model`. Put only a concise, verifiable synthesis
+   in `rationale` (at most 2,000 characters), without credentials or private
+   host details.
+5. Make the payload deterministic. Keep `generated_at` stable while the same
+   evidence set is reused. If all seven returned fields already equal the
+   intended payload, do not send a PUT: an identical PUT would still add an
+   activity/update event.
+6. Send the protected PUT, require HTTP 200, then GET the same endpoint and
+   compare every returned field exactly. Record only the VN ID, outcome and a
+   payload digest in operational logs; never log authentication material.
+7. If an estimate must be withdrawn, use the protected DELETE for that VN and
+   require `{ "ok": true, "estimate": null }`, then confirm the same null
+   state with GET. This also clears a now-invalid AI playtime preference but
+   does not alter personal playtime.
+
+Example payload (minutes, not hours):
+
+```json
+{
+  "minutes": 720,
+  "lower_minutes": 600,
+  "upper_minutes": 900,
+  "confidence": 0.75,
+  "model": "estimator-name-version / method-revision",
+  "rationale": "Central estimate and range reconciled from dated public completion-time sources.",
+  "generated_at": 1700000000000
+}
+```
+
+For a batch, process one VN at a time with bounded concurrency and a retry cap.
+Report counts for unchanged, created, updated, skipped, failed and verified;
+never describe a request as persisted until its post-write GET matches.
+
 ## Schema and deployment
 
 Migration `0014_ai_playtime_estimate.sql` adds seven nullable columns plus a consistency constraint. It is expand-only.
