@@ -14,7 +14,9 @@ Kamui Local and PlayTranslate can download the VN collection game list and a com
   - Response fields: `version`, `games`, and `pagination`.
 - `GET /api/translation-glossary/:vndbId`
   - Accepts a VNDB `vNNN` identifier.
-  - Fetches at most 100 character records through the existing cached/throttled VNDB client.
+  - Fetches every VNDB character page (100 records per page), de-duplicates
+    character ids, and fails closed if an invalid upstream response keeps
+    pagination open beyond the 100-page safety guard.
   - Returns only useful `original` Japanese name → `romaji` mappings, aliases, and the character role in that VN.
 
 Both routes call `requireLocalhostOrToken`. On the nginx deployment, retain the existing Basic-auth boundary and trusted reverse-proxy secret/header configuration. Do not place Basic credentials in application environment variables or logs. Clients may authenticate to nginx with an ordinary `Authorization: Basic …` header; nginx must continue to add the application’s trusted proxy authentication after validating it.
@@ -37,6 +39,19 @@ Both routes call `requireLocalhostOrToken`. On the nginx deployment, retain the 
 - `vitest run tests/translation-glossary.test.ts tests/api-route-policy.test.ts`: passed (5 tests).
 - TypeScript produced no diagnostic for the new translation-glossary files. The sparse handoff checkout cannot complete the repository-wide typecheck because `scripts/prepare-qa-snapshot.ts`, which is outside the sparse checkout, is absent.
 - No production deployment, nginx edit, credential read, or database mutation was performed.
+
+## 11 October follow-up: complete casts
+
+The initial handoff fetched only the first 100 VNDB character rows. That
+implementation is superseded: the route now uses the exhaustive paged helper,
+so large casts are not silently truncated before role sorting and glossary
+generation. The deployment agent must pull the latest `main`, not the original
+`293e32b` handoff commit, and repeat the route/auth checks above.
+
+Fresh follow-up verification passed 13/13 focused route, pagination and auth
+tests. The repository-wide TypeScript command still stops only on the known
+sparse-checkout omission of `scripts/prepare-qa-snapshot.ts`; the new files
+produce no diagnostic before that unrelated missing-module error.
 
 ## Rollback
 

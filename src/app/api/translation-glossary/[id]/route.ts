@@ -3,7 +3,7 @@ import { upstreamError } from '@/lib/api-error';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { createRequestDeadline } from '@/lib/request-deadline';
 import { isValidVnId } from '@/lib/vn-id-shape';
-import { getCharactersForVn } from '@/lib/vndb';
+import { getAllCharactersForVn } from '@/lib/vndb';
 import { buildTranslationGlossary } from '@/lib/translation-glossary';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export async function GET(
   if (!isValidVnId(id)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   const deadline = createRequestDeadline(req.signal);
   try {
-    const characters = await getCharactersForVn(id, 100, deadline.signal);
+    const characters = await getAllCharactersForVn(id, deadline.signal);
     return NextResponse.json(buildTranslationGlossary(id, characters));
   } catch (error) {
     return upstreamError('translation-glossary/[id]', error);

@@ -17,6 +17,7 @@ import { throttledFetch } from './vndb-throttle';
 import type { Screenshot, VndbSearchHit } from './types';
 import { decodeVndbCharacterCacheResponse } from './vn-character-row';
 import type { VndbResultsEnvelope } from './vndb-response-shape';
+import { collectUniqueVndbPages } from './vndb-pagination';
 import {
   createVndbResultsEnvelopeDecoder,
   decodeVndbAuthInfo,
@@ -676,6 +677,26 @@ export async function getCharactersForVn(vnId: string, max = 30, signal?: AbortS
     results: Math.min(max, 100),
   }, TTL.characters, decodeVndbCharacter, signal);
   return r.results;
+}
+
+/**
+ * Fetch the complete character cast credited to one VN.
+ *
+ * VNDB caps one response page at 100 rows.  The translation-glossary API is
+ * an export/cache endpoint, so silently returning only the first page would
+ * make the local clients miss names in large casts.  Keep the ordinary
+ * UI-oriented helper above bounded, and use this exhaustive variant only for
+ * the glossary export.  The page guard is deliberately generous while still
+ * preventing a malformed upstream `more=true` loop from running forever.
+ */
+export async function getAllCharactersForVn(vnId: string, signal?: AbortSignal): Promise<VndbCharacter[]> {
+  if (!vnId.startsWith('v')) return [];
+  return collectUniqueVndbPages((page) => vndbPost<VndbCharacter>('/character', {
+    filters: ['vn', '=', ['id', '=', vnId]],
+    fields: CHARACTER_FIELDS,
+    results: 100,
+    page,
+  }, TTL.characters, decodeVndbCharacter, signal));
 }
 
 /**

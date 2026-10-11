@@ -4,7 +4,7 @@ import type { VndbCharacter } from '@/lib/vndb-types';
 import { buildTranslationGlossary } from '@/lib/translation-glossary';
 
 const mocks = vi.hoisted(() => ({
-  getCharactersForVn: vi.fn(),
+  getAllCharactersForVn: vi.fn(),
   listCards: vi.fn(),
   requireLocalhostOrToken: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock('@/lib/auth-gate', () => ({
 }));
 
 vi.mock('@/lib/vndb', () => ({
-  getCharactersForVn: mocks.getCharactersForVn,
+  getAllCharactersForVn: mocks.getAllCharactersForVn,
 }));
 
 vi.mock('@/lib/db/repositories/collection-list', () => ({
@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireLocalhostOrToken.mockReturnValue(null);
   mocks.listCards.mockResolvedValue([]);
-  mocks.getCharactersForVn.mockResolvedValue([]);
+  mocks.getAllCharactersForVn.mockResolvedValue([]);
 });
 
 describe('translation glossary shape', () => {
@@ -108,13 +108,13 @@ describe('translation glossary routes', () => {
     expect(mocks.listCards).toHaveBeenCalledWith({ sort: 'title', order: 'asc', limit: 3, offset: 2 });
   });
 
-  it('fetches up to one hundred characters and returns the compact glossary', async () => {
-    mocks.getCharactersForVn.mockResolvedValue([character({})]);
+  it('fetches the complete paginated cast and returns the compact glossary', async () => {
+    mocks.getAllCharactersForVn.mockResolvedValue([character({})]);
     const response = await glossaryGET(req('/api/translation-glossary/V1'), {
       params: Promise.resolve({ id: 'V1' }),
     });
     expect(response.status).toBe(200);
-    expect(mocks.getCharactersForVn).toHaveBeenCalledWith('v1', 100, expect.any(AbortSignal));
+    expect(mocks.getAllCharactersForVn).toHaveBeenCalledWith('v1', expect.any(AbortSignal));
     const body = await response.json();
     expect(body.characters).toEqual([
       { id: 'c1', original: '長門', romaji: 'Nagato', aliases: [], role: 'primary' },
