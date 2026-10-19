@@ -160,6 +160,7 @@ describe('TraitsBrowser', () => {
   });
 
   it('debounces trimmed URL search commits and resynchronizes external search values', async () => {
+    vi.spyOn(window.history, 'replaceState');
     vi.mocked(fetch).mockResolvedValue(jsonResponse());
     const { rerender } = renderWithProviders(<TraitsBrowser />, { locale: 'en' });
     await runTimers();
@@ -168,7 +169,8 @@ describe('TraitsBrowser', () => {
     await runTimers(299);
     expect(navigationMocks.replace).not.toHaveBeenCalled();
     await runTimers(1);
-    expect(navigationMocks.replace).toHaveBeenCalledWith('/traits?q=next', { scroll: false });
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '/traits?q=next');
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
 
     navigationMocks.replace.mockReset();
     navigationMocks.search = new URLSearchParams('q=external');
@@ -179,6 +181,7 @@ describe('TraitsBrowser', () => {
   });
 
   it('removes the final query parameter when the search input is cleared', async () => {
+    vi.spyOn(window.history, 'replaceState');
     navigationMocks.search = new URLSearchParams('q=existing');
     vi.mocked(fetch).mockResolvedValue(jsonResponse());
     renderWithProviders(<TraitsBrowser />, { locale: 'en' });
@@ -186,6 +189,15 @@ describe('TraitsBrowser', () => {
 
     fireEvent.change(screen.getByRole('textbox', { name: t.traits.searchPlaceholder }), { target: { value: '' } });
     await runTimers(300);
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '/traits');
+  });
+
+  it('removes the collection-only filter when it is the final URL parameter', async () => {
+    navigationMocks.search = new URLSearchParams('mine=1');
+    vi.mocked(fetch).mockResolvedValue(jsonResponse());
+    renderWithProviders(<TraitsBrowser />, { locale: 'en' });
+    await runTimers();
+    fireEvent.click(screen.getByRole('button', { name: t.library.filterMine }));
     expect(navigationMocks.replace).toHaveBeenCalledWith('/traits', { scroll: false });
   });
 

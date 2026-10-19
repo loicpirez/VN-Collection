@@ -49,6 +49,7 @@ import {
 } from '@/lib/virtual-grid';
 import type { CollectionPage } from '@/lib/collection-api-client';
 import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
+import { replaceSearchQueryInHistory, useDebouncedUrlInput } from '@/lib/use-debounced-url-input';
 
 /**
  * Tri-state flag panel for the long tail of boolean library filters.
@@ -226,19 +227,7 @@ const SearchInput = memo(function SearchInput({
   onCommit: (next: string) => void;
   debounceMs: number;
 }) {
-  const [draft, setDraft] = useState(urlValue);
-  // Sync from URL when an external reset / nav happens. Local typing
-  // drives the input but the URL is the source of truth on mount.
-  useEffect(() => {
-    setDraft(urlValue);
-  }, [urlValue]);
-  // Debounced commit - keep the timer outside React state to avoid
-  // re-rendering on every tick.
-  useEffect(() => {
-    if (draft === urlValue) return;
-    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
-    return () => clearTimeout(handle);
-  }, [draft, urlValue, onCommit, debounceMs]);
+  const [draft, setDraft] = useDebouncedUrlInput(urlValue, onCommit, debounceMs);
   return (
     <div className="relative min-w-[180px] flex-1">
       <input
@@ -390,8 +379,8 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
   );
 
   const commitSearch = useCallback(
-    (next: string) => setParam('q', next || null),
-    [setParam],
+    (next: string) => replaceSearchQueryInHistory('/', searchParamsString, next),
+    [searchParamsString],
   );
 
   const { settings, set } = useDisplaySettings();

@@ -430,6 +430,7 @@ function TagVndbResults({
                 <div className="aspect-[2/3] w-full overflow-hidden rounded">
                   <SafeImage
                     src={v.image?.thumbnail || v.image?.url || null}
+                    sexual={v.image?.sexual}
                     alt={v.title}
                     className="h-full w-full"
                   />

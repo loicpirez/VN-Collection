@@ -205,6 +205,16 @@ describe('readReleaseFullCache', () => {
 });
 
 describe('readStaffFullCache / decodeStaffFullPayload', () => {
+  it('preserves cover classification in both cached credit roles and rejects malformed flags', () => {
+    const value = { profile: null, productionCredits: [{ ...validStaffVnCredit(), image_sexual: 2 }], vaCredits: [{ ...validStaffVaCredit(), image_sexual: 0 }] };
+    expect(decodeStaffFullPayload(JSON.stringify(value), NOW)).toMatchObject({ productionCredits: [{ image_sexual: 2 }], vaCredits: [{ image_sexual: 0 }] });
+    expect(decodeStaffFullPayload(JSON.stringify(value).replace('"image_sexual":2', '"image_sexual":1e309'), NOW)).toBeNull();
+    expect(decodeStaffFullPayload(JSON.stringify(value).replace('"image_sexual":0', '"image_sexual":1e309'), NOW)).toBeNull();
+    for (const image_sexual of [null, '2']) {
+      expect(decodeStaffFullPayload(JSON.stringify({ ...value, productionCredits: [{ ...validStaffVnCredit(), image_sexual }] }), NOW)).toBeNull();
+      expect(decodeStaffFullPayload(JSON.stringify({ ...value, vaCredits: [{ ...validStaffVaCredit(), image_sexual }] }), NOW)).toBeNull();
+    }
+  });
   it('returns null on a cache miss', async () => {
     await expect(readStaffFullCache('s90099')).resolves.toBeNull();
   });

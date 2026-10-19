@@ -21,6 +21,8 @@ export interface VnPickerHit {
   released?: string | null;
   thumbnail?: string | null;
   localThumbnail?: string | null;
+  /** Source-provided cover classification used by the shared image policy. */
+  sexual?: number;
 }
 
 interface VnSourcePickerProps {
@@ -169,7 +171,7 @@ export function VnSourcePicker({
         >
           {hit.thumbnail && (
             <span className="h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-bg">
-              <SafeImage src={hit.thumbnail} localSrc={hit.localThumbnail} alt="" className="h-full w-full" fit="cover" />
+              <SafeImage src={hit.thumbnail} localSrc={hit.localThumbnail} sexual={hit.sexual} alt="" className="h-full w-full" fit="cover" />
             </span>
           )}
           <span className="min-w-0 flex-1">

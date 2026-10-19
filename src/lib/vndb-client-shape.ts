@@ -37,11 +37,11 @@ function decodeStringArray(value: unknown): string[] | null {
   return Array.isArray(value) && value.every(isString) ? value : null;
 }
 
-function decodeNullableImage(value: unknown): { url: string; thumbnail: string | null } | null | undefined {
+function decodeNullableImage(value: unknown): { url: string; thumbnail: string | null; sexual?: number } | null | undefined {
   if (value === null) return null;
   const record = asJsonRecord(value);
-  if (!record || !isString(record.url) || !isNullableString(record.thumbnail)) return undefined;
-  return { url: record.url, thumbnail: record.thumbnail };
+  if (!record || !isString(record.url) || !isNullableString(record.thumbnail) || !(record.sexual === undefined || isFiniteNumber(record.sexual))) return undefined;
+  return { url: record.url, thumbnail: record.thumbnail, ...(isFiniteNumber(record.sexual) ? { sexual: record.sexual } : {}) };
 }
 
 function decodeUlistLabels(value: unknown): { id: number; label: string }[] | null {
@@ -63,7 +63,7 @@ export interface VndbStaffCreditListRow {
   alttitle: string | null;
   released: string | null;
   rating: number | null;
-  image: { url: string; thumbnail: string | null } | null;
+  image: { url: string; thumbnail: string | null; sexual?: number } | null;
   staff: { id: string; role: string; note: string | null }[];
 }
 
@@ -76,7 +76,7 @@ export interface VndbVaCreditListRow {
   alttitle: string | null;
   released: string | null;
   rating: number | null;
-  image: { url: string; thumbnail: string | null } | null;
+  image: { url: string; thumbnail: string | null; sexual?: number } | null;
   va: {
     staff: { id: string };
     note: string | null;

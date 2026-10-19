@@ -99,6 +99,7 @@ function deferredResponse() {
 }
 
 beforeEach(() => {
+  vi.spyOn(window.history, 'replaceState');
   vi.useRealTimers();
   nav.replace.mockClear();
   nav.push.mockClear();
@@ -282,10 +283,10 @@ describe('SearchClient branches', () => {
     const { user } = renderSearchClient();
     await user.click(screen.getByRole('button', { name: /Advanced filters/ }));
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'released' } });
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?sort=released&reverse=1', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search?sort=released&reverse=1'));
     // Toggling reverse off drops it from the URL.
     await user.click(screen.getByRole('button', { name: 'Reverse order' }));
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?sort=released', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search?sort=released'));
   });
 
   it('resets the sort select back to default and clears the reverse flag', async () => {
@@ -294,13 +295,13 @@ describe('SearchClient branches', () => {
     expect(await screen.findByText('Advanced Result')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: '' } });
     // sort === '' -> reverse forced false; the URL drops both params.
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search'));
   });
 
   it('drops owned URL changes without resetting local search state', async () => {
     const { user, rerender } = renderSearchClient();
     await user.type(screen.getByRole('searchbox', { name: /VNDB/ }), 'owned');
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?q=owned', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search?q=owned'));
 
     nav.searchParams = new URLSearchParams('q=owned');
     rerender(
@@ -321,7 +322,7 @@ describe('SearchClient branches', () => {
         await act(async () => {
           vi.advanceTimersByTime(301);
         });
-        expect(nav.replace).toHaveBeenLastCalledWith(`/search?q=query-${i}`, { scroll: false });
+        expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', `/search?q=query-${i}`);
       }
     } finally {
       vi.useRealTimers();

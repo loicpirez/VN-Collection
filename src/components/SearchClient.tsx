@@ -136,6 +136,7 @@ function searchCardData(r: VndbSearchHit): CardData {
     id: r.id,
     title: r.title,
     poster: r.image?.thumbnail || r.image?.url || null,
+    sexual: r.image?.sexual,
     released: r.released,
     rating: r.rating,
     length_minutes: r.length_minutes,
@@ -282,9 +283,9 @@ export function SearchClient() {
           break;
         }
       }
-      router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
+      window.history.replaceState(null, '', qs ? `/search?${qs}` : '/search');
     },
-    [router],
+    [],
   );
 
   useEffect(() => {

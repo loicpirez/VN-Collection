@@ -9,9 +9,8 @@ import { decodeProducerRefreshSummary } from '@/lib/picker-client-shape';
 
 /**
  * Per-page Refresh for the producer detail view. POSTs to
- * `/api/producer/[id]/refresh` which busts the developer-side
- * (POST /vn:producer) and publisher-side (POST /release:producer)
- * cache rows, then re-fetches both. On success we trigger a router
+ * `/api/producer/[id]/refresh` which revalidates developer and publisher
+ * cache pages without deleting usable data on upstream failure. On success we trigger a router
  * refresh so the surrounding server component renders the new data.
  *
  * Kept separate from the global refresh button because the producer

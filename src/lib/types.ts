@@ -312,7 +312,7 @@ export interface VndbSearchHit extends LocalPlaytimeSources {
   length_minutes: number | null;
   languages: string[];
   platforms: string[];
-  image: { url: string; thumbnail: string } | null;
+  image: { url: string; thumbnail: string; sexual?: number } | null;
   developers: { name: string }[];
   in_collection: boolean;
 }

@@ -13,7 +13,7 @@ import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
-import { PaginatedGrid } from '@/components/PaginatedGrid';
+import { WorksScopeProvider, WorksScopeLink, WorksScopeGrid, WorksScopeSection, WorksScopeCount } from '@/components/WorksScope';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { readStaffFullCache } from '@/lib/staff-full';
 import { getStaff } from '@/lib/vndb';
@@ -69,15 +69,16 @@ export default async function StaffPage({
     people.staffSiblings(id),
     getAppSettingRepository().get(STAFF_DETAIL_SETTINGS_KEY),
   ]);
-  const production = inCollectionOnly
-    ? allProduction.filter((c) => c.vn.in_collection)
-    : allProduction;
-  const voice = inCollectionOnly
-    ? allVoice.filter((c) => c.vn.in_collection)
-    : allVoice;
-  if (!profile && production.length === 0 && voice.length === 0) notFound();
+  const production = allProduction;
+  const voice = allVoice;
 
-  const totalAll = countDistinctVnIds(allProduction, allVoice);
+  const fullCache = await readStaffFullCache(id);
+  const totalAll = new Set([
+    ...allProduction.map((credit) => credit.vn.id),
+    ...allVoice.map((credit) => credit.vn.id),
+    ...(fullCache?.productionCredits.map((credit) => credit.id) ?? []),
+    ...(fullCache?.vaCredits.map((credit) => credit.id) ?? []),
+  ]).size;
   const totalCol = countDistinctVnIds(
     allProduction.filter((c) => c.vn.in_collection),
     allVoice.filter((c) => c.vn.in_collection),
@@ -86,7 +87,9 @@ export default async function StaffPage({
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
 
-  const fullProfile = (await readStaffFullCache(id))?.profile ?? await getStaff(id).catch(() => null);
+  const fullProfile = fullCache?.profile ?? await getStaff(id).catch(() => null);
+  if (!profile && !fullProfile && production.length === 0 && voice.length === 0) notFound();
+  const displayProfile = profile ?? fullProfile;
   const aliases = (fullProfile?.aliases ?? []).filter((a) => !a.ismain);
   const extlinks = fullProfile?.extlinks ?? [];
   const description = fullProfile?.description ?? null;
@@ -106,7 +109,7 @@ export default async function StaffPage({
   const initialStaffLayout = parseStaffDetailLayoutV1(initialStaffLayoutValue);
 
   return (
-    <DensityScopeProvider scope="staffWorks" className="w-full">
+    <WorksScopeProvider initialScope={inCollectionOnly ? 'collection' : 'all'}><DensityScopeProvider scope="staffWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
@@ -114,19 +117,19 @@ export default async function StaffPage({
       <header className="mb-6 rounded-2xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="break-words text-2xl font-bold">{profile?.name ?? id}</h1>
-            {profile?.original && profile.original !== profile.name && (
-              <div className="mt-1 break-words text-sm text-muted">{profile.original}</div>
+            <h1 className="break-words text-2xl font-bold">{displayProfile?.name ?? id}</h1>
+            {displayProfile?.original && displayProfile.original !== displayProfile.name && (
+              <div className="mt-1 break-words text-sm text-muted">{displayProfile.original}</div>
             )}
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
-              {profile?.lang && (
+              {displayProfile?.lang && (
                 <Link
-                  href={`/staff?lang=${encodeURIComponent(profile.lang)}`}
+                  href={`/staff?lang=${encodeURIComponent(displayProfile.lang)}`}
                   className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-bg-elev/40 px-2 py-0.5 hover:border-accent hover:text-accent can-hover:sm:min-h-0"
-                  title={profile.lang}
+                  title={displayProfile.lang}
                 >
                   <Globe className="h-3 w-3" aria-hidden />
-                  {languageDisplayName(profile.lang, locale)}
+                  {languageDisplayName(displayProfile.lang, locale)}
                 </Link>
               )}
               {gender && (
@@ -145,7 +148,7 @@ export default async function StaffPage({
                 title={t.staff.productionCredits}
               >
                 <Users className="h-3 w-3" aria-hidden />
-                {production.length} {t.staff.vnCount} / {t.staff.productionCredits}
+                <WorksScopeCount all={production.length} owned={production.filter((credit) => credit.vn.in_collection).length} /> {t.staff.vnCount} / {t.staff.productionCredits}
               </a>
               <a
                 href="#voice-credits"
@@ -153,7 +156,7 @@ export default async function StaffPage({
                 title={t.staff.voiceCredits}
               >
                 <Mic2 className="h-3 w-3" aria-hidden />
-                {voice.length} {t.staff.vnCount} / {t.staff.voiceCredits}
+                <WorksScopeCount all={voice.length} owned={voice.filter((credit) => credit.vn.in_collection).length} /> {t.staff.vnCount} / {t.staff.voiceCredits}
               </a>
             </div>
             {aliases.length > 0 && (
@@ -226,20 +229,19 @@ export default async function StaffPage({
 
         <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev p-1 text-xs">
           <Filter className="ml-1 h-3 w-3 text-muted" aria-hidden />
-          <Link
+          <WorksScopeLink scope="all"
             href={`/staff/${id}`}
-            className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 can-hover:sm:min-h-0 ${!inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
           >
-            {t.staff.filterAll} ({totalAll})
-          </Link>
-          <Link
+            {t.staff.filterAll} ({!fullCache && totalAll === 0 ? t.common.loading : totalAll})
+          </WorksScopeLink>
+          <WorksScopeLink scope="collection"
             href={`/staff/${id}?scope=collection`}
-            className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 can-hover:sm:min-h-0 ${inCollectionOnly ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
           >
             {t.staff.filterInCollection} ({totalCol})
-          </Link>
+          </WorksScopeLink>
         </div>
       </header>
+      {totalAll > 0 && <WorksScopeCount all={totalAll} owned={totalCol} empty={<p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">{t.staff.empty}</p>} />}
 
       {(() => {
         const sectionLabels = t.staffLayout.sectionLabels;
@@ -247,7 +249,7 @@ export default async function StaffPage({
         if (voice.length > 0) staffSections.push({
           id: 'timeline',
           label: sectionLabels.timeline,
-          node: <div className="mb-6"><VaTimeline sid={id} /></div>,
+          node: <WorksScopeSection ownedCount={voice.filter((credit) => credit.vn.in_collection).length}><div className="mb-6"><VaTimeline sid={id} /></div></WorksScopeSection>,
         });
         if (staffSiblings.length > 0) staffSections.push({
           id: 'siblings',
@@ -287,12 +289,12 @@ export default async function StaffPage({
         if (voice.length > 0) staffSections.push({
           id: 'voice-credits',
           label: sectionLabels['voice-credits'],
-          node: <section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          node: <WorksScopeSection ownedCount={voice.filter((credit) => credit.vn.in_collection).length}><section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.staff.voiceCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ {voice.length}</span>
+            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={voice.length} owned={voice.filter((credit) => credit.vn.in_collection).length} /></span>
           </h2>
-          <PaginatedGrid
+          <WorksScopeGrid owned={voice.map((credit) => credit.vn.in_collection)}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${id}:voice`}
             className="grid gap-3"
@@ -358,24 +360,24 @@ export default async function StaffPage({
                 </VnCard>
               </li>
             ))}
-          </PaginatedGrid>
-        </section>,
+          </WorksScopeGrid>
+        </section></WorksScopeSection>,
         });
         if (groupedProduction.length > 0) staffSections.push({
           id: 'production-credits',
           label: sectionLabels['production-credits'],
           node: (
-            <section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+            <WorksScopeSection ownedCount={production.filter((credit) => credit.vn.in_collection).length}><section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Users className="h-4 w-4 text-accent" aria-hidden /> {t.staff.productionCredits}
-                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ {production.length}</span>
+                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={production.length} owned={production.filter((credit) => credit.vn.in_collection).length} /></span>
               </h2>
               {groupedProduction.map((g) => (
-                <div key={g.role} className="mb-6 last:mb-0">
+                <WorksScopeSection key={g.role} ownedCount={g.credits.filter((credit) => credit.vn.in_collection).length}><div className="mb-6 last:mb-0">
                   <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
                     {t.staff[ROLE_KEY[g.role]]}
                   </h3>
-                  <PaginatedGrid
+                  <WorksScopeGrid owned={g.credits.map((credit) => credit.vn.in_collection)}
                     ariaLabel={t.staff.creditsPaginationLabel}
                     resetKey={`${id}:production:${g.role}`}
                     className="grid gap-3"
@@ -386,10 +388,10 @@ export default async function StaffPage({
                         <VnCard vn={credit.vn} ownedLabel={t.staff.ownedLabel} ownedTitle={t.staff.ownedTitle} openOnVndb={t.detail.openOnVndb} locale={locale} />
                       </li>
                     ))}
-                  </PaginatedGrid>
-                </div>
+                  </WorksScopeGrid>
+                </div></WorksScopeSection>
               ))}
-            </section>
+            </section></WorksScopeSection>
           ),
         });
         staffSections.push({
@@ -401,7 +403,7 @@ export default async function StaffPage({
             </Suspense>
           ),
         });
-        if (production.length === 0 && voice.length === 0) {
+        if (production.length === 0 && voice.length === 0 && fullCache && fullCache.productionCredits.length === 0 && fullCache.vaCredits.length === 0) {
           return (
             <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
               {t.staff.empty}
@@ -419,7 +421,7 @@ export default async function StaffPage({
           />
         );
       })()}
-    </DensityScopeProvider>
+    </DensityScopeProvider></WorksScopeProvider>
   );
 }
 

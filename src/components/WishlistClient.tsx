@@ -21,6 +21,7 @@ import { BCP47, yearOnly } from '@/lib/locale-number';
 import { medianPlaytime } from '@/lib/playtime';
 import { decodeWishlistClientState, type WishlistClientItem, type WishlistClientState } from '@/lib/vndb-ui-client-shape';
 import { parseOptionalQueryInteger, parseQueryEnum } from '@/lib/query-params';
+import { replaceSearchQueryInHistory, useDebouncedUrlInput } from '@/lib/use-debounced-url-input';
 
 type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
@@ -115,15 +116,7 @@ const WishlistSearchInput = memo(function WishlistSearchInput({
   onCommit: (next: string) => void;
   debounceMs: number;
 }) {
-  const [draft, setDraft] = useState(urlValue);
-  useEffect(() => {
-    setDraft(urlValue);
-  }, [urlValue]);
-  useEffect(() => {
-    if (draft === urlValue) return;
-    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
-    return () => clearTimeout(handle);
-  }, [draft, urlValue, onCommit, debounceMs]);
+  const [draft, setDraft] = useDebouncedUrlInput(urlValue, onCommit, debounceMs);
   return (
     <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
@@ -202,8 +195,8 @@ export function WishlistClient() {
   );
 
   const commitSearch = useCallback(
-    (next: string) => setParam('q', next || null),
-    [setParam],
+    (next: string) => replaceSearchQueryInHistory('/wishlist', search.toString(), next),
+    [search],
   );
 
   const q = search.get('q') ?? '';

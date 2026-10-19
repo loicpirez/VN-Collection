@@ -1190,21 +1190,41 @@ helper so importing `vndb.ts` from edge / build contexts doesn't break.
   (publisher side, separate from producer), series, tag, q, sort,
   order, group) are derived **from `useSearchParams`**, not from
   `useState`. Setters update the URL via `router.replace(..., { scroll: false })`.
-- Only the search input (`qInput`) keeps a local mirror, debounced 300 ms → URL.
-- The `q` text box reads back from URL on changes (`useEffect → setQInput(urlQ)`)
-  so external clears (e.g. "Reset" button) propagate.
+- Search drafts use `useDebouncedUrlInput`: delayed acknowledgements of an
+  already committed value must not overwrite newer typing. External navigation
+  and resets still synchronize the draft. Library, wishlist and traits commit
+  client-owned queries with `replaceSearchQueryInHistory`, preserving filters
+  and clearing pagination without an unnecessary server navigation. Search
+  uses the same native-history behavior for its client-owned query state.
+- Staff and producer credit scopes use `WorksScopeProvider`: filter loaded
+  ownership flags before pagination, preserve normal modified-link behavior,
+  and synchronize browser Back/Forward. A scope click does not refetch credits.
 
 ### Images
 - **Always** use `<SafeImage>` for any user/VNDB image. It honours the global
   Display settings: hide, blur R18 (with adjustable threshold), prefer-local.
 - Pass both `src` (URL) and `localSrc` (relative storage path). The component
   prepends `/api/files/` to local paths for serving.
+- Preserve `image.sexual` through upstream queries, decoders, caches and picker
+  projections. With blur enabled, unclassified images are also hidden, using
+  distinct classification-unavailable copy rather than inventing an R18 rating.
+  Reveal applies only to that image and privacy policy; changing either resets
+  it. Hero banners follow the same rules. Explicitly safe classified images
+  remain visible below the configured threshold; disabling blur is respected.
 - For images we render in plain `<img>` (only the hero banner does), use
   `${ '/api/files/' + relPath }` if it's a stored path, else the raw URL —
   detect with a `^https?://` regex.
 
 ### VNDB API client (lib/vndb.ts)
 - All queries go through `cachedFetch` with a per-endpoint TTL from `lib/vndb-cache.ts`.
+- Producer credit rendering reads cached pages first, preserving local owned
+  works during an incomplete snapshot. `WorksCacheLoader` hydrates after paint
+  and exposes an explicit retryable failure. Forced refresh never deletes the
+  last good cache before contacting VNDB. Both developer and publisher walks
+  must complete; the 100-page safety limit is not a complete empty result.
+- Staff full-cache downloads share an in-flight promise claimed before any
+  await. Missing-cache failures expose retry, while successful streamed fills
+  reconcile the page header and counts through one refresh.
 - The cache key includes a sha1 of the JSON body so different filter combinations
   cache independently.
 - **Footgun**: VNDB rejects an `or` / `and` clause with **fewer than 2** predicates.

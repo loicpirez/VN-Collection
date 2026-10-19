@@ -126,6 +126,33 @@ afterEach(() => {
 });
 
 describe('SafeImage runtime', () => {
+  it('protects unclassified artwork without labelling it R18 and keeps classified safe artwork visible', () => {
+    const view = render(withLocale(<SafeImage src="/unrated-v90991.jpg" alt="Unrated cover" priority />));
+    expect(screen.getByRole('button', { name: dictionaries.en.settings.unratedBlurred })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Unrated cover' })).toHaveClass('blur-2xl');
+    fireEvent.click(screen.getByRole('button', { name: dictionaries.en.settings.unratedBlurred }));
+    expect(screen.queryByRole('button', { name: dictionaries.en.settings.unratedBlurred })).not.toBeInTheDocument();
+    view.rerender(withLocale(<SafeImage src="/safe-v90992.jpg" alt="Safe cover" sexual={0} priority />));
+    expect(screen.getByRole('img', { name: 'Safe cover' })).not.toHaveClass('blur-2xl');
+    settingsState.current.blurR18 = false;
+    view.rerender(withLocale(<SafeImage src="/unrated-v90993.jpg" alt="Unrated cover" priority />));
+    expect(screen.getByRole('img', { name: 'Unrated cover' })).not.toHaveClass('blur-2xl');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+  it('does not carry a reveal across different images or changed privacy settings', () => {
+    const view = render(withLocale(<SafeImage src="/cover-v90001.jpg" alt="Cover" sexual={2} priority />));
+    fireEvent.click(screen.getByRole('button', { name: dictionaries.en.settings.r18Blurred }));
+    expect(screen.queryByRole('button', { name: dictionaries.en.settings.r18Blurred })).not.toBeInTheDocument();
+    view.rerender(withLocale(<SafeImage src="/cover-v90002.jpg" alt="Cover" sexual={2} priority />));
+    expect(screen.getByRole('button', { name: dictionaries.en.settings.r18Blurred })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Cover' })).toHaveClass('blur-2xl');
+    fireEvent.click(screen.getByRole('button', { name: dictionaries.en.settings.r18Blurred }));
+    settingsState.current.blurR18 = false;
+    view.rerender(withLocale(<SafeImage src="/cover-v90002.jpg" alt="Cover" sexual={2} priority />));
+    settingsState.current.blurR18 = true;
+    view.rerender(withLocale(<SafeImage src="/cover-v90002.jpg" alt="Cover" sexual={2} priority />));
+    expect(screen.getByRole('button', { name: dictionaries.en.settings.r18Blurred })).toBeInTheDocument();
+  });
   it('renders policy and missing-source placeholders without requesting an image', () => {
     settingsState.current.hideImages = true;
     const { rerender } = render(withLocale(<SafeImage src="/remote.jpg" alt="Hidden cover" />));

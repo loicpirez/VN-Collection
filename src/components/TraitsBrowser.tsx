@@ -14,6 +14,7 @@ import type { VndbTrait } from '@/lib/vndb-types';
 
 import { readApiError } from '@/lib/api-error-read';
 import { decodeTraitsResponse } from '@/lib/browse-client-shape';
+import { replaceSearchQueryInHistory, useDebouncedUrlInput } from '@/lib/use-debounced-url-input';
 
 const Q_DEBOUNCE_MS = 300;
 
@@ -35,15 +36,7 @@ const TraitsSearchInput = memo(function TraitsSearchInput({
   onCommit: (next: string) => void;
   debounceMs: number;
 }) {
-  const [draft, setDraft] = useState(urlValue);
-  useEffect(() => {
-    setDraft(urlValue);
-  }, [urlValue]);
-  useEffect(() => {
-    if (draft === urlValue) return;
-    const handle = setTimeout(() => onCommit(draft.trim()), debounceMs);
-    return () => clearTimeout(handle);
-  }, [draft, urlValue, onCommit, debounceMs]);
+  const [draft, setDraft] = useDebouncedUrlInput(urlValue, onCommit, debounceMs);
   return (
     <div className="relative flex-1 min-w-[160px] sm:min-w-[200px]">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
@@ -80,7 +73,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
     [router, search],
   );
 
-  const commitSearch = useCallback((next: string) => setParam('q', next || null), [setParam]);
+  const commitSearch = useCallback((next: string) => replaceSearchQueryInHistory('/traits', search.toString(), next), [search]);
 
   useEffect(() => {
     let alive = true;

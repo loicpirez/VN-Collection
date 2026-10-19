@@ -97,7 +97,7 @@ export function SafeImage({
 }: SafeImageProps) {
   const t = useT();
   const { settings } = useDisplaySettings();
-  const [reveal, setReveal] = useState(false);
+  const [revealedImage, setRevealedImage] = useState<string | null>(null);
   const [errored, setErrored] = useState(false);
   const [failedPrimaryUrl, setFailedPrimaryUrl] = useState<string | null>(null);
   const [inView, setInView] = useState(priority);
@@ -141,7 +141,11 @@ export function SafeImage({
   const usingFallback = failedPrimaryUrl === primaryUrl && fallbackUrl !== '';
   const url = usingFallback ? fallbackUrl : primaryUrl;
   const explicit = isExplicit(sexual, settings.nsfwThreshold);
-  const shouldBlur = explicit && settings.blurR18 && !reveal;
+  const unrated = sexual == null;
+  const protectedLabel = unrated ? t.settings.unratedBlurred : t.settings.r18Blurred;
+  const imagePolicyKey = JSON.stringify([url, sexual, settings.blurR18, settings.nsfwThreshold]);
+  const shouldBlur = (explicit || unrated) && settings.blurR18 && revealedImage !== imagePolicyKey;
+  useEffect(() => { setRevealedImage(null); }, [imagePolicyKey]);
   const unavailableLabel = alt
     ? `${t.common.imageUnavailable}: ${alt}`
     : t.common.imageUnavailable;
@@ -285,16 +289,16 @@ export function SafeImage({
       {shouldBlur && (
         <button
           type="button"
-          aria-label={t.settings.r18Blurred}
+          aria-label={protectedLabel}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            setReveal(true);
+            setRevealedImage(imagePolicyKey);
           }}
           className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/50 text-white backdrop-blur-sm hover:bg-black/40"
         >
           <ShieldAlert className="h-6 w-6 text-accent" aria-hidden />
-          <span className="text-xs font-bold uppercase tracking-wider">{t.settings.r18Blurred}</span>
+          <span className="max-w-full break-words px-1 text-center text-xs font-bold uppercase tracking-wider">{unrated ? t.settings.unratedImage : protectedLabel}</span>
           <span className="inline-flex items-center gap-1 text-[11px] opacity-80">
             <Eye className="h-3 w-3" aria-hidden /> {t.settings.clickToReveal}
           </span>

@@ -267,6 +267,7 @@ function installFetchRouter(opts: RouterOptions = {}) {
 }
 
 beforeEach(() => {
+  vi.spyOn(window.history, 'replaceState');
   searchParamsValue = new URLSearchParams();
   replaceMock.mockReset();
   localStorage.clear();
@@ -463,7 +464,37 @@ describe('LibraryClient', () => {
     const input = container.querySelector<HTMLInputElement>('input[data-vn-search]');
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { value: '  hello  ' } });
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/?q=hello', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '/?q=hello'));
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it('does not replace newer typing when an older search navigation completes', async () => {
+    installFetchRouter({ collectionItems: [cardRow('v90001', 'Title Y')] });
+    const view = (
+      <DisplaySettingsProvider>
+        <LibraryClient mode="full" />
+      </DisplaySettingsProvider>
+    );
+    const rendered = renderWithProviders(view, { locale: 'en' });
+    await screen.findByTestId('vncard');
+    vi.useFakeTimers();
+    try {
+      const input = screen.getByPlaceholderText('Filter the collection...');
+      fireEvent.change(input, { target: { value: 'mot' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '/?q=mot');
+      expect(replaceMock).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: 'motto' } });
+      searchParamsValue = new URLSearchParams('q=mot');
+      rendered.rerender(view);
+      expect(input).toHaveValue('motto');
+      searchParamsValue = new URLSearchParams('q=external');
+      rendered.rerender(view);
+      expect(input).toHaveValue('external');
+    } finally {
+      rendered.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('clears an existing search value through the search clear button', async () => {
@@ -477,7 +508,7 @@ describe('LibraryClient', () => {
     );
     await screen.findByTestId('vncard');
     await user.click(screen.getByRole('button', { name: 'Clear search' }));
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '/'));
   });
 
   it('shares one pending collection request across split library modes', async () => {

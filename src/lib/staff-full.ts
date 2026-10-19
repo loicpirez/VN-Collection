@@ -84,6 +84,7 @@ function decodeStaffVnCredit(value: unknown): StaffVnCredit | null {
     !isNullableFiniteNumber(row.rating) ||
     !isNullableString(row.image_url) ||
     !isNullableString(row.image_thumb) ||
+    !(row.image_sexual === undefined || (typeof row.image_sexual === 'number' && Number.isFinite(row.image_sexual))) ||
     !roles
   ) return null;
   return {
@@ -94,6 +95,7 @@ function decodeStaffVnCredit(value: unknown): StaffVnCredit | null {
     rating: row.rating,
     image_url: row.image_url,
     image_thumb: row.image_thumb,
+    ...(typeof row.image_sexual === 'number' ? { image_sexual: row.image_sexual } : {}),
     roles,
   };
 }
@@ -128,6 +130,7 @@ function decodeStaffVaCredit(value: unknown): StaffVaCredit | null {
     !isNullableFiniteNumber(row.rating) ||
     !isNullableString(row.image_url) ||
     !isNullableString(row.image_thumb) ||
+    !(row.image_sexual === undefined || (typeof row.image_sexual === 'number' && Number.isFinite(row.image_sexual))) ||
     !characters
   ) return null;
   return {
@@ -138,6 +141,7 @@ function decodeStaffVaCredit(value: unknown): StaffVaCredit | null {
     rating: row.rating,
     image_url: row.image_url,
     image_thumb: row.image_thumb,
+    ...(typeof row.image_sexual === 'number' ? { image_sexual: row.image_sexual } : {}),
     characters,
   };
 }
@@ -198,7 +202,23 @@ async function writeStaffFullCache(sid: string, payload: StaffFullPayload): Prom
  * Three serial calls so the rate-limiter behaves; total payload is small
  * because we kept the VN fields lean.
  */
-export async function downloadFullStaffInfo(sid: string): Promise<StaffFullPayload> {
+const staffDownloads = new Map<string, Promise<StaffFullPayload>>();
+
+/**
+ * Shares concurrent downloads of one staff identity and releases failed attempts.
+ * @param sid Staff identity requested by a page, download button, or fan-out job.
+ * @returns The complete persisted staff payload.
+ */
+export function downloadFullStaffInfo(sid: string): Promise<StaffFullPayload> {
+  const identity = key(sid);
+  const existing = staffDownloads.get(identity);
+  if (existing) return existing;
+  const pending = pullStaffInfo(sid).finally(() => { staffDownloads.delete(identity); });
+  staffDownloads.set(identity, pending);
+  return pending;
+}
+
+async function pullStaffInfo(sid: string): Promise<StaffFullPayload> {
   const [profile, productionCredits, vaCredits] = await Promise.all([
     getStaff(sid),
     fetchStaffVnList(sid),

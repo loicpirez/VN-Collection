@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchProducerAssociations, invalidateProducerAssociations } from '@/lib/producer-associations';
+import { fetchProducerAssociations } from '@/lib/producer-associations';
 import { recordActivity } from '@/lib/activity';
 import { requireLocalhostOrToken } from '@/lib/auth-gate';
 
@@ -8,12 +8,10 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
- * Bust the cached developer + publisher associations for a producer,
- * then re-fetch from VNDB so the next render of `/producer/[id]` shows
- * fresh data. Used by the per-page Refresh button on the producer
- * detail page — the global refresh endpoint doesn't cover producer
- * associations because the cache key is per-page (paginated) and
- * different from the cache keys covered by `/api/refresh/global`.
+ * Revalidate producer credits while retaining the last usable cache on failure.
+ * @param req Authenticated local or trusted-proxy request.
+ * @param ctx Producer identity from the route.
+ * @returns Fresh/stale counters, or an explicit failure for incomplete walks.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
@@ -22,8 +20,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!/^p\d+$/i.test(id)) {
     return NextResponse.json({ error: 'invalid producer id' }, { status: 400 });
   }
-  await invalidateProducerAssociations(id);
-  const result = await fetchProducerAssociations(id);
+  const result = await fetchProducerAssociations(id, { forceRefresh: true });
   // Distinguish "VNDB really has no credits for this producer" from
   // "every upstream call we tried threw". Without this signal the
   // refresh toast claimed success ("0 dev, 0 pub") during VNDB

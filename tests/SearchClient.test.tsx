@@ -44,7 +44,7 @@ vi.mock('next/dynamic', () => ({
 
 vi.mock('@/components/VnCard', () => ({
   VnCard: ({ data, enableAdd }: { data: CardData; enableAdd?: boolean }) => (
-    <article data-add={enableAdd ? '1' : '0'} data-testid="search-card" data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>
+    <article data-add={enableAdd ? '1' : '0'} data-testid="search-card" data-sexual={data.sexual} data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>
       <h2>{data.title}</h2>
       <span>{data.id}</span>
     </article>
@@ -109,6 +109,7 @@ function installFetch(handler?: (url: string, init?: RequestInit) => Promise<Res
 }
 
 beforeEach(() => {
+  vi.spyOn(window.history, 'replaceState');
   nav.replace.mockClear();
   nav.push.mockClear();
   nav.refresh.mockClear();
@@ -123,6 +124,12 @@ afterEach(() => {
 });
 
 describe('SearchClient', () => {
+  it('passes the decoded R18 cover flag through to the shared VN card', async () => {
+    nav.searchParams = new URLSearchParams('q=fixture');
+    installFetch((url) => url.startsWith('/api/search?') ? json({ results: [hit({ image: { url: '/cover.jpg', thumbnail: '/thumb.jpg', sexual: 2 } })] }) : json({}));
+    renderSearchClient();
+    expect(await screen.findByTestId('search-card')).toHaveAttribute('data-sexual', '2');
+  });
   it.each(['quick', 'advanced'] as const)('projects all local duration sources into %s cards', async (kind) => {
     installFetch(() => json({ results: [hit({
       in_collection: true, playtime_minutes: 600, egs_playtime_minutes: 600, ai_playtime_minutes: 2400,
@@ -145,7 +152,8 @@ describe('SearchClient', () => {
 
     expect(await screen.findByText('Search Result One')).toBeInTheDocument();
     expect(screen.getByTestId('search-card')).toHaveAttribute('data-add', '1');
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?q=result', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search?q=result'));
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 
   it('shows quick-search errors and malformed payloads as the existing error alert', async () => {
@@ -179,9 +187,8 @@ describe('SearchClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reverse order' }));
 
     await waitFor(() =>
-      expect(nav.replace).toHaveBeenLastCalledWith(
+      expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '',
         '/search?langs=en&platforms=win%2Cdos&lengthMin=2&lengthMax=2&yearMin=2001&yearMax=2005&ratingMin=70&hasScreenshot=1&hasReview=1&hasAnime=1&sort=rating',
-        { scroll: false },
       ),
     );
   });
@@ -192,13 +199,13 @@ describe('SearchClient', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced filters/ }));
     fireEvent.click(screen.getByRole('button', { name: 'English' }));
     fireEvent.click(screen.getByRole('button', { name: /2 \/ Short/ }));
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search?langs=en&lengthMin=2&lengthMax=2', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search?langs=en&lengthMin=2&lengthMax=2'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Run search' }));
     expect(await screen.findByText('Advanced Result')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/search', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/search'));
   });
 
   it('auto-runs advanced search from URL params and reacts to external URL changes', async () => {

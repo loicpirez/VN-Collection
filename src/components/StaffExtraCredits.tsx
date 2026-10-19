@@ -7,7 +7,9 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
-import { PaginatedGrid } from '@/components/PaginatedGrid';
+import { WorksScopeGrid, WorksScopeSection } from '@/components/WorksScope';
+import { StaffDownloadButton } from './StaffDownloadButton';
+import { RefreshCachedCredits } from './WorksCacheLoader';
 import { SkeletonBlock } from '@/components/Skeleton';
 
 /**
@@ -29,17 +31,18 @@ export async function StaffExtraCredits({
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
 
   let fullCache = await readStaffFullCache(sid);
+  const downloaded = !fullCache;
   if (!fullCache) {
     try {
       fullCache = await downloadFullStaffInfo(sid);
     } catch {
-      fullCache = null;
+      return <div role="alert" className="mt-6 rounded-xl border border-border bg-bg-card p-4 text-sm text-muted">{t.apiErrors.vndbUnavailable} <StaffDownloadButton sid={sid} /></div>;
     }
   }
-  const extraProduction = (fullCache?.productionCredits ?? []).filter((c) => !knownProdVnIds.has(c.id));
-  const extraVoice = (fullCache?.vaCredits ?? []).filter((c) => !knownVaVnIds.has(c.id));
+  const extraProduction = fullCache.productionCredits.filter((c) => !knownProdVnIds.has(c.id));
+  const extraVoice = fullCache.vaCredits.filter((c) => !knownVaVnIds.has(c.id));
 
-  if (extraProduction.length === 0 && extraVoice.length === 0) return null;
+  if (extraProduction.length === 0 && extraVoice.length === 0) return downloaded ? <RefreshCachedCredits /> : null;
 
   // Single batched lookup for every credit's collection membership
   // instead of N+1 single-row queries inside the render.
@@ -50,7 +53,7 @@ export async function StaffExtraCredits({
   const inCollectionIds = await getCollectionCoreRepository().containsMany(allIds);
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+    <>{downloaded && <RefreshCachedCredits />}<WorksScopeSection ownedCount={inCollectionIds.size}><section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
       <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <CloudDownload className="h-4 w-4 text-accent" aria-hidden /> {t.staff.extraTitle}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">
@@ -59,9 +62,9 @@ export async function StaffExtraCredits({
       </h2>
       <p className="mb-4 text-[11px] text-muted">{t.staff.extraSubtitle}</p>
       {extraVoice.length > 0 && (
-        <div className="mb-6">
+        <WorksScopeSection ownedCount={extraVoice.filter((credit) => inCollectionIds.has(credit.id)).length}><div className="mb-6">
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.voiceCredits}</h3>
-          <PaginatedGrid
+          <WorksScopeGrid owned={extraVoice.map((credit) => inCollectionIds.has(credit.id))}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${sid}:extra-voice`}
             className="grid gap-3"
@@ -70,7 +73,7 @@ export async function StaffExtraCredits({
             {extraVoice.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard
-                  vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
+                  vn={c}
                   inCollection={inCollectionIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
                   locale={locale}
@@ -88,13 +91,13 @@ export async function StaffExtraCredits({
                 </ExternalVnCard>
               </li>
             ))}
-          </PaginatedGrid>
-        </div>
+          </WorksScopeGrid>
+        </div></WorksScopeSection>
       )}
       {extraProduction.length > 0 && (
-        <div>
+        <WorksScopeSection ownedCount={extraProduction.filter((credit) => inCollectionIds.has(credit.id)).length}><div>
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.productionCredits}</h3>
-          <PaginatedGrid
+          <WorksScopeGrid owned={extraProduction.map((credit) => inCollectionIds.has(credit.id))}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${sid}:extra-production`}
             className="grid gap-3"
@@ -103,7 +106,7 @@ export async function StaffExtraCredits({
             {extraProduction.map((c) => (
               <li key={c.id}>
                 <ExternalVnCard
-                  vn={{ id: c.id, title: c.title, alttitle: c.alttitle, released: c.released, rating: c.rating, image_url: c.image_url, image_thumb: c.image_thumb }}
+                  vn={c}
                   inCollection={inCollectionIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
                   locale={locale}
@@ -114,10 +117,10 @@ export async function StaffExtraCredits({
                 </ExternalVnCard>
               </li>
             ))}
-          </PaginatedGrid>
-        </div>
+          </WorksScopeGrid>
+        </div></WorksScopeSection>
       )}
-    </section>
+    </section></WorksScopeSection></>
   );
 }
 
@@ -187,6 +190,7 @@ function ExternalVnCard({
     alttitle: string | null;
     image_url: string | null;
     image_thumb: string | null;
+    image_sexual?: number;
     released: string | null;
     rating: number | null;
   };
@@ -215,7 +219,7 @@ function ExternalVnCard({
         }}
         tabIndex={-1}
       >
-        <SafeImage src={vn.image_url || vn.image_thumb} alt={vn.title} className="h-full w-full" />
+        <SafeImage src={vn.image_url || vn.image_thumb} sexual={vn.image_sexual} alt={vn.title} className="h-full w-full" />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">

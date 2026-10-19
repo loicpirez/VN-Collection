@@ -28,6 +28,8 @@ export interface VnSourcePickerRow {
   released: string | null;
   thumbnail: string | null;
   localThumbnail: string | null;
+  /** Cover classification, absent when the source does not provide it. */
+  sexual?: number;
 }
 
 /** Successful producer-association refresh result. */
@@ -130,7 +132,8 @@ export function decodeLocalVnSourcePickerResults(value: unknown): VnSourcePicker
       !isNullableString(row.image_url) ||
       !isNullableString(row.image_thumb) ||
       !isNullableString(row.local_image) ||
-      !isNullableString(row.local_image_thumb)
+      !isNullableString(row.local_image_thumb) ||
+      !(row.image_sexual === undefined || row.image_sexual === null || (typeof row.image_sexual === 'number' && Number.isFinite(row.image_sexual)))
     ) {
       return null;
     }
@@ -140,6 +143,7 @@ export function decodeLocalVnSourcePickerResults(value: unknown): VnSourcePicker
       released: null,
       thumbnail: row.image_thumb ?? row.image_url,
       localThumbnail: row.local_image_thumb ?? row.local_image,
+      ...(typeof row.image_sexual === 'number' ? { sexual: row.image_sexual } : {}),
     });
   }
   return rows;
@@ -159,6 +163,7 @@ export function decodeVndbSourcePickerResults(value: unknown): VnSourcePickerRow
     released: row.released,
     thumbnail: row.image?.thumbnail ?? row.image?.url ?? null,
     localThumbnail: null,
+    ...(row.image?.sexual !== undefined ? { sexual: row.image.sexual } : {}),
   })) ?? null;
 }
 

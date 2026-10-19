@@ -278,7 +278,8 @@ describe('POST /api/producer/[id]/refresh', () => {
     expect(body.ok).toBe(true);
     expect(body.developers).toBe(2);
     expect(body.publishers).toBe(1);
-    expect(invalidateAssocMock).toHaveBeenCalledWith(PRODUCER_ID);
+    expect(invalidateAssocMock).not.toHaveBeenCalled();
+    expect(fetchAssocMock).toHaveBeenCalledWith(PRODUCER_ID, { forceRefresh: true });
   });
 
   it('200 when activity logging fails after refreshing associations', async () => {

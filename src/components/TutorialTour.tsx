@@ -86,7 +86,6 @@ export function TutorialTour() {
     if (!done && pathname === '/') {
       const id = setTimeout(() => {
         setActive(true);
-        router.push(steps[0].route);
       }, 800);
       return () => {
         clearTimeout(id);
@@ -109,6 +108,7 @@ export function TutorialTour() {
 
   useEffect(() => {
     if (!active) return;
+    if (document.querySelector('input:focus, textarea:focus, [contenteditable="true"]:focus')) return;
     panelRef.current?.focus({ preventScroll: true });
   }, [active, step]);
 

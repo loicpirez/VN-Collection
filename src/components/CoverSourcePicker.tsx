@@ -23,6 +23,8 @@ export interface CoverSourcePickerProps {
   vnId: string;
   /** VNDB's default image URL - clicking "use VNDB" clears any override. */
   vndbImage: string | null;
+  /** VNDB cover classification used for the default-cover preview. */
+  vndbSexual?: number | null;
   /** EGS numeric id - when set, the EGS tab points to /api/egs-cover/<id>. */
   egsId: number | null;
   /** Whether the resolved EGS poster actually carries an image. The EGS tab stays disabled when an egsId is present but no image resolved. */
@@ -69,6 +71,7 @@ type Tab = 'vndb' | 'egs' | 'custom';
 export function CoverSourcePicker({
   vnId,
   vndbImage,
+  vndbSexual,
   egsId,
   egsHasImage,
   currentCustomCover,
@@ -516,7 +519,7 @@ export function CoverSourcePicker({
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.vndbHint}</p>
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="h-48 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-elev">
-                      <SafeImage src={vndbImage} alt={t.coverPicker.vndbCoverAlt} className="h-full w-full" />
+                      <SafeImage src={vndbImage} sexual={vndbSexual} alt={t.coverPicker.vndbCoverAlt} className="h-full w-full" />
                     </div>
                     <div className="flex-1">
                       <button

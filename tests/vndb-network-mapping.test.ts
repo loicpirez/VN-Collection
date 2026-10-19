@@ -441,7 +441,7 @@ describe('staff helpers', () => {
       alttitle: null,
       released: '2024-01-01',
       rating: 70,
-      image: { url: 'https://t.vndb.org/x.jpg', thumbnail: 'https://t.vndb.org/x.t.jpg' },
+      image: { url: 'https://t.vndb.org/x.jpg', thumbnail: 'https://t.vndb.org/x.t.jpg', sexual: 2 },
       staff: [
         { id: 's90001', role: 'scenario', note: null },
         { id: 's90999', role: 'art', note: 'other' },
@@ -453,6 +453,8 @@ describe('staff helpers', () => {
     const out = await fetchStaffVnList('s90001');
     expect(out.map((v) => v.id)).toEqual(['v90100', 'v90101']);
     expect(out[0].roles).toEqual([{ role: 'scenario', note: null }]);
+    expect(out[0].image_sexual).toBe(2);
+    expect(JSON.parse(String(providerFetchMock.mock.calls[0][1].body)).fields).toContain('image.sexual');
     expect(providerFetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -466,7 +468,7 @@ describe('staff helpers', () => {
             alttitle: null,
             released: '2024-01-01',
             rating: 70,
-            image: null,
+            image: { url: '/cover.jpg', thumbnail: '/thumb.jpg', sexual: 0 },
             va: [
               {
                 staff: { id: 's90001' },
@@ -480,6 +482,7 @@ describe('staff helpers', () => {
     );
     const out = await fetchVaVnList('s90001');
     expect(out[0].characters[0].id).toBe('c90001');
+    expect(out[0].image_sexual).toBe(0);
   });
 
   it('credit lists skip unrelated rows and preserve null image fallbacks', async () => {

@@ -10,7 +10,7 @@ interface VaEntry {
     id?: string;
     name?: string;
     original?: string | null;
-    image?: { url?: string } | null;
+    image?: { url?: string; sexual?: number } | null;
   } | null;
   staff?: {
     id?: string;
@@ -46,6 +46,7 @@ export async function CastSection({ va }: { va: VaEntry[] }) {
               >
                 <SafeImage
                   src={c.image?.url ?? null}
+                  sexual={c.image?.sexual}
                   localSrc={local?.local_path ?? null}
                   alt={c.name}
                   className="h-full w-full"

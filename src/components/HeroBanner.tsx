@@ -43,9 +43,10 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const toast = useToast();
   const router = useRouter();
   const { settings } = useDisplaySettings();
-  const [r18Reveal, setR18Reveal] = useState(false);
+  const [revealedBanner, setRevealedBanner] = useState<string | null>(null);
   const explicit = isExplicit(sexual ?? null, settings.nsfwThreshold);
-  const shouldBlurR18 = explicit && settings.blurR18 && !r18Reveal;
+  const unrated = sexual == null;
+  const protectedLabel = unrated ? t.settings.unratedBlurred : t.settings.r18Blurred;
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -59,6 +60,9 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   // and `newLocal`; we prefer `newLocal` (served via /api/files/<path>)
   // when it's present, falling back to `newSrc`.
   const [liveSrc, setLiveSrc] = useState<string | null>(src);
+  const bannerPolicyKey = JSON.stringify([vnId, liveSrc, sexual, settings.blurR18, settings.nsfwThreshold]);
+  const shouldBlurR18 = !!liveSrc && (explicit || unrated) && settings.blurR18 && revealedBanner !== bannerPolicyKey;
+  useEffect(() => { setRevealedBanner(null); }, [bannerPolicyKey]);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);
   const [bannerLoaded, setBannerLoaded] = useState(false);
   const [bannerErrored, setBannerErrored] = useState(false);
@@ -81,7 +85,7 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
     setBusy(false);
     setEditing(false);
     setError(null);
-    setR18Reveal(false);
+    setRevealedBanner(null);
     draggingRef.current = false;
     return () => {
       mutationAbortRef.current?.abort();
@@ -494,15 +498,15 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
       {shouldBlurR18 && !editing && (
         <button
           type="button"
-          aria-label={t.settings.r18Blurred}
+          aria-label={protectedLabel}
           onClick={(e) => {
             e.stopPropagation();
-            setR18Reveal(true);
+            setRevealedBanner(bannerPolicyKey);
           }}
           className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-black/40 text-white backdrop-blur-sm hover:bg-black/30"
         >
           <ShieldAlert className="h-5 w-5 text-accent" aria-hidden />
-          <span className="text-xs font-bold uppercase tracking-wider">{t.settings.r18Blurred}</span>
+          <span className="max-w-full break-words px-1 text-center text-xs font-bold uppercase tracking-wider">{unrated ? t.settings.unratedImage : protectedLabel}</span>
           <span className="text-[10px] opacity-80">{t.settings.clickToReveal}</span>
         </button>
       )}

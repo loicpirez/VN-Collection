@@ -125,6 +125,7 @@ function installFetch(payload: WishlistClientState = state([item('v90001', 'Alph
 }
 
 beforeEach(() => {
+  vi.spyOn(window.history, 'replaceState');
   nav.replace.mockClear();
   nav.refresh.mockClear();
   nav.searchParams = new URLSearchParams();
@@ -263,7 +264,7 @@ describe('WishlistClient', () => {
     fireEvent.keyDown(screen.getByLabelText('Max year'), { key: 'Enter' });
     expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0&yearMax=2021', { scroll: false });
     fireEvent.change(screen.getByLabelText('Filter wishlist...'), { target: { value: 'studio' } });
-    await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0&q=studio', { scroll: false }));
+    await waitFor(() => expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/wishlist?hideOwned=0&q=studio'));
   });
 
   it('resets the hide-owned chip and writes an explicit override when the persistent default is disabled', async () => {

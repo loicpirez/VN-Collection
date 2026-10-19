@@ -191,6 +191,7 @@ describe('staff detail page runtime', () => {
   });
 
   it('renders the empty-credit notice when a known profile has no works', async () => {
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile());
     peopleMocks.staffProfile.mockResolvedValue(profile());
 
     const html = renderToStaticMarkup(await StaffPage({
@@ -201,6 +202,16 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('Staff member');
     expect(html).toContain('No credit.');
     expect(html).not.toContain('data-testid="detail-layout"');
+  });
+
+  it('includes cached external credits in the distinct all-works counter', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.productionCredits.mockResolvedValue([work('v90991', undefined, { in_collection: true })]);
+    const credit = { id: 'v90992', title: 'Extra fixture', alttitle: null, released: null, rating: null, image_url: null, image_thumb: null };
+    vi.mocked(readStaffFullCache).mockResolvedValue({ ...fullProfile(), productionCredits: [{ ...credit, roles: [] }], vaCredits: [{ ...credit, id: 'v90993', characters: [] }] });
+    const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's90991' }), searchParams: Promise.resolve({}) }));
+    expect(html).toContain('All credits (3)');
+    expect(html).toContain('In the collection (1)');
   });
 
   it('renders rich cached profile metadata, grouped credits, voice cards, siblings, and synthetic VNs', async () => {
@@ -374,12 +385,12 @@ describe('staff detail page runtime', () => {
 
     expect(html).toContain('All credits (3)');
     expect(html).toContain('In the collection (1)');
-    expect(html).toContain('data-testid="extra-credits">s1:1:1');
+    expect(html).toContain('data-testid="extra-credits">s1:2:2');
     expect(html).not.toContain('Visual novel v2');
     expect(html).not.toContain('Visual novel v3');
   });
 
-  it('uses the id heading when credits exist without a reconstructed profile and renders raw gender fallbacks', async () => {
+  it('uses cached profile identity when local reconstruction is absent and renders raw gender fallbacks', async () => {
     peopleMocks.productionCredits.mockResolvedValue([work('v1')]);
     vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile({ gender: 'x' }));
 
@@ -388,8 +399,24 @@ describe('staff detail page runtime', () => {
       searchParams: Promise.resolve({}),
     }));
 
-    expect(html).toContain('>s1</h1>');
+    expect(html).toContain('>Staff member</h1>');
     expect(html).toContain('Gender: x');
+  });
+
+  it('opens a cold staff profile without requiring an existing local credit', async () => {
+    vi.mocked(getStaff).mockResolvedValue(fullProfile().profile);
+    const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's90992' }), searchParams: Promise.resolve({}) }));
+    expect(html).toContain('Staff member');
+    expect(html).toContain('data-testid="extra-credits">s90992:0:0');
+    expect(html).not.toContain('No credit.');
+  });
+
+  it('keeps the staff id and local credits available when both profile sources are absent', async () => {
+    peopleMocks.productionCredits.mockResolvedValue([work('v90994')]);
+    vi.mocked(getStaff).mockRejectedValue(new Error('offline'));
+    const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's90994' }), searchParams: Promise.resolve({}) }));
+    expect(html).toContain('>s90994</h1>');
+    expect(html).toContain('Visual novel v90994');
   });
 
   it('renders the male gender label', async () => {

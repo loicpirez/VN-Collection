@@ -26,6 +26,13 @@ const VNDB_ROW = {
 };
 
 describe('picker client response adapters', () => {
+  it('preserves source-provided R18 ratings in local and VNDB pickers', () => {
+    const row = { id: 'v90991', title: 'Local cover', image_url: '/cover.jpg', image_thumb: null, local_image: null, local_image_thumb: null };
+    for (const image_sexual of [0, 2]) expect(decodeLocalVnSourcePickerResults({ matches: [{ ...row, image_sexual }] })?.[0]?.sexual).toBe(image_sexual);
+    expect(decodeLocalVnSourcePickerResults({ matches: [{ ...row, image_sexual: null }] })?.[0]).not.toHaveProperty('sexual');
+    for (const image_sexual of ['2', Number.POSITIVE_INFINITY]) expect(decodeLocalVnSourcePickerResults({ matches: [{ ...row, image_sexual }] })).toBeNull();
+    expect(decodeVndbSourcePickerResults({ results: [{ ...VNDB_ROW, image: { url: '/cover.jpg', thumbnail: '/thumb.jpg', sexual: 2 } }] })?.[0]?.sexual).toBe(2);
+  });
   it('decodes tag and producer picker rows', () => {
     expect(decodeTagPickerResults({ tags: [{ id: 'G90001', name: 'Tag', category: 'cont', vn_count: 1 }] })?.[0]?.id).toBe('g90001');
     expect(decodeProducerPickerResults({ producers: [{ id: 'P90001', name: 'Studio', original: null, vn_count: 1 }] })?.[0]?.id).toBe('p90001');

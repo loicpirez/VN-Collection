@@ -6,6 +6,9 @@ import type { StaffVaCredit, StaffVnCredit } from '@/lib/vndb';
 
 const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn() }));
 
+vi.mock('@/components/StaffDownloadButton', () => ({ StaffDownloadButton: ({ sid }: { sid: string }) => <button>Retry {sid}</button> }));
+vi.mock('@/components/WorksCacheLoader', () => ({ RefreshCachedCredits: () => <span>Reconcile staff cache</span> }));
+
 vi.mock('@/lib/db/repositories/collection-core', () => ({
   getCollectionCoreRepository: () => collectionMocks,
 }));
@@ -81,9 +84,17 @@ beforeEach(() => {
 });
 
 describe('StaffExtraCredits', () => {
-  it('returns no section when a cache miss cannot be downloaded', async () => {
+  it('reconciles a successfully downloaded empty snapshot instead of leaving a cold page unresolved', async () => {
+    vi.mocked(downloadFullStaffInfo).mockResolvedValue(payload());
+    const html = renderToStaticMarkup(await StaffExtraCredits({ sid: 's90991', knownProdVnIds: new Set(), knownVaVnIds: new Set() }));
+    expect(html).toContain('Reconcile staff cache');
+    expect(collectionMocks.containsMany).not.toHaveBeenCalled();
+  });
+  it('shows an explicit retry when a cache miss cannot be downloaded', async () => {
     vi.mocked(downloadFullStaffInfo).mockRejectedValue(new Error('offline'));
-    expect(await StaffExtraCredits({ sid: 's1', knownProdVnIds: new Set(), knownVaVnIds: new Set() })).toBeNull();
+    const markup = renderToStaticMarkup(await StaffExtraCredits({ sid: 's90001', knownProdVnIds: new Set(), knownVaVnIds: new Set() }));
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('Retry s90001');
     expect(collectionMocks.containsMany).not.toHaveBeenCalled();
   });
 
@@ -118,7 +129,7 @@ describe('StaffExtraCredits', () => {
     expect(markup).toContain('Scenario / new-role');
     expect(markup).toContain('aria-label="Production v1"');
     expect(markup).toContain('src="https://example.com/thumb.jpg"');
-    expect(markup).toContain('data-reset-key="s1:extra-production"');
+    expect(markup).toContain('data-reset-key="s1:extra-production:all"');
   });
 
   it('renders voice and production metadata with one batched membership lookup', async () => {
@@ -161,7 +172,7 @@ describe('StaffExtraCredits', () => {
     expect(markup).toContain('href="/character/c1"');
     expect(markup).toContain('main');
     expect(markup).toContain('src="https://example.com/full.jpg"');
-    expect(markup).toContain('data-reset-key="s1:extra-voice"');
+    expect(markup).toContain('data-reset-key="s1:extra-voice:all"');
   });
 
   it('renders the streaming skeleton shape', () => {

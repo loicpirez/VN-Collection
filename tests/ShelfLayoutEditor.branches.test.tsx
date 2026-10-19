@@ -445,8 +445,7 @@ describe('ShelfLayoutEditor branches', () => {
       }) as unknown as typeof fetch;
       renderWithProviders(<ShelfLayoutEditor initialShelves={[unit()]} initialUnplaced={[]} />, { locale: 'en' });
       await waitFor(() => expect(screen.getAllByText('Fallback Highlight').length).toBeGreaterThan(0));
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
-      expect(scrollIntoView).toHaveBeenCalled();
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     } finally {
       Object.defineProperty(globalThis, 'CSS', { configurable: true, value: priorCss });
       Element.prototype.scrollIntoView = priorScrollIntoView;

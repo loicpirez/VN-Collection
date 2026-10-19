@@ -159,6 +159,7 @@ const VN_SEARCH_FIELDS = [
   'released',
   'image.url',
   'image.thumbnail',
+  'image.sexual',
   'rating',
   'votecount',
   'length_minutes',
@@ -901,6 +902,8 @@ export interface StaffVnCredit {
   rating: number | null;
   image_url: string | null;
   image_thumb: string | null;
+  /** VNDB cover classification when supplied by the upstream source. */
+  image_sexual?: number;
   /** Each role/note this staff has on the VN — VNDB returns one row per role. */
   roles: { role: string; note: string | null }[];
 }
@@ -913,6 +916,8 @@ export interface StaffVaCredit {
   rating: number | null;
   image_url: string | null;
   image_thumb: string | null;
+  /** VNDB cover classification when supplied by the upstream source. */
+  image_sexual?: number;
   characters: { id: string; name: string; original: string | null; image_url: string | null; note: string | null }[];
 }
 
@@ -927,7 +932,7 @@ export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
   for (let page = 1; page <= 50; page++) {
     const r = await vndbPost<VndbStaffCreditListRow>('/vn', {
       filters: ['staff', '=', ['id', '=', sid]],
-      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, staff{id, role, note}',
+      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, image.sexual, staff{id, role, note}',
       sort: 'released',
       reverse: true,
       results: 100,
@@ -946,6 +951,7 @@ export async function fetchStaffVnList(sid: string): Promise<StaffVnCredit[]> {
         rating: v.rating,
         image_url: v.image?.url ?? null,
         image_thumb: v.image?.thumbnail ?? null,
+        ...(v.image?.sexual !== undefined ? { image_sexual: v.image.sexual } : {}),
         roles,
       });
     }
@@ -968,7 +974,7 @@ export async function fetchVaVnList(sid: string): Promise<StaffVaCredit[]> {
   for (let page = 1; page <= 50; page++) {
     const r = await vndbPost<VndbVaCreditListRow>('/vn', {
       filters: ['character', '=', ['seiyuu', '=', ['id', '=', sid]]],
-      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, va{note, staff{id}, character{id, name, original, image.url}}',
+      fields: 'title, alttitle, released, rating, image.url, image.thumbnail, image.sexual, va{note, staff{id}, character{id, name, original, image.url}}',
       sort: 'released',
       reverse: true,
       results: 100,
@@ -993,6 +999,7 @@ export async function fetchVaVnList(sid: string): Promise<StaffVaCredit[]> {
         rating: v.rating,
         image_url: v.image?.url ?? null,
         image_thumb: v.image?.thumbnail ?? null,
+        ...(v.image?.sexual !== undefined ? { image_sexual: v.image.sexual } : {}),
         characters: chars,
       });
     }

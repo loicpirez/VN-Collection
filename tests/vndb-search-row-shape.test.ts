@@ -18,6 +18,14 @@ const SEARCH_ROW = {
 };
 
 describe('VNDB VN-search row decoder', () => {
+  it('retains R18 classification and rejects invalid classification rather than dropping it', () => {
+    for (const sexual of [0, 1, 2]) {
+      expect(decodeVndbSearchRow({ ...SEARCH_ROW, image: { ...SEARCH_ROW.image, sexual } })?.image).toEqual({ ...SEARCH_ROW.image, sexual });
+    }
+    for (const sexual of ['2', null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(decodeVndbSearchRow({ ...SEARCH_ROW, image: { ...SEARCH_ROW.image, sexual } })).toBeNull();
+    }
+  });
   it('normalizes search rows used by matching and rendering paths', () => {
     expect(decodeVndbSearchRow(SEARCH_ROW)).toMatchObject({
       id: 'v90061',

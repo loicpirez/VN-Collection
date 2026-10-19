@@ -12,6 +12,17 @@ import {
 } from '../src/lib/vndb-client-shape';
 
 describe('VNDB client payload adapters', () => {
+  it('retains valid credit-cover ratings and rejects malformed ratings', () => {
+    const base = { id: 'v90991', title: 'Credit', alttitle: null, released: null, rating: null, staff: [], va: [] };
+    for (const sexual of [0, 2]) {
+      const image = { url: '/cover.jpg', thumbnail: null, sexual };
+      expect(decodeVndbStaffCreditListRow({ ...base, image })?.image).toEqual(image);
+      expect(decodeVndbVaCreditListRow({ ...base, image })?.image).toEqual(image);
+    }
+    for (const sexual of ['2', Number.POSITIVE_INFINITY]) {
+      expect(decodeVndbStaffCreditListRow({ ...base, image: { url: '/cover.jpg', thumbnail: null, sexual } })).toBeNull();
+    }
+  });
   it('filters malformed endpoint rows while preserving pagination metadata', () => {
     const decode = createVndbResultsEnvelopeDecoder((value) =>
       typeof value === 'string' ? value.toUpperCase() : null,

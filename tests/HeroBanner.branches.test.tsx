@@ -32,6 +32,25 @@ function renderHero(ui: React.ReactElement, settings?: Record<string, unknown>) 
 }
 
 describe('HeroBanner branches', () => {
+  it('protects an unrated banner without falsely claiming an R18 rating', async () => {
+    const view = renderHero(<HeroBanner vnId="v90993" src="/unrated-banner.jpg" customBanner initialPosition={null} inCollection={false} />, { blurR18: true });
+    fireEvent.load(view.container.querySelector('img')!);
+    expect(view.container.querySelector('img')).toHaveClass('blur-2xl');
+    fireEvent.click(screen.getByRole('button', { name: t.settings.unratedBlurred }));
+    expect(view.container.querySelector('img')).not.toHaveClass('blur-2xl');
+  });
+  it('re-blurs a replacement banner after the preceding image was revealed', async () => {
+    const view = renderHero(<HeroBanner vnId="v90991" src="/banner-a.jpg" customBanner initialPosition={null} inCollection={false} sexual={2} />,
+      { blurR18: true, nsfwThreshold: 1 });
+    fireEvent.click(await screen.findByRole('button', { name: t.settings.r18Blurred }));
+    expect(screen.queryByRole('button', { name: t.settings.r18Blurred })).toBeNull();
+    act(() => dispatchBannerChanged({ vnId: 'v90991', newSrc: '/banner-b.jpg', newLocal: null }));
+    expect(await screen.findByRole('button', { name: t.settings.r18Blurred })).toBeInTheDocument();
+    const image = view.container.querySelector('img');
+    expect(image).toHaveAttribute('src', '/banner-b.jpg');
+    fireEvent.load(image!);
+    expect(image).toHaveClass('blur-2xl');
+  });
   beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
   });
@@ -113,7 +132,7 @@ describe('HeroBanner branches', () => {
 
   it('renders the blurred contain overlay (second img) for a non-custom banner once loaded', async () => {
     const { container } = renderHero(
-      <HeroBanner vnId="v90023" src="https://example.com/auto.jpg" customBanner={false} initialPosition={null} inCollection={false} />,
+      <HeroBanner vnId="v90023" src="https://example.com/auto.jpg" customBanner={false} initialPosition={null} inCollection={false} sexual={0} />,
     );
     const img = container.querySelector('img') as HTMLImageElement;
     fireEvent.load(img);

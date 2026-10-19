@@ -29,10 +29,9 @@ export interface ProducerAssociations {
   /** Was the data served from a live VNDB call this run? false = cached. */
   fromCache: boolean;
   /**
-   * `true` when neither the developer-credits paginated call nor the
-   * publisher-credits paginated call succeeded this run. Callers (the
-   * refresh route) can return 502 instead of pretending zero results
-   * is the truth.
+   * True when either role is incomplete, including a missing cached page or
+   * a safety limit reached while upstream still reports more pages. Usable
+   * rows remain available, but callers must not present the snapshot as complete.
    */
   upstreamFailed: boolean;
   /**
@@ -101,6 +100,7 @@ async function paginatePost<T>(
   maxPages: number,
   ttlMs: number,
   decode: CachePayloadDecoder<VndbResp<T>>,
+  forceRefresh: boolean,
 ): Promise<PaginateResult<T>> {
   const out: T[] = [];
   let stale = false;
@@ -114,13 +114,13 @@ async function paginatePost<T>(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      { ttlMs, decode },
+      { ttlMs, decode, forceRefresh },
     );
     if (r.stale) stale = true;
     out.push(...r.data.results);
-    if (!r.data.more) break;
+    if (!r.data.more) return { rows: out, stale, complete: true };
   }
-  return { rows: out, stale, complete: true };
+  return { rows: out, stale, complete: false };
 }
 
 async function paginateCachedPost<T>(
@@ -139,7 +139,7 @@ async function paginateCachedPost<T>(
     out.push(...cached.data.results);
     if (!cached.data.more) return { rows: out, stale, complete: true };
   }
-  return { rows: out, stale, complete: true };
+  return { rows: out, stale, complete: false };
 }
 
 function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
@@ -175,7 +175,7 @@ function summarize(v: VndbVnSummary): Omit<ProducerVnRef, 'owned'> {
  */
 export async function fetchProducerAssociations(
   producerId: string,
-  options: { cacheOnly?: boolean } = {},
+  options: { cacheOnly?: boolean; forceRefresh?: boolean } = {},
 ): Promise<ProducerAssociations> {
   if (!/^p\d+$/i.test(producerId)) {
     return {
@@ -190,10 +190,6 @@ export async function fetchProducerAssociations(
     };
   }
 
-  // 1) Developer credits — one page is usually enough (most producers
-  //    have < 100 developed VNs); paginate up to 3 just in case. The
-  //    pathTag includes the producer id so per-producer wipes don't
-  //    nuke every other producer's cached pages.
   let devs: VndbVnSummary[] = [];
   let devsOk = false;
   let devsStale = false;
@@ -208,16 +204,17 @@ export async function fetchProducerAssociations(
       ? await paginateCachedPost<VndbVnSummary>(
           `POST /vn:producer:${producerId}`,
           body,
-          3,
+          100,
           decodeProducerAssociationVnPage,
         )
       : await paginatePost<VndbVnSummary>(
           '/vn',
           `POST /vn:producer:${producerId}`,
           body,
-          3,
+          100,
           TTL.vnSearch,
           decodeProducerAssociationVnPage,
+          options.forceRefresh === true,
         );
     devs = r.rows;
     devsStale = r.stale;
@@ -226,9 +223,6 @@ export async function fetchProducerAssociations(
     devs = [];
   }
 
-  // 2) Publisher credits — paginate releases up to 5 pages (500
-  //    releases) which covers even the largest publishers. Each
-  //    release may map to multiple VNs; dedupe by VN id.
   let releases: VndbReleaseRow[] = [];
   let releasesOk = false;
   let releasesStale = false;
@@ -243,16 +237,17 @@ export async function fetchProducerAssociations(
       ? await paginateCachedPost<VndbReleaseRow>(
           `POST /release:producer:${producerId}`,
           body,
-          5,
+          100,
           decodeProducerAssociationReleasePage,
         )
       : await paginatePost<VndbReleaseRow>(
           '/release',
           `POST /release:producer:${producerId}`,
           body,
-          5,
+          100,
           TTL.releases,
           decodeProducerAssociationReleasePage,
+          options.forceRefresh === true,
         );
     releases = r.rows;
     releasesStale = r.stale;
@@ -297,7 +292,7 @@ export async function fetchProducerAssociations(
     totalUnique: developerVns.length + publisherVns.length,
     ownedUnique: developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length,
     fromCache: options.cacheOnly === true,
-    upstreamFailed: !devsOk && !releasesOk,
+    upstreamFailed: !devsOk || !releasesOk,
     stale: devsStale || releasesStale,
   };
 }

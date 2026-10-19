@@ -2,11 +2,14 @@ import Link from 'next/link';
 import { AlertTriangle, Check, Package, Star, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
 import { getDict, getLocale } from '@/lib/i18n/server';
+import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
+import type { CollectionCardItem } from '@/lib/types';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import { ProducerRefreshButton } from './ProducerRefreshButton';
-import { PaginatedGrid } from './PaginatedGrid';
+import { WorksScopeProvider, WorksScopeLink, WorksScopeGrid, WorksScopeSection, WorksScopeCount } from './WorksScope';
+import { WorksCacheLoader } from './WorksCacheLoader';
 
 /**
  * Renders BOTH "developed by" and "published by" credits for a producer
@@ -18,9 +21,10 @@ import { PaginatedGrid } from './PaginatedGrid';
  * newest-first. Rows the user already owns get a check badge; rows
  * they don't own get an inline "+" affordance to add it as planning.
  *
- * When VNDB is unreachable AND nothing is cached, both arrays come
- * back empty and the component renders only the refresh button + an
- * empty-state hint, so the page still has the producer header.
+ * Cache reads never wait for VNDB. Incomplete snapshots retain local owned
+ * works and hydrate after paint with explicit loading/error/retry feedback.
+ * @param props Producer identity and initial scope from a direct page URL.
+ * @returns Locally switchable, paginated developer and publisher credits.
  */
 export async function ProducerVnsSections({
   producerId,
@@ -32,7 +36,7 @@ export async function ProducerVnsSections({
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let data: ProducerAssociations;
   try {
-    data = await fetchProducerAssociations(producerId);
+    data = await fetchProducerAssociations(producerId, { cacheOnly: true });
   } catch {
     data = {
       name: null,
@@ -46,20 +50,35 @@ export async function ProducerVnsSections({
     };
   }
 
-  const developerVns = scope === 'collection' ? data.developerVns.filter((v) => v.owned) : data.developerVns;
-  const publisherVns = scope === 'collection' ? data.publisherVns.filter((v) => v.owned) : data.publisherVns;
+  if (data.upstreamFailed) {
+    const collection = getCollectionListRepository();
+    const [developers, publishers] = await Promise.all([
+      collection.listCards({ producer: producerId }),
+      collection.listCards({ publisher: producerId }),
+    ]);
+    const developerMap = new Map(data.developerVns.map((vn) => [vn.id, vn]));
+    for (const row of developers) developerMap.set(row.id, ownedCredit(row));
+    const publisherMap = new Map(data.publisherVns.map((vn) => [vn.id, vn]));
+    for (const row of publishers) publisherMap.set(row.id, ownedCredit(row));
+    data.developerVns = [...developerMap.values()];
+    data.publisherVns = [...publisherMap.values()].filter((vn) => !developerMap.has(vn.id));
+    data.totalUnique = data.developerVns.length + data.publisherVns.length;
+    data.ownedUnique = [...data.developerVns, ...data.publisherVns].filter((vn) => vn.owned).length;
+  }
+  const developerVns = data.developerVns;
+  const publisherVns = data.publisherVns;
   const totalCount = data.developerVns.length + data.publisherVns.length;
   const ownedTotal =
     data.developerVns.filter((v) => v.owned).length + data.publisherVns.filter((v) => v.owned).length;
-  const scopedTotal = developerVns.length + publisherVns.length;
 
   return (
-    <section className="mb-8 space-y-6">
+    <WorksScopeProvider initialScope={scope}><section className="mb-8 space-y-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex flex-col">
           <h2 className="text-lg font-bold">{t.producerVns.heading}</h2>
-          <p className="text-xs text-muted">
-            {t.producerVns.summary
+          <p className="text-xs text-muted" aria-busy={data.upstreamFailed}>
+            {data.upstreamFailed && totalCount === 0 ? t.common.loading :
+            t.producerVns.summary
               .replace('{owned}', String(ownedTotal))
               .replace('{total}', String(totalCount))
               .replace('{devs}', String(data.developerVns.length))
@@ -68,10 +87,7 @@ export async function ProducerVnsSections({
           {/*
             Stale badge: rendered when at least one paginated walk
             fell back to the cache because the live VNDB call threw.
-            The counts above can still be wrong, so we flag it
-            visually next to the summary line. The refresh button
-            below is the user's only recourse - clicking it busts
-            the cache and re-tries upstream.
+            Counts remain explicitly provisional until revalidation succeeds.
           */}
           {(data.stale || data.upstreamFailed) && (
             <span
@@ -86,37 +102,28 @@ export async function ProducerVnsSections({
         <ProducerRefreshButton producerId={producerId} />
       </div>
       <nav className="flex flex-wrap gap-1.5" aria-label={t.producerVns.scopeLabel}>
-        <Link
+        <WorksScopeLink scope="all"
           href={`/producer/${producerId}`}
-          aria-current={scope === 'all' ? 'page' : undefined}
-          className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9 ${
-            scope === 'all'
-              ? 'border-accent bg-accent/15 text-accent'
-              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
-          }`}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9"
         >
           {t.producerVns.scopeAll}
           <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{data.totalUnique}</span>
-        </Link>
-        <Link
+        </WorksScopeLink>
+        <WorksScopeLink scope="collection"
           href={`/producer/${producerId}?scope=collection`}
-          aria-current={scope === 'collection' ? 'page' : undefined}
-          className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9 ${
-            scope === 'collection'
-              ? 'border-accent bg-accent/15 text-accent'
-              : 'border-border bg-bg-elev/40 text-muted hover:border-accent hover:text-white'
-          }`}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9"
         >
           {t.producerVns.scopeCollection}
           <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{data.ownedUnique}</span>
-        </Link>
+        </WorksScopeLink>
       </nav>
 
-      {scope === 'collection' && scopedTotal === 0 && (
+      {!data.upstreamFailed && <WorksScopeCount all={totalCount} owned={ownedTotal} empty={(
         <p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">
           {t.producerVns.collectionEmpty}
         </p>
-      )}
+      )} />}
+      <WorksCacheLoader producerId={producerId} needed={data.upstreamFailed || data.stale} />
 
       {developerVns.length > 0 && (
         <RoleSection
@@ -137,8 +144,23 @@ export async function ProducerVnsSections({
           locale={locale}
         />
       )}
-    </section>
+    </section></WorksScopeProvider>
   );
+}
+
+/**
+ * Projects a persisted owned VN without depending on an external association cache.
+ * @param row Locally stored lightweight collection card.
+ * @returns A producer credit retaining its cover classification and local artwork.
+ */
+function ownedCredit(row: CollectionCardItem): ProducerVnRef {
+  const local = row.local_image_thumb || row.local_image;
+  const url = local ? `/api/files/${local}` : row.image_url || row.image_thumb;
+  return {
+    id: row.id, title: row.title, alttitle: row.alttitle, released: row.released, rating: row.rating,
+    image: url ? { url, thumbnail: url, ...(row.image_sexual !== null ? { sexual: row.image_sexual } : {}) } : null,
+    owned: true,
+  };
 }
 
 function RoleSection({
@@ -155,7 +177,7 @@ function RoleSection({
   locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
+    <WorksScopeSection ownedCount={vns.filter((v) => v.owned).length}><div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted">
           {icon === 'dev' ? <Wrench className="h-4 w-4" aria-hidden /> : <Package className="h-4 w-4" aria-hidden />}
@@ -163,13 +185,13 @@ function RoleSection({
         </h3>
         <span className="text-xs text-muted">
           <span className="font-bold text-accent">
-            {vns.filter((v) => v.owned).length}/{vns.length}
+            {vns.filter((v) => v.owned).length}/<WorksScopeCount all={vns.length} owned={vns.filter((v) => v.owned).length} />
           </span>{' '}
           {t.producerVns.ownedLabel}
         </span>
       </div>
 
-      <PaginatedGrid
+      <WorksScopeGrid owned={vns.map((v) => v.owned)}
         ariaLabel={title}
         resetKey={title}
         className="grid gap-2"
@@ -237,7 +259,7 @@ function RoleSection({
               </div>
             </li>
         ))}
-      </PaginatedGrid>
-    </div>
+      </WorksScopeGrid>
+    </div></WorksScopeSection>
   );
 }

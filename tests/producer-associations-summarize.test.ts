@@ -91,6 +91,19 @@ afterEach(() => {
 });
 
 describe('fetchProducerAssociations', () => {
+  it('forces a refresh without deleting the last usable pages during an outage', async () => {
+    routeBy({ vn: () => jsonResponse({ results: [devVn('v90991')], more: false }), release: () => releasePage('r90991', ['v90992'], 'p90991', true, 'Studio X') });
+    await fetchProducerAssociations('p90991');
+    throttledFetchMock.mockClear();
+    routeBy({ vn: () => new Error('offline'), release: () => new Error('offline') });
+    const refreshed = await fetchProducerAssociations('p90991', { forceRefresh: true });
+    expect(refreshed.stale).toBe(true);
+    expect(refreshed.totalUnique).toBe(2);
+    expect(throttledFetchMock).toHaveBeenCalledTimes(2);
+    const cached = await fetchProducerAssociations('p90991', { cacheOnly: true });
+    expect(cached.totalUnique).toBe(2);
+    expect(cached.upstreamFailed).toBe(false);
+  });
   it('fills both cold role caches and reuses them on repeated page visits', async () => {
     routeBy({
       vn: () => jsonResponse({ results: [devVn('v90080')], more: false }),
@@ -201,14 +214,14 @@ describe('fetchProducerAssociations', () => {
     expect(r.totalUnique).toBe(0);
   });
 
-  it('does not set upstreamFailed when only one of the two walks fails', async () => {
+  it('marks incomplete data when one of the two walks fails without dropping the successful role', async () => {
     routeBy({
       vn: () => jsonResponse({ results: [devVn('v90006')], more: false }),
       release: () => new Error('release offline'),
     });
 
     const r = await fetchProducerAssociations('p90020');
-    expect(r.upstreamFailed).toBe(false);
+    expect(r.upstreamFailed).toBe(true);
     expect(r.developerVns.map((v) => v.id)).toEqual(['v90006']);
     expect(r.publisherVns).toEqual([]);
   });
@@ -265,7 +278,7 @@ describe('fetchProducerAssociations', () => {
     expect(throttledFetchMock).not.toHaveBeenCalled();
   });
 
-  it('reads complete cached walks that reach each pagination safety limit', async () => {
+  it('does not present a pagination safety limit as a complete cached walk', async () => {
     routeBy({
       vn: () => jsonResponse({ results: [], more: true }),
       release: () => jsonResponse({ results: [], more: true }),
@@ -276,7 +289,7 @@ describe('fetchProducerAssociations', () => {
     const cached = await fetchProducerAssociations('p90027', { cacheOnly: true });
 
     expect(cached.fromCache).toBe(true);
-    expect(cached.upstreamFailed).toBe(false);
+    expect(cached.upstreamFailed).toBe(true);
     expect(cached.developerVns).toEqual([]);
     expect(cached.publisherVns).toEqual([]);
     expect(throttledFetchMock).not.toHaveBeenCalled();

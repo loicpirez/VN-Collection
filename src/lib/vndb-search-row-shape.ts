@@ -33,7 +33,8 @@ function decodeSearchImage(value: unknown): VndbSearchRow['image'] | undefined {
   if (value === null) return null;
   const record = asJsonRecord(value);
   return record && isString(record.url) && isString(record.thumbnail)
-    ? { url: record.url, thumbnail: record.thumbnail }
+    && (record.sexual === undefined || (typeof record.sexual === 'number' && Number.isFinite(record.sexual)))
+    ? { url: record.url, thumbnail: record.thumbnail, ...(typeof record.sexual === 'number' ? { sexual: record.sexual } : {}) }
     : undefined;
 }
 

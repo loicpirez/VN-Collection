@@ -109,6 +109,7 @@ export async function VnDetailActionsBar({ vn, inCollection, egsRow, egsHasImage
       cover={{
         vnId: vn.id,
         vndbImage: vn.image_url,
+        vndbSexual: vn.image_sexual,
         egsId: egsRow?.egs_id ?? null,
         egsHasImage,
         currentCustomCover: vn.custom_cover,

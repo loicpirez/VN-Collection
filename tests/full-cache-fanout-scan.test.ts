@@ -305,6 +305,20 @@ describe('downloadFullReleasesForVn', () => {
 });
 
 describe('downloadFullStaffInfo / downloadFullStaffForVn', () => {
+  it('shares concurrent downloads and permits a clean retry after failure', async () => {
+    getStaffMock.mockResolvedValue(staffProfile('s90599'));
+    fetchStaffVnListMock.mockResolvedValue([]);
+    fetchVaVnListMock.mockResolvedValue([]);
+    const first = downloadFullStaffInfo('s90599');
+    expect(downloadFullStaffInfo('S90599')).toBe(first);
+    await first;
+    expect(getStaffMock).toHaveBeenCalledTimes(1);
+    getStaffMock.mockRejectedValueOnce(new Error('offline'));
+    await expect(downloadFullStaffInfo('s90599')).rejects.toThrow('offline');
+    getStaffMock.mockResolvedValue(staffProfile('s90599'));
+    await expect(downloadFullStaffInfo('s90599')).resolves.toMatchObject({ profile: { id: 's90599' } });
+    expect(getStaffMock).toHaveBeenCalledTimes(3);
+  });
   it('persists a staff payload and rebuilds the credit index', async () => {
     getStaffMock.mockResolvedValue(staffProfile('s90500'));
     fetchStaffVnListMock.mockResolvedValue([]);

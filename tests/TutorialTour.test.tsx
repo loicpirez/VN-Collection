@@ -58,7 +58,7 @@ describe('TutorialTour', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     advance(1);
     expect(screen.getByRole('dialog')).toHaveFocus();
-    expect(navigationMocks.push).toHaveBeenCalledWith('/');
+    expect(navigationMocks.push).not.toHaveBeenCalled();
 
     const expectedRoutes = [
       '/search',
@@ -90,6 +90,19 @@ describe('TutorialTour', () => {
     fireEvent.click(screen.getByRole('button', { name: t.tour.finish }));
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe('1');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('does not reset a newly typed query or steal input focus when the first-visit timer fires', () => {
+    window.history.replaceState(null, '', '/?q=motto');
+    renderWithProviders(<><input aria-label="Current search" defaultValue="motto" /><TutorialTour /></>, { locale: 'en' });
+    const input = screen.getByRole('textbox', { name: 'Current search' });
+    input.focus();
+    advance(800);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('motto');
+    expect(window.location.search).toBe('?q=motto');
+    expect(navigationMocks.push).not.toHaveBeenCalled();
   });
 
   it('moves backward and jumps directly through the step list', () => {

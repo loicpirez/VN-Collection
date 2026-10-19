@@ -224,6 +224,7 @@ describe('WishlistClient branches', () => {
   });
 
   it('commits a blank search and ignores non-Enter numeric key presses', async () => {
+    vi.spyOn(window.history, 'replaceState');
     nav.searchParams = new URLSearchParams('hideOwned=0&q=alpha');
     installFetch(state([item('v90001', 'Alpha')]));
     vi.useFakeTimers();
@@ -237,7 +238,7 @@ describe('WishlistClient branches', () => {
         await Promise.resolve();
       });
       await act(async () => { await vi.advanceTimersByTimeAsync(300); });
-      expect(nav.replace).toHaveBeenLastCalledWith('/wishlist?hideOwned=0', { scroll: false });
+      expect(window.history.replaceState).toHaveBeenLastCalledWith(null, '', '/wishlist?hideOwned=0');
 
       nav.replace.mockClear();
       fireEvent.keyDown(screen.getByLabelText('Min rating'), { key: 'Escape' });
