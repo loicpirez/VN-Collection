@@ -14,6 +14,7 @@ const SORT_KEYS = [
   'updated_at',
   'added_at',
   'title',
+  'title_kana',
   'rating',
   'user_rating',
   'playtime',

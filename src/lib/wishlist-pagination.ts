@@ -4,6 +4,7 @@ import type { WishlistClientItem } from '@/lib/vndb-ui-client-shape';
 import { parseOptionalQueryInteger, parseOptionalQueryNumber, parseQueryEnum } from '@/lib/query-params';
 import { createNumberedPageMeta, type NumberedPageMeta } from '@/lib/server-pagination';
 import { medianPlaytime } from './playtime';
+import { compareJapaneseTitles } from './japanese-title-order';
 
 /** Default number of wishlist entries requested per server page. */
 export const WISHLIST_SERVER_PAGE_SIZE = 60;
@@ -15,6 +16,8 @@ export const WISHLIST_SORTS = [
   'added_desc',
   'added_asc',
   'title',
+  'title_kana',
+  'title_kana_desc',
   'rating_desc',
   'released_desc',
   'released_asc',
@@ -188,6 +191,12 @@ export function paginateWishlist(source: WishlistClientItem[], query: WishlistSe
       case 'added_desc': return b.added - a.added;
       case 'added_asc': return a.added - b.added;
       case 'title': return collator.compare(a.vn.title, b.vn.title);
+      case 'title_kana':
+      case 'title_kana_desc': return compareJapaneseTitles(
+        { ...a.vn, title_reading: a.title_reading },
+        { ...b.vn, title_reading: b.title_reading },
+        query.sort === 'title_kana' ? 'asc' : 'desc',
+      );
       case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
       case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
       case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');

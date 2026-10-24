@@ -1,6 +1,7 @@
 import { asJsonRecord } from './json-shape';
 import { decodeVndbResultsEnvelope, type VndbResultsEnvelope } from './vndb-response-shape';
 import { isVndbVnId } from './vn-id-shape';
+import { isPersistedTitles } from './vn-persisted-json-shape';
 import type {
   VndbAuthInfo,
   VndbStatsGlobal,
@@ -236,6 +237,7 @@ export function decodeVndbUlistEntryRow(value: unknown): VndbUlistEntry | null {
     !labels ||
     !vn ||
     !isString(vn.title) ||
+    !(vn.titles === undefined || isPersistedTitles(vn.titles)) ||
     !isNullableString(vn.alttitle) ||
     !isNullableString(vn.released) ||
     !isNullableNumber(vn.rating) ||
@@ -269,6 +271,7 @@ export function decodeVndbUlistEntryRow(value: unknown): VndbUlistEntry | null {
       id: record.id.toLowerCase(),
       title: vn.title,
       alttitle: vn.alttitle,
+      ...(isPersistedTitles(vn.titles) ? { titles: vn.titles } : {}),
       released: vn.released,
       rating: vn.rating,
       votecount: vn.votecount,

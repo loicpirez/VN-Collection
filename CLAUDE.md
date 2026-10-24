@@ -2133,6 +2133,17 @@ import { ScrollFadeRight } from '@/components/ScrollFadeRight';
 2. `app/api/collection/route.ts` → add to `VALID_SORTS`.
 3. `components/LibraryClient.tsx` → add to `SORT_KEYS`.
 4. i18n: add `library.sort.<key>` in all locales.
+5. Update PostgreSQL collection-list ordering and the settings allowlists,
+   decoder and selector. Verify global ordering before pagination on both engines.
+
+Japanese `title_kana` uses `japanese-title-order.ts`, shared by the library
+and wishlist. EGS furigana wins over native kana titles and explicit VNDB
+Japanese romanization. Do not replace it with kanji codepoint ordering or
+guess readings from translated titles. Missing readings stay last even in
+reverse order. The wishlist query requests Japanese title metadata and
+batch-loads cached furigana outside collection membership. No network lookup
+is added per item or per comparison. Keep its server and client fallback
+sort keys, decoder and three locales synchronized.
 
 ### Add a new locale
 Two strict requirements:

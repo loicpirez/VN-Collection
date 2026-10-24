@@ -60,6 +60,7 @@ changing the opt-in state.
 - Status tracking: planning, playing, completed, on hold, dropped.
 - Personal rating, playtime, start/finish dates, favorites, notes, routes, logs, and reading queue.
 - URL-driven filters and grouping by status, developer, publisher, tag, series, year, dumped state, aspect ratio, and more.
+- Japanese gojuon (あいうえお) title ordering in the library and wishlist, using EGS furigana or VNDB Japanese romanization, with missing readings kept last.
 - Per-page card density controls with saved defaults.
 - Bulk select, random pick, download missing data, and full refresh actions.
 - Recently viewed, anniversaries, reading queue, and library sections with persistent layout options.

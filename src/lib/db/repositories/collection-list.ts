@@ -1,5 +1,6 @@
 import type { PoolClient, QueryResultRow } from 'pg';
 import { COMBINED_PLAYTIME_SORT_SQL } from '../collection-sort';
+import { paginateJapaneseTitleRows, type JapaneseTitleDatabaseRow } from '../japanese-title-order';
 import { aspectKeyForResolution, isAspectKey, parseResolutionValue, type AspectKey } from '@/lib/aspect-ratio';
 import type { CollectionTagAggregate, ListOptions } from '@/lib/db';
 import type { CollectionCardItem, CollectionItem, EgsLite, SeriesLite, Stats, Status } from '@/lib/types';
@@ -88,6 +89,7 @@ function sortExpression(sort: NonNullable<ListOptions['sort']>): string {
     updated_at: 'c.updated_at',
     added_at: 'c.added_at',
     title: 'app_search_normalize(v.title) COLLATE "C"',
+    title_kana: 'v.title',
     rating: 'v.rating',
     user_rating: 'c.user_rating',
     playtime: 'NULLIF(c.playtime_minutes, 0)',
@@ -108,7 +110,7 @@ function sortExpression(sort: NonNullable<ListOptions['sort']>): string {
 }
 
 function needsEgs(options: ListOptions): boolean {
-  return options.sort === 'egs_rating' ||
+  return options.sort === 'title_kana' || options.sort === 'egs_rating' ||
     options.sort === 'combined_rating' ||
     options.sort === 'egs_playtime' ||
     options.sort === 'combined_playtime' ||
@@ -290,14 +292,14 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
   const safeOffset = Number.isFinite(options.offset) && options.offset! > 0
     ? Math.min(10_000_000, Math.floor(options.offset!))
     : 0;
-  const limit = bindings.add(safeLimit);
-  const offset = bindings.add(safeOffset);
+  const limit = bindings.add(sort === 'title_kana' ? null : safeLimit);
+  const offset = bindings.add(sort === 'title_kana' ? 0 : safeOffset);
   const orderBy = sort === 'custom'
     ? `CASE WHEN c.custom_order = 0 THEN 1 ELSE 0 END ASC, c.custom_order ${direction} NULLS LAST`
     : `${sortExpression(sort)} ${direction} NULLS LAST`;
   return {
     text: `
-      SELECT ${projection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
+      SELECT ${projection}${sort === 'title_kana' ? ', v.titles AS title_sort_titles, e.gamename_furigana AS title_furigana' : ''}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
         c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
         c.edition_label, c.physical_location, c.box_type, c.download_url,
         c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at
@@ -400,8 +402,13 @@ async function enrichItems(items: CollectionItem[]): Promise<void> {
 async function listPostgres(options: ListOptions = {}): Promise<CollectionItem[]> {
   const query = buildCollectionQuery(options);
   if (!query) return [];
-  const result = await postgresQuery<CollectionItemDatabaseRow & QueryResultRow>(query.text, query.values);
-  const items = result.rows.map((row) => mapCollectionItemRow(row));
+  const result = await postgresQuery<CollectionItemDatabaseRow & JapaneseTitleDatabaseRow & QueryResultRow>(query.text, query.values);
+  const limit = Number.isFinite(options.limit) && options.limit! > 0 ? Math.min(10_000, Math.floor(options.limit!)) : 10_000;
+  const offset = Number.isFinite(options.offset) && options.offset! > 0 ? Math.min(10_000_000, Math.floor(options.offset!)) : 0;
+  const rows = options.sort === 'title_kana'
+    ? paginateJapaneseTitleRows(result.rows, options.order === 'asc' ? 'asc' : 'desc', limit, offset)
+    : result.rows;
+  const items = rows.map((row) => mapCollectionItemRow(row));
   await enrichItems(items);
   return items;
 }

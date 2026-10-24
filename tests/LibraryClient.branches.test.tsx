@@ -113,6 +113,14 @@ afterEach(() => {
 });
 
 describe('LibraryClient filter branches', () => {
+  it('renders Japanese ordering and its reading policy without replacing the existing toolbar', async () => {
+    searchParamsValue = new URLSearchParams('sort=title_kana&order=asc');
+    installFetchRouter([cardRow('v95001', 'Synthetic Japanese sort')]);
+    renderLibrary();
+    await screen.findByText('Synthetic Japanese sort');
+    expect(screen.getAllByRole('option', { name: 'Japanese (あいうえお)' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Titles without a reading stay last/).length).toBeGreaterThan(0);
+  });
   it('keeps only egs_ ids when only_egs_only=1 is active', async () => {
     searchParamsValue = new URLSearchParams('only_egs_only=1');
     installFetchRouter([

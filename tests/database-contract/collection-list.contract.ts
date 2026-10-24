@@ -97,6 +97,16 @@ export function registerCollectionListRepositoryContract(
       });
     });
 
+    it('orders by Japanese readings before paging on either database engine', async () => {
+      await harness.withRepository(async (repository) => {
+        expect(ids(await repository.listCards({ sort: 'title_kana', order: 'asc' }))).toEqual([
+          COLLECTION_LIST_CONTRACT_IDS.secondVn, COLLECTION_LIST_CONTRACT_IDS.thirdVn, COLLECTION_LIST_CONTRACT_IDS.firstVn,
+        ]);
+        expect(ids(await repository.listCards({ sort: 'title_kana', order: 'asc', offset: 1, limit: 1 }))).toEqual([COLLECTION_LIST_CONTRACT_IDS.thirdVn]);
+        expect(ids(await repository.listCards({ sort: 'title_kana', order: 'desc', limit: 1 }))).toEqual([COLLECTION_LIST_CONTRACT_IDS.firstVn]);
+      });
+    });
+
     it('applies numeric, adult-content, and all sort modes without widening matches', async () => {
       await harness.withRepository(async (repository) => {
         expect(ids(await repository.listCards({ ratingMin: 80 }))).toEqual([

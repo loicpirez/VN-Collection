@@ -135,6 +135,7 @@ const VALID_SORTS = new Set([
   'updated_at',
   'added_at',
   'title',
+  'title_kana',
   'rating',
   'user_rating',
   'playtime',

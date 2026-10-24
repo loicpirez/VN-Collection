@@ -126,9 +126,11 @@ function seed(): void {
   database.prepare(`
     INSERT INTO egs_game (
       vn_id, egs_id, median, average, count, playtime_median_minutes,
-      source, okazu, erogame, fetched_at
-    ) VALUES (?, 991501, 88, 86, 10, 720, 'manual', 0, 0, 1)
+      source, okazu, erogame, fetched_at, gamename_furigana
+    ) VALUES (?, 991501, 88, 86, 10, 720, 'manual', 0, 0, 1, 'う')
   `).run(vnIds[0]);
+  database.prepare('UPDATE vn SET alttitle = ? WHERE id = ?').run('あ', vnIds[1]);
+  database.prepare('UPDATE vn SET alttitle = ? WHERE id = ?').run('い', vnIds[2]);
   database.prepare(`INSERT INTO series (id, name, created_at, updated_at) VALUES (?, 'Contract Series', 1, 1)`).run(COLLECTION_LIST_CONTRACT_IDS.series);
   database.prepare(`INSERT INTO series_vn (series_id, vn_id, order_index) VALUES (?, ?, 0)`).run(COLLECTION_LIST_CONTRACT_IDS.series, vnIds[0]);
   database.prepare(`INSERT INTO user_list (id, name, slug, created_at, updated_at) VALUES (?, 'Contract List', 'contract-list-991501', 1, 1)`).run(COLLECTION_LIST_CONTRACT_IDS.series);

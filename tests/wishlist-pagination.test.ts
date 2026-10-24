@@ -41,6 +41,17 @@ function query(value = '') {
 }
 
 describe('wishlist server pagination', () => {
+  it('uses Japanese readings across the whole wishlist before pagination in both directions', () => {
+    const source = [
+      item('v95003', 'Alpha', { title_reading: 'う' }),
+      item('v95001', 'Zulu', { title_reading: 'あ' }),
+      item('v95002', 'Middle', { title_reading: 'い' }),
+      item('v95004', 'No reading'),
+    ];
+    expect(paginateWishlist(source, query('hideOwned=0&sort=title_kana&pageSize=1&page=2')).items.map((row) => row.id)).toEqual(['v95002']);
+    expect(paginateWishlist(source, query('hideOwned=0&sort=title_kana_desc')).items.map((row) => row.id)).toEqual(['v95003', 'v95002', 'v95001', 'v95004']);
+    expect(paginateWishlist(source, query('hideOwned=0&sort=title_kana&locale=fr')).items.map((row) => row.id)).toEqual(['v95001', 'v95002', 'v95003', 'v95004']);
+  });
   it('orders by the same four-source median as cards instead of a single-source priority', () => {
     const outlier = item('v90001', 'Outlier', { playtime_minutes: 600, ai_playtime_minutes: 2400 });
     const longer = item('v90002', 'Longer', { vn: { ...item('v90002', 'Longer').vn, length_minutes: 900 }, egs: null });

@@ -22,6 +22,7 @@ const VALID_SORTS: Array<NonNullable<ListOptions['sort']>> = [
   'updated_at',
   'added_at',
   'title',
+  'title_kana',
   'rating',
   'user_rating',
   'playtime',

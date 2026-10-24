@@ -16,6 +16,9 @@ const { recordActivityMock } = vi.hoisted(() => ({
   recordActivityMock: vi.fn(),
 }));
 const { listCardsMock } = vi.hoisted(() => ({ listCardsMock: vi.fn() }));
+const { loadReadingsMock } = vi.hoisted(() => ({ loadReadingsMock: vi.fn() }));
+
+vi.mock('@/lib/db/repositories/title-readings', () => ({ loadTitleReadings: loadReadingsMock }));
 
 const { invalidateWishlistCacheMock } = vi.hoisted(() => ({
   invalidateWishlistCacheMock: vi.fn(),
@@ -61,6 +64,7 @@ function ctx(id: string): { params: Promise<{ id: string }> } {
 
 describe('wishlist route branches', () => {
   beforeEach(() => {
+    loadReadingsMock.mockReset().mockResolvedValue(new Map());
     listCardsMock.mockReset().mockReturnValue([]);
     for (const mock of [
       fetchWishlistMock,
@@ -111,6 +115,16 @@ describe('wishlist route branches', () => {
     expect(await response.json()).toMatchObject({ items: [{
       id: 'v90001', vn: { length_minutes: 600 }, playtime_minutes: 720, ai_playtime_minutes: 2400,
     }] });
+  });
+
+  it('attaches cached furigana without requiring collection membership', async () => {
+    fetchWishlistMock.mockResolvedValue([{ id: 'v95001', vn: { title: '空の見本' } }]);
+    isInCollectionManyMock.mockReturnValue(new Set());
+    getEgsSummariesMock.mockReturnValue(new Map());
+    loadReadingsMock.mockResolvedValue(new Map([['v95001', 'あおぞらのみほん']]));
+    const response = await wishlistGET(req('/api/wishlist'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ items: [{ in_collection: false, title_reading: 'あおぞらのみほん' }] });
   });
 
   it('retains null AI duration for a collected wishlist entry without an estimate', async () => {

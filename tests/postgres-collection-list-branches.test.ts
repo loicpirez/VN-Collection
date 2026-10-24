@@ -96,6 +96,18 @@ describe('PostgreSQL collection list branch behavior', () => {
     expect(mocks.postgresQuery).toHaveBeenCalledTimes(3);
   });
 
+  it('sorts Japanese readings across all SQL matches before limiting the enriched page', async () => {
+    mocks.postgresQuery.mockImplementation(async (sql: string) => ({ rows: sql.includes('FROM collection c JOIN vn v') ? [
+      { ...itemRow('v95001', { title: 'Alpha' }), title_furigana: 'う' },
+      { ...itemRow('v95002', { title: 'Zulu' }), title_furigana: 'あ' },
+      { ...itemRow('v95003', { title: 'Middle' }), title_furigana: 'い' },
+    ] : [] }));
+    const repository = createPostgresCollectionListRepository();
+    expect((await repository.listCards({ sort: 'title_kana', order: 'asc', limit: 1, offset: 1 })).map((row) => row.id)).toEqual(['v95003']);
+    expect(mocks.postgresQuery.mock.calls[0]?.[1]).toEqual([null, 0]);
+    expect((await repository.list({ sort: 'title_kana', limit: 1 })).map((row) => row.id)).toEqual(['v95001']);
+  });
+
   it('builds the complete filter surface including negative booleans and bounded paging', async () => {
     const repository = createPostgresCollectionListRepository();
     await repository.list({

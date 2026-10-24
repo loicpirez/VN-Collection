@@ -68,6 +68,19 @@ navigates to the appropriate filtered view. Affected surfaces:
   collection-level dumped flag is set.
 
 ### Sort + custom drag-reorder [shipped]
+`title_kana` adds Japanese gojuon order (あいうえお, かきくけこ, ...)
+to the library, its persisted default sort, and the wishlist. The wishlist
+also accepts `title_kana_desc`; the library uses its existing order arrow.
+URL state wins over the library default. Existing defaults are unchanged.
+
+Reading priority is cached EGS furigana, a kana-only Japanese/alternate
+title, then the Japanese title's explicit VNDB romanization converted with
+WanaKana. Kanji readings are never inferred from character order. Missing
+readings stay last in either direction, with deterministic title/id ties.
+Width, kana script, long vowels, small kana and voicing are normalized for
+ordering; displayed titles and stored metadata remain unchanged. Both
+database engines and wishlist processing order all matches before pagination.
+
 Standard sort dropdown plus an opt-in `sort=custom` mode that unlocks
 drag-to-reorder via @dnd-kit. Reset button reverts to the default sort.
 Whole-card drag surface (no separate handle) — clicks pass through
@@ -126,7 +139,7 @@ notice when something notable lines up.
 ### Wishlist controls [shipped]
 `/wishlist` mirrors your VNDB "Wishlist" label and adds:
   - **Filter** by free-text query (title / alt / developer).
-  - **Sort** by added date (newest/oldest), title, rating, release date,
+  - **Sort** by added date (newest/oldest), title, Japanese reading (both directions), rating, release date,
     or length.
   - **Group** by year, developer, language, or "already in collection
     vs. to acquire".

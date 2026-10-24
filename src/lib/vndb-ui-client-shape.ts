@@ -42,6 +42,8 @@ export interface WishlistEgsSummary {
 
 /** One VNDB wishlist row enriched with local collection and EGS state. */
 export interface WishlistClientItem extends VndbUlistEntry {
+  /** Cached EGS furigana used for Japanese title ordering. */
+  title_reading?: string;
   in_collection: boolean;
   egs: WishlistEgsSummary | null;
   /** Local personal duration when the wishlist title is owned. */
@@ -220,9 +222,11 @@ export function decodeWishlistClientState(value: unknown): WishlistClientState |
     }
     if ((row.playtime_minutes !== undefined && !isNullableFiniteNumber(row.playtime_minutes))
       || (row.ai_playtime_minutes !== undefined && !isNullableFiniteNumber(row.ai_playtime_minutes))) return null;
+    if (row.title_reading !== undefined && typeof row.title_reading !== 'string') return null;
     items.push({ ...entry, in_collection: row.in_collection, egs,
       ...(row.playtime_minutes !== undefined ? { playtime_minutes: row.playtime_minutes } : {}),
       ...(row.ai_playtime_minutes !== undefined ? { ai_playtime_minutes: row.ai_playtime_minutes } : {}),
+      ...(typeof row.title_reading === 'string' ? { title_reading: row.title_reading } : {}),
     });
   }
   const base: WishlistClientState = {

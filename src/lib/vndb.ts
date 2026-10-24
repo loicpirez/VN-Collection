@@ -1557,6 +1557,7 @@ export interface VndbUlistEntry {
     platforms: string[];
     image: { url: string; thumbnail: string; sexual?: number } | null;
     developers: { id: string; name: string }[];
+    titles?: VndbTitleRecord[];
   };
 }
 
@@ -1574,6 +1575,7 @@ const ULIST_FIELDS = [
   'labels{id,label}',
   'vn.title',
   'vn.alttitle',
+  'vn.titles{lang,title,latin,official,main}',
   'vn.released',
   'vn.rating',
   'vn.votecount',

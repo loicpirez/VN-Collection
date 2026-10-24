@@ -121,6 +121,15 @@ describe('VNDB UI client response adapters', () => {
     }
   });
 
+  it('preserves Japanese title metadata and local readings through the wishlist decoder', () => {
+    const titles = [{ lang: 'ja', title: '空の見本', latin: 'Sora no Mihon', official: true, main: true }];
+    const row = { ...WISHLIST_ROW, title_reading: 'そらのみほん', vn: { ...WISHLIST_ROW.vn, titles } };
+    expect(decodeWishlistClientState({ items: [row] })?.items[0]).toMatchObject({ title_reading: 'そらのみほん', vn: { titles } });
+    expect(decodeWishlistClientState({ items: [{ ...row, title_reading: null }] })).toBeNull();
+    expect(decodeWishlistClientState({ items: [{ ...row, title_reading: 12 }] })).toBeNull();
+    expect(decodeWishlistClientState({ items: [{ ...row, vn: { ...row.vn, titles: [{}] } }] })).toBeNull();
+  });
+
   it('rejects malformed local payloads', () => {
     expect(decodeVndbStatusClientState({ entry: null, labels: null })).toBeNull();
     expect(decodeVndbStatusClientState({ entry: { id: 'bad' }, labels: [] })).toBeNull();

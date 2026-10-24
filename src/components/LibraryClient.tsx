@@ -66,6 +66,7 @@ type SortKey =
   | 'updated_at'
   | 'added_at'
   | 'title'
+  | 'title_kana'
   | 'rating'
   | 'user_rating'
   | 'playtime'
@@ -82,6 +83,7 @@ const SORT_KEYS: SortKey[] = [
   'updated_at',
   'added_at',
   'title',
+  'title_kana',
   'rating',
   'user_rating',
   'playtime',
@@ -936,6 +938,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
             </select>
           </label>
         )}
+        {sort === 'title_kana' && <p className="w-full text-xs text-muted">{t.library.japaneseSortHint}</p>}
         <button
           type="button"
           className="btn"

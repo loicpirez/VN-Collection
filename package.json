@@ -52,7 +52,8 @@
     "react-virtuoso": "4.18.12",
     "recharts": "^3.8.1",
     "remark-gfm": "^4.0.0",
-    "socks-proxy-agent": "^10.1.0"
+    "socks-proxy-agent": "^10.1.0",
+    "wanakana": "5.3.1"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

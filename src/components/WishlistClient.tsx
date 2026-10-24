@@ -19,15 +19,16 @@ import { readApiError, readApiErrorLocalized } from '@/lib/api-error-read';
 import { languageDisplayName } from '@/lib/language-names';
 import { BCP47, yearOnly } from '@/lib/locale-number';
 import { medianPlaytime } from '@/lib/playtime';
+import { compareJapaneseTitles } from '@/lib/japanese-title-order';
 import { decodeWishlistClientState, type WishlistClientItem, type WishlistClientState } from '@/lib/vndb-ui-client-shape';
 import { parseOptionalQueryInteger, parseQueryEnum } from '@/lib/query-params';
 import { replaceSearchQueryInHistory, useDebouncedUrlInput } from '@/lib/use-debounced-url-input';
 
-type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
+type WishlistSort = 'added_desc' | 'added_asc' | 'title' | 'title_kana' | 'title_kana_desc' | 'rating_desc' | 'released_desc' | 'released_asc' | 'length_desc' | 'egs_rating_desc';
 type WishlistGroup = 'none' | 'year' | 'developer' | 'language' | 'platform' | 'status';
 
 const WISHLIST_SORTS: readonly WishlistSort[] = [
-  'added_desc', 'added_asc', 'title', 'rating_desc',
+  'added_desc', 'added_asc', 'title', 'title_kana', 'title_kana_desc', 'rating_desc',
   'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc',
 ];
 const WISHLIST_GROUPS: readonly WishlistGroup[] = [
@@ -41,7 +42,7 @@ function readGroupFromUrl(value: string | null, fallback: WishlistGroup): Wishli
   return parseQueryEnum(value, WISHLIST_GROUPS, fallback);
 }
 
-const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
+const SORT_KEYS: WishlistSort[] = ['added_desc', 'added_asc', 'title', 'title_kana', 'title_kana_desc', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc'];
 const GROUP_KEYS: WishlistGroup[] = ['none', 'year', 'developer', 'language', 'platform', 'status'];
 
 const Q_DEBOUNCE_MS = 300;
@@ -587,6 +588,12 @@ export function WishlistClient() {
         case 'added_desc': return b.added - a.added;
         case 'added_asc': return a.added - b.added;
         case 'title': return collator.compare(a.vn.title, b.vn.title);
+        case 'title_kana':
+        case 'title_kana_desc': return compareJapaneseTitles(
+          { ...a.vn, title_reading: a.title_reading },
+          { ...b.vn, title_reading: b.title_reading },
+          sort === 'title_kana' ? 'asc' : 'desc',
+        );
         case 'rating_desc': return (b.vn.rating ?? 0) - (a.vn.rating ?? 0);
         case 'released_desc': return (b.vn.released ?? '').localeCompare(a.vn.released ?? '');
         case 'released_asc': return (a.vn.released ?? '').localeCompare(b.vn.released ?? '');
@@ -773,6 +780,9 @@ export function WishlistClient() {
                 <option key={k} value={k}>{t.wishlist.groupLabel}: {t.wishlist.groupOptions[k]}</option>
               ))}
             </select>
+            {(sort === 'title_kana' || sort === 'title_kana_desc') && (
+              <p className="w-full text-xs text-muted">{t.library.japaneseSortHint}</p>
+            )}
             <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-muted can-hover:sm:min-h-0">
               <input
                 type="checkbox"

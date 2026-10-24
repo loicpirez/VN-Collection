@@ -1,6 +1,7 @@
 import 'server-only';
 import { normalizeOptionalCoordinate } from '@/lib/place-coordinates';
 import { COMBINED_PLAYTIME_SORT_SQL } from '@/lib/db/collection-sort';
+import { paginateJapaneseTitleRows, type JapaneseTitleDatabaseRow } from '@/lib/db/japanese-title-order';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
@@ -4052,6 +4053,7 @@ export interface ListOptions {
     | 'updated_at'
     | 'added_at'
     | 'title'
+    | 'title_kana'
     | 'rating'
     | 'user_rating'
     | 'playtime'
@@ -4153,6 +4155,7 @@ export function listCollection({
     updated_at: 'c.updated_at',
     added_at: 'c.added_at',
     title: 'v.title',
+    title_kana: 'v.title',
     rating: 'v.rating',
     user_rating: 'c.user_rating',
     // User's own recorded playtime, nothing else. The `length_minutes`
@@ -4194,6 +4197,7 @@ export function listCollection({
     custom: 'CASE WHEN c.custom_order = 0 THEN 1 ELSE 0 END, c.custom_order',
   };
   const needsEgsJoin =
+    sort === 'title_kana' ||
     sort === 'egs_rating' ||
     sort === 'combined_rating' ||
     sort === 'egs_playtime' ||
@@ -4444,10 +4448,10 @@ export function listCollection({
         : 'v.*';
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(10_000, Math.floor(limit)) : 10_000;
   const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.min(10_000_000, Math.floor(offset)) : 0;
-  params.push(safeLimit, safeOffset);
+  params.push(sort === 'title_kana' ? -1 : safeLimit, sort === 'title_kana' ? 0 : safeOffset);
   const rows = db
     .prepare(`
-      SELECT ${vnProjection}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
+      SELECT ${vnProjection}${sort === 'title_kana' ? ', v.titles AS title_sort_titles, e.gamename_furigana AS title_furigana' : ''}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
              c.finished_date, c.notes, c.favorite, c.location, c.edition_type,
              c.edition_label, c.physical_location, c.box_type, c.download_url,
              c.dumped, c.dumped_ignored, c.custom_description, c.added_at, c.updated_at,
@@ -4460,8 +4464,11 @@ export function listCollection({
       ORDER BY ${sortCol} ${dir} NULLS LAST
       LIMIT ? OFFSET ?
     `)
-    .all(...params) as DbRow[];
-  const items = rows.map((r) => rowToItem(r)!).filter(Boolean);
+    .all(...params) as (DbRow & JapaneseTitleDatabaseRow)[];
+  const pageRows = sort === 'title_kana'
+    ? paginateJapaneseTitleRows(rows, order, safeLimit, safeOffset)
+    : rows;
+  const items = pageRows.map((r) => rowToItem(r)!).filter(Boolean);
   const ids = items.map((i) => i.id);
   const egsMap = getEgsSummariesForVns(ids);
   const seriesMap = listSeriesForVnsMany(ids);

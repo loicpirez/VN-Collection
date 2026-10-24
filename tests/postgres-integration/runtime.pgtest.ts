@@ -1216,9 +1216,11 @@ registerCollectionListRepositoryContract('PostgreSQL', {
         pool.query(`
           INSERT INTO egs_game (
             vn_id, egs_id, median, average, count, playtime_median_minutes,
-            source, okazu, erogame, fetched_at
-          ) VALUES ($1, 991501, 88, 86, 10, 720, 'manual', 0, 0, 1)
+            source, okazu, erogame, fetched_at, gamename_furigana
+          ) VALUES ($1, 991501, 88, 86, 10, 720, 'manual', 0, 0, 1, 'う')
         `, [ids.firstVn]),
+        pool.query('UPDATE vn SET alttitle = $1 WHERE id = $2', ['あ', ids.secondVn]),
+        pool.query('UPDATE vn SET alttitle = $1 WHERE id = $2', ['い', ids.thirdVn]),
         pool.query(`INSERT INTO series (id, name, created_at, updated_at) VALUES ($1, 'Contract Series', 1, 1)`, [ids.series]),
         pool.query(`
           INSERT INTO user_list (id, name, slug, created_at, updated_at)

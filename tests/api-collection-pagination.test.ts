@@ -64,6 +64,21 @@ describe('GET /api/collection pagination', () => {
     expect((await clampedResponse.json()).pagination.page_size).toBe(500);
   });
 
+  it('applies Japanese reading order to the complete filtered collection before pagination', async () => {
+    for (const [index, id] of IDS.entries()) {
+      upsertVn({ id, title: `Pagination Fixture ${index}`, alttitle: ['う', 'あ', 'い'][index] });
+    }
+    const first = await GET(request('q=Pagination%20Fixture&sort=title_kana&order=asc&limit=1&page=1'));
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ items: [{ id: IDS[1] }], pagination: { has_more: true } });
+    const second = await GET(request('q=Pagination%20Fixture&sort=title_kana&order=asc&limit=1&page=2'));
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ items: [{ id: IDS[2] }] });
+    const reversed = await GET(request('q=Pagination%20Fixture&sort=title_kana&order=desc&limit=1'));
+    expect(reversed.status).toBe(200);
+    expect(await reversed.json()).toMatchObject({ items: [{ id: IDS[0] }] });
+  });
+
   it.each([
     'page=0',
     'page=nope',

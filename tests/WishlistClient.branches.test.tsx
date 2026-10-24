@@ -110,7 +110,7 @@ describe('WishlistClient branches', () => {
     });
   }
 
-  it.each(['added_asc', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc', 'title'])(
+  it.each(['added_asc', 'rating_desc', 'released_desc', 'released_asc', 'length_desc', 'egs_rating_desc', 'title', 'title_kana', 'title_kana_desc'])(
     'orders cards under the %s sort branch',
     async (sortMode) => {
       // sort is URL-derived; the mocked router never mutates it, so seed it.
@@ -125,6 +125,21 @@ describe('WishlistClient branches', () => {
       expect(screen.getByText('Beta')).toBeInTheDocument();
     },
   );
+
+  it.each(['title_kana', 'title_kana_desc'])('uses reading metadata in the %s client fallback', async (sortMode) => {
+    nav.searchParams = new URLSearchParams(`hideOwned=0&sort=${sortMode}`);
+    installFetch(state([
+      item('v95001', 'Alpha', { title_reading: 'う' }),
+      item('v95002', 'Zulu', { title_reading: 'あ' }),
+    ]));
+    renderWishlist();
+    await screen.findByText('Alpha');
+    const cards = screen.getAllByTestId(/^wishlist-card-/);
+    expect(cards.map((card) => card.getAttribute('data-testid'))).toEqual(sortMode === 'title_kana'
+      ? ['wishlist-card-v95002', 'wishlist-card-v95001']
+      : ['wishlist-card-v95001', 'wishlist-card-v95002']);
+    expect(screen.getByText(/Titles without a reading stay last/)).toBeInTheDocument();
+  });
 
   it.each(['year', 'language', 'platform', 'status', 'developer'])(
     'groups by %s (with unknown fallbacks) rendering group headings',

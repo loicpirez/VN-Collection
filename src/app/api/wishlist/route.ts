@@ -6,6 +6,7 @@ import { requireLocalhostOrToken } from '@/lib/auth-gate';
 import { apiErrorBody } from '@/lib/api-error-shape';
 import { paginateWishlist, parseWishlistServerQuery } from '@/lib/wishlist-pagination';
 import type { WishlistClientItem } from '@/lib/vndb-ui-client-shape';
+import { loadTitleReadings } from '@/lib/db/repositories/title-readings';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,16 +43,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // reads `it.vn.id` keeps working without a coordinated rename.
     //
     const ids = result.map((e) => e.id);
-    const [ownedSet, egsMap, localCards] = await Promise.all([
+    const [ownedSet, egsMap, localCards, readings] = await Promise.all([
       getCollectionCoreRepository().containsMany(ids),
       getCollectionListRepository().egsSummaries(ids),
       getCollectionListRepository().listCards({ vnIds: ids }),
+      loadTitleReadings(ids),
     ]);
     const localById = new Map(localCards.map((card) => [card.id, card]));
     const items: WishlistClientItem[] = result.map((e) => ({
       ...e,
       vn: { ...e.vn, id: e.id },
       in_collection: ownedSet.has(e.id),
+      ...(readings.has(e.id) ? { title_reading: readings.get(e.id) } : {}),
       ...(localById.has(e.id) ? {
         playtime_minutes: localById.get(e.id)?.playtime_minutes,
         ai_playtime_minutes: localById.get(e.id)?.ai_playtime?.minutes ?? null,

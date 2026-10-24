@@ -38,6 +38,9 @@ without the cover wall. Restore the same way.
   any combination via the `+ Save this filter` chip.
 - **Sort dropdown** + **arrow** for direction, plus a **Reorder** button
   that switches to `sort=custom` and unlocks drag-to-reorder.
+- Choose **Japanese (あいうえお)** for reading order. The arrow reverses it;
+  Settings > Library can save it as your default. Wishlist has Japanese
+  ascending and reverse choices too. Titles without a usable reading stay last.
 - **Density toggle** (LayoutGrid icon) switches between comfortable and
   dense grid layouts.
 - **Card density slider** (in Settings → Display, also exposed in the

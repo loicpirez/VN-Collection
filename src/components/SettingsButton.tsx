@@ -55,6 +55,7 @@ const SORT_KEYS: SortKey[] = [
   'updated_at',
   'added_at',
   'title',
+  'title_kana',
   'rating',
   'user_rating',
   'playtime',

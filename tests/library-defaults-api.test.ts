@@ -57,7 +57,7 @@ describe('R5-207 GET defaults — fall back to canonical values', () => {
 
 describe('R5-207 PATCH — accepts every key the UI exposes', () => {
   const SORTS = [
-    'updated_at', 'added_at', 'title', 'rating', 'user_rating',
+    'updated_at', 'added_at', 'title', 'title_kana', 'rating', 'user_rating',
     'playtime', 'length_minutes', 'egs_playtime', 'combined_playtime',
     'released', 'producer', 'publisher', 'egs_rating', 'combined_rating',
     'custom',
