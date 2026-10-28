@@ -1458,6 +1458,31 @@ export interface VndbCoverInfo {
   thumbnail: string | null;
   sexual: number | null;
 }
+
+/**
+ * Fetch lightweight card metadata for explicit VN ids in bounded VNDB batches.
+ *
+ * @param ids VN ids whose list cards need metadata.
+ * @returns Valid decoded VNDB search rows in upstream order.
+ */
+export async function fetchVnCardsByIds(ids: readonly string[]): Promise<Array<Omit<VndbSearchHit, 'in_collection'>>> {
+  const cleaned = Array.from(new Set(ids.filter((id) => isVndbVnId(id)).map((id) => id.toLowerCase())));
+  const rows: Array<Omit<VndbSearchHit, 'in_collection'>> = [];
+  for (let offset = 0; offset < cleaned.length; offset += 100) {
+    const chunk = cleaned.slice(offset, offset + 100);
+    const filters = chunk.length === 1
+      ? ['id', '=', chunk[0]]
+      : ['or', ...chunk.map((id) => ['id', '=', id])];
+    const response = await vndbPost<Omit<VndbSearchHit, 'in_collection'>>('/vn', {
+      filters,
+      fields: VN_SEARCH_FIELDS,
+      results: chunk.length,
+    }, TTL.vnSearch, decodeVndbSearchRow);
+    rows.push(...response.results);
+  }
+  return rows;
+}
+
 /**
  * Bulk-fetch cover URLs + sexual flags for a list of VN ids. Returns a
  * map for O(1) lookup; ids VNDB doesn't recognise are simply absent.

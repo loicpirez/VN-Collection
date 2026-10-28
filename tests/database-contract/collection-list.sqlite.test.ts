@@ -34,6 +34,7 @@ function reset(): void {
   database.prepare('DELETE FROM vn_developer_index WHERE vn_id IN (?, ?, ?)').run(...vnIds);
   database.prepare('DELETE FROM vn_publisher_index WHERE vn_id IN (?, ?, ?)').run(...vnIds);
   database.prepare('DELETE FROM collection WHERE vn_id IN (?, ?, ?)').run(...vnIds);
+  database.prepare('DELETE FROM vn WHERE id = ?').run(COLLECTION_LIST_CONTRACT_IDS.unownedVn);
   database.prepare('DELETE FROM vn WHERE id IN (?, ?, ?)').run(...vnIds);
   database.prepare('DELETE FROM producer WHERE id IN (?, ?)').run(
     COLLECTION_LIST_CONTRACT_IDS.producer,
@@ -70,6 +71,23 @@ function seed(): void {
     '[]',
     '[]',
     '/alpha-cover.jpg',
+    null,
+  );
+  insertVn.run(
+    COLLECTION_LIST_CONTRACT_IDS.unownedVn,
+    'Unowned List Contract',
+    null,
+    1,
+    '2024-04-04',
+    240,
+    70,
+    'Unowned description',
+    '[]',
+    '[]',
+    '[]',
+    '[]',
+    '[]',
+    null,
     null,
   );
   insertVn.run(

@@ -4023,6 +4023,8 @@ export interface ListOptions {
   aspects?: readonly AspectKey[];
   /** Limit the result to these VN ids only. Empty array → no rows. */
   vnIds?: readonly string[];
+  /** Read requested VN metadata even when no collection row exists. */
+  _includeUnownedVnIds?: boolean;
   /** Safety cap on result rows. Defaults to 10 000 — well above any
    *  realistic collection size while protecting against pathological
    *  unbounded scans. Pass `Infinity` only in trusted bulk-export paths. */
@@ -4144,6 +4146,7 @@ export function listCollection({
   aspect,
   aspects,
   vnIds,
+  _includeUnownedVnIds = false,
   limit = 10_000,
   offset = 0,
   sort = 'updated_at',
@@ -4151,6 +4154,7 @@ export function listCollection({
   _projection = 'full',
 }: ListOptions = {}): CollectionItem[] {
   if (vnIds && vnIds.length === 0) return [];
+  if (_includeUnownedVnIds && !vnIds?.length) return [];
   const sortMap: Record<NonNullable<ListOptions['sort']>, string> = {
     updated_at: 'c.updated_at',
     added_at: 'c.added_at',
@@ -4440,6 +4444,9 @@ export function listCollection({
     join += 'LEFT JOIN egs_game e ON e.vn_id = v.id ';
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const fromSql = _includeUnownedVnIds
+    ? 'FROM vn v LEFT JOIN collection c ON c.vn_id = v.id'
+    : 'FROM collection c JOIN vn v ON v.id = c.vn_id';
   const vnProjection =
     _projection === 'cards'
       ? CARDS_VN_COLUMNS
@@ -4458,7 +4465,7 @@ export function listCollection({
              c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
              c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale,
              c.ai_playtime_generated_at
-      FROM collection c JOIN vn v ON v.id = c.vn_id
+      ${fromSql}
       ${join}
       ${whereSql}
       ORDER BY ${sortCol} ${dir} NULLS LAST

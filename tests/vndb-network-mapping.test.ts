@@ -55,6 +55,7 @@ import {
   fetchUlistEntry,
   fetchUlistLabels,
   fetchVaVnList,
+  fetchVnCardsByIds,
   fetchVnCovers,
   getAuthInfo,
   getCachedWishlistRequestKeys,
@@ -826,6 +827,48 @@ describe('stats + auth + user', () => {
     const url = String(providerFetchMock.mock.calls[0][0]);
     expect(url).toContain('q=alice');
     expect(url).toContain('q=bob');
+  });
+});
+
+describe('fetchVnCardsByIds', () => {
+  it('skips invalid ids without contacting VNDB', async () => {
+    await expect(fetchVnCardsByIds(['egs_9500001', 'invalid'])).resolves.toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates one id and preserves privacy metadata for list cards', async () => {
+    providerFetchMock.mockResolvedValueOnce(jsonResponse(envelope([
+      searchRow('v95030', { image: { url: 'https://t.vndb.org/v95030.jpg', thumbnail: 'https://t.vndb.org/v95030.t.jpg', sexual: 2 } }),
+    ])));
+
+    const rows = await fetchVnCardsByIds(['V95030', 'v95030']);
+
+    expect(rows).toMatchObject([{
+      id: 'v95030',
+      title: 'vn-v95030',
+      image: { thumbnail: 'https://t.vndb.org/v95030.t.jpg', sexual: 2 },
+    }]);
+    const body = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.filters).toEqual(['id', '=', 'v95030']);
+    expect(body.results).toBe(1);
+  });
+
+  it('uses bounded batches for lists larger than the VNDB result limit', async () => {
+    const ids = Array.from({ length: 101 }, (_, index) => `v${95040 + index}`);
+    providerFetchMock
+      .mockResolvedValueOnce(jsonResponse(envelope([searchRow(ids[0])])))
+      .mockResolvedValueOnce(jsonResponse(envelope([searchRow(ids[100])])));
+
+    const rows = await fetchVnCardsByIds(ids);
+
+    expect(rows.map((row) => row.id)).toEqual([ids[0], ids[100]]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(String((providerFetchMock.mock.calls[0][1] as RequestInit).body));
+    const secondBody = JSON.parse(String((providerFetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(firstBody.filters[0]).toBe('or');
+    expect(firstBody.results).toBe(100);
+    expect(secondBody.filters).toEqual(['id', '=', ids[100]]);
+    expect(secondBody.results).toBe(1);
   });
 });
 

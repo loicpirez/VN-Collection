@@ -6,6 +6,7 @@ export const COLLECTION_LIST_CONTRACT_IDS = {
   firstVn: 'v991501',
   secondVn: 'v991502',
   thirdVn: 'egs_991503',
+  unownedVn: 'v991504',
   producer: 'p991501',
   publisher: 'p991502',
   tag: 'g991501',
@@ -58,6 +59,24 @@ export function registerCollectionListRepositoryContract(
           egs: { median: 88, playtime_median_minutes: 720, okazu: false, erogame: false },
         }]);
         expect(full[0]?.description).toBe('Alpha description');
+
+        await expect(repository.listCards({ vnIds: [COLLECTION_LIST_CONTRACT_IDS.unownedVn] })).resolves.toEqual([]);
+        await expect(repository.listCardsByIds([
+          COLLECTION_LIST_CONTRACT_IDS.unownedVn,
+          COLLECTION_LIST_CONTRACT_IDS.firstVn,
+        ])).resolves.toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            id: COLLECTION_LIST_CONTRACT_IDS.unownedVn,
+            title: 'Unowned List Contract',
+            status: undefined,
+          }),
+          expect.objectContaining({
+            id: COLLECTION_LIST_CONTRACT_IDS.firstVn,
+            status: 'completed',
+          }),
+        ]));
+        await expect(repository.listCardsByIds([])).resolves.toEqual([]);
+        await expect(repository.listCards({ _includeUnownedVnIds: true })).resolves.toEqual([]);
       });
     });
 

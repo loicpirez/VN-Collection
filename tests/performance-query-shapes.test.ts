@@ -31,7 +31,8 @@ describe('bounded VN card lookup queries', () => {
     const page = source('src/app/lists/[id]/page.tsx');
     const legacy = source('src/lib/db.ts');
     const listCollectionBody = legacy.split('export function listCollection')[1]?.split('\nexport ')[0] ?? '';
-    expect(page).toContain('collectionRepository.listCards({ vnIds: items.map((item) => item.vn_id) })');
+    expect(page).toContain('collectionRepository.listCardsByIds(itemIds)');
+    expect(page).toContain('fetchVnCardsByIds(missingIds)');
     expect(listCollectionBody).toContain("v.id IN (SELECT value FROM json_each(?))");
     expect(listCollectionBody).toContain('params.push(JSON.stringify(vnIds))');
     expect(listCollectionBody).not.toContain('params.push(...vnIds)');

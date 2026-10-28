@@ -1183,7 +1183,9 @@ registerCollectionListRepositoryContract('PostgreSQL', {
           ($2, 'Beta Collection Contract', NULL, 2, '2022-02-02', '["en"]', '["win"]',
             300, 60, 'Beta description', '[]', $6, $7, '[]', $8, NULL, '/beta-banner.jpg', 1),
           ($3, 'Gamma Collection Contract', NULL, 0, '', '["en"]', '["win"]',
-            60, 40, 'Gamma description', '[]', '[]', '[]', $9, '[]', NULL, NULL, 1)
+            60, 40, 'Gamma description', '[]', '[]', '[]', $9, '[]', NULL, NULL, 1),
+          ($10, 'Unowned List Contract', NULL, 1, '2024-04-04', '["en"]', '["win"]',
+            240, 70, 'Unowned description', '[]', '[]', '[]', '[]', '[]', NULL, NULL, 1)
       `, [
         ids.firstVn,
         ids.secondVn,
@@ -1194,6 +1196,7 @@ registerCollectionListRepositoryContract('PostgreSQL', {
         JSON.stringify([{ id: ids.adultTag, name: 'nukige', rating: 3, spoiler: 0, category: 'ero' }]),
         JSON.stringify([{ id: 'v1', title: 'Original', relation: 'orig', relation_official: true }]),
         JSON.stringify([{ url: 'https://example.test/gamma.jpg', thumbnail: 'https://example.test/gamma-thumb.jpg', dims: [1280, 800] }]),
+        ids.unownedVn,
       ]);
       await pool.query(`
         INSERT INTO collection (

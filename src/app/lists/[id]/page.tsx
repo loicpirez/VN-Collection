@@ -5,6 +5,7 @@ import { ArrowLeft, ListChecks, Pin } from 'lucide-react';
 import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { getUserListRepository } from '@/lib/db/repositories/user-list';
 import { getDict } from '@/lib/i18n/server';
+import { fetchVnCardsByIds } from '@/lib/vndb';
 import { VnCard } from '@/components/VnCard';
 import { toCardData } from '@/components/cardData';
 import { ListMetaEditor } from '@/components/ListMetaEditor';
@@ -36,22 +37,46 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const t = await getDict();
   const items = await repository.items(listId);
   const collectionRepository = getCollectionListRepository();
+  const itemIds = items.map((item) => item.vn_id);
   const [cards, queueIds, listCounts] = await Promise.all([
-    collectionRepository.listCards({ vnIds: items.map((item) => item.vn_id) }),
+    collectionRepository.listCardsByIds(itemIds),
     collectionRepository.readingQueueIds(),
     collectionRepository.listMembershipCounts(),
   ]);
   const rows = new Map(cards.map((card) => [card.id, card]));
+  const missingIds = itemIds.filter((vnId) => !rows.has(vnId));
+  const remoteCards = await fetchVnCardsByIds(missingIds);
+  const remoteRows = new Map(remoteCards.map((card) => [card.id, card]));
   const reorderItems: ListReorderItem[] = items.map((it) => {
     const row = rows.get(it.vn_id);
-    if (!row) return { vn_id: it.vn_id, card: null };
+    if (row) {
+      return {
+        vn_id: it.vn_id,
+        card: toCardData({
+          ...row,
+          list_count: listCounts.get(it.vn_id) ?? 0,
+          in_reading_queue: queueIds.has(it.vn_id),
+        }),
+      };
+    }
+    const remote = remoteRows.get(it.vn_id);
+    if (!remote) return { vn_id: it.vn_id, card: null };
     return {
       vn_id: it.vn_id,
-      card: toCardData({
-        ...row,
-        list_count: listCounts.get(it.vn_id) ?? 0,
-        in_reading_queue: queueIds.has(it.vn_id),
-      }),
+      card: {
+        id: remote.id,
+        title: remote.title,
+        alttitle: remote.alttitle,
+        poster: remote.image?.thumbnail || remote.image?.url || null,
+        sexual: remote.image?.sexual ?? null,
+        released: remote.released,
+        rating: remote.rating,
+        length_minutes: remote.length_minutes,
+        developers: remote.developers,
+        inReadingQueue: queueIds.has(it.vn_id),
+        listCount: listCounts.get(it.vn_id) ?? 0,
+        inCollectionBadge: false,
+      },
     };
   });
   const gridClassName = 'grid items-stretch gap-5';

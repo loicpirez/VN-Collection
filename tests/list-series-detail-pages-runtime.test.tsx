@@ -7,6 +7,7 @@ import { publicUrlFor } from '@/lib/files';
 import { dictionaries } from '@/lib/i18n/dictionaries';
 import type { CollectionCardItem, SeriesWithVns } from '@/lib/types';
 import type { CardData } from '@/components/VnCard';
+import { fetchVnCardsByIds } from '@/lib/vndb';
 
 const navigationMocks = vi.hoisted(() => ({
   notFound: vi.fn(() => {
@@ -19,6 +20,7 @@ const repositoryMocks = vi.hoisted(() => ({
   getUserList: vi.fn(),
   listItems: vi.fn(),
   listCards: vi.fn(),
+  listCardsByIds: vi.fn(),
   listMembershipCounts: vi.fn(),
   readingQueueIds: vi.fn(),
   getSetting: vi.fn(),
@@ -42,9 +44,14 @@ vi.mock('@/lib/db/repositories/user-list', () => ({
 vi.mock('@/lib/db/repositories/collection-list', () => ({
   getCollectionListRepository: () => ({
     listCards: repositoryMocks.listCards,
+    listCardsByIds: repositoryMocks.listCardsByIds,
     listMembershipCounts: repositoryMocks.listMembershipCounts,
     readingQueueIds: repositoryMocks.readingQueueIds,
   }),
+}));
+
+vi.mock('@/lib/vndb', () => ({
+  fetchVnCardsByIds: vi.fn(),
 }));
 
 vi.mock('@/lib/db/repositories/app-setting', () => ({
@@ -191,9 +198,11 @@ beforeEach(() => {
   repositoryMocks.getUserList.mockReset().mockResolvedValue(null);
   repositoryMocks.listItems.mockReset().mockResolvedValue([]);
   repositoryMocks.listCards.mockReset().mockResolvedValue([]);
+  repositoryMocks.listCardsByIds.mockReset().mockResolvedValue([]);
   repositoryMocks.listMembershipCounts.mockReset().mockResolvedValue(new Map());
   repositoryMocks.readingQueueIds.mockReset().mockResolvedValue(new Set());
   repositoryMocks.getSetting.mockReset().mockResolvedValue(null);
+  vi.mocked(fetchVnCardsByIds).mockReset().mockResolvedValue([]);
   vi.mocked(publicUrlFor).mockReset().mockImplementation((path: string | null | undefined) => path ? `/files/${path}` : null);
 });
 
@@ -267,13 +276,14 @@ describe('list detail page runtime', () => {
     expect(html).toContain('Description');
     expect(html).toContain('background-color:#ef4444');
     expect(html).toContain(dictionaries.en.lists.detailEmpty);
-    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: [] });
+    expect(repositoryMocks.listCardsByIds).toHaveBeenCalledWith([]);
+    expect(fetchVnCardsByIds).toHaveBeenCalledWith([]);
   });
 
   it('uses the singular item count for a one-entry list', async () => {
     repositoryMocks.getUserList.mockResolvedValue(list());
     repositoryMocks.listItems.mockResolvedValue([listItem('v1')]);
-    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
+    repositoryMocks.listCardsByIds.mockResolvedValue([card('v1')]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
 
@@ -285,7 +295,7 @@ describe('list detail page runtime', () => {
     repositoryMocks.listItems.mockResolvedValue([listItem('v1'), listItem('v2', 1)]);
     repositoryMocks.readingQueueIds.mockResolvedValue(new Set(['v1']));
     repositoryMocks.listMembershipCounts.mockResolvedValue(new Map([['v1', 2]]));
-    repositoryMocks.listCards.mockResolvedValue([
+    repositoryMocks.listCardsByIds.mockResolvedValue([
       {
         ...card('v1'),
         image_thumb: 'thumb.jpg',
@@ -326,16 +336,89 @@ describe('list detail page runtime', () => {
     expect(html).toContain('&quot;inReadingQueue&quot;:true');
     expect(html).toContain('&quot;isFanDisc&quot;:true');
     expect(html).toContain('&quot;listCount&quot;:2');
+    expect(fetchVnCardsByIds).toHaveBeenCalledWith(['v2']);
+  });
+
+  it('hydrates a full privacy-aware VNDB card for an uncached list member', async () => {
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue([listItem('v95021')]);
+    repositoryMocks.listMembershipCounts.mockResolvedValue(new Map([['v95021', 4]]));
+    repositoryMocks.readingQueueIds.mockResolvedValue(new Set(['v95021']));
+    vi.mocked(fetchVnCardsByIds).mockResolvedValue([{
+      id: 'v95021',
+      title: 'Remote List Title',
+      alttitle: 'Remote Alternative',
+      released: '2026-01-01',
+      rating: 77,
+      votecount: 5,
+      length_minutes: 420,
+      languages: ['ja'],
+      platforms: ['win'],
+      image: { url: 'https://example.test/full.jpg', thumbnail: 'https://example.test/thumb.jpg', sexual: 2 },
+      developers: [{ name: 'Studio X' }],
+    }]);
+
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(repositoryMocks.listCardsByIds).toHaveBeenCalledWith(['v95021']);
+    expect(fetchVnCardsByIds).toHaveBeenCalledWith(['v95021']);
+    expect(html).toContain('&quot;title&quot;:&quot;Remote List Title&quot;');
+    expect(html).toContain('&quot;poster&quot;:&quot;https://example.test/thumb.jpg&quot;');
+    expect(html).toContain('&quot;sexual&quot;:2');
+    expect(html).toContain('&quot;inReadingQueue&quot;:true');
+    expect(html).toContain('&quot;listCount&quot;:4');
+    expect(html).toContain('&quot;inCollectionBadge&quot;:false');
+  });
+
+  it('falls back through remote cover metadata without inventing privacy or list values', async () => {
+    repositoryMocks.getUserList.mockResolvedValue(list());
+    repositoryMocks.listItems.mockResolvedValue([listItem('v95022'), listItem('v95023', 1)]);
+    vi.mocked(fetchVnCardsByIds).mockResolvedValue([
+      {
+        id: 'v95022',
+        title: 'Remote Full Cover',
+        alttitle: null,
+        released: null,
+        rating: null,
+        votecount: 0,
+        length_minutes: null,
+        languages: [],
+        platforms: [],
+        image: { url: 'https://example.test/full-only.jpg', thumbnail: '' },
+        developers: [],
+      },
+      {
+        id: 'v95023',
+        title: 'Remote Without Cover',
+        alttitle: null,
+        released: null,
+        rating: null,
+        votecount: 0,
+        length_minutes: null,
+        languages: [],
+        platforms: [],
+        image: null,
+        developers: [],
+      },
+    ]);
+
+    const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
+
+    expect(html).toContain('&quot;poster&quot;:&quot;https://example.test/full-only.jpg&quot;');
+    expect(html).toContain('&quot;poster&quot;:null');
+    expect(html).toContain('&quot;sexual&quot;:null');
+    expect(html).toContain('&quot;inReadingQueue&quot;:false');
+    expect(html).toContain('&quot;listCount&quot;:0');
   });
 
   it('passes ordered membership ids to the collection repository and preserves duplicate rows', async () => {
     repositoryMocks.getUserList.mockResolvedValue(list());
     repositoryMocks.listItems.mockResolvedValue([listItem('v2'), listItem('v1', 1), listItem('v2', 2)]);
-    repositoryMocks.listCards.mockResolvedValue([card('v1'), card('v2')]);
+    repositoryMocks.listCardsByIds.mockResolvedValue([card('v1'), card('v2')]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
 
-    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: ['v2', 'v1', 'v2'] });
+    expect(repositoryMocks.listCardsByIds).toHaveBeenCalledWith(['v2', 'v1', 'v2']);
     expect(html.match(/&quot;vn_id&quot;:&quot;v2&quot;/g)).toHaveLength(2);
     expect(html.indexOf('&quot;vn_id&quot;:&quot;v2&quot;')).toBeLessThan(html.indexOf('&quot;vn_id&quot;:&quot;v1&quot;'));
   });
@@ -344,12 +427,12 @@ describe('list detail page runtime', () => {
     const items = Array.from({ length: 501 }, (_, index) => listItem(`v${index + 1}`, index));
     repositoryMocks.getUserList.mockResolvedValue(list());
     repositoryMocks.listItems.mockResolvedValue(items);
-    repositoryMocks.listCards.mockResolvedValue([card('v1')]);
+    repositoryMocks.listCardsByIds.mockResolvedValue([card('v1')]);
 
     const html = renderToStaticMarkup(await ListDetailPage({ params: Promise.resolve({ id: '1' }) }));
 
-    expect(repositoryMocks.listCards).toHaveBeenCalledOnce();
-    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ vnIds: items.map((item) => item.vn_id) });
+    expect(repositoryMocks.listCardsByIds).toHaveBeenCalledOnce();
+    expect(repositoryMocks.listCardsByIds).toHaveBeenCalledWith(items.map((item) => item.vn_id));
     expect(html).toContain('data-reset-key="list:1"');
     expect(html).toContain('data-testid="vn-card"');
     expect(html).toContain('data-testid="stub-card"');

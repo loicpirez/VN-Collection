@@ -18,6 +18,8 @@ export interface CollectionListRepository {
   list(options?: ListOptions): Promise<CollectionItem[]>;
   /** Return the lightweight card projection matching the supplied options. */
   listCards(options?: ListOptions): Promise<CollectionCardItem[]>;
+  /** Return card metadata for requested VN ids regardless of collection membership. */
+  listCardsByIds(vnIds: readonly string[]): Promise<CollectionCardItem[]>;
   /** Return personal-list membership counts keyed by VN id. */
   listMembershipCounts(): Promise<Map<string, number>>;
   /** Return every VN id currently in the reading queue. */
@@ -195,6 +197,7 @@ function addAspectFilter(
 
 function buildCollectionQuery(options: ListOptions): { text: string; values: PostgresParameter[] } | null {
   if (options.vnIds && options.vnIds.length === 0) return null;
+  if (options._includeUnownedVnIds && !options.vnIds?.length) return null;
   const bindings = new Bindings();
   const where: string[] = [];
   const sort = options.sort ?? 'updated_at';
@@ -297,6 +300,9 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
   const orderBy = sort === 'custom'
     ? `CASE WHEN c.custom_order = 0 THEN 1 ELSE 0 END ASC, c.custom_order ${direction} NULLS LAST`
     : `${sortExpression(sort)} ${direction} NULLS LAST`;
+  const fromSql = options._includeUnownedVnIds
+    ? 'FROM vn v LEFT JOIN collection c ON c.vn_id = v.id'
+    : 'FROM collection c JOIN vn v ON v.id = c.vn_id';
   return {
     text: `
       SELECT ${projection}${sort === 'title_kana' ? ', v.titles AS title_sort_titles, e.gamename_furigana AS title_furigana' : ''}, c.status, c.user_rating, c.playtime_minutes, c.started_date,
@@ -306,7 +312,7 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
         , c.ai_playtime_minutes, c.ai_playtime_lower_minutes, c.ai_playtime_upper_minutes,
         c.ai_playtime_confidence, c.ai_playtime_model, c.ai_playtime_rationale,
         c.ai_playtime_generated_at
-      FROM collection c JOIN vn v ON v.id = c.vn_id
+      ${fromSql}
       ${joins}
       ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY ${orderBy}, app_search_normalize(v.title) COLLATE "C", v.id
@@ -557,6 +563,9 @@ export function createPostgresCollectionListRepository(): CollectionListReposito
     async listCards(options = {}) {
       return (await listPostgres({ ...options, _projection: 'cards' })).map(cardProjection);
     },
+    async listCardsByIds(vnIds) {
+      return (await listPostgres({ vnIds, _projection: 'cards', _includeUnownedVnIds: true })).map(cardProjection);
+    },
     async listMembershipCounts() {
       const result = await postgresQuery<{ vn_id: string; count: number } & QueryResultRow>(`
         SELECT vn_id, COUNT(*) AS count FROM user_list_vn GROUP BY vn_id
@@ -635,6 +644,9 @@ const sqliteRepository: CollectionListRepository = {
   },
   async listCards(options) {
     return (await import('@/lib/db')).listCollectionForCards(options);
+  },
+  async listCardsByIds(vnIds) {
+    return (await import('@/lib/db')).listCollectionForCards({ vnIds, _includeUnownedVnIds: true });
   },
   async listMembershipCounts() {
     return (await import('@/lib/db')).countListMembershipsByVn();
