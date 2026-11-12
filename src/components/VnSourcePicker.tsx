@@ -30,6 +30,8 @@ interface VnSourcePickerProps {
   onPick: (hit: VnPickerHit) => void;
   /** Optional placeholder text. */
   placeholder?: string;
+  searchLabel?: string;
+  excludeId?: string;
   /** Whether to allow selecting from local library. */
   sources?: VnPickerSource[];
   /** Maximum results per source. */
@@ -63,6 +65,8 @@ function sourceBadgeClass(source: VnPickerSource): string {
 export function VnSourcePicker({
   onPick,
   placeholder,
+  searchLabel,
+  excludeId,
   sources = SOURCE_ORDER,
   perSourceLimit = 8,
   showAddIcon = false,
@@ -84,6 +88,7 @@ export function VnSourcePicker({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = query.trim();
+    setError(null);
     if (!q) {
       setLibrary([]);
       setVndb([]);
@@ -92,10 +97,12 @@ export function VnSourcePicker({
       return;
     }
     const ctrl = new AbortController();
+    setLibrary([]);
+    setVndb([]);
+    setEgs([]);
+    setLoading({ library: enabled('library'), vndb: enabled('vndb'), egs: enabled('egs') });
     debounceRef.current = setTimeout(async () => {
       debounceRef.current = null;
-      setError(null);
-      setLoading({ library: enabled('library'), vndb: enabled('vndb'), egs: enabled('egs') });
       const promises: Promise<void>[] = [];
       if (enabled('library')) {
         promises.push(
@@ -150,30 +157,31 @@ export function VnSourcePicker({
     return () => { ctrl.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, perSourceLimit, sources, t.common.error]);
 
-  const counts = {
-    library: library.length,
-    vndb: vndb.length,
-    egs: egs.length,
-  };
+  const libraryHits = library.filter((hit) => hit.id !== excludeId);
+  const vndbHits = vndb.filter((hit) => hit.id !== excludeId);
+  const egsHits = egs.filter((hit) => hit.id !== excludeId);
+  const counts = { library: libraryHits.length, vndb: vndbHits.length, egs: egsHits.length };
   const anyLoading = loading.library || loading.vndb || loading.egs;
   const totalHits = counts.library + counts.vndb + counts.egs;
   const showAll = activeSource === 'all';
+  const visibleCount = showAll ? totalHits : counts[activeSource];
+  const visibleLoading = showAll ? anyLoading : loading[activeSource];
 
   function renderRow(hit: VnPickerHit) {
     const Icon = sourceIcon(hit.source);
     return (
-      <li key={`${hit.source}:${hit.id}`}>
+      <li key={`${hit.source}:${hit.id}`} className="relative flex min-h-[44px] items-center gap-2 border-b border-border/40 pl-3 last:border-b-0 hover:bg-accent/10">
+        {(hit.thumbnail || hit.localThumbnail) && (
+          <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-bg">
+            <SafeImage src={hit.thumbnail} localSrc={hit.localThumbnail} sexual={hit.sexual} alt="" className="h-full w-full" fit="cover" />
+          </div>
+        )}
         <button
           type="button"
           onClick={() => onPick(hit)}
           disabled={disabled}
-          className="flex w-full items-center gap-2 border-b border-border/40 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+          className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left text-sm after:absolute after:inset-0 focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent disabled:opacity-50"
         >
-          {hit.thumbnail && (
-            <span className="h-10 w-7 shrink-0 overflow-hidden rounded border border-border bg-bg">
-              <SafeImage src={hit.thumbnail} localSrc={hit.localThumbnail} sexual={hit.sexual} alt="" className="h-full w-full" fit="cover" />
-            </span>
-          )}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-white">{hit.title}</span>
             <span className="block text-[10px] text-muted">
@@ -201,7 +209,7 @@ export function VnSourcePicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder ?? (t.stock.batchSearchPlaceholder as string)}
-          aria-label={t.stock.batchSearchLabel as string}
+          aria-label={searchLabel ?? t.stock.batchSearchLabel}
           disabled={disabled}
           className="min-h-[44px] w-full rounded-lg border border-border bg-bg-elev py-2 pl-9 pr-10 text-sm text-white placeholder-muted focus:border-accent focus:outline-none disabled:opacity-50"
         />
@@ -231,8 +239,13 @@ export function VnSourcePicker({
       )}
 
       {query.trim() && (
-        <div className="mt-2 max-h-96 overflow-y-auto rounded-lg border border-border bg-bg-elev/40">
-          {totalHits === 0 && !anyLoading ? (
+        <div aria-busy={visibleLoading} className="mt-2 max-h-96 overflow-y-auto rounded-lg border border-border bg-bg-elev/40">
+          {visibleCount === 0 && visibleLoading && (
+            <div aria-hidden className="space-y-2 p-3">
+              {[0, 1, 2].map((row) => <div key={row} className="skeleton-surface h-11 animate-pulse rounded" />)}
+            </div>
+          )}
+          {visibleCount === 0 && !visibleLoading && !error ? (
             <p className="px-3 py-4 text-center text-xs text-muted">
               {t.search.noResults as string}
             </p>
@@ -240,17 +253,17 @@ export function VnSourcePicker({
             <>
               {(showAll || activeSource === 'library') && library.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.library} (${library.length})`} source="library">
-                  {library.map((h) => renderRow({ ...h, source: 'library' }))}
+                  {libraryHits.map((h) => renderRow({ ...h, source: 'library' }))}
                 </SourceGroup>
               )}
               {(showAll || activeSource === 'vndb') && vndb.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.vndb} (${vndb.length})`} source="vndb">
-                  {vndb.map((h) => renderRow({ ...h, source: 'vndb' }))}
+                  {vndbHits.map((h) => renderRow({ ...h, source: 'vndb' }))}
                 </SourceGroup>
               )}
               {(showAll || activeSource === 'egs') && egs.length > 0 && (
                 <SourceGroup label={`${t.stock.batchSourceLabels.egs} (${egs.length})`} source="egs">
-                  {egs.map((h) => renderRow({ ...h, source: 'egs' }))}
+                  {egsHits.map((h) => renderRow({ ...h, source: 'egs' }))}
                 </SourceGroup>
               )}
             </>
@@ -267,7 +280,7 @@ function SourceTab({ active, onClick, label }: { active: boolean; onClick: () =>
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+      className={`min-h-[44px] rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent can-hover:sm:min-h-0 ${
         active
           ? 'border-accent bg-accent/15 text-accent'
           : 'border-border bg-bg text-muted hover:border-accent hover:text-accent'

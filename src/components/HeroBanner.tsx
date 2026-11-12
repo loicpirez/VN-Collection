@@ -44,9 +44,6 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   const router = useRouter();
   const { settings } = useDisplaySettings();
   const [revealedBanner, setRevealedBanner] = useState<string | null>(null);
-  const explicit = isExplicit(sexual ?? null, settings.nsfwThreshold);
-  const unrated = sexual == null;
-  const protectedLabel = unrated ? t.settings.unratedBlurred : t.settings.r18Blurred;
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -60,7 +57,11 @@ export function HeroBanner({ vnId, src, customBanner, initialPosition, inCollect
   // and `newLocal`; we prefer `newLocal` (served via /api/files/<path>)
   // when it's present, falling back to `newSrc`.
   const [liveSrc, setLiveSrc] = useState<string | null>(src);
-  const bannerPolicyKey = JSON.stringify([vnId, liveSrc, sexual, settings.blurR18, settings.nsfwThreshold]);
+  const liveSexual = liveSrc === src ? sexual : null;
+  const explicit = isExplicit(liveSexual ?? null, settings.nsfwThreshold);
+  const unrated = liveSexual == null;
+  const protectedLabel = unrated ? t.settings.unratedBlurred : t.settings.r18Blurred;
+  const bannerPolicyKey = JSON.stringify([vnId, liveSrc, liveSexual, settings.blurR18, settings.nsfwThreshold]);
   const shouldBlurR18 = !!liveSrc && (explicit || unrated) && settings.blurR18 && revealedBanner !== bannerPolicyKey;
   useEffect(() => { setRevealedBanner(null); }, [bannerPolicyKey]);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(initialRotation);

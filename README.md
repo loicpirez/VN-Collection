@@ -69,6 +69,7 @@ changing the opt-in state.
 
 - VN detail pages with cover, banner, metadata, tags, releases, characters, staff, relations, notes, quotes, media, and source comparison.
 - Custom cover and banner selection from local, VNDB, EGS, release images, or screenshots.
+- Use **Other games** in the cover or banner picker to search the library or VNDB, filter the source game's artwork, and preview it before saving.
 - Media gallery with lightbox, compact actions, and local caching.
 - Clickable metadata chips for navigation and filtering.
 - VNDB status writeback when a token is configured.

@@ -72,17 +72,8 @@ export function CoverHero({
   useEffect(() => {
     function applyChange(detail: VnCoverChangedDetail | null) {
       if (!detail || detail.vnId !== vnId) return;
-      // Either side may be present; respect what the producer sent.
-      // For an `upload` event the local path is the truth; for a
-      // "use VNDB" reset the remote URL is the truth. The empty-
-      // both case is a "wait for router.refresh" no-op.
-      if (detail.newLocal != null) setLocal(detail.newLocal);
-      if (detail.newSrc != null) setRemote(detail.newSrc);
-      if (detail.newLocal === null && detail.newSrc === null) {
-        // Explicit reset to default - let the next refresh deliver.
-        setLocal(null);
-        setRemote(null);
-      }
+      setLocal(detail.newLocal);
+      setRemote(detail.newSrc);
       if (typeof detail.rotation === 'number') {
         setRotation(detail.rotation as 0 | 90 | 180 | 270);
       }
@@ -101,7 +92,7 @@ export function CoverHero({
         src={remote}
         localSrc={local}
         alt={alt}
-        sexual={sexual}
+        sexual={remote === initialRemote && local === initialLocal ? sexual : null}
         rotation={rotation}
         className={className}
         priority

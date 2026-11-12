@@ -184,7 +184,7 @@ export function CoverCompare({
           src={active.remote}
           localSrc={active.local}
           alt={alt}
-          sexual={sexual}
+          sexual={resolved.used === 'custom' ? null : sexual}
           // Persisted cover rotation. Compare-mode column thumbnails
           // below stay un-rotated on purpose - the user is comparing
           // raw candidates, not the resolved active view.
@@ -261,7 +261,7 @@ export function CoverCompare({
             label={col.label}
             poster={col.poster}
             alt={`${alt} / ${col.label}`}
-            sexual={sexual}
+            sexual={col.key === 'custom' ? null : sexual}
             active={resolved.used === col.key}
             pending={(saving || pending) && optimistic === col.key}
             saving={saving}

@@ -36,7 +36,8 @@ describe('VN artwork mutation ownership', () => {
     expect(aspect).toContain('setOverride(initialOverride ?? null)');
     expect(hero).toContain('setDraftPosition(nextPosition)');
     expect(hero).toContain('setEditing(false)');
-    expect(picker).toContain('setTab(initialTab(egsId, currentCustomCover))');
+    expect(picker).toContain("setTab('custom')");
+    expect(picker).toContain('}, [vnId, egsId, initialOpen])');
     expect(compare).toContain('setOptimistic(current)');
     expect(rotation).toContain('setRotation(initialRotation)');
     expect(bannerPicker).toContain("setTab('custom')");

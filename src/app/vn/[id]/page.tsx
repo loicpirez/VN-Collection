@@ -344,6 +344,9 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
   const bannerIsUrl = bannerSource ? /^https?:\/\//i.test(bannerSource) : false;
   const bannerSrc = bannerSource ? (bannerIsUrl ? bannerSource : `/api/files/${bannerSource}`) : null;
   const customBanner = !!vn.banner_image;
+  const bannerSexual = bannerSource === vn.image_url || bannerSource === vn.local_image
+    ? vn.image_sexual
+    : [...vn.screenshots, ...vn.release_images].find((image) => image.url === bannerSource || image.local === bannerSource)?.sexual ?? null;
   const location = (vn.location as Location | undefined) ?? 'unknown';
   const editionType = (vn.edition_type as EditionType | undefined) ?? 'none';
   const boxType = (vn.box_type as BoxType | undefined) ?? 'none';
@@ -394,7 +397,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
             initialPosition={vn.banner_position}
             initialRotation={vn.banner_rotation}
             inCollection={inCol}
-            sexual={vn.image_sexual}
+            sexual={bannerSexual}
           />
         </div>
 

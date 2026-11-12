@@ -534,13 +534,14 @@ describe('CoverSourcePicker branches', () => {
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: 'EGS' }).getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: t.gameArtwork.tab }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: t.coverPicker.custom }).getAttribute('aria-selected')).toBe('true');
-    // ArrowLeft wraps backwards to EGS.
     fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
-    expect(screen.getByRole('tab', { name: 'EGS' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: t.gameArtwork.tab }).getAttribute('aria-selected')).toBe('true');
     // Non-arrow key is a no-op.
     fireEvent.keyDown(tablist, { key: 'Home' });
-    expect(screen.getByRole('tab', { name: 'EGS' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: t.gameArtwork.tab }).getAttribute('aria-selected')).toBe('true');
     fireEvent.click(screen.getByRole('tab', { name: t.coverPicker.custom }));
     expect(screen.getByRole('tab', { name: t.coverPicker.custom }).getAttribute('aria-selected')).toBe('true');
   });
@@ -550,9 +551,10 @@ describe('CoverSourcePicker branches', () => {
     openViaEvent();
     await screen.findByRole('dialog');
     const tablist = screen.getByRole('tablist');
-    // tabs collapse to [custom, vndb] when EGS is disabled.
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: 'VNDB' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: t.gameArtwork.tab }).getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: t.coverPicker.custom }).getAttribute('aria-selected')).toBe('true');
   });

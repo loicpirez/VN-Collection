@@ -315,6 +315,7 @@ generated inventory beneath it is the exhaustive source-of-truth list.
 | GET | `/api/vn/[id]` | VN detail (cache 24 h via DB) |
 | GET | `/api/vn/[id]/characters` | Characters of a VN |
 | GET | `/api/vn/[id]/releases` | Releases of a VN |
+| GET | `/api/vn/[id]/artwork` | Browse cover, banner, screenshot, and release images without adding the VN |
 | GET/POST/DELETE | `/api/vn/[id]/stock` | Read cached shop stock offers, explicitly refresh provider snapshots, or clear one VN's stock cache. |
 | GET | `/api/vn/[id]/quotes` | Quotes of a VN |
 | GET | `/api/character/[id]` | Character detail |
@@ -524,6 +525,7 @@ route file or exported HTTP method changes.
 | /api/vn/[id]/lists | GET |
 | /api/vn/[id]/quotes | GET |
 | /api/vn/[id]/releases | GET |
+| /api/vn/[id]/artwork | GET |
 | /api/vn/[id] | GET |
 | /api/vn/[id]/stock/aliases | GET, POST |
 | /api/vn/[id]/stock/eroge-price | PATCH, POST, DELETE |
@@ -1545,7 +1547,7 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   `{source:'url', value:'/api/egs-cover/<egs_id>'}`), Custom (file
   upload, URL input, or pick from the in-VN gallery). Modal opens to
   the **Custom** tab so the file-upload affordance is on screen
-  immediately. Tab order: Custom → VNDB → EGS.
+  immediately. Tab order: Custom → VNDB → EGS → Other games.
 - Candidate URLs from persisted or upstream EGS data pass through the
   trusted image-host allowlist before the browser sees them or the resolver
   writes them to its seven-day cache. Legacy unsafe cache rows are ignored.
@@ -1555,6 +1557,9 @@ Partial indexes (`WHERE … IS NOT NULL`) keep the index lean when most rows wil
   CustomEvent with the VN id; the modal listens for it and opens.
   Single modal instance, multiple triggers.
 - `BannerSourcePicker` mirrors the same pattern (Custom default tab).
+- The Other games tab in both pickers searches the library and VNDB,
+  reads the source game's artwork on selection, and previews the selected
+  image before applying it through the existing cover or banner route.
 - When adding a new source, extend the tabbed UI; don't introduce a
   separate component.
 

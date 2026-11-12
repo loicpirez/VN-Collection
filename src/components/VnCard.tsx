@@ -257,7 +257,7 @@ function VnCardImpl({
     .filter(Boolean);
 
   const customCoverIsRemote = !!data.customCover && /^https?:\/\//i.test(data.customCover);
-  const posterSrc = customCoverIsRemote ? data.customCover : data.poster;
+  const posterSrc = data.customCover ? (customCoverIsRemote ? data.customCover : null) : data.poster;
   const localSrc = data.customCover
     ? customCoverIsRemote ? null : data.customCover
     : data.localPoster || null;
@@ -273,7 +273,7 @@ function VnCardImpl({
       src={posterSrc}
       localSrc={localSrc}
       alt={data.title}
-      sexual={data.sexual ?? null}
+      sexual={data.customCover ? null : data.sexual ?? null}
       className="aspect-[2/3] w-full"
     />
   );

@@ -4,6 +4,7 @@ import { DialogPortal, useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, Image as ImageIcon, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { GameArtworkPicker } from './GameArtworkPicker';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './ToastProvider';
 import { dispatchBannerChanged } from '@/lib/cover-banner-events';
@@ -30,7 +31,7 @@ export interface BannerSourcePickerProps {
   initialOpen?: boolean;
 }
 
-type Tab = 'default' | 'custom';
+type Tab = 'default' | 'custom' | 'games';
 
 /**
  * Banner-source picker mirroring CoverSourcePicker, with two tabs:
@@ -73,8 +74,10 @@ export function BannerSourcePicker({
   const titleId = useId();
   const customTabId = useId();
   const defaultTabId = useId();
+  const gamesTabId = useId();
   const customPanelId = useId();
   const defaultPanelId = useId();
+  const gamesPanelId = useId();
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -291,9 +294,12 @@ export function BannerSourcePicker({
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                 e.preventDefault();
-                const next = tab === 'custom' ? 'default' : 'custom';
+                const tabs: Tab[] = ['custom', 'default', 'games'];
+                const tabIds = { custom: customTabId, default: defaultTabId, games: gamesTabId };
+                const step = e.key === 'ArrowRight' ? 1 : tabs.length - 1;
+                const next = tabs[(tabs.indexOf(tab) + step) % tabs.length];
                 setTab(next);
-                document.getElementById(next === 'custom' ? customTabId : defaultTabId)?.focus();
+                document.getElementById(tabIds[next])?.focus();
               }}
             >
               <TabButton
@@ -312,8 +318,21 @@ export function BannerSourcePicker({
               >
                 {t.bannerPicker.defaultTab}
               </TabButton>
+              <TabButton
+                active={tab === 'games'}
+                onClick={() => setTab('games')}
+                id={gamesTabId}
+                controls={gamesPanelId}
+              >
+                {t.gameArtwork.tab}
+              </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">
+              {tab === 'games' && (
+                <section role="tabpanel" id={gamesPanelId} aria-labelledby={gamesTabId} tabIndex={0}>
+                  <GameArtworkPicker key={vnId} targetId={vnId} target="banner" busy={busy} onApply={(value) => applySource('path', value)} />
+                </section>
+              )}
               {tab === 'default' && (
                 <section role="tabpanel" id={defaultPanelId} aria-labelledby={defaultTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.bannerPicker.defaultHint}</p>

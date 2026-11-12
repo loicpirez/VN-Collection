@@ -45,7 +45,7 @@ describe('HeroBanner branches', () => {
     fireEvent.click(await screen.findByRole('button', { name: t.settings.r18Blurred }));
     expect(screen.queryByRole('button', { name: t.settings.r18Blurred })).toBeNull();
     act(() => dispatchBannerChanged({ vnId: 'v90991', newSrc: '/banner-b.jpg', newLocal: null }));
-    expect(await screen.findByRole('button', { name: t.settings.r18Blurred })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: t.settings.unratedBlurred })).toBeInTheDocument();
     const image = view.container.querySelector('img');
     expect(image).toHaveAttribute('src', '/banner-b.jpg');
     fireEvent.load(image!);

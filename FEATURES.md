@@ -194,12 +194,19 @@ Optimistic update with rollback on error.
 
 ### Cover source picker [shipped]
 `CoverSourcePicker` is a modal triggered from the VN detail action bar
-that lets the user pick the cover from three categorical sources:
+that lets the user pick the cover from four sources:
   1. **VNDB** — `DELETE /api/collection/[id]/cover` (revert to default).
   2. **EGS** — multi-source picker (see below).
   3. **Custom** — file upload (multipart), URL input, *or* pick from
      a thumbnail grid of every screenshot + per-release artwork
      attached to this VN (each tile is a one-click "set as cover").
+  4. **Other games** - search the library and VNDB by title or VNDB ID,
+     then filter and preview covers, screenshots, release art, and saved
+     banners from the source game. The same tab is available in the banner
+     picker. Confirming saves the selected image on the destination game.
+
+Browsing artwork uses the local cache and VNDB as needed. A game found on
+VNDB can supply artwork without being added to the library.
 
 The current pick is ring-highlighted so it's obvious which image is
 live. The modal opens on **Custom** so upload, URL paste, and attached

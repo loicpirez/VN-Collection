@@ -4,6 +4,7 @@ import { DialogPortal, useDialogA11y } from './Dialog';
 import { useRouter } from 'next/navigation';
 import { Check, ImagePlus, Link as LinkIcon, Loader2, RotateCcw, RotateCw, Sparkles, X } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { GameArtworkPicker } from './GameArtworkPicker';
 import { SkeletonBlock } from './Skeleton';
 import { ErrorAlert } from './ErrorAlert';
 import { useT } from '@/lib/i18n/client';
@@ -52,7 +53,7 @@ export interface CoverSourcePickerProps {
   initialOpen?: boolean;
 }
 
-type Tab = 'vndb' | 'egs' | 'custom';
+type Tab = 'vndb' | 'egs' | 'custom' | 'games';
 
 /**
  * Centralized cover-source picker that lets the user pick the cover for
@@ -87,7 +88,7 @@ export function CoverSourcePicker({
   const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(initialOpen);
-  const [tab, setTab] = useState<Tab>(initialTab(egsId, currentCustomCover));
+  const [tab, setTab] = useState<Tab>('custom');
   const [busy, setBusy] = useState(false);
   const [rotation, setRotationState] = useState<0 | 90 | 180 | 270>(currentRotation);
   // Re-sync with the server-rendered value whenever the parent
@@ -96,7 +97,7 @@ export function CoverSourcePicker({
   // honest against the canonical row.
   useEffect(() => {
     setRotationState(currentRotation);
-  }, [currentRotation]);
+  }, [vnId, currentRotation]);
   const [, startTransition] = useTransition();
   const [urlValue, setUrlValue] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -108,9 +109,11 @@ export function CoverSourcePicker({
   const customTabId = useId();
   const vndbTabId = useId();
   const egsTabId = useId();
+  const gamesTabId = useId();
   const customPanelId = useId();
   const vndbPanelId = useId();
   const egsPanelId = useId();
+  const gamesPanelId = useId();
 
   useEffect(() => {
     mutationAbortRef.current?.abort();
@@ -118,9 +121,8 @@ export function CoverSourcePicker({
     mutationInFlightRef.current = false;
     identityRef.current = vnId;
     setOpen(initialOpen);
-    setTab(initialTab(egsId, currentCustomCover));
+    setTab('custom');
     setBusy(false);
-    setRotationState(currentRotation);
     setUrlValue('');
     return () => {
       mutationAbortRef.current?.abort();
@@ -128,7 +130,7 @@ export function CoverSourcePicker({
       mutationInFlightRef.current = false;
       identityRef.current = null;
     };
-  }, [vnId, egsId, currentCustomCover, currentRotation, initialOpen]);
+  }, [vnId, egsId, initialOpen]);
 
   // body-scroll lock + ESC + focus trap. Replaces the previous
   // bespoke ESC handler with the shared hook so every modal in the
@@ -478,8 +480,8 @@ export function CoverSourcePicker({
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                 e.preventDefault();
-                const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb'] : ['custom', 'vndb', 'egs'];
-                const tabIdMap = { custom: customTabId, vndb: vndbTabId, egs: egsTabId };
+                const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb', 'games'] : ['custom', 'vndb', 'egs', 'games'];
+                const tabIdMap = { custom: customTabId, vndb: vndbTabId, egs: egsTabId, games: gamesTabId };
                 const idx = tabs.indexOf(tab);
                 const next = e.key === 'ArrowRight' ? tabs[(idx + 1) % tabs.length] : tabs[(idx - 1 + tabs.length) % tabs.length];
                 setTab(next);
@@ -512,8 +514,21 @@ export function CoverSourcePicker({
               >
                 EGS
               </TabButton>
+              <TabButton
+                active={tab === 'games'}
+                onClick={() => setTab('games')}
+                id={gamesTabId}
+                controls={gamesPanelId}
+              >
+                {t.gameArtwork.tab}
+              </TabButton>
             </nav>
             <div className="max-h-[60vh] overflow-y-auto p-4">
+              {tab === 'games' && (
+                <section role="tabpanel" id={gamesPanelId} aria-labelledby={gamesTabId} tabIndex={0}>
+                  <GameArtworkPicker key={vnId} targetId={vnId} target="cover" busy={busy} onApply={(value) => void applySource('path', value)} />
+                </section>
+              )}
               {tab === 'vndb' && (
                 <section role="tabpanel" id={vndbPanelId} aria-labelledby={vndbTabId} tabIndex={0} className="text-sm">
                   <p className="mb-3 text-xs text-muted">{t.coverPicker.vndbHint}</p>
@@ -683,7 +698,7 @@ function TabButton({
       aria-controls={controls}
       aria-selected={active}
       tabIndex={active ? 0 : -1}
-      className={`relative min-h-[44px] flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors can-hover:sm:min-h-0 ${
+      className={`relative min-h-[44px] flex-1 px-2 py-2 text-xs font-bold uppercase transition-colors can-hover:sm:min-h-0 sm:px-4 sm:tracking-widest ${
         disabled
           ? 'cursor-not-allowed text-muted/40'
           : active
@@ -710,16 +725,6 @@ function mediaTypeLabel(rawType: string, t: ReturnType<typeof useT>): string {
     dig: t.media.dig,
   };
   return labels[key] ?? rawType;
-}
-
-function initialTab(_egsId: number | null, _currentCustom: string | null): Tab {
-  // Default to the Custom tab - the modal exists primarily so users can
-  // upload their own image, paste a URL, or pick from the in-VN gallery.
-  // Reverting to VNDB or switching to EGS is a one-click affordance from
-  // any tab. Earlier versions opened on whichever source was currently
-  // active, but that hid the upload button behind a tab switch and
-  // confused users who came in looking for "upload custom cover".
-  return 'custom';
 }
 
 /**

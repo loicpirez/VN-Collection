@@ -546,12 +546,12 @@ export interface VndbRelationEntry {
  * Fetch one VN by id with the full `VN_FIELDS` payload. Returns `null` when
  * VNDB doesn't recognise the id (a missing-row response, not an error).
  */
-export async function getVn(id: string): Promise<VndbVn | null> {
+export async function getVn(id: string, signal?: AbortSignal): Promise<VndbVn | null> {
   const r = await vndbPost<VndbVn>('/vn', {
     filters: ['id', '=', id],
     fields: VN_DETAIL_FIELDS,
     results: 1,
-  }, TTL.vnDetail, decodeVndbVnDetail);
+  }, TTL.vnDetail, decodeVndbVnDetail, signal);
   return r.results[0] ?? null;
 }
 

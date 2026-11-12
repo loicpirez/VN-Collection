@@ -147,7 +147,9 @@ vi.mock('@/components/CoverPickerTrigger', () => ({
 }));
 
 vi.mock('@/components/HeroBanner', () => ({
-  HeroBanner: ({ customBanner, src, vnId }: { customBanner: boolean; src: string | null; vnId: string }) => <div>{`banner:${vnId}:${src ?? 'none'}:${customBanner}`}</div>,
+  HeroBanner: ({ customBanner, src, vnId, sexual }: { customBanner: boolean; src: string | null; vnId: string; sexual: number | null }) => (
+    <div data-banner-classification={sexual ?? 'unrated'}>{`banner:${vnId}:${src ?? 'none'}:${customBanner}`}</div>
+  ),
 }));
 
 vi.mock('@/components/CastSection', () => ({
@@ -450,6 +452,27 @@ beforeEach(() => {
 });
 
 describe('VN detail page runtime', () => {
+  it.each([
+    ['vn/v90027.jpg', 0],
+    ['https://s2.vndb.org/sf/01/90027.jpg', 1.5],
+    ['vn-sc/v90027.jpg', 1.5],
+    ['cover/another-game.jpg', 'unrated'],
+  ] as const)('uses the displayed banner classification for %s', async (banner, rating) => {
+    vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90027', {
+      image_url: 'https://s2.vndb.org/cv/01/90027.jpg',
+      local_image: 'vn/v90027.jpg',
+      image_sexual: 0,
+      banner_image: banner,
+      screenshots: [{
+        url: 'https://s2.vndb.org/sf/01/90027.jpg',
+        thumbnail: 'https://s2.vndb.org/st/01/90027.jpg',
+        local: 'vn-sc/v90027.jpg',
+        sexual: 1.5,
+      }],
+    }));
+    expect(await renderPage('v90027')).toContain(`data-banner-classification="${rating}"`);
+  });
+
   it('uses the available-source median on a non-collection detail page and preserves raw source values', async () => {
     vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90026', { length_minutes: 600 }));
     vi.mocked(getEgsForVn).mockReturnValue(egsRow('v90026', { playtime_median_minutes: 2400 }));

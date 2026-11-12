@@ -37,7 +37,7 @@ describe('cover source picker request lifecycle', () => {
   });
 
   it('keeps disabled EGS tabs out of keyboard navigation and exposes gallery selection semantics', () => {
-    expect(PICKER).toContain("const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb'] : ['custom', 'vndb', 'egs']");
+    expect(PICKER).toContain("const tabs: Tab[] = egsTabDisabled ? ['custom', 'vndb', 'games'] : ['custom', 'vndb', 'egs', 'games']");
     expect(PICKER).toContain('aria-pressed={isCurrent}');
   });
 

@@ -20,9 +20,10 @@ describe('reusable client-island hydration', () => {
     const cover = source('src/components/CoverSourcePicker.tsx');
     const shelf = source('src/components/ShelfReadOnlyControls.tsx');
 
-    expect(cover).toContain('setTab(initialTab(egsId, currentCustomCover))');
+    expect(cover).toContain("setTab('custom')");
     expect(cover).toContain('setRotationState(currentRotation)');
-    expect(cover).toContain('}, [vnId, egsId, currentCustomCover, currentRotation, initialOpen])');
+    expect(cover).toContain('}, [vnId, currentRotation])');
+    expect(cover).toContain('}, [vnId, egsId, initialOpen])');
     expect(shelf).toContain('const next = initialOverrides ?? { global: initialPrefs, shelves: {} }');
     expect(shelf).toContain('setOverrides(next)');
     expect(shelf).toContain("setScope('global')");
