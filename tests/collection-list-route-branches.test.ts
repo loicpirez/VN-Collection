@@ -19,6 +19,22 @@ afterEach(() => {
 });
 
 describe('GET /api/collection filter parsing', () => {
+  it('keeps sold games available for the archive and launcher only', async () => {
+    const id = VN_PREFIX + '999';
+    upsertVn({ id, title: 'Retired Route Test' });
+    addToCollection(id, { status: 'sold', notes: 'Retained history' });
+
+    const active = await (await GET(request('?q=Retired%20Route%20Test'))).json();
+    expect(active.items).toEqual([]);
+    expect(active.stats.byStatus).toContainEqual({ status: 'sold', n: 1 });
+
+    for (const filter of ['q=Retired%20Route%20Test&status=sold', 'include_sold=1&limit=500']) {
+      const response = await GET(request(`?${filter}`));
+      expect(response.status).toBe(200);
+      expect((await response.json()).items).toEqual(expect.arrayContaining([expect.objectContaining({ id, status: 'sold' })]));
+    }
+  });
+
   it('rejects invalid enum and aspect filters with specific 400 responses', async () => {
     const invalidStatus = await GET(request('?status=finished'));
     expect(invalidStatus.status).toBe(400);

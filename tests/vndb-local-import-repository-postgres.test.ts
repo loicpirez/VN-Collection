@@ -16,7 +16,7 @@ import { getVndbLocalImportRepository } from '@/lib/db/repositories/vndb-local-i
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.postgresQuery.mockImplementation(async (sql: string) => sql.includes('FROM collection c')
+  mocks.postgresQuery.mockImplementation(async (sql: string) => sql.includes('SELECT c.vn_id, v.title, c.status')
     ? {
         rows: [
           { vn_id: 'V96001', title: 'Postgres title', status: 'completed' },
@@ -38,5 +38,7 @@ describe('PostgreSQL VNDB local-import repository', () => {
       releases: [{ vn_id: 'v96001', release_id: 'r96001', vn_title: 'Postgres title', edition_label: null }],
     });
     expect(mocks.postgresQuery).toHaveBeenCalledTimes(2);
+    expect(mocks.postgresQuery.mock.calls[0]?.[0]).toContain("WHERE c.status <> 'sold'");
+    expect(mocks.postgresQuery.mock.calls[1]?.[0]).toContain("c.vn_id = o.vn_id AND c.status = 'sold'");
   });
 });

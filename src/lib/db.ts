@@ -3864,7 +3864,7 @@ export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
     const chunk = vnIds.slice(i, i + CHUNK);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders})`)
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders}) AND status <> 'sold'`)
       .all(...chunk) as { vn_id: string }[];
     for (const r of rows) out.add(r.vn_id);
   }
@@ -3898,7 +3898,7 @@ export function resetCollectionCustomOrder(): void {
 
 /** Every VN id the operator owns. Used by the wishlist + recommendations as a "to-exclude" set. */
 export function listInCollectionVnIds(): string[] {
-  const rows = db.prepare('SELECT vn_id FROM collection').all() as { vn_id: string }[];
+  const rows = db.prepare("SELECT vn_id FROM collection WHERE status <> 'sold'").all() as { vn_id: string }[];
   return rows.map((r) => r.vn_id);
 }
 
@@ -3978,6 +3978,7 @@ function rowToItem(row: DbRow | undefined): CollectionItem | null {
 
 export interface ListOptions {
   status?: Status | '';
+  includeSold?: boolean;
   q?: string;
   producer?: string;
   publisher?: string;
@@ -4114,6 +4115,7 @@ const FULL_NO_RAW_VN_COLUMNS =
  */
 export function listCollection({
   status,
+  includeSold,
   q,
   producer,
   publisher,
@@ -4220,6 +4222,8 @@ export function listCollection({
   if (status) {
     where.push('c.status = ?');
     params.push(status);
+  } else if (!includeSold && !_includeUnownedVnIds) {
+    where.push("c.status <> 'sold'");
   }
   if (q) {
     // Escape SQL LIKE wildcards so a literal underscore or percent
@@ -5265,7 +5269,7 @@ export function getCollectionItem(vnId: string): CollectionItem | null {
 
 /** Live counters for the home page (per-status, per-length, etc.). Always fresh. */
 export function getStats(): Stats {
-  const total = (db.prepare('SELECT COUNT(*) AS n FROM collection').get() as { n: number }).n;
+  const total = (db.prepare("SELECT COUNT(*) AS n FROM collection WHERE status <> 'sold'").get() as { n: number }).n;
   const byStatus = db
     .prepare('SELECT status, COUNT(*) AS n FROM collection GROUP BY status')
     .all() as { status: Status; n: number }[];
@@ -6070,7 +6074,8 @@ export function listAllOwnedReleases(): ShelfEntry[] {
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       LEFT JOIN release_meta_cache rm ON rm.release_id = o.release_id
-      WHERE NOT EXISTS (
+      WHERE NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
+      AND NOT EXISTS (
         SELECT 1
         FROM physical_bundle_member bm
         JOIN physical_bundle b ON b.id = bm.bundle_id
@@ -6181,6 +6186,7 @@ export function listDumpStatus(): DumpStatusEntry[] {
         FROM owned_release
         GROUP BY vn_id
       ) ed ON ed.vn_id = v.id
+      WHERE c.status <> 'sold'
       ORDER BY v.title COLLATE NOCASE ASC
       LIMIT 10000
     `)
@@ -6257,18 +6263,18 @@ export function getDumpSummary(): DumpSummary {
   const totals = db
     .prepare(`
       SELECT
-        (SELECT COUNT(*) FROM collection WHERE dumped_ignored = 0) AS total_vns,
+        (SELECT COUNT(*) FROM collection WHERE dumped_ignored = 0 AND status <> 'sold') AS total_vns,
         (SELECT COUNT(*) FROM owned_release o
           JOIN collection c ON c.vn_id = o.vn_id
-          WHERE c.dumped_ignored = 0
+          WHERE c.dumped_ignored = 0 AND c.status <> 'sold'
         ) AS total_editions,
         (SELECT COUNT(*) FROM owned_release o
           JOIN collection c ON c.vn_id = o.vn_id
-          WHERE o.dumped = 1 AND c.dumped_ignored = 0
+          WHERE o.dumped = 1 AND c.dumped_ignored = 0 AND c.status <> 'sold'
         ) AS dumped_editions,
         (SELECT COUNT(*) FROM collection c
           WHERE c.dumped = 1
-            AND c.dumped_ignored = 0
+            AND c.dumped_ignored = 0 AND c.status <> 'sold'
             AND NOT EXISTS (
               SELECT 1 FROM owned_release o WHERE o.vn_id = c.vn_id
             )
@@ -6286,13 +6292,13 @@ export function getDumpSummary(): DumpSummary {
         -- VNs fully covered by per-edition dumped=1
         SELECT o.vn_id FROM owned_release o
         JOIN collection c ON c.vn_id = o.vn_id
-        WHERE c.dumped_ignored = 0
+        WHERE c.dumped_ignored = 0 AND c.status <> 'sold'
         GROUP BY o.vn_id
         HAVING SUM(CASE WHEN o.dumped = 1 THEN 0 ELSE 1 END) = 0
         UNION
         -- VNs marked dumped at the collection level (regardless
         -- of whether they have owned editions)
-        SELECT vn_id FROM collection WHERE dumped = 1 AND dumped_ignored = 0
+        SELECT vn_id FROM collection WHERE dumped = 1 AND dumped_ignored = 0 AND status <> 'sold'
       )
     `)
     .get() as { n: number }).n;
@@ -6339,9 +6345,17 @@ export function listShelves(): ShelfUnitWithCount[] {
       WITH placement_counts AS (
         SELECT shelf_id, SUM(c) AS c
         FROM (
-          SELECT shelf_id, COUNT(*) AS c FROM shelf_slot GROUP BY shelf_id
+          SELECT shelf_id, COUNT(*) AS c FROM shelf_slot placement
+          WHERE NOT EXISTS (
+            SELECT 1 FROM collection sold WHERE sold.vn_id = placement.vn_id AND sold.status = 'sold'
+          )
+          GROUP BY shelf_id
           UNION ALL
-          SELECT shelf_id, COUNT(*) AS c FROM shelf_display_slot GROUP BY shelf_id
+          SELECT shelf_id, COUNT(*) AS c FROM shelf_display_slot placement
+          WHERE NOT EXISTS (
+            SELECT 1 FROM collection sold WHERE sold.vn_id = placement.vn_id AND sold.status = 'sold'
+          )
+          GROUP BY shelf_id
         )
         GROUP BY shelf_id
       )
@@ -6712,6 +6726,7 @@ export function listShelfSlots(shelfId: number): ShelfSlotEntry[] {
       JOIN vn v ON v.id = s.vn_id
       LEFT JOIN release_meta_cache rm ON rm.release_id = s.release_id
       WHERE s.shelf_id = ?
+        AND NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
     `)
     .all(shelfId) as Array<{
       shelf_id: number;
@@ -6802,7 +6817,8 @@ export function listUnplacedOwnedReleases(): ShelfEntry[] {
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
       LEFT JOIN release_meta_cache rm ON rm.release_id = o.release_id
-      WHERE NOT EXISTS (
+      WHERE NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
+      AND NOT EXISTS (
         SELECT 1 FROM shelf_slot s
         WHERE s.vn_id = o.vn_id AND s.release_id = o.release_id
       ) AND NOT EXISTS (
@@ -7125,6 +7141,7 @@ export function listShelfDisplaySlots(shelfId: number): ShelfDisplaySlotEntry[] 
       JOIN vn v ON v.id = d.vn_id
       LEFT JOIN release_meta_cache rm ON rm.release_id = d.release_id
       WHERE d.shelf_id = ?
+        AND NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
       ORDER BY d.after_row ASC, d.position ASC
     `)
     .all(shelfId) as Array<{

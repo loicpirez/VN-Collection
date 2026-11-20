@@ -683,6 +683,15 @@ describe('VN detail page runtime', () => {
     expect(html).not.toContain('title="win"');
   });
 
+  it('renders the archive notice and Sold badge on a sold game detail', async () => {
+    vi.mocked(getCollectionItem).mockReturnValue(collectionItem('v90009', { status: 'sold' }));
+    vi.mocked(isInCollection).mockReturnValue(true);
+    const html = await renderPage('v90009');
+
+    expect(html).toContain(dictionaries.en.detail.soldFromCollection);
+    expect(html).toContain('status:sold');
+  });
+
   it('renders full collection-only composition and source preferences', async () => {
     const item = collectionItem('v90009', {
       title: 'Owned VN',

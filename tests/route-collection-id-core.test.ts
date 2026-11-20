@@ -101,6 +101,28 @@ describe('GET /api/collection/[id]', () => {
 describe('POST /api/collection/[id]', () => {
   beforeEach(seed);
 
+  it('updates existing personal metadata without changing collection membership', async () => {
+    addToCollection(VN, { status: 'planning' });
+    expect(await getCachedCollectionVnIds()).toContain(VN);
+
+    const response = await collectionPOST(localReq('POST', { notes: 'Edition note' }) as never, ctx());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ item: { status: 'planning', notes: 'Edition note' } });
+    expect(await getCachedCollectionVnIds()).toContain(VN);
+  });
+
+  it('retires an existing game and invalidates the cached active membership', async () => {
+    addToCollection(VN, { status: 'planning', notes: 'Retained history' });
+    expect(await getCachedCollectionVnIds()).toContain(VN);
+
+    const response = await collectionPATCH(localReq('PATCH', { status: 'sold' }) as never, ctx());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ item: { status: 'sold', notes: 'Retained history' } });
+    expect(await getCachedCollectionVnIds()).not.toContain(VN);
+    const detail = await collectionGET(localReq('GET') as never, ctx());
+    expect(await detail.json()).toMatchObject({ in_collection: false, item: { status: 'sold' } });
+  });
+
   it('403 from a non-loopback origin', async () => {
     const res = await collectionPOST(externalReq('POST', { status: 'planning' }) as never, ctx());
     expect(res.status).toBe(403);

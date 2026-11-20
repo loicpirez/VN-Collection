@@ -136,7 +136,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const item = await getVnReadRepository().getCollectionItem(id);
     if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    return NextResponse.json({ item, in_collection: !!item.status });
+    return NextResponse.json({ item, in_collection: Boolean(item.status && item.status !== 'sold') });
   } catch (err) {
     console.error('[collection/[id] GET] DB error:', (err as Error).message);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     payload: fields as Record<string, unknown>,
   });
   await maybePushStatusToVndb(id, fields.status);
-  if (wasNew) invalidateCollectionVnIdsCache();
+  if (wasNew || fields.status !== undefined) invalidateCollectionVnIdsCache();
   // First-time add: download cover + screenshots + release/package images locally.
   // Failures are silently swallowed — the user can retry via the "Download all" button.
   if (wasNew) {
@@ -217,6 +217,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'not in collection' }, { status: 404 });
     }
     await collection.update(id, fields);
+    if (fields.status !== undefined) invalidateCollectionVnIdsCache();
     await recordActivity({
       kind: 'collection.update',
       entity: 'vn',

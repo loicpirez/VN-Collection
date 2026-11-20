@@ -53,6 +53,7 @@ export async function pushStatusToVndb(
   if (!isVndbVnId(vnId)) return { ok: false, status: 400, message: 'not a vndb id' };
   // Compute which labels to set + unset based on the new status.
   const ALL = Object.values(VNDB_LABELS);
+  if (status === 'sold') return { ok: false, status: 400, message: 'Sold is an ownership status' };
   const target = status ? VNDB_LABELS[status] : null;
   const labelsSet = target != null ? [target] : [];
   const labelsUnset = ALL.filter((l) => l !== target);
@@ -82,7 +83,7 @@ export async function maybePushStatusToVndb(
   vnId: string,
   status: Status | null | undefined,
 ): Promise<void> {
-  if (status === undefined || !isVndbVnId(vnId)) return;
+  if (status === undefined || status === 'sold' || !isVndbVnId(vnId)) return;
   const settings = getAppSettingRepository();
   if (await settings.get('vndb_writeback') !== '1') return;
   const token = await settings.get('vndb_token');
@@ -258,7 +259,7 @@ export async function pullStatusesFromVndb(options: PullOptions = { action: 'pre
         if (unmatched.length < 20) unmatched.push({ vn_id: vnId, status: target });
         continue;
       }
-      if (local.status === target) {
+      if (local.status === 'sold' || local.status === target) {
         unchanged += 1;
         continue;
       }

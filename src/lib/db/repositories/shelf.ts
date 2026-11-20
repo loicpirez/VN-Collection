@@ -424,9 +424,17 @@ export function createPostgresShelfRepository(): ShelfRepository {
         WITH placement_counts AS (
           SELECT shelf_id, SUM(count)::BIGINT AS count
           FROM (
-            SELECT shelf_id, COUNT(*)::BIGINT AS count FROM shelf_slot GROUP BY shelf_id
+            SELECT shelf_id, COUNT(*)::BIGINT AS count FROM shelf_slot placement
+            WHERE NOT EXISTS (
+              SELECT 1 FROM collection sold WHERE sold.vn_id = placement.vn_id AND sold.status = 'sold'
+            )
+            GROUP BY shelf_id
             UNION ALL
-            SELECT shelf_id, COUNT(*)::BIGINT AS count FROM shelf_display_slot GROUP BY shelf_id
+            SELECT shelf_id, COUNT(*)::BIGINT AS count FROM shelf_display_slot placement
+            WHERE NOT EXISTS (
+              SELECT 1 FROM collection sold WHERE sold.vn_id = placement.vn_id AND sold.status = 'sold'
+            )
+            GROUP BY shelf_id
           ) placements
           GROUP BY shelf_id
         )
@@ -506,7 +514,8 @@ export function createPostgresShelfRepository(): ShelfRepository {
         SELECT ${VISUAL_SELECT}
         FROM owned_release o
         ${VISUAL_JOINS}
-        WHERE NOT EXISTS (
+        WHERE NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
+        AND NOT EXISTS (
           SELECT 1 FROM physical_bundle_member member
           JOIN physical_bundle physical ON physical.id = member.bundle_id
           WHERE member.vn_id = o.vn_id AND member.release_id = o.release_id
@@ -522,7 +531,8 @@ export function createPostgresShelfRepository(): ShelfRepository {
         SELECT ${VISUAL_SELECT}
         FROM owned_release o
         ${VISUAL_JOINS}
-        WHERE NOT EXISTS (
+        WHERE NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
+        AND NOT EXISTS (
           SELECT 1 FROM shelf_slot slot
           WHERE slot.vn_id = o.vn_id AND slot.release_id = o.release_id
         ) AND NOT EXISTS (
@@ -546,6 +556,7 @@ export function createPostgresShelfRepository(): ShelfRepository {
         JOIN owned_release o ON o.vn_id = slot.vn_id AND o.release_id = slot.release_id
         ${VISUAL_JOINS}
         WHERE slot.shelf_id = $1
+          AND NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
         ORDER BY slot.row, slot.col
       `, [shelfId]);
       return result.rows.map(mapSlot);
@@ -559,6 +570,7 @@ export function createPostgresShelfRepository(): ShelfRepository {
           ON o.vn_id = display.vn_id AND o.release_id = display.release_id
         ${VISUAL_JOINS}
         WHERE display.shelf_id = $1
+          AND NOT EXISTS (SELECT 1 FROM collection sold WHERE sold.vn_id = o.vn_id AND sold.status = 'sold')
         ORDER BY display.after_row, display.position
       `, [shelfId]);
       return result.rows.map(mapDisplaySlot);

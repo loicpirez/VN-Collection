@@ -88,18 +88,18 @@ export function createPostgresDumpRepository(): DumpRepository {
     async summary() {
       const result = await postgresQuery<DumpTotalsRow>(`
         SELECT
-          (SELECT COUNT(*)::int FROM collection WHERE dumped_ignored = 0) AS total_vns,
+          (SELECT COUNT(*)::int FROM collection WHERE dumped_ignored = 0 AND status <> 'sold') AS total_vns,
           (SELECT COUNT(*)::int FROM owned_release owned
             JOIN collection coll ON coll.vn_id = owned.vn_id
-            WHERE coll.dumped_ignored = 0
+            WHERE coll.dumped_ignored = 0 AND coll.status <> 'sold'
           ) AS total_editions,
           (SELECT COUNT(*)::int FROM owned_release owned
             JOIN collection coll ON coll.vn_id = owned.vn_id
-            WHERE owned.dumped = 1 AND coll.dumped_ignored = 0
+            WHERE owned.dumped = 1 AND coll.dumped_ignored = 0 AND coll.status <> 'sold'
           ) AS dumped_editions,
           (SELECT COUNT(*)::int FROM collection coll
             WHERE coll.dumped = 1
-              AND coll.dumped_ignored = 0
+              AND coll.dumped_ignored = 0 AND coll.status <> 'sold'
               AND NOT EXISTS (
                 SELECT 1 FROM owned_release owned WHERE owned.vn_id = coll.vn_id
               )
@@ -107,11 +107,11 @@ export function createPostgresDumpRepository(): DumpRepository {
           (SELECT COUNT(*)::int FROM (
             SELECT owned.vn_id FROM owned_release owned
             JOIN collection coll ON coll.vn_id = owned.vn_id
-            WHERE coll.dumped_ignored = 0
+            WHERE coll.dumped_ignored = 0 AND coll.status <> 'sold'
             GROUP BY owned.vn_id
             HAVING COUNT(*) FILTER (WHERE owned.dumped <> 1) = 0
             UNION
-            SELECT vn_id FROM collection WHERE dumped = 1 AND dumped_ignored = 0
+            SELECT vn_id FROM collection WHERE dumped = 1 AND dumped_ignored = 0 AND status <> 'sold'
           ) fully_dumped) AS fully_dumped_vns
       `);
       const totals = result.rows[0];
@@ -140,6 +140,7 @@ export function createPostgresDumpRepository(): DumpRepository {
           FROM owned_release
           GROUP BY vn_id
         ) editions ON editions.vn_id = vn.id
+        WHERE coll.status <> 'sold'
         ORDER BY vn.title COLLATE "C" ASC
         LIMIT 10000
       `);

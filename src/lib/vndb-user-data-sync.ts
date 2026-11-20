@@ -1,8 +1,8 @@
 import { asJsonRecord } from './json-shape';
-import { isValidStatus, type Status } from './types';
+import { isValidStatus, type ReadingStatus, type Status } from './types';
 
 /** Local collection status to predefined VNDB ulist-label mapping. */
-export const VNDB_STATUS_LABELS: Readonly<Record<Status, number>> = {
+export const VNDB_STATUS_LABELS: Readonly<Record<ReadingStatus, number>> = {
   planning: 5,
   playing: 1,
   completed: 2,
@@ -43,7 +43,7 @@ export interface VndbUserDataDifference {
   canPushLocal: boolean;
 }
 
-const STATUS_PRECEDENCE: readonly Status[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
+const STATUS_PRECEDENCE: readonly ReadingStatus[] = ['completed', 'dropped', 'on_hold', 'playing', 'planning'];
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -119,8 +119,9 @@ export function compareVndbUserData(
       field,
       local: local[field],
       remote: remote[field],
-      canPullRemote: field !== 'status' || remote.status !== null,
-      canPushLocal: field !== 'notes' || local.notes === null || local.notes.length <= 10_000,
+      canPullRemote: field !== 'status' || (local.status !== 'sold' && remote.status !== null),
+      canPushLocal: (field !== 'status' || local.status !== 'sold') &&
+        (field !== 'notes' || local.notes === null || local.notes.length <= 10_000),
     });
   }
   return differences;

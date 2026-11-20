@@ -567,6 +567,7 @@ export const dictionaries = {
       completed: 'Terminé',
       on_hold: 'En pause',
       dropped: 'Abandonné',
+      sold: 'Vendu',
     },
     library: {
       all: 'Tout',
@@ -980,6 +981,7 @@ export const dictionaries = {
         groupMapping: 'Correspondance',
         groupDangerous: 'Zone sensible',
       },
+      soldFromCollection: 'Ce jeu a été vendu. Sa fiche et son historique sont conservés.',
       notInLibraryBanner: {
         label: 'Pas dans ta bibliothèque',
         cta: 'Ajouter à la collection',
@@ -4467,6 +4469,7 @@ export const dictionaries = {
       completed: 'Completed',
       on_hold: 'On hold',
       dropped: 'Dropped',
+      sold: 'Sold',
     },
     library: {
       all: 'All',
@@ -4880,6 +4883,7 @@ export const dictionaries = {
         groupMapping: 'Mapping',
         groupDangerous: 'Danger zone',
       },
+      soldFromCollection: 'This game was sold. Its details and history are saved.',
       notInLibraryBanner: {
         label: 'Not in your library',
         cta: 'Add to collection',
@@ -8364,6 +8368,7 @@ export const dictionaries = {
       completed: 'クリア済み',
       on_hold: '一時中断',
       dropped: '中止',
+      sold: '売却済み',
     },
     library: {
       all: 'すべて',
@@ -8777,6 +8782,7 @@ export const dictionaries = {
         groupMapping: 'マッピング',
         groupDangerous: '危険操作',
       },
+      soldFromCollection: 'このゲームは売却済みです。作品情報と履歴は保存されています。',
       notInLibraryBanner: {
         label: 'ライブラリ未登録',
         cta: 'コレクションに追加',

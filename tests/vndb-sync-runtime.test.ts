@@ -86,6 +86,11 @@ afterEach(() => {
 });
 
 describe('pushStatusToVndb', () => {
+  it('keeps ownership statuses out of VNDB reading-label write-back', async () => {
+    await expect(pushStatusToVndb('v90105', 'sold', FAKE_TOKEN)).resolves.toMatchObject({ ok: false, status: 400 });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
   it('rejects a non-VNDB id without any fetch', async () => {
     const r = await pushStatusToVndb('egs_5', 'completed', FAKE_TOKEN);
     expect(r).toEqual({ ok: false, status: 400, message: 'not a vndb id' });
@@ -172,6 +177,18 @@ describe('pullStatusesFromVndb', () => {
     });
     expect(applied).toMatchObject({ action: 'apply', updated: 1, conflicts: 0, changes: [] });
     expect(getCollectionItem('v90100')?.status).toBe('playing');
+  });
+
+  it('keeps an archived collection entry sold when an upstream reading label exists', async () => {
+    getAuthInfoMock.mockResolvedValue({ id: 'u9001', username: 'tester', permissions: ['listread'] });
+    const id = 'v90198';
+    upsertVn({ id, title: 'Archived VN' });
+    addToCollection(id, { status: 'sold' });
+    respondWithLabels({ [VNDB_LABELS.playing]: [ulistEntry(id, [VNDB_LABELS.playing])] });
+
+    const preview = await pullStatusesFromVndb();
+    expect(preview.changes).toEqual([]);
+    expect(getCollectionItem(id)?.status).toBe('sold');
   });
 
   it('leaves an already-aligned VN unchanged', async () => {

@@ -177,6 +177,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const raw = await repository.listCards({
       status: status as ListOptions['status'],
+      includeSold: sp.get('include_sold') === '1',
       q,
       producer: producer || undefined,
       publisher: publisher || undefined,

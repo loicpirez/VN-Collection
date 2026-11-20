@@ -100,6 +100,16 @@ describe('GET /api/vn/[id] route branches', () => {
     expect(mocks.getVn).not.toHaveBeenCalled();
   });
 
+  it('keeps an archived entry marked unowned after refreshing stale metadata', async () => {
+    const archived = row('sold');
+    mocks.getCollectionItem.mockReturnValueOnce(row('sold', 1)).mockReturnValueOnce(archived);
+    mocks.getVn.mockResolvedValue({ id: VN_ID, title: 'Synthetic VN' });
+
+    const response = await GET(req(), ctx());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ vn: archived, in_collection: false });
+  });
+
   it('returns 404 when VNDB has no uncached row for the id', async () => {
     mocks.getCollectionItem.mockReturnValue(null);
     mocks.getVn.mockResolvedValue(null);

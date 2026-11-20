@@ -58,7 +58,7 @@ function remoteUserData(entry: VndbUlistEntryDetail | null): RemoteVndbUserData 
 
 function buildRemotePatch(local: LocalVndbUserData, fields: VndbSyncField[]): UlistPatch {
   const patch: UlistPatch = {};
-  if (fields.includes('status') && local.status) {
+  if (fields.includes('status') && local.status && local.status !== 'sold') {
     const target = VNDB_STATUS_LABELS[local.status];
     patch.labels_set = [target];
     patch.labels_unset = Object.values(VNDB_STATUS_LABELS).filter((label) => label !== target);

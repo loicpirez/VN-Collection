@@ -296,6 +296,20 @@ describe('local to VNDB apply', () => {
     });
   });
 
+  it('rejects an existing import preview after the game has been sold', async () => {
+    mocks.listSnapshot.mockResolvedValue(snapshot({
+      vns: [{ vn_id: 'v90001', title: 'Archived', status: 'sold' }],
+    }));
+
+    const result = await importLocalLibraryToVndb({
+      action: 'apply',
+      selections: [{ kind: 'vn', vn_id: 'v90001', local_status: 'planning' }],
+    });
+
+    expect(result).toMatchObject({ applied: [], conflicts: [{ key: 'vn:v90001', reason: 'local_changed' }] });
+    expect(mocks.patchUlistEntry).not.toHaveBeenCalled();
+  });
+
   it('revalidates release selections and imports obtained status with granular failures', async () => {
     const selections: VndbLocalImportSelection[] = [
       { kind: 'release', vn_id: 'v90001', release_id: 'r90001', remote_status: null },

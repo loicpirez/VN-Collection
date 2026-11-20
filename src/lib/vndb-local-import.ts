@@ -337,7 +337,7 @@ async function apply(
         conflicts.push({ key, reason: 'local_missing' });
         continue;
       }
-      if (local.status !== selection.local_status) {
+      if (local.status === 'sold' || local.status !== selection.local_status) {
         conflicts.push({ key, reason: 'local_changed' });
         continue;
       }

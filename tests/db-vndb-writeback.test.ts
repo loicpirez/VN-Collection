@@ -23,6 +23,7 @@ describe('maybePushStatusToVndb', () => {
     setAppSetting('vndb_writeback', '1');
     setAppSetting('vndb_token', 'tok-valid');
     await maybePushStatusToVndb('egs_90001', 'completed');
+    await maybePushStatusToVndb('v90001', 'sold');
 
     setAppSetting('vndb_writeback', null);
     await maybePushStatusToVndb('v90002', 'completed');

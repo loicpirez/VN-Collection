@@ -17,13 +17,14 @@ export const STATUS_HEX = {
   completed: '#22c55e',
   on_hold: '#f59e0b',
   dropped: '#ef4444',
+  sold: '#a78bfa',
 } as const;
 
 export type StatusKey = keyof typeof STATUS_HEX;
 
 /**
  * Fallback hex for any status string that isn't one of the canonical
- * five (e.g. a future `wishlist` status, or a malformed row).
+ * statuses (e.g. a future `wishlist` status, or a malformed row).
  * Mirrors the muted text colour from the palette.
  */
 export const STATUS_HEX_FALLBACK = '#64748b';

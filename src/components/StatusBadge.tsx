@@ -8,6 +8,7 @@ const COLOR_BY_STATUS: Record<Status, string> = {
   playing: 'bg-status-playing text-bg',
   completed: 'bg-status-completed text-bg',
   on_hold: 'bg-status-on_hold text-bg',
+  sold: 'bg-status-sold text-bg',
   dropped: 'bg-status-dropped text-bg',
 };
 

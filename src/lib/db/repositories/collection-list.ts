@@ -203,6 +203,7 @@ function buildCollectionQuery(options: ListOptions): { text: string; values: Pos
   const sort = options.sort ?? 'updated_at';
   const direction = options.order === 'asc' ? 'ASC' : 'DESC';
   if (options.status) where.push(`c.status = ${bindings.add(options.status)}`);
+  else if (!options.includeSold && !options._includeUnownedVnIds) where.push("c.status <> 'sold'");
   if (options.q) {
     const pattern = bindings.add(postgresContainsPattern(options.q));
     where.push(`(app_search_normalize(v.title) LIKE ${pattern} ESCAPE '\\' OR app_search_normalize(v.alttitle) LIKE ${pattern} ESCAPE '\\')`);
@@ -602,7 +603,7 @@ export function createPostgresCollectionListRepository(): CollectionListReposito
     },
     async stats() {
       const [total, statuses, playtime] = await Promise.all([
-        postgresQuery<{ count: number } & QueryResultRow>('SELECT COUNT(*) AS count FROM collection'),
+        postgresQuery<{ count: number } & QueryResultRow>("SELECT COUNT(*) AS count FROM collection WHERE status <> 'sold'"),
         postgresQuery<{ status: Status; count: number } & QueryResultRow>(`
           SELECT status, COUNT(*) AS count FROM collection GROUP BY status ORDER BY status
         `),

@@ -96,6 +96,18 @@ describe('PostgreSQL collection list branch behavior', () => {
     expect(mocks.postgresQuery).toHaveBeenCalledTimes(3);
   });
 
+  it('allows a sold view or explicit inclusion without filtering the main list incorrectly', async () => {
+    const repository = createPostgresCollectionListRepository();
+    await repository.listCards();
+    expect(mocks.postgresQuery.mock.calls[0]?.[0]).toContain("c.status <> 'sold'");
+
+    await repository.listCards({ includeSold: true });
+    expect(mocks.postgresQuery.mock.calls[1]?.[0]).not.toContain("c.status <> 'sold'");
+
+    await repository.listCards({ status: 'sold' });
+    expect(mocks.postgresQuery.mock.calls[2]?.[1]).toContain('sold');
+  });
+
   it('sorts Japanese readings across all SQL matches before limiting the enriched page', async () => {
     mocks.postgresQuery.mockImplementation(async (sql: string) => ({ rows: sql.includes('FROM collection c JOIN vn v') ? [
       { ...itemRow('v95001', { title: 'Alpha' }), title_furigana: 'う' },

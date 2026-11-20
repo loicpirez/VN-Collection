@@ -384,7 +384,11 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         synthetic `egs_*` VNs that already surface a dedicated EGS-
         only state through `<MatchBadges>` below.
       */}
-      {!vn.id.startsWith('egs_') && (
+      {vn.status === 'sold' ? (
+        <p className="rounded-xl border border-status-sold/30 bg-status-sold/10 px-4 py-3 text-sm text-fg">
+          {t.detail.soldFromCollection}
+        </p>
+      ) : !vn.id.startsWith('egs_') && (
         <NotInCollectionBanner vnId={vn.id} initialInCollection={inCol} />
       )}
 

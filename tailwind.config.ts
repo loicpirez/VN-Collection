@@ -25,6 +25,7 @@ const config: Config = {
           completed: '#22c55e',
           on_hold: '#f59e0b',
           dropped: '#ef4444',
+          sold: '#a78bfa',
         },
       },
       fontFamily: {

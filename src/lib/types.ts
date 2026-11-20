@@ -1,5 +1,6 @@
-export const STATUSES = ['planning', 'playing', 'completed', 'on_hold', 'dropped'] as const;
+export const STATUSES = ['planning', 'playing', 'completed', 'on_hold', 'dropped', 'sold'] as const;
 export type Status = (typeof STATUSES)[number];
+export type ReadingStatus = Exclude<Status, 'sold'>;
 
 // Live icon mapping lives in `components/StatusIcon.tsx` (Lucide icons).
 // The previous `STATUS_ICONS` unicode glyph map was unused; removed

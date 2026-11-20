@@ -65,12 +65,16 @@ const postgresRepository: VndbLocalImportRepository = {
         SELECT c.vn_id, v.title, c.status
         FROM collection c
         JOIN vn v ON v.id = c.vn_id
+        WHERE c.status <> 'sold'
         ORDER BY v.title COLLATE "C", c.vn_id
       `),
       postgresQuery<ImportReleaseDatabaseRow>(`
         SELECT o.vn_id, o.release_id, v.title AS vn_title, o.edition_label
         FROM owned_release o
         JOIN vn v ON v.id = o.vn_id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM collection c WHERE c.vn_id = o.vn_id AND c.status = 'sold'
+        )
         ORDER BY v.title COLLATE "C", o.release_id
       `),
     ]);
@@ -85,12 +89,16 @@ const sqliteRepository: VndbLocalImportRepository = {
       SELECT c.vn_id, v.title, c.status
       FROM collection c
       JOIN vn v ON v.id = c.vn_id
+      WHERE c.status <> 'sold'
       ORDER BY v.title COLLATE NOCASE, c.vn_id
     `).all() as ImportVnDatabaseRow[];
     const releases = db.prepare(`
       SELECT o.vn_id, o.release_id, v.title AS vn_title, o.edition_label
       FROM owned_release o
       JOIN vn v ON v.id = o.vn_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM collection c WHERE c.vn_id = o.vn_id AND c.status = 'sold'
+      )
       ORDER BY v.title COLLATE NOCASE, o.release_id
     `).all() as ImportReleaseDatabaseRow[];
     return { vns: mapVns(vns), releases: mapReleases(releases) };

@@ -284,7 +284,7 @@ describe('PostgreSQL collection core repository', () => {
     await expect(repository.containsMany([])).resolves.toEqual(new Set());
     await expect(repository.containsMany(['v90001', 'v90002', 'v90003'])).resolves.toEqual(new Set(['v90001', 'v90003']));
     expect(postgresQueryMock).toHaveBeenLastCalledWith(
-      'SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[])',
+      "SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[]) AND status <> 'sold'",
       [['v90001', 'v90002', 'v90003']],
     );
   });
@@ -303,7 +303,7 @@ describe('PostgreSQL collection core repository', () => {
     await repository.resetCustomOrder();
     await expect(repository.listIds()).resolves.toEqual(['v90002', 'v90001']);
     expect(postgresQueryMock).toHaveBeenNthCalledWith(1, 'UPDATE collection SET custom_order = 0');
-    expect(postgresQueryMock).toHaveBeenNthCalledWith(2, 'SELECT vn_id FROM collection');
+    expect(postgresQueryMock).toHaveBeenNthCalledWith(2, "SELECT vn_id FROM collection WHERE status <> 'sold'");
   });
 
   it('normalizes custom descriptions and rejects malformed source preferences', async () => {

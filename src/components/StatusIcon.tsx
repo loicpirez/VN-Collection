@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDashed, PauseCircle, PlayCircle, XCircle, type LucideIcon } from 'lucide-react';
+import { CheckCircle2, CircleDashed, PauseCircle, PlayCircle, Tag, XCircle, type LucideIcon } from 'lucide-react';
 import type { Status } from '@/lib/types';
 
 export const STATUS_ICON: Record<Status, LucideIcon> = {
@@ -7,6 +7,7 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
   completed: CheckCircle2,
   on_hold: PauseCircle,
   dropped: XCircle,
+  sold: Tag,
 };
 
 export function StatusIcon({ status, className = 'h-4 w-4' }: { status: Status; className?: string }) {

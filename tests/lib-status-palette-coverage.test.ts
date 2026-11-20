@@ -7,13 +7,14 @@ import { describe, expect, it } from 'vitest';
 import { STATUS_HEX, STATUS_HEX_FALLBACK, statusHex, type StatusKey } from '@/lib/status-palette';
 
 describe('status-palette', () => {
-  it('exposes the canonical five status hex codes', () => {
+  it('exposes the canonical status hex codes', () => {
     expect(STATUS_HEX).toEqual({
       planning: '#475569',
       playing: '#3b82f6',
       completed: '#22c55e',
       on_hold: '#f59e0b',
       dropped: '#ef4444',
+      sold: '#a78bfa',
     });
   });
 

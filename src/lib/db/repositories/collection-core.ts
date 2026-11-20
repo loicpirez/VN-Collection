@@ -57,7 +57,7 @@ export interface CollectionCoreRepository {
   ): Promise<boolean>;
   /** Remove one collection row and its personal-list memberships. */
   remove(vnId: string): Promise<void>;
-  /** Report whether one VN belongs to the collection. */
+  /** Report whether a collection record exists, including sold records. */
   contains(vnId: string): Promise<boolean>;
   /** Return the owned subset of a VN id list. */
   containsMany(vnIds: readonly string[]): Promise<Set<string>>;
@@ -65,7 +65,7 @@ export interface CollectionCoreRepository {
   setCustomOrder(vnIds: readonly string[]): Promise<void>;
   /** Clear every custom collection position. */
   resetCustomOrder(): Promise<void>;
-  /** List every VN id currently in the collection. */
+  /** List the VN ids in the active collection. */
   listIds(): Promise<string[]>;
   /** Set or clear the normalized user-authored synopsis. */
   setCustomDescription(vnId: string, text: string | null): Promise<void>;
@@ -307,7 +307,7 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
     },
     async containsMany(vnIds) {
       if (vnIds.length === 0) return new Set();
-      const result = await postgresQuery<VnIdRow>('SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[])', [vnIds]);
+      const result = await postgresQuery<VnIdRow>("SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[]) AND status <> 'sold'", [vnIds]);
       return new Set(result.rows.map((row) => row.vn_id));
     },
     async setCustomOrder(vnIds) {
@@ -322,7 +322,7 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
       await postgresQuery('UPDATE collection SET custom_order = 0');
     },
     async listIds() {
-      const result = await postgresQuery<VnIdRow>('SELECT vn_id FROM collection');
+      const result = await postgresQuery<VnIdRow>("SELECT vn_id FROM collection WHERE status <> 'sold'");
       return result.rows.map((row) => row.vn_id);
     },
     async setCustomDescription(vnId, text) {

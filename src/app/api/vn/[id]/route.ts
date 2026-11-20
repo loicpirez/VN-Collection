@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const reader = getVnReadRepository();
   const cached = await reader.getCollectionItem(id);
   if (cached && cached.fetched_at && isCacheFresh(cached.fetched_at, VNDB_CACHE_MS)) {
-    return NextResponse.json({ vn: cached, in_collection: !!cached.status });
+    return NextResponse.json({ vn: cached, in_collection: Boolean(cached.status && cached.status !== 'sold') });
   }
   try {
     const vn = await getVn(id);
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       console.error(`[vn:${vn.id}] producer fan-out failed:`, (e as Error).message);
     });
     const item = await reader.getCollectionItem(vn.id);
-    return NextResponse.json({ vn: item, in_collection: !!item?.status });
+    return NextResponse.json({ vn: item, in_collection: Boolean(item?.status && item.status !== 'sold') });
   } catch (err) {
     return upstreamError('vn/[id]', err);
   }

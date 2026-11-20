@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
+import { getDumpRepository } from '@/lib/db/repositories/dump';
 import type { OwnedReleaseRepository } from '@/lib/db/repositories/owned-release';
 import type { ShelfRepository } from '@/lib/db/repositories/shelf';
 
@@ -106,6 +108,27 @@ export function registerShelfRepositoryContract(label: string, harness: ShelfCon
 
         await owned.remove(SHELF_CONTRACT_IDS.secondVn, SHELF_CONTRACT_IDS.secondRelease);
         await expect(owned.get(SHELF_CONTRACT_IDS.secondVn, SHELF_CONTRACT_IDS.secondRelease)).resolves.toBeNull();
+      });
+    });
+
+    it('retires sold editions from shelf views and dump tracking while retaining their records', async () => {
+      await harness.withRepositories(async (owned, shelf) => {
+        const { firstVn, firstRelease, firstShelf, secondVn } = SHELF_CONTRACT_IDS;
+        await markContractEditions(owned);
+        await shelf.placeItem({ shelfId: firstShelf, row: 0, col: 0, vnId: firstVn, releaseId: firstRelease });
+        const collection = getCollectionCoreRepository();
+        await collection.update(firstVn, { status: 'sold' });
+        await collection.update(secondVn, { status: 'sold' });
+
+        expect((await shelf.listAllOwned()).map((entry) => entry.vn_id)).not.toContain(firstVn);
+        expect((await shelf.listUnplaced()).map((entry) => entry.vn_id)).not.toContain(secondVn);
+        await expect(shelf.listSlots(firstShelf)).resolves.toEqual([]);
+        expect((await shelf.list()).find((entry) => entry.id === firstShelf)?.placed_count).toBe(0);
+        expect((await getDumpRepository().listStatus()).map((entry) => entry.vn_id)).not.toContain(firstVn);
+        await expect(owned.get(firstVn, firstRelease)).resolves.toMatchObject({ edition_label: 'First press' });
+
+        await collection.update(firstVn, { status: 'completed' });
+        await expect(shelf.listSlots(firstShelf)).resolves.toMatchObject([{ vn_id: firstVn, release_id: firstRelease }]);
       });
     });
 
