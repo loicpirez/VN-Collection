@@ -24,6 +24,7 @@ const peopleMocks = vi.hoisted(() => ({
 
 const collectionMocks = vi.hoisted(() => ({
   containsMany: vi.fn(),
+  soldIds: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -142,6 +143,7 @@ beforeEach(() => {
   peopleMocks.characterSiblings.mockReset().mockResolvedValue([]);
   peopleMocks.voiceActorsForCharacter.mockReset().mockResolvedValue([]);
   collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  collectionMocks.soldIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(getCharacter).mockReset().mockResolvedValue(character());
   vi.mocked(readCharacterFullCache).mockReset().mockResolvedValue(null);
   vi.mocked(readScrapedCharacterInfo).mockReset().mockResolvedValue(null);

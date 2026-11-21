@@ -12,6 +12,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatMonthDay } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
+import { StatusBadge } from '@/components/StatusBadge';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -137,7 +138,12 @@ export default async function CharacterPage({
   // strongest role, and exposes `releaseCount` so the card can render
   // "N editions" instead of stacking identical covers.
   const sortedVns = dedupAppearances(char.vns).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
-  const appearsInOwned = await getCollectionCoreRepository().containsMany(sortedVns.map((v) => v.id));
+  const relatedIds = sortedVns.map((v) => v.id);
+  const collection = getCollectionCoreRepository();
+  const [appearsInOwned, appearsInSold] = await Promise.all([
+    collection.containsMany(relatedIds),
+    collection.soldIds(relatedIds),
+  ]);
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
@@ -402,7 +408,7 @@ export default async function CharacterPage({
                               The border-accent/40 tint already hints at
                               ownership, but a chip is more discoverable
                               and matches the staff-credits surface. */}
-                          {owned && (
+                          {appearsInSold.has(v.id) ? <StatusBadge status="sold" className="mt-1" /> : owned && (
                             <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-completed">
                               <Check className="h-2.5 w-2.5" aria-hidden /> {t.staff.ownedLabel}
                             </span>

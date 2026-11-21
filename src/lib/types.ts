@@ -316,6 +316,7 @@ export interface VndbSearchHit extends LocalPlaytimeSources {
   image: { url: string; thumbnail: string; sexual?: number } | null;
   developers: { name: string }[];
   in_collection: boolean;
+  sold?: true;
 }
 
 export interface Stats {

@@ -104,9 +104,9 @@ export function createPostgresAnalyticsRepository(): AnalyticsRepository {
     async personal() {
       const [summary, statuses] = await Promise.all([
         postgresQuery<PersonalRow>(`
-          SELECT COUNT(*)::int AS total,
+          SELECT COUNT(*) FILTER (WHERE status <> 'sold')::int AS total,
             COALESCE(SUM(playtime_minutes), 0)::bigint AS playtime_minutes,
-            COUNT(*) FILTER (WHERE favorite = 1)::int AS favorites,
+            COUNT(*) FILTER (WHERE favorite = 1 AND status <> 'sold')::int AS favorites,
             AVG(user_rating)::double precision AS avg_user_rating
           FROM collection
         `),
@@ -367,7 +367,7 @@ const sqliteRepository: AnalyticsRepository = {
     const legacy = await import('@/lib/db');
     const stats = legacy.getStats();
     const favorites = (legacy.db.prepare(
-      'SELECT COUNT(*) AS count FROM collection WHERE favorite = 1',
+      "SELECT COUNT(*) AS count FROM collection WHERE favorite = 1 AND status <> 'sold'",
     ).get() as { count: number }).count;
     const average = legacy.db.prepare(
       'SELECT AVG(user_rating) AS value FROM collection WHERE user_rating IS NOT NULL',

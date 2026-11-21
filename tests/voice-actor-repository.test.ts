@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addToCollection, db, upsertVn } from '@/lib/db';
+import { getPeopleRepository } from '@/lib/db/repositories/people';
 import {
   getVoiceActorRepository,
   type VoiceActorBrowseOptions,
@@ -123,6 +124,27 @@ describe('SQLite local seiyuu repository', () => {
     }));
     expect(empty).toMatchObject({ rows: [], total: 0, page: 1, pageSize: 2 });
     expect(empty.stats.actorCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps sold voice credits discoverable without counting them as owned', async () => {
+    const soldId = VN_IDS[1];
+    addToCollection(soldId, { status: 'sold' });
+    try {
+      const repo = getVoiceActorRepository();
+      const result = await repo.browse(options({ query: 'Primary Voice' }));
+      expect(result.rows[0]).toMatchObject({ id: 's980101', vnCount: 3, collectionVnCount: 1 });
+
+      const people = getPeopleRepository();
+      const credits = await people.voiceCredits('s980101');
+      expect(credits.find(({ vn }) => vn.id === soldId)?.vn).toMatchObject({
+        in_collection: false,
+        sold: true,
+      });
+      const owned = await people.voiceCredits('s980101', { inCollectionOnly: true });
+      expect(owned.map(({ vn }) => vn.id)).toEqual([VN_IDS[0]]);
+    } finally {
+      db.prepare('DELETE FROM collection WHERE vn_id = ?').run(soldId);
+    }
   });
 
   it('supports every ranking dimension in both directions', async () => {

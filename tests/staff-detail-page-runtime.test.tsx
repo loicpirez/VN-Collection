@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { I18nProvider } from '@/lib/i18n/client';
+import { dictionaries } from '@/lib/i18n/dictionaries';
 import StaffPage, { generateMetadata as generateStaffMetadata } from '@/app/staff/[id]/page';
 import type {
   StaffProfile,
@@ -212,6 +214,28 @@ describe('staff detail page runtime', () => {
     const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's90991' }), searchParams: Promise.resolve({}) }));
     expect(html).toContain('All credits (3)');
     expect(html).toContain('In the collection (1)');
+  });
+
+  it('labels sold voice credits in All credits and excludes them from In the collection', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.voiceCredits.mockResolvedValue([
+      voice('v90990', { in_collection: true }),
+      voice('v90991', { sold: true }),
+    ]);
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile());
+    const render = async (scope?: 'collection') => {
+      const page = await StaffPage({ params: Promise.resolve({ id: 's1' }), searchParams: Promise.resolve({ scope }) });
+      return renderToStaticMarkup(<I18nProvider locale="en" dict={dictionaries.en}>{page}</I18nProvider>);
+    };
+
+    const all = await render();
+    expect(all).toContain('All credits (2)');
+    expect(all).toContain('In the collection (1)');
+    expect(all).toContain('Visual novel v90991');
+    expect(all).toContain('>Sold<');
+    const owned = await render('collection');
+    expect(owned).toContain('Visual novel v90990');
+    expect(owned).not.toContain('Visual novel v90991');
   });
 
   it('renders rich cached profile metadata, grouped credits, voice cards, siblings, and synthetic VNs', async () => {

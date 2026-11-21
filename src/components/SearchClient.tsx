@@ -144,6 +144,7 @@ function searchCardData(r: VndbSearchHit): CardData {
     egs_playtime_minutes: r.egs_playtime_minutes,
     ai_playtime_minutes: r.ai_playtime_minutes,
     inCollectionBadge: r.in_collection,
+    ...(r.sold ? { status: 'sold' as const } : {}),
     developers: r.developers,
   };
   searchCache.set(r, data);

@@ -61,6 +61,8 @@ export interface CollectionCoreRepository {
   contains(vnId: string): Promise<boolean>;
   /** Return the owned subset of a VN id list. */
   containsMany(vnIds: readonly string[]): Promise<Set<string>>;
+  /** Return sold records separately from the active membership on related surfaces. */
+  soldIds(vnIds: readonly string[]): Promise<Set<string>>;
   /** Persist custom positions for the supplied VN ids. */
   setCustomOrder(vnIds: readonly string[]): Promise<void>;
   /** Clear every custom collection position. */
@@ -310,6 +312,11 @@ export function createPostgresCollectionCoreRepository(): CollectionCoreReposito
       const result = await postgresQuery<VnIdRow>("SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[]) AND status <> 'sold'", [vnIds]);
       return new Set(result.rows.map((row) => row.vn_id));
     },
+    async soldIds(vnIds) {
+      if (vnIds.length === 0) return new Set();
+      const result = await postgresQuery<VnIdRow>("SELECT vn_id FROM collection WHERE vn_id = ANY($1::text[]) AND status = 'sold'", [vnIds]);
+      return new Set(result.rows.map((row) => row.vn_id));
+    },
     async setCustomOrder(vnIds) {
       if (vnIds.length === 0) return;
       await withPostgresTransaction(async (client) => {
@@ -369,6 +376,9 @@ const sqliteRepository: CollectionCoreRepository = {
   },
   async containsMany(vnIds) {
     return (await import('@/lib/db')).isInCollectionMany(vnIds);
+  },
+  async soldIds(vnIds) {
+    return (await import('@/lib/db')).listSoldVnIds(vnIds);
   },
   async setCustomOrder(vnIds) {
     (await import('@/lib/db')).setCollectionCustomOrder([...vnIds]);

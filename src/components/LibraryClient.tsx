@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Virtuoso } from 'react-virtuoso';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Calendar, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Clock, Filter, FilterX, GripVertical, HardDriveDownload, Home, LayoutGrid, LayoutTemplate, MoreHorizontal, Package, Search, SlidersHorizontal, Star, Tags as TagsIcon, X } from 'lucide-react';
 import { VnCard } from './VnCard';
 import { toCardData } from './cardData';
 import { SkeletonBlock, SkeletonCardGrid } from './Skeleton';
@@ -1028,10 +1028,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
           aria-atomic="true"
           className="flex gap-6 text-sm text-muted"
         >
-          <span><b className="text-white">{stats.total}</b> {t.library.stats.vnCount}</span>
+          <span>{t.library.activeCollectionCount.replace('{count}', fmtNum(stats.total, locale))}</span>
           <span><b className="text-white">{totalPlaytime}</b> {t.library.stats.playedHours}</span>
         </div>
-        {stats.total > 0 && (
+        {(status === 'sold' ? visibleItems.length > 0 : stats.total > 0) && (
           <button
             type="button"
             onClick={() => {
@@ -1048,10 +1048,10 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
             </span>
           </button>
         )}
-        {visibleItems.length > 0 && (
+        {status !== 'sold' && visibleItems.length > 0 && (
           <RandomPickButton candidates={randomPickCandidates} queryParams={collectionQueryParams} />
         )}
-        {stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
+        {status !== 'sold' && stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
       </div>
     </>
   );
@@ -1080,7 +1080,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
         >
           {t.library.all} <span className="ml-1 opacity-70">{stats.total}</span>
         </button>
-        {STATUSES.map((s) => (
+        {STATUSES.filter((s) => s !== 'sold').map((s) => (
           <button
             key={s}
             type="button"
@@ -1093,7 +1093,20 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
             <span className="ml-1 opacity-70">{counts[s] ?? 0}</span>
           </button>
         ))}
+        <button
+          type="button"
+          className={`chip inline-flex items-center gap-1 whitespace-nowrap border-status-sold/40 text-status-sold ${status === 'sold' ? 'chip-active' : ''}`}
+          onClick={() => setParam('status', status === 'sold' ? null : 'sold')}
+          aria-pressed={status === 'sold'}
+        >
+          <Archive className="h-3.5 w-3.5" aria-hidden />
+          {t.library.soldArchive}{' '}
+          <span className="ml-1 opacity-70">{counts.sold ?? 0}</span>
+        </button>
       </div>
+      {status === 'sold' && (
+        <p className="mb-3 text-sm text-muted">{t.library.soldArchiveHint}</p>
+      )}
 
       {/*
         Compact toolbar (single row at md+): search + Advanced
@@ -1593,6 +1606,13 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
           gapClassName={settings.denseLibrary ? 'gap-4' : 'gap-3'}
           densityScale={settings.denseLibrary ? 0.72 : 1}
         />
+      ) : status === 'sold' && !counts.sold ? (
+        <div className="py-20 text-center">
+          <h2 className="mb-4 text-xl font-bold">{t.library.emptySoldArchive}</h2>
+          <button type="button" className="btn btn-primary" onClick={() => setParam('status', null)}>
+            {t.library.backToCollection}
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="py-20 text-center">
           <h2 className="mb-2 text-xl font-bold">{t.library.empty.title}</h2>
@@ -1603,7 +1623,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
                 ? t.library.empty.descriptionFiltered
                 : t.library.empty.description}
           </p>
-          {pagination.page === 1 && (
+          {pagination.page === 1 && status !== 'sold' && (
             <Link href="/search" className="btn btn-primary">
               <Search className="h-4 w-4" aria-hidden /> {t.library.empty.cta}
             </Link>

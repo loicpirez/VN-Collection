@@ -18,6 +18,7 @@ export interface PeopleVnSummary {
   released: string | null;
   rating: number | null;
   in_collection: boolean;
+  sold?: true;
 }
 
 /** Locally reconstructed staff profile. */
@@ -175,6 +176,7 @@ interface ProductionRow extends QueryResultRow {
   note: string | null;
   credited_as: string;
   in_collection: boolean;
+  sold: boolean | null;
 }
 
 interface VoiceRow extends QueryResultRow {
@@ -196,6 +198,7 @@ interface VoiceRow extends QueryResultRow {
   credited_as: string;
   note: string | null;
   in_collection: boolean;
+  sold: boolean | null;
 }
 
 function vnSummary(row: ProductionRow | VoiceRow): PeopleVnSummary {
@@ -211,6 +214,7 @@ function vnSummary(row: ProductionRow | VoiceRow): PeopleVnSummary {
     released: row.released,
     rating: row.rating,
     in_collection: row.in_collection,
+    ...(row.sold ? { sold: true } : {}),
   };
 }
 
@@ -300,11 +304,12 @@ export function createPostgresPeopleRepository(): PeopleRepository {
           v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
           v.local_image, v.local_image_thumb, v.released, v.rating,
           sc.role, sc.eid, sc.note, sc.name AS credited_as,
-          (c.vn_id IS NOT NULL) AS in_collection
+          (c.vn_id IS NOT NULL AND c.status <> 'sold') AS in_collection,
+          (c.status = 'sold') AS sold
         FROM vn_staff_credit sc
         JOIN vn v ON v.id = sc.vn_id
         LEFT JOIN collection c ON c.vn_id = sc.vn_id
-        WHERE sc.sid = $1 AND ($2::boolean = false OR c.vn_id IS NOT NULL)
+        WHERE sc.sid = $1 AND ($2::boolean = false OR c.status <> 'sold')
         ORDER BY v.released DESC NULLS LAST, app_search_normalize(v.title) COLLATE "C", sc.role, sc.eid NULLS LAST
         LIMIT 5000
       `, [sid, options.inCollectionOnly === true]);
@@ -317,12 +322,13 @@ export function createPostgresPeopleRepository(): PeopleRepository {
           v.local_image, v.local_image_thumb, v.released, v.rating,
           va.c_id, va.c_name, va.c_original, va.c_image_url,
           ci.local_path AS c_local_image, va.va_name AS credited_as, va.note,
-          (c.vn_id IS NOT NULL) AS in_collection
+          (c.vn_id IS NOT NULL AND c.status <> 'sold') AS in_collection,
+          (c.status = 'sold') AS sold
         FROM vn_va_credit va
         JOIN vn v ON v.id = va.vn_id
         LEFT JOIN collection c ON c.vn_id = va.vn_id
         LEFT JOIN character_image ci ON ci.char_id = va.c_id
-        WHERE va.sid = $1 AND ($2::boolean = false OR c.vn_id IS NOT NULL)
+        WHERE va.sid = $1 AND ($2::boolean = false OR c.status <> 'sold')
         ORDER BY v.released DESC NULLS LAST, app_search_normalize(v.title) COLLATE "C",
           app_search_normalize(va.c_name) COLLATE "C", va.c_id
         LIMIT 5000
@@ -345,7 +351,7 @@ export function createPostgresPeopleRepository(): PeopleRepository {
           (c.vn_id IS NOT NULL) AS in_collection
         FROM vn_va_credit va
         JOIN vn v ON v.id = va.vn_id
-        LEFT JOIN collection c ON c.vn_id = va.vn_id
+        LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         WHERE va.sid = $1
         GROUP BY v.id, v.released, c.vn_id
       `, [sid]);
@@ -473,7 +479,7 @@ export function createPostgresPeopleRepository(): PeopleRepository {
         in_collection: boolean;
       } & QueryResultRow>(`
         SELECT va.sid, va.va_name, va.va_original, va.va_lang,
-          v.id, v.title, v.released, (c.vn_id IS NOT NULL) AS in_collection
+          v.id, v.title, v.released, (c.vn_id IS NOT NULL AND c.status <> 'sold') AS in_collection
         FROM vn_va_credit va
         JOIN vn v ON v.id = va.vn_id
         LEFT JOIN collection c ON c.vn_id = va.vn_id

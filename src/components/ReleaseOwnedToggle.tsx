@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowRight, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { useT } from '@/lib/i18n/client';
+import { StatusBadge } from './StatusBadge';
 
 import { readApiError } from '@/lib/api-error-read';
 /**
@@ -31,6 +32,7 @@ interface Props {
   releaseId: string;
   initialInCollection: boolean;
   initialOwned: boolean;
+  sold?: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export function ReleaseOwnedToggle({
   releaseId,
   initialInCollection,
   initialOwned,
+  sold = false,
 }: Props) {
   const t = useT();
   const toast = useToast();
@@ -156,9 +159,10 @@ export function ReleaseOwnedToggle({
           <span className="rounded bg-bg px-1 py-0.5 uppercase tracking-wider">
             {t.releases.rtype[vnRelation]}
           </span>
+          {sold && <StatusBadge status="sold" />}
         </span>
       </Link>
-      <div className="flex items-center gap-1">
+      {!sold && <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={toggle}
@@ -200,7 +204,7 @@ export function ReleaseOwnedToggle({
             <Trash2 className="h-3 w-3" aria-hidden />
           </button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -423,6 +423,23 @@ describe('LibraryClient', () => {
     expect(allChip).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('keeps the active count visible when browsing the sold archive', async () => {
+    searchParamsValue = new URLSearchParams('status=sold');
+    installFetchRouter({
+      collectionItems: [cardRow('v90001', 'Sold fixture', { status: 'sold' })],
+      total: 7,
+      byStatus: [{ status: 'sold', n: 1 }],
+    });
+    renderWithProviders(<DisplaySettingsProvider><LibraryClient mode="full" /></DisplaySettingsProvider>, { locale: 'en' });
+
+    expect(await screen.findByText('Sold fixture')).toBeInTheDocument();
+    expect(screen.getByText('7 games in the active collection')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sold archive 1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'All 7' })).toBeInTheDocument();
+    expect(screen.getByText(/change their status to put them back/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /random mock|bulk download mock/i })).not.toBeInTheDocument();
+  });
+
   it('pushes a status filter into the URL when a status chip is clicked', async () => {
     installFetchRouter({ collectionItems: [cardRow('v90001', 'Title Y')] });
     renderWithProviders(

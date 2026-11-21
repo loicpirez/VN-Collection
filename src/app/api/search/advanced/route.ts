@@ -109,14 +109,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const data = await advancedSearchVn(parsed.opts);
     // Single IN(...) lookup instead of one SELECT per result.
     const ids = data.results.map((v) => v.id);
-    const [ownedIds, playtimeSources] = await Promise.all([
-      getCollectionCoreRepository().containsMany(ids),
+    const collection = getCollectionCoreRepository();
+    const [ownedIds, soldIds, playtimeSources] = await Promise.all([
+      collection.containsMany(ids),
+      collection.soldIds(ids),
       getCollectionPlaytimeSources(ids),
     ]);
     const results = data.results.map((v) => ({
       ...v,
       ...playtimeSources.get(v.id),
       in_collection: ownedIds.has(v.id),
+      ...(soldIds.has(v.id) ? { sold: true } : {}),
     }));
     return NextResponse.json({ results, more: data.more });
   } catch (err) {
