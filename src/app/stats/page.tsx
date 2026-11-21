@@ -52,7 +52,7 @@ export default async function StatsPage() {
   // Each donut slice doubles as a deep-link into the Library
   // filtered by that status. The chart legend renders as `<Link>`s
   // when `href` is set; rows without href stay plain spans.
-  const statusDonut = my.byStatus.map((s) => ({
+  const statusDonut = my.byStatus.filter((s) => s.status !== 'sold').map((s) => ({
     label: t.status[s.status as keyof typeof t.status] ?? s.status,
     value: s.n,
     color: statusHex(s.status),

@@ -9,6 +9,8 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
+import { StatusBadge } from '@/components/StatusBadge';
+import type { PeopleVnSummary } from '@/lib/db/repositories/people';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -450,19 +452,7 @@ function VnCard({
   locale,
   children,
 }: {
-  vn: {
-    id: string;
-    title: string;
-    alttitle: string | null;
-    image_url: string | null;
-    image_thumb: string | null;
-    image_sexual: number | null;
-    local_image: string | null;
-    local_image_thumb: string | null;
-    released: string | null;
-    rating: number | null;
-    in_collection: boolean;
-  };
+  vn: PeopleVnSummary;
   ownedLabel: string;
   ownedTitle: string;
   openOnVndb: string;
@@ -542,7 +532,7 @@ function VnCard({
               {year}
             </Link>
           )}
-          {vn.in_collection && (
+          {vn.sold ? <StatusBadge status="sold" /> : vn.in_collection && (
             <span
               className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"
               title={ownedTitle}

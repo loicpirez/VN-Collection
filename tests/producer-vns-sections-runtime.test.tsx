@@ -7,6 +7,8 @@ import type { ProducerAssociations, ProducerVnRef } from '@/lib/producer-associa
 import type { CollectionCardItem } from '@/lib/types';
 
 const localCards = vi.hoisted(() => vi.fn());
+const soldIds = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/db/repositories/collection-core', () => ({ getCollectionCoreRepository: () => ({ soldIds }) }));
 vi.mock('@/lib/db/repositories/collection-list', () => ({ getCollectionListRepository: () => ({ listCards: localCards }) }));
 
 vi.mock('@/components/WorksCacheLoader', () => ({ WorksCacheLoader: ({ needed }: { needed: boolean }) => needed ? <div role="status">Loading credits</div> : null }));
@@ -82,6 +84,7 @@ function associations(overrides: Partial<ProducerAssociations> = {}): ProducerAs
 
 beforeEach(() => {
   localCards.mockReset().mockResolvedValue([]);
+  soldIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(fetchProducerAssociations).mockReset().mockResolvedValue(associations());
 });
 
@@ -102,7 +105,7 @@ describe('ProducerVnsSections', () => {
     expect(html).not.toContain('>Publisher VN<');
     expect(html).toContain('/api/files/vn/thumb.jpg');
     expect(html).toContain('/api/files/vn/full.jpg');
-    expect(localCards.mock.calls).toEqual([[{ producer: 'p90991' }], [{ publisher: 'p90991' }]]);
+    expect(localCards.mock.calls).toEqual([[{ producer: 'p90991', includeSold: true }], [{ publisher: 'p90991', includeSold: true }]]);
   });
   it('keeps the page usable when the cache association read fails', async () => {
     vi.mocked(fetchProducerAssociations).mockRejectedValue(new Error('offline'));

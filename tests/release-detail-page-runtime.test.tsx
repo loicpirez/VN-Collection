@@ -17,6 +17,7 @@ const serverMocks = vi.hoisted(() => ({
 
 const repositoryMocks = vi.hoisted(() => ({
   containsMany: vi.fn(),
+  soldIds: vi.fn(),
   getCollectionItem: vi.fn(),
   getOwnedRelease: vi.fn(),
   upsertResolutionCache: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('next/server', () => ({
 }));
 
 vi.mock('@/lib/db/repositories/collection-core', () => ({
-  getCollectionCoreRepository: () => ({ containsMany: repositoryMocks.containsMany }),
+  getCollectionCoreRepository: () => ({ containsMany: repositoryMocks.containsMany, soldIds: repositoryMocks.soldIds }),
 }));
 
 vi.mock('@/lib/db/repositories/owned-release', () => ({
@@ -211,6 +212,7 @@ beforeEach(() => {
   repositoryMocks.getCollectionItem.mockReset().mockResolvedValue(null);
   repositoryMocks.getOwnedRelease.mockReset().mockResolvedValue(null);
   repositoryMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  repositoryMocks.soldIds.mockReset().mockResolvedValue(new Set());
   repositoryMocks.upsertResolutionCache.mockReset().mockResolvedValue(undefined);
   vi.mocked(getRelease).mockReset().mockResolvedValue(null);
 });

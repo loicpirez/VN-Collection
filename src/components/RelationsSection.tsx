@@ -23,6 +23,7 @@ const RELATION_ORDER: Record<string, number> = {
 /** Related VN card with membership and local sources for the automatic duration median. */
 export interface EnrichedRelation extends VnRelation, LocalPlaytimeSources {
   in_collection: boolean;
+  sold?: boolean;
 }
 
 // WeakMap-cached projection so the same row always yields the same
@@ -47,6 +48,7 @@ function relationCardData(r: EnrichedRelation): CardData {
     developers: r.developers,
     publishers: r.publishers ?? [],
     inCollectionBadge: r.in_collection,
+    ...(r.sold ? { status: 'sold' as const } : {}),
   };
   relationCache.set(r, data);
   return data;

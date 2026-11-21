@@ -26,14 +26,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Single IN(...) query instead of N round-trips for "is in
     // collection?" lookups. The bounded window stays one SELECT instead of N.
     const ids = data.results.map((v) => v.id);
-    const [ownedIds, playtimeSources] = await Promise.all([
-      getCollectionCoreRepository().containsMany(ids),
+    const collection = getCollectionCoreRepository();
+    const [ownedIds, soldIds, playtimeSources] = await Promise.all([
+      collection.containsMany(ids),
+      collection.soldIds(ids),
       getCollectionPlaytimeSources(ids),
     ]);
     const results = data.results.map((v) => ({
       ...v,
       ...playtimeSources.get(v.id),
       in_collection: ownedIds.has(v.id),
+      ...(soldIds.has(v.id) ? { sold: true } : {}),
     }));
     return NextResponse.json({ results, more: data.more });
   } catch (err) {

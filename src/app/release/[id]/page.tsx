@@ -98,8 +98,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   // Owned-inventory shortcut: if any of the VNs linked to this release is in
   // the collection, surface a quick toggle/edit panel here.
-  const [ownedSet, ownedRows] = await Promise.all([
-    getCollectionCoreRepository().containsMany(release.vns.map((vn) => vn.id)),
+  const collection = getCollectionCoreRepository();
+  const releaseVnIds = release.vns.map((vn) => vn.id);
+  const [ownedSet, soldIds, ownedRows] = await Promise.all([
+    collection.containsMany(releaseVnIds),
+    collection.soldIds(releaseVnIds),
     Promise.all(release.vns.map((vn) => getOwnedReleaseRepository().get(vn.id, release.id))),
   ]);
   const ownedContexts = release.vns.map((v, index) => ({
@@ -107,6 +110,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
       vnTitle: v.title || v.id,
       vnRelation: v.rtype,
       inCollection: ownedSet.has(v.id),
+      sold: soldIds.has(v.id),
       owned: ownedRows[index] ?? null,
     }));
   const seenReleaseImages = new Set<string>();
@@ -333,6 +337,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 vnRelation={ctx.vnRelation}
                 releaseId={release!.id}
                 initialInCollection={ctx.inCollection}
+                sold={ctx.sold}
                 initialOwned={!!ctx.owned}
               />
             ))}

@@ -4,7 +4,7 @@ import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/Staff
 import { downloadFullStaffInfo, readStaffFullCache, type StaffFullPayload } from '@/lib/staff-full';
 import type { StaffVaCredit, StaffVnCredit } from '@/lib/vndb';
 
-const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn() }));
+const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn(), soldIds: vi.fn() }));
 
 vi.mock('@/components/StaffDownloadButton', () => ({ StaffDownloadButton: ({ sid }: { sid: string }) => <button>Retry {sid}</button> }));
 vi.mock('@/components/WorksCacheLoader', () => ({ RefreshCachedCredits: () => <span>Reconcile staff cache</span> }));
@@ -79,6 +79,7 @@ function payload(overrides: Partial<StaffFullPayload> = {}): StaffFullPayload {
 
 beforeEach(() => {
   collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  collectionMocks.soldIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(readStaffFullCache).mockReset().mockResolvedValue(null);
   vi.mocked(downloadFullStaffInfo).mockReset();
 });

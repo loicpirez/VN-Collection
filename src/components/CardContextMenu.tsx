@@ -9,6 +9,7 @@ import { STATUSES, type Status } from '@/lib/types';
 import { StatusIcon } from './StatusIcon';
 
 import { readApiError } from '@/lib/api-error-read';
+import { updateRecentlyViewedSold } from '@/lib/recentlyViewed';
 interface Props {
   vnId: string;
   status: Status | null | undefined;
@@ -124,6 +125,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
+      if (typeof body.status === 'string') updateRecentlyViewedSold(ownerVnId, body.status === 'sold');
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       onChange?.();
@@ -177,7 +179,7 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
             key={s}
             role="menuitem"
             type="button"
-            disabled={!!busy}
+            disabled={!!busy || (active && s === 'sold')}
             onClick={() => patch({ status: active ? null : s }, `status-${s}`)}
             className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors can-hover:sm:min-h-0 sm:py-1 ${
               active ? 'bg-accent/15 text-accent' : 'hover:bg-bg-elev'

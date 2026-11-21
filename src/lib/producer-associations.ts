@@ -16,6 +16,7 @@ export interface ProducerVnRef {
   rating: number | null;
   image: { url: string; thumbnail: string; sexual?: number } | null;
   owned: boolean;
+  sold?: boolean;
 }
 
 export interface ProducerAssociations {

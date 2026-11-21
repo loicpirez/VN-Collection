@@ -11,6 +11,7 @@ import { WorksScopeGrid, WorksScopeSection } from '@/components/WorksScope';
 import { StaffDownloadButton } from './StaffDownloadButton';
 import { RefreshCachedCredits } from './WorksCacheLoader';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { StatusBadge } from '@/components/StatusBadge';
 
 /**
  * "More credits (outside the collection)" - the VNDB-sourced list of VNs
@@ -50,7 +51,11 @@ export async function StaffExtraCredits({
     ...extraProduction.map((c) => c.id),
     ...extraVoice.map((c) => c.id),
   ];
-  const inCollectionIds = await getCollectionCoreRepository().containsMany(allIds);
+  const collection = getCollectionCoreRepository();
+  const [inCollectionIds, soldIds] = await Promise.all([
+    collection.containsMany(allIds),
+    collection.soldIds(allIds),
+  ]);
 
   return (
     <>{downloaded && <RefreshCachedCredits />}<WorksScopeSection ownedCount={inCollectionIds.size}><section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
@@ -75,6 +80,7 @@ export async function StaffExtraCredits({
                 <ExternalVnCard
                   vn={c}
                   inCollection={inCollectionIds.has(c.id)}
+                  sold={soldIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
                   locale={locale}
                 >
@@ -108,6 +114,7 @@ export async function StaffExtraCredits({
                 <ExternalVnCard
                   vn={c}
                   inCollection={inCollectionIds.has(c.id)}
+                  sold={soldIds.has(c.id)}
                   ownedLabel={t.staff.ownedLabel}
                   locale={locale}
                 >
@@ -180,6 +187,7 @@ export function StaffExtraCreditsSkeleton({
 function ExternalVnCard({
   vn,
   inCollection,
+  sold,
   ownedLabel,
   locale,
   children,
@@ -195,6 +203,7 @@ function ExternalVnCard({
     rating: number | null;
   };
   inCollection: boolean;
+  sold: boolean;
   /** Localised "in collection" chip label (e.g. `t.staff.ownedLabel`). */
   ownedLabel: string;
   locale: Locale;
@@ -226,7 +235,7 @@ function ExternalVnCard({
           <Link prefetch={false} href={`/vn/${vn.id}`} title={vn.title} className="min-h-[44px] min-w-[44px] line-clamp-2 text-xs font-bold transition-colors hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">
             {vn.title}
           </Link>
-          {inCollection && (
+          {sold ? <StatusBadge status="sold" className="shrink-0" /> : inCollection && (
             <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
               <Check className="h-2.5 w-2.5" aria-hidden /> {ownedLabel}
             </span>

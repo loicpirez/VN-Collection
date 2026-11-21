@@ -2145,6 +2145,7 @@ interface VnSummary {
   released: string | null;
   rating: number | null;
   in_collection: boolean;
+  sold?: true;
 }
 
 export interface StaffWorkCredit {
@@ -2193,13 +2194,14 @@ export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
  * Set `inCollectionOnly` to scope to owned VNs only.
  */
 export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffWorkCredit[] {
-  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const where = opts.inCollectionOnly ? "AND c.status <> 'sold'" : '';
   const rows = db.prepare(`
     SELECT
       v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
       v.local_image, v.local_image_thumb, v.released, v.rating,
       sc.role, sc.eid, sc.note, sc.name AS credited_as,
-      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+      CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection,
+      CASE WHEN c.status = 'sold' THEN 1 ELSE 0 END AS sold
     FROM vn_staff_credit sc
     JOIN vn v ON v.id = sc.vn_id
     LEFT JOIN collection c ON c.vn_id = sc.vn_id
@@ -2213,6 +2215,7 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
     released: string | null; rating: number | null;
     role: string; eid: number | null; note: string | null; credited_as: string;
     in_collection: number;
+    sold: number;
   }>;
   const map = new Map<string, StaffWorkCredit>();
   for (const r of rows) {
@@ -2224,6 +2227,7 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
           image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
           local_image: r.local_image, local_image_thumb: r.local_image_thumb,
           released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+          ...(r.sold ? { sold: true } : {}),
         },
         roles: [],
       };
@@ -2239,14 +2243,15 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
  * `inCollectionOnly` to scope to owned VNs only.
  */
 export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffVaCredit[] {
-  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const where = opts.inCollectionOnly ? "AND c.status <> 'sold'" : '';
   const rows = db.prepare(`
     SELECT
       v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
       v.local_image, v.local_image_thumb, v.released, v.rating,
       va.c_id, va.c_name, va.c_original, va.c_image_url, ci.local_path AS c_local_image,
       va.va_name AS credited_as, va.note,
-      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+      CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection,
+      CASE WHEN c.status = 'sold' THEN 1 ELSE 0 END AS sold
     FROM vn_va_credit va
     JOIN vn v ON v.id = va.vn_id
     LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -2263,6 +2268,7 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
     c_image_url: string | null; c_local_image: string | null;
     credited_as: string; note: string | null;
     in_collection: number;
+    sold: number;
   }>;
   const map = new Map<string, StaffVaCredit>();
   for (const r of rows) {
@@ -2274,6 +2280,7 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
           image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
           local_image: r.local_image, local_image_thumb: r.local_image_thumb,
           released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+          ...(r.sold ? { sold: true } : {}),
         },
         characters: [],
       };
@@ -2314,7 +2321,7 @@ export function getVaTimeline(sid: string): VaYearBucket[] {
       SELECT
         CAST(COALESCE(substr(v.released, 1, 4), '0') AS INTEGER) AS year,
         v.id AS vn_id,
-        CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_col
+        CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_col
       FROM vn_va_credit va
       JOIN vn v ON v.id = va.vn_id
       LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -2517,7 +2524,7 @@ export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
   const rows = db.prepare(`
     SELECT va.sid, va.va_name, va.va_original, va.va_lang,
            v.id, v.title, v.released,
-           CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+           CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection
     FROM vn_va_credit va
     JOIN vn v ON v.id = va.vn_id
     LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -3857,6 +3864,14 @@ export function isInCollection(vnId: string): boolean {
  * SQLite parameter cap (999 in older builds, 32766 in modern).
  */
 export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
+  return listCollectionIdsByHoldings(vnIds, false);
+}
+
+export function listSoldVnIds(vnIds: readonly string[]): Set<string> {
+  return listCollectionIdsByHoldings(vnIds, true);
+}
+
+function listCollectionIdsByHoldings(vnIds: readonly string[], sold: boolean): Set<string> {
   if (vnIds.length === 0) return new Set();
   const out = new Set<string>();
   const CHUNK = 500;
@@ -3864,7 +3879,7 @@ export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
     const chunk = vnIds.slice(i, i + CHUNK);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders}) AND status <> 'sold'`)
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders}) AND status ${sold ? '=' : '<>'} 'sold'`)
       .all(...chunk) as { vn_id: string }[];
     for (const r of rows) out.add(r.vn_id);
   }

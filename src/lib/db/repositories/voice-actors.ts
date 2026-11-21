@@ -204,6 +204,7 @@ function sqliteQualified(options: VoiceActorBrowseOptions): { sql: string; value
       SELECT 1
       FROM vn_va_credit collection_credit
       JOIN collection actor_collection ON actor_collection.vn_id = collection_credit.vn_id
+        AND actor_collection.status <> 'sold'
       WHERE collection_credit.sid = va.sid
     )`);
   }
@@ -246,7 +247,7 @@ function sqliteAggregateCte(options: VoiceActorBrowseOptions): { sql: string; va
         FROM vn_va_credit va
         JOIN qualified q ON q.sid = va.sid
         JOIN vn v ON v.id = va.vn_id
-        LEFT JOIN collection c ON c.vn_id = va.vn_id
+        LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         GROUP BY va.sid
       ),
       name_counts AS (
@@ -274,7 +275,7 @@ async function browseSqlite(options: VoiceActorBrowseOptions): Promise<VoiceActo
       COUNT(DISTINCT CASE WHEN c.vn_id IS NOT NULL THEN va.sid END) AS collection_actor_count,
       COUNT(DISTINCT CASE WHEN c.vn_id IS NOT NULL THEN va.vn_id END) AS collection_vn_count
     FROM vn_va_credit va
-    LEFT JOIN collection c ON c.vn_id = va.vn_id
+    LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
   `).get() as StatsRow | undefined;
   const languages = db.prepare(`
     SELECT va_lang AS language, COUNT(DISTINCT sid) AS actor_count
@@ -360,6 +361,7 @@ function postgresQualified(options: VoiceActorBrowseOptions): { sql: string; val
       SELECT 1
       FROM vn_va_credit collection_credit
       JOIN collection actor_collection ON actor_collection.vn_id = collection_credit.vn_id
+        AND actor_collection.status <> 'sold'
       WHERE collection_credit.sid = va.sid
     )`);
   }
@@ -402,7 +404,7 @@ function postgresAggregateCte(options: VoiceActorBrowseOptions): { sql: string; 
         FROM vn_va_credit va
         JOIN qualified q ON q.sid = va.sid
         JOIN vn v ON v.id = va.vn_id
-        LEFT JOIN collection c ON c.vn_id = va.vn_id
+        LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         GROUP BY va.sid
       ),
       name_counts AS (
@@ -434,7 +436,7 @@ export function createPostgresVoiceActorRepository(): VoiceActorRepository {
             COUNT(DISTINCT CASE WHEN c.vn_id IS NOT NULL THEN va.sid END)::integer AS collection_actor_count,
             COUNT(DISTINCT CASE WHEN c.vn_id IS NOT NULL THEN va.vn_id END)::integer AS collection_vn_count
           FROM vn_va_credit va
-          LEFT JOIN collection c ON c.vn_id = va.vn_id
+          LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         `),
         postgresQuery<LanguageRow>(`
           SELECT va_lang AS language, COUNT(DISTINCT sid)::integer AS actor_count
