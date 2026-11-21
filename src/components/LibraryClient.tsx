@@ -50,6 +50,7 @@ import {
 import type { CollectionPage } from '@/lib/collection-api-client';
 import { OPERATION_LOG_CODES } from '@/lib/operation-log-codes';
 import { replaceSearchQueryInHistory, useDebouncedUrlInput } from '@/lib/use-debounced-url-input';
+import { VN_COLLECTION_CHANGED_EVENT } from '@/lib/vn-collection-events';
 
 /**
  * Tri-state flag panel for the long tail of boolean library filters.
@@ -409,7 +410,11 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
   const [error, setError] = useState<string | null>(null);
   const [tagName, setTagName] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const onBulkItemDone = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const refreshCollection = useCallback(() => setRefreshKey((k) => k + 1), []);
+  useEffect(() => {
+    window.addEventListener(VN_COLLECTION_CHANGED_EVENT, refreshCollection);
+    return () => window.removeEventListener(VN_COLLECTION_CHANGED_EVENT, refreshCollection);
+  }, [refreshCollection]);
   const [savingOrder, setSavingOrder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1051,7 +1056,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
         {status !== 'sold' && visibleItems.length > 0 && (
           <RandomPickButton candidates={randomPickCandidates} queryParams={collectionQueryParams} />
         )}
-        {status !== 'sold' && stats.total > 0 && <BulkDownloadButton onItemDone={onBulkItemDone} />}
+        {status !== 'sold' && stats.total > 0 && <BulkDownloadButton onItemDone={refreshCollection} />}
       </div>
     </>
   );
@@ -1739,7 +1744,7 @@ export function LibraryClient({ mode = 'full' }: { mode?: LibraryClientMode }) {
         <BulkActionBar
           selectedIds={Array.from(selected)}
           onClear={clearSelection}
-          onApplied={() => setRefreshKey((k) => k + 1)}
+          onApplied={refreshCollection}
         />
       )}
     </DensityScopeProvider>

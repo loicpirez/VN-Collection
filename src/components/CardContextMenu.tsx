@@ -10,6 +10,7 @@ import { StatusIcon } from './StatusIcon';
 
 import { readApiError } from '@/lib/api-error-read';
 import { updateRecentlyViewedSold } from '@/lib/recentlyViewed';
+import { dispatchVnCollectionChanged } from '@/lib/vn-collection-events';
 interface Props {
   vnId: string;
   status: Status | null | undefined;
@@ -125,7 +126,13 @@ export function CardContextMenu({ vnId, status, favorite, developer, publisher, 
         signal: controller.signal,
       });
       if (!r.ok) throw new Error(await readApiError(r, t.common.error));
-      if (typeof body.status === 'string') updateRecentlyViewedSold(ownerVnId, body.status === 'sold');
+      if (typeof body.status === 'string') {
+        const sold = body.status === 'sold';
+        updateRecentlyViewedSold(ownerVnId, sold);
+        if (sold !== (status === 'sold')) {
+          dispatchVnCollectionChanged({ vnId: ownerVnId, inCollection: !sold });
+        }
+      }
       if (identityRef.current !== ownerVnId || mutationAbortRef.current !== controller || controller.signal.aborted) return;
       toast.success(t.toast.saved);
       onChange?.();

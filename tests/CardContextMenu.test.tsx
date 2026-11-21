@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from './helpers/render-component';
 import { CardContextMenu } from '@/components/CardContextMenu';
+import { VN_COLLECTION_CHANGED_EVENT } from '@/lib/vn-collection-events';
 
 const pushMock = vi.fn();
 const refreshMock = vi.fn();
@@ -84,6 +85,24 @@ describe('CardContextMenu', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
     expect(body).toEqual({ status: null });
+  });
+
+  it('publishes the restored membership after saving a sold card', async () => {
+    const listener = vi.fn();
+    window.addEventListener(VN_COLLECTION_CHANGED_EVENT, listener, { once: true });
+    try {
+      const { user } = renderWithProviders(
+        <CardContextMenu {...BASE} vnId="v90093" status="sold" onClose={vi.fn()} />,
+        { locale: 'en' },
+      );
+      expect(screen.getByRole('menuitem', { name: 'Sold' })).toBeDisabled();
+      await user.click(screen.getByRole('menuitem', { name: 'Completed' }));
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+        detail: { vnId: 'v90093', inCollection: true },
+      }));
+    } finally {
+      window.removeEventListener(VN_COLLECTION_CHANGED_EVENT, listener);
+    }
   });
 
   it('optimistically toggles favorite and sends the new value', async () => {

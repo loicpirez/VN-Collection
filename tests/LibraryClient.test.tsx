@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { renderWithProviders } from './helpers/render-component';
 import { DisplaySettingsProvider } from '@/lib/settings/client';
 import { VirtuosoMockContext } from 'react-virtuoso';
+import { VN_COLLECTION_CHANGED_EVENT } from '@/lib/vn-collection-events';
 
 let searchParamsValue = new URLSearchParams();
 const replaceMock = vi.fn();
@@ -438,6 +439,14 @@ describe('LibraryClient', () => {
     expect(screen.getByRole('button', { name: 'All 7' })).toBeInTheDocument();
     expect(screen.getByText(/change their status to put them back/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /random mock|bulk download mock/i })).not.toBeInTheDocument();
+
+    installFetchRouter({ total: 8 });
+    fireEvent(window, new CustomEvent(VN_COLLECTION_CHANGED_EVENT, {
+      detail: { vnId: 'v90001', inCollection: true },
+    }));
+    expect(await screen.findByRole('heading', { name: 'No sold games' })).toBeInTheDocument();
+    expect(screen.queryByText('Sold fixture')).not.toBeInTheDocument();
+    expect(screen.getByText('8 games in the active collection')).toBeInTheDocument();
   });
 
   it('pushes a status filter into the URL when a status chip is clicked', async () => {
