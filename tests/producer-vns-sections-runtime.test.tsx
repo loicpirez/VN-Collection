@@ -211,7 +211,7 @@ describe('ProducerVnsSections', () => {
     expect(sold).not.toContain(dictionaries.en.producerVns.developerCredits);
 
     soldIds.mockResolvedValue(new Set());
-    expect(await render('sold')).toContain(dictionaries.en.status.emptySoldArchive);
+    expect(await render('sold')).toContain(dictionaries.en.library.emptySoldArchive);
   });
 
   it('renders a collection-scope empty state and publisher-only sections', async () => {
