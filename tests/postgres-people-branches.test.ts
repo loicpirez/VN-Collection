@@ -245,5 +245,11 @@ describe('PostgreSQL people repository branch behavior', () => {
     const [sql, values] = mocks.postgresQuery.mock.calls[1] as [string, readonly unknown[]];
     expect(sql).toContain('WHERE');
     expect(values).toEqual(['%staff\\%%', 'scenario', 'ja', 500]);
+
+    mocks.postgresQuery.mockResolvedValueOnce({ rows: [] });
+    await expect(repository.searchStaff({ scope: 'sold', vn: 'v40' })).resolves.toEqual([]);
+    const [soldSql, soldValues] = mocks.postgresQuery.mock.calls[2] as [string, readonly unknown[]];
+    expect(soldSql).toContain("WHERE sc.vn_id = $1 AND c.status = 'sold'");
+    expect(soldValues).toEqual(['v40', 100]);
   });
 });

@@ -1,4 +1,5 @@
 import type { VoiceActorBrowseOptions, VoiceActorSort } from '@/lib/db/repositories/voice-actors';
+import { parseWorksScope } from '@/lib/works-scope';
 
 /** Fixed credit thresholds exposed by the seiyuu browser. */
 export const VOICE_ACTOR_MINIMUMS = [1, 5, 10, 25, 50] as const;
@@ -25,9 +26,11 @@ export function parseVoiceActorBrowseParams(
   const language = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/.test(languageValue)
     ? languageValue
     : null;
-  const scope = first(searchParams.scope) === 'collection' ? 'collection' : 'all';
+  const scope = parseWorksScope(searchParams.scope);
   const sortValue = first(searchParams.sort);
-  const sort = SORTS.includes(sortValue as VoiceActorSort) ? sortValue as VoiceActorSort : 'vns';
+  const sort = SORTS.includes(sortValue as VoiceActorSort) && !(scope === 'sold' && sortValue === 'collection')
+    ? sortValue as VoiceActorSort
+    : 'vns';
   const directionValue = first(searchParams.direction);
   const direction = directionValue === 'asc' || directionValue === 'desc'
     ? directionValue
@@ -57,9 +60,10 @@ export function voiceActorBrowseHref(options: VoiceActorBrowseOptions): string {
   const params = new URLSearchParams();
   if (options.query) params.set('q', options.query);
   if (options.language) params.set('lang', options.language);
-  if (options.scope === 'collection') params.set('scope', 'collection');
-  if (options.sort !== 'vns') params.set('sort', options.sort);
-  if (options.direction !== defaultDirection(options.sort)) params.set('direction', options.direction);
+  if (options.scope !== 'all') params.set('scope', options.scope);
+  const sort = options.scope === 'sold' && options.sort === 'collection' ? 'vns' : options.sort;
+  if (sort !== 'vns') params.set('sort', sort);
+  if (options.direction !== defaultDirection(sort)) params.set('direction', options.direction);
   if (options.minimumVns !== 1) params.set('minimum', String(options.minimumVns));
   if (options.page > 1) params.set('page', String(options.page));
   const query = params.toString();

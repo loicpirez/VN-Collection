@@ -95,7 +95,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
         </dl>
 
         <NavTabStrip
-          className="mt-4"
+          className="mt-4 flex-wrap"
           ariaLabel={t.seiyuuBrowse.scopeLabel}
           tabs={[
             {
@@ -108,11 +108,16 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
               label: t.seiyuuBrowse.scopeCollection,
               isActive: options.scope === 'collection',
             },
+            {
+              href: voiceActorBrowseHref({ ...options, scope: 'sold', page: 1 }),
+              label: t.status.sold,
+              isActive: options.scope === 'sold',
+            },
           ]}
         />
 
         <form method="get" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,minmax(130px,auto))_auto]">
-          {options.scope === 'collection' && <input type="hidden" name="scope" value="collection" />}
+          {options.scope !== 'all' && <input type="hidden" name="scope" value={options.scope} />}
           <label className="min-w-0 text-[10px] font-semibold uppercase text-muted">
             {t.seiyuuBrowse.searchLabel}
             <span className="relative mt-1 block">
@@ -140,9 +145,9 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
           <label className="text-[10px] font-semibold uppercase text-muted">
             {t.seiyuuBrowse.sortLabel}
             <select name="sort" defaultValue={options.sort} className="input mt-1 min-h-[44px] w-full normal-case">
-              {Object.entries(t.seiyuuBrowse.sort).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
+              {Object.entries(t.seiyuuBrowse.sort)
+                .filter(([value]) => options.scope !== 'sold' || value !== 'collection')
+                .map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           <label className="text-[10px] font-semibold uppercase text-muted">
@@ -200,6 +205,8 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
         >
           {result.rows.map((actor, index) => {
             const rank = firstRank + index + 1;
+            const profileHref = `/staff/${actor.id}${options.scope === 'sold' ? '?scope=sold' : ''}`;
+            const vnCountLabel = options.scope === 'sold' ? t.seiyuuBrowse.soldVnCount : t.seiyuuBrowse.vnCount;
             const overlapPercent = actor.vnCount > 0
               ? Math.round((actor.collectionVnCount / actor.vnCount) * 100)
               : 0;
@@ -211,7 +218,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                       {t.seiyuuBrowse.rank.replace('{count}', fmtNum(rank, locale))}
                     </span>
                     <Link
-                      href={`/staff/${actor.id}`}
+                      href={profileHref}
                       className="tap-target mt-0.5 flex items-center truncate text-base font-bold hover:text-accent"
                       title={actor.name}
                     >
@@ -229,12 +236,14 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                  <span className="font-semibold">{formatCount(actor.vnCount, locale, t.seiyuuBrowse.vnCount)}</span>
+                  <span className="font-semibold">{formatCount(actor.vnCount, locale, vnCountLabel)}</span>
                   <span className="font-semibold">{formatCount(actor.characterCount, locale, t.seiyuuBrowse.characterCount)}</span>
-                  <span className="text-muted">{t.seiyuuBrowse.collectionCount.replace('{count}', fmtNum(actor.collectionVnCount, locale))}</span>
+                  {options.scope !== 'sold' && (
+                    <span className="text-muted">{t.seiyuuBrowse.collectionCount.replace('{count}', fmtNum(actor.collectionVnCount, locale))}</span>
+                  )}
                   <span className="text-muted">{formatCount(actor.creditCount, locale, t.seiyuuBrowse.creditCount)}</span>
                 </div>
-                <div
+                {options.scope !== 'sold' && <div
                   className="mt-2 h-1.5 overflow-hidden rounded-sm bg-bg-deep"
                   role="progressbar"
                   aria-label={t.seiyuuBrowse.collectionCount.replace('{count}', fmtNum(actor.collectionVnCount, locale))}
@@ -243,7 +252,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                   aria-valuenow={actor.collectionVnCount}
                 >
                   <div className="h-full bg-status-completed" style={{ width: `${overlapPercent}%` }} />
-                </div>
+                </div>}
 
                 <div className="mt-3 text-[10px] text-muted">
                   <span className="font-semibold uppercase">{t.seiyuuBrowse.career}</span>
@@ -285,7 +294,7 @@ export default async function SeiyuuPage({ searchParams }: PageProps) {
                 )}
 
                 <Link
-                  href={`/staff/${actor.id}`}
+                  href={profileHref}
                   className="mt-auto inline-flex min-h-[44px] items-center justify-between border-t border-border pt-3 text-xs font-semibold text-muted hover:text-accent"
                   aria-label={t.seiyuuBrowse.openProfile.replace('{name}', actor.name)}
                 >

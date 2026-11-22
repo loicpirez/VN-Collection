@@ -133,6 +133,21 @@ describe('SQLite local seiyuu repository', () => {
       const repo = getVoiceActorRepository();
       const result = await repo.browse(options({ query: 'Primary Voice' }));
       expect(result.rows[0]).toMatchObject({ id: 's980101', vnCount: 3, collectionVnCount: 1 });
+      const archived = await repo.browse(options({ scope: 'sold', query: 'Alias %_ Voice' }));
+      expect(archived.rows).toEqual([
+        expect.objectContaining({
+          id: 's980101',
+          vnCount: 1,
+          collectionVnCount: 0,
+          firstYear: 2004,
+          lastYear: 2004,
+          characters: [expect.objectContaining({ id: 'c980101', vnCount: 1 })],
+        }),
+      ]);
+      const soldWithTwoCredits = await repo.browse(options({ scope: 'sold', minimumVns: 2 }));
+      expect(soldWithTwoCredits.rows).toEqual([]);
+      const activeOnlyActor = await repo.browse(options({ scope: 'sold', query: 'English Voice' }));
+      expect(activeOnlyActor.rows).toEqual([]);
 
       const people = getPeopleRepository();
       const credits = await people.voiceCredits('s980101');
@@ -143,6 +158,32 @@ describe('SQLite local seiyuu repository', () => {
       const owned = await people.voiceCredits('s980101', { inCollectionOnly: true });
       expect(owned.map(({ vn }) => vn.id)).toEqual([VN_IDS[0]]);
     } finally {
+      db.prepare('DELETE FROM collection WHERE vn_id = ?').run(soldId);
+    }
+  });
+
+  it('filters staff index credit counts before aggregation in each collection scope', async () => {
+    const [, soldId] = VN_IDS;
+    addToCollection(soldId, { status: 'sold' });
+    try {
+      const credit = db.prepare("INSERT INTO vn_staff_credit (vn_id, sid, role, name, lang) VALUES (?, ?, ?, ?, 'ja')");
+      credit.run(VN_IDS[0], 's980110', 'scenario', 'Mixed Writer');
+      credit.run(soldId, 's980110', 'scenario', 'Mixed Writer');
+      credit.run(soldId, 's980111', 'scenario', 'Sold Writer');
+      credit.run(soldId, 's980111', 'editor', 'Sold Writer');
+
+      const people = getPeopleRepository();
+      const active = await people.searchStaff({ q: 'Writer', scope: 'collection' });
+      expect(active).toMatchObject([{ id: 's980110', vn_count: 1 }]);
+      const sold = await people.searchStaff({ q: 'Writer', scope: 'sold', vn: soldId, role: 'scenario' });
+      expect(sold).toEqual([
+        expect.objectContaining({ id: 's980110', vn_count: 1, roles: ['scenario'] }),
+        expect.objectContaining({ id: 's980111', vn_count: 1, roles: ['scenario'] }),
+      ]);
+      const all = await people.searchStaff({ q: 'Writer' });
+      expect(all).toMatchObject([{ id: 's980110', vn_count: 2 }, { id: 's980111', vn_count: 1 }]);
+    } finally {
+      db.prepare("DELETE FROM vn_staff_credit WHERE sid IN ('s980110', 's980111')").run();
       db.prepare('DELETE FROM collection WHERE vn_id = ?').run(soldId);
     }
   });

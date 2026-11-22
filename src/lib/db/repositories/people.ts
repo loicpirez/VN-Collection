@@ -126,6 +126,8 @@ export interface LocalStaffSearchOptions {
   q?: string;
   role?: string | null;
   lang?: string | null;
+  vn?: string;
+  scope?: 'collection' | 'sold';
   limit?: number;
 }
 
@@ -586,6 +588,12 @@ export function createPostgresPeopleRepository(): PeopleRepository {
         values.push(options.lang);
         predicates.push(`sc.lang = $${values.length}`);
       }
+      if (options.vn) {
+        values.push(options.vn);
+        predicates.push(`sc.vn_id = $${values.length}`);
+      }
+      if (options.scope === 'collection') predicates.push("c.status <> 'sold'");
+      if (options.scope === 'sold') predicates.push("c.status = 'sold'");
       values.push(Math.min(Math.max(options.limit ?? 100, 1), 500));
       const limitParameter = `$${values.length}`;
       const where = predicates.length > 0 ? `WHERE ${predicates.join(' AND ')}` : '';

@@ -5585,6 +5585,8 @@ export interface LocalStaffSearchOptions {
   q?: string;
   role?: string | null;
   lang?: string | null;
+  vn?: string;
+  scope?: 'collection' | 'sold';
   limit?: number;
 }
 
@@ -5605,6 +5607,8 @@ export function searchLocalStaff({
   q,
   role,
   lang,
+  vn,
+  scope,
   limit = 100,
 }: LocalStaffSearchOptions = {}): LocalStaffRow[] {
   const where: string[] = [];
@@ -5625,6 +5629,12 @@ export function searchLocalStaff({
     where.push('sc.lang = ?');
     args.push(lang);
   }
+  if (vn) {
+    where.push('sc.vn_id = ?');
+    args.push(vn);
+  }
+  if (scope === 'collection') where.push("c.status <> 'sold'");
+  if (scope === 'sold') where.push("c.status = 'sold'");
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const sql = `
     SELECT sc.sid AS sid,

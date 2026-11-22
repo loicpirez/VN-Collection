@@ -7,14 +7,14 @@ import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { roleLabel } from '@/lib/staff-roles';
 import { SafeImage } from '@/components/SafeImage';
-import { WorksScopeGrid, WorksScopeSection } from '@/components/WorksScope';
+import { WorksScopeCount, WorksScopeGrid, WorksScopeSection } from '@/components/WorksScope';
 import { StaffDownloadButton } from './StaffDownloadButton';
 import { RefreshCachedCredits } from './WorksCacheLoader';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 
 /**
- * "More credits (outside the collection)" - the VNDB-sourced list of VNs
+ * Additional credits from VNDB for VNs
  * this staff/VA appears in. This component performs the network fetch when
  * the cache is empty; wrap it in <Suspense fallback={<StaffExtraCreditsSkeleton/>}>
  * so the staff page paints with the locally-known credits first and the
@@ -58,18 +58,17 @@ export async function StaffExtraCredits({
   ]);
 
   return (
-    <>{downloaded && <RefreshCachedCredits />}<WorksScopeSection ownedCount={inCollectionIds.size}><section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-      <h2 className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+    <>{downloaded && <RefreshCachedCredits />}<WorksScopeSection ownedCount={inCollectionIds.size} soldCount={soldIds.size}><section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+      <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
         <CloudDownload className="h-4 w-4 text-accent" aria-hidden /> {t.staff.extraTitle}
         <span className="text-[11px] font-normal lowercase tracking-normal text-muted">
-          / {extraProduction.length + extraVoice.length}
+          / <WorksScopeCount all={new Set(allIds).size} owned={inCollectionIds.size} sold={soldIds.size} />
         </span>
       </h2>
-      <p className="mb-4 text-[11px] text-muted">{t.staff.extraSubtitle}</p>
       {extraVoice.length > 0 && (
-        <WorksScopeSection ownedCount={extraVoice.filter((credit) => inCollectionIds.has(credit.id)).length}><div className="mb-6">
+        <WorksScopeSection ownedCount={extraVoice.filter((credit) => inCollectionIds.has(credit.id)).length} soldCount={extraVoice.filter((credit) => soldIds.has(credit.id)).length}><div className="mb-6">
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.voiceCredits}</h3>
-          <WorksScopeGrid owned={extraVoice.map((credit) => inCollectionIds.has(credit.id))}
+          <WorksScopeGrid owned={extraVoice.map((credit) => inCollectionIds.has(credit.id))} sold={extraVoice.map((credit) => soldIds.has(credit.id))}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${sid}:extra-voice`}
             className="grid gap-3"
@@ -101,9 +100,9 @@ export async function StaffExtraCredits({
         </div></WorksScopeSection>
       )}
       {extraProduction.length > 0 && (
-        <WorksScopeSection ownedCount={extraProduction.filter((credit) => inCollectionIds.has(credit.id)).length}><div>
+        <WorksScopeSection ownedCount={extraProduction.filter((credit) => inCollectionIds.has(credit.id)).length} soldCount={extraProduction.filter((credit) => soldIds.has(credit.id)).length}><div>
           <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">{t.staff.productionCredits}</h3>
-          <WorksScopeGrid owned={extraProduction.map((credit) => inCollectionIds.has(credit.id))}
+          <WorksScopeGrid owned={extraProduction.map((credit) => inCollectionIds.has(credit.id))} sold={extraProduction.map((credit) => soldIds.has(credit.id))}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${sid}:extra-production`}
             className="grid gap-3"
@@ -149,7 +148,6 @@ export function StaffExtraCreditsSkeleton({
       className={`${withTopSpacing ? 'mt-6 ' : ''}rounded-xl border border-border bg-bg-card p-4 sm:p-6`}
     >
       <SkeletonBlock className="mb-3 h-3 w-48" />
-      <SkeletonBlock className="mb-4 h-2.5 w-72" />
       <SkeletonBlock className="mb-2 h-2.5 w-32" data-staff-extra-group-skeleton />
       <ul
         className="grid gap-3"
