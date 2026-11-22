@@ -10,7 +10,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const denied = requireLocalhostOrToken(req);
   if (denied) return denied;
   try {
-    const aggregates = await getCollectionListRepository().listTags();
+    const repository = getCollectionListRepository();
+    const aggregates = req.nextUrl.searchParams.get('status') === 'sold'
+      ? await repository.listTags('sold')
+      : await repository.listTags();
     // Mirror the shape returned by /api/tags so the same UI renders both.
     const tags = aggregates.map((a) => ({
       id: a.id,

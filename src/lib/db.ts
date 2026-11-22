@@ -3911,9 +3911,10 @@ export function resetCollectionCustomOrder(): void {
   db.prepare('UPDATE collection SET custom_order = 0').run();
 }
 
-/** Every VN id the operator owns. Used by the wishlist + recommendations as a "to-exclude" set. */
-export function listInCollectionVnIds(): string[] {
-  const rows = db.prepare("SELECT vn_id FROM collection WHERE status <> 'sold'").all() as { vn_id: string }[];
+/** IDs in the active collection, or the Sold archive when explicitly selected. */
+export function listInCollectionVnIds(scope?: 'sold'): string[] {
+  const sql = scope === 'sold' ? "SELECT vn_id FROM collection WHERE status = 'sold'" : "SELECT vn_id FROM collection WHERE status <> 'sold'";
+  const rows = db.prepare(sql).all() as { vn_id: string }[];
   return rows.map((r) => r.vn_id);
 }
 
@@ -5449,7 +5450,7 @@ export interface CollectionTagAggregate {
  * Aggregate every tag across owned VNs into `{ id, name, count }`. Used by
  * the library tag filter dropdown and the /stats tag chart.
  */
-export function listCollectionTags(): CollectionTagAggregate[] {
+export function listCollectionTags(scope?: 'sold'): CollectionTagAggregate[] {
   return (db
     .prepare(`
       SELECT
@@ -5458,7 +5459,7 @@ export function listCollectionTags(): CollectionTagAggregate[] {
         MAX(ti.category) AS tag_category,
         COUNT(*) AS tag_count
       FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
-      WHERE ti.spoiler = 0
+      WHERE ti.spoiler = 0 AND c.status ${scope === 'sold' ? '=' : '<>'} 'sold'
       GROUP BY tag_id
       ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT 500

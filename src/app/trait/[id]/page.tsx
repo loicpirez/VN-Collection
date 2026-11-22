@@ -23,6 +23,7 @@ export async function generateMetadata({
   }
   return { title: t.nav.traits };
 }
+import { StatusBadge } from '@/components/StatusBadge';
 import { SafeImage } from '@/components/SafeImage';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -37,11 +38,11 @@ export default async function TraitPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mine?: string; page?: string }>;
+  searchParams: Promise<{ mine?: string; scope?: string; page?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const mineOnly = sp.mine === '1';
+  const scope = sp.scope === 'sold' ? 'sold' : sp.mine === '1' ? 'collection' : 'all';
   const parsedPage = Number(sp.page);
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   if (!/^i\d+$/i.test(id)) notFound();
@@ -49,19 +50,24 @@ export default async function TraitPage({
   const locale = await getLocale();
   let trait: VndbTrait | null = null;
   let characters: VndbCharacter[] = [];
-  let mineCount: number | null = null;
+  let scopedCount: number | null = null;
   let hasMore = false;
   let error: string | null = null;
-  const ownedVnIds = new Set(await getCollectionCoreRepository().listIds());
+  const collection = getCollectionCoreRepository();
+  const [ownedIds, archivedIds] = await Promise.all([
+    collection.listIds(),
+    scope === 'sold' ? collection.listIds('sold') : Promise.resolve(null),
+  ]);
+  const ownedVnIds = new Set(ownedIds);
   try {
     trait = await getTrait(id);
     if (trait) {
-      if (mineOnly) {
-        const mine = await getCharactersForTraitInVns(id, Array.from(ownedVnIds));
-        mineCount = mine.length;
+      if (scope !== 'all') {
+        const matches = await getCharactersForTraitInVns(id, archivedIds ?? ownedIds);
+        scopedCount = matches.length;
         const pageStart = (page - 1) * TRAIT_CHARACTER_PAGE_SIZE;
-        characters = mine.slice(pageStart, pageStart + TRAIT_CHARACTER_PAGE_SIZE);
-        hasMore = pageStart + TRAIT_CHARACTER_PAGE_SIZE < mine.length;
+        characters = matches.slice(pageStart, pageStart + TRAIT_CHARACTER_PAGE_SIZE);
+        hasMore = pageStart + TRAIT_CHARACTER_PAGE_SIZE < matches.length;
       } else {
         const response = await getCharactersForTraitPage(id, { results: TRAIT_CHARACTER_PAGE_SIZE, page });
         characters = response.results;
@@ -98,10 +104,15 @@ export default async function TraitPage({
 
   const allCount = trait.char_count;
   const visible = characters;
-  const localPaths = await getPeopleRepository().characterImages(visible.map((c) => c.id));
-  const pageHref = (nextPage: number, mine: boolean): string => {
+  const [localPaths, soldVnIds] = await Promise.all([
+    getPeopleRepository().characterImages(visible.map((c) => c.id)),
+    archivedIds ? Promise.resolve(new Set(archivedIds))
+      : collection.soldIds(visible.flatMap((c) => c.vns.map((vn) => vn.id))),
+  ]);
+  const pageHref = (nextPage: number, nextScope: 'all' | 'collection' | 'sold'): string => {
     const query = new URLSearchParams();
-    if (mine) query.set('mine', '1');
+    if (nextScope === 'collection') query.set('mine', '1');
+    if (nextScope === 'sold') query.set('scope', 'sold');
     if (nextPage > 1) query.set('page', String(nextPage));
     const suffix = query.toString();
     return `/trait/${id}${suffix ? `?${suffix}` : ''}`;
@@ -160,35 +171,46 @@ export default async function TraitPage({
       <section className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.traits.charactersWith} / {mineOnly ? mineCount : allCount}
-            {mineOnly && mineCount != null && (
+            {t.traits.charactersWith} / {scopedCount ?? allCount}
+            {scope === 'collection' && scopedCount != null && (
               <span className="text-[10px] font-normal opacity-70">
-                / {mineCount} / {allCount} {t.traits.mineCountSuffix}
+                / {scopedCount} / {allCount} {t.traits.mineCountSuffix}
               </span>
             )}
           </h2>
-          <div className="inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]">
+          <nav className="inline-flex flex-wrap rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]" aria-label={t.traits.charactersWith}>
             <Link
-              href={pageHref(1, false)}
+              href={pageHref(1, 'all')}
+              aria-current={scope === 'all' ? 'page' : undefined}
               className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 transition-colors can-hover:sm:min-h-0 ${
-                !mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+                scope === 'all' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
               {t.traits.all} / {allCount}
             </Link>
             <Link
-              href={pageHref(1, true)}
+              href={pageHref(1, 'collection')}
+              aria-current={scope === 'collection' ? 'page' : undefined}
               className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 transition-colors can-hover:sm:min-h-0 ${
-                mineOnly ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+                scope === 'collection' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
               }`}
             >
-              {t.traits.mine}{mineCount != null ? ` / ${mineCount}` : ''}
+              {t.traits.mine}{scope === 'collection' && scopedCount != null ? ` / ${scopedCount}` : ''}
             </Link>
-          </div>
+            <Link
+              href={pageHref(1, 'sold')}
+              aria-current={scope === 'sold' ? 'page' : undefined}
+              className={`inline-flex min-h-[44px] items-center rounded px-2 py-1 transition-colors can-hover:sm:min-h-0 ${
+                scope === 'sold' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+              }`}
+            >
+              {t.status.sold}{scope === 'sold' && scopedCount != null ? ` / ${scopedCount}` : ''}
+            </Link>
+          </nav>
         </div>
         {visible.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">
-            {mineOnly ? t.traits.mineEmpty : t.search.noResults}
+            {scope === 'collection' ? t.traits.mineEmpty : t.search.noResults}
           </p>
         ) : (
           <ul
@@ -202,13 +224,16 @@ export default async function TraitPage({
           >
             {visible.map((c) => {
               const owned = c.vns.find((v) => ownedVnIds.has(v.id));
-              const firstVn = owned ?? c.vns[0];
+              const sold = c.vns.find((v) => soldVnIds.has(v.id));
+              const primaryVn = scope === 'sold' ? sold : owned ?? sold;
+              const firstVn = primaryVn ?? c.vns[0];
+              const showOwned = !!firstVn && ownedVnIds.has(firstVn.id);
               return (
                 <li key={c.id}>
                   <Link
                     href={`/character/${c.id}`}
                     className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors hover:border-accent ${
-                      owned ? 'border-accent/40' : 'border-border'
+                      showOwned ? 'border-accent/40' : 'border-border'
                     }`}
                   >
                     {/* Density-aware character cover. */}
@@ -238,7 +263,8 @@ export default async function TraitPage({
                         <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted">
                           <CornerDownRight className="h-2.5 w-2.5" aria-hidden />
                           <span title={firstVn.title ?? firstVn.id} className="line-clamp-1">{firstVn.title ?? firstVn.id}</span>
-                          {owned && <Check className="h-2.5 w-2.5 text-accent" aria-hidden />}
+                          {showOwned && <Check className="h-2.5 w-2.5 text-accent" aria-hidden />}
+                          {soldVnIds.has(firstVn.id) && <StatusBadge status="sold" className="shrink-0" />}
                         </div>
                       )}
                     </div>
@@ -251,14 +277,14 @@ export default async function TraitPage({
         {(page > 1 || hasMore) && (
           <nav className="mt-4 flex flex-wrap items-center justify-between gap-2" aria-label={t.traits.paginationLabel}>
             {page > 1 ? (
-              <Link href={pageHref(page - 1, mineOnly)} className="btn min-h-[44px]">
+              <Link href={pageHref(page - 1, scope)} className="btn min-h-[44px]">
                 <ChevronLeft className="h-4 w-4" aria-hidden />
                 {t.common.prev}
               </Link>
             ) : <span />}
             <span className="text-xs text-muted">{fmtNum(page, locale)}</span>
             {hasMore ? (
-              <Link href={pageHref(page + 1, mineOnly)} className="btn min-h-[44px]">
+              <Link href={pageHref(page + 1, scope)} className="btn min-h-[44px]">
                 {t.common.next}
                 <ChevronRight className="h-4 w-4" aria-hidden />
               </Link>
