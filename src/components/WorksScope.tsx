@@ -2,27 +2,27 @@
 
 import { Children, createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { PaginatedGrid } from './PaginatedGrid';
+import { parseWorksScope, type WorksScope } from '@/lib/works-scope';
 
-type Scope = 'all' | 'collection';
-const WorksScopeContext = createContext<{ scope: Scope; select?: (scope: Scope) => void }>({ scope: 'all' });
+const WorksScopeContext = createContext<{ scope: WorksScope; select?: (scope: WorksScope) => void }>({ scope: 'all' });
 
 /**
  * Filters already loaded credits without requesting another server render.
  * @param props Initial URL scope and the complete credit content.
  * @returns Credit scope context with Back/Forward synchronization.
  */
-export function WorksScopeProvider({ initialScope, children }: { initialScope: Scope; children: ReactNode }) {
+export function WorksScopeProvider({ initialScope, children }: { initialScope: WorksScope; children: ReactNode }) {
   const [scope, setScope] = useState(initialScope);
   useEffect(() => {
-    const onPopState = () => setScope(new URLSearchParams(window.location.search).get('scope') === 'collection' ? 'collection' : 'all');
+    const onPopState = () => setScope(parseWorksScope(new URLSearchParams(window.location.search).get('scope')));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
   useEffect(() => { setScope(initialScope); }, [initialScope]);
-  function select(next: Scope) {
+  function select(next: WorksScope) {
     if (next === scope) return;
     const url = new URL(window.location.href);
-    if (next === 'collection') url.searchParams.set('scope', next);
+    if (next !== 'all') url.searchParams.set('scope', next);
     else url.searchParams.delete('scope');
     window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
     setScope(next);
@@ -35,7 +35,7 @@ export function WorksScopeProvider({ initialScope, children }: { initialScope: S
  * @param props Destination scope, fallback URL, and existing presentation.
  * @returns An accessible link showing the active scope.
  */
-export function WorksScopeLink({ scope, href, children, className }: { scope: Scope; href: string; children: ReactNode; className?: string }) {
+export function WorksScopeLink({ scope, href, children, className }: { scope: WorksScope; href: string; children: ReactNode; className?: string }) {
   const context = useContext(WorksScopeContext);
   const active = context.scope === scope;
   return <a href={href} aria-current={active ? 'page' : undefined}
@@ -52,29 +52,42 @@ export function WorksScopeLink({ scope, href, children, className }: { scope: Sc
  * @param props Complete rows, matching ownership flags, and pagination settings.
  * @returns The current scope's bounded page of cards.
  */
-export function WorksScopeGrid({ owned, children, resetKey, ...props }: ComponentProps<typeof PaginatedGrid> & { owned: readonly boolean[] }) {
+export function WorksScopeGrid({ owned, sold, children, resetKey, ...props }: ComponentProps<typeof PaginatedGrid> & {
+  owned: readonly boolean[];
+  sold?: readonly boolean[];
+}) {
   const { scope } = useContext(WorksScopeContext);
   const rows = Children.toArray(children);
-  return <PaginatedGrid {...props} resetKey={`${resetKey}:${scope}`}>{scope === 'all' ? rows : rows.filter((_, index) => owned[index])}</PaginatedGrid>;
+  const flags = scope === 'sold' ? sold : owned;
+  return <PaginatedGrid {...props} resetKey={`${resetKey}:${scope}`}>{scope === 'all' ? rows : rows.filter((_, index) => flags?.[index])}</PaginatedGrid>;
 }
 
 /**
- * Omits a credit section that has no owned rows in collection scope.
- * @param props Owned row count and the section content.
- * @returns The visible section, or no markup for an empty collection section.
+ * Omits a credit section that has no rows in the selected collection scope.
+ * @param props Scoped row counts and the section content.
+ * @returns The visible section, or no markup for an empty scoped section.
  */
-export function WorksScopeSection({ ownedCount, children }: { ownedCount: number; children: ReactNode }) {
+export function WorksScopeSection({ ownedCount, soldCount = 0, children }: { ownedCount: number; soldCount?: number; children: ReactNode }) {
   const { scope } = useContext(WorksScopeContext);
-  return scope === 'collection' && ownedCount === 0 ? null : children;
+  const count = scope === 'sold' ? soldCount : ownedCount;
+  return scope === 'all' || count > 0 ? children : null;
 }
 
 /**
- * Displays scope-specific counts or an empty-collection message.
- * @param props All/owned counts and optional collection-only empty content.
- * @returns The active count, or the collection-only empty content.
+ * Displays the current scope's count or its empty message.
+ * @param props Counts and optional empty messages for collection and sold scopes.
+ * @returns The current count, matching empty content, or no markup.
  */
-export function WorksScopeCount({ all, owned, empty }: { all: number; owned: number; empty?: ReactNode }) {
+export function WorksScopeCount({ all, owned, sold = 0, empty, emptySold }: {
+  all: number;
+  owned: number;
+  sold?: number;
+  empty?: ReactNode;
+  emptySold?: ReactNode;
+}) {
   const { scope } = useContext(WorksScopeContext);
-  if (empty !== undefined) return scope === 'collection' && owned === 0 ? empty : null;
-  return scope === 'collection' ? owned : all;
+  const count = { all, collection: owned, sold }[scope];
+  if (empty === undefined && emptySold === undefined) return count;
+  if (scope === 'all' || count > 0) return null;
+  return scope === 'sold' ? emptySold ?? empty : empty;
 }
