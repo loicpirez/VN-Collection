@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
 import { fetchProducerAssociations } from '@/lib/producer-associations';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { I18nProvider } from '@/lib/i18n/client';
 import type { ProducerAssociations, ProducerVnRef } from '@/lib/producer-associations';
 import type { CollectionCardItem } from '@/lib/types';
 
@@ -176,6 +177,41 @@ describe('ProducerVnsSections', () => {
     expect(html).not.toContain('Missing developer VN');
     expect(html).not.toContain('Publisher VN');
     expect(html).toContain('aria-current="page"');
+  });
+
+  it('separates sold games from active ownership and retains the Sold badge', async () => {
+    vi.mocked(fetchProducerAssociations).mockResolvedValue(associations({
+      developerVns: [ownedDev, missingDev],
+      publisherVns: [publisher],
+      totalUnique: 3,
+      ownedUnique: 1,
+    }));
+    soldIds.mockResolvedValue(new Set([publisher.id]));
+    async function render(scope: 'all' | 'collection' | 'sold') {
+      const content = await ProducerVnsSections({ producerId: 'p90001', scope });
+      return renderToStaticMarkup(<I18nProvider locale="en" dict={dictionaries.en}>{content}</I18nProvider>);
+    }
+
+    const all = await render('all');
+    expect(all).toContain('>Publisher VN<');
+    expect(all).toContain('bg-status-sold');
+    expect(all).not.toContain('add v90003');
+
+    const collection = await render('collection');
+    expect(collection).toContain('>Owned developer VN<');
+    expect(collection).not.toContain('>Publisher VN<');
+
+    const sold = await render('sold');
+    expect(sold).toContain('href="/producer/p90001?scope=sold" aria-current="page"');
+    expect(sold).toContain('>Publisher VN<');
+    expect(sold).toContain('bg-status-sold');
+    expect(sold).not.toContain('>Owned developer VN<');
+    expect(sold).not.toContain('>Missing developer VN<');
+    expect(sold).not.toContain('add v90003');
+    expect(sold).not.toContain(dictionaries.en.producerVns.developerCredits);
+
+    soldIds.mockResolvedValue(new Set());
+    expect(await render('sold')).toContain(dictionaries.en.status.emptySoldArchive);
   });
 
   it('renders a collection-scope empty state and publisher-only sections', async () => {

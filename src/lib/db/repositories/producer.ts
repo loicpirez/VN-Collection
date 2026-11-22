@@ -72,6 +72,7 @@ interface ProducerStatStorageRow extends ProducerStorageRow {
 
 interface OwnershipRow extends QueryResultRow {
   id: string;
+  status: string;
   developers: string | null;
   publishers: string | null;
 }
@@ -213,7 +214,7 @@ export function createPostgresProducerRepository(): ProducerRepository {
     },
     async ownershipSummary(id) {
       const result = await postgresQuery<OwnershipRow>(`
-        SELECT vn.id, vn.developers, vn.publishers
+        SELECT vn.id, vn.developers, vn.publishers, collection.status
         FROM vn
         JOIN collection ON collection.vn_id = vn.id
         WHERE EXISTS (
@@ -228,7 +229,7 @@ export function createPostgresProducerRepository(): ProducerRepository {
       `, [id]);
       const first = result.rows[0];
       return {
-        ownedIds: new Set(result.rows.map((row) => row.id)),
+        ownedIds: new Set(result.rows.filter((row) => row.status !== 'sold').map((row) => row.id)),
         sample: first ? {
           developers: decodePersistedProducerSummaries(first.developers),
           publishers: decodePersistedProducerSummaries(first.publishers),

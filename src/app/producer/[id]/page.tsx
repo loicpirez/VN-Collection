@@ -13,6 +13,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { ProducerVnsSections } from '@/components/ProducerVnsSections';
+import { parseWorksScope } from '@/lib/works-scope';
 import { readScrapedProducerInfo, type ScrapedProducerInfo } from '@/lib/scrape-producer-relations';
 import type { ProducerRow } from '@/lib/types';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
@@ -65,8 +66,7 @@ export default async function ProducerPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const rawScope = Array.isArray(sp.scope) ? sp.scope[0] : sp.scope;
-  const scope = rawScope === 'collection' ? 'collection' : 'all';
+  const scope = parseWorksScope(Array.isArray(sp.scope) ? sp.scope[0] : sp.scope);
   if (!/^p\d+$/i.test(id)) notFound();
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const repository = getProducerRepository();
