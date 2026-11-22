@@ -7,7 +7,9 @@ async function loadRoute(): Promise<CollectionTraitsRoute> {
   vi.resetModules();
   vi.doMock('@/lib/db/repositories/collection-core', () => ({
     getCollectionCoreRepository: () => ({
-      listIds: vi.fn().mockResolvedValue(['v90001', 'v90002', 'v90003']),
+      listIds: vi.fn((scope?: 'sold') => Promise.resolve(
+        scope === 'sold' ? ['v90001'] : ['v90001', 'v90002', 'v90003'],
+      )),
     }),
   }));
   vi.doMock('@/lib/vndb', () => ({
@@ -110,6 +112,16 @@ describe('GET /api/collection/traits aggregation branches', () => {
       ],
       cache_coverage: { total_vns: 3, with_cached_characters: 2 },
     });
+  });
+
+  it('uses only the sold VN IDs as the source for archive traits', async () => {
+    const route = await loadRoute();
+    const response = await route.GET(new NextRequest('http://127.0.0.1/api/collection/traits?status=sold'));
+    const result = await response.json();
+
+    expect(result.traits).toMatchObject([{ id: 'i90002', char_count: 1 }]);
+    expect(result.traits).toHaveLength(1);
+    expect(result.cache_coverage).toEqual({ total_vns: 1, with_cached_characters: 1 });
   });
 
   it('returns a sanitized database error when the collection query fails', async () => {

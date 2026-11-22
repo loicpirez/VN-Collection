@@ -64,6 +64,7 @@ import { ScoreSection } from '@/components/ScoreSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
+import { parseWorksScope } from '@/lib/works-scope';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
@@ -987,6 +988,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // round-trips per VN page render.
           sectionNodes['relations'] = (
             <RelationsSection
+              initialScope={parseWorksScope(search.scope)}
               relations={vn.relations.map((r) => ({
                 ...r,
                 ...relationPlaytimeSources.get(r.id),

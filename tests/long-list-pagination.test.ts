@@ -135,7 +135,8 @@ describe('VN detail and tag index pagination', () => {
   const tags = source('src/components/TagsBrowser.tsx');
 
   it('bounds the three production DOM hotspots with the shared paginator', () => {
-    expect(relations).toContain("import { PaginatedGrid } from './PaginatedGrid'");
+    expect(relations).toContain('<WorksScopeGrid');
+    expect(source('src/components/WorksScope.tsx')).toContain("import { PaginatedGrid } from './PaginatedGrid'");
     expect(relations).toContain('pageSize={12}');
     expect(releases).toContain("import { PaginatedGrid } from './PaginatedGrid'");
     expect(releases).toContain('pageSize={12}');

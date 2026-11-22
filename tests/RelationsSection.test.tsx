@@ -18,7 +18,7 @@ vi.mock('@/components/VnCard', () => ({
   VnCard: ({ badge, data }: {
     badge: { label: string; tone: string };
     data: CardData;
-  }) => <div data-testid="relation-card" data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>{`${data.id}:${data.poster ?? 'none'}:${data.publishers?.length ?? 0}:${badge.label}:${badge.tone}`}</div>,
+  }) => <div data-testid="relation-card" data-status={data.status} data-personal={data.playtime_minutes} data-egs={data.egs_playtime_minutes} data-ai={data.ai_playtime_minutes}>{`${data.id}:${data.poster ?? 'none'}:${data.publishers?.length ?? 0}:${badge.label}:${badge.tone}`}</div>,
 }));
 
 function relation(overrides: Partial<EnrichedRelation> = {}): EnrichedRelation {
@@ -99,6 +99,27 @@ describe('RelationsSection', () => {
     cleanup();
     renderWithProviders(<RelationsSection relations={[first, unknown]} />, { locale: 'en' });
     expect(screen.getByText('v90001:full.jpg:0:Sequel:accent')).toBeInTheDocument();
+  });
+
+  it('shows a sold relation and its badge, independently of the active collection filter', async () => {
+    const { user } = renderWithProviders(<RelationsSection initialScope="sold" relations={[
+      relation({ id: 'v90001', in_collection: true }),
+      relation({ id: 'v90002', sold: true, relation: 'preq' }),
+      relation({ id: 'v90003' }),
+    ]} />, { locale: 'en' });
+
+    expect(screen.getByRole('link', { name: 'Sold' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('relation-card')).toHaveAttribute('data-status', 'sold');
+    expect(screen.getByTestId('relation-card')).toHaveTextContent('v90002');
+    expect(screen.queryByRole('heading', { name: /Sequel/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'In the collection' }));
+    expect(screen.getByTestId('relation-card')).toHaveTextContent('v90001');
+    expect(screen.queryByText(/v90002:/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'All' }));
+    expect(screen.getAllByTestId('relation-card')).toHaveLength(3);
+    expect(screen.getByText(/v90002:/)).toHaveAttribute('data-status', 'sold');
   });
 
   it('paginates large relation groups while keeping every card reachable', async () => {

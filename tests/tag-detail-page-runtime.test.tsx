@@ -23,6 +23,7 @@ const collectionRepositoryMocks = vi.hoisted(() => ({
   listCards: vi.fn(),
   listMembershipCounts: vi.fn(),
   readingQueueIds: vi.fn(),
+  soldIds: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -35,6 +36,14 @@ vi.mock('@/lib/db/repositories/collection-list', () => ({
     listMembershipCounts: collectionRepositoryMocks.listMembershipCounts,
     readingQueueIds: collectionRepositoryMocks.readingQueueIds,
   }),
+}));
+
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => ({ soldIds: collectionRepositoryMocks.soldIds }),
+}));
+
+vi.mock('@/components/StatusBadge', () => ({
+  StatusBadge: ({ status }: { status: string }) => <span data-testid="status">{status}</span>,
 }));
 
 vi.mock('@/lib/vndb', () => ({
@@ -200,6 +209,7 @@ beforeEach(() => {
   collectionRepositoryMocks.listCards.mockReset().mockResolvedValue([]);
   collectionRepositoryMocks.listMembershipCounts.mockReset().mockResolvedValue(new Map());
   collectionRepositoryMocks.readingQueueIds.mockReset().mockResolvedValue(new Set());
+  collectionRepositoryMocks.soldIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(readCachedTag).mockReset().mockResolvedValue(cachedTag());
   vi.mocked(readCachedTopVnsByTag).mockReset().mockResolvedValue(cachedVns());
   vi.mocked(readVndbTagWebDetailCache).mockReset().mockResolvedValue(cachedDetail());
@@ -264,6 +274,21 @@ describe('tag detail page runtime', () => {
     expect(html).toContain('href="/?tag=g1"');
     expect(html).toContain('&quot;listCount&quot;:3');
     expect(html).toContain('&quot;inReadingQueue&quot;:true');
+  });
+
+  it('opens tags in the Sold archive and preserves the badge on catalog matches', async () => {
+    collectionRepositoryMocks.listCards.mockResolvedValueOnce([{ ...card('v1'), status: 'sold' }]);
+    const archived = await renderTag({ id: 'g1' }, { tab: 'sold' });
+
+    expect(collectionRepositoryMocks.listCards).toHaveBeenCalledWith({ tag: 'g1', limit: 500, status: 'sold' });
+    expect(archived).toContain('href="/?tag=g1&amp;status=sold"');
+    expect(archived).toContain('&quot;status&quot;:&quot;sold&quot;');
+
+    collectionRepositoryMocks.soldIds.mockResolvedValueOnce(new Set(['v1']));
+    vi.mocked(readCachedTopVnsByTag).mockResolvedValueOnce(cachedVns([hit('v1')]));
+    const catalog = await renderTag({ id: 'g1' }, { tab: 'vndb' });
+    expect(collectionRepositoryMocks.soldIds).toHaveBeenCalledWith(['v1']);
+    expect(catalog).toContain('<span data-testid="status">sold</span>');
   });
 
   it('renders VNDB hierarchy, child chips, top cards, and both pagination links', async () => {

@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Library, Search, SearchX, Sparkles } from 'lucide-react'
+import { Library, Search, SearchX, Sparkles, Tag } from 'lucide-react';
 import { RefreshScopeButton } from './RefreshScopeButton';
 import { CardDensitySlider } from './CardDensitySlider';
 import { DensityScopeProvider } from './DensityScopeProvider';
@@ -57,16 +57,19 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
   const search = useSearchParams();
   const router = useRouter();
   const q = search.get('q') ?? '';
-  const onlyMine = search.get('mine') === '1';
+  const sold = search.get('scope') === 'sold';
+  const onlyMine = !sold && search.get('mine') === '1';
   const [results, setResults] = useState<VndbTrait[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const setParam = useCallback(
-    (key: string, value: string | null) => {
+    (scope: 'all' | 'collection' | 'sold') => {
       const next = new URLSearchParams(search.toString());
-      if (value) next.set(key, value);
-      else next.delete(key);
+      next.delete('mine');
+      next.delete('scope');
+      if (scope === 'collection') next.set('mine', '1');
+      if (scope === 'sold') next.set('scope', 'sold');
       const qs = next.toString();
       router.replace(`/traits${qs ? `?${qs}` : ''}`, { scroll: false });
     },
@@ -82,15 +85,15 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
     const ctrl = new AbortController();
     const handle = setTimeout(async () => {
       try {
-        const url = onlyMine
-          ? '/api/collection/traits'
+        const url = sold ? '/api/collection/traits?status=sold'
+          : onlyMine ? '/api/collection/traits'
           : `/api/traits?${new URLSearchParams({ q, results: '60' })}`;
         const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
         if (!r.ok) throw new Error(await readApiError(r, t.common.error));
         const traits = decodeTraitsResponse(await r.json());
         if (!traits) throw new Error(t.common.error);
         let list: VndbTrait[] = traits;
-        if (onlyMine && q.trim()) {
+        if ((onlyMine || sold) && q.trim()) {
           const lower = q.trim().toLowerCase();
           list = list.filter((tr) =>
             tr.name.toLowerCase().includes(lower) ||
@@ -111,7 +114,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
       ctrl.abort();
       clearTimeout(handle);
     };
-  }, [q, onlyMine, t.common.error]);
+  }, [q, onlyMine, sold, t.common.error]);
 
   return (
     <DensityScopeProvider scope="traitsList">
@@ -137,12 +140,22 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
         />
         <button
           type="button"
-          onClick={() => setParam('mine', onlyMine ? null : '1')}
+          onClick={() => setParam(onlyMine ? 'all' : 'collection')}
           className={`btn ${onlyMine ? 'btn-primary' : ''}`}
+          aria-pressed={onlyMine}
           title={t.library.filterMineHint}
         >
           <Library className="h-4 w-4" aria-hidden />
           {t.library.filterMine}
+        </button>
+        <button
+          type="button"
+          onClick={() => setParam(sold ? 'all' : 'sold')}
+          className={`btn ${sold ? 'btn-primary' : ''}`}
+          aria-pressed={sold}
+        >
+          <Tag className="h-4 w-4" aria-hidden />
+          {t.status.sold}
         </button>
         <CardDensitySlider scope="traitsList" />
       </div>
@@ -168,7 +181,7 @@ export function TraitsBrowser({ lastUpdatedAt = null }: { lastUpdatedAt?: number
           {results.map((tr) => (
             <Link
               key={tr.id}
-              href={`/trait/${encodeURIComponent(tr.id)}`}
+              href={`/trait/${encodeURIComponent(tr.id)}${sold ? '?scope=sold' : ''}`}
               className="group block rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-accent"
             >
               <div className="flex items-start justify-between gap-3">
