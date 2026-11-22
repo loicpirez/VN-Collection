@@ -2,12 +2,13 @@ import type { QueryResultRow } from 'pg';
 import { readDatabaseConfig } from '../postgres-config';
 import { postgresQuery } from '../postgres';
 import { postgresContainsPattern } from '../postgres-search';
+import type { WorksScope } from '@/lib/works-scope';
 
 /** Supported ranking dimensions for the local seiyuu index. */
 export type VoiceActorSort = 'vns' | 'collection' | 'characters' | 'recent' | 'name';
 
 /** Scope of actors displayed by the local seiyuu index. */
-export type VoiceActorScope = 'all' | 'collection';
+export type VoiceActorScope = WorksScope;
 
 /** Validated query options accepted by the voice-actor repository. */
 export interface VoiceActorBrowseOptions {
@@ -192,6 +193,12 @@ function mapRows(
   }));
 }
 
+function soldVoiceCreditsJoin(scope: VoiceActorScope): string {
+  return scope === 'sold'
+    ? "JOIN collection archived ON archived.vn_id = va.vn_id AND archived.status = 'sold'"
+    : '';
+}
+
 function sqliteQualified(options: VoiceActorBrowseOptions): { sql: string; values: Array<string> } {
   const predicates: string[] = [];
   const values: string[] = [];
@@ -247,6 +254,7 @@ function sqliteAggregateCte(options: VoiceActorBrowseOptions): { sql: string; va
         FROM vn_va_credit va
         JOIN qualified q ON q.sid = va.sid
         JOIN vn v ON v.id = va.vn_id
+        ${soldVoiceCreditsJoin(options.scope)}
         LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         GROUP BY va.sid
       ),
@@ -332,6 +340,7 @@ async function browseSqlite(options: VoiceActorBrowseOptions): Promise<VoiceActo
           ORDER BY COUNT(DISTINCT va.vn_id) DESC, MAX(va.c_name) COLLATE NOCASE, va.c_id
         ) AS character_rank
       FROM vn_va_credit va
+      ${soldVoiceCreditsJoin(options.scope)}
       LEFT JOIN character_image ci ON ci.char_id = va.c_id
       WHERE va.sid IN (${placeholders})
       GROUP BY va.sid, va.c_id
@@ -404,6 +413,7 @@ function postgresAggregateCte(options: VoiceActorBrowseOptions): { sql: string; 
         FROM vn_va_credit va
         JOIN qualified q ON q.sid = va.sid
         JOIN vn v ON v.id = va.vn_id
+        ${soldVoiceCreditsJoin(options.scope)}
         LEFT JOIN collection c ON c.vn_id = va.vn_id AND c.status <> 'sold'
         GROUP BY va.sid
       ),
@@ -492,6 +502,7 @@ export function createPostgresVoiceActorRepository(): VoiceActorRepository {
                   ORDER BY COUNT(DISTINCT va.vn_id) DESC, app_search_normalize(MAX(va.c_name)) COLLATE "C", va.c_id
                 ) AS character_rank
               FROM vn_va_credit va
+              ${soldVoiceCreditsJoin(options.scope)}
               LEFT JOIN character_image ci ON ci.char_id = va.c_id
               WHERE va.sid = ANY($1::text[])
               GROUP BY va.sid, va.c_id

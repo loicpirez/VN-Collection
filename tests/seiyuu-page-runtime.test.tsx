@@ -210,4 +210,23 @@ describe('dedicated seiyuu page', () => {
     expect(html).toContain('href="/seiyuu"');
     expect(html).not.toContain('page=3');
   });
+
+  it('browses archived voice credits and opens a staff profile in the sold scope', async () => {
+    mocks.browse.mockResolvedValue(result({
+      total: 1,
+      rows: [{
+        id: 's990104', name: 'Archived Voice', original: null, language: null,
+        vnCount: 1, collectionVnCount: 0, characterCount: 1, creditCount: 1,
+        aliasCount: 1, firstYear: 2020, lastYear: 2020, aliases: [], characters: [],
+      }],
+    }));
+    const html = renderToStaticMarkup(await SeiyuuPage({
+      searchParams: Promise.resolve({ scope: 'sold', q: 'Archived Voice', sort: 'collection' }),
+    }));
+    expect(mocks.browse).toHaveBeenCalledWith(expect.objectContaining({ scope: 'sold', query: 'Archived Voice', sort: 'vns' }));
+    expect(html).toContain('name="scope" value="sold"');
+    expect(html).toContain('href="/staff/s990104?scope=sold"');
+    expect(html).toContain('1 sold VN');
+    expect(html).not.toContain('role="progressbar"');
+  });
 });

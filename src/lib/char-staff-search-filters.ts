@@ -1,4 +1,5 @@
 import { isVndbVnId } from '@/lib/vn-id-shape';
+import { parseWorksScope, type WorksScope } from '@/lib/works-scope';
 /**
  * URL-state helpers for the `/staff` search page.
  *
@@ -13,7 +14,7 @@ import { isVndbVnId } from '@/lib/vn-id-shape';
 
 export type StaffSearchTab = 'local' | 'vndb';
 
-export type StaffSearchScope = 'all' | 'collection';
+export type StaffSearchScope = WorksScope;
 
 export type StaffSort = 'name' | 'vn_count';
 
@@ -29,7 +30,8 @@ export interface StaffSearchParams {
   /**
    * `all` — mix local + VNDB results (default).
    * `collection` — only search local `vn_staff_credit` rows tied to
-   *                the operator's collection.
+   *                the operator's active collection.
+   * `sold` — only search local credits on archived games.
    */
   scope: StaffSearchScope;
   /** Sort field for the result list. Defaults to `name`. */
@@ -76,7 +78,7 @@ export function parseStaffSearchParams(
   const lang = langRaw && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/i.test(langRaw) ? langRaw : null;
   const vnRaw = pickFirst(raw.vn) ?? null;
   const vn = vnRaw && isVndbVnId(vnRaw) ? vnRaw.toLowerCase() : null;
-  const scope: StaffSearchScope = pickFirst(raw.scope) === 'collection' ? 'collection' : 'all';
+  const scope = parseWorksScope(raw.scope);
   const sort: StaffSort = pickFirst(raw.sort) === 'vn_count' ? 'vn_count' : 'name';
   const reverse = pickFirst(raw.reverse) === '1';
   return { tab, q, role, lang, vn, scope, sort, reverse };

@@ -141,6 +141,16 @@ describe('PostgreSQL local seiyuu repository', () => {
     }
   });
 
+  it('limits sold ranking counts and representative roles to credits on sold VNs', async () => {
+    await createPostgresVoiceActorRepository().browse(options({ scope: 'sold' }));
+    const queries = mocks.postgresQuery.mock.calls.map(([sql]) => String(sql));
+    const archived = "JOIN collection archived ON archived.vn_id = va.vn_id AND archived.status = 'sold'";
+    expect(queries.find((sql) => sql.includes('AS total'))).toContain(archived);
+    expect(queries.find((sql) => sql.includes('n.va_name AS name'))).toContain(archived);
+    expect(queries.find((sql) => sql.includes('character_rank <= 3'))).toContain(archived);
+    expect(queries.find((sql) => sql.includes('AS collection_actor_count'))).not.toContain(archived);
+  });
+
   it('returns stable zero defaults and skips enrichment for an empty page', async () => {
     mocks.postgresQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT COUNT(*)::integer AS total')) return { rows: [] };

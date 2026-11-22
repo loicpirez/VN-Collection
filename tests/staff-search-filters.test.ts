@@ -20,6 +20,7 @@ describe('parseStaffSearchParams', () => {
 
   it('reads scope=collection from the URL', () => {
     expect(parseStaffSearchParams({ scope: 'collection' }).scope).toBe('collection');
+    expect(parseStaffSearchParams({ scope: ['sold', 'collection'] }).scope).toBe('sold');
     expect(parseStaffSearchParams({ scope: 'invalid' }).scope).toBe('all');
   });
 

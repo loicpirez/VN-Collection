@@ -75,19 +75,20 @@ export function WorksScopeSection({ ownedCount, soldCount = 0, children }: { own
 
 /**
  * Displays the current scope's count or its empty message.
- * @param props Counts and optional empty messages for collection and sold scopes.
+ * @param props Counts and optional empty messages for each scope.
  * @returns The current count, matching empty content, or no markup.
  */
-export function WorksScopeCount({ all, owned, sold = 0, empty, emptySold }: {
+export function WorksScopeCount({ all, owned, sold = 0, empty, emptyAll, emptySold }: {
   all: number;
   owned: number;
   sold?: number;
   empty?: ReactNode;
+  emptyAll?: ReactNode;
   emptySold?: ReactNode;
 }) {
   const { scope } = useContext(WorksScopeContext);
   const count = { all, collection: owned, sold }[scope];
-  if (empty === undefined && emptySold === undefined) return count;
-  if (scope === 'all' || count > 0) return null;
-  return scope === 'sold' ? emptySold ?? empty : empty;
+  if (empty === undefined && emptyAll === undefined && emptySold === undefined) return count;
+  if (count > 0) return null;
+  return { all: emptyAll, collection: empty, sold: emptySold ?? empty }[scope];
 }

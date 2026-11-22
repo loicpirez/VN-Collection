@@ -35,8 +35,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
  *    browse "every translator credited in Japanese on a VN I own"
  *    without typing a name. The page now triggers a fetch whenever a
  *    query OR a filter is present.
- *  - `scope=collection` flips the search to a pure local query
- *    against `vn_staff_credit` (joined with `collection`). `scope=all`
+ *  - The collection and sold scopes query local staff credits.
+ *    `scope=all`
  *    keeps the original "local hits surface but VNDB drives the
  *    result list" behaviour.
  */
@@ -63,16 +63,18 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     source: 'local' | 'vndb';
   };
 
-  // Always fetch local results - both scopes browse local data by default.
+  // Start with local staff credits for the selected scope.
   const localRows: StaffRow[] = (await getPeopleRepository().searchStaff({
     q: query || undefined,
     role,
     lang,
+    ...(vn && { vn }),
+    ...(scope !== 'all' && { scope }),
     limit: 200,
   })).map((s) => ({ ...s, source: 'local' as const }));
 
   let results: StaffRow[] = [];
-  if (scope === 'collection') {
+  if (scope !== 'all') {
     results = localRows;
   } else {
     // scope=all: VNDB + local. On the VNDB tab, always hit the API
@@ -114,7 +116,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     return reverse ? -cmp : cmp;
   });
 
-  const shouldQuery = results.length > 0 || query.length > 0 || hasFilters || scope === 'collection';
+  const shouldQuery = results.length > 0 || query.length > 0 || hasFilters || scope !== 'all';
 
   function chipHref(overrides: Record<string, string | null>): string {
     const params = new URLSearchParams();
@@ -124,7 +126,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
     if (role && !('role' in overrides)) params.set('role', role);
     if (lang && !('lang' in overrides)) params.set('lang', lang);
     if (vn && !('vn' in overrides)) params.set('vn', vn);
-    if (scope === 'collection' && !('scope' in overrides)) params.set('scope', 'collection');
+    if (scope !== 'all' && !('scope' in overrides)) params.set('scope', scope);
     if (sort === 'vn_count' && !('sort' in overrides)) params.set('sort', 'vn_count');
     if (reverse && !('reverse' in overrides)) params.set('reverse', '1');
     for (const [k, v] of Object.entries(overrides)) {
@@ -180,7 +182,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           {role && <input type="hidden" name="role" value={role} />}
           {lang && <input type="hidden" name="lang" value={lang} />}
           {vn && <input type="hidden" name="vn" value={vn} />}
-          {scope === 'collection' && <input type="hidden" name="scope" value="collection" />}
+          {scope !== 'all' && <input type="hidden" name="scope" value={scope} />}
           <label className="inline-flex min-h-[44px] items-center gap-2 text-xs text-muted can-hover:sm:min-h-0">
             <input
               type="checkbox"
@@ -204,21 +206,22 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
           shape; `role="tablist"` / `role="tab"` without matching
           tabpanels misled screen readers.
         */}
-        <NavTabStrip
+        {scope === 'all' && <NavTabStrip
           className="mt-3"
           ariaLabel={t.staffSearch.tabLocal}
           tabs={[
             { href: chipHref({ tab: null }), label: t.staffSearch.tabLocal, isActive: tab === 'local' },
             { href: chipHref({ tab: 'vndb' }), label: t.staffSearch.tabVndb, isActive: tab === 'vndb' },
           ]}
-        />
+        />}
 
         <NavTabStrip
-          className="mt-3"
+          className="mt-3 flex-wrap"
           ariaLabel={t.staffSearch.scopeLabel}
           tabs={[
             { href: chipHref({ scope: null }), label: t.staffSearch.scopeAll, isActive: scope === 'all' },
             { href: chipHref({ scope: 'collection' }), label: t.staffSearch.scopeCollection, isActive: scope === 'collection' },
+            { href: chipHref({ scope: 'sold' }), label: t.status.sold, isActive: scope === 'sold' },
           ]}
         />
 
@@ -306,7 +309,7 @@ export default async function StaffSearchPage({ searchParams }: PageProps) {
             {results.map((s) => (
               <li key={s.id}>
                 <Link
-                  href={`/staff/${s.id}`}
+                  href={`/staff/${s.id}${scope === 'sold' ? '?scope=sold' : ''}`}
                   className="group block rounded-lg border border-border bg-bg-elev/40 p-3 transition-colors hover:border-accent"
                 >
                   <p className="line-clamp-1 text-sm font-bold transition-colors can-hover:group-hover:text-accent" title={s.name}>

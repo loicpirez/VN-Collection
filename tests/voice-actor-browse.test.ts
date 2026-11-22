@@ -59,6 +59,12 @@ describe('voice actor browse URL state', () => {
     expect(parseVoiceActorBrowseParams({ page: 'NaN' }).page).toBe(1);
   });
 
+  it('keeps a direct sold scope and drops active-collection sorting from it', () => {
+    const parsed = parseVoiceActorBrowseParams({ scope: ['sold'], q: 'Alias', lang: 'ja', sort: 'collection', minimum: '5', page: '2' });
+    expect(parsed).toMatchObject({ scope: 'sold', sort: 'vns', query: 'Alias', language: 'ja', minimumVns: 5, page: 2 });
+    expect(voiceActorBrowseHref({ ...parsed, sort: 'collection' })).toBe('/seiyuu?q=Alias&lang=ja&scope=sold&minimum=5&page=2');
+  });
+
   it('omits defaults and serializes non-default state canonically', () => {
     const defaults = parseVoiceActorBrowseParams({});
     expect(voiceActorBrowseHref(defaults)).toBe('/seiyuu');
