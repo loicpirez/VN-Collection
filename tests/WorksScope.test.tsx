@@ -67,6 +67,42 @@ describe('local credit scope', () => {
     expect(remove).toHaveBeenCalledWith('popstate', expect.any(Function));
   });
 
+  it('shows only sold credits in the sold scope and keeps the other two scopes independent', () => {
+    renderWithProviders(
+      <WorksScopeProvider initialScope="sold">
+        <WorksScopeLink scope="all" href="/staff/s90001">All</WorksScopeLink>
+        <WorksScopeLink scope="collection" href="/staff/s90001?scope=collection">Collection</WorksScopeLink>
+        <WorksScopeLink scope="sold" href="/staff/s90001?scope=sold">Sold</WorksScopeLink>
+        <output><WorksScopeCount all={3} owned={1} sold={1} /></output>
+        <WorksScopeCount all={1} owned={0} sold={0} empty={<p>Collection empty</p>} emptySold={<p>Sold empty</p>} />
+        <WorksScopeSection ownedCount={1} soldCount={1}>
+          <WorksScopeGrid ariaLabel="Credits" resetKey="s90001" owned={[true, false, false]} sold={[false, true, false]}>
+            <li>Owned work</li>
+            <li>Sold work</li>
+            <li>Other work</li>
+          </WorksScopeGrid>
+        </WorksScopeSection>
+        <WorksScopeSection ownedCount={1}><p>Active-only section</p></WorksScopeSection>
+      </WorksScopeProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Sold' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual(['Sold work']);
+    expect(screen.getByRole('status')).toHaveTextContent('1');
+    expect(screen.queryByText('Active-only section')).not.toBeInTheDocument();
+    expect(screen.getByText('Sold empty')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Collection' }));
+    expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual(['Owned work']);
+    expect(screen.getByText('Collection empty')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'All' }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByRole('status')).toHaveTextContent('3');
+    act(() => {
+      window.history.replaceState(null, '', '/staff/s90001?density=260&scope=sold');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual(['Sold work']);
+  });
+
   it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }])('retains native link behavior for %o', (options) => {
     const push = vi.spyOn(window.history, 'pushState');
     const preventNavigation = (event: MouseEvent) => event.preventDefault();
