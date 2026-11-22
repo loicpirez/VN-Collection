@@ -781,7 +781,7 @@ export function SearchClient() {
         </div>
       )}
 
-      {error && (
+      {source !== 'sold' && error && (
         <div className="mb-4">
           <ErrorAlert title={t.common.error}>{error}</ErrorAlert>
         </div>
