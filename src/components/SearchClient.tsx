@@ -2,8 +2,9 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Circle, Database, FileText, Loader2, Plus, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
 import { VnCard, type CardData } from './VnCard';
+import { SoldSearchResults } from './SoldSearchResults';
 import {
   SearchEgsRowsSkeleton,
   SearchLocalPanelSkeleton,
@@ -38,7 +39,7 @@ import {
   EGS_QUICK_SEARCH_PAGE_SIZE,
   VNDB_ADVANCED_SEARCH_PAGE_SIZE,
 } from '@/lib/search-result-limits';
-type SearchSource = 'vndb' | 'egs' | 'local';
+type SearchSource = 'vndb' | 'egs' | 'local' | 'sold';
 
 const COMMON_LANGS = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'it', 'ru'];
 const OTHER_PLATFORM_CODES = PLATFORM_CODES.filter((code) => !COMMON_PLATFORM_CODES.includes(code));
@@ -106,7 +107,7 @@ function readAdvFromUrl(sp: URLSearchParams): AdvParams {
 
 function readSourceFromUrl(sp: { get(name: string): string | null }): SearchSource {
   const raw = sp.get('source') ?? sp.get('src') ?? '';
-  return parseQueryEnum(raw, ['vndb', 'egs', 'local'] as const, 'vndb');
+  return parseQueryEnum(raw, ['vndb', 'egs', 'local', 'sold'] as const, 'vndb');
 }
 
 function isAdvActive(adv: AdvParams): boolean {
@@ -173,7 +174,7 @@ export function SearchClient() {
   const [q, setQ] = useState(initialQ);
   const [results, setResults] = useState<VndbSearchHit[]>([]);
   const [egsResults, setEgsResults] = useState<EgsCandidate[]>([]);
-  const [vndbLoading, setVndbLoading] = useState(initialSource !== 'egs' && (!!initialQ || isAdvActive(initialAdv)));
+  const [vndbLoading, setVndbLoading] = useState(initialSource === 'vndb' && (!!initialQ || isAdvActive(initialAdv)));
   const [egsLoading, setEgsLoading] = useState(initialSource === 'egs' && !!initialQ);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(!!initialQ || isAdvActive(initialAdv));
@@ -191,8 +192,8 @@ export function SearchClient() {
   const egsAddAbortRef = useRef<AbortController | null>(null);
   const egsAddInFlightRef = useRef(false);
   const panelId = useId();
-  const tabIds = { vndb: useId(), egs: useId(), local: useId() } as const;
-  const TABS = ['vndb', 'egs', 'local'] as const;
+  const tabIds = { vndb: useId(), egs: useId(), local: useId(), sold: useId() } as const;
+  const TABS = ['vndb', 'egs', 'local', 'sold'] as const;
 
   useEffect(() => {
     if (!initialQ && !isAdvActive(initialAdv)) inputRef.current?.focus();
@@ -250,8 +251,8 @@ export function SearchClient() {
   const runAdvancedRef = useRef(runAdvanced);
   runAdvancedRef.current = runAdvanced;
   useEffect(() => {
-    if (isAdvActive(initialAdv)) runAdvancedRef.current();
-  }, [initialAdv]);
+    if (initialSource === 'vndb' && isAdvActive(initialAdv)) runAdvancedRef.current();
+  }, [initialAdv, initialSource]);
 
   // Sync state → URL (debounced for q, immediate for adv toggles).
   const syncUrl = useCallback(
@@ -462,7 +463,7 @@ export function SearchClient() {
     <DensityScopeProvider scope="search">
       <h1 className="sr-only">{t.nav.search}</h1>
       <div
-        className="mb-2 inline-flex rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
+        className="mb-2 inline-flex max-w-full flex-wrap rounded-md border border-border bg-bg-elev/30 p-0.5 text-[11px]"
         role="tablist"
         aria-label={t.search.sourceTabsLabel}
         onKeyDown={(e) => {
@@ -523,6 +524,21 @@ export function SearchClient() {
         >
           <FileText className="h-3 w-3" aria-hidden />
           {t.search.tabLocal}
+        </button>
+        <button
+          type="button"
+          id={tabIds.sold}
+          role="tab"
+          aria-selected={source === 'sold'}
+          aria-controls={panelId}
+          onClick={() => setSource('sold')}
+          tabIndex={source === 'sold' ? 0 : -1}
+          className={`inline-flex min-h-[44px] items-center gap-1 rounded px-2 py-1 transition-colors ${
+            source === 'sold' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'
+          }`}
+        >
+          <Archive className="h-3 w-3" aria-hidden />
+          {t.status.sold}
         </button>
       </div>
       <SearchInput
@@ -777,6 +793,7 @@ export function SearchClient() {
           - 'egs'  - game search via the ErogameScape SQL form
           - 'local' - free-text match across local notes / custom
             synopses / cached quotes.
+          - 'sold' - browse or search the sold archive.
         Each tab renders its OWN result body; we do NOT mix them
         in the same vertical flow (manual QA flagged the previous
         "all sources in one column" approach as hijacking the
@@ -791,7 +808,9 @@ export function SearchClient() {
         tabIndex={0}
         className="outline-none"
       >
-      {source === 'local' ? (
+      {source === 'sold' ? (
+        <SoldSearchResults query={q} />
+      ) : source === 'local' ? (
         <TextualSearchPanel query={q} mode="standalone" />
       ) : source === 'egs' ? (
         egsLoading ? (

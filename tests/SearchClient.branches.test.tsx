@@ -177,15 +177,15 @@ describe('SearchClient branches', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull());
   });
 
-  it('navigates source tabs left with the keyboard, wrapping to Local', async () => {
+  it('navigates source tabs with the keyboard, wrapping to Sold', async () => {
     const { user } = renderSearchClient();
     const tablist = screen.getByRole('tablist', { name: 'Search sources' });
     await user.click(screen.getByRole('tab', { name: 'VNDB' }));
-    // ArrowLeft from vndb wraps to the last tab (local).
     fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
-    expect(screen.getByRole('tab', { name: 'Local' })).toHaveAttribute('aria-selected', 'true');
-    // A non-arrow key is a no-op.
+    expect(screen.getByRole('tab', { name: 'Sold' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tablist, { key: 'Enter' });
+    expect(screen.getByRole('tab', { name: 'Sold' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
     expect(screen.getByRole('tab', { name: 'Local' })).toHaveAttribute('aria-selected', 'true');
   });
 

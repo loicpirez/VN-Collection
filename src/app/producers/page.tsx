@@ -5,6 +5,7 @@ import { getProducerRepository } from '@/lib/db/repositories/producer';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { fmtNum } from '@/lib/locale-number';
 import { ProducerLogo } from '@/components/ProducerLogo';
+import { NavTabStrip } from '@/components/NavTabStrip';
 import type { ProducerStat } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -28,17 +29,25 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ProducersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<{ role?: string; scope?: string }>;
 }) {
   const t = await getDict();
   const locale = await getLocale();
   const sp = await searchParams;
   const role: RoleTab = sp.role === 'publisher' ? 'publisher' : 'developer';
 
+  const soldOnly = sp.scope === 'sold';
+  function href(nextRole: RoleTab, nextSold: boolean): string {
+    const params = new URLSearchParams();
+    if (nextRole === 'publisher') params.set('role', nextRole);
+    if (nextSold) params.set('scope', 'sold');
+    return params.size ? `/producers?${params}` : '/producers';
+  }
+
   const repository = getProducerRepository();
   const [devStats, pubStats] = await Promise.all([
-    repository.listDeveloperStats(),
-    repository.listPublisherStats(),
+    repository.listDeveloperStats(soldOnly),
+    repository.listPublisherStats(soldOnly),
   ]);
   const producers = role === 'publisher' ? pubStats : devStats;
 
@@ -54,13 +63,22 @@ export default async function ProducersPage({
         </div>
       </header>
 
+      <NavTabStrip
+        className="mb-4"
+        ariaLabel={t.library.filterByStatus}
+        tabs={[
+          { label: t.staff.filterInCollection, href: href(role, false), isActive: !soldOnly },
+          { label: t.status.sold, href: href(role, true), isActive: soldOnly },
+        ]}
+      />
+
       <div className="mb-4 flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-border bg-bg-card p-1 text-sm sm:inline-flex sm:flex-nowrap">
-        <TabLink active={role === 'developer'} href="/producers" icon={<Wrench className="h-3.5 w-3.5" aria-hidden />}>
+        <TabLink active={role === 'developer'} href={href('developer', soldOnly)} icon={<Wrench className="h-3.5 w-3.5" aria-hidden />}>
           {t.producers.tabDevelopers} / <span className="font-bold tabular-nums">{devStats.length}</span>
         </TabLink>
         <TabLink
           active={role === 'publisher'}
-          href="/producers?role=publisher"
+          href={href('publisher', soldOnly)}
           icon={<Package className="h-3.5 w-3.5" aria-hidden />}
         >
           {t.producers.tabPublishers} / <span className="font-bold tabular-nums">{pubStats.length}</span>
@@ -84,7 +102,7 @@ export default async function ProducersPage({
           </Link>
         </div>
       ) : (
-        <ProducerTable producers={producers} role={role} t={t} locale={locale} />
+        <ProducerTable producers={producers} role={role} t={t} locale={locale} soldOnly={soldOnly} />
       )}
     </div>
   );
@@ -120,9 +138,11 @@ function ProducerTable({
   role,
   t,
   locale,
+  soldOnly,
 }: {
   producers: ProducerStat[];
   role: RoleTab;
+  soldOnly: boolean;
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
@@ -131,7 +151,7 @@ function ProducerTable({
     <>
       <ul className="space-y-2 sm:hidden">
         {producers.map((p, i) => (
-          <ProducerCard key={p.id} p={p} rank={i} t={t} locale={locale} />
+          <ProducerCard key={p.id} p={p} rank={i} t={t} locale={locale} soldOnly={soldOnly} />
         ))}
       </ul>
       <div className="scroll-fade-right hidden overflow-x-auto rounded-2xl border border-border bg-bg-card sm:block">
@@ -165,7 +185,7 @@ function ProducerTable({
                     )}
                   </td>
                   <td className="px-3 py-3 align-middle sm:px-4">
-                    <Link href={`/producer/${p.id}`} className="flex min-h-[44px] items-center gap-3 hover:text-accent can-hover:sm:min-h-0">
+                    <Link href={`/producer/${p.id}${soldOnly ? '?scope=sold' : ''}`} className="flex min-h-[44px] items-center gap-3 hover:text-accent can-hover:sm:min-h-0">
                       <ProducerLogo producer={p} size={36} />
                       <div className="min-w-0">
                         <div className="font-semibold">{p.name}</div>
@@ -202,8 +222,10 @@ function ProducerCard({
   rank,
   t,
   locale,
+  soldOnly,
 }: {
   p: ProducerStat;
+  soldOnly: boolean;
   rank: number;
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
@@ -226,7 +248,7 @@ function ProducerCard({
             </span>
           )}
         </span>
-        <Link href={`/producer/${p.id}`} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 hover:text-accent">
+        <Link href={`/producer/${p.id}${soldOnly ? '?scope=sold' : ''}`} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 hover:text-accent">
           <ProducerLogo producer={p} size={36} />
           <div className="min-w-0">
             <div className="truncate font-semibold">{p.name}</div>

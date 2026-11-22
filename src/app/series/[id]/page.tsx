@@ -17,6 +17,7 @@ import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { SeriesDetailLayout } from '@/components/SeriesDetailLayout';
 import { parseSeriesDetailLayoutV1, type SeriesSectionId } from '@/lib/series-detail-layout';
+import { NavTabStrip } from '@/components/NavTabStrip';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 
 export const dynamic = 'force-dynamic';
@@ -29,8 +30,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return series ? { title: series.name } : {};
 }
 
-export default async function SeriesDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function SeriesDetailPage({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ scope?: string }>;
+}) {
+  const [{ id }, filters] = await Promise.all([params, searchParams]);
+  const soldOnly = filters?.scope === 'sold';
   const n = Number(id);
   if (!Number.isFinite(n) || n <= 0) notFound();
   const repository = getSeriesRepository();
@@ -39,7 +44,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   const collectionRepository = getCollectionListRepository();
   const [t, rawItems, listCounts, queueIds, layoutSetting] = await Promise.all([
     getDict(),
-    collectionRepository.listCards({ series: n }),
+    collectionRepository.listCards({ series: n, status: soldOnly ? 'sold' : undefined }),
     collectionRepository.listMembershipCounts(),
     collectionRepository.readingQueueIds(),
     getAppSettingRepository().get('series_detail_section_layout_v1'),
@@ -105,16 +110,23 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
 
   const worksSection = (
     <div className="space-y-4">
-      <SeriesAddVnForm seriesId={series.id} />
+      <NavTabStrip
+        ariaLabel={t.library.filterByStatus}
+        tabs={[
+          { label: t.staff.filterInCollection, href: `/series/${series.id}`, isActive: !soldOnly },
+          { label: t.status.sold, href: `/series/${series.id}?scope=sold`, isActive: soldOnly },
+        ]}
+      />
+      {!soldOnly && <SeriesAddVnForm seriesId={series.id} />}
       {items.length === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card p-6 text-center text-sm text-muted">
           <Bookmark className="mx-auto mb-3 h-6 w-6 text-accent" aria-hidden />
-          <p>{t.series.emptyDetail}</p>
+          <p>{soldOnly ? t.search.noResults : t.series.emptyDetail}</p>
         </div>
       ) : (
         <PaginatedGrid
           ariaLabel={series.name}
-          resetKey={`series:${series.id}`}
+          resetKey={`series:${series.id}:${soldOnly}`}
           className="grid items-stretch gap-5"
           style={{
             gridTemplateColumns:

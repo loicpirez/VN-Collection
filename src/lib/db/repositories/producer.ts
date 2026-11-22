@@ -39,9 +39,9 @@ export interface ProducerRepository {
   /** Set or clear one producer's custom logo path. */
   setLogo(id: string, logoPath: string | null): Promise<void>;
   /** Rank producers credited as developers on collection VNs. */
-  listDeveloperStats(): Promise<ProducerStat[]>;
+  listDeveloperStats(soldOnly?: boolean): Promise<ProducerStat[]>;
   /** Rank producers credited as publishers on collection VNs. */
-  listPublisherStats(): Promise<ProducerStat[]>;
+  listPublisherStats(soldOnly?: boolean): Promise<ProducerStat[]>;
   /** Summarize collection VNs credited to one producer in either role. */
   ownershipSummary(id: string): Promise<ProducerOwnershipSummary>;
   /** Return valid developer ids embedded on one VN. */
@@ -123,7 +123,7 @@ function sortStats(rows: ProducerStat[]): ProducerStat[] {
   ));
 }
 
-async function postgresStats(role: 'developer' | 'publisher'): Promise<ProducerStat[]> {
+async function postgresStats(role: 'developer' | 'publisher', soldOnly = false): Promise<ProducerStat[]> {
   const indexTable = role === 'developer' ? 'vn_developer_index' : 'vn_publisher_index';
   const sourceColumn = role === 'developer' ? 'developers' : 'publishers';
   const result = await postgresQuery<ProducerStatStorageRow>(`
@@ -147,6 +147,7 @@ async function postgresStats(role: 'developer' | 'publisher'): Promise<ProducerS
     JOIN ${indexTable} producer_index ON producer_index.vn_id = collection.vn_id
     JOIN vn ON vn.id = collection.vn_id
     LEFT JOIN producer ON producer.id = producer_index.producer_id
+    WHERE ${soldOnly ? "collection.status = 'sold'" : "collection.status <> 'sold'"}
     GROUP BY producer_index.producer_id, producer.id
     ORDER BY vn_count DESC, producer_index.producer_id COLLATE "C"
     LIMIT 2000
@@ -204,11 +205,11 @@ export function createPostgresProducerRepository(): ProducerRepository {
     async setLogo(id, logoPath) {
       await postgresQuery('UPDATE producer SET logo_path = $1 WHERE id = $2', [logoPath, id]);
     },
-    async listDeveloperStats() {
-      return postgresStats('developer');
+    async listDeveloperStats(soldOnly) {
+      return postgresStats('developer', soldOnly);
     },
-    async listPublisherStats() {
-      return postgresStats('publisher');
+    async listPublisherStats(soldOnly) {
+      return postgresStats('publisher', soldOnly);
     },
     async ownershipSummary(id) {
       const result = await postgresQuery<OwnershipRow>(`
@@ -261,11 +262,11 @@ const sqliteRepository: ProducerRepository = {
   async setLogo(id, logoPath) {
     (await import('@/lib/db')).setProducerLogo(id, logoPath);
   },
-  async listDeveloperStats() {
-    return (await import('@/lib/db')).listProducerStats();
+  async listDeveloperStats(soldOnly) {
+    return (await import('@/lib/db')).listProducerStats(soldOnly);
   },
-  async listPublisherStats() {
-    return (await import('@/lib/db')).listPublisherStats();
+  async listPublisherStats(soldOnly) {
+    return (await import('@/lib/db')).listPublisherStats(soldOnly);
   },
   async ownershipSummary(id) {
     return (await import('@/lib/db')).producerOwnershipSummary(id);

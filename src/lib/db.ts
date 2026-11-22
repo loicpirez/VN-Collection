@@ -8588,7 +8588,7 @@ export function setProducerLogo(id: string, logoPath: string | null): void {
   invalidateProducerStats();
 }
 
-function computeProducerStats(): ProducerStat[] {
+function computeProducerStats(soldOnly: boolean): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8608,6 +8608,7 @@ function computeProducerStats(): ProducerStat[] {
       JOIN vn_developer_index di ON di.vn_id = c.vn_id
       JOIN vn v ON v.id = c.vn_id
       LEFT JOIN producer p ON p.id = di.producer_id
+      WHERE ${soldOnly ? "c.status = 'sold'" : "c.status <> 'sold'"}
       GROUP BY di.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
@@ -8621,7 +8622,7 @@ function computeProducerStats(): ProducerStat[] {
   }));
 }
 
-function computePublisherStats(): ProducerStat[] {
+function computePublisherStats(soldOnly: boolean): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8641,6 +8642,7 @@ function computePublisherStats(): ProducerStat[] {
       JOIN vn_publisher_index pi ON pi.vn_id = c.vn_id
       JOIN vn v ON v.id = c.vn_id
       LEFT JOIN producer p ON p.id = pi.producer_id
+      WHERE ${soldOnly ? "c.status = 'sold'" : "c.status <> 'sold'"}
       GROUP BY pi.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
@@ -8663,11 +8665,12 @@ const PRODUCER_STATS_TTL_MS = 30_000;
  * VNs, average rating, …). Used by the `/producers` Developers tab. Cached
  * in-process for `PRODUCER_STATS_TTL_MS`.
  */
-export function listProducerStats(): ProducerStat[] {
+export function listProducerStats(soldOnly = false): ProducerStat[] {
+  if (soldOnly) return computeProducerStats(true);
   if (producerStatsCache && Date.now() - producerStatsCache.at < PRODUCER_STATS_TTL_MS) {
     return producerStatsCache.data;
   }
-  const data = computeProducerStats();
+  const data = computeProducerStats(false);
   producerStatsCache = { at: Date.now(), data };
   return data;
 }
@@ -8678,11 +8681,12 @@ export function listProducerStats(): ProducerStat[] {
  * `vn.developers` (localisation houses, etc.) still rank. Cached in-process
  * for `PRODUCER_STATS_TTL_MS`.
  */
-export function listPublisherStats(): ProducerStat[] {
+export function listPublisherStats(soldOnly = false): ProducerStat[] {
+  if (soldOnly) return computePublisherStats(true);
   if (publisherStatsCache && Date.now() - publisherStatsCache.at < PRODUCER_STATS_TTL_MS) {
     return publisherStatsCache.data;
   }
-  const data = computePublisherStats();
+  const data = computePublisherStats(false);
   publisherStatsCache = { at: Date.now(), data };
   return data;
 }
