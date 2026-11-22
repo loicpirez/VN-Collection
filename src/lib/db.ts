@@ -8736,7 +8736,7 @@ export function producerOwnershipSummary(producerId: string): {
 } {
   const rows = db
     .prepare(`
-      SELECT v.id, v.developers, v.publishers
+      SELECT v.id, v.developers, v.publishers, c.status
       FROM vn v
       JOIN collection c ON c.vn_id = v.id
       WHERE
@@ -8745,8 +8745,8 @@ export function producerOwnershipSummary(producerId: string): {
       ORDER BY c.updated_at DESC
       LIMIT 500
     `)
-    .all(producerId, producerId) as Array<{ id: string; developers: string | null; publishers: string | null }>;
-  const ownedIds = new Set(rows.map((r) => r.id));
+    .all(producerId, producerId) as Array<{ id: string; developers: string | null; publishers: string | null; status: string }>;
+  const ownedIds = new Set(rows.filter((row) => row.status !== 'sold').map((row) => row.id));
   const sample = rows[0]
     ? {
         developers: decodePersistedProducerSummaries(rows[0].developers),

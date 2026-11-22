@@ -9,6 +9,7 @@ import { getCharacter, type VndbCharacter } from '@/lib/vndb';
 import { readCharacterFullCache } from '@/lib/character-full';
 import { readScrapedCharacterInfo, type ScrapedCharacterInfo } from '@/lib/scrape-character-instances';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { I18nProvider } from '@/lib/i18n/client';
 import type { DetailSection } from '@/components/DetailReorderLayout';
 
 const navigationMocks = vi.hoisted(() => ({
@@ -295,6 +296,49 @@ describe('character detail page runtime', () => {
     expect(html).toContain(dictionaries.en.characters.releaseCountChip.replace('{n}', '2'));
     expect(html).toContain('8.5');
     expect(html).toContain('2026');
+  });
+
+  it('filters deduplicated appearances by ownership while keeping badges on related titles', async () => {
+    vi.mocked(getCharacter).mockResolvedValue(character({
+      vns: [
+        { id: 'v1', role: 'main', spoiler: 0, title: 'Owned appearance' },
+        { id: 'v2', role: 'main', spoiler: 0, title: 'Sold appearance' },
+        { id: 'v2', role: 'side', spoiler: 0, title: 'Sold appearance' },
+        { id: 'v5', role: 'side', spoiler: 0, title: 'Other appearance' },
+      ],
+    }));
+    collectionMocks.containsMany.mockResolvedValue(new Set(['v1']));
+    collectionMocks.soldIds.mockResolvedValue(new Set(['v2', 'v4']));
+    vi.mocked(readScrapedCharacterInfo).mockResolvedValue(scraped);
+    async function render(scope: 'all' | 'collection' | 'sold') {
+      const content = await CharacterPage({
+        params: Promise.resolve({ id: 'c1' }),
+        searchParams: Promise.resolve({ scope }),
+      });
+      return renderToStaticMarkup(<I18nProvider locale="en" dict={dictionaries.en}>{content}</I18nProvider>);
+    }
+    const appearances = (html: string) => html.split('id="appearances"')[1];
+
+    const all = await render('all');
+    expect(appearances(all)).toContain('>Owned appearance<');
+    expect(appearances(all)).toContain('>Other appearance<');
+    expect(appearances(all).match(/>Sold appearance</g)).toHaveLength(1);
+    expect(appearances(all)).toContain('bg-status-sold');
+    expect(all.split('data-section="voiced-by-all"')[1].split('data-section="appears-in"')[0]).toContain('bg-status-sold');
+
+    const collection = appearances(await render('collection'));
+    expect(collection).toContain('>Owned appearance<');
+    expect(collection).not.toContain('>Sold appearance<');
+
+    const sold = appearances(await render('sold'));
+    expect(sold).toContain('href="/character/c1?scope=sold#appearances" aria-current="page"');
+    expect(sold).toContain('>Sold appearance<');
+    expect(sold).toContain('bg-status-sold');
+    expect(sold).not.toContain('>Owned appearance<');
+    expect(sold).not.toContain('>Other appearance<');
+
+    collectionMocks.soldIds.mockResolvedValue(new Set(['v4']));
+    expect(appearances(await render('sold'))).toContain(dictionaries.en.status.emptySoldArchive);
   });
 
   it('renders month-only birthdays and alternate mapped labels', async () => {

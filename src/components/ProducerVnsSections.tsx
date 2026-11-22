@@ -5,6 +5,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import type { CollectionCardItem } from '@/lib/types';
+import type { WorksScope } from '@/lib/works-scope';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
@@ -33,7 +34,7 @@ export async function ProducerVnsSections({
   scope = 'all',
 }: {
   producerId: string;
-  scope?: 'all' | 'collection';
+  scope?: WorksScope;
 }) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let data: ProducerAssociations;
@@ -76,6 +77,7 @@ export async function ProducerVnsSections({
   const totalCount = data.developerVns.length + data.publisherVns.length;
   const ownedTotal =
     developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length;
+  const soldTotal = soldIds.size;
 
   return (
     <WorksScopeProvider initialScope={scope}><section className="mb-8 space-y-6">
@@ -122,13 +124,24 @@ export async function ProducerVnsSections({
           {t.producerVns.scopeCollection}
           <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{ownedTotal}</span>
         </WorksScopeLink>
+        <WorksScopeLink scope="sold"
+          href={`/producer/${producerId}?scope=sold`}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9"
+        >
+          {t.status.sold}
+          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{soldTotal}</span>
+        </WorksScopeLink>
       </nav>
 
-      {!data.upstreamFailed && <WorksScopeCount all={totalCount} owned={ownedTotal} empty={(
-        <p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">
-          {t.producerVns.collectionEmpty}
-        </p>
-      )} />}
+      {!data.upstreamFailed && (
+        <WorksScopeCount
+          all={totalCount}
+          owned={ownedTotal}
+          sold={soldTotal}
+          empty={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.producerVns.collectionEmpty}</p>}
+          emptySold={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.status.emptySoldArchive}</p>}
+        />
+      )}
       <WorksCacheLoader producerId={producerId} needed={data.upstreamFailed || data.stale} />
 
       {developerVns.length > 0 && (
@@ -183,22 +196,21 @@ function RoleSection({
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
+  const ownedCount = vns.filter((v) => v.owned).length;
+  const soldCount = vns.filter((v) => v.sold).length;
   return (
-    <WorksScopeSection ownedCount={vns.filter((v) => v.owned).length}><div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
+    <WorksScopeSection ownedCount={ownedCount} soldCount={soldCount}><div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted">
           {icon === 'dev' ? <Wrench className="h-4 w-4" aria-hidden /> : <Package className="h-4 w-4" aria-hidden />}
           {title}
         </h3>
-        <span className="text-xs text-muted">
-          <span className="font-bold text-accent">
-            {vns.filter((v) => v.owned).length}/<WorksScopeCount all={vns.length} owned={vns.filter((v) => v.owned).length} />
-          </span>{' '}
-          {t.producerVns.ownedLabel}
+        <span className="text-xs tabular-nums text-muted">
+          <WorksScopeCount all={vns.length} owned={ownedCount} sold={soldCount} />
         </span>
       </div>
 
-      <WorksScopeGrid owned={vns.map((v) => v.owned)}
+      <WorksScopeGrid owned={vns.map((v) => v.owned)} sold={vns.map((v) => v.sold === true)}
         ariaLabel={title}
         resetKey={title}
         className="grid gap-2"
