@@ -32,6 +32,10 @@ vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
 }));
 
+vi.mock('@/lib/db/repositories/app-setting', () => ({
+  getAppSettingRepository: () => ({ get: vi.fn(async () => null) }),
+}));
+
 vi.mock('@/lib/db/repositories/people', () => ({
   getPeopleRepository: () => peopleMocks,
 }));
@@ -338,7 +342,7 @@ describe('character detail page runtime', () => {
     expect(sold).not.toContain('>Other appearance<');
 
     collectionMocks.soldIds.mockResolvedValue(new Set(['v4']));
-    expect(appearances(await render('sold'))).toContain(dictionaries.en.status.emptySoldArchive);
+    expect(appearances(await render('sold'))).toContain(dictionaries.en.library.emptySoldArchive);
   });
 
   it('renders month-only birthdays and alternate mapped labels', async () => {

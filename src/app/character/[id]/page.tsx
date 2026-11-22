@@ -417,7 +417,7 @@ export default async function CharacterPage({
                   owned={ownedAppearanceCount}
                   sold={soldAppearanceCount}
                   empty={<p className="text-sm text-muted">{t.staff.empty}</p>}
-                  emptySold={<p className="text-sm text-muted">{t.status.emptySoldArchive}</p>}
+                  emptySold={<p className="text-sm text-muted">{t.library.emptySoldArchive}</p>}
                 />
                 <WorksScopeGrid
                   owned={appearanceOwnership}

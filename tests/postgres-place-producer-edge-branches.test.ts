@@ -129,6 +129,13 @@ describe('PostgreSQL place and producer edge branches', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{
         id: 'v90001',
+        status: 'completed',
+        developers: '[{"id":"p90001","name":"Developer"}]',
+        publishers: '[{"id":"p90002","name":"Publisher"}]',
+      }] })
+      .mockResolvedValueOnce({ rows: [{
+        id: 'v90001',
+        status: 'sold',
         developers: '[{"id":"p90001","name":"Developer"}]',
         publishers: '[{"id":"p90002","name":"Publisher"}]',
       }] });
@@ -138,6 +145,13 @@ describe('PostgreSQL place and producer edge branches', () => {
     });
     await expect(repository.ownershipSummary('p90001')).resolves.toEqual({
       ownedIds: new Set(['v90001']),
+      sample: {
+        developers: [{ id: 'p90001', name: 'Developer' }],
+        publishers: [{ id: 'p90002', name: 'Publisher' }],
+      },
+    });
+    await expect(repository.ownershipSummary('p90001')).resolves.toEqual({
+      ownedIds: new Set(),
       sample: {
         developers: [{ id: 'p90001', name: 'Developer' }],
         publishers: [{ id: 'p90002', name: 'Publisher' }],

@@ -139,7 +139,7 @@ export async function ProducerVnsSections({
           owned={ownedTotal}
           sold={soldTotal}
           empty={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.producerVns.collectionEmpty}</p>}
-          emptySold={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.status.emptySoldArchive}</p>}
+          emptySold={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.library.emptySoldArchive}</p>}
         />
       )}
       <WorksCacheLoader producerId={producerId} needed={data.upstreamFailed || data.stale} />
