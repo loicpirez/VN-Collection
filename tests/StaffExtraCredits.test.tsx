@@ -3,8 +3,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { StaffExtraCredits, StaffExtraCreditsSkeleton } from '@/components/StaffExtraCredits';
 import { downloadFullStaffInfo, readStaffFullCache, type StaffFullPayload } from '@/lib/staff-full';
 import type { StaffVaCredit, StaffVnCredit } from '@/lib/vndb';
+import { I18nProvider } from '@/lib/i18n/client';
+import { dictionaries } from '@/lib/i18n/dictionaries';
+import { WorksScopeProvider } from '@/components/WorksScope';
 
-const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn() }));
+const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn(), soldIds: vi.fn() }));
 
 vi.mock('@/components/StaffDownloadButton', () => ({ StaffDownloadButton: ({ sid }: { sid: string }) => <button>Retry {sid}</button> }));
 vi.mock('@/components/WorksCacheLoader', () => ({ RefreshCachedCredits: () => <span>Reconcile staff cache</span> }));
@@ -79,6 +82,7 @@ function payload(overrides: Partial<StaffFullPayload> = {}): StaffFullPayload {
 
 beforeEach(() => {
   collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  collectionMocks.soldIds.mockReset().mockResolvedValue(new Set());
   vi.mocked(readStaffFullCache).mockReset().mockResolvedValue(null);
   vi.mocked(downloadFullStaffInfo).mockReset();
 });
@@ -123,7 +127,7 @@ describe('StaffExtraCredits', () => {
       knownVaVnIds: new Set(),
     }));
     expect(downloadFullStaffInfo).toHaveBeenCalledWith('s1');
-    expect(markup).toContain('More credits (outside your collection)');
+    expect(markup).toContain('More VNDB credits');
     expect(markup).toContain('Production credits');
     expect(markup).not.toContain('Voice credits');
     expect(markup).toContain('Scenario / new-role');
@@ -132,7 +136,28 @@ describe('StaffExtraCredits', () => {
     expect(markup).toContain('data-reset-key="s1:extra-production:all"');
   });
 
-  it('renders voice and production metadata with one batched membership lookup', async () => {
+  it('shows only sold extra credits with a localized badge in the sold scope', async () => {
+    vi.mocked(readStaffFullCache).mockResolvedValue(payload({
+      productionCredits: [production('v1'), production('v2')],
+      vaCredits: [voice('v3')],
+    }));
+    collectionMocks.containsMany.mockResolvedValue(new Set(['v1']));
+    collectionMocks.soldIds.mockResolvedValue(new Set(['v3']));
+    const section = await StaffExtraCredits({ sid: 's1', knownProdVnIds: new Set(), knownVaVnIds: new Set() });
+    const markup = renderToStaticMarkup(
+      <I18nProvider locale="fr" dict={dictionaries.fr}>
+        <WorksScopeProvider initialScope="sold">{section}</WorksScopeProvider>
+      </I18nProvider>,
+    );
+
+    expect(markup).toContain('Voice v3');
+    expect(markup).toContain('>Vendu<');
+    expect(markup).not.toContain('Production v1');
+    expect(markup).not.toContain('Production v2');
+    expect(markup).toContain('data-reset-key="s1:extra-voice:sold"');
+  });
+
+  it('renders voice and production metadata with batched membership lookups', async () => {
     vi.mocked(readStaffFullCache).mockResolvedValue(payload({
       productionCredits: [
         production('v1'),

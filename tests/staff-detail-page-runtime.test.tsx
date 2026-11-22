@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { I18nProvider } from '@/lib/i18n/client';
+import { dictionaries } from '@/lib/i18n/dictionaries';
 import StaffPage, { generateMetadata as generateStaffMetadata } from '@/app/staff/[id]/page';
 import type {
   StaffProfile,
@@ -23,6 +25,7 @@ const peopleMocks = vi.hoisted(() => ({
   voiceCredits: vi.fn(),
   staffSiblings: vi.fn(),
 }));
+const collectionMocks = vi.hoisted(() => ({ containsMany: vi.fn(), soldIds: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
@@ -30,6 +33,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/db/repositories/people', () => ({
   getPeopleRepository: () => peopleMocks,
+}));
+vi.mock('@/lib/db/repositories/collection-core', () => ({
+  getCollectionCoreRepository: () => collectionMocks,
 }));
 
 vi.mock('@/lib/staff-full', () => ({
@@ -168,6 +174,8 @@ function fullProfile(overrides: Partial<NonNullable<StaffFullPayload['profile']>
 }
 
 beforeEach(() => {
+  collectionMocks.containsMany.mockReset().mockResolvedValue(new Set());
+  collectionMocks.soldIds.mockReset().mockResolvedValue(new Set());
   navigationMocks.notFound.mockClear();
   peopleMocks.staffSiblings.mockReset().mockResolvedValue([]);
   peopleMocks.staffProfile.mockReset().mockResolvedValue(null);
@@ -202,6 +210,13 @@ describe('staff detail page runtime', () => {
     expect(html).toContain('Staff member');
     expect(html).toContain('No credit.');
     expect(html).not.toContain('data-testid="detail-layout"');
+
+    const sold = renderToStaticMarkup(await StaffPage({
+      params: Promise.resolve({ id: 's1' }),
+      searchParams: Promise.resolve({ scope: 'sold' }),
+    }));
+    expect(sold).toContain('No sold games');
+    expect(sold).not.toContain('No credit.');
   });
 
   it('includes cached external credits in the distinct all-works counter', async () => {
@@ -212,6 +227,53 @@ describe('staff detail page runtime', () => {
     const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's90991' }), searchParams: Promise.resolve({}) }));
     expect(html).toContain('All credits (3)');
     expect(html).toContain('In the collection (1)');
+  });
+
+  it('filters credits by sold with a distinct count and keeps sold visible in All credits', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    peopleMocks.productionCredits.mockResolvedValue([work('v90991', undefined, { sold: true })]);
+    peopleMocks.voiceCredits.mockResolvedValue([
+      voice('v90990', { in_collection: true }),
+      voice('v90991', { sold: true }),
+      voice('v90992'),
+    ]);
+    vi.mocked(readStaffFullCache).mockResolvedValue(fullProfile());
+    const render = async (scope?: 'collection' | 'sold') => {
+      const page = await StaffPage({ params: Promise.resolve({ id: 's1' }), searchParams: Promise.resolve({ scope }) });
+      return renderToStaticMarkup(<I18nProvider locale="en" dict={dictionaries.en}>{page}</I18nProvider>);
+    };
+
+    const all = await render();
+    expect(all).toContain('All credits (3)');
+    expect(all).toContain('In the collection (1)');
+    expect(all).toContain('Sold (1)');
+    expect(all).toContain('Visual novel v90991');
+    expect(all).toContain('>Sold<');
+    const owned = await render('collection');
+    expect(owned).toContain('Visual novel v90990');
+    expect(owned).not.toContain('Visual novel v90991');
+    const sold = await render('sold');
+    expect(sold).toContain('href="/staff/s1?scope=sold" aria-current="page"');
+    expect(sold).toContain('Visual novel v90991');
+    expect(sold).toContain('>Sold<');
+    expect(sold).not.toContain('Visual novel v90990');
+    expect(sold).not.toContain('Visual novel v90992');
+    expect(sold).not.toContain('data-testid="timeline"');
+  });
+
+  it('counts archived titles from cached credits once even when credited in both roles', async () => {
+    peopleMocks.staffProfile.mockResolvedValue(profile());
+    const cachedCredit = { id: 'v90993', title: 'Cached archived VN', alttitle: null, released: null, rating: null, image_url: null, image_thumb: null };
+    vi.mocked(readStaffFullCache).mockResolvedValue({
+      ...fullProfile(),
+      productionCredits: [{ ...cachedCredit, roles: [] }],
+      vaCredits: [{ ...cachedCredit, characters: [] }],
+    });
+    collectionMocks.soldIds.mockResolvedValue(new Set(['v90993']));
+    const html = renderToStaticMarkup(await StaffPage({ params: Promise.resolve({ id: 's1' }), searchParams: Promise.resolve({ scope: 'sold' }) }));
+    expect(collectionMocks.soldIds).toHaveBeenCalledWith(['v90993']);
+    expect(html).toContain('Sold (1)');
+    expect(html).not.toContain('No sold games');
   });
 
   it('renders rich cached profile metadata, grouped credits, voice cards, siblings, and synthetic VNs', async () => {

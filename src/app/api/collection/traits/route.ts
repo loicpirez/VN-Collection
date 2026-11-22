@@ -20,7 +20,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   let vnIds: string[];
   try {
-    vnIds = await getCollectionCoreRepository().listIds();
+    const repository = getCollectionCoreRepository();
+    vnIds = req.nextUrl.searchParams.get('status') === 'sold'
+      ? await repository.listIds('sold')
+      : await repository.listIds();
   } catch (error) {
     return internalError('collection.traits.GET', error);
   }

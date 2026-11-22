@@ -100,6 +100,19 @@ describe('staff search page runtime', () => {
     expect(html).toContain('name="role" value="translator"');
     expect(html).toContain('name="lang" value="ja"');
     expect(searchStaff).not.toHaveBeenCalled();
+    expect(searchLocalStaff).toHaveBeenCalledWith(expect.objectContaining({ scope: 'collection' }));
+  });
+
+  it('uses archived credits locally and links to the sold staff profile', async () => {
+    vi.mocked(searchLocalStaff).mockReturnValue([localStaff('s1', 'Archived writer')]);
+    const html = renderToStaticMarkup(await StaffSearchPage({
+      searchParams: Promise.resolve({ scope: 'sold', q: 'writer', role: 'scenario', lang: 'ja', vn: 'V90002', tab: 'vndb' }),
+    }));
+    expect(searchLocalStaff).toHaveBeenCalledWith({ q: 'writer', scope: 'sold', role: 'scenario', lang: 'ja', vn: 'v90002', limit: 200 });
+    expect(searchStaff).not.toHaveBeenCalled();
+    expect(html).toContain('name="scope" value="sold"');
+    expect(html).toContain('href="/staff/s1?scope=sold"');
+    expect(html).toContain('Archived writer');
   });
 
   it('keeps VN and role filters local-only when the local tab drives a VNDB query', async () => {
@@ -127,7 +140,7 @@ describe('staff search page runtime', () => {
       lang: null,
       vn: null,
     });
-    expect(searchLocalStaff).toHaveBeenCalledWith({ q: 'writer', role: 'scenario', lang: null, limit: 200 });
+    expect(searchLocalStaff).toHaveBeenCalledWith({ q: 'writer', role: 'scenario', lang: null, vn: 'v90002', limit: 200 });
     expect(html.indexOf('Alpha')).toBeLessThan(html.indexOf('Beta'));
     expect(html).toContain('name="vn" value="v90002"');
     expect(html).toContain('href="/staff?q=writer&amp;vn=v90002&amp;sort=vn_count"');

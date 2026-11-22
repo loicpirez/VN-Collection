@@ -4,11 +4,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Filter, Globe, Mic2, Star, User, Users } from 'lucide-react';
 import { getPeopleRepository } from '@/lib/db/repositories/people';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getAppSettingRepository } from '@/lib/db/repositories/app-setting';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
+import { StatusBadge } from '@/components/StatusBadge';
+import type { PeopleVnSummary } from '@/lib/db/repositories/people';
 import { VaTimeline } from '@/components/VaTimeline';
 import { StaffDownloadButton } from '@/components/StaffDownloadButton';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
@@ -21,6 +24,7 @@ import { VndbMarkup } from '@/components/VndbMarkup';
 import { languageDisplayName } from '@/lib/language-names';
 import { safeHref } from '@/lib/safe-href';
 import { ROLE_KEY, ROLE_ORDER } from '@/lib/staff-roles';
+import { parseWorksScope } from '@/lib/works-scope';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import {
   STAFF_DETAIL_LAYOUT_EVENT,
@@ -50,39 +54,49 @@ export default async function StaffPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ scope?: string }>;
+  searchParams: Promise<{ scope?: string | string[] }>;
 }) {
   const { id } = await params;
   if (!/^s\d+$/i.test(id)) notFound();
-  const { scope } = await searchParams;
-  const inCollectionOnly = scope === 'collection';
+  const scope = parseWorksScope((await searchParams).scope);
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const people = getPeopleRepository();
   // Fetch the all-credits arrays once, then derive both filtered
   // views + the toggle counters from them in JS. The previous flow
   // ran four heavy SQL queries per page load; with prolific staff
   // (e.g. seiyuu with 500+ credits) that was the page's biggest cost.
-  const [profile, allProduction, allVoice, staffSiblings, initialStaffLayoutValue] = await Promise.all([
+  const [profile, production, voice, staffSiblings, initialStaffLayoutValue, fullCache] = await Promise.all([
     people.staffProfile(id),
     people.productionCredits(id),
     people.voiceCredits(id),
     people.staffSiblings(id),
     getAppSettingRepository().get(STAFF_DETAIL_SETTINGS_KEY),
+    readStaffFullCache(id),
   ]);
-  const production = allProduction;
-  const voice = allVoice;
 
-  const fullCache = await readStaffFullCache(id);
-  const totalAll = new Set([
-    ...allProduction.map((credit) => credit.vn.id),
-    ...allVoice.map((credit) => credit.vn.id),
+  const localCredits = [...production, ...voice];
+  const localIds = new Set(localCredits.map((credit) => credit.vn.id));
+  const cachedIds = new Set([
     ...(fullCache?.productionCredits.map((credit) => credit.id) ?? []),
     ...(fullCache?.vaCredits.map((credit) => credit.id) ?? []),
+  ]);
+  const extraIds = [...cachedIds].filter((vnId) => !localIds.has(vnId));
+  const siblingVnIds = staffSiblings.flatMap((sibling) => sibling.vns.map((vn) => vn.vn_id));
+  const collection = getCollectionCoreRepository();
+  const [extraOwned, soldIds] = await Promise.all([
+    collection.containsMany(extraIds),
+    collection.soldIds([...extraIds, ...siblingVnIds]),
+  ]);
+  const totalAll = new Set([...localIds, ...cachedIds]).size;
+  const totalCol = new Set([...extraOwned, ...localCredits.filter((credit) => credit.vn.in_collection).map((credit) => credit.vn.id)]).size;
+  const totalSold = new Set([
+    ...extraIds.filter((vnId) => soldIds.has(vnId)),
+    ...localCredits.filter((credit) => credit.vn.sold).map((credit) => credit.vn.id),
   ]).size;
-  const totalCol = countDistinctVnIds(
-    allProduction.filter((c) => c.vn.in_collection),
-    allVoice.filter((c) => c.vn.in_collection),
-  );
+  const ownedVoice = voice.filter((credit) => credit.vn.in_collection).length;
+  const soldVoice = voice.filter((credit) => credit.vn.sold).length;
+  const ownedProduction = production.filter((credit) => credit.vn.in_collection).length;
+  const soldProduction = production.filter((credit) => credit.vn.sold).length;
 
   const knownProdVnIds = new Set(production.map((c) => c.vn.id));
   const knownVaVnIds = new Set(voice.map((c) => c.vn.id));
@@ -107,9 +121,11 @@ export default async function StaffPage({
     .map((role) => ({ role, credits: dedupeByVnId(prodByRole.get(role) ?? []) }))
     .filter((g) => g.credits.length > 0);
   const initialStaffLayout = parseStaffDetailLayoutV1(initialStaffLayoutValue);
+  const noCredits = <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">{t.staff.empty}</p>;
+  const noSoldCredits = <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">{t.library.emptySoldArchive}</p>;
 
   return (
-    <WorksScopeProvider initialScope={inCollectionOnly ? 'collection' : 'all'}><DensityScopeProvider scope="staffWorks" className="w-full">
+    <WorksScopeProvider initialScope={scope}><DensityScopeProvider scope="staffWorks" className="w-full">
       <Link href="/" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white md:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.library}
       </Link>
@@ -148,7 +164,7 @@ export default async function StaffPage({
                 title={t.staff.productionCredits}
               >
                 <Users className="h-3 w-3" aria-hidden />
-                <WorksScopeCount all={production.length} owned={production.filter((credit) => credit.vn.in_collection).length} /> {t.staff.vnCount} / {t.staff.productionCredits}
+                <WorksScopeCount all={production.length} owned={ownedProduction} sold={soldProduction} /> {t.staff.vnCount} / {t.staff.productionCredits}
               </a>
               <a
                 href="#voice-credits"
@@ -156,7 +172,7 @@ export default async function StaffPage({
                 title={t.staff.voiceCredits}
               >
                 <Mic2 className="h-3 w-3" aria-hidden />
-                <WorksScopeCount all={voice.length} owned={voice.filter((credit) => credit.vn.in_collection).length} /> {t.staff.vnCount} / {t.staff.voiceCredits}
+                <WorksScopeCount all={voice.length} owned={ownedVoice} sold={soldVoice} /> {t.staff.vnCount} / {t.staff.voiceCredits}
               </a>
             </div>
             {aliases.length > 0 && (
@@ -227,7 +243,7 @@ export default async function StaffPage({
           </div>
         </div>
 
-        <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-bg-elev p-1 text-xs">
+        <nav aria-label={t.staffSearch.scopeLabel} className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elev p-1 text-xs">
           <Filter className="ml-1 h-3 w-3 text-muted" aria-hidden />
           <WorksScopeLink scope="all"
             href={`/staff/${id}`}
@@ -239,9 +255,20 @@ export default async function StaffPage({
           >
             {t.staff.filterInCollection} ({totalCol})
           </WorksScopeLink>
-        </div>
+          <WorksScopeLink scope="sold" href={`/staff/${id}?scope=sold`}>
+            {t.status.sold} ({totalSold})
+          </WorksScopeLink>
+        </nav>
       </header>
-      {totalAll > 0 && <WorksScopeCount all={totalAll} owned={totalCol} empty={<p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">{t.staff.empty}</p>} />}
+      {totalAll > 0 && (
+        <WorksScopeCount
+          all={totalAll}
+          owned={totalCol}
+          sold={totalSold}
+          empty={noCredits}
+          emptySold={noSoldCredits}
+        />
+      )}
 
       {(() => {
         const sectionLabels = t.staffLayout.sectionLabels;
@@ -249,13 +276,13 @@ export default async function StaffPage({
         if (voice.length > 0) staffSections.push({
           id: 'timeline',
           label: sectionLabels.timeline,
-          node: <WorksScopeSection ownedCount={voice.filter((credit) => credit.vn.in_collection).length}><div className="mb-6"><VaTimeline sid={id} /></div></WorksScopeSection>,
+          node: <WorksScopeSection ownedCount={ownedVoice}><div className="mb-6"><VaTimeline sid={id} /></div></WorksScopeSection>,
         });
         if (staffSiblings.length > 0) staffSections.push({
           id: 'siblings',
           label: sectionLabels.siblings,
           node: (
-            <section className="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5">
+            <WorksScopeSection ownedCount={staffSiblings.length}><section className="mb-6 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5">
               <h2 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent">
                 <Users className="h-4 w-4" aria-hidden /> {t.staff.siblingsTitle}
               </h2>
@@ -276,6 +303,7 @@ export default async function StaffPage({
                       {sib.vns.map((v, i) => (
                         <span key={v.vn_id}>
                           <Link prefetch={false} href={`/vn/${v.vn_id}`} className="hover:text-accent">{v.vn_title}</Link>
+                          {soldIds.has(v.vn_id) && <StatusBadge status="sold" className="ml-1" />}
                           {i < sib.vns.length - 1 && <span className="text-muted">,</span>}
                         </span>
                       ))}
@@ -283,18 +311,18 @@ export default async function StaffPage({
                   </li>
                 ))}
               </ul>
-            </section>
+            </section></WorksScopeSection>
           ),
         });
         if (voice.length > 0) staffSections.push({
           id: 'voice-credits',
           label: sectionLabels['voice-credits'],
-          node: <WorksScopeSection ownedCount={voice.filter((credit) => credit.vn.in_collection).length}><section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+          node: <WorksScopeSection ownedCount={ownedVoice} soldCount={soldVoice}><section id="voice-credits" className="mb-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Mic2 className="h-4 w-4 text-accent" aria-hidden /> {t.staff.voiceCredits}
-            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={voice.length} owned={voice.filter((credit) => credit.vn.in_collection).length} /></span>
+            <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={voice.length} owned={ownedVoice} sold={soldVoice} /></span>
           </h2>
-          <WorksScopeGrid owned={voice.map((credit) => credit.vn.in_collection)}
+          <WorksScopeGrid owned={voice.map((credit) => credit.vn.in_collection)} sold={voice.map((credit) => Boolean(credit.vn.sold))}
             ariaLabel={t.staff.creditsPaginationLabel}
             resetKey={`${id}:voice`}
             className="grid gap-3"
@@ -367,17 +395,17 @@ export default async function StaffPage({
           id: 'production-credits',
           label: sectionLabels['production-credits'],
           node: (
-            <WorksScopeSection ownedCount={production.filter((credit) => credit.vn.in_collection).length}><section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+            <WorksScopeSection ownedCount={ownedProduction} soldCount={soldProduction}><section id="production-credits" className="rounded-xl border border-border bg-bg-card p-4 sm:p-6">
               <h2 className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
                 <Users className="h-4 w-4 text-accent" aria-hidden /> {t.staff.productionCredits}
-                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={production.length} owned={production.filter((credit) => credit.vn.in_collection).length} /></span>
+                <span className="text-[11px] font-normal lowercase tracking-normal text-muted">/ <WorksScopeCount all={production.length} owned={ownedProduction} sold={soldProduction} /></span>
               </h2>
               {groupedProduction.map((g) => (
-                <WorksScopeSection key={g.role} ownedCount={g.credits.filter((credit) => credit.vn.in_collection).length}><div className="mb-6 last:mb-0">
+                <WorksScopeSection key={g.role} ownedCount={g.credits.filter((credit) => credit.vn.in_collection).length} soldCount={g.credits.filter((credit) => credit.vn.sold).length}><div className="mb-6 last:mb-0">
                   <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
                     {t.staff[ROLE_KEY[g.role]]}
                   </h3>
-                  <WorksScopeGrid owned={g.credits.map((credit) => credit.vn.in_collection)}
+                  <WorksScopeGrid owned={g.credits.map((credit) => credit.vn.in_collection)} sold={g.credits.map((credit) => Boolean(credit.vn.sold))}
                     ariaLabel={t.staff.creditsPaginationLabel}
                     resetKey={`${id}:production:${g.role}`}
                     className="grid gap-3"
@@ -405,9 +433,13 @@ export default async function StaffPage({
         });
         if (production.length === 0 && voice.length === 0 && fullCache && fullCache.productionCredits.length === 0 && fullCache.vaCredits.length === 0) {
           return (
-            <p className="rounded-xl border border-border bg-bg-card p-4 text-sm text-muted sm:p-6">
-              {t.staff.empty}
-            </p>
+            <WorksScopeCount
+              all={0}
+              owned={0}
+              emptyAll={noCredits}
+              empty={noCredits}
+              emptySold={noSoldCredits}
+            />
           );
         }
         return (
@@ -434,14 +466,6 @@ function dedupeByVnId<T extends { vn: { id: string } }>(items: T[]): T[] {
   });
 }
 
-function countDistinctVnIds(...groups: Array<Array<{ vn: { id: string } }>>): number {
-  const ids = new Set<string>();
-  for (const group of groups) {
-    for (const item of group) ids.add(item.vn.id);
-  }
-  return ids.size;
-}
-
 function VnCard({
   vn,
   ownedLabel,
@@ -450,19 +474,7 @@ function VnCard({
   locale,
   children,
 }: {
-  vn: {
-    id: string;
-    title: string;
-    alttitle: string | null;
-    image_url: string | null;
-    image_thumb: string | null;
-    image_sexual: number | null;
-    local_image: string | null;
-    local_image_thumb: string | null;
-    released: string | null;
-    rating: number | null;
-    in_collection: boolean;
-  };
+  vn: PeopleVnSummary;
   ownedLabel: string;
   ownedTitle: string;
   openOnVndb: string;
@@ -542,7 +554,7 @@ function VnCard({
               {year}
             </Link>
           )}
-          {vn.in_collection && (
+          {vn.sold ? <StatusBadge status="sold" /> : vn.in_collection && (
             <span
               className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"
               title={ownedTitle}

@@ -25,7 +25,7 @@ export interface CollectionListRepository {
   /** Return every VN id currently in the reading queue. */
   readingQueueIds(): Promise<Set<string>>;
   /** Return collection-only tag facets. */
-  listTags(): Promise<CollectionTagAggregate[]>;
+  listTags(scope?: 'sold'): Promise<CollectionTagAggregate[]>;
   /** Return live collection counters used by the library response. */
   stats(): Promise<Stats>;
   /** Return lightweight EGS summaries keyed by VN id. */
@@ -577,7 +577,7 @@ export function createPostgresCollectionListRepository(): CollectionListReposito
       const result = await postgresQuery<{ vn_id: string } & QueryResultRow>('SELECT vn_id FROM reading_queue');
       return new Set(result.rows.map((row) => row.vn_id));
     },
-    async listTags() {
+    async listTags(scope) {
       const result = await postgresQuery<{
         tag_id: string;
         tag_name: string;
@@ -589,7 +589,7 @@ export function createPostgresCollectionListRepository(): CollectionListReposito
           MAX(tag_index.category) AS tag_category,
           COUNT(*) AS tag_count
         FROM collection JOIN vn_tag_index tag_index ON tag_index.vn_id = collection.vn_id
-        WHERE tag_index.spoiler = 0
+        WHERE tag_index.spoiler = 0 AND collection.status ${scope === 'sold' ? '=' : '<>'} 'sold'
         GROUP BY tag_index.tag_id
         ORDER BY tag_count DESC, app_search_normalize(COALESCE(MAX(tag_index.tag_name), tag_index.tag_id)) COLLATE "C"
         LIMIT 500
@@ -655,8 +655,8 @@ const sqliteRepository: CollectionListRepository = {
   async readingQueueIds() {
     return (await import('@/lib/db')).getReadingQueueVnIds();
   },
-  async listTags() {
-    return (await import('@/lib/db')).listCollectionTags();
+  async listTags(scope) {
+    return (await import('@/lib/db')).listCollectionTags(scope);
   },
   async stats() {
     return (await import('@/lib/db')).getStats();

@@ -14,6 +14,7 @@ export interface RecentEntry {
   /** Local storage path, served via /api/files/<path> */
   localPoster: string | null;
   sexual: number | null;
+  sold?: boolean;
   viewedAt: number;
 }
 
@@ -44,6 +45,7 @@ function decodeRecentEntry(value: unknown): RecentEntry | null {
     poster: row.poster,
     localPoster: row.localPoster,
     sexual: row.sexual,
+    ...(row.sold === true ? { sold: true } : {}),
     viewedAt: row.viewedAt,
   };
 }
@@ -87,6 +89,18 @@ export function recordRecentlyViewed(entry: Omit<RecentEntry, 'viewedAt'>): void
   if (!decoded) return;
   const list = readStorage().filter((stored) => stored.id !== decoded.id);
   list.unshift(decoded);
+  writeStorage(list);
+  window.dispatchEvent(new CustomEvent('vn:recently-viewed-updated'));
+}
+
+/** Refresh a recent title's badge after saving its collection status. */
+export function updateRecentlyViewedSold(vnId: string, sold: boolean): void {
+  if (typeof window === 'undefined') return;
+  const list = readStorage();
+  const entry = list.find((recent) => recent.id === normalizeVnId(vnId));
+  if (!entry || Boolean(entry.sold) === sold) return;
+  if (sold) entry.sold = true;
+  else delete entry.sold;
   writeStorage(list);
   window.dispatchEvent(new CustomEvent('vn:recently-viewed-updated'));
 }

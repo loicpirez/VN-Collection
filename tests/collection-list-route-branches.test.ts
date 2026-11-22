@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/collection/route';
+import { PATCH } from '@/app/api/collection/[id]/route';
 import { addToCollection, db, upsertVn } from '@/lib/db';
 import * as dbModule from '@/lib/db';
 
@@ -19,20 +20,43 @@ afterEach(() => {
 });
 
 describe('GET /api/collection filter parsing', () => {
-  it('keeps sold games available for the archive and launcher only', async () => {
-    const id = VN_PREFIX + '999';
-    upsertVn({ id, title: 'Retired Route Test' });
-    addToCollection(id, { status: 'sold', notes: 'Retained history' });
+  it('counts only active games while sold games retain their record and can be restored', async () => {
+    const keptId = VN_PREFIX + '998';
+    const soldId = VN_PREFIX + '999';
+    const baseline = (await (await GET(request())).json()).stats.total;
+    upsertVn({ id: keptId, title: 'Kept Route Test' });
+    upsertVn({ id: soldId, title: 'Retired Route Test' });
+    addToCollection(keptId, { status: 'playing' });
+    addToCollection(soldId, { status: 'completed', notes: 'Retained history' });
 
-    const active = await (await GET(request('?q=Retired%20Route%20Test'))).json();
-    expect(active.items).toEqual([]);
+    const setStatus = (status: 'sold' | 'completed') => PATCH(
+      new NextRequest('http://127.0.0.1/api/collection/' + soldId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      }),
+      { params: Promise.resolve({ id: soldId }) },
+    );
+    expect((await setStatus('sold')).ok).toBe(true);
+
+    const active = await (await GET(request('?q=Route%20Test'))).json();
+    expect(active.items.map(({ id }: { id: string }) => id)).toEqual([keptId]);
+    expect(active.stats.total).toBe(baseline + 1);
     expect(active.stats.byStatus).toContainEqual({ status: 'sold', n: 1 });
 
     for (const filter of ['q=Retired%20Route%20Test&status=sold', 'include_sold=1&limit=500']) {
       const response = await GET(request(`?${filter}`));
-      expect(response.status).toBe(200);
-      expect((await response.json()).items).toEqual(expect.arrayContaining([expect.objectContaining({ id, status: 'sold' })]));
+      expect(response.ok).toBe(true);
+      const archive = await response.json();
+      expect(archive.stats.total).toBe(baseline + 1);
+      expect(archive.items).toContainEqual(expect.objectContaining({ id: soldId, status: 'sold', has_notes: true }));
     }
+
+    expect((await setStatus('completed')).ok).toBe(true);
+    const restored = await (await GET(request('?q=Route%20Test'))).json();
+    expect(restored.stats.total).toBe(baseline + 2);
+    expect(restored.items).toContainEqual(expect.objectContaining({ id: soldId, status: 'completed', has_notes: true }));
+    expect(restored.items).toHaveLength(2);
   });
 
   it('rejects invalid enum and aspect filters with specific 400 responses', async () => {

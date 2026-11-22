@@ -86,7 +86,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
   });
   const [mode, setMode] = useState<TagsPageMode>(() => {
     const v = search?.get('mode');
-    if (v === 'vndb' || v === 'local') return v;
+    if (v === 'vndb' || v === 'local' || v === 'sold') return v;
     return initialMode;
   });
   const [results, setResults] = useState<VndbTag[]>([]);
@@ -104,7 +104,7 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
   useEffect(() => {
     let alive = true;
     const ctrl = new AbortController();
-    const isLocal = mode === 'local';
+    const isLocal = mode !== 'vndb';
     const isVndbBrowse = !isLocal && !q.trim() && !category;
 
     // When the server pre-fetched the hierarchy (initialTree) and we're
@@ -124,7 +124,8 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     setStaleWarning(null);
 
     const loadLocalTags = async (): Promise<VndbTag[]> => {
-      const response = await fetch('/api/collection/tags', { cache: 'no-store', signal: ctrl.signal });
+      const url = mode === 'sold' ? '/api/collection/tags?status=sold' : '/api/collection/tags';
+      const response = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
       if (!response.ok) throw new Error(await readApiError(response, t.common.error));
       const tags = decodeTagsResponse(await response.json());
       if (!tags) throw new Error(t.common.error);
@@ -214,32 +215,45 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
     } else if (params.get('category') != null) {
       params.delete('category'); dirty = true;
     }
-    if (dirty) {
-      const next = params.toString();
-      // Preserve the mode in the path (`tagsPageHref`) but append
-      // q/category as query string. The mode page-href is the
-      // canonical handler for mode switches.
-      router.replace(`${tagsPageHref(mode)}${next ? `?${next}` : ''}`, { scroll: false });
-    }
+    if (dirty) router.replace(tagsPageHref(mode, params), { scroll: false });
   }, [q, category, mode, search, router]);
 
   const localTabId = useId();
+  const soldTabId = useId();
   const vndbTabId = useId();
-  const tabIds: Record<TagsPageMode, string> = { local: localTabId, vndb: vndbTabId };
+  const tabIds: Record<TagsPageMode, string> = { local: localTabId, sold: soldTabId, vndb: vndbTabId };
+  const modes: readonly TagsPageMode[] = ['local', 'sold', 'vndb'];
   const activeTabId = tabIds[mode];
 
+  const hrefForMode = (next: TagsPageMode) => tagsPageHref(next, new URLSearchParams(search?.toString()));
   const switchMode = (next: TagsPageMode) => {
+    if (next === mode) return;
+    window.history.pushState(null, '', hrefForMode(next));
     setMode(next);
-    window.history.replaceState(null, '', tagsPageHref(next));
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      const next = new URLSearchParams(window.location.search).get('mode');
+      setMode(next === 'sold' || next === 'vndb' ? next : 'local');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const onModeClick = (event: React.MouseEvent, next: TagsPageMode) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    switchMode(next);
   };
 
   const onTablistKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
     e.preventDefault();
-    const next: TagsPageMode =
-      e.key === 'Home' ? 'local'
-      : e.key === 'End' ? 'vndb'
-      : mode === 'local' ? 'vndb' : 'local';
+    const index = modes.indexOf(mode);
+    const next = e.key === 'Home' ? modes[0]
+      : e.key === 'End' ? modes[modes.length - 1]
+      : modes[(index + (e.key === 'ArrowRight' ? 1 : -1) + modes.length) % modes.length];
     switchMode(next);
     document.getElementById(tabIds[next])?.focus();
   };
@@ -270,27 +284,39 @@ export function TagsBrowser({ lastUpdatedAt = null, initialMode = 'local', initi
 
       <div role="tablist" aria-label={t.tags.modeSwitcherLabel} onKeyDown={onTablistKeyDown} className="mb-4 inline-flex gap-1 rounded-md border border-border bg-bg-elev/30 p-1 text-xs">
         <Link
-          href={tagsPageHref('local')}
+          href={hrefForMode('local')}
           id={localTabId}
           role="tab"
           aria-selected={mode === 'local'}
           aria-controls="tags-results-panel"
           tabIndex={mode === 'local' ? 0 : -1}
           data-shortcut="tags-tab-local"
-          onClick={() => switchMode('local')}
+          onClick={(event) => onModeClick(event, 'local')}
           className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${mode === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabLocal}
         </Link>
         <Link
-          href={tagsPageHref('vndb')}
+          href={hrefForMode('sold')}
+          id={soldTabId}
+          role="tab"
+          aria-selected={mode === 'sold'}
+          aria-controls="tags-results-panel"
+          tabIndex={mode === 'sold' ? 0 : -1}
+          onClick={(event) => onModeClick(event, 'sold')}
+          className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${mode === 'sold' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+        >
+          {t.status.sold}
+        </Link>
+        <Link
+          href={hrefForMode('vndb')}
           id={vndbTabId}
           role="tab"
           aria-selected={mode === 'vndb'}
           aria-controls="tags-results-panel"
           tabIndex={mode === 'vndb' ? 0 : -1}
           data-shortcut="tags-tab-vndb"
-          onClick={() => switchMode('vndb')}
+          onClick={(event) => onModeClick(event, 'vndb')}
           className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${mode === 'vndb' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
         >
           {t.tags.tabVndb}

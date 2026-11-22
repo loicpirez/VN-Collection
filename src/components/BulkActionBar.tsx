@@ -9,6 +9,7 @@ import { useToast } from './ToastProvider';
 import { useConfirm } from './ConfirmDialog';
 import { CollapsibleSummary } from './CollapsibleSummary';
 import { readApiError } from '@/lib/api-error-read';
+import { updateRecentlyViewedSold } from '@/lib/recentlyViewed';
 
 interface Props {
   selectedIds: string[];
@@ -45,6 +46,7 @@ async function patchOne(
     signal,
   });
   if (!res.ok) throw new Error(await readApiError(res, `${vnId}: ${httpStatusError(httpStatus, res.status)}`));
+  if (typeof body.status === 'string') updateRecentlyViewedSold(vnId, body.status === 'sold');
 }
 
 async function deleteOne(

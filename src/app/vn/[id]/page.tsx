@@ -64,6 +64,7 @@ import { ScoreSection } from '@/components/ScoreSection';
 import { OwnedEditionsSection } from '@/components/OwnedEditionsSection';
 import { LangList } from '@/components/LangFlag';
 import { RelationsSection } from '@/components/RelationsSection';
+import { parseWorksScope } from '@/lib/works-scope';
 import { RecordRecentView } from '@/components/RecordRecentView';
 import { NotInCollectionBanner } from '@/components/NotInCollectionBanner';
 import { TitleLine } from '@/components/TitleLine';
@@ -272,6 +273,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     allSeries,
     listsForThisVn,
     relationOwnedSet,
+    relationSoldSet,
     relationPlaytimeSources,
     seriesSuggestion,
     egsRow,
@@ -288,6 +290,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
     seriesRepository.list(),
     getUserListRepository().listForVn(id),
     collectionRepository.containsMany(vn.relations.map((relation) => relation.id)),
+    collectionRepository.soldIds(vn.relations.map((relation) => relation.id)),
     getCollectionPlaytimeSources(vn.relations.map((relation) => relation.id)),
     inCol ? seriesRepository.suggest(id) : Promise.resolve(null),
     detailRepository.egs(vn.id),
@@ -361,6 +364,7 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
         poster={vn.image_url || vn.image_thumb}
         localPoster={vn.local_image || vn.local_image_thumb}
         sexual={vn.image_sexual}
+        sold={vn.status === 'sold'}
       />
       {/*
         Back link - mobile-only. See the not-found branch above
@@ -984,10 +988,12 @@ export default async function VnDetail({ params, searchParams }: { params: Promi
           // round-trips per VN page render.
           sectionNodes['relations'] = (
             <RelationsSection
+              initialScope={parseWorksScope(search.scope)}
               relations={vn.relations.map((r) => ({
                 ...r,
                 ...relationPlaytimeSources.get(r.id),
                 in_collection: relationOwnedSet.has(r.id),
+                sold: relationSoldSet.has(r.id),
               }))}
             />
           );

@@ -77,6 +77,7 @@ function decodeSearchHit(value: unknown): VndbSearchHit | null {
     ...row,
     ...sources,
     in_collection: record.in_collection,
+    ...(record.sold === true ? { sold: true } : {}),
   };
 }
 

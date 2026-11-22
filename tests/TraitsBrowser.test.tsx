@@ -159,6 +159,19 @@ describe('TraitsBrowser', () => {
     expect(navigationMocks.replace).toHaveBeenCalledWith('/traits?q=needle', { scroll: false });
   });
 
+  it('requests the archive and preserves its scope on the matching trait detail', async () => {
+    navigationMocks.search = new URLSearchParams('scope=sold&q=needle');
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ traits: [trait({ id: 'i1', name: 'Needle' })] }));
+    renderWithProviders(<TraitsBrowser />, { locale: 'en' });
+    await runTimers();
+
+    expect(fetch).toHaveBeenCalledWith('/api/collection/traits?status=sold', expect.objectContaining({ cache: 'no-store' }));
+    expect(screen.getByRole('link', { name: /Needle/ })).toHaveAttribute('href', '/trait/i1?scope=sold');
+    expect(screen.getByRole('button', { name: t.status.sold })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: t.library.filterMine }));
+    expect(navigationMocks.replace).toHaveBeenCalledWith('/traits?q=needle&mine=1', { scroll: false });
+  });
+
   it('debounces trimmed URL search commits and resynchronizes external search values', async () => {
     vi.spyOn(window.history, 'replaceState');
     vi.mocked(fetch).mockResolvedValue(jsonResponse());

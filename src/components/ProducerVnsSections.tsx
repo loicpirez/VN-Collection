@@ -3,13 +3,16 @@ import { AlertTriangle, Check, Package, Star, Wrench } from 'lucide-react';
 import { fetchProducerAssociations, type ProducerAssociations, type ProducerVnRef } from '@/lib/producer-associations';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import type { CollectionCardItem } from '@/lib/types';
+import type { WorksScope } from '@/lib/works-scope';
 import { fmtNum, yearOnly } from '@/lib/locale-number';
 import { SafeImage } from './SafeImage';
 import { AddMissingVnButton } from './AddMissingVnButton';
 import { ProducerRefreshButton } from './ProducerRefreshButton';
 import { WorksScopeProvider, WorksScopeLink, WorksScopeGrid, WorksScopeSection, WorksScopeCount } from './WorksScope';
 import { WorksCacheLoader } from './WorksCacheLoader';
+import { StatusBadge } from './StatusBadge';
 
 /**
  * Renders BOTH "developed by" and "published by" credits for a producer
@@ -31,7 +34,7 @@ export async function ProducerVnsSections({
   scope = 'all',
 }: {
   producerId: string;
-  scope?: 'all' | 'collection';
+  scope?: WorksScope;
 }) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   let data: ProducerAssociations;
@@ -53,8 +56,8 @@ export async function ProducerVnsSections({
   if (data.upstreamFailed) {
     const collection = getCollectionListRepository();
     const [developers, publishers] = await Promise.all([
-      collection.listCards({ producer: producerId }),
-      collection.listCards({ publisher: producerId }),
+      collection.listCards({ producer: producerId, includeSold: true }),
+      collection.listCards({ publisher: producerId, includeSold: true }),
     ]);
     const developerMap = new Map(data.developerVns.map((vn) => [vn.id, vn]));
     for (const row of developers) developerMap.set(row.id, ownedCredit(row));
@@ -63,13 +66,18 @@ export async function ProducerVnsSections({
     data.developerVns = [...developerMap.values()];
     data.publisherVns = [...publisherMap.values()].filter((vn) => !developerMap.has(vn.id));
     data.totalUnique = data.developerVns.length + data.publisherVns.length;
-    data.ownedUnique = [...data.developerVns, ...data.publisherVns].filter((vn) => vn.owned).length;
   }
-  const developerVns = data.developerVns;
-  const publisherVns = data.publisherVns;
+  const soldIds = await getCollectionCoreRepository().soldIds(
+    [...data.developerVns, ...data.publisherVns].map((vn) => vn.id),
+  );
+  const markSold = (vn: ProducerVnRef): ProducerVnRef =>
+    soldIds.has(vn.id) ? { ...vn, owned: false, sold: true } : vn;
+  const developerVns = data.developerVns.map(markSold);
+  const publisherVns = data.publisherVns.map(markSold);
   const totalCount = data.developerVns.length + data.publisherVns.length;
   const ownedTotal =
-    data.developerVns.filter((v) => v.owned).length + data.publisherVns.filter((v) => v.owned).length;
+    developerVns.filter((v) => v.owned).length + publisherVns.filter((v) => v.owned).length;
+  const soldTotal = soldIds.size;
 
   return (
     <WorksScopeProvider initialScope={scope}><section className="mb-8 space-y-6">
@@ -114,15 +122,26 @@ export async function ProducerVnsSections({
           className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9"
         >
           {t.producerVns.scopeCollection}
-          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{data.ownedUnique}</span>
+          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{ownedTotal}</span>
+        </WorksScopeLink>
+        <WorksScopeLink scope="sold"
+          href={`/producer/${producerId}?scope=sold`}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors can-hover:sm:min-h-9"
+        >
+          {t.status.sold}
+          <span className="rounded bg-bg/40 px-1 text-[10px] tabular-nums">{soldTotal}</span>
         </WorksScopeLink>
       </nav>
 
-      {!data.upstreamFailed && <WorksScopeCount all={totalCount} owned={ownedTotal} empty={(
-        <p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">
-          {t.producerVns.collectionEmpty}
-        </p>
-      )} />}
+      {!data.upstreamFailed && (
+        <WorksScopeCount
+          all={totalCount}
+          owned={ownedTotal}
+          sold={soldTotal}
+          empty={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.producerVns.collectionEmpty}</p>}
+          emptySold={<p className="rounded-lg border border-border bg-bg-card p-4 text-sm text-muted">{t.library.emptySoldArchive}</p>}
+        />
+      )}
       <WorksCacheLoader producerId={producerId} needed={data.upstreamFailed || data.stale} />
 
       {developerVns.length > 0 && (
@@ -159,7 +178,8 @@ function ownedCredit(row: CollectionCardItem): ProducerVnRef {
   return {
     id: row.id, title: row.title, alttitle: row.alttitle, released: row.released, rating: row.rating,
     image: url ? { url, thumbnail: url, ...(row.image_sexual !== null ? { sexual: row.image_sexual } : {}) } : null,
-    owned: true,
+    owned: row.status !== 'sold',
+    ...(row.status === 'sold' ? { sold: true } : {}),
   };
 }
 
@@ -176,22 +196,21 @@ function RoleSection({
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
+  const ownedCount = vns.filter((v) => v.owned).length;
+  const soldCount = vns.filter((v) => v.sold).length;
   return (
-    <WorksScopeSection ownedCount={vns.filter((v) => v.owned).length}><div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
+    <WorksScopeSection ownedCount={ownedCount} soldCount={soldCount}><div className="rounded-2xl border border-border bg-bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted">
           {icon === 'dev' ? <Wrench className="h-4 w-4" aria-hidden /> : <Package className="h-4 w-4" aria-hidden />}
           {title}
         </h3>
-        <span className="text-xs text-muted">
-          <span className="font-bold text-accent">
-            {vns.filter((v) => v.owned).length}/<WorksScopeCount all={vns.length} owned={vns.filter((v) => v.owned).length} />
-          </span>{' '}
-          {t.producerVns.ownedLabel}
+        <span className="text-xs tabular-nums text-muted">
+          <WorksScopeCount all={vns.length} owned={ownedCount} sold={soldCount} />
         </span>
       </div>
 
-      <WorksScopeGrid owned={vns.map((v) => v.owned)}
+      <WorksScopeGrid owned={vns.map((v) => v.owned)} sold={vns.map((v) => v.sold === true)}
         ariaLabel={title}
         resetKey={title}
         className="grid gap-2"
@@ -234,6 +253,7 @@ function RoleSection({
                   {v.alttitle && v.alttitle !== v.title && (
                     <p className="line-clamp-1 text-[10px] text-muted/80">{v.alttitle}</p>
                   )}
+                  {v.sold && <StatusBadge status="sold" className="mt-1" />}
                   <p className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
                     {yearOnly(v.released) && <span>{yearOnly(v.released)}</span>}
                     {v.rating != null && (
@@ -253,7 +273,7 @@ function RoleSection({
                   >
                     <Check className="h-3.5 w-3.5" aria-hidden />
                   </span>
-                ) : (
+                ) : !v.sold && (
                   <AddMissingVnButton vnId={v.id} />
                 )}
               </div>

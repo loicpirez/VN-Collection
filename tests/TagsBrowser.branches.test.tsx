@@ -551,6 +551,7 @@ describe('TagsBrowser branches', () => {
 
     const localTab = screen.getByRole('tab', { name: t.tags.tabLocal });
     const vndbTab = screen.getByRole('tab', { name: t.tags.tabVndb });
+    const soldTab = screen.getByRole('tab', { name: t.status.sold });
     expect(localTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText(t.tags.pageSubtitle)).toBeInTheDocument();
 
@@ -566,21 +567,29 @@ describe('TagsBrowser branches', () => {
     await waitFor(() => expect(vndbTab).toHaveAttribute('aria-selected', 'true'));
 
     const tablist = screen.getByRole('tablist');
-    // ArrowLeft from vndb -> local.
     fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
-    await waitFor(() => expect(localTab).toHaveAttribute('aria-selected', 'true'));
+    await waitFor(() => expect(soldTab).toHaveAttribute('aria-selected', 'true'));
+    expect(soldTab).toHaveFocus();
     // End -> vndb.
     fireEvent.keyDown(tablist, { key: 'End' });
     await waitFor(() => expect(vndbTab).toHaveAttribute('aria-selected', 'true'));
     // Home -> local.
     fireEvent.keyDown(tablist, { key: 'Home' });
     await waitFor(() => expect(localTab).toHaveAttribute('aria-selected', 'true'));
-    // ArrowRight from local -> vndb.
     fireEvent.keyDown(tablist, { key: 'ArrowRight' });
-    await waitFor(() => expect(vndbTab).toHaveAttribute('aria-selected', 'true'));
-    // A non-handled key returns early without changing selection.
+    await waitFor(() => expect(soldTab).toHaveAttribute('aria-selected', 'true'));
     fireEvent.keyDown(tablist, { key: 'Enter' });
-    expect(vndbTab).toHaveAttribute('aria-selected', 'true');
+    expect(soldTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('searches only archived titles in the Sold tab and carries that scope into tag details', async () => {
+    mockParams = new URLSearchParams('mode=sold&q=drama&category=cont');
+    global.fetch = vi.fn(async () => jsonOk(localTagsApi([tag({ id: 'g1', name: 'Archive drama', category: 'cont' })]))) as unknown as typeof fetch;
+    renderWithProviders(<TagsBrowser initialMode="sold" />, { locale: 'en' });
+
+    expect(await screen.findByRole('link', { name: /Archive drama/ })).toHaveAttribute('href', '/tag/g1?tab=sold');
+    expect(fetch).toHaveBeenCalledWith('/api/collection/tags?status=sold', expect.objectContaining({ cache: 'no-store' }));
+    expect(screen.getByRole('tab', { name: t.status.sold })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('syncs q and category into the URL via router.replace', async () => {

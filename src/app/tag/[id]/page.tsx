@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Star, Tag as TagIcon } from 'lucide-react';
+import { getCollectionCoreRepository } from '@/lib/db/repositories/collection-core';
 import { getCollectionListRepository } from '@/lib/db/repositories/collection-list';
 import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
@@ -23,6 +24,7 @@ import { SafeImage } from '@/components/SafeImage';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { VnCard } from '@/components/VnCard';
+import { StatusBadge } from '@/components/StatusBadge';
 import { toCardData } from '@/components/cardData';
 import { VndbMarkup } from '@/components/VndbMarkup';
 import { SkeletonBlock } from '@/components/Skeleton';
@@ -99,6 +101,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const tagId = id.toLowerCase();
   const { tab, page } = parseTagPageParams(sp);
+  const isSold = tab === 'sold';
 
   const LOCAL_LIMIT = 500;
   // Use the shared `listCollection` pipeline so every VnCard surface
@@ -106,7 +109,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
   // EGS score, etc.) renders consistently with the rest of the app.
   const collectionRepository = getCollectionListRepository();
   const [rawLocalItems, listCounts, queueIds, tagCache, webDetailCache, topVndbCache] = await Promise.all([
-    collectionRepository.listCards({ tag: tagId, limit: LOCAL_LIMIT }),
+    collectionRepository.listCards({ tag: tagId, limit: LOCAL_LIMIT, ...(isSold ? { status: 'sold' } : {}) }),
     collectionRepository.listMembershipCounts(),
     collectionRepository.readingQueueIds(),
     readCachedTag(tagId),
@@ -119,6 +122,8 @@ export default async function TagPage({ params, searchParams }: PageProps) {
     in_reading_queue: queueIds.has(it.id),
   }));
   const count = localItems.length;
+  const rankedIds = topVndbCache?.results.map((v) => v.id) ?? [];
+  const rankedSoldIds = rankedIds.length > 0 ? await getCollectionCoreRepository().soldIds(rankedIds) : new Set<string>();
   const state = tagPageEmptyState({ tagId, collectionCount: count });
   const needsRemoteRefresh = tagCache == null
     || tagCache.stale
@@ -126,7 +131,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
 
   return (
     <DensityScopeProvider scope="tagPage" className="w-full">
-      <Link href="/tags" className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white">
+      <Link href={isSold ? "/tags?mode=sold" : "/tags"} className="mb-4 inline-flex min-h-[44px] items-center gap-1 text-sm text-muted hover:text-white">
         <ArrowLeft className="h-4 w-4" aria-hidden /> {t.nav.tags}
       </Link>
 
@@ -134,7 +139,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         <TagMetaHeader tagId={tagId} tagInfo={tagCache?.tag ?? null} t={t} locale={locale} />
         {!tagCache && TAG_META_HEADER_SKELETON}
         <p className="mt-3 text-sm text-muted">
-          {state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
+          {isSold ? `${t.status.sold} / ${fmtNum(count, locale)}` : state.isEmpty ? t.tagPage.emptyHint : t.tagPage.countHint.replace('{n}', String(count))}
           {count >= LOCAL_LIMIT && (
             <span className="ml-2 text-status-on_hold text-xs">
               ({t.tagPage.localLimitNotice})
@@ -156,7 +161,14 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             aria-current={tab === 'local' ? 'page' : undefined}
             className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${tab === 'local' ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
           >
-            {t.tagPage.tabLocal} ({count})
+            {t.tagPage.tabLocal}{!isSold && ` (${count})`}
+          </Link>
+          <Link
+            href={tagPageTabHref(tagId, 'sold')}
+            aria-current={isSold ? 'page' : undefined}
+            className={`inline-flex min-h-[44px] items-center rounded px-2.5 py-1 can-hover:sm:min-h-0 ${isSold ? 'bg-accent text-bg font-bold' : 'text-muted hover:text-white'}`}
+          >
+            {t.status.sold}{isSold && ` (${count})`}
           </Link>
           <Link
             href={tagPageTabHref(tagId, 'vndb')}
@@ -178,7 +190,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
               <ExternalLink className="h-3.5 w-3.5" aria-hidden /> {t.tagPage.exploreOnVndb}
             </a>
           ) : (
-            <Link href={state.fallbackLibrary} className="btn btn-primary">
+            <Link href={isSold ? `${state.fallbackLibrary}&status=sold` : state.fallbackLibrary} className="btn btn-primary">
               {t.tagPage.openLibrary}
             </Link>
           )}
@@ -198,7 +210,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
           enabled={needsRemoteRefresh}
           tagId={tagId}
           page={page}
-          mode={tab}
+          mode={tab === 'vndb' ? 'vndb' : 'local'}
         />
       </header>
 
@@ -213,13 +225,13 @@ export default async function TagPage({ params, searchParams }: PageProps) {
         ? <TagWebDetailBlock tagId={tagId} detail={webDetailCache} t={t} locale={locale} />
         : TAG_WEB_DETAIL_SKELETON)}
 
-      {tab === 'local' && (
+      {tab !== 'vndb' && (
         <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-            {t.tagPage.localMatches}
+            {isSold ? t.status.sold : t.tagPage.localMatches}
           </h2>
           {localItems.length === 0 ? (
-            <p className="text-sm text-muted">{t.tagPage.localEmpty}</p>
+            <p className="text-sm text-muted">{isSold ? t.search.noResults : t.tagPage.localEmpty}</p>
           ) : (
             <div
               className="grid items-stretch gap-3"
@@ -244,7 +256,7 @@ export default async function TagPage({ params, searchParams }: PageProps) {
             {t.tagPage.topVns}
           </h2>
           {topVndbCache ? (
-            <TagVndbResults tagId={tagId} page={page} result={topVndbCache} t={t} locale={locale} />
+            <TagVndbResults tagId={tagId} page={page} result={topVndbCache} soldIds={rankedSoldIds} t={t} locale={locale} />
           ) : (
             <ul
               className="grid items-stretch gap-3"
@@ -398,12 +410,14 @@ function TagVndbResults({
   tagId,
   page,
   result,
+  soldIds,
   t,
   locale,
 }: {
   tagId: string;
   page: number;
   result: CachedTagVnPage;
+  soldIds: ReadonlySet<string>;
   t: Awaited<ReturnType<typeof getDict>>;
   locale: Locale;
 }) {
@@ -438,6 +452,7 @@ function TagVndbResults({
                 <p title={v.title} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">
                   {v.title}
                 </p>
+                {soldIds.has(v.id) && <StatusBadge status="sold" className="self-start" />}
                 <div className="flex items-center gap-2 text-[11px] text-muted">
                   {ratingDisplay && (
                     <span className="inline-flex items-center gap-0.5 text-accent">

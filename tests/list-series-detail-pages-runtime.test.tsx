@@ -28,6 +28,7 @@ const repositoryMocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   notFound: navigationMocks.notFound,
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock('@/lib/db/repositories/series', () => ({
@@ -212,6 +213,17 @@ describe('series detail page runtime', () => {
     expect(await generateSeriesMetadata({ params: Promise.resolve({ id: '7' }) })).toEqual({});
     await expect(SeriesDetailPage({ params: Promise.resolve({ id: 'invalid' }) })).rejects.toThrow('not-found');
     await expect(SeriesDetailPage({ params: Promise.resolve({ id: '7' }) })).rejects.toThrow('not-found');
+  });
+
+  it('passes the archive scope to the series query and identifies the active filter', async () => {
+    repositoryMocks.getSeries.mockResolvedValue(series({ id: 12 }));
+    const html = renderToStaticMarkup(await SeriesDetailPage({
+      params: Promise.resolve({ id: '12' }),
+      searchParams: Promise.resolve({ scope: 'sold' }),
+    }));
+    expect(repositoryMocks.listCards).toHaveBeenCalledWith({ series: 12, status: 'sold' });
+    expect(html).toMatch(/aria-current="page"[^>]*>Sold<\/button>/);
+    expect(html).not.toContain('data-testid="series-add"');
   });
 
   it('renders an empty series with the placeholder icon', async () => {

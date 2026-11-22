@@ -2145,6 +2145,7 @@ interface VnSummary {
   released: string | null;
   rating: number | null;
   in_collection: boolean;
+  sold?: true;
 }
 
 export interface StaffWorkCredit {
@@ -2193,13 +2194,14 @@ export function getStaffProfileFromCredits(sid: string): StaffProfile | null {
  * Set `inCollectionOnly` to scope to owned VNs only.
  */
 export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffWorkCredit[] {
-  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const where = opts.inCollectionOnly ? "AND c.status <> 'sold'" : '';
   const rows = db.prepare(`
     SELECT
       v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
       v.local_image, v.local_image_thumb, v.released, v.rating,
       sc.role, sc.eid, sc.note, sc.name AS credited_as,
-      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+      CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection,
+      CASE WHEN c.status = 'sold' THEN 1 ELSE 0 END AS sold
     FROM vn_staff_credit sc
     JOIN vn v ON v.id = sc.vn_id
     LEFT JOIN collection c ON c.vn_id = sc.vn_id
@@ -2213,6 +2215,7 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
     released: string | null; rating: number | null;
     role: string; eid: number | null; note: string | null; credited_as: string;
     in_collection: number;
+    sold: number;
   }>;
   const map = new Map<string, StaffWorkCredit>();
   for (const r of rows) {
@@ -2224,6 +2227,7 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
           image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
           local_image: r.local_image, local_image_thumb: r.local_image_thumb,
           released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+          ...(r.sold ? { sold: true } : {}),
         },
         roles: [],
       };
@@ -2239,14 +2243,15 @@ export function listStaffProductionCredits(sid: string, opts: { inCollectionOnly
  * `inCollectionOnly` to scope to owned VNs only.
  */
 export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boolean } = {}): StaffVaCredit[] {
-  const where = opts.inCollectionOnly ? `AND c.vn_id IS NOT NULL` : '';
+  const where = opts.inCollectionOnly ? "AND c.status <> 'sold'" : '';
   const rows = db.prepare(`
     SELECT
       v.id, v.title, v.alttitle, v.image_url, v.image_thumb, v.image_sexual,
       v.local_image, v.local_image_thumb, v.released, v.rating,
       va.c_id, va.c_name, va.c_original, va.c_image_url, ci.local_path AS c_local_image,
       va.va_name AS credited_as, va.note,
-      CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+      CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection,
+      CASE WHEN c.status = 'sold' THEN 1 ELSE 0 END AS sold
     FROM vn_va_credit va
     JOIN vn v ON v.id = va.vn_id
     LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -2263,6 +2268,7 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
     c_image_url: string | null; c_local_image: string | null;
     credited_as: string; note: string | null;
     in_collection: number;
+    sold: number;
   }>;
   const map = new Map<string, StaffVaCredit>();
   for (const r of rows) {
@@ -2274,6 +2280,7 @@ export function listStaffVaCredits(sid: string, opts: { inCollectionOnly?: boole
           image_url: r.image_url, image_thumb: r.image_thumb, image_sexual: r.image_sexual,
           local_image: r.local_image, local_image_thumb: r.local_image_thumb,
           released: r.released, rating: r.rating, in_collection: !!r.in_collection,
+          ...(r.sold ? { sold: true } : {}),
         },
         characters: [],
       };
@@ -2314,7 +2321,7 @@ export function getVaTimeline(sid: string): VaYearBucket[] {
       SELECT
         CAST(COALESCE(substr(v.released, 1, 4), '0') AS INTEGER) AS year,
         v.id AS vn_id,
-        CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_col
+        CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_col
       FROM vn_va_credit va
       JOIN vn v ON v.id = va.vn_id
       LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -2517,7 +2524,7 @@ export function getVasForCharacter(charId: string): CharacterVoiceCredit[] {
   const rows = db.prepare(`
     SELECT va.sid, va.va_name, va.va_original, va.va_lang,
            v.id, v.title, v.released,
-           CASE WHEN c.vn_id IS NULL THEN 0 ELSE 1 END AS in_collection
+           CASE WHEN c.status <> 'sold' THEN 1 ELSE 0 END AS in_collection
     FROM vn_va_credit va
     JOIN vn v ON v.id = va.vn_id
     LEFT JOIN collection c ON c.vn_id = va.vn_id
@@ -3857,6 +3864,14 @@ export function isInCollection(vnId: string): boolean {
  * SQLite parameter cap (999 in older builds, 32766 in modern).
  */
 export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
+  return listCollectionIdsByHoldings(vnIds, false);
+}
+
+export function listSoldVnIds(vnIds: readonly string[]): Set<string> {
+  return listCollectionIdsByHoldings(vnIds, true);
+}
+
+function listCollectionIdsByHoldings(vnIds: readonly string[], sold: boolean): Set<string> {
   if (vnIds.length === 0) return new Set();
   const out = new Set<string>();
   const CHUNK = 500;
@@ -3864,7 +3879,7 @@ export function isInCollectionMany(vnIds: readonly string[]): Set<string> {
     const chunk = vnIds.slice(i, i + CHUNK);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders}) AND status <> 'sold'`)
+      .prepare(`SELECT vn_id FROM collection WHERE vn_id IN (${placeholders}) AND status ${sold ? '=' : '<>'} 'sold'`)
       .all(...chunk) as { vn_id: string }[];
     for (const r of rows) out.add(r.vn_id);
   }
@@ -3896,9 +3911,10 @@ export function resetCollectionCustomOrder(): void {
   db.prepare('UPDATE collection SET custom_order = 0').run();
 }
 
-/** Every VN id the operator owns. Used by the wishlist + recommendations as a "to-exclude" set. */
-export function listInCollectionVnIds(): string[] {
-  const rows = db.prepare("SELECT vn_id FROM collection WHERE status <> 'sold'").all() as { vn_id: string }[];
+/** IDs in the active collection, or the Sold archive when explicitly selected. */
+export function listInCollectionVnIds(scope?: 'sold'): string[] {
+  const sql = scope === 'sold' ? "SELECT vn_id FROM collection WHERE status = 'sold'" : "SELECT vn_id FROM collection WHERE status <> 'sold'";
+  const rows = db.prepare(sql).all() as { vn_id: string }[];
   return rows.map((r) => r.vn_id);
 }
 
@@ -5434,7 +5450,7 @@ export interface CollectionTagAggregate {
  * Aggregate every tag across owned VNs into `{ id, name, count }`. Used by
  * the library tag filter dropdown and the /stats tag chart.
  */
-export function listCollectionTags(): CollectionTagAggregate[] {
+export function listCollectionTags(scope?: 'sold'): CollectionTagAggregate[] {
   return (db
     .prepare(`
       SELECT
@@ -5443,7 +5459,7 @@ export function listCollectionTags(): CollectionTagAggregate[] {
         MAX(ti.category) AS tag_category,
         COUNT(*) AS tag_count
       FROM collection c JOIN vn_tag_index ti ON ti.vn_id = c.vn_id
-      WHERE ti.spoiler = 0
+      WHERE ti.spoiler = 0 AND c.status ${scope === 'sold' ? '=' : '<>'} 'sold'
       GROUP BY tag_id
       ORDER BY tag_count DESC, tag_name COLLATE NOCASE ASC
       LIMIT 500
@@ -5569,6 +5585,8 @@ export interface LocalStaffSearchOptions {
   q?: string;
   role?: string | null;
   lang?: string | null;
+  vn?: string;
+  scope?: 'collection' | 'sold';
   limit?: number;
 }
 
@@ -5589,6 +5607,8 @@ export function searchLocalStaff({
   q,
   role,
   lang,
+  vn,
+  scope,
   limit = 100,
 }: LocalStaffSearchOptions = {}): LocalStaffRow[] {
   const where: string[] = [];
@@ -5609,6 +5629,12 @@ export function searchLocalStaff({
     where.push('sc.lang = ?');
     args.push(lang);
   }
+  if (vn) {
+    where.push('sc.vn_id = ?');
+    args.push(vn);
+  }
+  if (scope === 'collection') where.push("c.status <> 'sold'");
+  if (scope === 'sold') where.push("c.status = 'sold'");
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const sql = `
     SELECT sc.sid AS sid,
@@ -8573,7 +8599,7 @@ export function setProducerLogo(id: string, logoPath: string | null): void {
   invalidateProducerStats();
 }
 
-function computeProducerStats(): ProducerStat[] {
+function computeProducerStats(soldOnly: boolean): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8593,6 +8619,7 @@ function computeProducerStats(): ProducerStat[] {
       JOIN vn_developer_index di ON di.vn_id = c.vn_id
       JOIN vn v ON v.id = c.vn_id
       LEFT JOIN producer p ON p.id = di.producer_id
+      WHERE ${soldOnly ? "c.status = 'sold'" : "c.status <> 'sold'"}
       GROUP BY di.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
@@ -8606,7 +8633,7 @@ function computeProducerStats(): ProducerStat[] {
   }));
 }
 
-function computePublisherStats(): ProducerStat[] {
+function computePublisherStats(soldOnly: boolean): ProducerStat[] {
   const rows = db
     .prepare(`
       SELECT
@@ -8626,6 +8653,7 @@ function computePublisherStats(): ProducerStat[] {
       JOIN vn_publisher_index pi ON pi.vn_id = c.vn_id
       JOIN vn v ON v.id = c.vn_id
       LEFT JOIN producer p ON p.id = pi.producer_id
+      WHERE ${soldOnly ? "c.status = 'sold'" : "c.status <> 'sold'"}
       GROUP BY pi.producer_id
       ORDER BY vn_count DESC, name ASC
       LIMIT 2000
@@ -8648,11 +8676,12 @@ const PRODUCER_STATS_TTL_MS = 30_000;
  * VNs, average rating, …). Used by the `/producers` Developers tab. Cached
  * in-process for `PRODUCER_STATS_TTL_MS`.
  */
-export function listProducerStats(): ProducerStat[] {
+export function listProducerStats(soldOnly = false): ProducerStat[] {
+  if (soldOnly) return computeProducerStats(true);
   if (producerStatsCache && Date.now() - producerStatsCache.at < PRODUCER_STATS_TTL_MS) {
     return producerStatsCache.data;
   }
-  const data = computeProducerStats();
+  const data = computeProducerStats(false);
   producerStatsCache = { at: Date.now(), data };
   return data;
 }
@@ -8663,11 +8692,12 @@ export function listProducerStats(): ProducerStat[] {
  * `vn.developers` (localisation houses, etc.) still rank. Cached in-process
  * for `PRODUCER_STATS_TTL_MS`.
  */
-export function listPublisherStats(): ProducerStat[] {
+export function listPublisherStats(soldOnly = false): ProducerStat[] {
+  if (soldOnly) return computePublisherStats(true);
   if (publisherStatsCache && Date.now() - publisherStatsCache.at < PRODUCER_STATS_TTL_MS) {
     return publisherStatsCache.data;
   }
-  const data = computePublisherStats();
+  const data = computePublisherStats(false);
   publisherStatsCache = { at: Date.now(), data };
   return data;
 }
@@ -8721,7 +8751,7 @@ export function producerOwnershipSummary(producerId: string): {
 } {
   const rows = db
     .prepare(`
-      SELECT v.id, v.developers, v.publishers
+      SELECT v.id, v.developers, v.publishers, c.status
       FROM vn v
       JOIN collection c ON c.vn_id = v.id
       WHERE
@@ -8730,8 +8760,8 @@ export function producerOwnershipSummary(producerId: string): {
       ORDER BY c.updated_at DESC
       LIMIT 500
     `)
-    .all(producerId, producerId) as Array<{ id: string; developers: string | null; publishers: string | null }>;
-  const ownedIds = new Set(rows.map((r) => r.id));
+    .all(producerId, producerId) as Array<{ id: string; developers: string | null; publishers: string | null; status: string }>;
+  const ownedIds = new Set(rows.filter((row) => row.status !== 'sold').map((row) => row.id));
   const sample = rows[0]
     ? {
         developers: decodePersistedProducerSummaries(rows[0].developers),

@@ -12,6 +12,7 @@ import { getDict, getLocale } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionaries';
 import { fmtNum, formatMonthDay } from '@/lib/locale-number';
 import { SafeImage } from '@/components/SafeImage';
+import { StatusBadge } from '@/components/StatusBadge';
 import { CharacterMetaClient } from '@/components/CharacterMetaClient';
 import { CardDensitySlider } from '@/components/CardDensitySlider';
 import { DensityScopeProvider } from '@/components/DensityScopeProvider';
@@ -21,6 +22,8 @@ import { readCharacterFullCache } from '@/lib/character-full';
 import { dedupAppearances } from '@/lib/character-appearances';
 import { DetailReorderLayout, type DetailSection } from '@/components/DetailReorderLayout';
 import { PaginatedGrid } from '@/components/PaginatedGrid';
+import { WorksScopeCount, WorksScopeGrid, WorksScopeLink, WorksScopeProvider } from '@/components/WorksScope';
+import { parseWorksScope } from '@/lib/works-scope';
 import {
   CHARACTER_DETAIL_LAYOUT_EVENT,
   CHARACTER_DETAIL_SETTINGS_KEY,
@@ -77,10 +80,14 @@ function genderLabel(v: string, t: Awaited<ReturnType<typeof getDict>>): string 
 
 export default async function CharacterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ scope?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { scope } = (await searchParams) ?? {};
+  const initialScope = parseWorksScope(Array.isArray(scope) ? scope[0] : scope);
   if (!/^c\d+$/i.test(id)) notFound();
   const [t, locale] = await Promise.all([getDict(), getLocale()]);
   const char = await loadCharacter(id);
@@ -137,7 +144,9 @@ export default async function CharacterPage({
   // strongest role, and exposes `releaseCount` so the card can render
   // "N editions" instead of stacking identical covers.
   const sortedVns = dedupAppearances(char.vns).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
-  const appearsInOwned = await getCollectionCoreRepository().containsMany(sortedVns.map((v) => v.id));
+  const relatedIds = sortedVns.map((v) => v.id);
+  const collection = getCollectionCoreRepository();
+  const appearsInOwnedPromise = collection.containsMany(relatedIds);
   // "Also voiced by" comes from local vn_va_credit (covers every VN the
   // user has fetched). VNDB doesn't expose per-VN voiced data on the
   // character endpoint, so we don't try to cross-reference unowned VNs.
@@ -146,16 +155,30 @@ export default async function CharacterPage({
   // the case where VNDB editors split a recurring character across
   // volumes of a series (e.g. the same protagonist may carry
   // different character ids in volume 1 vs volume 3).
-  const [vas, siblings] = await Promise.all([
+  // The cached HTML scrape supplies character instances and the per-VN
+  // voice actor map that the Kana API does not expose.
+  const [vas, siblings, scraped, setting] = await Promise.all([
     people.voiceActorsForCharacter(id),
     people.characterSiblings(id),
+    readScrapedCharacterInfo(id),
+    getAppSettingRepository().get(CHARACTER_DETAIL_SETTINGS_KEY),
   ]);
-  // vndb.org HTML scrape - provides character "instances" and the full
-  // per-VN voice-actor map that the Kana API doesn't expose.
-  const scraped = await readScrapedCharacterInfo(id);
-  const initialLayout = parseCharacterDetailLayoutV1(
-    await getAppSettingRepository().get(CHARACTER_DETAIL_SETTINGS_KEY),
-  );
+  const [appearsInOwned, soldIds] = await Promise.all([
+    appearsInOwnedPromise,
+    collection.soldIds([
+      ...new Set([
+        ...relatedIds,
+        ...siblings.flatMap((s) => s.vns.map((v) => v.vn_id)),
+        ...(scraped?.instances.map((v) => v.vn_id) ?? []),
+        ...(scraped?.voiced_by.map((v) => v.vn_id) ?? []),
+      ]),
+    ]),
+  ]);
+  const appearanceOwnership = sortedVns.map((v) => appearsInOwned.has(v.id));
+  const soldAppearances = sortedVns.map((v) => soldIds.has(v.id));
+  const ownedAppearanceCount = appearanceOwnership.filter(Boolean).length;
+  const soldAppearanceCount = soldAppearances.filter(Boolean).length;
+  const initialLayout = parseCharacterDetailLayoutV1(setting);
 
   return (
     <DensityScopeProvider scope="characterWorks" className="w-full">
@@ -259,7 +282,10 @@ export default async function CharacterPage({
                         <p className="font-mono text-[10px] text-muted/60">{s.c_id}</p>
                         <div className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-muted">
                           {s.vns.map((v) => (
-                            <span key={v.vn_id} className="truncate" title={v.vn_title}>{v.vn_title}</span>
+                            <span key={v.vn_id} className="inline-flex min-w-0 items-center gap-1">
+                              <span className="truncate" title={v.vn_title}>{v.vn_title}</span>
+                              {soldIds.has(v.vn_id) && <StatusBadge status="sold" className="shrink-0" />}
+                            </span>
                           ))}
                         </div>
                       </div>
@@ -302,6 +328,7 @@ export default async function CharacterPage({
                     <Link prefetch={false} href={`/character/${inst.cid}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-semibold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{inst.name}</Link>
                     <span className="text-muted">/</span>
                     <Link prefetch={false} href={`/vn/${inst.vn_id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center text-muted hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{inst.vn_title}</Link>
+                    {soldIds.has(inst.vn_id) && <StatusBadge status="sold" className="shrink-0" />}
                   </li>
                 ))}
               </ul>
@@ -324,6 +351,7 @@ export default async function CharacterPage({
                     <Link prefetch={false} href={`/staff/${v.sid}`} className="inline-flex min-h-[44px] min-w-[44px] items-center font-semibold hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{v.staff_name}</Link>
                     <span className="text-muted">/</span>
                     <Link prefetch={false} href={`/vn/${v.vn_id}`} className="inline-flex min-h-[44px] min-w-[44px] items-center text-muted hover:text-accent can-hover:sm:min-h-0 can-hover:sm:min-w-0">{v.vn_title}</Link>
+                    {soldIds.has(v.vn_id) && <StatusBadge status="sold" className="shrink-0" />}
                   </li>
                 ))}
               </ul>
@@ -370,70 +398,91 @@ export default async function CharacterPage({
           id: 'appears-in',
           label: sectionLabels['appears-in'],
           node: (
-            <section className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">
-                {t.characters.appearsIn} / {sortedVns.length}
-              </h2>
-              <ul className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}>
-                {sortedVns.map((v) => {
-                  const year = v.released?.slice(0, 4);
-                  const ratingDisplay = v.rating != null ? fmtNum(v.rating / 10, locale, 1) : null;
-                  const role = t.characters.roles[v.role];
-                  const owned = appearsInOwned.has(v.id);
-                  return (
-                    <li key={`${v.id}-${v.role}`}>
-                      <Link
-                        href={`/vn/${v.id}`}
-                        prefetch={false}
-                        className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors hover:border-accent ${
-                          owned ? 'border-accent/40' : 'border-border'
-                        }`}
-                      >
-                        <div className="shrink-0 overflow-hidden rounded" style={{ width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)', aspectRatio: '2 / 3' }}>
-                          <SafeImage src={v.image?.thumbnail || v.image?.url || null} sexual={v.image?.sexual ?? null} alt={v.title ?? v.id} className="h-full w-full" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-1">
-                            <span title={v.title ?? v.id} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">{v.title ?? v.id}</span>
-                            <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">{role}</span>
+            <WorksScopeProvider initialScope={initialScope}>
+              <section id="appearances" className="mt-6 rounded-xl border border-border bg-bg-card p-4 sm:p-6">
+                <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">{t.characters.appearsIn}</h2>
+                <nav className="mb-3 flex flex-wrap gap-1.5" aria-label={t.characters.appearsIn}>
+                  <WorksScopeLink scope="all" href={`/character/${id}#appearances`}>
+                    {t.producerVns.scopeAll} ({sortedVns.length})
+                  </WorksScopeLink>
+                  <WorksScopeLink scope="collection" href={`/character/${id}?scope=collection#appearances`}>
+                    {t.producerVns.scopeCollection} ({ownedAppearanceCount})
+                  </WorksScopeLink>
+                  <WorksScopeLink scope="sold" href={`/character/${id}?scope=sold#appearances`}>
+                    {t.status.sold} ({soldAppearanceCount})
+                  </WorksScopeLink>
+                </nav>
+                <WorksScopeCount
+                  all={sortedVns.length}
+                  owned={ownedAppearanceCount}
+                  sold={soldAppearanceCount}
+                  empty={<p className="text-sm text-muted">{t.staff.empty}</p>}
+                  emptySold={<p className="text-sm text-muted">{t.library.emptySoldArchive}</p>}
+                />
+                <WorksScopeGrid
+                  owned={appearanceOwnership}
+                  sold={soldAppearances}
+                  ariaLabel={t.characters.appearsIn}
+                  resetKey={`${id}:appearance-works`}
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, var(--card-density-px, 220px)), 1fr))' }}
+                >
+                  {sortedVns.map((v) => {
+                    const year = v.released?.slice(0, 4);
+                    const ratingDisplay = v.rating != null ? fmtNum(v.rating / 10, locale, 1) : null;
+                    const role = t.characters.roles[v.role];
+                    const owned = appearsInOwned.has(v.id);
+                    return (
+                      <li key={`${v.id}-${v.role}`}>
+                        <Link
+                          href={`/vn/${v.id}`}
+                          prefetch={false}
+                          className={`group flex gap-3 rounded-lg border bg-bg-elev/40 p-2 transition-colors hover:border-accent ${
+                            owned ? 'border-accent/40' : 'border-border'
+                          }`}
+                        >
+                          <div className="shrink-0 overflow-hidden rounded" style={{ width: 'clamp(64px, calc(var(--card-density-px, 220px) * 0.32), 160px)', aspectRatio: '2 / 3' }}>
+                            <SafeImage src={v.image?.thumbnail || v.image?.url || null} sexual={v.image?.sexual ?? null} alt={v.title ?? v.id} className="h-full w-full" />
                           </div>
-                          {/* R5-238: visible owned chip when this
-                              appears-in VN is in the local collection.
-                              The border-accent/40 tint already hints at
-                              ownership, but a chip is more discoverable
-                              and matches the staff-credits surface. */}
-                          {owned && (
-                            <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-completed">
-                              <Check className="h-2.5 w-2.5" aria-hidden /> {t.staff.ownedLabel}
-                            </span>
-                          )}
-                          {v.alttitle && v.alttitle !== v.title && (
-                        <div title={v.alttitle} className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
-                      )}
-                      <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
-                        {ratingDisplay && (
-                          <span className="inline-flex items-center gap-0.5 text-accent">
-                            <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {ratingDisplay}
-                          </span>
-                        )}
-                        {year && <span>{year}</span>}
-                        {v.releaseCount > 1 && (
-                          // "N editions" chip - surfaces how many
-                          // release-tuples VNDB reported for this VN id
-                          // so the user knows the deduped card still
-                          // covers multiple editions.
-                          <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
-                            {t.characters.releaseCountChip.replace('{n}', String(v.releaseCount))}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-              </ul>
-            </section>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-1">
+                              <span title={v.title ?? v.id} className="line-clamp-2 text-xs font-bold transition-colors can-hover:group-hover:text-accent">{v.title ?? v.id}</span>
+                              <span className="shrink-0 rounded bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">{role}</span>
+                            </div>
+                            {/* R5-238: visible owned chip when this
+                                appears-in VN is in the local collection.
+                                The border-accent/40 tint already hints at
+                                ownership, but a chip is more discoverable
+                                and matches the staff-credits surface. */}
+                            {soldIds.has(v.id) ? <StatusBadge status="sold" className="mt-1" /> : owned && (
+                              <span className="mt-1 inline-flex items-center gap-0.5 rounded bg-status-completed/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-status-completed">
+                                <Check className="h-2.5 w-2.5" aria-hidden /> {t.staff.ownedLabel}
+                              </span>
+                            )}
+                            {v.alttitle && v.alttitle !== v.title && (
+                              <div title={v.alttitle} className="mt-0.5 line-clamp-1 text-[10px] text-muted">{v.alttitle}</div>
+                            )}
+                            <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
+                              {ratingDisplay && (
+                                <span className="inline-flex items-center gap-0.5 text-accent">
+                                  <Star className="h-2.5 w-2.5 fill-accent" aria-hidden /> {ratingDisplay}
+                                </span>
+                              )}
+                              {year && <span>{year}</span>}
+                              {v.releaseCount > 1 && (
+                                <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                                  {t.characters.releaseCountChip.replace('{n}', String(v.releaseCount))}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </WorksScopeGrid>
+              </section>
+            </WorksScopeProvider>
           ),
         });
         return (

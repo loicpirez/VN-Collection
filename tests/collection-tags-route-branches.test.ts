@@ -56,6 +56,14 @@ describe('GET /api/collection/tags branches', () => {
     });
   });
 
+  it('requests archive aggregates only when Sold is selected', async () => {
+    listTagsMock.mockResolvedValue([{ id: 'g90001', name: 'Archived tags', category: 'cont', count: 2 }]);
+    const response = await GET(new NextRequest('http://127.0.0.1/api/collection/tags?status=sold'));
+
+    expect(listTagsMock).toHaveBeenCalledWith('sold');
+    expect(await response.json()).toMatchObject({ tags: [{ id: 'g90001', vn_count: 2 }] });
+  });
+
   it('returns the standard internal error response when tag aggregation fails', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     listTagsMock.mockRejectedValue(new Error('tag db failed'));
